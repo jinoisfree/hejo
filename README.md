@@ -26,4 +26,15 @@ Python 3와 ruamel.yaml이 필요하다. `python3 scripts/scan_private.py`는 Gi
 
 ## 시험
 
-Hermes 모듈·pytest·pytest-asyncio·aiohttp·jsonschema·psutil·ruamel.yaml을 import할 수 있는 Python을 `HEJO_PYTHON`으로 정한다. Hermes 소스를 PYTHONPATH에, team-kit 라이브러리 위치를 `HEJO_TEAM_KIT_LIB`에 지정한다. `bash scripts/test.sh`는 gate/tests와 tests/acceptance 전체 및 AT-HF-22 실제 게이트웨이 러너를 실행한다. 시험은 임시 공항과 가짜 직원만 사용한다. 앱 시험은 TASK-05에서 추가한다.
+Hermes 모듈·pytest·pytest-asyncio·aiohttp·jsonschema·psutil·ruamel.yaml을 import할 수 있는 Python을 `HEJO_PYTHON`으로 정한다. Hermes 소스를 PYTHONPATH에, team-kit 라이브러리 위치를 `HEJO_TEAM_KIT_LIB`에 지정한다. `bash scripts/test.sh`는 gate/tests와 tests/acceptance 전체 및 AT-HF-22 실제 게이트웨이 러너를 실행한다. 시험은 임시 공항과 가짜 직원만 사용한다. 이어 macOS 앱 서명 빌드·AppKit 시험·임시 WebSocket 문 시험(AT-HF-23·24·25·47·48)을 실행한다. Xcode 명령행 도구와 아래 로컬 서명 인증서가 필요하다. 실제 로그인 항목 등록이나 운영 문 연결은 시험에서 하지 않는다.
+
+
+## Mac 앱
+
+`bash app/scripts/build.sh`는 swiftc 한 번으로 `app/.build/hejo.app`을 만들고 서명을 검사한다. 기본 인증서 이름은 `AIpet Local Development`이며 `HEJO_SIGNING_IDENTITY`로 바꾼다. 인증서가 없으면 빌드는 중단된다. 번들 식별자는 `io.github.hermes-hejo.hejo`다. 빌드한 앱은 응용 프로그램 폴더로 옮겨 실행할 수 있다.
+
+펫을 누르면 대화 자리가 펼쳐진다. 다시 누르거나 Esc·“펫으로 접기”로 접는다. 4px 넘게 끌면 펫과 열린 자리가 함께 이동한다. 메뉴 막대는 보조 입구다. 로그인 시 실행은 설치한 앱에서만 선택하며 macOS의 승인이 필요할 수 있다. 대화 내용은 다음 작업에서 붙인다.
+
+연결 설정에서 문 주소(포트 포함)·문에서 발급한 12자 코드·기기 이름을 입력한다. 코드의 `-`·`_`는 그대로 입력한다. 출입증은 Keychain 서비스 `io.github.hermes-hejo.hejo.gate-token`에만 저장한다. 앱의 Application Support 안 `hejo/hejo-local.json`에는 주소·기기 이름·적용 seq·읽은 seq·펫 위치·이름만 두며, `hejo/cache/`는 문의 기록장을 복제한 조회 캐시다. 캐시를 지우면 처음부터 다시 동기화한다. 출입증이 취소되면 새 코드로 연결한다.
+
+`bash app/scripts/test.sh`는 앱 부분만 검사한다. 네트워크 시험은 루프백 임시 대역과 무작위 Keychain 시험 계정만 사용하고 마지막에 지운다. AT-HF-47의 실제 다른 앱 입력 중 포커스·동작 녹화 체크리스트는 [증거 자리](evidence/HEJO-FOUNDATION/TASK-05.md)에 있다.

@@ -6,4 +6,4 @@ export HERMES_DISABLE_LAZY_INSTALLS=1
 "${HEJO_PYTHON:-python3}" -m pytest gate/tests tests/acceptance -q \
   -o asyncio_default_fixture_loop_scope=function -p no:cacheprovider
 "${HEJO_PYTHON:-python3}" -m gate.tests.gateway_delivery
-printf '%s\n' '앱 시험 없음: TASK-05에서 추가합니다.'
+bash app/scripts/test.sh

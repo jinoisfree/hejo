@@ -542,3 +542,68 @@ githooks/pre-commit
 첫 설치 시험은 5 passed / 1 failed였다(`.build/task07-r6-install-first.log`, 종료 1). 감사가 표준 라이브러리 tokenize 소스 이름을 비밀 파일로 분류한 시험 준비 문제였다. 표준 lexer를 감사 전 준비하되 실제 설치 모듈 로드와 모든 main 실행은 감사 안으로 두었다. 비밀 경로 기대값은 완화하지 않았다. 중간에 분리한 시험 모듈의 import 수집 오류(종료 2)는 같은 시험 파일로 합쳐 해결했고 해당 임시 파일은 제거했다.
 
 도달 증거는 설치·개인값 감사의 **수준 2**, AT-22의 실제 게이트웨이 경계 **수준 3**이다. 운영 설치·재시작·운영 프로필 변경, 실제 외부 메시지·모델·실기기, 전원 중단/디스크 고장·동시 설치 경쟁은 미검증이다. V-5 부채는 유지한다. 설치 시험은 모두 임시 홈이며 운영 홈에는 설치하지 않았다. 검사기는 허가된 두 입력만 읽었다. 본체·다른 저장소·앱 수정, 비밀 파일 열기, 푸시는 하지 않았다. 롤백은 이번 구현 커밋 되돌림이며 운영 롤백은 필요 없다. 검토자는 영수증 선행·부트스트랩 예외·설정 주석 복원·사장 변경 충돌 보존과 파일 열기 감사 증거를 우선 확인해 달라. 전체 검토 커밋은 최종 인계 상태 블록에 기록한다.
+
+## TASK-05 앱 골격 + 펫 창 (2026-11-14)
+
+### 받은 설계와 구현자 판단
+
+기준 `77b2232aae7ada75a1753a70a3c2503403dadc87`, handoff 마지막 TASK-05, spec REQ-HF-11·16, design 2·2.1·6절과 AT-HF-23·24·25·47·48을 따랐다. 이전 TASK-07 완료와 TASK-05 대기 상태를 실제 HEAD·작업 문서·읽기 전용 인계 기록과 대조했다. **구현·자체 시험 완료, 검토 대기**다. 고위험(인증 저장), 요구 증거 수준 2다. 4판 계획 재검증 및 최종 판정은 검토 담당의 몫이며 tasks·판정·수락 명세는 바꾸지 않았다.
+
+### 책임과 변경
+
+- `app/Sources/AppMain.swift`·`AppDelegate.swift`: AppKit 진입점, 메뉴 막대 보조 입구, 기본 편집 메뉴, 단일 실행 잠금, 로그인 시 실행 메뉴다. 실행 잠금은 설정을 읽거나 쓰기 전에 잡는다. 로그인 등록은 설치한 앱에서 사용자가 선택할 때만 SMAppService로 한다. 시험에서 실제 등록하지 않았다.
+- `LocalStore.swift`: `hejo-local.json`의 주소·기기 이름·Keychain 계정 식별자·applied·읽은 seq·펫 위치/이름을 원자 저장한다. 토큰은 없다. 캐시 JSONL은 문의 조회 복제다. 시작할 때 연속된 완전한 줄에서 applied를 복구하며 캐시 삭제 시 0으로 되돌린다. 문 주소를 바꾸면 캐시를 비운다.
+- `GateCredential.swift`: 서비스 `io.github.hermes-hejo.hejo.gate-token`에만 출입증을 저장한다. security의 비밀 입력은 stdin으로 주고 출입증을 인자·로그에 넣지 않는다. 계정 인자에는 앱이 만든 무작위 식별자만 쓴다. 계정과 토큰의 명령 문자 입력을 거부한다. 읽기·저장·취소 삭제는 UI 밖에서 실행하고 저장 뒤 읽기 확인을 한다. 이전 앱의 Keychain 항목이나 설정을 읽지 않는다.
+- `GateClient.swift`: URLSessionWebSocketTask 하나로 hello→welcome을 처리한다. applied+1만 저장, 중복 무시, 빈칸에서 sync, more 페이지 요청, ping/pong, 최대 30초 백오프를 담당한다. 송신 JSON의 UTF-8 바이트가 1 MiB를 넘으면 소켓에 보내지 않는다. 1009·too_large는 크기 안내, 비정상 끊김은 재접속이다. 연결 시도와 welcome 대기는 5초로 제한하고 새 연결/취소 후 옛 작업의 상태 적용을 막는다.
+- `ConnectWindow.swift`: 주소·12자 base64url 코드·기기 이름을 받는 AppKit 연결 창이다. 코드 오류, 끊김/재시도, 출입증 취소 안내를 구분한다. `-`·`_`를 코드에서 제거하지 않는다. 코드 입력은 저장하지 않는다.
+- `PetController.swift`·`PetView.swift`: 펫과 빈 AppKit 대화 자리가 한 PetPanel을 쓴다. 열고 닫을 때 key/activate를 요청하지 않는다. 실제 편집 가능한 대화 입력을 클릭할 때만 키 창을 요청하는 자리를 마련했다. 0.30초 genie는 NSView cacheDisplay로 캡처하며 동작 줄이기에서는 즉시 전환한다. 클릭/메뉴, 재클릭/Esc/접기 버튼, 4px 초과 끌기, 대화 크기 조절, 화면 변경을 연결했다. 대화 내용은 연결 상태만 표시하며 TASK-06 UI는 만들지 않았다.
+- 펫의 순수 배치·변형·애니메이션·래스터 코드는 검토 후 독립 복사했다. 원본 전체 읽기·의존·가져온/제외한 범위는 `copy-review.md`의 파일별 표에 있다. PetView/App의 SwiftUI·Slack 호스트는 제외했고 배치·입력·열고닫기만 새 책임 자리로 옮겼다. PetCarrySmoke는 현재 PetController 시험으로 이식했다. 그림 네 파일과 LICENSE를 동반하고 기본 이름은 hejo로 중립화했다. 원본 저장소 수정·동기화는 없다.
+- `app/scripts/build.sh`: 제품은 swiftc 단일 호출로 빌드한다. 번들 ID `io.github.hermes-hejo.hejo`, 기본 인증서 `AIpet Local Development`(HEJO_SIGNING_IDENTITY 변경 가능), 인증서 없으면 종료 1이다. 실제 인증서가 있었고 서명 검증을 통과했다. `app/scripts/test.sh`를 `scripts/test.sh`의 옛 “앱 시험 없음” 자리에 연결했다. README 사용법도 갱신했다.
+
+별도 권위 원본·이전 앱 호환 경로·SwiftUI 예외·탐침 제품 채택은 없다. 새 동작 추가이며 기존 gate/schema/수락 시험과 기대값은 불변이다. 시험용 문 대역은 앱의 실제 URLSession·Keychain·설정 저장을 통과하는 외부 네트워크 경계다. 가짜 화면은 배치만 격리한다. 임시 시험 자원 외 남긴 탐침은 없다.
+
+### 시험과 실제 실행
+
+`app/Tests/TestMain.swift`는 AppKit 이벤트 경로와 상태/배치를 검사한다. AT-47 자동 부분은 열기·접기·Esc·버튼·동작 줄이기·발치 변형 사각형과 비활성 창을, AT-48은 3px 클릭/5px 이동·열린 대화 동반 이동·가짜 두 화면·화면 변경 알림을 확인한다. 원본 PetCarrySmoke의 상단에서 아래로 끌 때 바닥 유지/높이 축소, 화면 상단 너머로 끌 때 아래로 높이 증가도 확인한다. 추가로 단일 실행 경쟁·캐시 꼬리 복구/삭제·백오프 상한·UTF-8 크기 제한·코드 오류/취소·중립 이름을 확인한다.
+
+`app/Tests/network_fixture.py`는 공유 JSON Schema로 양방향 대역 프레임을 검사한다. AT-24는 실제 Keychain 시험 계정에 페어링→평문 설정에 출입증 없음→별도 앱 시험 프로세스 재시작→welcome이다. 중복·누락·페이지·ping도 실제 소켓으로 확인한다. AT-25는 리스너를 10초 내리고 비정상 TCP 끊김을 주어 1·2·4·8초 재시도와 리스너 재개 후 30초 안 복구를 확인한다. 1009 닫기와 too_large 프레임의 안내도 별도로 확인한다. 무작위 시험 계정은 finally에서 삭제한 뒤 정확히 그 계정의 항목 없음(종료 44)을 재확인하고 임시 설정/캐시도 지운다. 실제 운영 문·운영 계정으로 연결하지 않았다.
+
+실행 환경은 기존 Hermes venv·실제 모듈과 로컬 의존 경로다. HEJO_TEAM_KIT_LIB를 명시했고 전체 실행 바깥도 임시 HERMES_HOME으로 뒀다. 개인 경로를 공개 문서에 옮기지 않는다.
+
+```sh
+export HERMES_DISABLE_LAZY_INSTALLS=1
+export PYTHONDONTWRITEBYTECODE=1
+export PYTHONPATH="$PWD/.build/task03a-deps:$PWD/.build/task02-deps:$HERMES_SOURCE:$PWD"
+export HEJO_TEAM_KIT_LIB
+export HEJO_PYTHON="$HERMES_PYTHON"
+bash app/scripts/build.sh
+bash app/scripts/test.sh
+bash scripts/test.sh
+python3 scripts/scan_private.py
+githooks/pre-commit
+```
+
+| 명령·검사 | 종료·실제 결과 | 로그(저장소 기준) |
+|---|---|---|
+| `bash app/scripts/build.sh` | 0, 번들·로컬 서명·strict 검증 | `.build/task05-build.log` |
+| `bash app/scripts/test.sh` | 0, AT-23·24·25·47 자동·48 및 앱 경계 검사 | `.build/task05-app-final.log` |
+| `bash scripts/test.sh` | 0, 기존 **80 passed** + AT-22 실제 게이트웨이 + 위 앱 검사 | `.build/task05-full.log`, `.build/task05-full-result.json` |
+| AT-22(통합 명령 안) | 리스너 1·배달 4·새 스레드 4·오프라인 재전송 2·다른 플랫폼 0·GATEWAY_EXIT clean | `.build/task05-full.log` |
+| `python3 .build/task05_mutations.py` | 조정 0. 세 변형 모두 컴파일 0·대상 실행 1로 검출. 제품 원본은 바꾸지 않고 임시 복사본만 변경 | `.build/task05-mutations.log`, `.build/task05-mutation-results.json` |
+| 1 MiB 송신 제한 제거 변형 | UTF-8 크기 단언 실패 | `.build/task05-mutant-frame_limit.log` |
+| 끌기 임계값 4→2 변형 | AT-48 3px 클릭 단언 실패 | `.build/task05-mutant-drag_threshold.log` |
+| 중복 seq 무시 제거 변형 | 적용/저장 실패로 재시작 시험 실패 | `.build/task05-mutant-duplicate_seq.log` |
+| 임시 AppKit cacheDisplay 촬영 | 0, 펫·빈 대화 자리 화면 직접 확인 | `.build/task05-preview.log`, `evidence/HEJO-FOUNDATION/task05-automatic-open.png` |
+| `python3 scripts/scan_private.py` | 0, 위반 0. 새 예외 없음 | `.build/task05-scan.log` |
+| `githooks/pre-commit` | 0, 위반 0 | `.build/task05-hook.log` |
+| AST·쉘·plist·복사 원본/변경 범위·최종 로그·diff 검사 | 0 | `.build/task05-static.log` |
+
+초기 앱 시험 작성 중 throwing-autoclosure 컴파일 오류와 aiohttp 의존 경로 누락이 있었고 수정했다. 최종 앱/전체 실행은 위 환경으로 통과했다. 원래 제품 코드를 바꾸지 않는 변형 세 개 외의 UI/플랫폼 상태에는 변형을 중복 추가하지 않았다. 실제 시스템 설정 등록이나 다른 앱 입력을 고장 주입 대상으로 삼지 않는다.
+
+### 증거 범위·남은 검토
+
+도달 수준은 앱의 실제 AppKit·URLSession·Keychain과 임시 문 경계 **수준 2**다. 기존 AT-22는 실제 게이트웨이 경계 **수준 3**로 별도 구분한다. 최종 제품의 운영 설치·실제 운영 문 페어링·모델·실제 외부 메시지는 미검증이며 실행하지 않았다. 로그인 항목의 실제 등록/사용자 승인, 실제 다중 모니터 이동, 다른 앱에 입력 중 포커스와 0.30초 화면 녹화는 수동 미검증이다. `evidence/HEJO-FOUNDATION/TASK-05.md`에 체크리스트·파일 자리를 두었다. 자동 캡처를 수동 포커스/녹화 증거로 취급하지 않는다.
+
+V-5 기록장 메모리/선형 탐색과 과거 이력 개인값 정리 부채는 유지한다. 권위 원본은 문이고 캐시는 복제다. 검토자는 Keychain stdin·시험 계정 정리, applied와 캐시 복구, 연결 취소 세대 경계, 비활성 패널/펫 입력·화면 배치, 복사 제외 범위와 4판 계획 재검증을 우선 확인해 달라. TASK-06 후보 대화 코드는 아직 복사하지 않았다.
+
+운영 홈 쓰기·재시작, 본체/다른 저장소 수정, 비밀 파일 열기, 실제 외부 메시지, git push는 없다. 검사기는 허가된 두 운영 입력만 읽었다. 롤백은 이번 구현 커밋 되돌림이며 운영 롤백은 필요 없다. 검토 대상은 main에서 이 절을 담은 구현 커밋(전체 해시는 최종 인계 상태 블록)이다. Git 원격은 미등록이므로 푸시 대상이 확정되지 않았으며 푸시 불필요나 최종 완료 판정을 내리지 않는다.
