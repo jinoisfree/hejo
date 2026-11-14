@@ -192,6 +192,20 @@
   .urg { border-color:#5a1f27 !important; background:#1f1214 !important; }
   .urg.sel { border-color:#4a7fd0 !important; background:#1b2333 !important; }
 </style>
+<style>
+  .rail2 { width:20px; position:relative; background:linear-gradient(180deg,#121214,#0e0e10); border-right:1px solid #1f1f23; display:flex; flex-direction:column; align-items:center; padding-top:24px; gap:10px; }
+  .rail2 .ck { width:12px; height:12px; border-radius:50%; background:rgba(47,191,91,.18); box-shadow:inset 0 0 0 1px rgba(47,191,91,.55); display:flex; align-items:center; justify-content:center; }
+  .rail2 .ck svg { width:8px; height:8px; stroke:#4fd27a; stroke-width:2.4; }
+  .rail2 .rc2 { min-width:14px; height:14px; border-radius:7px; background:var(--red); color:#fff; font-size:8.5px; font-weight:800; display:flex; align-items:center; justify-content:center; padding:0 3px; box-shadow:0 0 0 2px #121214, 0 0 10px rgba(255,59,71,.45); }
+  .rail2 .grip { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:3px; height:28px; border-radius:2px; background:#2c2c31; }
+  .rail2.hover { background:linear-gradient(180deg,#17171a,#121215); }
+  .rail2.hover .grip { background:#55555d; }
+  .rail2.hover::after { content:"›"; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#cfcfd4; font-size:13px; margin-top:26px; }
+  .vgrid { display:grid; grid-template-columns:repeat(2, 520px); gap:18px 40px; margin-top:8px; }
+  .mw { background:var(--bg); color:var(--text); border-radius:16px; height:250px; overflow:hidden; display:flex; box-shadow:0 0 0 1px #000, 0 12px 28px rgba(0,0,0,.3); }
+  .mw .strip .tab { font-size:9.5px; }
+  .zoom { position:relative; }
+</style>
 </head>
 <body>
 <h1>할 일 | 방 | 채팅 — 왼쪽에서 오른쪽으로만 바뀐다</h1>
@@ -247,27 +261,22 @@
   <div class="call" style="left:250px;top:10px"><i>5</i>머리글·펫에 할 일 수</div>
 </div>
 
-<p class="cap" style="margin-top:26px">할 일이 없을 때 — 칸을 없애지 않고 얇은 막대로(방·채팅 위치 거의 그대로)</p>
-<div class="win" style="width:1080px;height:340px;position:relative">
-  <div class="bar"><div class="brand" style="width:auto"><b><i>h</i>ejo.</b><small>● 공항과 연결됨</small></div><div style="flex:1"></div><div class="ico"><svg viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></svg></div></div>
-  <div class="main">
-    <div class="rail"><span class="ok">✓</span><span class="zero">0</span><span class="vt">처리할 일 없음</span></div>
-    <div class="strip">
-      <div class="tab all"><div class="tile">모두</div>전체</div>
-      <div class="sline"></div>
-      <div class="tab"><div class="tile">비</div>비서</div>
-      <div class="tab sel"><div class="tile">리</div>리서처</div>
-      <div class="tab"><div class="tile">회</div>회계</div>
-    </div>
-    <div class="conv2">
-      <div class="colh"><b>리서처</b><small>· 대화 4개</small></div>
-      <div class="feed">
-        <div class="fold"><div class="tile">리</div><div class="tx"><b>11월 시장 동향</b><small>요약본 올렸어요. 첨부 1개</small></div><span class="rc">답글 3</span><span class="tm">어제</span></div>
-        <div class="fold"><div class="tile">리</div><div class="tx"><b>신제품 이름 후보</b><small>후보 5개 정리했어요.</small></div><span class="tm">화</span></div>
-      </div>
-    </div>
-  </div>
-  <div class="call" style="left:170px;top:250px"><i>6</i>← 막대 누르면 다시 펼침 · 새 일이 오면 저절로 펼침</div>
+<p class="cap" style="margin-top:26px">접힌 할 일 칸 — 20px 막대, 글자 없이 표시 하나만</p>
+<div class="vgrid">
+  <div><div class="lab2">A. 할 일 0 — 초록 체크 하나</div><div class="mw"><div class="rail2"><span class="ck"><svg viewBox="0 0 10 10"><path d="M2.2 5.2l1.9 1.9 3.8-4"/></svg></span><span class="grip"></span></div>
+    <div class="strip"><div class="tab all"><div class="tile">모두</div>전체</div><div class="sline"></div><div class="tab"><div class="tile">비</div>비서</div><div class="tab sel"><div class="tile">리</div>리서처</div></div>
+    <div class="conv2"><div class="colh"><b>리서처</b><small>· 대화 4개</small></div><div class="feed"><div class="fold"><div class="tile">리</div><div class="tx"><b>11월 시장 동향</b><small>요약본 올렸어요. 첨부 1개</small></div><span class="tm">어제</span></div><div class="fold"><div class="tile">리</div><div class="tx"><b>신제품 이름 후보</b><small>후보 5개 정리했어요.</small></div><span class="tm">화</span></div></div></div></div></div>
+  <div><div class="lab2">B. 직접 접었는데 할 일 5 — 빨간 숫자(살짝 빛남)</div><div class="mw"><div class="rail2"><span class="rc2">5</span><span class="grip"></span></div>
+    <div class="strip"><div class="tab all"><div class="tile">모두</div>전체</div><div class="sline"></div><div class="tab sel"><div class="tile">비</div>비서</div><div class="tab"><div class="tile">리</div>리서처</div></div>
+    <div class="conv2"><div class="colh"><b>비서</b><small>· 대화 4개</small></div><div class="feed"><div class="fold"><div class="tile">비</div><div class="tx"><b>오늘 받은 메일 정리</b><small>중요 메일 3건이에요.</small></div><span class="tm">30분 전</span></div><div class="fold"><div class="tile">비</div><div class="tx"><b>출장 숙소 예약</b><small>예약 끝났어요.</small></div><span class="tm">어제</span></div></div></div></div></div>
+  <div><div class="lab2">C. 마우스를 올리면 — 손잡이가 밝아지고 › 표시, 누르면 펼침</div><div class="mw"><div class="rail2 hover"><span class="ck"><svg viewBox="0 0 10 10"><path d="M2.2 5.2l1.9 1.9 3.8-4"/></svg></span><span class="grip"></span></div>
+    <div class="strip"><div class="tab all"><div class="tile">모두</div>전체</div><div class="sline"></div><div class="tab"><div class="tile">비</div>비서</div><div class="tab sel"><div class="tile">리</div>리서처</div></div>
+    <div class="conv2"><div class="colh"><b>리서처</b><small>· 대화 4개</small></div><div class="feed"><div class="fold"><div class="tile">리</div><div class="tx"><b>11월 시장 동향</b><small>요약본 올렸어요. 첨부 1개</small></div><span class="tm">어제</span></div><div class="fold"><div class="tile">리</div><div class="tx"><b>신제품 이름 후보</b><small>후보 5개 정리했어요.</small></div><span class="tm">화</span></div></div></div></div></div>
+  <div class="legend" style="width:520px;align-self:start"><h3>막대 규칙</h3><ul>
+  <li>폭 <b>20px</b>, 글자 없음. 위에 표시 하나: 할 일 0이면 초록 ✓, 있으면 빨간 숫자.</li>
+  <li>가운데 짧은 세로 손잡이 — 끌어서 펼치거나 눌러서 펼침.</li>
+  <li>새 일이 오면 저절로 펼침(직접 접은 동안엔 숫자만 올라감).</li>
+  <li>배경은 거의 안 보이는 결 — 방 탭 줄과 붙어 하나처럼 보임.</li></ul></div>
 </div>
 </div>
 
@@ -284,7 +293,7 @@
 </ul>
 <h3>보완 적용</h3>
 <ul>
-<li><b>빈 상태 = 얇은 막대</b>(✓ 0): 칸이 통째로 사라지지 않아 방·채팅이 덜컥 밀리지 않음 (⑥). 새 일이 오면 저절로 펼침.</li>
+<li><b>빈 상태 = 20px 막대</b>(글자 없이 ✓ 하나): 칸이 통째로 사라지지 않아 방·채팅이 거의 안 움직임. 새 일이 오면 저절로 펼침(아래 A~C).</li>
 <li><b>할 일 수를 세 곳에</b>: 칸 머리 숫자, 창 머리글 "처리할 일 5 · 급한 것 2", 펫 배지 (⑤). 창이 닫혀 있어도 펫에서 보임.</li>
 <li><b>직접 접기</b>(⟨ 접기): 대화에 집중할 때. 접어도 막대에 숫자가 남음.</li>
 <li><b>ddots 부분은 그대로</b>: 방 탭 줄·채팅 카드·입력 줄(설명 줄 없음).</li>
