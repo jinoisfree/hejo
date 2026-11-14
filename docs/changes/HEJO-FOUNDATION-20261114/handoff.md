@@ -6,7 +6,7 @@
 
 ```text
 [설계 인계: HEJO-FOUNDATION TASK-02 / 문 핵심과 통신 규격 v1]
-0. 기준: base_commit 1ee8b992dcec825a1f6aa365b8acdce09e6636fd (이 저장소 main) / spec·design·tasks·수락 시험 2판 2026-11-14 /
+0. 기준: base_commit f6d096cf2293606b12820d82a7f1ea799a9d3bf1 (이 저장소 main, 이후 커밋은 이 인계서 기준 갱신뿐) / spec·design·tasks·수락 시험 2판 2026-11-14 /
    승인 상태: 계획 검증 1회차 BLOCKED 반영 후 재검증·사용자 승인 대기 / 운영 모드: 연합개발(교차 모델 + 계획 검증)
 1. 공식 문서: docs/ARCHITECTURE.md, AGENTS.md, docs/changes/HEJO-FOUNDATION-20261114/{brainstorm,spec,design,tasks,plan-review}.md,
    tests/acceptance/HEJO-FOUNDATION.md. ADR 없음.
