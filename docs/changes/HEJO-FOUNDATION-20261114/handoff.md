@@ -399,3 +399,24 @@
    - DDOTS-DROP-MODEL 문서 2개는 계속 손대지 않는다.
    - hejo 쪽(F2 시험 수정·보고서)은 hejo 저장소에 따로 커밋한다.
 7. **금지 사항·롤백은 기존 인계와 같다.** 재시작·reload·운영 연결·외부 발송·비밀 파일·푸시는 하지 않는다.
+
+## 보완 지시 9: TASK-04 커밋 마무리 (검증 15차)
+
+1. **커밋 조건을 고친다.**
+   - `./sync` 뒤 `hermes/profiles/*/memories/` 아래 기억 파일 변화는 실행 중인 직원 기억이다. 이번 작업과 무관하며, 매일 자동 기록이 처리한다. 이 경우 보류하지 않고 진행한다.
+   - 그 밖에 예상하지 못한 경로가 있으면 여전히 멈춘다.
+2. **운영 저장소:** 아래 4개 파일만 `git commit --only -m '…' -- <4개 경로>`로 커밋한다.
+   - `hermes/plugin-store/team-kit/lib/hermes_reply/plugin.py`
+   - `hermes/plugin-store/team-kit/lib/hermes_reply/reply_buttons.py`
+   - `hermes/plugin-store/team-kit/tests/test_org_review.py`
+   - `hermes/plugin-store/team-kit/tests/test_reply_hejo.py` (새 파일이라 그 경로만 먼저 `git add`)
+   - 커밋하기 전에 원본·사본 해시가 `.build/task04-r8-source.json`과 같은지 다시 확인한다.
+   - 다른 경로는 건드리지 않는다: DDOTS 문서 2개, 기억 파일, 그 밖의 모든 경로.
+   - 커밋 메시지는 한국어로, 무엇을 왜 바꿨는지 적는다.
+3. **커밋 뒤 확인:**
+   - `git show --stat HEAD`에 위 4개 경로만 들어 있는지 확인한다.
+   - `git status`에서 DDOTS 문서 2개와 기억 파일이 그대로 ` M`인지 확인한다.
+4. **hejo 저장소:** `app/Tests/TestMain.swift`와 impl-report를 커밋한다. impl-report에는 운영 커밋 해시와 커밋 파일 목록을 추가한다. 시안 파일은 건드리지 않는다.
+5. **푸시는 하지 않는다.** 두 저장소의 푸시 대상(저장소·원격·브랜치·전체 커밋)을 보고한다.
+   - 운영 저장소 AGENTS.md에 상시 푸시 승인이 있더라도, 이 작업은 플러그인 승인을 따른다.
+6. **금지:** 재시작·reload, 운영 hejo 연결, 외부 발송, 비밀 파일 열기, 기억 파일 열기·수정·되돌리기.
