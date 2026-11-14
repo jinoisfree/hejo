@@ -435,3 +435,110 @@ export HEJO_TEAM_KIT_LIB
 | `git diff --cached --check` | **종료 0** | `.build/task03b-r5-diff-check.log` |
 
 도달 증거는 **수준 2**, AT-HF-22의 실제 시작·프로필·배달·저장·수신·종료 경계는 **수준 3**이다. 나머지 미검증 범위·V-5 기술 부채는 앞 절과 같다. 필수 개인값 검사기는 TASK-07 미생성으로 미실행이며 보조 검사가 이를 대체하지 않는다. 운영 자원 쓰기·재시작, 본체·다른 저장소·설치 도우미·앱 수정, 비밀 파일 열기, 실제 외부 메시지 발송, 푸시는 하지 않았다. 롤백은 이번 보완 커밋 되돌림이다. 검토자는 허가된 기존 시험 교체와 전달 전 edit 소유 검사·무호출 증거를 확인해 달라. 검토 대상 전체 커밋은 인계 상태 블록에 기록한다.
+
+## TASK-07: 개인값 검사 부분 구현·설치 계약 보류 (2026-11-14)
+
+### 받은 설계·현재 변경본
+
+기준 `30fea35354b43b89fbf7346a20dff4f4cde6fb34`와 착수 HEAD가 같고 작업 트리가 깨끗함을 확인했다. handoff 끝 TASK-07, design 7절·3-1, spec REQ-HF-13·14, AT-HF-27·28·29·38~43을 읽었다. TASK-03b 완료 판정과 구현 커밋이 현재 기준에 포함됨도 대조했다. 위험도 고위험, 필요 증거 수준 2다.
+
+**현재 판단은 부분 구현·설계 판단 대기다. 설치 도우미는 작성하지 않았다.** 아래 두 쟁점은 20-implementation 2절의 계약 충돌·애매한 개인값 처분에 해당하므로 임의의 의미 변경을 하지 않는다. 자체 시험 통과는 TASK-07 완료가 아니다. 변경은 main 작업 트리에 있으며 커밋·푸시하지 않았다. 기존 게이트 코드·설계·수락 명세는 바꾸지 않았다.
+
+### T07-01: 실패 영수증과 새 디렉터리 복구의 충돌
+
+- 근거: design.md:181·184~187은 `<HOME>/hejo/` 생성 여부도 영수증 대상으로 삼으며, 최초 변경 전에 그 디렉터리 안에 영수증을 만들고 실패 때 applied 대상을 before로 되돌린 뒤 영수증은 `failed`로 남기라고 한다. AT-HF-39(수락 명세 52행)는 홈의 대상 전부가 설치 전과 같아야 한다.
+- 빈 홈에서는 hejo 디렉터리의 before가 없음이다. 그 디렉터리를 되돌려 없애면 안의 실패 영수증도 없어지고, 실패 영수증을 남기면 디렉터리의 before를 복원하지 못한다. 또한 영수증을 처음 쓰기 전에 그 부모 디렉터리를 만들어야 하므로 문자 그대로의 '변경 전 영수증'에도 부트스트랩 예외가 필요하다.
+- 임시 디렉터리 진단은 실패 영수증이 있으면 디렉터리가 남고, 디렉터리 복구 후에는 실패 영수증이 없음을 확인했다. `.build/task07-receipt-contract.log`, 종료 0이다. **실제 설치 실패 시험이나 AT-39 통과가 아닌 계약 진단**이다.
+- 계획 담당 판단 요청·권고: 영수증용 hejo 디렉터리 생성을 명시적인 기록 부트스트랩으로 두고, 실패 뒤에는 디렉터리와 `failed` 영수증만 남기며 이번에 만든 빈 devices 파일·링크·설정은 되돌리는 안을 권고한다. design과 AT-39가 이 잔존 예외를 명시해야 한다. 대안은 실패 영수증 위치·보존 계약 변경이다. 구현자는 어느 안도 채택하지 않았다.
+- 미구현: 프로필 API 설치 대상 연결·영수증·재설치·제거·실패 복구 전부, AT-27·28·38·39·40. 현재 원본 프로필 API의 list_profile_names/get_profile_dir가 비밀 파일을 읽지 않는 경로임은 소스로 확인했지만 설치에 채택하지 않았다.
+
+### T07-02: 최초 개인값 검사와 필수 원본 참조의 충돌
+
+- 최초 추적 파일 검사 `.build/task07-private-initial.log`는 **종료 1**이다. `vault` 15건과 수락 명세 AT-42의 명시된 가짜 경로 1건을 탐지했다. 값·일치 문자열·원문은 출력하지 않고 종류·파일·줄·SHA-256만 남겼다.
+- vault 15건은 전부 이미 지시·승인 문서에서 요구하는 원본 저장소 참조와 겹친다. 확인은 실제 값 출력 없이 수행했다(`.build/task07-collision-diagnosis.log`, 종료 0). 예: AGENTS.md:11의 줄 지문 `bad0433a5f171770786f12fb890f1a2239f16dc72b400b32d2e4faf5cec34694`. 원본 복사 검토에 필요한 새 copy-review.md:5도 같은 문제에 포함된다.
+- AT-42의 가짜 경로는 현 지시가 허용한 `fake-test` 줄 지문 예외로 등록했다. 수락 명세 원문·의미는 바꾸지 않았다. vault 15건은 실제 개인값인지, 탐지 입력의 비개인 메타인지 판단이 필요하므로 치환·허용하지 않았다. 파일 전체 예외·새 예외 종류·탐지 약화·기준선은 만들지 않았다.
+- 최종 `python3 scripts/scan_private.py`와 pre-commit 훅은 각각 **종료 1**, vault 15건을 계속 차단한다. 로그는 `.build/task07-private-final.log`, `.build/task07-hook.log`다. 위반 0·공개 준비 완료를 주장하지 않는다.
+- 계획 담당 판단 요청: 참조도 개인값으로 분류한다면 승인 문서·프로젝트 지침·복사 기록의 중립 참조 표현을 정해 달라. 비개인 메타라면 원본 단어 입력 분류 정책을 명시해 달라. 가짜 시험 값·LICENSE 고지 이외의 일반 예외를 구현자가 추가하는 것은 권고하지 않는다.
+
+### 독립 범위 구현·책임
+
+- `scripts/scan_private.py`: `git ls-files -z`의 모든 추적 텍스트를 확장자 없이 검사한다. 앞 8 KiB NUL 또는 UTF-8 해독 실패는 바이너리로 표시한다. 명부·금고·Slack ID·이메일·절대 경로를 검사하고 fixed_home만 코드(.py/.swift/.sh 또는 shebang)에 한정한다. 운영 홈은 고정된 owner/team.yaml·owner/vault.yaml만 열고 디렉터리 순회는 하지 않는다. 이 두 입력의 심볼릭 링크는 거부하고 추적 심볼릭 링크는 대상 파일을 열지 않고 링크 문자열을 검사한다. 오류에도 예외 원문을 출력하지 않는다.
+- `copy-review.md`: 외부 패턴 모듈 전체와 의존을 먼저 읽고 기록한 뒤 패턴·단어 추출 규칙을 복사했다. 확장자·시험 폴더 제외·기존 지문 규칙은 가져오지 않았다. 외부 저장소 import·수정·동기화는 없다.
+- `scripts/scan_private_allow.txt`: 정확한 줄 내용의 SHA-256에만 예외를 연결한다. 허용 이유는 fake-test·license-notice이고 고지는 LICENSE 저작권 줄로 제한한다. 현재 예외는 명시된 AT-42 가짜 경로 한 줄뿐이다.
+- `githooks/pre-commit`: 검사기의 종료를 그대로 전달한다. 로컬 Git hooksPath 설정은 바꾸지 않았다. 실제 훅 실행으로 탐지 종료 1이 전파됨을 확인했다.
+- `scripts/test.sh`: 기존 gate/tests + tests/acceptance 전체를 실행한 다음 실제 게이트웨이 AT-22 러너를 실행한다. 앱 시험은 TASK-05에서 붙인다고 명시한다. HEJO_PYTHON으로 의존성이 있는 Python을 지정한다.
+- `README.md`: 현재 설치 보류 상태, 개인값 검사·훅·시험 사용법과 의존을 기록했다. 제공하지 않는 설치 도우미를 실행 가능하다고 안내하지 않는다.
+
+### 실행 명령·결과·증거
+
+앞 TASK-03b와 같은 Hermes venv Python·소스·로컬 시험 의존성을 썼다. HEJO_TEAM_KIT_LIB를 지정했고 기존 통합 시험은 임시 HERMES_HOME, AT-22는 임시 HOME과 HERMES_HOME에서 실행했다. 검사기의 실제 운영 입력 읽기는 이번 인계가 허가한 두 파일뿐이며 값은 로그에 남기지 않았다.
+
+```sh
+export HERMES_DISABLE_LAZY_INSTALLS=1
+export PYTHONDONTWRITEBYTECODE=1
+export PYTHONPATH="$PWD/.build/task03a-deps:$PWD/.build/task02-deps:$HERMES_SOURCE:$PWD"
+export HEJO_TEAM_KIT_LIB
+export HEJO_PYTHON="$HERMES_PYTHON"
+bash scripts/test.sh
+python3 scripts/scan_private.py
+githooks/pre-commit
+```
+
+개인값 검사 실행의 python3는 Hermes venv bin을 PATH 앞에 두어 ruamel.yaml이 있는 해석기를 사용했다. 기본 시스템 python3에는 ruamel이 없어 이 의존성 조건을 README에 명시했다.
+
+| 실행 | 실제 종료·결과 | 로그(저장소 기준) |
+|---|---|---|
+| 개인값 수락·경계 시험 | 종료 0, **9 passed**(AT-29·41·42·43, 원문 비출력·링크 경계) | `.build/task07-scan-tests.log` |
+| `bash scripts/test.sh` | 종료 0, **68 passed**(기존 59 포함), 이어 AT-22 실제 리스너 1·배달 4·새 스레드 4·재전송 2·다른 플랫폼 0·정상 종료 | `.build/task07-full.log` |
+| 허용 밖 state 파일 읽기 변형 | 조정 종료 0, AT-41 pytest 종료 1로 검출, 원본 바이트 복원 | `.build/task07-scan-mutation.log`, `.build/task07-scan-mutant-owner.log` |
+| 개인값 검사·훅 | 각각 종료 1, 판단 대기 vault 15건 | `.build/task07-private-final.log`, `.build/task07-hook.log` |
+| AST·쉘 구문·기존 파일/시험 불변·지문 로그 대조·diff 검사 | 종료 0 | `.build/task07-static.log` |
+
+도달 증거는 검사기의 임시 공항·Git·감사 훅 경계 **수준 2**, 기존 AT-22의 실제 게이트웨이 경계는 **수준 3**이다. 설치 도우미는 미구현·미검증이며 해당 증거 수준에 도달하지 않았다. V-5 부채와 앞 절의 실제 외부 연결·모델·운영 설치 미검증 범위도 그대로다. 운영 홈 설치·재시작·본체/다른 저장소/앱 수정·비밀 파일 열기·실제 외부 메시지·푸시는 하지 않았다. 변경 전 작업 트리가 깨끗했으므로 롤백은 이번에 추가한 파일과 impl-report의 TASK-07 절만 제거하는 것이다. 다음 인계에는 T07-01의 영수증 부트스트랩/실패 잔존 정책과 T07-02의 참조 분류 결정을 명시해야 한다.
+
+### 보완 6: 설치 도우미 구현·개인값 위반 해소 (2026-11-14)
+
+이 절이 TASK-07의 현재 보고다. 위 보류 절은 당시 기록이다. **구현자 판단은 구현·자체 시험 완료, 검토 대기다.** 기준 `6a58e48469979912b05a8dfa5aaa64017d848069`의 verdict 9차·handoff 보완 6·design 7판과 AT-HF-39 개정을 확인하고 기존 스테이징 8파일을 보존해 이어갔다. 고위험·필요 증거 수준 2다. 설계와 달라진 결정·새 예외·남긴 탐침 코드는 없다.
+
+#### T07-01·02 처분과 책임
+
+- **T07-02 해소:** copy-review.md의 남은 원본 참조를 `<운영 저장소>/…`로 고쳤다. 실제 경로는 미추적 AGENTS.local.md에만 둔다. 예외 목록은 이전 AT-42 가짜 줄 1개 그대로이며 새 예외를 추가하지 않았다. 검사기와 훅 모두 위반 0·종료 0이다. 과거 Git 이력 정리는 3단계 공개 전 과제로 남고 이번에 이력을 다시 쓰지 않았다.
+- **T07-01 해소:** `install/hejo-install`이 hejo 디렉터리를 0700 기록 부트스트랩으로 먼저 준비하고 영수증에는 path·existed만 정보로 둔다. devices·링크·설정은 최초 pending 영수증을 원자적으로 저장한 뒤 변경하고 단계마다 applied를 저장한다. 실패하면 적용 단계를 역순 복구하고 failed 영수증을 남겨 종료 1이다. 새 홈에서는 hejo 디렉터리와 영수증만 남는다. 원래 있던 기기 자료는 읽거나 덮어쓰지 않고 실패 때 원래 권한을 복원한다.
+- 프로필 목록과 홈은 실제 Hermes 공개 `list_profile_names`·`get_profile_dir`, 기본 홈은 `get_default_hermes_root`를 사용한다. 기본 문과 각 보조 전달자의 링크·plugins.enabled·platform 블록을 영수증 대상으로 삼는다. 조립 여부는 team.yaml 존재만 감지하고 조립 층은 설치하지 않는다. 비밀 파일·명부·금고 내용은 설치 도우미가 읽지 않는다.
+- 재설치는 installed 영수증과 before를 쓰지 않고 현재 값이 달라진 대상만 알린다. 두 번째 설치는 파일 바이트·mtime·링크가 그대로다. `--check`는 설치 값과 금고/영수증 권한을 읽기만 한다.
+- 제거는 현재 값이 after와 같은 설정·링크만 되돌린다. 다른 대상은 보존하고 경로를 출력하며 종료 2다. `--uninstall --force`만 충돌 대상도 원래 값으로 복원한다. 금고·기록장·첨부는 남고 영수증은 uninstalled로 표시한다. 삭제한 키의 새 빈 부모와 이번에 만든 빈 plugins 디렉터리도 정리한다.
+- 설정은 ruamel 왕복 자료로 수정한다. 영수증의 원문은 주석과 설치 전 바이트 복원에 사용하며 별도 설정 원본이 아니다. 설치 이후 문서가 정확히 설치 결과와 같을 때만 원문 전체를 복원하고, 달라졌으면 해당 키만 복원해 사장 변경을 보존한다. 쓰기는 임시 파일·flush/fsync·os.replace를 거친다. config 심볼릭 링크와 홈 밖/별칭 부모는 거부한다. 원래 플러그인 심볼릭 링크 대상은 상대 경로·끊긴 링크도 그대로 보존·복원한다.
+- 설치 도우미는 게이트웨이 제어를 호출하지 않고 재시작 안내만 출력한다. README의 보류 문장을 실제 설치·검사·제거·강제 복구 사용법으로 교체했다. 앱 시험은 기존 scripts/test.sh의 TASK-05 추가 표시를 유지한다.
+
+#### 시험·실행 증거
+
+`tests/acceptance/test_install.py`에 12개 실행 사례를 추가했다. AT-27은 기본+beta 설치·권한·재설치 무변경·check, AT-28은 양쪽 홈의 원래 설정 주석·링크와 영수증 상태, AT-38은 port 변경 보존·나머지 복원·명시적 force를 확인한다. AT-39는 새/기존 설정 각각 초반/후반 쓰기 실패 4가지로 영수증 선행·applied·역순 복구·failed 잔존을 검증한다. AT-40은 설치 모듈 로드 전부터 `sys.addaudithook`의 open을 감시하며 설치·사장 z 추가·재설치 동안 비밀 파일 열기 0과 before 불변을 확인한다. 추가 경계는 미설치 check 무쓰기, 원래 기기 자료 보존, 사장이 바꾼 설정 부모 보존, config 링크 거부다. 모두 임시 HERMES_HOME과 가짜 프로필을 사용한다.
+
+기존 59개 시험·기존 수락 기대값은 바꾸지 않았다. 앞 절의 검사기 시험 9개와 합해 전체 80개다. 검사기 AT-41의 두 운영 입력 제한 시험도 전체 묶음에 포함된다. 사장 변경 무시 변형과 기기 파일 복구 생략 변형은 각각 AT-38·39 종료 1로 검출했고 원본 바이트를 복원했다. 앞 절의 허용 밖 입력 읽기 변형 증거도 그대로다.
+
+실행 환경은 앞 절과 같은 Hermes venv·실제 소스·로컬 pytest/HTTP 의존성이다. HEJO_TEAM_KIT_LIB를 지정한다. 아래 python3는 ruamel.yaml이 있는 Hermes venv의 bin을 PATH 앞에 두어 선택했다. source·Python 경로의 실제 개인값은 공개 문서에 적지 않는다.
+
+```sh
+export HERMES_DISABLE_LAZY_INSTALLS=1
+export PYTHONDONTWRITEBYTECODE=1
+export PYTHONPATH="$PWD/.build/task03a-deps:$PWD/.build/task02-deps:$HERMES_SOURCE:$PWD"
+export HEJO_TEAM_KIT_LIB
+export HEJO_PYTHON="$HERMES_PYTHON"
+bash scripts/test.sh
+python3 scripts/scan_private.py
+githooks/pre-commit
+```
+
+| 실행 | 실제 종료·결과 | 로그(저장소 기준) |
+|---|---|---|
+| 설치 수락·경계 시험 | 종료 0, 12 passed | `.build/task07-r6-install-final.log` |
+| AT-40 모듈 로드부터 감사 재확인 | 종료 0, 1 passed / 11 deselected | `.build/task07-r6-open-audit.log` |
+| `bash scripts/test.sh` | 종료 0, **80 passed**. 이어 AT-22 실제 리스너 1·배달 4·새 스레드 4·오프라인 재전송 2·다른 플랫폼 0·정상 종료 | `.build/task07-r6-full.log` |
+| `python3 scripts/scan_private.py` | 종료 0, 위반 0(바이너리 생략 안내만) | `.build/task07-r6-private.log` |
+| `githooks/pre-commit` | 종료 0 | `.build/task07-r6-hook.log` |
+| 사장 변경·기기 복구 변형 | 조정 종료 0, 각 변형 pytest 종료 1, 원본 바이트 복원 | `.build/task07-r6-mutations.log`, `.build/task07-r6-mutant-{owner_conflict,device_rollback}.log` |
+| AST·쉘 구문·변경 범위·기존 gate/schema/tests 불변·실행 로그·diff 확인 | 종료 0 | `.build/task07-r6-static.log` |
+
+첫 설치 시험은 5 passed / 1 failed였다(`.build/task07-r6-install-first.log`, 종료 1). 감사가 표준 라이브러리 tokenize 소스 이름을 비밀 파일로 분류한 시험 준비 문제였다. 표준 lexer를 감사 전 준비하되 실제 설치 모듈 로드와 모든 main 실행은 감사 안으로 두었다. 비밀 경로 기대값은 완화하지 않았다. 중간에 분리한 시험 모듈의 import 수집 오류(종료 2)는 같은 시험 파일로 합쳐 해결했고 해당 임시 파일은 제거했다.
+
+도달 증거는 설치·개인값 감사의 **수준 2**, AT-22의 실제 게이트웨이 경계 **수준 3**이다. 운영 설치·재시작·운영 프로필 변경, 실제 외부 메시지·모델·실기기, 전원 중단/디스크 고장·동시 설치 경쟁은 미검증이다. V-5 부채는 유지한다. 설치 시험은 모두 임시 홈이며 운영 홈에는 설치하지 않았다. 검사기는 허가된 두 입력만 읽었다. 본체·다른 저장소·앱 수정, 비밀 파일 열기, 푸시는 하지 않았다. 롤백은 이번 구현 커밋 되돌림이며 운영 롤백은 필요 없다. 검토자는 영수증 선행·부트스트랩 예외·설정 주석 복원·사장 변경 충돌 보존과 파일 열기 감사 증거를 우선 확인해 달라. 전체 검토 커밋은 최종 인계 상태 블록에 기록한다.

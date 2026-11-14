@@ -1,0 +1,396 @@
+#!/usr/bin/env python3
+"""Connect the hejo platform without restarting Hermes; keep a reversible receipt."""
+from __future__ import annotations
+
+import argparse
+from copy import deepcopy
+from io import StringIO
+import json
+import os
+from pathlib import Path
+import stat
+import sys
+import tempfile
+import uuid
+
+from ruamel.yaml import YAML
+from ruamel.yaml.comments import CommentedMap
+
+
+PRIMARY = {"enabled": True, "extra": {"port": 47820, "listen": ["127.0.0.1"], "allowed_users": ["owner"]}}
+FORWARDER = {"enabled": True, "extra": {"role": "forwarder"}}
+CONFIG_KEYS = (("plugins", "enabled"), ("gateway", "platforms", "hejo"))
+
+
+def yaml_load(text):
+    value = YAML().load(text)
+    if value is None:
+        return CommentedMap()
+    if not isinstance(value, dict):
+        raise ValueError("config must be a mapping")
+    return value
+
+
+def yaml_dump(value):
+    stream = StringIO()
+    YAML().dump(value, stream)
+    return stream.getvalue()
+
+
+def atomic_write(path, text, mode=0o600):
+    fd, temporary = tempfile.mkstemp(prefix=".hejo-install-", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            os.fchmod(stream.fileno(), mode)
+            stream.write(text)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def safe_path(home, relative, *, link=False):
+    parts = Path(relative)
+    if parts.is_absolute() or ".." in parts.parts:
+        raise ValueError("receipt path escapes home")
+    path = home / parts
+    if path.parent.resolve() != path.parent or not path.parent.is_relative_to(home):
+        raise ValueError("parent must not be a symlink")
+    if not link and path.is_symlink():
+        raise ValueError("file must not be a symlink")
+    return path
+
+
+def read_config(path):
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    except FileNotFoundError:
+        return False, "", 0o600
+    with os.fdopen(fd, encoding="utf-8") as stream:
+        mode = stat.S_IMODE(os.fstat(stream.fileno()).st_mode)
+        return True, stream.read(), mode
+
+
+def lookup(document, keys):
+    value = document
+    for key in keys:
+        if not isinstance(value, dict):
+            return False, None
+        if key not in value:
+            return False, None
+        value = value[key]
+    return True, value
+
+
+def assign(document, keys, value):
+    parent = document
+    for key in keys[:-1]:
+        if key not in parent:
+            parent[key] = CommentedMap()
+        if not isinstance(parent[key], dict):
+            raise ValueError("config parent must be a mapping")
+        parent = parent[key]
+    parent[keys[-1]] = deepcopy(value)
+
+
+def restore_key(document, original, keys):
+    existed, value = lookup(original, keys)
+    if existed:
+        assign(document, keys, value)
+        current_parent, old_parent = document, original
+        for key in keys[:-1]:
+            current_parent, old_parent = current_parent[key], old_parent[key]
+        key = keys[-1]
+        current_parent.ca.items.pop(key, None)
+        if key in old_parent.ca.items:
+            current_parent.ca.items[key] = deepcopy(old_parent.ca.items[key])
+    else:
+        parents = []
+        parent = document
+        for index, key in enumerate(keys[:-1]):
+            if key not in parent:
+                return
+            parents.append((parent, key, keys[:index + 1]))
+            parent = parent[key]
+        parent.pop(keys[-1], None)
+        for parent, key, prefix in reversed(parents):
+            if not parent[key] and not lookup(original, prefix)[0]:
+                del parent[key]
+
+
+def write_config(path, document, mode):
+    text = yaml_dump(document)
+    atomic_write(path, text, mode)
+    return text
+
+
+def save_receipt(home, receipt):
+    atomic_write(safe_path(home, "hejo/install-receipt.json"),
+                 json.dumps(receipt, ensure_ascii=False, indent=2) + "\n")
+
+
+def load_receipt(home):
+    path = safe_path(home, "hejo/install-receipt.json")
+    if not path.exists():
+        return None
+    _, text, _ = read_config(path)
+    receipt = json.loads(text)
+    if receipt.get("version") != 1:
+        raise ValueError("unsupported receipt")
+    return receipt
+
+
+def plan(home):
+    # Name-only API: no profile metadata, credentials, or gateway lifecycle calls.
+    from hermes_cli.profiles import get_profile_dir, list_profile_names
+    homes = [Path(get_profile_dir(name)).resolve() for name in list_profile_names()]
+    if not homes or homes[0] != home or any(not path.is_relative_to(home) for path in homes):
+        raise ValueError("choose the primary Hermes home")
+    receipt = {"version": 1, "status": "installing", "bootstrap": {
+        "path": "hejo", "existed": (home / "hejo").exists()},
+        "assembled": (home / "owner" / "team.yaml").exists(),
+        "configs": {}, "created_dirs": [], "targets": []}
+    devices = safe_path(home, "hejo/devices.json")
+    if devices.exists() and not devices.is_file():
+        raise ValueError("devices must be a regular file")
+    receipt["targets"].append({"kind": "devices", "path": "hejo/devices.json",
+        "existed": devices.exists(), "before": stat.S_IMODE(devices.stat().st_mode) if devices.exists() else None,
+        "after": {}, "state": "pending"})
+    for profile_home in homes:
+        relative = profile_home.relative_to(home)
+        link_name = (relative / "plugins" / "hejo").as_posix()
+        link = safe_path(home, link_name, link=True)
+        if link.exists() and not link.is_symlink():
+            raise ValueError("existing plugin entry must be a symlink")
+        receipt["targets"].append({"kind": "link", "path": link_name,
+            "existed": link.is_symlink(), "before": os.readlink(link) if link.is_symlink() else None,
+            "after": str(Path(__file__).resolve().parents[1] / "gate"), "state": "pending"})
+        if not link.parent.exists():
+            receipt["created_dirs"].append(link.parent.relative_to(home).as_posix())
+        file = (relative / "config.yaml").as_posix()
+        existed, text, mode = read_config(safe_path(home, file))
+        receipt["configs"][file] = {"existed": existed, "before": text, "mode": mode, "written": text}
+        document = yaml_load(text)
+        enabled_exists, enabled = lookup(document, CONFIG_KEYS[0])
+        if enabled_exists and (not isinstance(enabled, list) or any(not isinstance(item, str) for item in enabled)):
+            raise ValueError("plugins.enabled must be a list of strings")
+        after_enabled = list(enabled or [])
+        if "hejo" not in after_enabled:
+            after_enabled.append("hejo")
+        for keys, after in zip(CONFIG_KEYS, (after_enabled, PRIMARY if profile_home == home else FORWARDER)):
+            for index in range(1, len(keys)):
+                present, parent = lookup(document, keys[:index])
+                if present and not isinstance(parent, dict):
+                    raise ValueError("config parent must be a mapping")
+            present, before = lookup(document, keys)
+            receipt["targets"].append({"kind": "config", "path": file + "#" + ".".join(keys),
+                "file": file, "keys": list(keys), "existed": present,
+                "before": before, "after": after, "state": "pending"})
+    # Ensure every before value is serializable before changing anything.
+    json.dumps(receipt)
+    return receipt
+
+
+def replace_link(path, target):
+    if target is None:
+        path.unlink(missing_ok=True)
+        return
+    temporary = path.parent / (".hejo-link-" + uuid.uuid4().hex)
+    try:
+        temporary.symlink_to(target)
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def matches(home, target):
+    path = safe_path(home, target.get("file", target["path"]), link=target["kind"] == "link")
+    if target["kind"] == "link":
+        return path.is_symlink() and os.readlink(path) == target["after"]
+    if target["kind"] == "devices":
+        return path.is_file() and stat.S_IMODE(path.stat().st_mode) == 0o600
+    _, text, _ = read_config(path)
+    present, value = lookup(yaml_load(text), target["keys"])
+    return present and value == target["after"]
+
+
+def apply(home, receipt, target):
+    path = safe_path(home, target.get("file", target["path"]), link=target["kind"] == "link")
+    if target["kind"] == "devices":
+        if target["existed"]:
+            os.chmod(path, 0o600)
+        else:
+            atomic_write(path, "{}\n")
+    elif target["kind"] == "link":
+        path.parent.mkdir(exist_ok=True)
+        replace_link(path, target["after"])
+    else:
+        _, text, mode = read_config(path)
+        document = yaml_load(text)
+        present, value = lookup(document, target["keys"])
+        if present != target["existed"] or value != target["before"]:
+            raise RuntimeError("config changed during install")
+        assign(document, target["keys"], target["after"])
+        receipt["configs"][target["file"]]["written"] = write_config(path, document, mode)
+
+
+def restore_config(home, receipt, targets, force):
+    file = targets[0]["file"]
+    path = safe_path(home, file)
+    cfg = receipt["configs"][file]
+    _, text, mode = read_config(path)
+    document = yaml_load(text)
+    selected, conflicts = [], []
+    for target in targets:
+        present, value = lookup(document, target["keys"])
+        if force or (present and value == target["after"]):
+            selected.append(target)
+        else:
+            conflicts.append(target["path"])
+    if not selected:
+        return conflicts
+    if not conflicts and text == cfg["written"]:
+        if cfg["existed"]:
+            atomic_write(path, cfg["before"], cfg["mode"])
+        else:
+            path.unlink(missing_ok=True)
+    else:
+        original = yaml_load(cfg["before"])
+        for target in selected:
+            restore_key(document, original, target["keys"])
+        write_config(path, document, mode)
+    for target in selected:
+        target["state"] = "pending"
+    return conflicts
+
+
+def restore(home, receipt, *, uninstall=False, force=False):
+    conflicts, handled = [], set()
+    for target in reversed(receipt["targets"]):
+        if target["state"] != "applied":
+            continue
+        try:
+            if target["kind"] == "config":
+                file = target["file"]
+                if file in handled:
+                    continue
+                handled.add(file)
+                group = [item for item in reversed(receipt["targets"])
+                         if item["kind"] == "config" and item["file"] == file and item["state"] == "applied"]
+                conflicts.extend(restore_config(home, receipt, group, force))
+            elif target["kind"] == "link":
+                if force or matches(home, target):
+                    replace_link(safe_path(home, target["path"], link=True), target["before"])
+                    target["state"] = "pending"
+                else:
+                    conflicts.append(target["path"])
+            else:
+                # Vault data survives uninstall. Only an interrupted installation undoes creation/mode.
+                if not uninstall:
+                    path = safe_path(home, target["path"])
+                    if target["existed"]:
+                        os.chmod(path, target["before"])
+                    else:
+                        path.unlink(missing_ok=True)
+                target["state"] = "pending"
+            save_receipt(home, receipt)
+        except Exception as exc:
+            conflicts.append(target["path"])
+            print(f"restore_failed {target['path']} {type(exc).__name__}")
+    for relative in reversed(receipt["created_dirs"]):
+        path = safe_path(home, relative)
+        if path.is_dir() and not any(path.iterdir()):
+            path.rmdir()
+    return conflicts
+
+
+def run(home, *, check=False, uninstall=False, force=False):
+    receipt = load_receipt(home)
+    if check:
+        if not receipt or receipt["status"] != "installed":
+            print("not_installed")
+            return 1
+        changed = [item["path"] for item in receipt["targets"] if not matches(home, item)]
+        if stat.S_IMODE((home / "hejo").stat().st_mode) != 0o700:
+            changed.append("hejo")
+        if stat.S_IMODE((home / "hejo/install-receipt.json").stat().st_mode) != 0o600:
+            changed.append("hejo/install-receipt.json")
+        for path in changed:
+            print(f"changed {path}")
+        return 1 if changed else 0
+    if uninstall:
+        if not receipt:
+            print("not_installed")
+            return 0
+        conflicts = restore(home, receipt, uninstall=True, force=force)
+        receipt["status"] = "uninstalled"
+        save_receipt(home, receipt)
+        for path in conflicts:
+            print(f"conflict {path}")
+        print("Gateway was not restarted; review changes before restarting it.")
+        return 2 if conflicts else 0
+    if receipt and receipt["status"] == "installed":
+        for target in receipt["targets"]:
+            if not matches(home, target):
+                print(f"preserved_owner_change {target['path']}")
+        print("Already installed; gateway was not restarted.")
+        return 0
+    if receipt and any(item["state"] == "applied" for item in receipt["targets"]):
+        print("unresolved_receipt; finish uninstall before installing again")
+        return 1
+    receipt = plan(home)
+    bootstrap = safe_path(home, "hejo")
+    bootstrap.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chmod(bootstrap, 0o700)
+    save_receipt(home, receipt)
+    try:
+        for target in receipt["targets"]:
+            apply(home, receipt, target)
+            target["state"] = "applied"
+            save_receipt(home, receipt)
+        receipt["status"] = "installed"
+        save_receipt(home, receipt)
+    except Exception as exc:
+        conflicts = restore(home, receipt)
+        receipt["status"] = "failed"
+        save_receipt(home, receipt)
+        print(f"install_failed {type(exc).__name__}")
+        for path in conflicts:
+            print(f"rollback_conflict {path}")
+        return 1
+    print("Installed; gateway was not restarted. Review changes before restarting it.")
+    return 0
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--home", type=Path)
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--check", action="store_true")
+    mode.add_argument("--uninstall", action="store_true")
+    parser.add_argument("--force", action="store_true")
+    args = parser.parse_args(argv)
+    if args.force and not args.uninstall:
+        parser.error("--force requires --uninstall")
+    previous = os.environ.get("HERMES_HOME")
+    try:
+        if args.home:
+            os.environ["HERMES_HOME"] = str(args.home.expanduser().resolve())
+        from hermes_constants import get_default_hermes_root
+        home = get_default_hermes_root().resolve()
+        os.environ["HERMES_HOME"] = str(home)
+        return run(home, check=args.check, uninstall=args.uninstall, force=args.force)
+    except Exception as exc:
+        print(f"install_error {type(exc).__name__}")
+        return 1
+    finally:
+        if previous is None:
+            os.environ.pop("HERMES_HOME", None)
+        else:
+            os.environ["HERMES_HOME"] = previous
+
+
+if __name__ == "__main__":
+    sys.exit(main())
