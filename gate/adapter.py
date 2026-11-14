@@ -64,6 +64,7 @@ class HejoAdapter(BasePlatformAdapter):
         await asyncio.gather(*self._edit_tasks.values(), return_exceptions=True)
         self._edit_tasks.clear()
         self._pending_edits.clear()
+        self._typing_threads.clear()
         if self.server:
             await self.server.stop()
         if self.journal:
@@ -223,18 +224,19 @@ class HejoAdapter(BasePlatformAdapter):
 
     async def send_typing(self, chat_id, metadata=None):
         metadata = metadata or {}
+        employee = metadata.get("hermes_profile") or chat_id
         thread = metadata.get("thread_id")
         if thread:
-            self._typing_threads[chat_id] = thread
+            self._typing_threads.setdefault(employee, set()).add(thread)
+            threads = [thread]
         else:
-            thread = self._typing_threads.get(chat_id)
-        if thread:
-            await self.server.broadcast({"v": 1, "type": "typing", "employee": metadata.get("hermes_profile") or chat_id,
-                                         "thread": thread, "on": True})
+            threads = sorted(self._typing_threads.get(employee, set()))
+        for thread in threads:
+            await self.server.broadcast({"v": 1, "type": "typing", "employee": employee,
+                                         "thread": thread, "on": True, "ttl_seconds": 6})
 
     async def stop_typing(self, chat_id):
-        thread = self._typing_threads.pop(chat_id, None)
-        if thread:
+        for thread in sorted(self._typing_threads.pop(chat_id, set())):
             await self.server.broadcast({"v": 1, "type": "typing", "employee": chat_id, "thread": thread, "on": False})
 
     async def get_chat_info(self, chat_id):

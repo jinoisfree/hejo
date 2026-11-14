@@ -127,7 +127,33 @@
       "additionalProperties": false
     },
     "file": {
-      "$comment": "BLOCKED: design defines message.files[] but not its public item fields. No item shape is asserted pending planning decision."
+      "type": "object",
+      "properties": {
+        "file_id": {
+          "$ref": "#/$defs/thread",
+          "maxLength": 36
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^[^/\\\\]*$"
+        },
+        "mime": {
+          "type": "string"
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "file_id",
+        "name",
+        "mime",
+        "size"
+      ],
+      "additionalProperties": false
     },
     "thread": {
       "type": "string",
@@ -644,6 +670,9 @@
         },
         "on": {
           "type": "boolean"
+        },
+        "ttl_seconds": {
+          "const": 6
         }
       },
       "required": [
@@ -653,7 +682,26 @@
         "thread",
         "on"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "on": {
+                "const": true
+              }
+            },
+            "required": [
+              "on"
+            ]
+          },
+          "then": {
+            "required": [
+              "ttl_seconds"
+            ]
+          }
+        }
+      ]
     },
     "state": {
       "type": "object",

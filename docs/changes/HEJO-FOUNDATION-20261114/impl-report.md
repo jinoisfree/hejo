@@ -67,3 +67,62 @@
 - **선택지**: (A) 발신·수신 모두 파일 id 문자열 배열로 통일하고 앱이 파일 정보를 얻는 계약을 별도로 정한다. (B) 문→앱 항목을 설명 객체로 정하고 공개 id·이름·미디어 종류·크기·접근 경로 중 필요한 필드와 필수 여부를 확정한다. 둘 다 계획 담당이 design·수락 기준과 연결해 결정해야 한다.
 - **구현자 권고**: 앱 첨부 타일·다운로드 소비자가 필요한 값을 정한 뒤 B의 최소 필드를 설계에서 명시한다. 지금 내부 메타를 공개 항목으로 복사하지 않는다.
 - **진행한 독립 부분**: 인증·주소 검사·직원 목록·텍스트 라우팅·기록장·재전송·훅·지정 수락 시험. 이를 근거로 TASK-02 전체 완료나 TASK-03a/03b 착수는 선언하지 않았다. 다음 담당은 이 보고를 검토하고 첨부 항목 결정과 필요한 보완 지시를 내려야 한다.
+
+## 보완 1: V-1~V-4 반영 (2026-11-14)
+
+위 본문은 최초 구현 보고의 기록이다. 이 절이 보완 1의 현재 인계 상태다.
+
+- **받은 지시**: 기준 `d9f9817f02643bd49be04839519ac90c0ed3e1b4`, [verdict.md](verdict.md)와 [handoff.md 보완 지시 1](handoff.md#보완-지시-1-task-02-1차-검토-뒤-2026-11-14). 위험도 고위험, 필요 증거 수준 2, 구현·자체 시험 역할 유지. 착수 HEAD가 기준과 같고 작업 트리가 깨끗함을 확인했다.
+- **구현자 판단**: **지시된 V-1~V-4는 반영했으나, 전체 시험 조건은 보류**. 기존 초과 프레임 시험의 간헐 실패가 현재 변경본과 기준 커밋 양쪽에서 재현됐다(OBS-T02-R1-01). 기대값을 바꾸거나 이 실패를 통과로 처리하지 않았다. 최종 완료 판정은 검토 담당에게 남긴다.
+- **설계와 달라진 점**: 없음. welcome 전에는 연결을 broadcast 목록에 넣지 않고 재전송 상태의 연결 객체만 만든다. welcome의 head 스냅샷 이후 기록은 이어지는 재전송에서 회수한다. 이 배치로 기록 프레임뿐 아니라 비기록 프레임도 welcome을 앞서지 않는다.
+- **변경 파일**: `schemas/hejo-wire-v1.json`, `gate/{server.py,adapter.py}`, `gate/tests/{support.py,test_boundaries.py}`, `tests/acceptance/test_gate_foundation.py`, 이 보고서. 기존 문서·시험 원본·Hermes 본체·다른 앱·운영 설정은 수정하지 않았다. 첨부 HTTP·기본 버튼·보조 배달·앱은 여전히 범위 밖이다.
+
+### 지적별 처분
+
+| 지적 | 반영 내용 | 근거 |
+|---|---|---|
+| V-1 | `$defs.file`에 UUID `file_id`, 1~255자·경로 구분자 없는 `name`, 문자열 `mime`, 정수≥0 `size`를 모두 필수로 정의하고 추가 필드를 금지. BLOCKED 주석 제거. UUID 길이도 36자로 제한 | AT-HF-46: 정상 항목, 필드별 누락, 추가 필드, 양쪽 경로 구분자, 이름 길이 경계, 잘못된 UUID·끝 개행, 잘못된 크기·형식 |
+| V-2 | 인증 직후 연결 객체는 항상 재전송 중. welcome 전송 후 등록·재전송. since가 없으면 welcome.head_seq를 사용하며 미래 since는 welcome 다음 invalid_since 후 닫음 | AT-HF-44: welcome 직전 실제 기록 3개 생성, 첫 프레임·누락/중복 없는 순번·sync_done, 미래 since 오류와 닫힘 |
+| V-3 | 직원별 스레드 집합을 기억하고 stop_typing에서 모두 off 후 제거. on에 ttl_seconds=6, 스키마도 on일 때 필수. 연결 종료 시 메모리의 작성 중 집합 제거 | AT-HF-45: T1/T2 on 및 각각 off. 기존 AT-HF-12 기대값 유지 |
+| V-4 | 디스패치 실패 로그에 예외의 모듈·종류와 호출 스택을 기록. 본문이 들어갈 수 있는 예외 메시지·로컬 변수·프레임은 기록하지 않음 | 추가 경계 시험: 본문을 예외 메시지로 던져도 로그에 본문 없음, 예외 종류·실패 함수 스택 있음, 오류 응답 후 roster 처리 계속 |
+
+GAP-T02-01의 설계 공백은 이번 V-1 구현으로 해소했다. V-5(기록장 전체 메모리·선형 탐색)는 지시대로 후속 기술 부채로 남겼다.
+
+### 시험·검사와 증거
+
+기존 38개 시험의 함수 34개는 AST를 기준 커밋과 비교해 **모두 불변**임을 확인했다. 기존 시험 도우미 `Client.open`만 새 계약의 초기 빈 sync_done을 확인·소비하도록 바꿨다. 수락 기대값·입력·합격 기준을 바꾸지 않았다. AT-HF-44는 이 도우미를 거치지 않는 실제 소켓으로 첫 수신 프레임부터 검사한다. skip·xfail·오류 허용 추가 없음.
+
+실행 환경은 최초 보고의 Hermes venv·소스와 기존 `.build/task02-deps`를 재사용했다. 실행 시 `PYTHONDONTWRITEBYTECODE=1`, 프로세스 시작용 임시 `HERMES_HOME`, 시험별 별도 임시 홈, 실제 Hermes 모듈·인가 믹스인·프로필 API·명부 모듈과 차례 대역을 사용했다. 필요 수준 **2에 도달**했으며 실제 게이트웨이·실기기(3/4) 실행이나 독립 검토를 주장하지 않는다. 다른 에이전트를 실행하지 않았다.
+
+공통 명령 환경(경로 변수 의미는 최초 보고와 같음):
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 HERMES_HOME="$(mktemp -d)" \
+HEJO_TEAM_KIT_LIB="$HEJO_TEAM_KIT_LIB" \
+PYTHONPATH="$PWD/.build/task02-deps:$HERMES_SOURCE:$PWD" \
+"$HERMES_PYTHON" -m pytest gate/tests tests/acceptance/test_gate_foundation.py \
+  -q -o asyncio_default_fixture_loop_scope=function -p no:cacheprovider
+```
+
+| 검사 | 실제 결과 | 로그(저장소 기준) |
+|---|---|---|
+| 보완 초기 변경본 전체 시험(위 명령) | 종료 0, 42 passed | `.build/task02-r1-suite.log` |
+| 최종 코드 전체 시험(위 명령) | **종료 1, 1 failed / 41 passed**. 실패는 기존 `test_bad_frames_are_isolated`의 초과 프레임 오류 수신 | `.build/task02-r1-final.log` |
+| 최종 새 수락·로그 시험: 같은 환경에서 `-m pytest tests/acceptance/test_gate_foundation.py gate/tests/test_boundaries.py -k '44 or 45 or 46 or dispatch_logs' -q -o asyncio_default_fixture_loop_scope=function -p no:cacheprovider` | 종료 0, **4 passed / 38 deselected** | `.build/task02-r1-targeted-final.log` |
+| 같은 환경에서 `python .build/task02-r1-mutations.py` | 종료 0. 첨부 추가 필드 허용, welcome 이후 현재 head로 since 변경, off를 한 스레드로 제한, 예외 본문 로깅 변형에서 각각 관련 시험 종료 1. 매번 소스 바이트 원복 | `.build/task02-r1-mutations.log`, `.build/task02-r1-mutation-{file_shape,welcome_boundary,typing_threads,dispatch_privacy}.log` |
+| 같은 환경에서 `python .build/task02-r1-frame-race.py` | 조정 러너 종료 0. 현재 변경본 단독 시험 5회 `[0,0,1,0,0]`, 기준 커밋 사본 5회 `[0,1,1,0,0]`. 기준 사본은 로컬 임시 아카이브이며 검사 후 제거 | `.build/task02-r1-frame-race.log`, `.build/task02-r1-frame-{current,baseline}-{0..4}.log` |
+| Python AST 기반 기존 시험 비교·기준 대비 승인 문서 diff | 종료 0. 기존 시험 함수 34개, 근간·spec·design·tasks·handoff·verdict·수락 명세 7문서 불변 | `.build/task02-r1-preserved.log` |
+| 변경 파일 AST 구문·절대 경로/이메일/Slack ID 모양 보조 검사 | 종료 0. 필수 명부·금고 검사 대체 아님 | `.build/task02-r1-static.log` |
+| `git diff --cached --check` | 종료 0 | `.build/task02-r1-diff-check.log` |
+
+필수 `scripts/scan_private.py`는 여전히 미생성(TASK-07)임을 확인했으며 이번 보완에서는 실행하지 않았다. 위 보조 검사를 필수 검사 통과로 간주하지 않는다. 초기 mutation 조정 러너는 로그의 ERROR 등급 문자열을 수집 오류로 잘못 구분해 종료 1이었다(`.build/task02-r1-mutations-first.log`). 실제 네 변형의 실패를 직접 읽고 수집 오류와 로그 등급을 구분하도록 로컬 조정 코드만 고쳤으며, 제품 코드와 시험 기대값은 바꾸지 않았다.
+
+### OBS-T02-R1-01: 기존 초과 프레임 시험의 간헐 실패 — 판단 요청
+
+- **[확인] 현상**: 1 MiB+1 메시지를 전송한 뒤 앱 오류 `too_large`를 기대하는 기존 시험이 때때로 CLOSED를 받아 실패한다. 현재 변경본 단독 반복은 1/5회, 기준 `d9f9817` 단독 반복은 2/5회 실패했다. 따라서 이번 보완에서 처음 생긴 결함이라고 단정할 수 없다. 실제 TCP 패킷 원인은 측정하지 않았다.
+- **근거 위치**: 변경하지 않은 `gate/tests/test_boundaries.py`의 `test_bad_frames_are_isolated`, `gate/server.py`의 `BoundedWebSocket.close`와 프레임 크기 제한. 실패 로그는 위 반복 검사 파일이다.
+- **[추정] 경계**: aiohttp가 초과 프레임의 헤더에서 제한을 판단해 닫는 경로와 클라이언트의 대형 송신 완료가 겹치며 오류 프레임을 읽기 전에 연결 종료가 관측된다. 일반 JSON/글 크기 오류·새 수락 시험은 통과했다.
+- **선택지**: (A) 오류 프레임 배달 계약을 그대로 유지하고, bounded 수신·전송/닫기 경계와 시험 클라이언트의 송수신 순서를 추가 조사하도록 후속 보완 범위를 지정한다. (B) 파서 단계 초과 프레임은 WebSocket 1009 닫기로 구분할지 계획 담당이 계약·시험의 타당성을 판정한다. 구현자가 B를 채택하거나 시험을 완화하지 않았다.
+- **권고·중단 범위**: 우선 A의 경계를 검토하되, 운영 배포·범위 밖 전송 계층 변경은 진행하지 않는다. V-1~V-4 변경은 보존하고 이 관측을 검토 담당에게 넘긴다. 전체 검사 조건을 안정적으로 충족했다고 선언하지 않는다.
+
+이번 보완의 롤백은 이 저장소 보완 커밋을 되돌리는 것이다. 최초 보고의 미검증 범위(필수 개인값 검사·실제 게이트웨이/기기·첨부 HTTP·운영 설치)는 유지된다. 정확한 검토 대상 커밋은 최종 상태 블록에 남긴다. 커밋은 검토용이며 푸시·운영 반영은 실행하지 않았다.

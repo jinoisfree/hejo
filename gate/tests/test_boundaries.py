@@ -257,3 +257,23 @@ async def test_journal_open_failure_isolated(gate, client):
     assert (await gate.send("alpha", "next")).success
     assert (await client.read(ws))["seq"] == 1
     await ws.close()
+
+
+async def test_dispatch_logs_type_and_stack_without_frame_body(gate, client, monkeypatch, caplog):
+    """Dispatch diagnostics retain the failure location without exception payloads."""
+    ws, _ = await client.pair()
+    body = "frame-body-must-stay-private"
+
+    async def broken_receive(frame, conn):
+        raise ValueError(frame["text"])
+
+    monkeypatch.setattr(gate, "receive", broken_receive)
+    await client.send(ws, text=body, id="failing-dispatch")
+    assert await client.read(ws) == {"v": 1, "type": "error", "code": "dispatch_failed", "ref": "failing-dispatch"}
+    assert "inbound_dispatch_failed exception_type=builtins.ValueError" in caplog.text
+    assert "broken_receive" in caplog.text and "websocket" in caplog.text
+    assert body not in caplog.text
+    assert gate.is_connected
+    await ws.send_json({"v": 1, "type": "roster", "id": "after-failure"})
+    assert (await client.read(ws))["ref"] == "after-failure"
+    await ws.close()

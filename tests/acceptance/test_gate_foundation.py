@@ -385,3 +385,78 @@ async def test_at_hf_37(gate, client, runner, monkeypatch):
         assert len(runner.events) == expected
     assert len(runner.denied) == 1
     await ws.close()
+
+
+async def test_at_hf_44(gate, client, monkeypatch):
+    """Welcome leads concurrent records; implicit since loses none; future since closes."""
+    from aiohttp import ClientSession, WSMsgType
+    from gate.server import Connection
+    original = Connection.send
+    injected = False
+
+    async def before_welcome(conn, frame):
+        nonlocal injected
+        if frame["type"] == "welcome" and not injected:
+            injected = True
+            assert conn.replaying
+            for index in range(3):
+                assert (await gate.send("alpha", f"during welcome {index}")).success
+        await original(conn, frame)
+
+    monkeypatch.setattr(Connection, "send", before_welcome)
+    async with ClientSession(trust_env=False) as session:
+        ws = await session.ws_connect(f"http://127.0.0.1:{gate.server.port}/v1/ws")
+        await ws.send_json({"v": 1, "type": "hello", "pair_code": gate.auth.pair_code(),
+                            "device_name": "Test device", "app_version": "test"})
+        welcome = await client.read(ws)
+        assert welcome["type"] == "welcome"
+        assert injected
+        frames = await client.until(ws, "sync_done")
+        assert [f["seq"] for f in frames[:-1]] == list(range(welcome["head_seq"] + 1, welcome["head_seq"] + 4))
+        assert frames[-1]["through"] == welcome["head_seq"] + 3
+        assert frames[-1]["more"] is False
+        await ws.close()
+        ws = await session.ws_connect(f"http://127.0.0.1:{gate.server.port}/v1/ws")
+        await ws.send_json({"v": 1, "type": "hello", "id": "future-since", "token": welcome["token"],
+                            "device_name": "Test device", "app_version": "test", "since": gate.journal.head + 5})
+        assert (await client.read(ws))["type"] == "welcome"
+        error = await client.read(ws)
+        assert error == {"v": 1, "type": "error", "code": "invalid_since", "ref": "future-since"}
+        assert (await ws.receive(timeout=2)).type == WSMsgType.CLOSE
+        await ws.close()
+
+
+async def test_at_hf_45(gate, client):
+    """Two active threads both receive off; on frames carry a six-second lifetime."""
+    ws, _ = await client.pair()
+    t1, t2 = str(uuid.uuid4()), str(uuid.uuid4())
+    await gate.send_typing("alpha", {"thread_id": t1})
+    await gate.send_typing("alpha", {"thread_id": t2})
+    await gate.stop_typing("alpha")
+    frames = [await client.read(ws) for _ in range(4)]
+    assert [(f["type"], f["employee"], f["thread"], f["on"], f["ttl_seconds"]) for f in frames[:2]] == [
+        ("typing", "alpha", t1, True, 6), ("typing", "alpha", t2, True, 6)]
+    assert {(f["type"], f["employee"], f["thread"], f["on"]) for f in frames[2:]} == {
+        ("typing", "alpha", t1, False), ("typing", "alpha", t2, False)}
+    await ws.close()
+
+
+async def test_at_hf_46(airport):
+    """All four public attachment fields are required; extra fields and paths fail."""
+    from jsonschema import Draft202012Validator
+    from gate.server import SCHEMA
+    validator = Draft202012Validator(SCHEMA)
+    item = {"file_id": str(uuid.uuid4()), "name": "sample.txt", "mime": "text/plain", "size": 0}
+    message = {"v": 1, "type": "message", "seq": 1, "msg_id": "sample-message", "employee": "alpha",
+               "thread": str(uuid.uuid4()), "role": "employee", "text": "sample", "files": [item],
+               "buttons": [], "reply_state": None, "ts": "2000-01-01T00:00:00Z"}
+    assert validator.is_valid(message)
+    for key in ("file_id", "name", "mime", "size"):
+        assert not validator.is_valid({**message, "files": [{k: v for k, v in item.items() if k != key}]})
+    assert not validator.is_valid({**message, "files": [{**item, "extra": "forbidden"}]})
+    assert not validator.is_valid({**message, "files": [{**item, "name": "folder/sample.txt"}]})
+    for invalid in ({"file_id": "invalid-uuid"}, {"file_id": item["file_id"] + "\n"},
+                    {"name": ""}, {"name": "x" * 256},
+                    {"name": "folder\\sample.txt"}, {"size": -1}, {"size": 1.5}, {"mime": 7}):
+        assert not validator.is_valid({**message, "files": [{**item, **invalid}]})
+    assert validator.is_valid({**message, "files": [{**item, "name": "x" * 255}]})

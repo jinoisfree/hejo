@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 import ipaddress
 import json
 import logging
+import traceback
 from pathlib import Path
 from aiohttp import web, WSMsgType
 from jsonschema import Draft202012Validator
@@ -202,16 +203,21 @@ class GateServer:
                 await ws.send_json({"v": 1, "type": "pair_rejected" if paired else "auth_rejected",
                                     "reason": exc.reason})
                 return ws
-            conn = Connection(ws, device_id, replaying="since" in hello)
-            self.connections.add(conn)
+            conn = Connection(ws, device_id, replaying=True)
             welcome = {"v": 1, "type": "welcome", "device_id": device_id,
                        "gate_version": "1.0.0", "employees": self.adapter.employees(),
                        "head_seq": self.adapter.journal.head}
             if paired:
                 welcome["token"] = token
             await conn.send(welcome)
-            if "since" in hello:
-                await self.sync(conn, hello["since"], hello.get("id", "hello"))
+            since = hello.get("since", welcome["head_seq"])
+            if since > welcome["head_seq"]:
+                await self.error("invalid_since", hello.get("id"), conn)
+                return ws
+            # Enrol only after welcome: ephemeral frames cannot overtake it either.
+            # Records committed during welcome are recovered from its head snapshot.
+            self.connections.add(conn)
+            await self.sync(conn, since, hello.get("id", "hello"))
             async for message in ws:
                 if message.type in {WSMsgType.CLOSE, WSMsgType.CLOSED, WSMsgType.ERROR}:
                     break
@@ -235,8 +241,11 @@ class GateServer:
                         await self.adapter.click(frame, conn)
                     elif frame["type"] != "pong":
                         await self.error("unexpected_frame", frame.get("id"), conn)
-                except Exception:
-                    log.error("inbound_dispatch_failed")
+                except Exception as exc:
+                    # Exception messages may embed frame text. Keep only type and stack.
+                    log.error("inbound_dispatch_failed exception_type=%s.%s\n%s",
+                              type(exc).__module__, type(exc).__qualname__,
+                              "".join(traceback.format_tb(exc.__traceback__)))
                     await self.error("dispatch_failed", frame.get("id"), conn)
         finally:
             if conn:

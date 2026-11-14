@@ -81,7 +81,14 @@ async def client(gate):
         async def open(self, **hello):
             ws = await session.ws_connect(f"http://127.0.0.1:{gate.server.port}/v1/ws")
             await ws.send_json({"v": 1, "type": "hello", "device_name": "Test device", "app_version": "test", **hello})
-            return ws, await self.read(ws)
+            first = await self.read(ws)
+            if first["type"] == "welcome" and "since" not in hello:
+                # Initial replay is now mandatory even for an empty page. Tests that
+                # inspect handshake ordering use a raw socket instead of this helper.
+                initial = await self.read(ws)
+                assert initial["type"] == "sync_done"
+                assert initial["through"] == first["head_seq"] and not initial["more"]
+            return ws, first
 
         async def pair(self, **hello):
             return await self.open(pair_code=gate.auth.pair_code(), **hello)
