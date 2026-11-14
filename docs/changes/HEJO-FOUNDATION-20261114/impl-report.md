@@ -341,3 +341,67 @@ PY
 필요 증거 수준은 2(AT-22는 3), 실제 도달은 **1(소스·스키마·로컬 기록장 진단)**이다. 실제 Hermes 통합·게이트웨이·전체 회귀는 제품 변경 전 설계 보류라 실행하지 않았고, 앞선 TASK-03a의 43 passed를 이번 TASK의 결과로 쓰지 않는다. 필수 개인값 검사기는 TASK-07 미생성으로 미실행이다. 운영 홈 쓰기·운영 재시작·외부 메시지·본체/다른 저장소 수정·설치 도우미/앱 변경·비밀 파일 열기는 하지 않았다. 이 보고서만 변경하며 롤백은 보고 커밋 되돌림이다.
 
 20-implementation 2절의 '설계에 없는 공개 인터페이스·저장 형식·설정 키 변경이 필요'할 때 멈추는 규칙에 따라 계획 담당에게 돌려보낸다. 다음 인계는 T03B-01·02 결정과 해당 설계·시험 연결을 명시하거나, 영향을 받지 않는 독립 범위를 분리해야 한다. 푸시는 실행하지 않았다.
+
+## TASK-03b: 6판 구현·자체 시험 인계 (보완 지시 4, 2026-11-14)
+
+이 절이 TASK-03b의 현재 보고다. 앞의 착수 보류는 당시 기록이며 T03B-01·02는 6판 결정대로 구현했다. **구현자 상태는 부분 완료다. 기능 구현과 새 수락 시험은 진행했으나 전체 묶음에 기존 시험 기대값 충돌 1건(T03B-03)이 남았다. 전체 통과·최종 완료를 주장하지 않는다.**
+
+### 받은 설계·변경과 책임
+
+- 기준 `d544ad9035d9e0dd6571ad7474dfc2378111feff`과 착수 HEAD 일치, 작업 트리 깨끗함을 확인했다. handoff TASK-03b와 보완 지시 4, verdict 6차, design 2.2 첨부 등록 시점 1~4항·4.1을 따랐다. 고위험, 필요 증거 수준 2와 AT-HF-22 수준 3이다.
+- `gate/files.py`: 대기 저장(파일 쓰기·fsync·디렉터리 이름 바꾸기), 50 MiB 제한, 직원/id/이름·심볼릭 링크 검사, 일괄 승격과 실패 복구, 기록장 메타 소유 조회, 직원 파일 복사, 시작·하루 한 번 정리의 파일 책임을 맡는다. 별도 등록 파일·새 기록 행·가짜 대화 글은 없다.
+- `gate/adapter.py`: 기본 문만 파일 저장소·리스너·인증·기록장을 연다. 보조 연결은 파일을 열지 않고 성공하며, 송신마다 현재 기본 문을 찾아 `_owner_profile` 신원으로 넘긴다. send·edit·typing·stop_typing·문서·로컬 이미지·기본 버튼 3종을 전달하고, 허브가 없으면 `hejo_primary_unavailable` 실패·로그로 끝낸다. 기본 문 재연결 뒤 기존 전달자를 재사용한다. reply 상태 갱신에도 직원 소유를 확인한다.
+- 사장 첨부는 모든 id를 확인한 뒤 이동하고 message 메타에만 등록한다. 하나라도 없거나 다른 직원의 대기 파일이면 `unknown_file`, 글·차례 0건이다. 기록장 실패 시 대기 칸으로 되돌린다. 이벤트의 `media_urls`는 등록된 로컬 경로, `media_types`는 MIME이다. 직원 파일도 동일 등록 경로로 복사한 뒤 message.files에 네 필수 필드만 보낸다.
+- `gate/server.py`: 같은 리스너에 Bearer 인증 첨부 POST/GET과 사진 404를 추가했다. POST는 multipart의 `file`을 받고 대기 칸에만 저장한다. GET은 기록장 소유만 인정하며 대기 파일·다른 직원·경로 탈출은 404다. roster는 기존 null을 유지한다.
+- `gate/buttons.py`: 기본 승인·질문·슬래시 버튼을 실제 공개 resolver로 넘긴다. 만료 시 `button_expired`이며 다른 차례를 만들지 않는다. 해석 자료는 기존 message 메타에 저장한다. 답장 버튼 메타가 없는 표식은 라벨 글자로 바꾼다.
+- `gate/__init__.py`·`gate/README.md`: 공개 등록의 예약 플랫폼 키 `cron_deliver_env_var="HEJO_DELIVERY_TARGET"`와 대상 파서를 정했다. 기본 대상은 프로필 config의 home_channel, 스레드 없음이다. 허용 사용자는 기존 config YAML 브리지만 쓰고 .env는 쓰지 않는다. 등록 키의 환경 값을 직접 만들거나 읽는 새 경로는 없다. README에 실제 등록 의미·대상 문법·첨부 입력/MIME·실행 전제를 적었다.
+- `schemas/hejo-wire-v1.json`: 기존 error.code는 열린 문자열이므로 기존 코드를 제한하지 않고 `examples` 목록에 `unknown_file`을 추가했다. 기록 프레임 종류와 files[] 모양은 불변이다.
+- `gate/probes/` 네 파일을 제거했다. 대체 실제 환경 시험은 `gate/tests/gateway_delivery.py`이고 제품 플러그인 `gate.register`를 그대로 쓴다. 탐침 전용 A/B 어댑터·단독 발신자·등록 값을 남기지 않았다. 시험 플랫폼만 러너 안의 별도 가짜 연결로 유지한다.
+- 기존 동작에서 의미가 바뀐 곳은 승인된 전달자·첨부·기본 버튼·표식 대체다. 새로운 칸·두 번째 원본·운영 우회 경로는 없다. 설치 도우미·앱·다른 저장소는 변경하지 않았다. Slack과 hejo 대화 동기화도 만들지 않았다.
+
+### 시험과 실제 경계
+
+- AT-HF-02는 개정 명세대로 코드화했다. 두 시작 순서, 기본 문 응답·리스너 한 개를 확인하고 시험 동안 파일 열기를 감시한다. 보조의 기록장·devices.json·pairing.json 접근은 없음을 검사한다. Hermes 자체의 gateway_state 상태 게시 파일은 이 금지 대상이 아니다.
+- `tests/acceptance/test_gate_extensions.py`: AT-HF-15(로컬 media 경로·MIME·wire 파일), 16(미등록/탈출/무인증/다른 직원/정상 GET), 17(기본 버튼 3종 resolver 인자), 18(만료 거부), 21(버튼 글자 대체), 49(직원 고정·수정·typing·버튼·첨부 전달), 50(허브 없음), 51(대기 GET 거부·다른 직원 거부·재시작 뒤 send·24시간 정리)을 추가했다.
+- edit 프레임은 기존 규격대로 msg_id로 원래 message에 연결된다. AT-HF-49는 그 msg_id의 직원이 beta임을 확인하며, 스키마에 없는 employee 필드를 edit에 추가하지 않는다.
+- `gate/tests/test_extensions.py`: 실제 파일 이동의 기록 실패 되돌림, 심볼릭 링크·경로 탈출, 50 MiB 초과 정리, 고아 삭제·등록/최근 대기 보존, 허브 교체/없음·이미지 경로, avatar 없음·POST 인증을 확인한다. HTTP 공통 도우미는 `gate/tests/extension_support.py`다.
+- AT-HF-22는 실제 `start_gateway()` 프로세스, 기본+보조 beta, 각자의 시험 연결을 사용한다. 실제 중복 자격 검사·send_message·예약 `_deliver_result`·JSONL·WebSocket을 통과했다. 온라인 직접/예약 2건, 앱 끈 뒤 직접/예약 2건을 만들고 재접속 sync로 2건을 받았다. 네 글은 beta의 서로 다른 새 UUID 스레드, seq 1~4이며 리스너 1개·다른 연결 송신 0건이다. 정상 종료도 확인했다.
+- 실제 환경 러너는 HOME과 HERMES_HOME을 다른 임시 경로로 둔다. pytest 조상에서 실행돼도 Hermes의 운영 DB 보호를 끄지 않는다. 자동 설치를 끄고 임시 폴더 밖 비밀 파일 읽기·쓰기 및 외부 소켓/DNS를 감사 훅에서 거부한다. 공개 gateway lifecycle/배달 경로를 대역으로 바꾸지 않는다. 기본 문 등록과 시작 경계 감시는 원본 함수를 그대로 호출한다.
+- 변형 3건: 다운로드 직원 일치 조건 제거 → AT-16 실패, 전달 직원 고정을 alpha로 변경 → AT-49 실패, 사장 첨부 기록 실패의 되돌림 제거 → 구현 경계 시험 실패. 모두 대상 pytest 종료 1을 확인하고 원본 바이트를 복원했다.
+
+### 차단 T03B-03: 기존 TASK-02 구현 시험과 전달자 계약의 충돌
+
+`gate/tests/test_boundaries.py:264-275`의 `test_secondary_with_independent_home_never_listens`는 보조 어댑터 connect에 **False**와 retryable=False를 기대한다. 5·6판 REQ-HF-01.AC-02와 개정 AT-HF-02는 기본 문 유무·시작 순서와 무관하게 **True**를 요구한다. 해당 시험도 `set_owner_profile("beta")`를 사용하므로 전달자 계약과 동시에 충족할 수 없다.
+
+이번 지시는 'TASK-02 시험 기대값은 AT-HF-02 개정분 외 변경 금지'다. 따라서 이 구현 시험을 수정·삭제·skip·xfail하지 않았고, 홈이나 시험 이름으로 제품 동작을 갈라 실패를 피하지 않았다. AT-HF-02 이외의 기존 시험 함수는 AST로 불변을 대조한다.
+
+**계획 담당 요청·권고:** 이 한 구현 시험도 개정 AC-02의 보존 항목(리스너·기록장·출입증 미접근)은 유지하며 연결 성공으로 바꿀 수 있도록 인계의 시험 변경 허용 범위를 명시해 달라. 판단 전에는 전체 시험 통과로 판정할 수 없다. 이후 이 시험 보완과 전체 묶음 재실행이 남는다. 제품을 옛 비활성 방식으로 되돌리는 것은 승인된 전달자 계약과 맞지 않는다.
+
+### 실행 명령·종료 코드·로그
+
+저장소 루트에서 앞 절의 Hermes venv Python·소스 및 기존 로컬 시험 의존성을 썼다. 실제 Hermes HEAD는 `ebb026eef8e800e1b7471ed147b7287e878f8aa4`다. HEJO_TEAM_KIT_LIB도 명시했다. 매 시험 임시 HERMES_HOME을 사용했다.
+
+```sh
+export HERMES_DISABLE_LAZY_INSTALLS=1
+export PYTHONDONTWRITEBYTECODE=1
+export PYTHONPATH="$PWD/.build/task03a-deps:$PWD/.build/task02-deps:$HERMES_SOURCE:$PWD"
+export HEJO_TEAM_KIT_LIB
+"$HERMES_PYTHON" -m pytest gate/tests tests/acceptance/test_gate_foundation.py \
+  tests/acceptance/test_gate_extensions.py tests/acceptance/test_gate_delivery.py \
+  -q -o asyncio_default_fixture_loop_scope=function -p no:cacheprovider
+"$HERMES_PYTHON" -m gate.tests.gateway_delivery
+```
+
+| 실행 | 실제 종료·결과 | 로그(저장소 기준) |
+|---|---|---|
+| 최종 전체 묶음 | **종료 1, 57 passed / 1 failed**. 실패는 T03B-03 한 건 | `.build/task03b-final-2.log` |
+| AT-HF-22 단독 실제 게이트웨이 | **종료 0**. 리스너 1, beta 4건·새 스레드 4개, 오프라인 재전송 2건, 타 연결 송신 0, 정상 종료 | `.build/task03b-at22.log` |
+| 직원 소유·전달 신원·파일 되돌림 변형 | 조정 실행 **종료 0**, 각 변형 pytest **종료 1** 및 원본 복원 | `.build/task03b-mutations.log`, `.build/task03b-mutant-{ownership,identity,rollback}.log` |
+
+중간 실행도 보존했다. first는 모듈 이름과 로컬 buttons 변수 충돌 등 구현 오류로 종료 1(21 failed / 30 passed), second는 위 오류 수정 뒤 종료 1(3 failed / 49 passed), third는 종료 1(1 failed / 57 passed)이었다. AT-15는 시험 허용 사용자를 config 브리지로 설정했고, AT-22는 임시 HOME과 별도 HERMES_HOME으로 운영 DB 보호를 유지했다. 최초 final 및 impact 실행에서는 AT-02의 새 파일 감사가 허용된 gateway_state 게시까지 금지한 시험 코드 오류가 있어 종료 1이었다. 금지 대상을 개정 명세의 기록장·출입증 파일로 맞춘 최종 결과가 위 final-2다. 로그는 `.build/task03b-{first,second,third,final,impact}.log`다. 기존 기대값을 완화한 처분은 없으며 실패 구간을 지우지 않았다.
+
+**도달 증거:** 수준 2(실제 Hermes 모듈·프로필·대역 차례와 실제 파일/HTTP/소켓), AT-22는 수준 3(임시 홈 실제 게이트웨이)이다. 전체 묶음 실패가 있으므로 구현 완료·독립 검토 완료가 아니다. 실제 Slack·실제 모델·예약 시간 트리거·별도 worker·실기기/Tailscale·운영 설치·24시간 실시간 대기는 미검증이다. 파일 TTL 삭제는 시각을 과거로 바꿔 시작 경계에서 검증했다. 필수 개인값 검사기는 TASK-07 미생성으로 미실행이며 보조 검사와 구분한다. V-5 기록장 메모리·선형 탐색 부채는 유지한다.
+
+운영 홈 쓰기·재시작·플러그인 연결·외부 메시지·비밀 파일 열기·Hermes 본체/다른 저장소 수정·다른 에이전트 실행·푸시는 하지 않았다. 롤백은 이번 문 확장·시험·보고 커밋 되돌림이며 운영 롤백은 필요하지 않다. 검토자는 파일 소유·복구 경계, 전달자 직원 고정, native 버튼 메타·resolver, 그리고 T03B-03의 시험 변경 권한을 우선 확인해 달라.
+
+최종 보조 검사도 실행했다. 변경된 텍스트 14개 파일의 AST/JSON 구문·개인값 기본 패턴, 기존 시험 함수 불변(AT-02 제외), 설계·수락 명세 불변, 스키마의 unknown_file 주석 외 불변, probes 제거, 최종 전체·AT-22·변형 로그 직접 대조는 **종료 0**(`.build/task03b-static.log`). `git diff --cached --check`도 **종료 0**(`.build/task03b-diff-check-final.log`)이다. 이 보조 검사는 필수 개인값 검사기를 대체하지 않는다. 정확한 검토 대상 전체 커밋은 최종 상태 블록에 제공한다.

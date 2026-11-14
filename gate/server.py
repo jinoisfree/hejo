@@ -9,6 +9,7 @@ from pathlib import Path
 from aiohttp import web, WSMsgType
 from jsonschema import Draft202012Validator
 from .auth import AuthRejected
+from .files import MAX_FILE_BYTES, UnknownFile
 
 log = logging.getLogger(__name__)
 SCHEMA = json.loads((Path(__file__).resolve().parent.parent / "schemas" / "hejo-wire-v1.json").read_text())
@@ -74,8 +75,11 @@ class GateServer:
     async def start(self, listen, port):
         if not listen or any(not allowed_address(addr) for addr in listen):
             raise ValueError("listen_address_forbidden")
-        app = web.Application(client_max_size=LIMITS["frame_bytes"])
+        app = web.Application(client_max_size=MAX_FILE_BYTES + LIMITS["frame_bytes"])
         app.router.add_get("/v1/ws", self.websocket)
+        app.router.add_post("/v1/files", self.upload)
+        app.router.add_get("/v1/files/{employee}/{file_id}", self.download)
+        app.router.add_get("/v1/avatars/{tail:.*}", self.avatar)
         # Access logs contain no credential-bearing frame data or query strings.
         self.runner = web.AppRunner(app, access_log=None)
         await self.runner.setup()
@@ -100,6 +104,52 @@ class GateServer:
             await self.runner.cleanup()
             self.runner = None
         self.sites.clear()
+
+    def http_auth(self, request):
+        if not allowed_address(request.remote):
+            raise web.HTTPForbidden()
+        authorization = request.headers.get("Authorization", "")
+        if not authorization.startswith("Bearer "):
+            raise web.HTTPUnauthorized()
+        try:
+            self.adapter.auth.authenticate(authorization[7:])
+        except AuthRejected:
+            raise web.HTTPUnauthorized() from None
+
+    async def upload(self, request):
+        self.http_auth(request)
+        employee = request.query.get("employee", "")
+        if employee not in {e["id"] for e in self.adapter.employees()}:
+            raise web.HTTPBadRequest(text="unknown_employee")
+        try:
+            reader = await request.multipart()
+            part = await reader.next()
+            if part is None or part.name != "file" or not part.filename:
+                raise ValueError("invalid_upload")
+            async def chunks():
+                while chunk := await part.read_chunk(65536):
+                    yield chunk
+            async with self.adapter.files.lock:
+                info = await self.adapter.files.stage(employee, part.filename, chunks())
+            return web.json_response(info)
+        except ValueError as exc:
+            if str(exc) == "too_large":
+                raise web.HTTPRequestEntityTooLarge(max_size=MAX_FILE_BYTES, actual_size=MAX_FILE_BYTES + 1) from None
+            raise web.HTTPBadRequest(text="invalid_upload") from None
+        except OSError:
+            log.error("attachment_upload_failed")
+            raise web.HTTPInternalServerError() from None
+
+    async def download(self, request):
+        self.http_auth(request)
+        try:
+            path, mime = self.adapter.files.registered(request.match_info["employee"], request.match_info["file_id"])
+        except (UnknownFile, OSError):
+            raise web.HTTPNotFound() from None
+        return web.FileResponse(path, headers={"Content-Type": mime, "X-Content-Type-Options": "nosniff"})
+
+    async def avatar(self, request):
+        raise web.HTTPNotFound()
 
     async def maintenance(self):
         ticks = 0

@@ -35,27 +35,49 @@ async def test_at_hf_01(gate):
 
 
 async def test_at_hf_02(gate, client):
-    """A secondary neither opens a listener nor requests runner reconnect."""
+    """Secondary stays connected without a listener or files, in either start order."""
+    import builtins
     from gate.adapter import HejoAdapter
     second = HejoAdapter(gate.config)
     second.set_owner_profile("beta")
-    with patch("gate.server.GateServer.start") as start:
-        assert await second.connect() is False
-        start.assert_not_called()
-    assert second._fatal_error_retryable is False
-    assert second.server is None
-    from gateway.run_adapters import GatewayAdapterLifecycleMixin
-    lifecycle = object.__new__(GatewayAdapterLifecycleMixin)
-    lifecycle._running = True
-    lifecycle._profile_failed_platforms = {}
-    with patch("asyncio.create_task") as scheduled:
-        lifecycle._schedule_secondary_profile_startup_reconnect("beta", second.platform, second)
-        lifecycle._schedule_secondary_profile_reconnect("beta", second.platform, second)
-        scheduled.assert_not_called()
-    assert lifecycle._profile_failed_platforms == {}
-    ws, welcome = await client.pair()
-    assert welcome["type"] == "welcome"
-    await ws.close()
+    phase = ["primary"]
+    opened = []
+    original_open, original_os_open = builtins.open, os.open
+    def observe(function):
+        def call(path, *args, **kwargs):
+            opened.append((phase[0], path))
+            return function(path, *args, **kwargs)
+        return call
+    with patch("builtins.open", side_effect=observe(original_open)), \
+         patch("os.open", side_effect=observe(original_os_open)):
+        for primary_first in (True, False):
+            if not primary_first:
+                await gate.disconnect()
+            phase[0] = "secondary"
+            with patch("gate.server.GateServer.start") as start:
+                assert await second.connect()
+                assert second.is_connected
+                assert second.server is None and second.journal is None and second.auth is None
+                start.assert_not_called()
+            phase[0] = "primary"
+            if not primary_first:
+                assert await gate.connect()
+            sockets = [sock for site in gate.server.sites for sock in site._server.sockets]
+            assert len(sockets) == 1
+            with socket.socket() as probe:
+                with pytest.raises(OSError):
+                    probe.bind(("127.0.0.1", gate.server.port))
+            ws, welcome = await client.pair()
+            assert welcome["type"] == "welcome"
+            await ws.send_json({"v": 1, "type": "roster", "id": "still-running"})
+            assert (await client.read(ws))["ref"] == "still-running"
+            await ws.close()
+            phase[0] = "secondary"
+            await second.disconnect()
+            phase[0] = "primary"
+    assert not [path for owner, path in opened if owner == "secondary" and
+                ("journal" in Path(str(path)).parts or
+                 Path(str(path)).name in {"devices.json", "pairing.json"})]
 
 
 async def test_at_hf_03(gate, client):
