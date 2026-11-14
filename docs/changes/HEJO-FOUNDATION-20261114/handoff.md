@@ -241,3 +241,38 @@
 - 멈춤 조건: 다음 경우에는 멈추고 보고한다.
   - 베낄 코드가 SwiftUI·Slack과 떼어낼 수 없게 얽혀 있어 설계 범위를 넘는 경우.
   - 서명 인증서가 없어 빌드할 수 없는 경우.
+
+## 인계: TASK-06 앱 대화 화면 (2026-11-14)
+
+- 기준: 이 인계를 담은 커밋. 선행 TASK-05(앱 골격·펫 창)·TASK-03b(첨부 HTTP·버튼)는 완료됐다.
+- 근거 문서:
+  - spec REQ-HF-12(AC-01), design 2·2.1·2.2절(프레임·`files[]`·`buttons[]`·typing ttl·HTTP), design 6절(베끼기 원칙·베낄 후보와 다듬을 파일).
+  - tasks TASK-06, 수락 시험 AT-HF-26.
+  - UI 시안 `mockup/hejo-ui.html`의 ③ 대화 창(세 칸: 직원 → 스레드 → 대화, 입력 줄, 끊김 띠).
+- 할 일:
+  - (0) **베끼기 전 전수 검토**: design 6절 후보(`DdotsThreadWindow`, `MessageFormat`, `SlackLayout`→`TextLayout`, `ChatStyle`, `ClipboardAttachments`, `NativeThreadCard`, `NativeThreadList`, `DraftEditor`·`DraftFormat`, `AttachmentDrop`, `ProfileAvatar`, `Conversation.swift` 일부)와 그 의존을 끝까지 읽는다.
+    - `copy-review.md`에 파일별로 기록한다. 기록 없는 파일은 베끼지 않는다.
+    - SwiftUI·`NSViewRepresentable`·Slack 의존은 빼고, 원본은 `<운영 저장소>/ddots/…` 표기로만 쓴다.
+  - (1) 중립 대화 모델을 만든다(직원·스레드·글·첨부·버튼·작성 중). 원본은 문의 기록장 프레임이고, 앱 캐시는 `~/Library/Application Support/hejo/cache/`다(지우면 `applied = 0`으로 다시 동기화).
+  - (2) TASK-05의 펫 대화 자리(`PetView.conversation`)에 다음을 채운다.
+    - 직원 사이드바(`NSTableView`, 안 읽은 수, 이름 첫 글자 아이콘. 사진은 1단계 근간에서 항상 없음).
+    - 스레드 목록(검색·새 스레드).
+    - 스레드 보기(서식 글, 스트리밍 `edit`, 작성 중 점 `ttl_seconds`, 버튼 줄 `click`, 첨부 타일 → `GET /v1/files/<직원>/<id>`).
+    - 입력 줄(⏎ 보내기·⇧⏎ 줄바꿈, 첨부는 `POST /v1/files` 뒤 `send.files`, `unknown_file`·`too_large` 오류 표시, 1 MiB 사전 검사).
+    - 끊김 띠.
+  - (3) 시험:
+    - 앱 시험에 모델·재전송 적용·안 읽은 수 증감·버튼 클릭 프레임·첨부 업로드/열기 흐름을 넣는다(문 대역 또는 실제 gate를 임시 홈에서 사용).
+    - AT-HF-26은 수동 체크리스트와 증거 자리(`evidence/HEJO-FOUNDATION/TASK-06.md`, 스크린샷)를 만들고, 자동 캡처는 수동 증거와 구분해 표시한다.
+- 유지할 것:
+  - AppKit만 쓴다(SwiftUI 예외 없음).
+  - `bash scripts/test.sh` 전체 종료 0을 유지한다.
+  - 개인값 검사 위반 0을 유지한다.
+  - TASK-05 동작(포커스 비탈취, Esc 접기, genie)을 깨지 않는다.
+- 금지:
+  - 운영 `~/.hermes` 쓰기·재시작, 실제 운영 문 페어링.
+  - 비밀 파일 열기.
+  - Hermes 본체·ddots·운영 저장소 수정.
+  - 실제 직원 이름 등 개인값. 시험·캡처에는 가짜 명부만 쓴다.
+  - 계정·직원 카드·공방 등 후속 기능.
+- 위험·증거: 일반, 증거 수준 2. 롤백은 커밋 되돌림.
+- 멈춤 조건: 베낄 코드가 SwiftUI·Slack과 떼어낼 수 없게 얽혀 설계 범위를 넘으면 멈추고 보고한다. 통신 규격에 없는 프레임이 필요해도 멈추고 보고한다.

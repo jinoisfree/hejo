@@ -317,3 +317,29 @@
    - 증거 수준: 2 확인.
 5. **지적 처분:** T07-01·02 해소. V-5와 과거 커밋 이력의 개인값 정리(3단계)는 유지한다.
 6. **미검증 범위:** 운영 홈 실제 설치, 전원 중단·동시 설치 경쟁. 운영 설치는 TASK-09에서 한다.
+
+## 검증 판정: HEJO-FOUNDATION TASK-05 / 앱 골격 + 펫 창 (11차)
+
+1. **검토 대상:** 구현 커밋 `86bb82a038bc320ce09dbf7fce8abfca64d08e20`(기준 `77b2232`). 39파일이 바뀌었고 `app/`·`evidence/`가 새로 생겼다.
+2. **판정: 완료(TASK-05, 자동 범위).** AT-HF-47의 수동 체크리스트(다른 앱 포커스 유지·genie 녹화·동작 줄이기·실제 다중 화면)는 미실행이다. 이 항목들은 TASK-09 실기기 점검에서 사장과 함께 한다.
+3. **설계 적합성(4.2): 적합.**
+   - `app/Sources`와 `app/Tests`에 `import SwiftUI`·Slack 참조가 0건이다(grep 확인).
+   - `PetController`는 패널 하나를 쓴다(`.borderless`·`.nonactivatingPanel`, `.floating`, 모든 Space, `becomesKeyOnlyIfNeeded`). `ChatMorph.genieDuration` 타이머로 펼침·접힘을 한다. 동작 줄이기면 즉시 전환한다. 화면 변경과 끌기 중 대화 높이 유지도 ddots 구조 그대로다.
+   - `PetPanel`은 펼쳐졌을 때만 키 창이 될 수 있고, 편집 가능한 글 칸을 눌렀을 때만 `makeKey`를 한다(포커스 비탈취). Esc를 누르면 접힌다.
+   - 대화 자리는 연결 상태만 보여 주는 AppKit `NSView`다. TASK-06 범위는 구현하지 않았다.
+   - `copy-review.md`에 펫 원본을 파일별로 기록했다. 원본 위치는 `<운영 저장소>` 표기만 쓴다.
+   - 펫 그림은 LICENSE와 함께 들어왔다.
+4. **직접 확인한 것:**
+   - 검토자 독립 `bash scripts/test.sh`: **종료 0**(`.build/task05-review.log`).
+     - gate 80 passed, AT-22 통과.
+     - AT-HF-23 PASS(번들 ID·서명 검증).
+     - AT-47 자동 부분·48 PASS.
+     - AT-24 PASS(페어링·키체인·재시작 welcome, 빈칸·중복·페이지·ping).
+     - AT-25 PASS(1·2·4·8초 백오프, 문 재시작 뒤 자동 복구).
+     - FRAME_SIZE PASS(1009·too_large 표시, 1006 뒤 복구).
+     - 시험용 키체인 항목 정리 확인.
+   - 개인값 검사: 종료 0, 위반 0.
+   - 자동 캡처(`evidence/HEJO-FOUNDATION/task05-automatic-open.png`): 펫과 빈 대화 자리, "펫으로 접기", "공항 연결 전" 표시를 확인했다.
+   - 증거 수준: 2(문 대역 `network_fixture.py` + 실제 앱 바이너리).
+5. **지적:** 없음. V-5와 과거 이력 개인값 정리는 기존 부채로 유지한다.
+6. **넘기는 것:** AT-47 수동 4항목은 TASK-09 체크리스트로 넘긴다(`evidence/HEJO-FOUNDATION/TASK-05.md`).
