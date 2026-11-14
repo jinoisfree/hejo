@@ -51,7 +51,7 @@ TASK-02가 JSON Schema로 만들고 앱·문이 같은 파일을 기준으로 �
 - `employees[]` 항목: `{id, name, aliases[], avatar}`. `avatar`는 사진이 있으면 `/v1/avatars/<id>` 경로, 없으면 null. 이름·별칭은 team-kit 명부가 있으면 `hermes_facility.team_registry`로 읽고 없으면 `name = id`.
 - `buttons[]` 항목: `{id, label, kind, style}`. `kind`: `reply`(team-kit 답장 버튼), `approval`, `clarify`, `slash`. 문이 `button_id → (kind, 세션 키, 해석 정보)`를 기록장 메타에 보관하며 앱은 id만 돌려준다.
 - 스레드 id: 앱이 만든 UUID(소문자 36자). 예약 보고 등 문이 시작한 스레드는 문이 UUID를 만든다.
-- 크기 한도: 프레임 1 MiB, 글 64 KiB. 넘으면 `error(too_large)`.
+- 크기 한도: 프레임 1 MiB, 글 64 KiB. 프레임 한도 안에서 글만 64 KiB를 넘으면 `error(too_large, ref)`를 보내고 연결을 유지한다. 프레임 자체가 1 MiB를 넘으면 문은 본문을 끝까지 읽지 않으므로 `error(too_large)`를 최선 노력으로 보낸 뒤 WebSocket 닫기 코드 1009로 연결을 닫는다(2판 보완: 상대가 아직 보내는 중에 닫으면 TCP가 앞서 보낸 오류 프레임을 버릴 수 있어 오류 프레임 도착을 보장할 수 없다). 앱은 `error(too_large)` 또는 닫기 코드 1009를 같은 "너무 큼"으로 처리하고 다시 연결한다. 어느 경우든 문·게이트웨이는 계속 동작한다.
 - 응답 짝: 요청 프레임의 `id`를 응답·오류의 `ref`로 돌려준다. `hello`의 응답은 `welcome`/`*_rejected`.
 - `message.files[]` 항목(2판 보완, GAP-T02-01 결정): `{"file_id": str(UUID), "name": str(1~255자, 경로 구분자 없음), "mime": str, "size": int(바이트, 0 이상)}` 네 필드 모두 필수, 추가 필드 없음. 앱은 `GET /v1/files/<message.employee>/<file_id>`로 받는다. 사장 글(`role: owner`)의 첨부와 직원 글의 첨부가 같은 모양이다. 내부 메타(실제 경로·소유 등록)는 공개하지 않는다. `send.files[]`는 업로드가 돌려준 `file_id` 문자열 배열이다.
 - 작성 중 표시: Hermes는 차례 동안 `send_typing(chat_id, metadata)`를 2초마다 다시 부르고(`R/gateway/platforms/base.py:3435` `_keep_typing`, interval 2.0) `stop_typing(chat_id)`에는 스레드 정보가 없다. 그래서 문은 직원별로 작성 중인 스레드 집합을 기억하고, `stop_typing(chat_id)`이 오면 그 직원의 기억된 스레드 모두에 `on:false`를 보내고 집합을 비운다. 아직 차례가 진행 중인 스레드는 다음 갱신(2초 안)에 다시 `on`이 된다. 앱은 `ttl_seconds`(6초) 안에 갱신이 없으면 끈다.
