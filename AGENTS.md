@@ -8,8 +8,9 @@
 - 운영 공항(`~/.hermes`)의 설정·플러그인 연결·게이트웨이 재시작은 인계서가 허가한 작업에서만, 롤백 절차와 함께 한다. 실제 Slack·고객 메시지를 보내지 않는다.
 - `~/.hermes`의 비밀 파일(`.env`, `auth.json`, 토큰 파일)을 열지 않는다.
 - UI는 AppKit 기본. SwiftUI는 작업 문서의 SwiftUI 예외 목록에 이유가 적힌 화면에만 쓴다.
-- ddots(`../Hermes-ddots/ddots`)와 hejo는 다른 앱이다. ddots에서 코드를 베껴 올 수 있지만 ddots 파일을 고치거나 두 앱 사이에 동기화 장치를 만들지 않는다.
-- team-kit 변경은 Hermes-ddots 저장소의 규칙(`../Hermes-ddots/AGENTS.md`, `./airport-check`)을 따른다.
+- ddots(`<운영 저장소>/ddots`)와 hejo는 다른 앱이다. ddots에서 코드를 베껴 올 수 있지만 ddots 파일을 고치거나 두 앱 사이에 동기화 장치를 만들지 않는다.
+- `<운영 저장소>`는 운영자의 비공개 운영 저장소다. 이름·경로는 개인값이라 추적 파일에 쓰지 않고, 로컬 경로는 추적하지 않는 `AGENTS.local.md`에 적는다.
+- team-kit 변경은 운영 저장소 저장소의 규칙(`<운영 저장소>/AGENTS.md`, `./airport-check`)을 따른다.
 - 푸시는 사용자가 화면에서 승인하면 플러그인이 실행한다. 에이전트는 git push를 하지 않는다.
 
 ## 프로젝트 설정
@@ -27,7 +28,7 @@
 | 빌드 명령 | `bash app/scripts/build.sh` (HEJO-FOUNDATION TASK-05에서 생성) |
 | 시험 명령 | `bash scripts/test.sh` (gate pytest + app swiftc 시험, TASK-02·05에서 생성) |
 | 정적 분석 명령 | `python3 scripts/scan_private.py` (개인값 검사, TASK-07에서 생성) |
-| 건드리면 안 되는 경로 | `~/.hermes/hermes-agent/`(본체), `../Hermes-ddots/ddots/`(다른 앱), `~/.hermes`의 비밀 파일 |
+| 건드리면 안 되는 경로 | `~/.hermes/hermes-agent/`(본체), `<운영 저장소>/ddots/`(다른 앱), `~/.hermes`의 비밀 파일 |
 | 위험 정책 위치 | 없음(공통 4절) |
 | 규제 대상 여부 | 아니오 |
 | 기본 진행 방식 | 연합개발 |

@@ -13,3 +13,4 @@ auth.json
 *secret*.json
 devices.json
 pairing.json
+AGENTS.local.md

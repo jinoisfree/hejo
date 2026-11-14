@@ -3,7 +3,7 @@
 hejo 저장소의 모든 기획·설계·구현·검토가 따르는 현장 원본이다. 다른 문서는 이 문서를 복사하지 않고 링크한다.
 
 - 결정: 2026-11-13~14 브레인스토밍([brainstorm.md](changes/HEJO-FOUNDATION-20261114/brainstorm.md)). 상태: 승인(2026-11-14 사용자, HEJO-FOUNDATION 계획과 함께).
-- 개인 운영 저장소 Hermes-ddots의 근간(`Hermes-ddots/docs/ARCHITECTURE.md`)과 같은 비유를 쓴다. 이 문서는 hejo 키트가 놓이는 자리만 정한다.
+- 운영자의 비공개 운영 저장소(`<운영 저장소>`)의 근간(`<운영 저장소>/docs/ARCHITECTURE.md`)과 같은 비유를 쓴다. 이 문서는 hejo 키트가 놓이는 자리만 정한다.
 
 ## 1. 완성 상태
 

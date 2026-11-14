@@ -49,7 +49,7 @@
 | AT-HF-27 | REQ-HF-13.AC-01 | 자동 | 보조 프로필 1개(`beta`)가 있는 빈 임시 홈에 `hejo-install` 2회, `--check` | 기본·보조 프로필 각각의 링크·`plugins.enabled`·`gateway.platforms.hejo`(보조는 `extra.role: forwarder`, 포트 없음)·`<HOME>/hejo/`(0700)·`devices.json`(0600) 생성; 2회차 파일 변경 0(바이트 동일); `--check` 종료 0 |
 | AT-HF-28 | REQ-HF-13.AC-02 | 자동 | (보조 프로필 대상도 같은 방식으로 영수증에 포함) 기존 `plugins.enabled: [x, y]`, 기존 `gateway.platforms.hejo: {enabled: false, extra: {port: 1}}`, 기존 `<HOME>/plugins/hejo` 링크(다른 대상)인 홈에서 설치 → `--uninstall` | 세 대상이 설치 전 값·링크 대상과 같음(주석 포함 `config.yaml` 해당 부분 동일), `<HOME>/hejo/`·`<HOME>/shared/hejo/` 남음, 영수증 `uninstalled` |
 | AT-HF-38 | REQ-HF-13.AC-03 | 자동 | 설치 뒤 `extra.port`를 47999로 바꾸고 `--uninstall` | 종료 코드 2, `gateway.platforms.hejo` 그대로(47999), 나머지 대상은 되돌림, 충돌 보고에 대상 경로 |
-| AT-HF-39 | REQ-HF-13.AC-04 | 자동 | 링크 단계 뒤 설정 쓰기에서 실패 주입 | 종료 코드 1, 홈의 대상 전부 설치 전과 같음, 영수증 `failed` |
+| AT-HF-39 | REQ-HF-13.AC-04 | 자동 | 링크 단계 뒤 설정 쓰기에서 실패 주입 | 종료 코드 1, 홈의 대상 전부 설치 전과 같음(예외: `<HOME>/hejo/` 디렉터리와 그 안의 `install-receipt.json`만 남고 `devices.json`은 없음, 7판), 영수증 `failed` |
 | AT-HF-40 | REQ-HF-13.AC-05 | 자동 | 설치 → 사장이 `plugins.enabled`에 z 추가 → 재설치; 시험 내내 파일 열기 감사(`sys.addaudithook`의 `open`) | 영수증 `before` 불변, z 유지; 열린 경로에 `.env`·`auth.json`·`token`·`secret` 포함 0건 |
 | AT-HF-29 | REQ-HF-14.AC-01 | 자동 | 가짜 명부 단어(`Alpha`)를 넣은 임시 추적 파일 | 종료 코드 ≠0, 출력에 `Alpha` 없음(지문만) |
 | AT-HF-42 | REQ-HF-14.AC-03 | 자동 | 임시 저장소에 가짜 명부 단어 또는 `/Users/someone/x` 경로를 넣은 (a) `#!`로 시작하는 확장자 없는 파일 `install/fake-tool`, (b) `githooks/pre-commit`, (c) `notes.toml`, (d) 바이너리(NUL 포함) 파일을 각각 추적 | (a)(b)(c) 각각 검출·종료 코드 ≠0, (d)는 "바이너리 생략"으로 표시, 값 출력 없음 |

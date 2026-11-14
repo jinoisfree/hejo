@@ -1,7 +1,7 @@
 # HEJO-FOUNDATION 설계
 
 - 상태: 승인(2026-11-14 사용자). 명세: [spec.md](spec.md). 검토 기록: [plan-review.md](plan-review.md). 근간: [ARCHITECTURE.md](../../ARCHITECTURE.md).
-- 근거 경로의 `R`은 `~/.hermes/hermes-agent`(운영 포크 브랜치, displayVersion 0.21.5+7339.gebb026e), `TK`는 `Hermes-ddots/hermes/plugin-store/team-kit`(운영 원본 `~/.hermes/plugin-store/team-kit`), `D`는 `Hermes-ddots/ddots`.
+- 근거 경로의 `R`은 `~/.hermes/hermes-agent`(운영 포크 브랜치, displayVersion 0.21.5+7339.gebb026e), `TK`는 `<운영 저장소>/hermes/plugin-store/team-kit`(운영 원본 `~/.hermes/plugin-store/team-kit`), `D`는 `<운영 저장소>/ddots`.
 
 ## 칸·원본·쓰기 주체·수명
 
@@ -147,7 +147,7 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
 
 둘 다 실패하면 REQ-HF-10만 보류하고 사용자에게 선택지를 올린다(나머지 진행).
 
-## 5. team-kit 답장 버튼 연결(Hermes-ddots, TASK-04)
+## 5. team-kit 답장 버튼 연결(운영 저장소, TASK-04)
 
 - [확인] 중립 부분: `reply_buttons.extract`, `extract_checklist`, `allowed_labels`, `clicked_context`, `button_policy.guard`(`TK/lib/hermes_reply/reply_buttons.py:134-180,107-127`, `TK/lib/hermes_team_services/button_policy.py:92-110`). Slack 전용: Block Kit 배치·`adopt_click`·Bolt 등록.
 - 변경: `TK/lib/hermes_reply/plugin.py:41` 옆에 `register_platform_handler('hejo', hejo_factory)`를 추가한다. hejo 설치기는 어댑터의 `send`/`edit_message`(2.2절 서명)를 감싸 `controls(content)`로 표식을 떼고 `metadata["hejo_buttons"] = [{"label": 라벨, "style": …}]`(id는 문이 발급), `metadata["hejo_reply_state"] = "asked"`를 넘긴다. 클릭은 `register_click_handler("reply", …)`로 받아 `False`를 돌려 문 기본 처리(2.2절 이벤트)를 쓰게 하고, `await set_reply_state(msg_id, "answered")`, 최종 답장 때 `"closed"`를 보낸다.
@@ -175,7 +175,7 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
 
 - `install/hejo-install [--home PATH] [--check] [--uninstall]`:
   1. Hermes 홈 찾기(`HERMES_HOME` → 기본 경로). 조립식 감지(`owner/team.yaml` 존재)만 기록, 이번 작업에서 조립 층 설치는 하지 않음.
-  2. `<HOME>/plugins/hejo` → 저장소 `gate/` 심볼릭 링크(Hermes-ddots `./sync`는 링크를 링크로 모은다, `Hermes-ddots/sync:61-70`).
+  2. `<HOME>/plugins/hejo` → 저장소 `gate/` 심볼릭 링크(운영 저장소 `./sync`는 링크를 링크로 모은다, `<운영 저장소>/sync:61-70`).
   3. 기본 프로필 `config.yaml`: `plugins.enabled`에 hejo 추가, `gateway.platforms.hejo: {enabled: true, extra: {port: 47820, listen: ["127.0.0.1"], allowed_users: ["owner"]}}`. 
   3-1. (5판) 보조 프로필마다 `<보조 홈>/plugins/hejo` 링크, `plugins.enabled`에 hejo, `gateway.platforms.hejo: {enabled: true, extra: {role: forwarder}}`. 보조 프로필 목록은 Hermes 프로필 API로 읽고 각 대상을 영수증에 넣는다.
   4. `<HOME>/hejo/`(0700)와 빈 `devices.json`(0600) 생성.
@@ -184,10 +184,11 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
 - 설치 영수증 `<HOME>/hejo/install-receipt.json`(0600):
   - 최초 설치 때 **변경 전에** 만든다. 대상마다 `{path(설정 키 경로 또는 파일 경로), existed(bool), before(설치 전 값 또는 링크 대상), after(설치가 쓴 값)}`와 단계 상태(`pending`/`applied`)를 적는다. 대상: `plugins.enabled`(목록 전체의 before/after), `gateway.platforms.hejo`(블록 전체), `<HOME>/plugins/hejo` 링크, `<HOME>/hejo/` 생성 여부.
   - 재설치: 영수증이 이미 `installed` 상태면 `before`를 바꾸지 않는다. 현재 값이 `after`와 같으면 변경 없음, 다르면(사장이 바꿈) 그 대상은 건드리지 않고 알린다.
-  - 중간 실패: 단계마다 `applied`로 갱신한다. 예외가 나면 `applied`인 단계를 역순으로 `before`로 되돌리고 영수증을 `failed`로 표시, 종료 코드 1.
+  - 기록 부트스트랩(7판, T07-01 결정): 영수증을 쓰려면 `<HOME>/hejo/`(0700)가 있어야 하므로, 이 디렉터리 생성은 영수증보다 먼저 하는 **기록용 준비 단계**이며 되돌림 대상이 아니다. 영수증에는 `{path: <HOME>/hejo, existed}`를 정보로만 남긴다. 그 밖의 대상(설정 키·링크·`devices.json`)은 모두 영수증 뒤에 바꾸고 되돌림 대상이다.
+  - 중간 실패: 단계마다 `applied`로 갱신한다. 예외가 나면 `applied`인 단계를 역순으로 `before`로 되돌리고 영수증을 `failed`로 표시, 종료 코드 1. 실패 뒤 남는 것은 `<HOME>/hejo/` 디렉터리(원래 없었으면 새로 생긴 것)와 그 안의 `failed` 영수증뿐이다.
   - 제거(`--uninstall`): 대상마다 현재 값이 `after`와 같을 때만 `before`로 되돌린다(`existed=false`면 키·링크 삭제). 다르면 그 대상은 건드리지 않고 충돌로 보고하며 끝에 종료 코드 2(`--force`면 되돌림). `<HOME>/hejo/`의 금고 파일·기록장·첨부는 지우지 않는다. 영수증은 `uninstalled`로 표시해 남긴다.
   - `config.yaml` 쓰기는 ruamel 왕복(주석·순서 보존), 임시 파일 + `os.replace`로 원자적 교체.
-- `scripts/scan_private.py`: Hermes-ddots `hermes_facility.airport_boundaries`(TK)와 같은 패턴 규칙을 hejo **추적 파일 전체**(`git ls-files`)에 확장자와 무관하게 적용한다. 분류: 파일 앞 8 KiB에 NUL 바이트가 없고 UTF-8로 읽히면 텍스트(검사), 아니면 바이너리(검사 생략, 목록에 "바이너리 생략"으로 출력). 텍스트 중 코드 = 확장자 `.py .swift .sh` 이거나 첫 줄이 `#!`인 파일(확장자 없는 `install/hejo-install`, `githooks/pre-commit` 포함), 문서 = 그 밖의 텍스트.
+- `scripts/scan_private.py`: 운영 저장소 `hermes_facility.airport_boundaries`(TK)와 같은 패턴 규칙을 hejo **추적 파일 전체**(`git ls-files`)에 확장자와 무관하게 적용한다. 분류: 파일 앞 8 KiB에 NUL 바이트가 없고 UTF-8로 읽히면 텍스트(검사), 아니면 바이너리(검사 생략, 목록에 "바이너리 생략"으로 출력). 텍스트 중 코드 = 확장자 `.py .swift .sh` 이거나 첫 줄이 `#!`인 파일(확장자 없는 `install/hejo-install`, `githooks/pre-commit` 포함), 문서 = 그 밖의 텍스트.
   - 운영 홈에서 여는 파일은 **`<HOME>/owner/team.yaml`(agents 키·name·label·aliases)과 `<HOME>/owner/vault.yaml`(문자열 값)** 둘뿐이다. 경로를 고정 목록으로 열고 디렉터리 탐색을 하지 않는다. `.env*`·`auth.json`·토큰·`state.db`는 열지 않는다. 운영 홈이나 두 파일이 없으면 패턴 검사만.
   - 출력은 종류·파일·줄 번호·16진 지문만, 값은 출력하지 않는다.
   - 패턴: 명부·금고 단어, Slack ID 모양, 이메일, 사용자·볼륨 절대 경로는 모든 텍스트 파일에 적용한다. 고정 홈 경로 패턴(`airport_boundaries`의 `fixed_home`)만 코드 파일에 적용하고 문서에서는 기본 경로 설명을 허용한다.
@@ -214,5 +215,5 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
 ## 10. 위험과 롤백
 
 - 고위험: 네트워크 리스너·인증(출입증), 운영 게이트웨이 설정 변경, 동시성(기록장 순번).
-- 롤백: `install/hejo-install --uninstall`(영수증 키만 되돌림) → 게이트웨이 재시작. 기록장·금고는 남는다. team-kit 변경은 Hermes-ddots 커밋 되돌림. 캐시는 `5m` 복원.
+- 롤백: `install/hejo-install --uninstall`(영수증 키만 되돌림) → 게이트웨이 재시작. 기록장·금고는 남는다. team-kit 변경은 운영 저장소 커밋 되돌림. 캐시는 `5m` 복원.
 - 운영 재시작은 Slack 대화를 잠시 끊으므로 TASK-09에서 진행 중 차례가 없을 때 사장 확인 뒤 한다.
