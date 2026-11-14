@@ -44,6 +44,8 @@
 | AT-HF-39 | REQ-HF-13.AC-04 | 자동 | 링크 단계 뒤 설정 쓰기에서 실패 주입 | 종료 코드 1, 홈의 대상 전부 설치 전과 같음, 영수증 `failed` |
 | AT-HF-40 | REQ-HF-13.AC-05 | 자동 | 설치 → 사장이 `plugins.enabled`에 z 추가 → 재설치; 시험 내내 파일 열기 감사(`sys.addaudithook`의 `open`) | 영수증 `before` 불변, z 유지; 열린 경로에 `.env`·`auth.json`·`token`·`secret` 포함 0건 |
 | AT-HF-29 | REQ-HF-14.AC-01 | 자동 | 가짜 명부 단어(`Alpha`)를 넣은 임시 추적 파일 | 종료 코드 ≠0, 출력에 `Alpha` 없음(지문만) |
+| AT-HF-42 | REQ-HF-14.AC-03 | 자동 | 임시 저장소에 가짜 명부 단어 또는 `/Users/someone/x` 경로를 넣은 (a) `#!`로 시작하는 확장자 없는 파일 `install/fake-tool`, (b) `githooks/pre-commit`, (c) `notes.toml`, (d) 바이너리(NUL 포함) 파일을 각각 추적 | (a)(b)(c) 각각 검출·종료 코드 ≠0, (d)는 "바이너리 생략"으로 표시, 값 출력 없음 |
+| AT-HF-43 | REQ-HF-14.AC-03 | 자동 | LICENSE 고지 줄을 예외 목록에 등록, 같은 LICENSE에 가짜 명부 단어 줄 추가; 다음으로 고지 줄 내용을 바꿈 | 추가한 줄 검출(종료 ≠0); 내용이 바뀐 고지 줄도 검출(지문 불일치) |
 | AT-HF-41 | REQ-HF-14.AC-02 | 자동 | 가짜 운영 홈에 `owner/team.yaml`, `owner/vault.yaml`, `.env`, `auth.json`, `state.db`를 두고 검사, 파일 열기 감사 | 운영 홈에서 열린 경로 = 앞의 두 파일뿐 |
 | AT-HF-30 | REQ-HF-15.AC-01 | 확인(3) | 운영 `~/.hermes/config.yaml` 읽기 | `prompt_caching.cache_ttl == "auto"`, 운영 저장소에 해당 동기화 커밋 |
 | AT-HF-31 | REQ-HF-05·06·10, NFR-HF-04 | 실물(4) | 노트북 hejo ↔ Tailscale ↔ 공항 Mac 운영 공항, 실제 직원 1명과 대화·버튼·첨부·예약 보고 1건 | 모두 동작, 지연(보내기→첫 작성 중 표시, 보내기→답장 시작) 각 5회 측정 기록 |
