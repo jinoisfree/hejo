@@ -166,6 +166,45 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
 - 가져오지 않음: `Slack*` 전체, `HermesRelay*`, `HermesBridge`, `RemoteHermes`, `DdotsArchive`, `DdotsConfig`, `SettingsSync`, `App.swift`, Sparkle·업데이트, `Usage*`, 펫의 부가 기능(말풍선 답장·클립보드 선반·대시보드 문구), 클립보드 등 부가 기능, `*Smoke.swift`(SmokeCheck 제외).
 - 앱 상태: 기록장 캐시는 `~/Library/Application Support/hejo/cache/`(조회용 복제, 지워도 재동기화), 적용한 마지막 seq·스레드별 읽은 seq는 `hejo-local.json`. 권위는 문의 기록장, 동기화는 2.1 규칙, 충돌 시 문 값으로 덮어쓴다. 캐시를 지우면 `applied = 0`으로 전체 재동기화한다.
 
+### 로고와 아일랜드(9판, 2026-11-15 사용자 결정)
+
+**로고(REQ-HF-17):** `ConversationView`의 `brand`를 `HEJO.`로 바꾼다. 첫 글자 H만 `systemBlue`인 속성 문자열이다(ddots의 `d` + `dots.` 방식). 그 밑의 `version`은 그대로 둔다. 방이 없을 때의 머리글 대체 글자도 `HEJO.`로 바꾼다.
+
+**아일랜드(REQ-HF-18):** 새 AppKit 보기 `IslandView`와 상태 계산기 `IslandModel`로 만든다. SwiftUI는 쓰지 않는다.
+
+- **위치**
+  - 머리글 줄에서 로고 칸(`left` 폭) 바로 오른쪽에 둔다. x = left + 12, 높이 30, 세로 가운데.
+  - 방 제목·부제는 알약 오른쪽 끝 + 12에서 시작해 잘린다.
+  - 최대 너비 = 머리글 폭 − 로고 칸 − 오른쪽 아이콘 − 방 제목 최소 120.
+- **칸**: 문제 → 사장 차례 → 일하는 직원 순서다. 칸 사이는 1×14 선이고, 빈 칸은 없앤다. 세 칸이 모두 비면 44×12 띠만 남긴다.
+- **입력 원본(새 원본을 만들지 않음)**
+
+  | 칸 | 원본 |
+  |---|---|
+  | 사장 차례 A | `ConversationModel.messages` 중 직원 글이면서 `replyState == "asked"`인 수. 상태가 answered·closed로 바뀌면 빠진다 |
+  | 사장 차례 U | 기존 안 읽은 수의 합(탭 배지와 같은 값) |
+  | 일하는 직원 | `ConversationModel.typing`의 살아 있는 키. 경과 분 = 그 직원 작성 중이 처음 켜진 시각부터 |
+  | 연결 | `GateClient` 연결 상태와 다음 재시도 시각 |
+  | 보내기 실패 | `ConversationController.sendCurrent`·`click`·`open`이 실패할 때의 `transferFailed` 문구. 실패한 글은 `drafts[key]`에 남는다. 알약에는 실패 문구와 첫 말을 보여 준다. "다시 보내기"는 다시 보낼 수 있는 실패(`notConnected`·기타)에만 붙이고 `sendCurrent(for: key)`를 부른다. 너무 큼·출입증·파일 바뀜은 문구만 보여 준다. 이 실패 문구는 notice 띠 대신 알약으로 옮긴다 |
+  | 업로드 | `sendCurrent`의 첨부 반복에서 올린 수 k와 전체 n을 컨트롤러 상태로 내보낸다(새 원본이 아니라 진행 중 값이다) |
+
+- **잠깐 늘어남**: 새 `asked`는 4초, 다른 스레드의 새 직원 글은 3초다. 같은 것이 겹치면 줄을 세우고, 높은 것(문제 > 사장 차례 > 직원)이 오면 낮은 것은 뒤로 미룬다.
+- **누르기**
+  - 사장 차례 → 가장 오래된 `asked` 글로 이동한다. 기존 탭 선택, 스레드 펼침, 스크롤 경로를 그대로 쓰고 1.5초 강조를 더한다.
+  - 직원 → 그 직원 탭.
+  - 문제 → `GateClient` 즉시 재접속, 또는 기존 다시 보내기.
+- **올리기**: 사장 차례 칸에 마우스를 올리면 최근 `asked` 질문 한 줄과 "열기 ›"를 보여 준다. 칸 높이는 그대로다.
+- **끌기**: `ConversationHeaderDrag`가 알약 사각형 안의 마우스 이벤트를 받지 않게 한다.
+- **연결 끊김 띠**: 기존 끊김 띠(banner의 연결 용도)는 아일랜드로 옮긴다.
+- **1단계 범위 밖**(데이터 또는 위험 문제)
+  - 알약 안 답 버튼과 5초 되돌리기: 보낸 클릭은 직원 차례를 바로 시작하므로, 되돌리려면 보내기를 늦추는 설계가 필요하다. 승인·결제 같은 중요 버튼을 구분할 표식도 없다.
+  - 왼쪽 할 일 칸(drawer).
+  - D-day·마감: 규격에 마감 정보가 없다.
+  - 직원 작업 실패: 구조화된 실패 이벤트가 없다.
+  - 아침 요약, 펫 배지 색 변화.
+- **시험**: AT-HF-52~56. 앱 시험은 가짜 모델 상태를 넣어 칸, 너비, 글자, 누르기 결과를 단언한다. 자동 캡처는 `evidence/HEJO-FOUNDATION/`에 둔다.
+- **시안**(참고일 뿐, 기준 아님): `mockup/hejo-ui-v28-island-logo`, `hejo-ui-v31-island-all`.
+
 ### SwiftUI 예외 목록
 
 | 화면 | 이유 |
@@ -204,7 +243,7 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
 | Slack 게이트웨이·ddots | 유지 | 병행. Slack 은퇴 조건 전까지 손대지 않는다 |
 | team-kit `hermes_reply` Slack 경로 | 유지 + `controls()` 이동(통합) | Slack 동작 보존, 같은 함수를 hejo도 사용 |
 | ddots 소스 | 유지 | 읽기만. 베껴 온 코드는 hejo 소유 |
-| 운영 `config.yaml` `prompt_caching.cache_ttl: 5m` | 교체 | `auto`. 롤백은 값 복원 |
+| 운영 `config.yaml`(루트·모든 프로필) `prompt_caching.cache_ttl: 5m`/없음 | 교체 | `auto`(9판: 프로필 홈은 루트를 물려받지 않아 각각 둔다). 롤백은 각 파일 값 복원(없던 파일은 키 삭제) |
 
 ## 9. 대안
 

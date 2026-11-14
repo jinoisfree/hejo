@@ -420,3 +420,76 @@
 5. **푸시는 하지 않는다.** 두 저장소의 푸시 대상(저장소·원격·브랜치·전체 커밋)을 보고한다.
    - 운영 저장소 AGENTS.md에 상시 푸시 승인이 있더라도, 이 작업은 플러그인 승인을 따른다.
 6. **금지:** 재시작·reload, 운영 hejo 연결, 외부 발송, 비밀 파일 열기, 기억 파일 열기·수정·되돌리기.
+
+## 인계: TASK-08 캐시 auto → TASK-10 로고 → TASK-11 아일랜드 1단계 (9판, 2026-11-15)
+
+사용자 승인: "캐시 진행 로고도 진행 다이나믹아일랜드도 진행하자". 아래 순서대로 진행하고, 작업마다 따로 커밋한다.
+
+### TASK-08 (운영, 증거 수준 3) — REQ-HF-15, AT-HF-30
+
+0. **착수 전 확인**
+   - 운영 저장소(AGENTS.local.md의 `<운영 저장소>`)의 미커밋 변경이 허용 목록뿐인지 본다. 허용 목록은 DDOTS-DROP-MODEL 문서 2개와 `hermes/profiles/*/memories/`다.
+   - 처리 중인 차례·작업이 0인지 본다.
+   - 둘 중 하나라도 아니면 멈추고 보고한다.
+1. **변경 전 기록:** 루트 `~/.hermes/config.yaml`과 `~/.hermes/profiles/*/config.yaml` 각각의 `prompt_caching.cache_ttl` 값(없음 포함)을 `.build/task08-before.json`에 적는다. 다른 키 내용은 출력하지 않는다.
+2. **변경**
+   - ruamel 왕복(주석·순서 보존)으로 각 파일의 `prompt_caching.cache_ttl`을 `auto`로 바꾼다. `prompt_caching`이 없으면 맵을 만든다.
+   - 원자적으로 쓰고 파일 권한을 유지한다.
+   - 파일마다 `cache_ttl`을 뺀 나머지 데이터가 바꾸기 전과 같은지 비교한다.
+   - 텍스트 차이가 그 줄(또는 새 두 줄)뿐인지 확인한다.
+3. **적용 시점 조사(재시작 금지):** Hermes 본체 코드를 읽기만 해서 `cache_ttl`을 언제 읽는지 확인한다(차례마다인지, 시작 때 한 번인지). 그 결과로 "즉시 적용" 또는 "다음 재시작(TASK-09) 때 적용"을 보고한다.
+4. **운영 저장소 커밋**
+   - 순서: `./airport-check`(`--rebaseline` 금지) → `./sync`(모으기만) → 토큰 경고가 나오면 멈춤 → `git status` 확인.
+   - 바뀐 설정 사본 `hermes/config.yaml`과 `hermes/profiles/*/config.yaml`만 `git commit --only -m '<한국어>' -- <경로>`로 커밋한다.
+   - 기억 파일과 DDOTS 문서는 손대지 않는다.
+   - 예상하지 못한 경로가 있으면 멈춘다.
+5. **롤백:** `.build/task08-before.json` 값으로 복원한다. 원래 없던 키는 지우고, 원래 없던 맵은 지운다.
+6. **금지:** 게이트웨이 재시작·reload, 비밀 파일(`.env`·`auth.json`·토큰), 다른 설정 키 변경, Hermes 본체 수정, 푸시.
+
+### TASK-10 (hejo, 증거 수준 2) — REQ-HF-17, AT-HF-52
+
+1. `app/Sources/ConversationView.swift`의 `brand`를 속성 문자열 `HEJO.`로 바꾼다.
+   - H는 `systemBlue`, 나머지는 기본 글자색이다.
+   - 글꼴은 14 semibold이고 가운데 정렬을 유지한다.
+2. 방이 없을 때의 머리글 대체 글자 `"hejo."`도 `HEJO.`로 바꾼다.
+3. 버전 줄(10pt)은 그대로 둔다.
+4. AT-52를 앱 시험에 추가하고 커밋한다.
+
+### TASK-11 (hejo, 증거 수준 2) — REQ-HF-18, AT-HF-53~56
+
+design 6절 "로고와 아일랜드"를 따른다.
+
+1. **새 파일**
+   - `IslandModel.swift`: 순수 상태 계산기. 입력은 모델·연결·실패·업로드·시계이고, 출력은 칸 목록·글자·늘어남 상태다. 시계는 주입할 수 있게 한다.
+   - `IslandView.swift`: AppKit `NSView`. 높이 30, 칸·구분선, 도는 고리(동작 줄이기면 정지), 마우스 올림 추적, 누르기 이벤트를 맡는다.
+2. **배치(`ConversationView.layout`)**
+   - 알약 x = `left + 12`, 세로 가운데에 둔다.
+   - 방 제목·부제는 알약 오른쪽 + 12에서 시작한다.
+   - 최대 너비는 design의 식을 따르고, 넘치면 직원 칸부터 얼굴만 남긴다.
+   - `headerDrag`가 알약 사각형 안의 이벤트를 받지 않게 한다.
+3. **연결(`ConversationController`·`AppDelegate`)**
+   - 사장 차례 A = 직원 글 중 `replyState == "asked"`인 수. U = 기존 안 읽은 합.
+   - 일하는 직원은 `typing`에서 읽는다. 첫 켜짐 시각은 Island 쪽 상태로 기억한다.
+   - `GateClient.status`에서 끊김과 재시도 초를 읽는다. 다시 연결되면 2초 동안 "다시 연결됨"을 보여 준다.
+   - `transferFailed` 문구와 실패한 key를 알약으로 보낸다. 다시 보낼 수 있는 실패만 "다시 보내기"를 붙이고 `sendCurrent(for:)`를 부른다.
+   - 업로드 k/n은 `sendCurrent`의 반복에서 내보낸다.
+   - 연결 끊김 띠와 실패 notice는 알약으로 옮긴다. 다른 notice 용도는 유지한다.
+3. **누르기**
+   - 사장 차례 칸: 가장 오래된 `asked` 글의 방·스레드를 선택하고 카드를 펼친 뒤 1.5초 강조한다. 기존 선택·펼침·스크롤 경로를 쓴다.
+   - 직원 칸: 그 직원 탭으로 간다.
+   - 문제 칸: 즉시 재접속하거나 다시 보낸다.
+   - 사장 차례 칸에 마우스를 올리면 최근 질문 한 줄과 "열기 ›"를 보여 준다. 답 버튼은 두지 않는다.
+4. **잠깐 늘어남:** 새 `asked`는 4초, 다른 스레드의 직원 새 글은 3초다. 줄 세우기 순서는 문제 > 사장 차례 > 직원이다.
+5. **시험:** AT-53~56을 앱 시험(가짜 모델·시계 주입)으로 만든다. 자동 캡처 2장(평소+직원 일하는 중, 연결 끊김)을 `evidence/HEJO-FOUNDATION/`에 둔다.
+6. **범위 밖:** 알약 안 답 버튼·되돌리기, 할 일 칸, D-day·마감, 직원 작업 실패, 아침 요약, 펫 배지 색. 시안 v28·v31은 참고일 뿐이다.
+
+### 공통
+
+- 검증
+  - hejo: `HEJO_PYTHON`·`HEJO_TEAM_KIT_LIB`·`PYTHONPATH`(.build deps + Hermes 소스 + 저장소)를 지정해 `bash scripts/test.sh`를 실행하고 종료 0이어야 한다.
+  - `app/scripts/test.sh`를 10회 연속 실행해 모두 종료 0이어야 한다.
+  - 게이트웨이 Python으로 `scripts/scan_private.py`를 실행해 0이어야 한다.
+  - `import SwiftUI`가 0건이어야 한다.
+- impl-report에 TASK-08·10·11 절을 나눠 명령·종료 코드·로그 경로·커밋을 적는다.
+- 금지: git push, 운영 hejo 연결, 외부 발송, ddots 수정, 개인값.
+- 시안 파일은 건드리지 않는다.
