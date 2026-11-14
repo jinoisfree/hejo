@@ -361,3 +361,41 @@
 6. **나머지는 원래 인계(TASK-04) 그대로다.**
    - (1)~(3)항, 금지 사항, 롤백 절차는 바뀌지 않는다.
    - 푸시는 하지 않는다. 운영 저장소 AGENTS.md에 상시 푸시 승인이 있어도 이 작업은 플러그인 승인을 따른다.
+
+## 보완 지시 8: TASK-04 마무리 (검증 14차)
+
+기준은 hejo `a41ba00` 이후 HEAD다. 실행 원본 team-kit에 있는 이번 작업의 미커밋 3개 파일 위에서 이어간다.
+
+1. **F3 — 버튼 처리는 경로마다 정확히 한 번**
+   - 보조 프로필(전달자) 어댑터와 대표 어댑터가 모두 감싸져 있어도 아래가 각각 한 번만 일어나야 한다.
+     - 표식 제거
+     - `hejo_buttons`·`asked` 설정
+     - `close_answered`
+   - 방법은 둘 중 하나를 고른다.
+     - (가) 감싸기가 이미 준비한 metadata 표식(예: `_hejo_reply_prepared`)이 있으면 안쪽 감싸기는 그대로 통과시킨다.
+     - (나) 전달자 어댑터에는 설치하지 않고 대표 어댑터만 처리한다. 이때 판별은 공개 속성만 쓴다.
+   - 시험 추가(`tests/test_reply_hejo.py`): 보조 프로필 직원이 아래를 해도 대표 프로필 직원과 결과(버튼·상태 순서)가 같아야 한다.
+     - 버튼 질문 → 클릭 → 버튼 달린 새 질문(이때 answered가 유지되어야 함) → 최종 답(closed)
+     - 버튼 질문을 edit로 보내는 경우
+2. **F4:** closed 처리하거나 기록이 실패하면 `working`·`message_threads`에서 지운다. `message_threads`에는 최근 N개(예: 2048)만 남기는 상한을 둔다.
+3. **F1:** team-kit `tests/test_org_review.py`의 `seed()`와 같은 날짜 키를 쓰는 곳을 고친다.
+   - 오늘(KST) 기준 상대 날짜로 바꾸거나, `prune`의 `now`를 고정한다.
+   - `lib/hermes_team_services/org_review.py`의 정책은 바꾸지 않는다.
+   - 이 시험 파일은 이번 커밋 대상(자기 파일)에 포함한다.
+4. **F2:** hejo `app/Tests/TestMain.swift`의 AT47 고정 `pause(0.4)` 검사를 바꾼다.
+   - `transitionProgress == 0`이 될 때까지 짧게 반복 확인하고, 최대 2초까지 기다린다.
+   - 같은 패턴의 다른 고정 대기 검사도 함께 고친다.
+   - 펫 제품 코드는 바꾸지 않는다.
+   - `app/scripts/test.sh`를 20회 연속 실행해 모두 종료 0이어야 한다. 로그를 남긴다.
+5. **검증**
+   - Slack 9개 파일 214 passed가 그대로 유지되는지 확인한다.
+   - `tests/test_reply_hejo.py` 전체 통과.
+   - **team-kit `pytest tests` 종료 0.**
+   - hejo `bash scripts/test.sh` 종료 0. `HEJO_PYTHON`·`HEJO_TEAM_KIT_LIB`·`PYTHONPATH`를 설정해서 실행한다.
+   - 개인값 검사 종료 0.
+6. **커밋** — 보완 인계(재개)의 (4)항 그대로다.
+   - 순서: airport-check → `./sync`(모으기만) → 토큰 경고 확인 → `git status` 확인 → 자기 파일만 `git commit --only`.
+   - 커밋 대상: team-kit 사본의 plugin.py·reply_buttons.py·test_reply_hejo.py·test_org_review.py.
+   - DDOTS-DROP-MODEL 문서 2개는 계속 손대지 않는다.
+   - hejo 쪽(F2 시험 수정·보고서)은 hejo 저장소에 따로 커밋한다.
+7. **금지 사항·롤백은 기존 인계와 같다.** 재시작·reload·운영 연결·외부 발송·비밀 파일·푸시는 하지 않는다.

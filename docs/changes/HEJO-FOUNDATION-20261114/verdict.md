@@ -391,3 +391,45 @@
    - DDOTS-DROP-MODEL 작업이 문서를 커밋해 운영 저장소 main이 깨끗해지면 TASK-04를 같은 인계로 다시 시작한다.
    - 재개할 때 (0)항 전체를 다시 확인한다: 원본 team-kit 변경, 처리 중 작업, sync 토큰 경고.
    - (0)항을 완화할지(다른 작업의 문서만 남아 있으면 진행 허용 등)는 사용자가 결정한다.
+
+## 검증 판정: HEJO-FOUNDATION TASK-04 재개 / team-kit hejo 답장 버튼 (14차)
+
+1. **검토 대상**
+   - 실행 원본 `~/.hermes/plugin-store/team-kit`의 미커밋 변경 3개 파일. 해시는 보고서와 일치한다.
+     - `lib/hermes_reply/plugin.py` (84e30288…)
+     - `lib/hermes_reply/reply_buttons.py` (9940cb80…)
+     - `tests/test_reply_hejo.py` (2cd76fc4…)
+   - 변경 전 원본(`.build/task04-resume/original`)은 운영 저장소 사본과 같다.
+   - hejo 보고 커밋은 `a41ba00`이다. 운영 저장소 HEAD는 `36c5aee1` 그대로이고, 남은 문서 2개는 그대로 보존되어 있다.
+2. **판정: 부분 완료.**
+   - 구현과 새 시험은 동작한다.
+   - 전체 시험 합격·운영 저장소 커밋이 아직 없고, 설계 적합성 지적 1건(F3)이 남아 있다.
+   - 원인 분류:
+     - F1·F2는 기존 결함이다. 이번 변경과 무관하다.
+     - F3·F4는 이번 구현의 보완 사항이다.
+3. **설계 적합성(4.2): 대체로 적합, 1건 보완 필요.**
+   - 적합한 부분:
+     - `controls()`는 `reply_buttons`로 옮겼고, Slack 쪽은 같은 함수를 참조만 한다.
+     - hejo는 `register_platform_handler('hejo', …)`와 공개 메서드(send·edit_message·set_reply_state·register_click_handler·handle_message)만 사용한다. 문 내부 import는 없다.
+     - 클릭은 answered로 기록한 뒤 False를 반환한다. 최종 답장에서 closed가 된다.
+     - Slack 변경 전후 시험 결과가 같다(214→214).
+   - **F3 (보완 필요):** 보조 프로필 전달자 경로의 버튼 처리가 시험되지 않았다. 이 경로가 실제 직원 대부분이 쓰는 경로다(design 4.1 A).
+     - 팩토리가 프로필마다 어댑터를 감싸면, 전달자의 `send`가 대표 어댑터의 **감싼** `send`를 다시 호출한다. 그래서 감싸기가 두 번 적용된다.
+     - 대표 쪽 감싸기는 표식이 이미 빠진 글을 받는다. "버튼 없음"으로 보고 `close_answered`를 실행한다.
+     - 그 결과, 같은 스레드에서 직원이 버튼 달린 새 질문만 보내도 answered 글이 closed로 바뀐다. 대표 프로필 직원은 그렇지 않다. **프로필에 따라 동작이 다르다.**
+4. **직접 확인한 것**
+   - 원본에서 `pytest tests/test_reply_hejo.py`: 종료 0, 8 passed.
+   - `tests/test_org_review.py`: 종료 1, 8 failed·83 passed. 실패를 재현했다.
+     - 원인: `seed()`가 날짜를 `2026-10-14`로 고정한다. `prune()`은 30일보다 오래된 기록을 지운다.
+     - 오늘(2026-11-14)부터 터지는 날짜 시한폭탄이다.
+   - 앱 시험(`app/scripts/test.sh`, 의존 경로 지정) 14회 실행 결과:
+     - 13회 통과, 1회 `AT47 closing ends folded` 실패.
+     - 원인: 0.30초 변형 뒤 고정 0.4초 대기 → 부하가 있을 때 가끔 실패한다.
+     - 로그: `.build/task04-review-app-*.log`
+   - 코드 검토: `install_hejo`, `clicked_context` 인수 추가, 공유 `controls`.
+5. **지적**
+   - **F1 (기존 결함, 차단):** `tests/test_org_review.py`의 날짜 고정. 시험만 고친다. 정책 코드(`org_review.py`)는 바꾸지 않는다.
+   - **F2 (기존 결함, 차단):** `app/Tests/TestMain.swift:92`의 고정 대기. 접힘이 끝날 때까지 기다리는 방식(최대 2초)으로 바꾼다.
+   - **F3 (보완, 차단):** 위 3항. 버튼 처리가 **경로마다 정확히 한 번**만 일어나야 한다. 전달자 경로 시험도 추가한다.
+   - **F4 (보완, 낮음):** `message_threads`·`working`이 상한 없이 커진다. 닫히면 지우고, 보관 개수에 상한을 둔다.
+6. **다음:** 보완 지시 8(handoff.md)대로 수정 → 전체 시험 종료 0 → airport-check → `./sync` 모으기 → 자기 파일만 커밋.
