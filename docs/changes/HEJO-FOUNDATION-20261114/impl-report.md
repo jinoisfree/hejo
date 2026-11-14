@@ -126,3 +126,41 @@ PYTHONPATH="$PWD/.build/task02-deps:$HERMES_SOURCE:$PWD" \
 - **권고·중단 범위**: 우선 A의 경계를 검토하되, 운영 배포·범위 밖 전송 계층 변경은 진행하지 않는다. V-1~V-4 변경은 보존하고 이 관측을 검토 담당에게 넘긴다. 전체 검사 조건을 안정적으로 충족했다고 선언하지 않는다.
 
 이번 보완의 롤백은 이 저장소 보완 커밋을 되돌리는 것이다. 최초 보고의 미검증 범위(필수 개인값 검사·실제 게이트웨이/기기·첨부 HTTP·운영 설치)는 유지된다. 정확한 검토 대상 커밋은 최종 상태 블록에 남긴다. 커밋은 검토용이며 푸시·운영 반영은 실행하지 않았다.
+
+## 보완 2: V-6 초과 프레임 알림·닫기 계약 정렬 (2026-11-14)
+
+이 절이 TASK-02 보완 2의 현재 구현 인계다. 앞 절의 간헐 실패·보류는 당시 상태 기록이며, 이번 보완에서는 아래 20회 검사를 모두 통과했다.
+
+1. **받은 지시·판단**: 기준 `05b0c11952e0decf6556e20327b19893c7f1a686`, verdict 2차·handoff 보완 지시 2·design 2절 크기 한도. 착수 HEAD는 기준과 같고 작업 트리는 깨끗했다. 고위험·필요 증거 수준 2 유지. **배정된 보완 구현·자체 시험 완료**로 인계하며 최종 완료 판정은 검토 역할에 남긴다.
+2. **V-6 처분 / 구조**:
+   - `gate/server.py`의 `BoundedWebSocket.close`: 파서의 1009 닫기 경로에서 오류 프레임 전송은 최선 노력이다. 상대 연결 종료 등으로 `send_json`이 `ConnectionError` 또는 `RuntimeError`를 던져도 동일한 1009 코드로 상위 닫기 처리를 계속한다. 본문을 추가로 읽거나 프레임 크기 한도를 늘리지 않는다.
+   - `gate/tests/test_boundaries.py::test_bad_frames_are_isolated`: 1 MiB+1 송신을 별도 태스크로 시작하고 동시에 실제 소켓의 응답을 읽는다. `error(too_large)` 또는 CLOSE/CLOSED와 `close_code == 1009`를 확인한다. 일반 종료·1006 등 다른 닫기 코드는 허용하지 않는다. 이어 새 페어링 연결에서 roster 응답을 받아 문이 계속 동작함을 확인한다.
+   - 같은 파일의 추가 시험 `test_oversize_close_survives_error_frame_failure`: 오류 프레임 전송에 연결 오류를 주입해도 상위 WebSocket 닫기가 코드 1009로 호출됨을 확인한다.
+3. **설계 차이·범위**: 없음. 이번 시험 변경은 인계서가 지정한 구현 범위 시험의 1 MiB 단계에 한정한다. 64 KiB 글 초과 검사와 앞선 검사들은 AST 비교로 불변임을 확인했다. 나머지 기존 시험 함수 37개와 승인·참고 문서 7개도 기준 대비 불변이다. 수락 시험 코드·명세의 입력·기대값·합격 기준은 변경하지 않았다. 새 칸·대체 경로·구버전 경로·임시 제품 코드 없음. 변경 파일은 서버·구현 시험·이 보고서 세 개다.
+4. **실행 환경·증거 수준**: 최초 보고의 Hermes venv, 실제 Hermes 모듈·프로필 API·권한 검사와 차례 대역을 재사용해 **수준 2 도달**. 각 반복 실행의 프로세스 시작 홈과 각 시험의 홈은 각각 임시 디렉터리다. `PYTHONDONTWRITEBYTECODE=1`을 적용했다. 운영 설정·플러그인 연결·재시작·실제 메시지 발송·본체·다른 앱·TASK-03 범위에는 변경·실행 없음. 다른 에이전트를 실행하지 않았다.
+5. **검증 명령·실제 결과**(작업 폴더는 저장소 루트, 경로 변수 의미는 최초 보고와 같음):
+
+   ```sh
+   PYTHONDONTWRITEBYTECODE=1 \
+   HEJO_TEAM_KIT_LIB="$HEJO_TEAM_KIT_LIB" \
+   PYTHONPATH="$PWD/.build/task02-deps:$HERMES_SOURCE:$PWD" \
+   "$HERMES_PYTHON" .build/task02-r2-repeat.py
+   ```
+
+   로컬 반복 러너는 다음 명령을 새 임시 프로세스 홈으로 20번 차례로 실행한다. 실패하면 즉시 멈추며 재시작한 통과 구간을 합치지 않는다.
+
+   ```sh
+   "$HERMES_PYTHON" -m pytest gate/tests tests/acceptance/test_gate_foundation.py \
+     -q -o asyncio_default_fixture_loop_scope=function -p no:cacheprovider
+   ```
+
+   | 검사 | 실제 종료·결과 | 로그(저장소 기준) |
+   |---|---|---|
+   | 위 전체 시험 묶음 20회 연속 | 반복 러너 종료 0. **01~20회 각각 종료 0·43 passed**. 총 860개 시험 실행. 회차 기록과 로그 20개를 직접 대조함 | `.build/task02-r2-repeat.log`, `.build/task02-r2-results.json`, `.build/task02-r2-run-01.log` ~ `.build/task02-r2-run-20.log` |
+   | 사전 영향 시험 `-m pytest gate/tests/test_boundaries.py -k 'bad_frames or oversize_close' -q -o asyncio_default_fixture_loop_scope=function -p no:cacheprovider` | 종료 0, 2 passed / 16 deselected | `.build/task02-r2-targeted.log` |
+   | 같은 시험 환경에서 `python .build/task02-r2-mutation.py` | 조정 실행 종료 0. 상위 닫기를 1009 대신 1000으로 바꾸면 새 시험이 예상 종료 1로 실패. 원본 바이트 복원 후 위 전체 20회 실행 | `.build/task02-r2-mutation.log`, `.build/task02-r2-mutation-close-code.log` |
+   | Python AST 비교·승인 문서 `git diff --exit-code` | 종료 0. 64 KiB 단계·앞선 검사, 나머지 기존 시험 함수 37개, 참고 문서 7개 보존 | `.build/task02-r2-preserved.log` |
+   | 변경 파일 AST 구문·보조 개인값 패턴 검사 | 종료 0. 세 변경 파일의 구문 및 절대 경로·이메일·Slack ID 모양 위반 없음. 필수 검사 대체 아님 | `.build/task02-r2-static.log` |
+   | `git diff --cached --check` | 종료 0 | `.build/task02-r2-diff-check.log` |
+
+6. **미검증·남은 위험·검토 요청**: 이번 보완에서 새로 남긴 차단 사항 없음. 최종 검토자는 변경 두 코드 파일과 20회 결과를 읽고 V-6 처분을 판정해 달라. V-5 기록장 메모리·선형 탐색은 후속 기술 부채로 유지한다. 필수 개인값 검사기(TASK-07 미생성)는 이번에도 미실행이며, 실제 게이트웨이·Tailscale·실기기·첨부 HTTP·운영 설치·독립 검토 완료를 주장하지 않는다. 롤백은 이번 보완 커밋 되돌림이며 운영 롤백은 필요하지 않다. 정확한 검토 대상 커밋은 최종 상태 블록에 제공한다. 푸시는 실행하지 않았다.

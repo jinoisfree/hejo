@@ -22,7 +22,12 @@ class BoundedWebSocket(web.WebSocketResponse):
     async def close(self, *, code=1000, message=b"", drain=True):
         # aiohttp enforces the bound while assembling fragments, before JSON parsing.
         if code == 1009 and not self.closed:
-            await self.send_json({"v": 1, "type": "error", "code": "too_large", "ref": None})
+            try:
+                await self.send_json({"v": 1, "type": "error", "code": "too_large", "ref": None})
+            except (ConnectionError, RuntimeError):
+                # The peer may still be sending or already disconnected. An error
+                # frame is best effort; its failure must not skip the 1009 close.
+                pass
         return await super().close(code=code, message=message, drain=drain)
 
 

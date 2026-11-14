@@ -172,14 +172,29 @@ async def test_bad_frames_are_isolated(gate, client):
     assert (error["code"], error["ref"]) == ("too_large", "large-text")
     await client.send(ws, employee="not-a-profile")
     assert (await client.read(ws))["code"] == "unknown_employee"
+    from aiohttp import WSMsgType
+    sending = asyncio.create_task(ws.send_str("x" * 1048577))
     try:
-        await ws.send_str("x" * 1048577)
-    except ConnectionError:
-        # The parser may reject the advertised size before the sender drains its body.
-        pass
-    assert (await client.read(ws))["code"] == "too_large"
+        # Observe the server while the oversized body is still being sent.
+        response = await ws.receive(timeout=5)
+    finally:
+        try:
+            await sending
+        except ConnectionError:
+            # A bounded parser can close before the sender finishes its body.
+            pass
+    if response.type == WSMsgType.TEXT:
+        assert json.loads(response.data)["code"] == "too_large"
+    else:
+        assert response.type in {WSMsgType.CLOSE, WSMsgType.CLOSED}
+        assert ws.close_code == 1009
     assert gate.is_connected
     await ws.close()
+    fresh, welcome = await client.pair()
+    assert welcome["type"] == "welcome"
+    await fresh.send_json({"v": 1, "type": "roster", "id": "after-oversized-frame"})
+    assert (await client.read(fresh))["ref"] == "after-oversized-frame"
+    await fresh.close()
 
 
 async def test_sync_queue_overflow(gate, airport):
@@ -277,3 +292,14 @@ async def test_dispatch_logs_type_and_stack_without_frame_body(gate, client, mon
     await ws.send_json({"v": 1, "type": "roster", "id": "after-failure"})
     assert (await client.read(ws))["ref"] == "after-failure"
     await ws.close()
+
+
+async def test_oversize_close_survives_error_frame_failure(airport):
+    """A failed best-effort notification must still invoke the protocol's 1009 close."""
+    from unittest.mock import AsyncMock
+    from gate.server import BoundedWebSocket
+    ws = BoundedWebSocket()
+    with patch.object(ws, "send_json", new=AsyncMock(side_effect=ConnectionResetError("peer gone"))), \
+         patch("aiohttp.web.WebSocketResponse.close", new=AsyncMock(return_value=True)) as close:
+        assert await ws.close(code=1009)
+        close.assert_awaited_once_with(code=1009, message=b"", drain=True)
