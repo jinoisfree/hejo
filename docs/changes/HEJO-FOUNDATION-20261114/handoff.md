@@ -199,3 +199,45 @@
 - (3) 원 인계의 설치 도우미 전체를 구현하고 AT-27·28·38·39·40을 자동화한다.
 - (4) `bash scripts/test.sh`(기존 시험 + 새 시험 + AT-22)가 종료 0이어야 한다. 커밋하고 로그를 남긴다.
 - 범위·금지는 원 인계와 같다. 운영 홈에 설치하지 않는다. 검사기는 두 파일만 읽는다.
+
+## 인계: TASK-05 앱 골격 + 펫 창 (2026-11-14, 4~7판 기준)
+
+- 기준: 이 인계를 담은 커밋. 게이트(TASK-02·03b)·설치(TASK-07)는 완료됐다.
+- 계획 검증: 4판(펫 구조 REQ-HF-16, 베끼기 원칙)이 이 인계의 계획 재검증 대상이다. 검증에서 보완이 나오면 그 결과를 따른다.
+- 근거 문서:
+  - spec REQ-HF-11·16, design 2·2.1절(재전송·크기 한도 3판: 보내기 전 1 MiB 검사, 1006은 일반 끊김 후 재접속), design 6절(베끼기 원칙·펫 창 구조·SwiftUI 예외 없음)
+  - tasks TASK-05
+  - 수락 시험 AT-HF-23·24·25·47·48
+  - UI 시안 `mockup/hejo-ui.html`(메뉴 막대·연결 창·끊김 안내)
+- 할 일:
+  - (0) **베끼기 전 전수 검토:** design 6절 후보 파일 전체와 그 의존을 끝까지 읽는다. 후보 파일은 펫 관련 `PetLayout`·`GenieView`·`PetAnimation`·`PetPointerInteraction`·`PetSprite*`·`PetCarrySmoke`·`ScreenWindowResolver`·`PetView`의 `PetPanel`/`PetView`, `App.swift`의 배치·열고닫기 로직, 그 밖에 `AppIdentity`·`LoginLaunch`·`MenuBarIcon`·`SmokeCheck`·키체인 방식 등이다. 읽은 내용은 `copy-review.md`에 파일별로 기록한다. 기록이 없는 파일은 베끼지 않는다. 원본 위치는 추적 파일에 `<운영 저장소>/ddots/…`로만 쓴다.
+  - (1) `app/` 골격을 만든다.
+    - `scripts/build.sh`: swiftc 단일 빌드. 번들 ID는 `io.github.hermes-hejo.hejo`, 서명은 기본 로컬 인증서 이름(환경 변수로 바꿀 수 있음)이다.
+    - 정체성, AppDelegate·진입점, 메뉴 막대(보조 입구), 단일 실행, 로그인 시 실행.
+    - `hejo-local.json` 설정 저장, 키체인 헬퍼(서비스 `io.github.hermes-hejo.hejo.gate-token`), 연결 창(주소·12자 페어링 코드·기기 이름, 실패 안내 3종).
+  - (2) WebSocket 클라이언트(`URLSessionWebSocketTask`)를 만든다.
+    - hello → welcome → 2.1 재전송 규칙(applied seq 저장, 빈칸이면 sync).
+    - 지수 백오프 재접속(1, 2, 4… 최대 30초).
+    - 보내기 전 1 MiB 검사.
+    - 닫기 코드 1009와 `too_large`는 "너무 큼"으로 처리하고, 1006은 일반 끊김으로 처리한다.
+  - (3) 펫 창: REQ-HF-16, design 6절 펫 창 구조를 따른다.
+    - 한 `PetPanel`을 펫과 대화가 함께 쓴다. 0.30초 변형(genie)으로 펼치고 접는다.
+    - 열기는 클릭·메뉴, 닫기는 다시 클릭·Esc·"펫으로 접기"다.
+    - 4 px 넘게 끌면 이동이다. 여러 화면을 지원하고, 동작 줄이기 설정을 따르며, 다른 앱의 포커스를 뺏지 않는다.
+    - 대화 영역은 TASK-06이 채울 빈 AppKit `NSView` 자리로 둔다(연결 상태 표시만).
+    - 펫 그림은 LICENSE와 함께 가져오고, 펫 기본 이름은 중립값으로 둔다.
+  - (4) 앱 시험(`app/Tests/`)을 `scripts/test.sh`에 연결한다("앱 시험 없음" 줄을 대체한다). AT-23·24·25·47(자동 부분)·48을 자동화하고, AT-47의 수동 체크리스트는 `evidence/HEJO-FOUNDATION/`에 스크린샷·녹화 자리를 마련해 보고한다.
+- 유지할 것:
+  - UI는 AppKit만 쓴다(SwiftUI 예외 없음).
+  - ddots 파일은 수정하지 않고, 동기화 장치도 만들지 않는다.
+  - 개인값 검사는 위반 0, 기존 80개 시험과 AT-22는 통과를 유지한다.
+- 금지:
+  - 운영 `~/.hermes` 쓰기와 게이트웨이 재시작.
+  - 실제 운영 문에 페어링. 시험은 임시 문 대역만 쓴다.
+  - 비밀 파일 열기.
+  - Hermes 본체·ddots·운영 저장소 수정.
+  - TASK-06 대화 화면 구현.
+- 위험·증거: 고위험(인증 저장), 증거 수준 2. 롤백은 커밋 되돌림이다.
+- 멈춤 조건: 다음 경우에는 멈추고 보고한다.
+  - 베낄 코드가 SwiftUI·Slack과 떼어낼 수 없게 얽혀 있어 설계 범위를 넘는 경우.
+  - 서명 인증서가 없어 빌드할 수 없는 경우.
