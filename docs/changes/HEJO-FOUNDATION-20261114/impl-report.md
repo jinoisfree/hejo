@@ -164,3 +164,46 @@ PYTHONPATH="$PWD/.build/task02-deps:$HERMES_SOURCE:$PWD" \
    | `git diff --cached --check` | 종료 0 | `.build/task02-r2-diff-check.log` |
 
 6. **미검증·남은 위험·검토 요청**: 이번 보완에서 새로 남긴 차단 사항 없음. 최종 검토자는 변경 두 코드 파일과 20회 결과를 읽고 V-6 처분을 판정해 달라. V-5 기록장 메모리·선형 탐색은 후속 기술 부채로 유지한다. 필수 개인값 검사기(TASK-07 미생성)는 이번에도 미실행이며, 실제 게이트웨이·Tailscale·실기기·첨부 HTTP·운영 설치·독립 검토 완료를 주장하지 않는다. 롤백은 이번 보완 커밋 되돌림이며 운영 롤백은 필요하지 않다. 정확한 검토 대상 커밋은 최종 상태 블록에 제공한다. 푸시는 실행하지 않았다.
+
+## 보완 3: V-7 앱 관측과 서버 닫기 보장 분리 (2026-11-14)
+
+이 절이 보완 3의 현재 구현 인계다. 앞 절의 완료·보류 기록은 당시의 보고이며 최종 판정은 verdict.md를 따른다.
+
+- **받은 지시·상태**: 기준 `a1825ccb57d6928d9db09a39158878464c9d820f`, verdict 3차, handoff 보완 지시 3, design 2절 크기 한도 3판. 착수 HEAD와 기준 일치, 작업 트리 깨끗함을 확인했다. 구현자 판단은 **배정된 시험 보완·자체 검증 완료, 재검토 대기**다. 고위험·필요 증거 수준 2 유지.
+- **V-7 처분**: `gate/tests/test_boundaries.py::test_bad_frames_are_isolated`의 1 MiB 단계만 보완했다. 앱이 TEXT를 받으면 `code == "too_large"`, CLOSE/CLOSED를 받으면 `ws.close_code in {1009, 1006}`을 확인한다. 해당 연결의 서버 WebSocket 객체를 식별하고 `BoundedWebSocket.close` 호출의 코드 1009를 별도로 단언한다. 감시는 인자를 기록한 뒤 원래 메서드를 그대로 await하므로 실제 서버의 전송·닫기를 대체하지 않는다. 클라이언트 관측이 1006이어도 서버 쪽 1009 검사는 생략되지 않는다.
+- **보존·변경 범위**: `gate.is_connected`, 새 연결의 welcome·roster 확인, 64 KiB 글 초과 검사와 앞선 검사, 다른 기존 시험 함수 38개는 AST 비교로 불변이다. 제품 코드·스키마·수락 시험 코드·수락 명세·승인 문서는 수정하지 않았다. 변경 파일은 위 구현 시험과 이 보고서뿐이다. 설계와 달라진 점·새 칸·새 실행 경로·임시 제품 코드 없음.
+- **증거 수준**: 실제 Hermes 모듈·명부 모듈·프로필 API·인가 검사와 차례 대역을 쓰는 기존 시험 환경을 유지해 **수준 2 도달**. 모든 실행에 `HEJO_TEAM_KIT_LIB`를 명시했다. 반복마다 새 프로세스 시작용 임시 홈, 시험마다 별도의 임시 `HERMES_HOME`을 사용하고 `PYTHONDONTWRITEBYTECODE=1`을 적용했다. 다른 에이전트는 실행하지 않았다.
+
+공통 실행 환경은 최초 보고의 `HERMES_PYTHON`(Hermes venv 실행 파일), `HERMES_SOURCE`(Hermes 소스 루트), `HEJO_TEAM_KIT_LIB`(team-kit lib)와 기존 로컬 시험 의존성을 사용한다. 작업 폴더는 저장소 루트다.
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 \
+HEJO_TEAM_KIT_LIB="$HEJO_TEAM_KIT_LIB" \
+PYTHONPATH="$PWD/.build/task02-deps:$HERMES_SOURCE:$PWD" \
+"$HERMES_PYTHON" .build/task02-r3-repeat.py
+```
+
+로컬 반복 러너는 아래 집중 명령을 200회, 이어 전체 명령을 20회 순차 실행한다. 환경 설정은 두 단계가 같고, 각 실행은 새 임시 홈을 받는다. 실패하면 즉시 멈추도록 했으며 실패 구간을 지우거나 다시 시작한 연속 구간을 합치지 않았다.
+
+```sh
+"$HERMES_PYTHON" -m pytest gate/tests tests/acceptance/test_gate_foundation.py \
+  -k bad_frames -q -o asyncio_default_fixture_loop_scope=function -p no:cacheprovider
+"$HERMES_PYTHON" -m pytest gate/tests tests/acceptance/test_gate_foundation.py \
+  -q -o asyncio_default_fixture_loop_scope=function -p no:cacheprovider
+```
+
+| 검사 | 실제 종료·결과 | 로그(저장소 기준) |
+|---|---|---|
+| 집중 반복 200회 | **001~200회 모두 종료 0, 각 1 passed / 42 deselected, 실패 0회** | `.build/task02-r3-focused-001.log` ~ `.build/task02-r3-focused-200.log` |
+| 전체 시험 20회 연속 | **001~020회 모두 종료 0, 매회 43 passed** | `.build/task02-r3-full-001.log` ~ `.build/task02-r3-full-020.log` |
+| 반복 러너·결과 대조 | 러너 종료 0. 결과 목록의 회차·종료 코드·통과 수와 로그 220개를 직접 읽어 대조 | `.build/task02-r3-repeat.log`, `.build/task02-r3-results.json` |
+| 사전 영향 시험: 같은 환경에서 `-m pytest gate/tests/test_boundaries.py -k bad_frames -q -o asyncio_default_fixture_loop_scope=function -p no:cacheprovider` | 종료 0, 1 passed / 17 deselected | `.build/task02-r3-targeted.log` |
+| AST 기존 시험 비교·기준 대비 참고 문서 diff | 종료 0. 64 KiB 단계·이후 연결 유지/새 roster 검사·다른 기존 시험 함수 38개, 서버·스키마·참고 문서 7개 불변 | `.build/task02-r3-preserved.log` |
+| 변경 두 파일 AST 구문·개인값 패턴 보조 검사 | 종료 0, 절대 경로·이메일·Slack ID 모양 위반 없음. 필수 검사 대체 아님 | `.build/task02-r3-static.log` |
+| `git diff --cached --check` | 종료 0 | `.build/task02-r3-diff-check.log` |
+
+제품 코드는 불변이므로 기존 1009→1000 변형 검사와 기존 닫기 보장 단위 시험은 변경·반복하지 않았다(보완 2 절의 증거 유지, 단위 시험은 위 전체 묶음에서 실행됨). 추가 변형 검사는 미실행이다. 필수 개인값 검사기는 TASK-07 미생성으로 이번에도 미실행이며 보조 검사와 구분한다.
+
+**검토 요청·남은 범위**: V-7 시험 변경과 집중 200회·전체 20회 결과를 검토해 TASK-02 완료 조건을 판정해 달라. V-5 기술 부채, 실제 게이트웨이·Tailscale·실기기·첨부 HTTP·운영 설치 및 TASK-05 앱 송신 전 크기 검사는 후속 범위로 유지한다. 운영 변경·비밀 파일 접근·본체·다른 앱 수정·실제 메시지 발송·푸시는 실행하지 않았다. 롤백은 이번 시험·보고 커밋 되돌림이며 운영 영향은 없다. 정확한 검토 대상 커밋은 최종 상태 블록에 제공한다.
+
+작업 중 별도 커밋 `72683e4ae5642f810819ed9212b255455232bd84`가 UI 시안 HTML·PNG 두 파일을 추가했다. 제품·스키마·시험에는 차이가 없음을 커밋 간 diff로 확인했으며 해당 변경을 보존한다. 이번 보완 커밋은 이 커밋 뒤에 시험·보고서 두 파일만 기록한다. 보조 검사 초회에는 기준 이후 전체 변경 목록에 이 PNG까지 들어와 UTF-8 해석 오류가 났다. 이후 검사 대상을 이번에 stage한 두 파일로 한정했고 통과했다. 시험 실행 중 제품·시험 코드의 추가 변경은 없으므로 위 반복 검증 근거는 유지된다.

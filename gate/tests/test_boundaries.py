@@ -173,21 +173,34 @@ async def test_bad_frames_are_isolated(gate, client):
     await client.send(ws, employee="not-a-profile")
     assert (await client.read(ws))["code"] == "unknown_employee"
     from aiohttp import WSMsgType
-    sending = asyncio.create_task(ws.send_str("x" * 1048577))
-    try:
-        # Observe the server while the oversized body is still being sent.
-        response = await ws.receive(timeout=5)
-    finally:
+    from gate.server import BoundedWebSocket
+    server_ws = next(iter(gate.server.connections)).ws
+    close_codes = []
+    original_close = BoundedWebSocket.close
+
+    async def observe_close(socket, *, code=1000, message=b"", drain=True):
+        if socket is server_ws:
+            close_codes.append(code)
+        return await original_close(socket, code=code, message=message, drain=drain)
+
+    with patch.object(BoundedWebSocket, "close", new=observe_close):
+        sending = asyncio.create_task(ws.send_str("x" * 1048577))
         try:
-            await sending
-        except ConnectionError:
-            # A bounded parser can close before the sender finishes its body.
-            pass
-    if response.type == WSMsgType.TEXT:
-        assert json.loads(response.data)["code"] == "too_large"
-    else:
-        assert response.type in {WSMsgType.CLOSE, WSMsgType.CLOSED}
-        assert ws.close_code == 1009
+            # Observe the server while the oversized body is still being sent.
+            response = await ws.receive(timeout=5)
+        finally:
+            try:
+                await sending
+            except ConnectionError:
+                # A bounded parser can close before the sender finishes its body.
+                pass
+        if response.type == WSMsgType.TEXT:
+            assert json.loads(response.data)["code"] == "too_large"
+        else:
+            assert response.type in {WSMsgType.CLOSE, WSMsgType.CLOSED}
+            assert ws.close_code in {1009, 1006}
+        # Observe this connection's actual server close; do not replace its behavior.
+        assert 1009 in close_codes
     assert gate.is_connected
     await ws.close()
     fresh, welcome = await client.pair()
