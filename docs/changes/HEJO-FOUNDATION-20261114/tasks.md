@@ -16,7 +16,8 @@
 | TASK-08 | 캐시 `auto`(9판): 운영 루트와 모든 프로필 `config.yaml`의 `prompt_caching.cache_ttl` → `auto`, `HD` 동기화 커밋. 사장 승인 2026-11-15 | HF-15 / AT-30 | `~/.hermes/config.yaml`, `~/.hermes/profiles/*/config.yaml`, `HD` 동기화 사본 | — | 일반(실행 의미·비용 변화, 값 복원으로 되돌림) · 3 | 대기(인계) |
 | TASK-10 | 로고 `HEJO.`(H 파랑) + 버전(9판) | HF-17 / AT-52 | `H/app/Sources/ConversationView.swift`, `H/app/Tests/` | TASK-06 | 일반 · 2 | 대기(인계) |
 | TASK-11 | 아일랜드 1단계(9판, design 6절 "로고와 아일랜드"): IslandModel·IslandView, 칸·잠깐 늘어남·문제 칸·누르기·끌기 제외, 연결 끊김 띠 이전 | HF-18 / AT-53~56 | `H/app/Sources/`(Island*.swift, ConversationView·Controller 연결), `H/app/Tests/` | TASK-10 | 일반 · 2 | 대기(인계) |
-| TASK-09 | 운영 설치·실기기 검증(9판: AT-56 수동 포함): 운영 공항에 설치, 사장 확인 뒤 게이트웨이 재시작, 노트북 페어링·대화·버튼·첨부·예약 보고, 지연 측정, 제거·복원 확인 | 전체 / AT-22(3), AT-26, AT-31(4) | 운영 설정(설치 도우미 경유), `H/evidence/` | TASK-02~08, 10, 11 | 고위험 · 4 | 대기(사장 참여 필요) |
+| TASK-12 | 대화 안 작성 중 표시(9판, REQ-HF-12 예외): 기다림 = "작성 중" 반짝임 + 경과 초, 흘러나옴 = 깜빡이는 커서 | HF-19 / AT-57 | `H/app/Sources/ConversationView.swift`·`NativeThreadCard.swift`, 반짝임 부품(TASK-11과 함께 씀), `H/app/Tests/` | TASK-11 | 일반 · 2 | 대기(인계) |
+| TASK-09 | 운영 설치·실기기 검증(9판: AT-56 수동 포함): 운영 공항에 설치, 사장 확인 뒤 게이트웨이 재시작, 노트북 페어링·대화·버튼·첨부·예약 보고, 지연 측정, 제거·복원 확인 | 전체 / AT-22(3), AT-26, AT-31(4) | 운영 설정(설치 도우미 경유), `H/evidence/` | TASK-02~08, 10~12 | 고위험 · 4 | 대기(사장 참여 필요) |
 
 ## 병렬 갈래
 

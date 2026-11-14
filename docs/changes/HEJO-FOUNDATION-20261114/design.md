@@ -206,6 +206,20 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
 - **시험**: AT-HF-52~56. 앱 시험은 가짜 모델 상태를 넣어 칸, 너비, 글자, 누르기 결과를 단언한다. 자동 캡처는 `evidence/HEJO-FOUNDATION/`에 둔다.
 - **시안**(참고일 뿐, 기준 아님): `mockup/hejo-ui-v28-island-logo`, `hejo-ui-v31-island-all`.
 
+### 대화 안 작성 중 표시(9판, REQ-HF-19, REQ-HF-12 예외)
+
+- **기다림**
+  - `ConversationView`의 작성 중 accessory(`thread.id+":typing"`)는 높이 22를 그대로 쓴다.
+  - 그 안의 글자를 "작성 중" 반짝임 글자와 흐린 경과 초로 바꾼다.
+  - 반짝임은 아일랜드와 같은 부품을 함께 쓴다(같은 1.6초). 따라서 TASK-11의 반짝임 보기를 재사용할 수 있게 만든다.
+  - 경과 초의 시작 시각은 스레드별 작성 중 첫 켜짐 시각이다. 아일랜드 직원 칸의 경과 분과 같은 원본(작성 중 켜짐 기록)을 쓴다.
+- **흘러나옴**
+  - `NativeThreadCard`에서 `post.streaming`인 글의 본문 끝 글자 위치에 커서 보기(2pt, `systemBlue`)를 덧그린다.
+  - 커서는 글자 속성이나 문자열에 넣지 않는다. 글을 다시 배치하지 않고, 높이 계산(`streamHeights`)에도 영향을 주지 않는다.
+  - final이 오면 커서를 없앤다.
+- **동작 줄이기**: 반짝임과 깜빡임을 멈춘다.
+- **시안**: `mockup/hejo-ui-v33-chat-typing`의 1번과 4번.
+
 ### SwiftUI 예외 목록
 
 | 화면 | 이유 |
