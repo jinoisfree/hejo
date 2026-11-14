@@ -343,3 +343,28 @@
    - 증거 수준: 2(문 대역 `network_fixture.py` + 실제 앱 바이너리).
 5. **지적:** 없음. V-5와 과거 이력 개인값 정리는 기존 부채로 유지한다.
 6. **넘기는 것:** AT-47 수동 4항목은 TASK-09 체크리스트로 넘긴다(`evidence/HEJO-FOUNDATION/TASK-05.md`).
+
+## 검증 판정: HEJO-FOUNDATION TASK-06 / 대화 화면, 8판 기준 (12차)
+
+1. **검토 대상:** 구현 커밋 `c5d25942194eebd5218ceeae1aa55a010d447ebe`(최초 기준 `91c2938`). 그 사이 계획 커밋(8판·방 단위 모델·시안 2~7판)이 함께 들어 있다. 구현 변경은 `app/`, `copy-review`, `impl-report`, `evidence`, README로 31파일이다.
+2. **판정: 완료(TASK-06, 8판 기준의 자동 범위).**
+   - AT-HF-26 수동 시각 동등성(ddots와 나란히 비교)은 TASK-09로 넘긴다.
+   - 사용자가 대화 화면 방향을 다시 검토하는 중이다(시안 6·7판, 단체방 받는 사람 설계). 확정되면 9판에서 화면 배치를 다시 손볼 수 있다. 이번 결과의 모델·통신·첨부·버튼·방 단위 부품은 그대로 다시 쓴다.
+3. **설계 적합성(4.2): 8판에 적합.**
+   - 세 칸 화면을 지우고 ddots 배치(직원 탭 줄, 카드 펼침, 답글/새 글 전환, 알림 띠, 머리글)를 AppKit으로 옮겼다.
+   - `import SwiftUI`는 0건이다.
+   - 탭은 `Room`(direct) 단위로 다룬다. 통신 규격(employee·thread)은 바꾸지 않았다.
+   - `copy-review.md`에 원본을 읽은 기록이 있다.
+   - 확인 필요(AT-26 항목): 자동 캡처에서 직원 아바타가 파란 글자 타일로 그려진다. ddots 탭 타일과 색이 같은지는 나란히 비교할 때 확인한다.
+4. **직접 확인한 것:**
+   - 검토자 독립 `bash scripts/test.sh` 결과: **종료 0**(`.build/task06-review.log`).
+     - gate 80 passed와 AT-22
+     - 앱 AT-23·24·25·47·48·FRAME_SIZE
+     - CONVERSATION_DDOTS_LAYOUT_PASS, CONVERSATION_MODEL_UI_PASS, CONVERSATION_NETWORK_PASS
+     - CONVERSATION_HTTP_WS_PASS(업로드 2·클릭 1·보내기 5·내려받기 1·리디렉션 0)
+     - 시험용 키체인 정리 OK
+   - 개인값 검사: 종료 0, 위반 0.
+   - 자동 캡처(`evidence/HEJO-FOUNDATION/task06-cards-automatic.png`): 탭 줄·펼친 카드·답글/새 글 전환·끊김 띠·펫을 확인했다.
+   - 증거 수준: 2.
+5. **지적:** 없음(차단 없음). V-5와 과거 이력 개인값 정리는 계속 부채로 남긴다.
+6. **다음:** 사용자의 대화 화면 방향 결정을 기다린다. 결정이 나면 9판 개정과 TASK-06 보완을 진행한다. 그 밖에 남은 작업은 TASK-04·08·09다.
