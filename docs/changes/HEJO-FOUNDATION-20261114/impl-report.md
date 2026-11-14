@@ -793,3 +793,16 @@ verdict 15차와 handoff 보완 지시 9에 따라 기억 파일 변화를 보�
 hejo 커밋 대상은 `app/Tests/TestMain.swift`와 이 보고서 두 파일뿐이다. 진행 중 추가된 시안 파일·커밋은 보존한다. 최종 hejo 커밋 해시·파일 목록·두 저장소 상태는 `.build/task04-r9-git-final.json`, 커밋 명령·종료 코드는 `.build/task04-r9-hejo-commit.log`에 기록한다. 보고서 갱신 뒤 개인값 검사·pre-commit·공백 검사는 각각 종료 **0**, 개인값 위반 **0**이었다. 결과는 `.build/task04-r9-final-checks.json` 및 해당 로그에 둔다.
 
 앞선 보완 8의 커밋 보류 사유는 이 지시로 해소됐다. 구현·검증·커밋 결과를 검토 담당에게 인계하며 제품 최종 완료 판정은 하지 않는다. 푸시는 사용자 화면 승인 대기이며 실행하지 않았다. hejo에 원격이 없으면 임의로 등록하지 않고 대상 미확정으로 보고한다. 재시작/reload·운영 hejo 연결·외부 발송·비밀 파일 열기는 하지 않았다.
+
+
+### TASK-08 — 운영 캐시 auto (9판, 2026-11-15)
+
+착수 전 허용 문서·기억 파일 외 미커밋 변경 없음, 처리 중 차례/작업 0을 확인했다(`.build/task08-preflight.json`). 루트와 모든 프로필 설정 **6개**의 `prompt_caching.cache_ttl`을 `auto`로 바꿨다. 변경 전 값·키/맵 존재 여부·권한·해시는 로컬 전용 `.build/task08-before.json`(0600)에 기록했다. 다른 키 내용은 출력하지 않았다.
+
+ruamel로 허용 블록만 왕복 처리하고 임시 파일 쓰기→fsync→os.replace했다. 다른 데이터·텍스트·권한 불변을 파일마다 검증했다. 전체 문서 왕복의 최초 dry run은 무관한 서식 변경을 검출해 종료 1이었으며 운영 파일은 쓰지 않았다. 허용 블록만 왕복하도록 조정한 최종 dry run과 적용은 각각 종료 0이다. 재현 코드 `.build/task08/change.py`, 로그 `.build/task08-dry-run.log`·`task08-change.log`, 결과 `.build/task08-change-result.json`.
+
+**적용 시점:** Hermes `agent/agent_init.py:665`의 `_init_prompt_cache_config`가 새 에이전트 생성 때 설정을 읽는다. `gateway/run_turn_runner.py:1055`의 캐시 재사용 경로와 `gateway/run.py:4434`의 캐시 무효화 키에 cache_ttl 갱신은 없다. 따라서 새 에이전트에는 생성 시 적용되고 기존 캐시된 대화에는 즉시 반영을 보장하지 않는다. 전체 운영 적용은 **다음 재시작(TASK-09) 때 확인**한다. 재시작/reload는 실행하지 않았다. 실제 외부 요청/비용 변화는 시험하지 않았다.
+
+`./airport-check` → 옵션 없는 `./sync`는 각각 종료 0, 토큰 경고 없음이다. 로그 `.build/task08-airport.log`·`task08-sync.log`, 명령/결과 `.build/task08-operating-checks.json`. 원본과 사본 6개 해시 일치 및 허용 외 경로 없음 확인 후 **설정 사본 6개만** `git commit --only`했다. 운영 커밋 **`855149a4d1713804fec77bb2c8fd4ff370a6b04f`**, 종료 0, 로그 `.build/task08-commit.log`·`task08-commit.json`. 실제 프로필 경로가 포함된 파일 목록은 미추적 JSON에만 둔다. DDOTS 문서 두 개와 기억 파일은 그대로 보존했다.
+
+AT-HF-30: 운영 원본 전부 auto·다른 키 차이 0·동기화 커밋 확인으로 증거 수준 3에 도달했다. 롤백은 before JSON에 따라 각 값을 복원하고 원래 없던 키/맵을 지운 뒤 같은 검증·동기화 절차를 따른다. 본체 수정·비밀 파일 열기·운영 hejo 연결·외부 발송·푸시는 없다.
