@@ -32,6 +32,7 @@
 | AT-HF-46 | REQ-HF-07.AC-03 | 자동(스키마) | 스키마로 `message{files:[{file_id, name, mime, size}]}` 검증, 필드 하나 빠짐·추가 필드·`name`에 `/` 포함 | 앞은 유효, 뒤 셋은 무효 |
 | AT-HF-15 | REQ-HF-07.AC-01 | 자동 | `POST /v1/files?employee=alpha` 후 `send{employee:"alpha", files:[id]}` | 이벤트 `media_urls`에 저장 파일 절대 경로 1개, `media_types` 일치 |
 | AT-HF-16 | REQ-HF-07.AC-02 | 자동 | `GET /v1/files/alpha/<미등록 id>`, `GET /v1/files/alpha/..%2F..%2Fx`, 출입증 없이 `GET /v1/files/alpha/<alpha id>`, **`beta` 소유로 등록된 id를 `GET /v1/files/alpha/<beta id>`** | 404, 404, 401, 404. 같은 id를 `GET /v1/files/beta/<beta id>`는 200 |
+| AT-HF-51 | REQ-HF-07.AC-04 | 자동 | (a) `POST /v1/files?employee=alpha` 직후 `GET /v1/files/alpha/<id>`; (b) 같은 id로 `send{employee:"beta", files:[id]}`; (c) 업로드 → 문 재시작(같은 홈) → `send{employee:"alpha", files:[id]}` → `GET /v1/files/alpha/<id>`; (d) 대기 칸 항목 시각을 25시간 전으로 바꾸고 문 재시작 | (a) 404; (b) `error(unknown_file)`, 기록장 행 증가 0, 직원 이벤트 0; (c) 사장 `message`의 `files[]` 1개, GET 200·내용 일치; (d) 그 항목 삭제 |
 | AT-HF-17 | REQ-HF-08.AC-01 | 자동 | 대역이 `_send_exec_approval_prompt`, `send_clarify`, `send_slash_confirm` 호출 → 앱 `click` | 각각 `resolve_gateway_approval`(세션 키·choice), `resolve_gateway_clarify`(id·응답), `slash_confirm.resolve` 호출 인자 일치(모의 객체) |
 | AT-HF-18 | REQ-HF-08.AC-02 | 자동 | `resolve_gateway_approval`가 0을 반환하게 하고 클릭 | 앱 `error(button_expired)`, 다른 호출 없음 |
 | AT-HF-19 | REQ-HF-09.AC-01 | 자동(team-kit 시험) | team-kit hejo 등록 + 문 대역에 `"검토해줘\n[[버튼: 승인 \| 거절]]"` 전송 | 앱 `message.text`에 표식 없음, `buttons` 라벨 `["승인","거절"]`·`kind:"reply"`, `reply_state:"asked"` |

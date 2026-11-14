@@ -82,11 +82,17 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
 
 | 경로 | 동작 |
 |---|---|
-| `POST /v1/files?employee=<직원 id>` | 첨부 업로드(최대 50 MiB). `<HOME>/shared/hejo/files/<file_id>/<이름>` 저장, 기록장 메타에 `{file_id, employee, owner: "owner"}` 등록 후 `file_id` 반환 |
-| `GET /v1/files/<직원 id>/<file_id>` | 기록장에 **그 직원 소유로 등록된** 첨부만 반환. 미등록·다른 직원 소유·경로 탈출은 모두 404(존재 여부를 드러내지 않음), 출입증 없음 401 |
-| `GET /v1/avatars/<직원 id>` | 직원 사진(있을 때) |
+| `POST /v1/files?employee=<직원 id>` | 첨부 업로드(최대 50 MiB). **대기 칸** `<HOME>/shared/hejo/files/.pending/<직원 id>/<file_id>/<이름>`에 저장(쓰기 → fsync → 이름 바꾸기)하고 `file_id`·`name`·`mime`·`size`를 반환. 이 시점에는 기록장에 쓰지 않는다(6판) |
+| `GET /v1/files/<직원 id>/<file_id>` | 기록장에 **그 직원 소유로 등록된** 첨부만 반환(대기 칸의 파일은 404). 미등록·다른 직원 소유·경로 탈출은 모두 404(존재 여부를 드러내지 않음), 출입증 없음 401 |
+| `GET /v1/avatars/<직원 id>` | 1단계 근간에서는 항상 404이고 roster의 `avatar`는 항상 null이다(6판). 사진 원본 칸·읽기 계약은 1단계 후속 "직원 카드" 작업에서 정한다 |
 
 직원이 보낸 파일(`send_document`/`send_image_file`)은 문이 `files/<file_id>/`로 복사해 그 직원 소유로 등록한 뒤 글에 단다. 원래 경로는 내보내지 않는다.
+
+첨부 등록 시점(6판, T03B-01 결정): **첨부의 소유 등록은 그 첨부가 달린 글의 `message` 행 내부 메타로만 한다.** 업로드 전용 기록 행이나 가짜 대화 글은 만들지 않는다. 기록장이 다운로드 권한의 유일한 원본이라는 3절 규칙은 그대로다.
+1. 사장 `send{employee, files:[id…]}`: 문은 각 id가 `.pending/<send.employee>/<id>/`에 있는지 확인한다. 하나라도 없으면(다른 직원 대기 칸 포함) `error(unknown_file, ref)`로 거절하고 아무것도 기록하지 않는다. 있으면 `files/<id>/`로 이름 바꾸기 → 사장 `message` 행(메타에 `{file_id, employee, owner: "owner", path}` 목록)을 기록장에 추가 → 직원 차례 이벤트의 `media_urls`에 `files/<id>/<이름>` 절대 경로. 기록장 쓰기가 실패하면 이름을 대기 칸으로 되돌리고 `error(journal_write_failed)`.
+2. 직원 발송 파일: `files/<id>/`로 복사 → 직원 `message`(또는 그 글을 다는 행) 메타에 등록.
+3. 재시작: 대기 칸은 그대로 남아 재시작 뒤에도 `send`할 수 있다. 시작할 때와 하루 한 번 24시간 넘은 대기 칸 항목을 지운다. `files/` 아래인데 기록장 등록이 없는 항목(이름 바꾸기 뒤 기록 전 멈춤)은 GET에 404이고 같은 정리에서 지운다.
+4. 대기 칸 경로는 직원 id·`file_id`(UUID)·검증된 이름만으로 만들며 경로 탈출 검사를 둔다. `.pending`은 직원 id로 쓰일 수 없다(id 규칙상 점으로 시작 불가).
 
 ## 3. 대화 기록장(공용 창고)
 
