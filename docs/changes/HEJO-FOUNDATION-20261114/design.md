@@ -42,7 +42,7 @@ TASK-02가 JSON Schema로 만들고 앱·문이 같은 파일을 기준으로 �
 | 문→앱 | `message` | `seq`, `msg_id`, `employee`, `thread`, `role`(owner·employee·system), `text`, `files[]`, `buttons[]`, `reply_state`, `client_msg_id`(사장 글 확인용), `ts` | 새 글 |
 | 문→앱 | `edit` | `seq`, `msg_id`, `text`, `final`(bool), `buttons[]`(선택) | 수정·스트리밍 |
 | 문→앱 | `delete` | `seq`, `msg_id` | 삭제 |
-| 문→앱 | `typing` | `employee`, `thread`, `on` | 작성 중(기록장에 안 씀) |
+| 문→앱 | `typing` | `employee`, `thread`, `on`, `ttl_seconds`(on일 때 6) | 작성 중(기록장에 안 씀). 앱은 같은 스레드의 `on`이 `ttl_seconds` 안에 다시 오지 않으면 꺼진 것으로 본다 |
 | 문→앱 | `state` | `seq`, `msg_id`, `reply_state`(asked·answered·closed) | 답장 버튼 상태 |
 | 앱→문 | `click` | `msg_id`, `button_id` | 버튼 누름 |
 | 문→앱 | `error` | `code`, `ref`(요청 id) | 실패 알림 |
@@ -53,9 +53,12 @@ TASK-02가 JSON Schema로 만들고 앱·문이 같은 파일을 기준으로 �
 - 스레드 id: 앱이 만든 UUID(소문자 36자). 예약 보고 등 문이 시작한 스레드는 문이 UUID를 만든다.
 - 크기 한도: 프레임 1 MiB, 글 64 KiB. 넘으면 `error(too_large)`.
 - 응답 짝: 요청 프레임의 `id`를 응답·오류의 `ref`로 돌려준다. `hello`의 응답은 `welcome`/`*_rejected`.
+- `message.files[]` 항목(2판 보완, GAP-T02-01 결정): `{"file_id": str(UUID), "name": str(1~255자, 경로 구분자 없음), "mime": str, "size": int(바이트, 0 이상)}` 네 필드 모두 필수, 추가 필드 없음. 앱은 `GET /v1/files/<message.employee>/<file_id>`로 받는다. 사장 글(`role: owner`)의 첨부와 직원 글의 첨부가 같은 모양이다. 내부 메타(실제 경로·소유 등록)는 공개하지 않는다. `send.files[]`는 업로드가 돌려준 `file_id` 문자열 배열이다.
+- 작성 중 표시: Hermes는 차례 동안 `send_typing(chat_id, metadata)`를 2초마다 다시 부르고(`R/gateway/platforms/base.py:3435` `_keep_typing`, interval 2.0) `stop_typing(chat_id)`에는 스레드 정보가 없다. 그래서 문은 직원별로 작성 중인 스레드 집합을 기억하고, `stop_typing(chat_id)`이 오면 그 직원의 기억된 스레드 모두에 `on:false`를 보내고 집합을 비운다. 아직 차례가 진행 중인 스레드는 다음 갱신(2초 안)에 다시 `on`이 된다. 앱은 `ttl_seconds`(6초) 안에 갱신이 없으면 끈다.
 
 ### 2.1 재전송 경계 규칙(REQ-HF-06)
 
+0. `welcome`(또는 `*_rejected`)은 그 연결의 첫 프레임이다. 문은 인증 직후부터 그 연결을 재전송 중 상태로 두고, `welcome` 전송 뒤 `hello.since`가 있으면 그 값, 없으면 `welcome.head_seq`를 since로 하여 2번 절차(재전송)를 실행한다. 그래서 `welcome` 이전에 기록 프레임이 가지 않고, `welcome.head_seq` 뒤에 기록된 프레임도 빠지지 않는다. `hello.since`가 `head_seq`보다 크면 `error(invalid_since)`를 보내고 닫는다.
 1. 앱은 적용한 마지막 seq(`applied`)를 기기에 저장한다. 앱은 `seq == applied + 1`인 기록 프레임만 적용하고, `seq <= applied`는 버린다(중복 무시), `seq > applied + 1`이면 적용하지 않고 `sync{since: applied}`를 보낸다(빈칸 복구).
 2. 연결마다 문은 "재전송 중" 상태를 가진다. `hello{since}`(또는 `sync{since}`)를 받으면 그 연결을 재전송 중으로 바꾸고, 기록장에서 `since < seq` 프레임을 오름차순으로 최대 500개 보낸 뒤 `sync_done{through, more, head_seq}`를 보낸다. `more = through < 그 시점 head_seq`.
 3. 재전송 중인 연결에는 실시간 기록 프레임을 보내지 않고 연결별 대기열에 쌓는다. `more == false`인 `sync_done` 직후 대기열에서 `seq > through`인 것만 순서대로 보내고 실시간 상태로 바꾼다. `more == true`면 대기열을 비우고(다음 페이지에 포함되므로) 앱의 다음 `sync{since: through}`를 기다린다. 대기열 상한 2,000개를 넘으면 대기열을 비우고 `more = true`로 처리한다.

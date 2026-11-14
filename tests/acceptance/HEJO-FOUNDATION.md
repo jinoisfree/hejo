@@ -25,6 +25,9 @@
 | AT-HF-34 | REQ-HF-06.AC-05 | 자동 | 기기 두 대(출입증 2개) 동시 연결, 대역이 프레임 10개 생성 | 두 기기 수신 seq 열 동일·같은 순서 |
 | AT-HF-35 | REQ-HF-06.AC-06 | 자동 | 기록장에 완전한 줄 5개 + 끝 `\n` 없는 반쪽 줄을 만든 뒤 문 시작, 새 프레임 1개 | 반쪽 줄 제거 로그, 새 프레임 seq = 6, `sync{since:0}`로 1..6 수신. 월 파일이 둘(이전 달 1..5, 이번 달 비어 있음)인 경우도 seq 6 |
 | AT-HF-36 | REQ-HF-06.AC-07 | 자동 | 같은 `HERMES_HOME`으로 문 두 개를 시작 | 두 번째는 리스너를 열지 않고 `retryable=False` 실패, 첫 번째 계속 |
+| AT-HF-44 | REQ-HF-06.AC-08 | 자동 | 연결 인증 처리 중(welcome 전송 직전)에 대역이 기록 프레임 3개 생성, `since` 없는 hello; 별도로 `hello{since: head+5}` | 첫 수신 프레임이 `welcome`; 그 뒤 `sync_done`까지 `welcome.head_seq` 다음 프레임 전부 순서대로(빠짐·중복 0); 두 번째는 `error(invalid_since)` 후 닫힘 |
+| AT-HF-45 | REQ-HF-05.AC-05 | 자동 | `send_typing("alpha", {thread_id:T1})`, `send_typing("alpha", {thread_id:T2})`, `stop_typing("alpha")` | `typing on`(T1, `ttl_seconds:6`), `typing on`(T2), 이어서 T1·T2 각각 `on:false` |
+| AT-HF-46 | REQ-HF-07.AC-03 | 자동(스키마) | 스키마로 `message{files:[{file_id, name, mime, size}]}` 검증, 필드 하나 빠짐·추가 필드·`name`에 `/` 포함 | 앞은 유효, 뒤 셋은 무효 |
 | AT-HF-15 | REQ-HF-07.AC-01 | 자동 | `POST /v1/files?employee=alpha` 후 `send{employee:"alpha", files:[id]}` | 이벤트 `media_urls`에 저장 파일 절대 경로 1개, `media_types` 일치 |
 | AT-HF-16 | REQ-HF-07.AC-02 | 자동 | `GET /v1/files/alpha/<미등록 id>`, `GET /v1/files/alpha/..%2F..%2Fx`, 출입증 없이 `GET /v1/files/alpha/<alpha id>`, **`beta` 소유로 등록된 id를 `GET /v1/files/alpha/<beta id>`** | 404, 404, 401, 404. 같은 id를 `GET /v1/files/beta/<beta id>`는 200 |
 | AT-HF-17 | REQ-HF-08.AC-01 | 자동 | 대역이 `_send_exec_approval_prompt`, `send_clarify`, `send_slash_confirm` 호출 → 앱 `click` | 각각 `resolve_gateway_approval`(세션 키·choice), `resolve_gateway_clarify`(id·응답), `slash_confirm.resolve` 호출 인자 일치(모의 객체) |

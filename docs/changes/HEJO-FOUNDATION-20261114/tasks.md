@@ -5,7 +5,7 @@
 | TASK | 내용 | REQ / 시험 | 영향 파일 | 선행 | 위험·증거 | 상태 |
 |---|---|---|---|---|---|---|
 | TASK-01 | 근간·명세·설계·수락 시험 문서 | 전체 | `H/docs/`, `H/tests/acceptance/`, `H/AGENTS.md` | — | 일반 · 문서 | 완료(기획, 2판) |
-| TASK-02 | 통신 규격 v1(2·2.1·2.2절 전부) + 문 핵심: 플러그인 골격, 리스너(기본 프로필만, 보조는 비활성), 주소 검사, 허용 사용자 브리지, 페어링·출입증·취소, 직원 목록·roster 응답, 1:1 글 주고받기, 작성 중, 수정·스트리밍, 기록장(단독 쓰기 잠금·복구·쓰기 실패 되돌림)·재전송 경계 규칙, 확장 훅(2.2), CLI | HF-01~06 / AT-01~14, 32~37 | `H/schemas/`, `H/gate/`(plugin.yaml, adapter, server, auth, journal, roster, hooks, cli), `H/gate/tests/`, `H/tests/acceptance/` | TASK-01 | 고위험 · 2 | 대기 |
+| TASK-02 | 통신 규격 v1(2·2.1·2.2절 전부) + 문 핵심: 플러그인 골격, 리스너(기본 프로필만, 보조는 비활성), 주소 검사, 허용 사용자 브리지, 페어링·출입증·취소, 직원 목록·roster 응답, 1:1 글 주고받기, 작성 중, 수정·스트리밍, 기록장(단독 쓰기 잠금·복구·쓰기 실패 되돌림)·재전송 경계 규칙, 확장 훅(2.2), CLI | HF-01~06, 07.AC-03 / AT-01~14, 32~37, 44~46 | `H/schemas/`, `H/gate/`(plugin.yaml, adapter, server, auth, journal, roster, hooks, cli), `H/gate/tests/`, `H/tests/acceptance/` | TASK-01 | 고위험 · 2 | 대기 |
 | TASK-03a | 보조 프로필 배달 탐침(A 전달자 / B 단독 발신자). 임시 홈 실제 게이트웨이에서 시험, 결과만 보고. 운영 코드 채택 금지 | (REQ-HF-01·10 결정 자료) | `H/gate/probes/`, impl-report | TASK-02 | 고위험 · 3 | 대기 |
 | (계획) | 4.1 결정 → spec·design·AT-02·AT-22·tasks 개정, A면 사용자 승인 | — | `H/docs/`, `H/tests/acceptance/` | TASK-03a | — | 대기 |
 | TASK-03b | 문 확장: 첨부 HTTP(직원 소유 검사), 직원 발송 파일 복사·등록, Hermes 기본 버튼 3종, 사진 경로, team-kit 없을 때 버튼 글자 대체, 결정된 보조 프로필 배달 | HF-07,08,09.AC-03,10 / AT-15~18,21,22 | `H/gate/`(buttons, files, adapter 확장), `H/gate/tests/` | 4.1 결정(배달 부분만), 나머지는 TASK-02 | 고위험 · 2, AT-22는 3 | 대기 |
