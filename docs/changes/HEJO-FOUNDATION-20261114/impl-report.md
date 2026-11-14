@@ -688,3 +688,50 @@ controls 이동·hejo 등록·Slack 전후 비교 시험·AT-HF-19/20·team-kit 
 다른 작업 담당자가 위 미커밋 작업을 마무리한 뒤 TASK-04를 다시 인계한다. 재개 시 실제 상태를 다시 확인하고 원본 team-kit의 변경·처리 중 작업·sync 토큰 경고까지 착수 조건을 확인해야 한다. 보류를 우회해 다른 작업을 정리하거나 임의 worktree에서 진행하지 않는다.
 
 게이트웨이 재시작/reload·운영 연결·실제 Slack/외부 메시지·비밀 파일 열기·Hermes 본체/ddots/운영 저장소 수정·푸시는 없다. 이번 hejo 변경은 이 보류 보고뿐이다. 최종 완료나 푸시 불필요 판정을 내리지 않는다.
+
+### TASK-04 재개 — 구현 후 전체 시험 차단 (2026-11-14)
+
+기준 `7d81a0134b061cfa601a4349e3cde1be3d5f3ab5`와 재개 보완 인계를 확인하고 진행했다. 착수 시 운영 저장소 HEAD는 `36c5aee148b952d0a068c1832df21d3ba7efe20d`였고, 허용된 DDOTS-DROP-MODEL 문서 두 개만 ` M`이었다. 원본 team-kit은 추적 사본과 바이트 단위로 일치했으며 원본의 추가 소스 파일은 없었다. 게이트웨이 상태의 처리 중 차례·작업은 0건이었다. 상태 파일은 읽기만 했다.
+
+#### 구현한 변경과 위치
+
+실행 원본 `~/.hermes/plugin-store/team-kit`의 아래 세 파일만 변경했다. 아직 운영 저장소 사본으로 모으지 않았다.
+
+- `lib/hermes_reply/reply_buttons.py`: `controls()`와 글 나누기 표식 제거를 공유 위치로 이동했다. `clicked_context()`에 기본값이 기존 Slack 표기인 선택 인수를 더해 hejo도 같은 문맥 생성을 사용한다.
+- `lib/hermes_reply/plugin.py`: 기존 Slack 등록을 유지하고 hejo 플랫폼 설치기를 추가했다. 공개 `send`·확장 `edit_message` 서명을 보존하며 표식을 제거하고 버튼 메타·`asked`를 전달한다. 클릭은 `set_reply_state(..., 'answered')` 기록 후 False를 반환해 문 기본 처리를 사용한다. 공개 `handle_message`를 감싸 누른 글 문맥을 붙이며, 성공한 최종 답장에서 같은 직원·스레드의 답변받은 글을 `closed`로 기록한다. 중간·실패·다른 대화의 발송은 닫지 않는다. metadata 없는 최종 스트리밍 edit도 앞선 send의 스레드로 연결한다. 문 내부 import는 없다.
+- `tests/test_reply_hejo.py`: AT-HF-19·20 및 공개 서명·메타 보존·격리·정책 거부·기록 실패·중복 설치를 확인하는 시험 8개를 추가했다. 실제 gate 어댑터·WebSocket과 임시 프로필을 사용하고 차례 처리만 대역으로 바꿨다. gate 시험 지원 모듈은 시험 의존성으로만 사용한다. hejo 체크아웃이 시험 경로에 있어야 하며, 이번 실행은 8개 모두 실행됐다.
+
+버튼 허용 목록·usage_ledger·hermes_router·Hermes 본체·ddots·hejo 앱·기존 시험 기대값·수락 명세는 바꾸지 않았다. 실행 중 게이트웨이는 재시작/reload하지 않았다. 운영 연결·실제 외부 발송·비밀 파일 열기·푸시는 없다.
+
+#### 실행 명령과 결과
+
+모든 pytest 실행은 임시 `HERMES_HOME`·`HERMES_ROOT`를 사용했다. `HEJO_PYTHON`은 설치 facts의 `packages.venv.environment`가 가리키는 게이트웨이 Python으로 설정했고, `HEJO_TEAM_KIT_LIB`는 원본 team-kit의 `lib`로 설정했다. `PYTHONPATH`에는 시험용 pytest 경로·Hermes 소스·hejo 체크아웃을 넣었다. 정확한 인자·환경 구성은 `.build/task04-resume/run_tests.py`와 각 JSON 기록에 있다. 기존 team-kit 시험의 명부·금고는 그 시험의 fixture로 지정됐다. 새 문 시험은 가짜 프로필만 사용했다.
+
+| 명령·범위 | 종료 코드·실제 결과 | hejo 기준 로그 |
+|---|---|---|
+| 변경 전후 `"$HEJO_PYTHON" -m pytest` 기존 reply/plugin/split/thread/이전 Slack/button_policy 시험 9개 파일 | 각각 0, **214 passed → 214 passed**. 기존 시험은 수정하지 않음 | `.build/task04-resume-slack-before.log`, `.build/task04-resume-slack-after.log` |
+| 최종 변경 뒤 같은 Slack 시험 9개 파일 | 0, **214 passed** | `.build/task04-resume-slack-final.log` |
+| 원본 team-kit에서 `"$HEJO_PYTHON" -m pytest tests/test_reply_hejo.py -q -o asyncio_default_fixture_loop_scope=function -p no:cacheprovider` | 0, **8 passed**. AT-19의 버튼·표식 제거와 AT-20의 기본 이벤트·문맥·answered/closed 순서를 실제 문에서 확인 | `.build/task04-resume-hejo-buttons.log` |
+| 원본 team-kit에서 같은 옵션의 `pytest tests` | **1**, **8 failed, 4784 passed, 3 skipped, 58 subtests passed**. 아래 기존 날짜 의존 문제에서 실패. 이 실행 뒤 metadata 없는 최종 edit의 스레드 추적을 보완하고 새 시험 8개·Slack 214개를 다시 통과시켰으므로 전체 결과를 최종 코드의 전체 통과로 표시하지 않음 | `.build/task04-resume-team-full.log` |
+| 변경 전 운영 저장소 사본에서 같은 옵션의 `pytest tests/test_org_review.py` | **1**, **같은 8 failed, 83 passed**. 원래 사본·기존 시험을 고치지 않고 재현 | `.build/task04-resume-baseline-org.log` |
+| 최종 변경본으로 `bash scripts/test.sh` | **1**. gate **80 passed**, AT-22 리스너 1·배달 4·정상 종료까지 통과. 앱 AT-23 뒤 기존 AT-47 `AT47 closing ends folded`에서 실패해 이후 앱 시험은 미실행 | `.build/task04-resume-hejo.log` |
+| `"$HEJO_PYTHON" scripts/scan_private.py` · `HEJO_PYTHON` 지정 `githooks/pre-commit` | 각각 0, 개인값 위반 0·추가 예외 없음 | `.build/task04-resume-scan.log`, `.build/task04-resume-hook.log` |
+| `python3 .build/task04-resume/static.py` | 0. AST·원본 변경 세 파일·허용 문서 두 개 바이트 보존·운영 HEAD/상태·처리 중 차례 0 확인 | `.build/task04-resume-static.log`, `.build/task04-resume-final-source.json` |
+
+최초 Slack 실행은 예전 소스 쪽 venv를 사용해 `slack_sdk` 부재로 3개가 실패했다. 설치 facts로 실제 게이트웨이 Python을 확인해 고친 뒤 위 변경 전 214개 기준을 확보했다. 새 hejo 시험의 초기 실패는 작성 중 프레임 수신 처리와 시험 명부 권한 설정을 보완했고, 최종 8개는 모두 통과했다. 최초 hejo 전체 묶음은 0으로 통과했으나 최종 재실행 로그는 위 실패 결과이며, 이를 전체 통과로 대체하지 않는다.
+
+#### 차단 사항과 처분
+
+- **T04-01 — 기존 team-kit 날짜 의존 시험 실패:** `tests/test_org_review.py:266`의 `seed()`는 날짜를 `2026-10-14`로 고정한다. `lib/hermes_team_services/org_review.py:118-125`의 보존 정책은 현재 날짜 기준 30일 이전 기록을 지운다. `send()`·`deliver()`가 저장하며 `prune()`를 적용하므로(`:816`, `:828`) 그 날짜 행이 없어지고 이후 조회가 KeyError로 실패한다. 변경 전 사본에서도 같은 8건을 재현했다. 이 기존 시험/정책은 TASK-04 수정 범위 밖이므로 고치거나 실패를 제외하지 않았다. 계획 담당이 날짜 fixture 보완을 별도로 지시해야 한다.
+- **T04-02 — 기존 앱 접힘 완료 단언 실패:** `app/Tests/TestMain.swift:92`는 0.4초 뒤 접힘 완료를 검사하며 최종 전체 실행에서 실패했다. 이 파일과 펫 코드는 이번에 불변이다. 시점 의존 가능성은 있으나 원인을 확정하지 않았고, 시험을 느슨하게 바꾸거나 재시도 결과로 덮지 않았다. TASK-05/06 검증 범위로 별도 판단이 필요하다.
+
+운영 저장소 규칙은 시험 실패 상태에서 커밋을 금지한다. 따라서 **TASK-04는 구현 후 검증 차단·미완료**로 인계한다. 증거 수준 2는 새 hejo 버튼·클릭의 실제 Hermes import/문 전송/대역 차례 경계에 도달했으나, 전체 시험 합격 조건은 미충족이다. Slack 변경 전후 차이는 없었다.
+
+#### 커밋·보존·재개
+
+- `./airport-check`, `./sync`, 운영 저장소 커밋은 **미실행**이다. sync 토큰 경고는 아직 확인하지 못했다. `--split`·`--commit`·`--rebaseline`은 사용하지 않았다.
+- 새 운영 저장소 커밋 해시와 커밋 파일 목록은 **없음**이다. 운영 HEAD는 위 기준 그대로이고, `git status`는 허용 문서 두 개만 여전히 ` M`이다. 두 문서는 시작 때 기록한 SHA-256과 일치한다.
+- 실행 원본에는 위 team-kit 세 파일의 이번 작업 변경이 남아 있다. 변경 전 두 소스는 `.build/task04-resume/original/lib/hermes_reply/`에 보관했고, 소스 diff·최종 SHA-256은 `.build/task04-resume/` 및 `.build/task04-resume-final-source.json`에 있다. 원본을 되돌리지 않았으며 실행 중 Slack에는 새 코드를 로드하지 않았다.
+- 재개 시 두 차단 사항에 대한 계획 담당 처분을 먼저 받고, 원본의 이번 세 파일 외 변경과 처리 중 작업을 다시 확인한다. 최종 전체 시험 종료 0 뒤에만 airport-check → sync 모으기 → 토큰 경고/변경 범위 확인 → 자기 파일만 `git commit --only` 순서를 실행한다. 허용 문서 두 개는 계속 보존한다.
+
+진행 중 hejo HEAD에 별도 시안 전용 커밋 `27fcead`·`dc4cd6d95f9870d72694b88ca2a05a12297351ac`가 추가됐다. 차이는 v14 HTML/PNG 두 파일뿐이며 보존했다. 이번 구현 계약·앱/문 코드에는 영향이 없다. 보류 보고만 hejo에 별도 커밋하고, 운영 제품 코드는 커밋하지 않는다. 재현 가능한 변경 패치는 `.build/task04-resume/work.patch`, 최종 소스 사본은 `.build/task04-resume/current/`에도 보관했다.
