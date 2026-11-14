@@ -163,3 +163,33 @@
    - 보조 프로필 배달은 TASK-03a에서 다룬다.
 7. **현재 명세 반영:** HEJO-FOUNDATION 전체 완료 때 한 번에 반영한다.
 8. **계획 변경(같은 날, 사용자 지시):** 앱 열기·닫기를 ddots 펫 구조로 한다(REQ-HF-16, 4판 보완, plan-review 참조). TASK-02에는 영향이 없다. TASK-05 인계 전에 재검증한다.
+
+## 검증 판정: HEJO-FOUNDATION TASK-03a / 보조 프로필 배달 탐침 (5차)
+
+1. **검토 대상:** 구현 커밋 `77e6c7eea7191a631ad9eb5c084f57c1e37aa048`(기준 `65a7d44`). 같은 구간에 계획 커밋 `65d1a35`가 있다.
+   - 변경 파일: `gate/probes/{__init__,candidates,run}.py`, `gate/probes/README.md`, `impl-report.md`.
+2. **판정: 완료(TASK-03a 탐침).** 결과는 **A 성공, B 차단**이다.
+3. **설계 적합성(4.2): 적합.**
+   - 탐침 범위·금지 범위를 지켰다. 본 모듈 import·변경 없음, 운영·본체·비밀 파일 접근 없음.
+   - 탐침에만 쓰는 등록 값(`cron_deliver_env_var`, `parse_target_ref_fn`, `HEJO_ALLOWED_USERS`)이 있다. 본 플러그인에는 채택하지 않았다.
+   - TASK-03b에서 A를 승격할 때 다음 두 가지는 설계 7절에 맞춰 다시 정한다.
+     - 허용 사용자: config 브리지를 쓰고 .env는 쓰지 않는다.
+     - 예약 대상 키: 새로 정한다.
+4. **직접 확인한 것:**
+   - A·B 최종 로그의 `PROBE_RESULT`와 `GATEWAY_EXIT clean`.
+     - A: 리스너 1개. 직접 글과 예약 글이 모두 `employee=alpha`로 기록장 JSONL과 클라이언트 수신에서 일치했다. 단독 발신 호출은 0회.
+     - B: `send_message`가 "hejo not configured"로 차단됐다.
+   - Hermes 소스 `ebb026e`에서 B의 차단 지점을 확인했다.
+     - `tools/send_message_tool.py:319-323`: 꺼진 설정을 미구성으로 처리한다.
+     - `cron/scheduler_delivery.py:1407-1408`: 설정 블록이 있는데 꺼져 있으면 배달을 거부한다.
+     - 같은 파일 바로 위: 블록이 없으면 켜진 것으로 본다. 그러면 보조 hejo가 켜져 B 구성이 성립하지 않는다(구현 담당 B run1 기록과 일치).
+   - 회귀: `.build/task03a-regression.log` 43 passed.
+   - 증거 수준: **3 확인**(임시 홈 실제 게이트웨이). 실제 Slack·모델·시간 트리거는 미검증이다.
+5. **결론(design 4.1 판정 기준 대입):**
+   - A는 채택 조건을 충족한다. 보조 프로필 `deliver=hejo`가 그 직원 스레드에 도착했고, 포트·중복 자격 검사를 통과했다.
+   - B는 Hermes 본체의 배달 전 설정 검사 때문에 성립하지 않는다. 본체는 고치지 않는다는 제약이 있다.
+   - 따라서 **A를 권고**한다. A는 각 보조 프로필 설정에 hejo를 켜는 운영 설정 변경을 포함하므로 **사용자 승인 대기**다.
+6. **승인 뒤 개정할 것:** spec REQ-HF-01·10 AC, AT-HF-02·22, design 4.1·7절, tasks의 TASK-03b·07.
+   - 설치 도우미는 보조 프로필에도 켬 블록을 쓰고, 영수증에 넣는다.
+   - TASK-03b에서 전달자는 `send` 외에 `edit_message`·작성 중·버튼·첨부까지 전달하도록 승격한다.
+   - 탐침 코드는 제거한다.
