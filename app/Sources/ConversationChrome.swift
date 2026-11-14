@@ -51,6 +51,8 @@ final class SidebarHandle: NSView {
 }
 /// Noninteractive header areas own movement; buttons and text keep their events.
 final class ConversationHeaderDrag: NSView {
+    var excluded:((CGPoint)->Bool)?
+    override func hitTest(_ point:NSPoint)->NSView? { if excluded?(point) == true { return nil };return super.hitTest(point) }
     var onBegan: ((CGPoint) -> Void)?, onChanged: ((CGPoint) -> Void)?, onEnded: (() -> Void)?
     private var start: CGPoint?, dragging=false
     override func acceptsFirstMouse(for event:NSEvent?) -> Bool { true }

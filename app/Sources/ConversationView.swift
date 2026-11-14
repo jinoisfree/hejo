@@ -3,13 +3,20 @@ import AppKit
 /// AppKit translation of the reviewed workspace, room strip, card stack and composer.
 @MainActor final class ConversationView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSTextViewDelegate, NSSearchFieldDelegate {
     let controller: ConversationController
+    let island=IslandView(frame:.zero)
+    let islandModel:IslandModel
+    private var islandTimer:Timer?
+    private(set) var highlightedMessageID:String?
+    private var highlightUntil:Date?
+    var reconnect:()->Void
+    var retrySend:(ConversationKey)->Void
     let employeeTable = NSTableView(), history = NativeThreadList(frame:.zero), editor = DraftScrollView(frame:.zero)
     let headerDrag = ConversationHeaderDrag(), brandDrag = ConversationHeaderDrag()
     private let employeeScroll=NSScrollView(), employeeSearch=NSSearchField(), search=NSSearchField()
     let brand=PassiveLabel(labelWithString:"HEJO."), version=PassiveLabel(labelWithString:""), heading=PassiveLabel(labelWithString:""), subtitle=PassiveLabel(labelWithString:"함께 나누는 대화")
     private let handle=SidebarHandle(), sidebarToggle=ComposerButton(title:"직원 목록",symbol:"sidebar.left",point:12), searchToggle=ComposerButton(title:"검색",symbol:"magnifyingglass",point:12)
-    private let banner=NSTextField(labelWithString:""), notice=NSTextField(wrappingLabelWithString:"")
-    private let noticeBar=NSStackView(), attachments=NSStackView(), attachmentScroll=NSScrollView()
+    let notice=NSTextField(wrappingLabelWithString:"")
+    private let attachments=NSStackView(), attachmentScroll=NSScrollView()
     private let replyButton=ComposerButton(title:"답글"), newButton=ComposerButton(title:"새 글"), attachButton=ComposerButton(title:"첨부",symbol:"plus",point:20,circle:true)
     private let sendButton=ComposerButton(title:"보내기",symbol:"arrow.up",point:21,circle:true), modeBackground=NSView(), inputBackground=NSView()
     private let draftHint=PassiveLabel(labelWithString:""), older=NSButton(title:"이전 글 보기",target:nil,action:nil)
@@ -26,15 +33,17 @@ import AppKit
     var onUnread:((Int)->Void)?, onSidebarWidth:((CGFloat)->Void)?
     override var isFlipped:Bool { true }
     var threadTable:NSTableView { history.table }
-    init(controller:ConversationController,clipboardArea:URL?=nil) {
-        self.controller=controller; clipboard=ClipboardAttachments(area:clipboardArea ?? ClipboardAttachments.defaultArea)
+    init(controller:ConversationController,clipboardArea:URL?=nil,islandModel:IslandModel=IslandModel()) {
+        self.controller=controller; self.islandModel=islandModel
+        reconnect={ controller.client.resume() }; retrySend={ key in Task { await controller.sendCurrent(for:key) } }
+        clipboard=ClipboardAttachments(area:clipboardArea ?? ClipboardAttachments.defaultArea)
         super.init(frame:.zero); wantsLayer=true
         employeeTable.headerView=nil; employeeTable.backgroundColor = .clear; employeeTable.style = .plain
         employeeTable.selectionHighlightStyle = .none; employeeTable.focusRingType = .none; employeeTable.intercellSpacing = .zero
         let column=NSTableColumn(identifier:.init("employees")); column.resizingMask = .autoresizingMask; employeeTable.addTableColumn(column)
         employeeTable.dataSource=self; employeeTable.delegate=self
         employeeScroll.documentView=employeeTable; employeeScroll.drawsBackground=false; employeeScroll.hasVerticalScroller=true; employeeScroll.autohidesScrollers=true; employeeScroll.scrollerStyle = .overlay
-        for view in [headerDrag,brandDrag,employeeScroll,brand,version,heading,subtitle,employeeSearch,search,history,sidebarToggle,searchToggle,banner,notice,noticeBar,modeBackground,replyButton,newButton,inputBackground,editor,draftHint,attachButton,sendButton,attachmentScroll,older,handle,drop] { addSubview(view) }
+        for view in [headerDrag,brandDrag,island,employeeScroll,brand,version,heading,subtitle,employeeSearch,search,history,sidebarToggle,searchToggle,notice,modeBackground,replyButton,newButton,inputBackground,editor,draftHint,attachButton,sendButton,attachmentScroll,older,handle,drop] { addSubview(view) }
         let logo=NSMutableAttributedString(string:"HEJO.",attributes:[.font:NSFont.systemFont(ofSize:14,weight:.semibold),.foregroundColor:NSColor.labelColor])
         logo.addAttribute(.foregroundColor,value:NSColor.systemBlue,range:NSRange(location:0,length:1)); brand.attributedStringValue=logo
         brand.font = .systemFont(ofSize:14,weight:.semibold); version.font = .systemFont(ofSize:10); version.textColor = .labelColor.withAlphaComponent(0.7)
@@ -45,8 +54,7 @@ import AppKit
         sidebarToggle.invoke={ [weak self] in self?.toggleSidebar() }; searchToggle.invoke={ [weak self] in self?.searchOpen.toggle(); self?.refresh() }
         handle.width={ [weak self] in self?.sidebarWidth ?? 0 }; handle.onWidth={ [weak self] in self?.setSidebarWidth($0) }
         handle.onEnd={ [weak self] in if let self,self.sidebarWidth>0 { self.shownSidebarWidth=self.sidebarWidth } }
-        banner.font = .systemFont(ofSize:11); banner.textColor = .systemOrange; notice.font = .systemFont(ofSize:11); notice.textColor = .systemRed
-        noticeBar.orientation = .horizontal; noticeBar.spacing=8
+        notice.font = .systemFont(ofSize:11); notice.textColor = .systemRed
         attachments.orientation = .horizontal; attachments.spacing=6
         attachmentScroll.documentView=attachments; attachmentScroll.drawsBackground=false; attachmentScroll.hasHorizontalScroller=true; attachmentScroll.autohidesScrollers=true
         replyButton.invoke={ [weak self] in self?.writeReply() }; newButton.invoke={ [weak self] in self?.createThread() }
@@ -65,9 +73,36 @@ import AppKit
         headerDrag.menu=menu; brandDrag.menu=menu
         clipboard.recoverLeftovers()
         history.onBlank={ [weak self] in self?.foldAll() }
+        island.onAction={ [weak self] action in self?.activateIsland(action) }
+        island.onWidthChange={ [weak self] in self?.needsLayout=true }
+        headerDrag.excluded={ [weak self] point in self?.island.frame.contains(point) == true }
+        islandTimer=Timer.scheduledTimer(withTimeInterval:0.1,repeats:true) { [weak self] _ in
+            Task { @MainActor in self?.tickIsland() }
+        }
         controller.onChange={ [weak self] in self?.refresh() }; refresh()
     }
     required init?(coder:NSCoder) { fatalError() }
+    deinit { islandTimer?.invalidate() }
+    func tickIsland() {
+        island.show(islandModel.snapshot())
+        if let until=highlightUntil, until<=islandModel.now { highlightUntil=nil;highlightedMessageID=nil;refresh() }
+    }
+    func activateIsland(_ action:IslandModel.Action) {
+        switch action {
+        case .reconnect: reconnect()
+        case .retry(let key): retrySend(key)
+        case .question(let id,let key):
+            guard controller.model.messages[id]?.replyState == "asked" else { return }
+            reveal(key);highlightedMessageID=id;highlightUntil=islandModel.now.addingTimeInterval(1.5)
+            refresh();history.scrollTo(key.thread)
+        case .worker(let key): reveal(key);refresh();history.scrollTo(key.thread)
+        }
+    }
+    private func reveal(_ key:ConversationKey) {
+        if identity != key.employee { identity=key.employee;windowed.reset() }
+        searchOpen=false;search.stringValue="";openThread=key;replyMode=true
+        controller.model.select(key,notify:false)
+    }
     func setSidebarWidth(_ value:CGFloat) {
         let next=ConversationSidebar.snapped(value); guard next != sidebarWidth else { return }
         let delta=next-sidebarWidth; sidebarWidth=next; onSidebarWidth?(delta); refresh()
@@ -105,7 +140,7 @@ import AppKit
             threads=(model.room(for:current).map { model.threads(room:$0,query:searchOpen ? search.stringValue : "") } ?? []).sorted { (model.timeline($0.key).first?.seq ?? 0) < (model.timeline($1.key).first?.seq ?? 0) }
             heading.stringValue=model.room(for:current)?.title ?? model.name(current); subtitle.stringValue="함께 나누는 대화"
             if identity != current { windowed.reset(); identity=current; openThread=nil }
-            let shown=Set(windowed.visibleIDs(threads.map(\.id)))
+            let shown=Set(windowed.visibleIDs(threads.map(\.id),revealing:openThread?.thread))
             history.show(threads.filter { shown.contains($0.id) }.map(threadContent),identity:current)
             older.isHidden=shown.count >= threads.count
             if model.timeline(selected).isEmpty { newKeys[current]=selected; replyMode=false }
@@ -128,26 +163,19 @@ import AppKit
         attachButton.isEnabled=selected != nil && !controller.sending
         replyButton.isEnabled = !threads.isEmpty; replyButton.chosen=replyMode; newButton.chosen = !replyMode
         for button in [replyButton,newButton,sendButton] { button.needsDisplay=true }
-        banner.stringValue=controller.client.isConnected ? "" : controller.client.status.text; banner.isHidden=banner.stringValue.isEmpty
         notice.stringValue=controller.notice
-        updateNotices(); onUnread?(model.rooms.reduce(0){$0+model.unread(room:$1)})
+        islandModel.update(controller.islandInput);tickIsland(); onUnread?(model.rooms.reduce(0){$0+model.unread(room:$1)})
         needsLayout=true; needsDisplay=true
-    }
-    private func updateNotices() {
-        for view in noticeBar.arrangedSubviews { noticeBar.removeArrangedSubview(view); view.removeFromSuperview() }
-        let waiting=threads.filter { controller.model.timeline($0.key).contains { $0.replyState == "asked" && !$0.buttons.isEmpty } }
-        let unread=threads.filter { controller.model.unread($0.key)>0 }
-        for (title,values,color) in [("답변 대기",waiting,NSColor.systemYellow),("알림",unread,NSColor.systemBlue)] where !values.isEmpty {
-            let button=FileChip(title:"● "+title+"  "+String(values.count)+" ›"); button.font = .systemFont(ofSize:11,weight:.medium); button.contentTintColor=color
-            button.invoke={ [weak self] in self?.chooseThread(values[0].key) }; noticeBar.addArrangedSubview(button)
-        }
     }
     override func layout() {
         super.layout()
         let w=bounds.width,h=bounds.height,left=min(sidebarWidth,max(0,w-100)), x=left, right=max(1,w-left), list=ConversationSidebar.isList(sidebarWidth)
         brandDrag.frame=CGRect(x:0,y:0,width:left,height:44); brand.frame=CGRect(x:0,y:7,width:left,height:18); version.frame=CGRect(x:0,y:26,width:left,height:12)
         headerDrag.frame=CGRect(x:x,y:0,width:right,height:44)
-        heading.frame=CGRect(x:x+18,y:7,width:max(1,right-90),height:18); subtitle.frame=CGRect(x:x+18,y:26,width:max(1,right-90),height:12)
+        let islandWidth=island.fittedWidth(limit:max(44,right-70-120-24))
+        island.frame=CGRect(x:x+12,y:7,width:islandWidth,height:30);island.layoutSubtreeIfNeeded()
+        let titleX=island.frame.maxX+12
+        heading.frame=CGRect(x:titleX,y:7,width:max(0,w-70-titleX),height:18); subtitle.frame=CGRect(x:titleX,y:26,width:max(0,w-70-titleX),height:12)
         sidebarToggle.frame=CGRect(x:w-64,y:9,width:24,height:26); searchToggle.frame=CGRect(x:w-35,y:9,width:24,height:26)
         employeeSearch.isHidden = !list; employeeSearch.frame=CGRect(x:12,y:52,width:max(1,left-22),height:36)
         employeeScroll.frame=CGRect(x:0,y:44+4+(list ? 52 : 0),width:left,height:max(1,h-48-(list ? 52 : 0)-28))
@@ -156,8 +184,6 @@ import AppKit
         handle.frame=CGRect(x:max(0,left-4),y:44,width:8,height:max(0,h-44))
         var y:CGFloat=44
         search.isHidden = !searchOpen; search.frame=CGRect(x:x+12,y:y+8,width:right-24,height:28); if searchOpen { y+=44 }
-        banner.frame=CGRect(x:x+12,y:y+7,width:right-24,height:18); if !banner.isHidden { y+=32 }
-        noticeBar.frame=CGRect(x:x+12,y:y+7,width:right-24,height:28); noticeBar.isHidden=noticeBar.arrangedSubviews.isEmpty; if !noticeBar.isHidden { y+=42 }
         older.frame=CGRect(x:x+12,y:y,width:right-24,height:older.isHidden ? 0 : 24); if !older.isHidden { y+=24 }
         let noticeHeight:CGFloat=notice.stringValue.isEmpty ? 0 : 38, attachmentsHeight:CGFloat=controller.draft.attachments.isEmpty ? 0 : 30
         let inputHeight=max(42,editorHeight+22), composerHeight=10+22+6+attachmentsHeight+inputHeight+10
@@ -228,6 +254,7 @@ import AppKit
         let state=messages.reversed().compactMap(\.replyState).first
         let tone:NSColor?=state == "asked" ? NSColor(srgbRed:0.925,green:0.698,blue:0.18,alpha:1) : state == "answered" || state == "closed" ? NSColor(srgbRed:0.18,green:0.714,blue:0.49,alpha:1) : nil
         let target=replyMode && controller.model.selected == thread.key
+        let highlighted=messages.contains { $0.id == highlightedMessageID } && (highlightUntil.map { $0>islandModel.now } ?? false)
         var actions:[NativeThreadCard.Action]=[.init(title:"복사",symbol:"doc.on.doc",label:"스레드 전체 복사",identifier:"copy-"+thread.id,invoke:{ [weak self] in
             guard let self else { return }; let text=messages.map { ($0.role == "owner" ? "나" : self.controller.model.name($0.key.employee))+"\n"+$0.text }.joined(separator:"\n\n")
             NSPasteboard.general.clearContents(); NSPasteboard.general.setString(text,forType:.string)
@@ -235,7 +262,7 @@ import AppKit
         if foldable && expanded { actions.append(.init(title:"접기",symbol:"chevron.up",label:"접기",identifier:"fold-"+thread.id,alwaysLabel:true,invoke:pick)) }
         if top.isEmpty { top=postPieces(root,conversational:false) }
         return NativeThreadCard.Content(id:thread.id,top:top,replies:answer.isEmpty ? nil : answer,rail:nil,actions:actions,deleting:nil,
-            style:.init(inset:ThreadAppearance.inset,fill:0,stroke:target ? .controlAccentColor : NSColor.labelColor.withAlphaComponent(dark ? 0.16 : 0.12),lineWidth:target ? 1.5 : 1,background:ThreadAppearance.surface(dark:dark),status:tone,replyBackground:ThreadAppearance.replySurface(dark:dark)),
+            style:.init(inset:ThreadAppearance.inset,fill:0,stroke:highlighted ? .systemOrange : target ? .controlAccentColor : NSColor.labelColor.withAlphaComponent(dark ? 0.16 : 0.12),lineWidth:highlighted ? 2.5 : target ? 1.5 : 1,background:ThreadAppearance.surface(dark:dark),status:tone,replyBackground:ThreadAppearance.replySurface(dark:dark)),
             bell:controller.model.unread(thread.key)>0 ? true : nil,onBell:{ [weak self] in self?.controller.model.select(thread.key) },clickCard:pick,textClick:!expanded && foldable ? pick : nil,
             bubbleWidth:max(ChatMetrics.minimumBubbleWidth,(bounds.width-sidebarWidth)*ChatMetrics.bubbleWidthFraction),quiet:NSColor.labelColor.withAlphaComponent(0.7),expanded:expanded,replyTarget:target)
     }

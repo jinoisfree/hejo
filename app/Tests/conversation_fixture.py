@@ -90,7 +90,7 @@ async def main():
                     elif frame["text"] == "too large reply":
                         await send("error", code="too_large", ref=frame["id"])
                     else:
-                        assert frame["text"] in ("normal request", "normal request again")
+                        assert frame["text"] in ("normal request", "normal request again", "normal retry")
                         assert len(frame["files"]) == (1 if frame["text"] == "normal request" else 0)
                         attached = []
                         for file_id in frame["files"]:
@@ -156,7 +156,7 @@ async def main():
                 print("CONVERSATION_FIXTURE_OBSERVED", observed, errors, flush=True)
                 assert child.returncode == 0, "conversation app test failed"
                 assert not errors, "fixture assertion failure: " + ",".join(errors)
-                assert observed == dict(uploads=2, clicks=1, sends=5, downloads=1, redirect_followed=0), "unexpected transport count"
+                assert observed == dict(uploads=2, clicks=1, sends=6, downloads=1, redirect_followed=0), "unexpected transport count"
                 assert credential not in Path(directory, "hejo-local.json").read_text()
                 print("CONVERSATION_HTTP_WS_PASS", observed, flush=True)
             finally:

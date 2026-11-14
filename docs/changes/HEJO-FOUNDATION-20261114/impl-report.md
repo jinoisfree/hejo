@@ -813,3 +813,44 @@ AT-HF-30: 운영 원본 전부 auto·다른 키 차이 0·동기화 커밋 확�
 `ConversationView` 로고를 속성 문자열 `HEJO.`로 바꿨다. H만 systemBlue, 나머지는 labelColor, 14pt semibold·가운데 정렬이다. 10pt 번들 버전 줄은 유지하고 방이 없을 때 머리글도 HEJO.로 바꿨다. AT-HF-52는 실제 ConversationView의 글자·색·글꼴·정렬·버전·빈 방 대체 글자를 확인한다. SwiftUI나 시안 파일 변경은 없다.
 
 환경 지정 `bash app/scripts/test.sh`: 종료 **0**, AT-HF-52 및 기존 앱·네트워크·대화 시험 통과. 로그 `.build/foundation9-app-task10.log`, 명령/종료 코드 `.build/foundation9-app-task10.json`; 실행 환경은 `.build/foundation9_runner.py`에 있다. 임시 홈·대역 문만 사용했고 운영 페어링은 없다. 증거 수준 2다. 커밋 대상은 ConversationView.swift·ConversationTests.swift·이 보고서 세 파일이다.
+
+### TASK-11 — 아일랜드 1단계와 일하는 중 글자 반짝임 (9판·보완 10, 2026-11-15)
+
+**구현·자체 시험 완료, 검토 대기.** 기준은 `379a43edfe37cf3db88a98bab40735cd3d3c7423`의 9판 인계와 이후 승인된 보완 지시 10, REQ-HF-18·AT-HF-53~56이다. TASK-08 보고 커밋은 `9f4ae9303a5a94e16dd533167882456195c55c2e`, TASK-10은 `cc128208f844f6c5f800b11a49d372ad640e9b63`다. TASK-11 구현과 아래 증거를 별도 커밋으로 검토에 넘긴다. 제품 최종 완료·운영 연결·푸시는 별도다.
+
+#### 변경과 책임
+
+- `IslandModel.swift`: 주입 시계로 칸·질문/안 읽은 수·작성 중 경과·연결 안내·업로드·4초/3초 우선순위를 계산한다. 원본 메시지·읽음·초안은 기존 모델/컨트롤러에 남고 아일랜드에는 표시용 입력과 일시 상태만 둔다.
+- `IslandView.swift`: AppKit 한 줄 30pt 알약, 44×12 빈 띠, 칸 구분선·첫 글자 얼굴·가로 전환·호버·클릭을 맡는다. 보완 지시 10에 따라 도는 고리를 없애고 글자 모양 마스크를 씌운 `CAGradientLayer`의 위치만 1.6초마다 왼쪽→오른쪽으로 옮긴다. 경과 시간 글자는 반짝임 대상에서 제외했다. 최대 너비에서는 직원 칸부터 압축한다. 동작 줄이기는 즉시 너비 전환·흐린 글자로 정지다. 여러 직원 얼굴은 각각 해당 직원으로 이동한다.
+- `ConversationView.swift`·`ConversationChrome.swift`: 로고 오른쪽+12 배치와 제목 공간, 오래된 asked 카드 펼침·스크롤·1.5초 강조, 직원 이동·재접속·저장된 대상 재전송을 연결했다. 알약은 머리글 끌기에서 제외한다. 기존 연결 banner·답변 대기/알림 noticeBar와 해당 배치/갱신 코드는 제거했다.
+- `ConversationController.swift`: 실패 문구·첫 말·재전송 대상과 첨부 k/n을 제공한다. 초안·확인 후 비우기·중복 전송 방지·HTTP 권한 검사·송신 크기 제한은 기존 경로를 유지한다. unknown_file·too_large 등 표시 위치는 notice에서 알약으로 옮겼고 다른 notice 용도는 유지했다.
+- `IslandModel.swift`는 `GateClient.status == .tooLarge`도 문제 칸으로 표시한다. 서버 1009나 `error(too_large)` 뒤의 TASK-05 안내가 연결 띠 제거와 함께 사라지지 않도록 AT-HF-55 앱 시험으로 확인한다.
+- 시험 파일은 `IslandTests.swift`, `ConversationTests.swift`, `TestMain.swift`, `conversation_fixture.py`다. 기존 대화 시험의 오류 관측 위치만 새 표시 원본으로 옮겼다. 대역 send 기대 횟수 5→6은 알약 재전송 동작 1회를 추가했기 때문이며, 기존 5회 동작·첨부/클릭/다운로드 검사는 유지한다. TASK-05의 AT47 기대값·대기 함수는 바꾸지 않았다.
+- README와 `evidence/HEJO-FOUNDATION/TASK-11.md`·자동 PNG 두 장을 추가/갱신했다. 실제 수동 클릭·시스템 동작 줄이기·다중 화면·운영 연결 검사는 TASK-09에 남는다. 자동 캡처는 가짜 명부 AppKit 자료로 표시했다.
+
+이번 구현은 설계·수락 명세·wire·gate·설치기·시안·다른 앱을 바꾸지 않았다. 계획 담당의 별도 커밋에서 보완 지시 10에 따른 REQ-HF-18·AT-HF-53/56이 갱신된 것을 확인하고 반영했다. 새 공개 계약/저장 형식·SwiftUI·외부 연결·임시 호환 경로는 없다. 새 코드의 상태 원본과 책임은 받은 설계대로다.
+
+#### 실행 증거
+
+환경은 `.build/foundation9_runner.py`에서 HEJO_PYTHON·HEJO_TEAM_KIT_LIB·PYTHONPATH를 지정하고 매 실행 임시 HERMES_HOME/HERMES_ROOT를 만든다. 실제 명령·종료 코드는 각 JSON에 있다.
+
+| 실행 | 종료·결과 | 로그 |
+|---|---|---|
+| `bash scripts/test.sh` (최종 소스, 임시 홈·환경 지정) | **0** — gate/수락 80 passed, AT-22 리스너 1·배달 4·정상 종료, 기존 앱·AT-52~56·HTTP/WS 대역 통과 | `.build/foundation9-hejo.log`·동명 JSON |
+| `bash app/scripts/test.sh` 10회 연속 (최종 소스) | **10/10 모두 종료 0**, 동일 앱 소스 해시; 각 회차에서 AT47·AT52~56·임시 HTTP/WS 대역 통과 | `.build/task11-repeat-verified.log`·`task11-repeat-verified-results.json`, `foundation9-app-task11-verified-01.log`~`10.log` |
+| 최초 개발본의 `bash app/scripts/test.sh` 연속 시도 | **0, 0, 1** — AT47 펼침 완료 단언 실패로 즉시 중단. 이 소스는 최종 반짝임·too_large 보완 전이다 | `.build/task11-repeat.log`·`task11-repeat-results.json`, `foundation9-app-task11-01.log`~`03.log` |
+| `python3 .build/task11_mutations.py` | 조정 실행 **0**; 답 요청 4초→1초 변형과 oldest→latest 이동 변형 모두 컴파일 0·대상 시험 **1**, 의도한 단언으로 검출 | `.build/task11-mutations.log`·`task11-mutations.json` 및 각 mutation 로그 |
+| 기준 커밋 앱 단위 시험 진단 사본 30회 | **30/30 종료 0**. 진단 출력만 추가, 기대값 불변; 원래 간헐 실패의 자연 재현은 못 함 | `.build/task11-baseline-probe.log`·`task11-baseline-results.json`·`task11-baseline-probe/run-*.log` |
+| 기준 커밋 펼침 중 화면 변경 알림 주입 | 컴파일 **0**, 대상 시험 **1**, 조정 스크립트 **0**. 진행 0·단계 0·타이머 있음에서 화면 변경 뒤 진행 0에 머물러 같은 단언 실패 | `.build/task11-screen-change.log`·`task11-screen-change.json` |
+
+새 시험은 실제 AppKit 배치/클릭, 주입 시계 우선순위와 TTL, 글자 빛 띠의 0초/0.8초 위치·1.6초 반복·동작 줄이기 정지, 1009/too_large 문제 표시, 루프백 HTTP 업로드 진행, WebSocket 재연결 뒤 원래 방 재전송·성공 시 실패 표시 제거까지 확인했다. 최종 소스의 자동 캡처 두 장을 직접 확인했다. 증거 수준 **2**와 필수 연속 통과 조건에 도달했다. 초기 개발 중 문법 오류 두 건·시험 좌표계 오류·반짝임 시험의 접힌 너비 준비 오류는 수정했다. 실패 로그 `foundation9-app-task11-dev.log`·`dev2.log`·`task11-first-full-build-error.log`·`foundation9-app-task11-shimmer.log`·`shimmer2.log`를 최종 성공 로그와 구분해 보존했다.
+
+#### 잔여 위험 T11-01: 기존 AT47 전환 완료의 간헐 실패
+
+실패 위치는 `app/Tests/TestMain.swift:95`의 `transitionProgress == 1 && transitionSteps > 0` 단언이다. 이 단계는 대화/아일랜드 객체를 만들기 전이며, 이번 변경은 해당 시험 뒤에 아일랜드 시험 호출만 추가했다. 2초 조건 폴링과 기존 펫 제품 코드는 그대로다.
+
+기준 커밋의 `PetController.swift:124` `screensChanged()`는 전환 타이머를 무효화하고 시각 상태를 마무리하지만 `transitionProgress`를 완료 값으로 갱신하지 않는다. 펼침 중 그 알림을 주입하면 같은 단언 실패를 결정적으로 재현했다. **최초 자연 발생 실패에 그 알림이 왔다는 관측은 없으므로 원인 확정은 아니다.** 기준 단위 진단 30회는 통과했고, 최종 변경본의 10회 연속 시험도 통과했다. AT47 기대값·대기 함수·펫 제품 코드는 바꾸지 않았다. 이 간헐 위험은 후속 검토에서 실제 알림/전환값을 기록해 판단할 수 있다. TASK-09의 수동 펼침·다중 화면 확인에도 인계한다.
+
+게이트웨이 Python의 `scripts/scan_private.py`, `bash githooks/pre-commit`, `git diff --cached --check`는 각각 종료 **0**, 개인값 위반 **0**이다. 앱 소스 해시는 최종 10회 반복 결과와 같고 `import SwiftUI`는 0건이다. TASK-11에서 gate·schemas·install·수락 명세·펫 전환 소스·시안은 수정하지 않았다. 정적 검사 명령·종료 코드·로그는 `.build/task11-final-checks.json`과 `.build/task11-final-{scan,hook,diff}.log`에 있다.
+
+운영 커밋은 TASK-08의 `855149a4d1713804fec77bb2c8fd4ff370a6b04f`다. 허용 밖 운영 변경 없음과 DDOTS 문서 바이트 보존을 확인했다(`.build/task11-operating-status.json`·`task11-preservation.json`). 기억 파일은 열거나 수정하지 않았다. V-5 및 과거 공개 이력 개인값 부채는 유지한다. 재시작/reload·비밀 파일 열기·운영 hejo 연결·외부 발송·푸시는 없다. TASK-11 커밋 정보는 `.build/task11-git-final.json`에 남긴다.

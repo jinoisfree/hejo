@@ -127,6 +127,9 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     try check(controller.model.unread(key) == 1,"real socket replay applies message/edit/state once")
     controller.model.select(key); controller.model.setVisible(true)
     let ui=ConversationView(controller:controller,clipboardArea:directory.appendingPathComponent("clipboard"))
+    var uploadProgress:[IslandUpload]=[]
+    let redraw=controller.onChange
+    controller.onChange={ if let progress=controller.uploads[key] { uploadProgress.append(progress) };redraw?() }
     let pet=PetController(store:store,atlas:try SpriteAtlas(resourceDirectory:URL(fileURLWithPath:args[4])))
     pet.reducedMotion={true}; pet.pet.installConversation(ui); pet.preferredChatSize=CGSize(width:428,height:500)
     pet.onExpansionChanged={controller.model.setVisible($0)}; pet.showChat()
@@ -137,7 +140,7 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     let original=directory.appendingPathComponent("note.txt"); try Data("fixture attachment".utf8).write(to:original)
     controller.addAttachments([original]); controller.setText("reject attachment"); print("CONVERSATION_STAGE unknown_file"); fflush(stdout)
     await controller.sendCurrent()
-    try await waitFor { controller.notice.contains("첨부를 찾지") }
+    try await waitFor { controller.transferFailure?.message.contains("첨부를 찾지") == true }
     try check(controller.draft.text == "reject attachment" && controller.draft.attachments == [original],"unknown_file keeps original draft and attachment")
     controller.setText("normal request"); print("CONVERSATION_STAGE send"); fflush(stdout)
     let sending=Task { await controller.sendCurrent(for:key) }
@@ -145,6 +148,8 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     await sending.value
     try await waitFor { controller.drafts[key]?.text.isEmpty == true }
     try check(controller.model.selected?.employee == "beta","upload completion preserves current worker selection")
+    try check(uploadProgress.contains(IslandUpload(completed:0,total:1)) && uploadProgress.contains(IslandUpload(completed:1,total:1)) && controller.uploads.isEmpty,"AT55 real upload reports progress and clears it")
+    try check(controller.transferFailure == nil,"AT55 successful acknowledgement clears transfer failure")
     controller.model.select(key); ui.chooseThread(key)
     guard let sent=controller.model.timeline(key).first(where:{$0.role == "owner"}), let file=sent.files.first else { throw TestFailure.assertion("owner attachment acknowledgement missing") }
     try await waitFor { controller.model.unread(employee:"beta") == 1 }
@@ -158,11 +163,11 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     await controller.open(file,employee:"alpha")
     try check(opened != nil && (try Data(contentsOf:opened!)) == Data("fixture attachment".utf8),"download passes original bytes to open callback")
     opened=nil; await controller.open(file,employee:"beta")
-    try check(opened == nil && !controller.notice.isEmpty,"foreign employee download never opens a file")
+    try check(opened == nil && controller.transferFailure != nil,"foreign employee download never opens a file")
     controller.setText(String(repeating:"한",count:30_000)); await controller.sendCurrent()
-    try check(controller.notice.contains("너무 큼"),"composer blocks 64KiB text before socket send")
+    try check(controller.transferFailure?.message.contains("너무 큼") == true,"composer blocks 64KiB text before socket send")
     controller.setText("too large reply"); print("CONVERSATION_STAGE too_large"); fflush(stdout); await controller.sendCurrent()
-    try await waitFor { controller.notice.contains("너무 큼") && !controller.sending }
+    try await waitFor { controller.transferFailure?.message.contains("너무 큼") == true && !controller.sending }
     try check(controller.draft.text == "too large reply","too_large keeps draft")
     try check(client.isConnected,"recoverable too_large keeps live transport")
     controller.setText("normal request again"); await controller.sendCurrent()
@@ -171,7 +176,13 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     opened=nil; await controller.open(redirect,employee:"alpha")
     try check(opened == nil,"HTTP redirects cannot carry credentials or open unverified files")
     controller.setText("disconnect unacknowledged"); await controller.sendCurrent()
-    try await waitFor { controller.canSend && controller.notice.contains("전송 확인") }
+    try await waitFor { controller.canSend && controller.transferFailure?.message.contains("전송 확인") == true }
     try check(!controller.sending && controller.draft.text == "disconnect unacknowledged","unconfirmed send survives reconnect without automatic resend")
-    pet.panel.orderOut(nil); client.stop(); print("CONVERSATION_NETWORK_PASS")
+    try check(controller.transferFailure?.retryKey == key,"AT55 reconnect retains original retry destination")
+    controller.setText("normal retry",for:key)
+    controller.model.select(employee:"beta")
+    ui.activateIsland(.retry(key))
+    try await waitFor { controller.drafts[key]?.text.isEmpty == true && !controller.sending }
+    try check(controller.transferFailure == nil && controller.model.selected?.employee == "beta" && controller.notice.isEmpty,"AT55 island retry sends saved key and clears failure only on success")
+    pet.panel.orderOut(nil); client.stop(); print("AT-HF-55 NETWORK PASS"); print("CONVERSATION_NETWORK_PASS")
 }
