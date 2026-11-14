@@ -169,7 +169,7 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
 - `scripts/scan_private.py`: Hermes-ddots `hermes_facility.airport_boundaries`(TK)와 같은 패턴 규칙을 hejo 추적 파일 전체(`git ls-files`)에 적용한다. 검사 대상 확장자: `.md .swift .py .json .yaml .yml .sh .plist .txt`.
   - 운영 홈에서 여는 파일은 **`<HOME>/owner/team.yaml`(agents 키·name·label·aliases)과 `<HOME>/owner/vault.yaml`(문자열 값)** 둘뿐이다. 경로를 고정 목록으로 열고 디렉터리 탐색을 하지 않는다. `.env*`·`auth.json`·토큰·`state.db`는 열지 않는다. 운영 홈이나 두 파일이 없으면 패턴 검사만.
   - 출력은 종류·파일·줄 번호·16진 지문만, 값은 출력하지 않는다.
-  - 패턴: Slack ID 모양, 이메일, 절대 경로(`/Users/`, `/Volumes/`), 고정 홈(`~/.hermes` 등)은 코드 확장자(`.py .swift .sh`)에만 적용하고 문서(`.md`)에서는 기본 경로 설명을 허용한다.
+  - 패턴: Slack ID 모양, 이메일, 사용자·볼륨 절대 경로는 모든 검사 대상 확장자에 적용한다. 고정 홈 경로 패턴(`airport_boundaries`의 `fixed_home`)만 코드 확장자(`.py .swift .sh`)에 적용하고 문서(`.md`)에서는 기본 경로 설명을 허용한다.
   - 예외 목록 `scripts/scan_private_allow.txt`: 줄 단위 `파일:지문` + 이유. 가짜 시험 값과 게시자 저작권 표기(LICENSE)만 허용한다.
   - `githooks/pre-commit`이 실행한다. 이 저장소는 기준선 없이 위반 0에서 시작한다.
 - 공개 전(3단계) 조건: 전체 git 이력에도 같은 검사를 돌려 위반이 없어야 한다.
