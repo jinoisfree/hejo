@@ -119,6 +119,14 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
 
 ### 4.1 보조 프로필 배달(TASK-03a 탐침 → 계획 담당 결정)
 
+**결정(5판, 2026-11-14 사용자 승인): A 전달자 채택(보강).** 근거는 verdict 5차(A 성공, B는 본체 배달 전 설정 검사 `tools/send_message_tool.py:319-323`·`cron/scheduler_delivery.py:1407-1408`에서 차단). 대안 D(직원별 리스너)·E(파일 쪽지함)·F(본체 수정)는 기각. 보강 4항:
+1. 허브는 연결 때가 아니라 **보낼 때마다** 모듈 수준 등록에서 찾는다. 보조 어댑터는 기본 문 유무와 관계없이 연결됨으로 표시해 시작 순서에 영향받지 않는다.
+2. 허브가 없으면 `SendResult(success=False, error="hejo_primary_unavailable")`와 로그로 끝낸다(fail closed, 다른 경로 없음).
+3. 전달 대상은 `send`·`edit_message`·`send_typing`·`stop_typing`·버튼 메타·첨부(`send_document`/`send_image_file` 등 TASK-03b 첨부 경로)다. 직원 이름은 어댑터의 `_owner_profile`에서 정하고 호출자 메타데이터로 바꿀 수 없다.
+4. 설정: 보조 프로필 `config.yaml`에 `plugins.enabled`의 hejo와 `gateway.platforms.hejo: {enabled: true, extra: {role: forwarder}}`(포트·주소 없음)를 설치 도우미가 영수증과 함께 쓴다. 이후 앱에서 직원을 만들 때도 같은 블록을 쓴다(후속 직원 생성 작업). 예약 보고의 기본 대상(`home_channel`)은 `{platform: hejo, chat_id: <직원 id>}`이며 스레드는 배달마다 새로 만든다.
+
+**후속(2단계, Slack 은퇴 때):** 보조 직원에게서 Slack 연결이 빠지면 Hermes 위성 직원 경로(`R/gateway/authz_mixin.py:208-235` `_is_shared_bot_satellite`, 자기 어댑터가 없는 프로필은 기본 어댑터로 배달)가 성립할 수 있다. 그때 탐침해 `send_message` 설정 검사까지 통과하면 보조 프로필 hejo 설정을 영수증으로 걷어내고 전달자를 은퇴시킨다. 9절의 위성 방식 기각은 병행 기간에 한한다.
+
 [확인] 보조 직원이 자기 연결(Slack)을 가지면 기본 프로필 어댑터를 빌리지 못한다(`R/gateway/authz_mixin.py:208-226`, fail closed). 예약 보고·`send_message` 같은 먼저 보내기는 그 직원의 어댑터 지도에서 hejo를 찾고, 없으면 플러그인의 `standalone_sender_fn`으로 간다(`R/tools/send_message_senders.py:313-339`).
 
 | 안 | 방식 | 판정 기준 |
@@ -162,7 +170,8 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
 - `install/hejo-install [--home PATH] [--check] [--uninstall]`:
   1. Hermes 홈 찾기(`HERMES_HOME` → 기본 경로). 조립식 감지(`owner/team.yaml` 존재)만 기록, 이번 작업에서 조립 층 설치는 하지 않음.
   2. `<HOME>/plugins/hejo` → 저장소 `gate/` 심볼릭 링크(Hermes-ddots `./sync`는 링크를 링크로 모은다, `Hermes-ddots/sync:61-70`).
-  3. 기본 프로필 `config.yaml`: `plugins.enabled`에 hejo 추가, `gateway.platforms.hejo: {enabled: true, extra: {port: 47820, listen: ["127.0.0.1"], allowed_users: ["owner"]}}`. 보조 프로필은 이번 작업에서 건드리지 않는다(4.1 결정 뒤 별도 승인).
+  3. 기본 프로필 `config.yaml`: `plugins.enabled`에 hejo 추가, `gateway.platforms.hejo: {enabled: true, extra: {port: 47820, listen: ["127.0.0.1"], allowed_users: ["owner"]}}`. 
+  3-1. (5판) 보조 프로필마다 `<보조 홈>/plugins/hejo` 링크, `plugins.enabled`에 hejo, `gateway.platforms.hejo: {enabled: true, extra: {role: forwarder}}`. 보조 프로필 목록은 Hermes 프로필 API로 읽고 각 대상을 영수증에 넣는다.
   4. `<HOME>/hejo/`(0700)와 빈 `devices.json`(0600) 생성.
   5. 게이트웨이 재시작은 하지 않고 안내만 출력한다. 재시작은 운영 단계(TASK-09)에서 사장 확인 뒤 한다.
 - 비밀 파일: 설치 도우미는 `.env*`, `auth.json`, `*token*`, `*secret*` 파일을 열지도 쓰지도 않는다. 허용 사용자는 3번의 `config.yaml` 값으로 처리한다(1절).
@@ -193,7 +202,7 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
 
 - api_server(`/p/<프로필>/v1`) 사용: 요청-응답이라 먼저 보내기·답장 버튼 불가 → 기각.
 - 프로필마다 문이 포트를 따로 염: 같은 포트면 EADDRINUSE 재시도 폭주, 다른 포트면 앱이 6개 연결 → 기각.
-- `gateway.profile_routes` 위성 방식: 보조 직원이 Slack 연결을 가져 위성이 아니므로 먼저 보내기 불가(`authz_mixin.py:208-226`) → 기각.
+- `gateway.profile_routes` 위성 방식: 보조 직원이 Slack 연결을 가져 위성이 아니므로 먼저 보내기 불가(`authz_mixin.py:208-226`) → 병행 기간 기각, Slack 은퇴 때 재탐침(4.1 후속).
 - 기록장 없이 세션 기록에서 이력 제공: 버튼 상태·예약 배달·스트리밍 결과가 세션에 같은 모양으로 남지 않음 → 기각.
 
 ## 10. 위험과 롤백

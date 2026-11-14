@@ -7,7 +7,9 @@
 | 시험 ID | AC | 종류 | 절차 | 합격 기준 |
 |---|---|---|---|---|
 | AT-HF-01 | REQ-HF-01.AC-01 | 자동 | 기본 프로필 설정(`listen:[127.0.0.1]`, 임의 빈 포트)으로 connect | 그 주소·포트만 LISTEN(다른 인터페이스 없음), `is_connected` 참 |
-| AT-HF-02 | REQ-HF-01.AC-02 | 자동 | 기본 문이 포트 P를 연 상태에서 `set_owner_profile("beta")`인 두 번째 어댑터 connect | 포트 P 외 새 LISTEN 없음, 두 번째 어댑터는 `retryable=False` 실패로 끝나고 재연결 예약 없음, 기본 문은 계속 응답. (탐침 뒤 전달자 결정 시 계획 담당이 이 행을 개정) |
+| AT-HF-02 | REQ-HF-01.AC-02 | 자동 | (a) 기본 문이 포트 P를 연 상태에서 `set_owner_profile("beta")`인 두 번째 어댑터 connect; (b) 기본 문보다 먼저 보조 어댑터 connect 후 기본 문 connect; 시험 내내 파일 열기 감사 | (a)(b) 모두 포트 P 외 새 LISTEN 없음, 보조 어댑터 연결됨, 보조 어댑터가 기록장·`devices.json`·`pairing.json`을 열지 않음, 기본 문 계속 응답. (5판 개정: 비활성 → 전달자) |
+| AT-HF-49 | REQ-HF-01.AC-03 | 자동 | 보조 어댑터(`beta`)로 `send`, `edit_message`, `send_typing`/`stop_typing`, `metadata.hejo_buttons` 글, 첨부 1개 글 | 앱이 각각 `employee:"beta"`의 `message`·`edit`·`typing`·버튼 포함 `message`·`files[]` 포함 `message` 수신, 기록장 행의 직원도 `beta` |
+| AT-HF-50 | REQ-HF-01.AC-04 | 자동 | 기본 문 없이(또는 disconnect 뒤) 보조 어댑터로 `send` | `SendResult.success == False`, 실패 이유 로그, 기록장 행 0, 다른 어댑터 송신 0 |
 | AT-HF-03 | REQ-HF-02.AC-01 | 자동 | CLI `pair`로 코드 발급 → `hello{pair_code}` | `welcome.token` 길이 ≥ 43(base64url 256비트), 같은 코드 재사용 시 `pair_rejected(used)` |
 | AT-HF-04 | REQ-HF-02.AC-02 | 자동 | 만료(시계 +601초), 틀린 코드 5회 후 올바른 코드 | 각각 `expired`, `wrong`×5, `locked`; 출입증 0개 추가 |
 | AT-HF-05 | REQ-HF-02.AC-03 | 자동 | 연결 중 CLI `revoke <device_id>` | 2초 안에 소켓 닫힘, 같은 출입증 `hello` → `auth_rejected(revoked)` |
@@ -35,7 +37,7 @@
 | AT-HF-19 | REQ-HF-09.AC-01 | 자동(team-kit 시험) | team-kit hejo 등록 + 문 대역에 `"검토해줘\n[[버튼: 승인 \| 거절]]"` 전송 | 앱 `message.text`에 표식 없음, `buttons` 라벨 `["승인","거절"]`·`kind:"reply"`, `reply_state:"asked"` |
 | AT-HF-20 | REQ-HF-09.AC-02 | 자동(team-kit 시험) | 위 글의 승인 버튼 클릭 → 대역 차례 → 최종 답장 | 이벤트 텍스트 "승인", `raw_message._hermes_button.label == "승인"`, 문맥에 누른 글 포함, `state answered` 뒤 `state closed` |
 | AT-HF-21 | REQ-HF-09.AC-03 | 자동 | team-kit 없는 홈에서 같은 글 | `buttons` 비어 있음, 본문 끝에 `승인 / 거절` |
-| AT-HF-22 | REQ-HF-10.AC-01 | 자동 + 실환경(3) | 결정된 4.1 안으로 보조 프로필 `beta`의 예약 작업 `deliver=hejo` 실행(임시 홈 실제 게이트웨이) | 앱이 `employee:"beta"`의 새 스레드 `message` 수신; 앱 끈 상태면 재접속 sync로 수신. (4.1 결정 전 미착수) |
+| AT-HF-22 | REQ-HF-10.AC-01 | 자동 + 실환경(3) | 전달자(4.1 A)로 보조 프로필 `beta`의 예약 작업 `deliver=hejo` 실행과 `send_message` 실행(임시 홈 실제 게이트웨이, 자기 시험 연결을 가진 보조 프로필) | 앱이 `employee:"beta"`의 새 스레드 `message` 수신; 앱 끈 상태면 재접속 sync로 수신; 리스너 1개; 다른 연결 송신 0 |
 | AT-HF-37 | REQ-HF-05(권한) | 자동 | 허용 사용자 `owner` 설정으로 send, 설정을 `["someone"]`으로 바꿔 send | 앞은 차례 실행, 뒤는 차례 미실행(허용 거부) |
 | AT-HF-23 | REQ-HF-11.AC-01 | 자동 | `bash app/scripts/build.sh` | `CFBundleIdentifier == io.github.hermes-hejo.hejo`(ddots와 다름), `codesign --verify --strict` 0 |
 | AT-HF-24 | REQ-HF-11.AC-02 | 자동(UI 점검 모드) | 임시 문(대역)에 페어링 → 앱 재시작 | 키체인 서비스 `io.github.hermes-hejo.hejo.gate-token`에 항목, `hejo-local.json`에 출입증 문자열 없음, 재시작 후 `welcome` 수신 |
@@ -43,8 +45,8 @@
 | AT-HF-26 | REQ-HF-12.AC-01 | 수동(체크리스트) + UI 점검 | 직원 전환, 스레드 열기, 새 스레드, 보내기, 버튼 누름, 첨부 보내기·열기, 안 읽은 수 | 각 항목 기대 화면 일치, 스크린샷 증거 `evidence/HEJO-FOUNDATION/` |
 | AT-HF-47 | REQ-HF-16.AC-01 | 자동(배치·상태) + 수동(체크리스트) | 앱 시험: 펫 클릭·메뉴 "대화 열기"·다시 클릭·Esc·"펫으로 접기"를 차례로 실행하고, 동작 줄이기를 켠 상태로 반복; 수동: 다른 앱에 입력 중 펫 클릭 | 열림/닫힘 상태가 각 동작대로 바뀜, 변형 시작·끝 사각형이 펫 발치 기준(`PetPlacement`) 값과 같음, 동작 줄이기면 변형 단계 0; 열기·닫기 동안 다른 앱 포커스 유지, 스크린샷·화면 녹화 증거 `evidence/HEJO-FOUNDATION/` |
 | AT-HF-48 | REQ-HF-16.AC-02 | 자동(배치) | 펫 3 px·5 px 끌기, 대화 연 채 끌기, 가짜 화면 2개에서 두 번째 화면 가장자리로 이동, 화면 구성 변경 알림 | 3 px는 클릭(열림), 5 px는 이동(상태 불변); 대화 창이 펫과 함께 이동; 대화 창 사각형이 펫 발치 화면의 보이는 영역 안; 변경 알림 뒤 화면 안으로 다시 맞춤 |
-| AT-HF-27 | REQ-HF-13.AC-01 | 자동 | 빈 임시 홈에 `hejo-install` 2회, `--check` | 링크·`plugins.enabled`·`gateway.platforms.hejo`·`<HOME>/hejo/`(0700)·`devices.json`(0600) 생성; 2회차 파일 변경 0(바이트 동일); `--check` 종료 0 |
-| AT-HF-28 | REQ-HF-13.AC-02 | 자동 | 기존 `plugins.enabled: [x, y]`, 기존 `gateway.platforms.hejo: {enabled: false, extra: {port: 1}}`, 기존 `<HOME>/plugins/hejo` 링크(다른 대상)인 홈에서 설치 → `--uninstall` | 세 대상이 설치 전 값·링크 대상과 같음(주석 포함 `config.yaml` 해당 부분 동일), `<HOME>/hejo/`·`<HOME>/shared/hejo/` 남음, 영수증 `uninstalled` |
+| AT-HF-27 | REQ-HF-13.AC-01 | 자동 | 보조 프로필 1개(`beta`)가 있는 빈 임시 홈에 `hejo-install` 2회, `--check` | 기본·보조 프로필 각각의 링크·`plugins.enabled`·`gateway.platforms.hejo`(보조는 `extra.role: forwarder`, 포트 없음)·`<HOME>/hejo/`(0700)·`devices.json`(0600) 생성; 2회차 파일 변경 0(바이트 동일); `--check` 종료 0 |
+| AT-HF-28 | REQ-HF-13.AC-02 | 자동 | (보조 프로필 대상도 같은 방식으로 영수증에 포함) 기존 `plugins.enabled: [x, y]`, 기존 `gateway.platforms.hejo: {enabled: false, extra: {port: 1}}`, 기존 `<HOME>/plugins/hejo` 링크(다른 대상)인 홈에서 설치 → `--uninstall` | 세 대상이 설치 전 값·링크 대상과 같음(주석 포함 `config.yaml` 해당 부분 동일), `<HOME>/hejo/`·`<HOME>/shared/hejo/` 남음, 영수증 `uninstalled` |
 | AT-HF-38 | REQ-HF-13.AC-03 | 자동 | 설치 뒤 `extra.port`를 47999로 바꾸고 `--uninstall` | 종료 코드 2, `gateway.platforms.hejo` 그대로(47999), 나머지 대상은 되돌림, 충돌 보고에 대상 경로 |
 | AT-HF-39 | REQ-HF-13.AC-04 | 자동 | 링크 단계 뒤 설정 쓰기에서 실패 주입 | 종료 코드 1, 홈의 대상 전부 설치 전과 같음, 영수증 `failed` |
 | AT-HF-40 | REQ-HF-13.AC-05 | 자동 | 설치 → 사장이 `plugins.enabled`에 z 추가 → 재설치; 시험 내내 파일 열기 감사(`sys.addaudithook`의 `open`) | 영수증 `before` 불변, z 유지; 열린 경로에 `.env`·`auth.json`·`token`·`secret` 포함 0건 |
