@@ -1,6 +1,6 @@
 # HEJO-FOUNDATION 명세: 문과 1:1 대화
 
-- 상태: 초안 2판(계획 검증 1회차 BLOCKED 반영, 사용자 승인 대기). 작성 2026-11-14. 기준 커밋: handoff.md 0번.
+- 상태: 승인(2026-11-14 사용자, 계획 검증 3회차 APPROVED). 대화 기록장 추가·취소 반영 2초 포함. 작성 2026-11-14. 기준 커밋: handoff.md 0번.
 - 근간: [ARCHITECTURE.md](../../ARCHITECTURE.md). 결정 요약: [brainstorm.md](brainstorm.md). 검토 기록: [plan-review.md](plan-review.md).
 - 이 작업은 1단계의 첫 작업 단위(문·1:1 대화·예약 보고·답장 버튼)다. 계정(아이디·비밀번호·구글), 직원 카드·세트, 공방, AI 연결, 펫은 후속 작업이다.
 

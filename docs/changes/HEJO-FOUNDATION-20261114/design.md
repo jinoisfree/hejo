@@ -1,6 +1,6 @@
 # HEJO-FOUNDATION 설계
 
-- 상태: 초안 2판(계획 검증 1회차 반영, 사용자 승인 대기). 명세: [spec.md](spec.md). 검토 기록: [plan-review.md](plan-review.md). 근간: [ARCHITECTURE.md](../../ARCHITECTURE.md).
+- 상태: 승인(2026-11-14 사용자). 명세: [spec.md](spec.md). 검토 기록: [plan-review.md](plan-review.md). 근간: [ARCHITECTURE.md](../../ARCHITECTURE.md).
 - 근거 경로의 `R`은 `~/.hermes/hermes-agent`(운영 포크 브랜치, displayVersion 0.21.5+7339.gebb026e), `TK`는 `Hermes-ddots/hermes/plugin-store/team-kit`(운영 원본 `~/.hermes/plugin-store/team-kit`), `D`는 `Hermes-ddots/ddots`.
 
 ## 칸·원본·쓰기 주체·수명

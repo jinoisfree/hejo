@@ -6,8 +6,8 @@
 
 ```text
 [설계 인계: HEJO-FOUNDATION TASK-02 / 문 핵심과 통신 규격 v1]
-0. 기준: base_commit: 이 인계서를 담은 커밋(이 저장소 main, 계획 3판 문서만 있음) / spec·design·tasks·수락 시험 2판(+2회차 보완) 2026-11-14 /
-   승인 상태: 계획 검증 2회 BLOCKED 모두 반영, 자동 검토 한도 도달 → 사용자 승인 대기 / 운영 모드: 연합개발(교차 모델 + 계획 검증)
+0. 기준: base_commit: 이 인계서를 담은 커밋(이 저장소 main HEAD, 계획 문서만 있음) / spec·design·tasks·수락 시험 2판(+2회차 보완) 2026-11-14 /
+   승인 상태: 사용자 승인 2026-11-14(계획 검증 3회차 APPROVED) / 운영 모드: 연합개발(교차 모델 + 계획 검증)
 1. 공식 문서: docs/ARCHITECTURE.md, AGENTS.md, docs/changes/HEJO-FOUNDATION-20261114/{brainstorm,spec,design,tasks,plan-review}.md,
    tests/acceptance/HEJO-FOUNDATION.md. ADR 없음.
 2. 요구와 수락 기준: REQ-HF-01~06(AC 전부), NFR-HF-01·02. 핵심: 리스너는 기본 프로필 어댑터만(보조는 포트 미점유 + 비활성
