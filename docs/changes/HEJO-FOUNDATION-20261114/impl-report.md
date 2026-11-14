@@ -660,3 +660,31 @@ githooks/pre-commit
 운영 페어링·실제 직원/외부 메시지·운영 설치/재시작, Finder/클립보드 실조작·한글 입력기·외부 앱 파일 열기, 포커스/녹화·다중 화면·최대 이력/파일 성능은 미검증이다. 파일 열기는 콜백과 바이트만 검사하고 실제 다른 앱은 실행하지 않았다. TASK-05 수동 4항목·V-5 기록장 성능·과거 이력 개인값 정리 부채는 유지한다.
 
 검토자는 8판 원본 이식/제외 경계와 Room 대응, 조회 모델/readSeq 복원, 업로드/초안/재접속 문맥, HTTP 권한/리디렉션, 패널 포커스/카드 조작, 자동·수동 증거 구분을 우선 확인해 달라. 운영 홈 쓰기·재시작·비밀 파일 열기·본체/다른 저장소 수정·실제 메시지·푸시는 없다. 개인값 검사기는 허가된 두 운영 입력만 읽었다. 롤백은 구현 커밋 되돌림이다. 원격은 미등록이며 제품 최종 완료·푸시 불필요 판정을 내리지 않는다. 구현 커밋 전체 해시와 저장소 상태는 최종 인계 블록에 기록한다.
+
+## TASK-04 team-kit hejo 답장 버튼 — 착수 전 보류 (2026-11-14)
+
+### 확인·멈춤 근거
+
+hejo 기준 `b039368825dd59f88c824123351b4e8bc1953460`, handoff 마지막 TASK-04와 운영 저장소 AGENTS.md·CLAUDE.md·로컬 HANDOFF.md, 실제 Git 상태를 확인했다. hejo 작업 트리는 착수 시 깨끗했다. 운영 저장소 HEAD는 `36c5aee148b952d0a068c1832df21d3ba7efe20d`였고, 다른 작업의 미커밋 변경이 아래 두 파일에 있었다.
+
+- `<운영 저장소>/docs/changes/DDOTS-DROP-MODEL-20261113/impl-report.md`
+- `<운영 저장소>/docs/changes/DDOTS-DROP-MODEL-20261113/verdict.md`
+
+인계 (0)항은 “team-kit 원본과 운영 저장소에 다른 작업의 미커밋 변경이 있다”면 멈추도록 명시한다. 따라서 **보류(착수 전)**다. 두 파일의 변경을 손대거나 스테이징·커밋·정리하지 않았다. 운영 저장소/원본 team-kit의 제품 코드에는 쓰지 않았다.
+
+### 실행·미실행
+
+| 명령·확인 | 실제 결과 | 로그(hejo 저장소 기준) |
+|---|---|---|
+| hejo `git status --short`·`git rev-parse HEAD` | 각 종료 0, 상태 출력 없음·기준 해시 일치 | `.build/task04-preflight.json` |
+| 운영 저장소 `git status --short`·`git rev-parse HEAD` | 각 종료 0, 위 두 파일 수정 상태·위 HEAD 확인 | `.build/task04-preflight.json` |
+| `python3 scripts/scan_private.py` | 종료 0, 보고서 포함 개인값 위반 0·새 예외 없음 | `.build/task04-scan.log` |
+| `githooks/pre-commit`·`git diff --cached --check` | 각각 종료 0 | `.build/task04-hook.log`, `.build/task04-diff-check.log` |
+
+controls 이동·hejo 등록·Slack 전후 비교 시험·AT-HF-19/20·team-kit 전체 시험·hejo 전체 시험·airport-check·sync는 **미실행**이다. 제품 변경이 없고 착수 조건에서 중단했으므로 기존 검사를 반복하지 않았다. sync를 실행하지 않아 토큰 경고 여부는 미확인이다. 원본 team-kit 변경/처리 중 턴 여부도 추가 조사하지 않았다. 필요 증거 수준은 2이며 이번에는 도달하지 않았다. 운영 저장소 커밋은 새로 만들지 않았다.
+
+### 재개 조건·인계
+
+다른 작업 담당자가 위 미커밋 작업을 마무리한 뒤 TASK-04를 다시 인계한다. 재개 시 실제 상태를 다시 확인하고 원본 team-kit의 변경·처리 중 작업·sync 토큰 경고까지 착수 조건을 확인해야 한다. 보류를 우회해 다른 작업을 정리하거나 임의 worktree에서 진행하지 않는다.
+
+게이트웨이 재시작/reload·운영 연결·실제 Slack/외부 메시지·비밀 파일 열기·Hermes 본체/ddots/운영 저장소 수정·푸시는 없다. 이번 hejo 변경은 이 보류 보고뿐이다. 최종 완료나 푸시 불필요 판정을 내리지 않는다.
