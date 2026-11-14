@@ -903,3 +903,15 @@ AT-HF-30: 운영 원본 전부 auto·다른 키 차이 0·동기화 커밋 확�
 
 **하지 않은 것:** gate·wire·설치기·명세·시안 수정, 운영 `~/.hermes` 변경, 재시작, 비밀 파일, 외부 발송, 푸시.
 
+
+### TASK-09 1단계 — 게이트웨이 재시작 (2026-11-15, 사장 지시 "재시작해")
+
+- **사전 확인:** `gateway_state.json`에서 active_agents 0, active_work 0이었다. 운영 저장소의 미커밋 파일은 허용된 DDOTS 문서 2개와 직원 기억 파일 1개뿐이다.
+- **재시작:** `hermes --profile default gateway restart`, 종료 0.
+  - 새 프로세스 시작 시각은 02:12:25이다. team-kit `hermes_reply/plugin.py`가 바뀐 시각(23:43)보다 뒤라서, 새 코드가 로드됐다.
+- **재시작 뒤 확인:** `gateway.log`에 `✓ slack connected`가 6번(루트와 프로필 5개), `✓ photon connected`가 있다. "Gateway running with 7 platform(s)"이다.
+  - `gateway.error.log`에는 재시작 이후 새 줄이 0개다.
+- **함께 적용된 것:**
+  - team-kit 답장 버튼(`392a2afb`)
+  - 캐시 auto(`855149a4`)
+- **아직 하지 않은 것:** hejo 문 설치(`install/hejo-install`). 설치 뒤에는 한 번 더 재시작해야 한다. 노트북 페어링과 실물 확인도 남았다.
