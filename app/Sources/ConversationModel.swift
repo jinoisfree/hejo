@@ -65,6 +65,8 @@ struct ConversationThread: Identifiable {
     private(set) var messages: [String: ConversationMessage] = [:]
     private(set) var applied = 0
     private(set) var typing: [ConversationKey: Date] = [:]
+    /// When each live typing indicator first turned on; refreshes keep it, expiry or `on:false` forget it.
+    private(set) var typingSince: [ConversationKey: Date] = [:]
     private(set) var selected: ConversationKey?
     private(set) var visible = false
     var onChange: (() -> Void)?
@@ -72,7 +74,7 @@ struct ConversationThread: Identifiable {
         self.store = store
         for frame in store.records { try apply(frame) }
     }
-    func resetReplica() { messages = [:]; typing = [:]; applied = 0; selected = nil; onChange?() }
+    func resetReplica() { messages = [:]; typing = [:]; typingSince = [:]; applied = 0; selected = nil; onChange?() }
     private func decode<T: Decodable>(_ value: Any, as type: T.Type) throws -> T {
         try JSONDecoder().decode(type, from: JSONSerialization.data(withJSONObject: value))
     }
@@ -111,8 +113,10 @@ struct ConversationThread: Identifiable {
             if let selected, !employees.contains(where: { $0.id == selected.employee }) { self.selected = nil }
         } else if type == "typing", let employee = frame["employee"] as? String, let thread = frame["thread"] as? String {
             let key = ConversationKey(employee: employee, thread: thread)
-            if frame["on"] as? Bool == true { typing[key] = now.addingTimeInterval(TimeInterval(frame["ttl_seconds"] as? Int ?? 6)) }
-            else { typing[key] = nil }
+            if frame["on"] as? Bool == true {
+                if (typing[key].map { $0 <= now } ?? true) { typingSince[key] = now }
+                typing[key] = now.addingTimeInterval(TimeInterval(frame["ttl_seconds"] as? Int ?? 6))
+            } else { typing[key] = nil; typingSince[key] = nil }
         }
         if selected == nil, let first = employees.first { select(employee: first.id, notify: false) }
         try markVisibleRead()
@@ -152,7 +156,7 @@ struct ConversationThread: Identifiable {
     }
     func expireTyping(now: Date = Date()) {
         let kept = typing.filter { $0.value > now }
-        if kept.count != typing.count { typing = kept; onChange?() }
+        if kept.count != typing.count { typing = kept; typingSince = typingSince.filter { kept[$0.key] != nil }; onChange?() }
     }
     static func click(message: ConversationMessage, button: MessageButton) throws -> [String: Any] {
         guard message.buttons.contains(button) else { throw GateFailure.protocolError }

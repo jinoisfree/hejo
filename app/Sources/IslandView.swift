@@ -11,7 +11,7 @@ import AppKit
     private(set) var animationSteps = 0
     private(set) var partRects: [(IslandModel.Part, CGRect)] = []
     private var tracking: NSTrackingArea?, timer: Timer?
-    private let shimmerContainer = CALayer(), shimmerGradient = CAGradientLayer(), shimmerMask = CATextLayer()
+    private let shimmer = ShimmerLayer()
     var animationTime: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
     private(set) var shimmerPosition: CGFloat = 0
     private var widthTarget: CGFloat = 44, widthFrom: CGFloat = 44, widthStart: TimeInterval = 0
@@ -24,11 +24,7 @@ import AppKit
     override init(frame:NSRect) {
         super.init(frame:frame); wantsLayer = true
         setAccessibilityElement(true); setAccessibilityRole(.group)
-        shimmerGradient.colors = [NSColor.white.withAlphaComponent(0).cgColor,NSColor.white.withAlphaComponent(0.95).cgColor,NSColor.white.withAlphaComponent(0).cgColor]
-        shimmerGradient.startPoint=CGPoint(x:0,y:0.5);shimmerGradient.endPoint=CGPoint(x:1,y:0.5)
-        shimmerGradient.bounds=CGRect(x:0,y:0,width:60,height:16)
-        shimmerContainer.addSublayer(shimmerGradient)
-        shimmerContainer.mask=shimmerMask;layer?.addSublayer(shimmerContainer)
+        layer?.addSublayer(shimmer)
         timer=Timer.scheduledTimer(withTimeInterval:1/30,repeats:true) { [weak self] _ in
             Task { @MainActor in guard let self else { return }
                 if self.widthIsAnimating { self.onWidthChange?() }
@@ -84,27 +80,14 @@ import AppKit
         if let (part,rect)=partRects.first(where:{$0.0.kind == .worker && $0.0.shimmering && !$0.0.iconOnly}),!workerFacesOnly {
             let textX=rect.minX+7+CGFloat(part.faces.count)*18
             let width=max(0,rect.maxX-textX-7)
-            CATransaction.begin();CATransaction.setDisableActions(true)
-            shimmerContainer.frame=CGRect(x:textX,y:8,width:width,height:16)
-            shimmerMask.frame=CGRect(origin:.zero,size:shimmerContainer.bounds.size)
-            shimmerMask.contentsScale=window?.backingScaleFactor ?? 2
-            shimmerMask.alignmentMode = .left; shimmerMask.truncationMode = .end
             let workingText=part.text.hasPrefix("일하는 중 · ") ? "일하는 중" : text(part)
-            shimmerMask.string=NSAttributedString(string:workingText,attributes:[.font:NSFont.systemFont(ofSize:11,weight:.medium),.foregroundColor:NSColor.white])
-            CATransaction.commit()
-        } else { shimmerContainer.isHidden=true }
+            shimmer.configure(text:workingText,font:.systemFont(ofSize:11,weight:.medium),frame:CGRect(x:textX,y:8,width:width,height:16),scale:window?.backingScaleFactor ?? 2)
+        } else { shimmer.isHidden=true }
         updateShimmerPosition()
     }
     func updateShimmerPosition() {
-        let running=isShimmering && shimmerContainer.bounds.width>0
-        shimmerContainer.isHidden = !running
-        guard running else { return }
-        let cycle=animationTime().truncatingRemainder(dividingBy:1.6)/1.6
-        let x = -30 + (shimmerContainer.bounds.width+60)*CGFloat(cycle)
-        CATransaction.begin();CATransaction.setDisableActions(true)
-        shimmerGradient.position=CGPoint(x:x,y:8)
-        CATransaction.commit()
-        shimmerPosition=x
+        shimmer.update(time:animationTime(),running:isShimmering)
+        if !shimmer.isHidden { shimmerPosition=shimmer.bandX }
     }
     override func draw(_ dirtyRect:NSRect) {
         if snapshot.idle { NSColor.labelColor.withAlphaComponent(0.09).setFill();NSBezierPath(roundedRect:idleStripe,xRadius:6,yRadius:6).fill();return }

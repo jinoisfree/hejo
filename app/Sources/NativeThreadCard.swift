@@ -2,7 +2,7 @@ import AppKit
 
 /// A whole thread drawn by AppKit: posts, my bubbles, status notes, the pile of folded replies and their rail,
 /// the foot and the bell. The few intricate parts (project record, approval row, vault and drive buttons, files,
-/// quoted or paged posts, writing dots, the stop control) are native AppKit accessory views.
+/// quoted or paged posts, the typing row, the stop control) are native AppKit accessory views.
 /// Layout is computed without views, so the table knows every row's height before it is shown.
 final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
     struct Action {
@@ -344,6 +344,46 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
         private struct Ink { var range: NSRange; var color: NSColor; var since: TimeInterval }
         private var freshInk: [Ink] = []
         private var inkTick: DispatchWorkItem?
+        /// Streaming caret (REQ-HF-19): a separate 2pt view after the last glyph, never part of the string,
+        /// its attributes or any height measurement. Blinks 0.5s on/0.5s off; held on under reduced motion.
+        static var caretTime: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+        static var caretReduceMotion: () -> Bool = { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
+        let caret = NSView()
+        private var caretTimer: Timer?
+        var showsCaret = false {
+            didSet {
+                if caret.superview == nil { caret.wantsLayer = true; caret.layer?.backgroundColor = NSColor.systemBlue.cgColor; addSubview(caret) }
+                placeCaret(); scheduleCaret()
+            }
+        }
+        var caretShown: Bool { showsCaret && !caret.isHidden }
+        func placeCaret() {
+            guard showsCaret, let layoutManager, let textContainer else { caret.isHidden = true; return }
+            layoutManager.ensureLayout(for: textContainer)
+            let length = (string as NSString).length
+            var font = NSFont.systemFont(ofSize: ChatMetrics.bodyFont), x: CGFloat = 0, top: CGFloat = 0
+            if length > 0 {
+                let glyphs = layoutManager.glyphRange(forCharacterRange: NSRange(location: length - 1, length: 1), actualCharacterRange: nil)
+                let glyph = layoutManager.boundingRect(forGlyphRange: glyphs, in: textContainer)
+                font = textStorage?.attribute(.font, at: length - 1, effectiveRange: nil) as? NSFont ?? font
+                x = glyph.maxX; top = glyph.minY
+            }
+            caret.frame = CGRect(x: textContainerOrigin.x + x + 1, y: textContainerOrigin.y + top, width: 2, height: ceil(font.ascender - font.descender))
+            blinkCaret()
+        }
+        func blinkCaret() {
+            guard showsCaret else { caret.isHidden = true; return }
+            caret.isHidden = !(Self.caretReduceMotion() || Int(floor(Self.caretTime() / 0.5)) % 2 == 0)
+        }
+        private func scheduleCaret() {
+            let running = showsCaret && window != nil && !Self.caretReduceMotion()
+            if !running { caretTimer?.invalidate(); caretTimer = nil }
+            else if caretTimer == nil {
+                caretTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in self?.blinkCaret() }
+            }
+        }
+        override func viewDidMoveToWindow() { super.viewDidMoveToWindow(); scheduleCaret() }
+        override func setFrameSize(_ newSize: NSSize) { super.setFrameSize(newSize); if showsCaret { placeCaret() } }
         func softenAppend(previous: String, streaming: Bool, reset: Bool) {
             let count = (string as NSString).length
             let append = string.hasPrefix(previous)
@@ -582,6 +622,7 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
                 storage.endEditing()
             }
             view.softenAppend(previous: previous, streaming: streaming, reset: !sameThread)
+            view.showsCaret = streaming
             if sameThread, NSMaxRange(selection) <= string.length { view.setSelectedRange(selection) }
             else { view.setSelectedRange(NSRange(location: 0, length: 0)) }
             view.cancelPendingClick()
@@ -610,7 +651,7 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
                 register?(id, view)
             }
         }
-        for index in textIndex..<texts.count { texts[index].isHidden = true }
+        for index in textIndex..<texts.count { texts[index].isHidden = true; texts[index].showsCaret = false }
         register?(c.id, area)
         for index in stackIndex..<stacks.count { stacks[index].isHidden = true }
         for (id, view) in accessories where !usedAccessories.contains(id) { view.removeFromSuperview(); accessories[id] = nil }

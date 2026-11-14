@@ -5,6 +5,9 @@ import AppKit
     let controller: ConversationController
     let island=IslandView(frame:.zero)
     let islandModel:IslandModel
+    /// Animation clock and reduced-motion switch for in-chat typing shimmer; checks inject both.
+    var motionTime: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+    var reduceMotion: () -> Bool = { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
     private var islandTimer:Timer?
     private(set) var highlightedMessageID:String?
     private var highlightUntil:Date?
@@ -245,10 +248,9 @@ import AppKit
         }
         for message in shown { answer += postPieces(message,conversational:true) }
         if controller.model.typing[thread.key] != nil && !messages.contains(where:{$0.streaming}) {
-            answer.append(.accessory(id:thread.id+":typing",height:22,view:{
-                let view=NSView(), label=NSTextField(labelWithString:"● ● ●  작성 중")
-                label.font = .systemFont(ofSize:11); label.textColor = .labelColor.withAlphaComponent(0.7)
-                label.frame=CGRect(x:43,y:3,width:200,height:16); view.addSubview(label); return view
+            let since=controller.model.typingSince[thread.key] ?? islandModel.now
+            answer.append(.accessory(id:thread.id+":typing",height:22,view:{ [weak self] in
+                TypingRow(since:since,clock:{ self?.islandModel.now ?? Date() },animationTime:{ self?.motionTime() ?? 0 },reduceMotion:{ self?.reduceMotion() ?? true })
             }))
         }
         let state=messages.reversed().compactMap(\.replyState).first

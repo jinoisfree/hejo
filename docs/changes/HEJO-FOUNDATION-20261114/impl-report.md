@@ -854,3 +854,52 @@ AT-HF-30: 운영 원본 전부 auto·다른 키 차이 0·동기화 커밋 확�
 게이트웨이 Python의 `scripts/scan_private.py`, `bash githooks/pre-commit`, `git diff --cached --check`는 각각 종료 **0**, 개인값 위반 **0**이다. 앱 소스 해시는 최종 10회 반복 결과와 같고 `import SwiftUI`는 0건이다. TASK-11에서 gate·schemas·install·수락 명세·펫 전환 소스·시안은 수정하지 않았다. 정적 검사 명령·종료 코드·로그는 `.build/task11-final-checks.json`과 `.build/task11-final-{scan,hook,diff}.log`에 있다.
 
 운영 커밋은 TASK-08의 `855149a4d1713804fec77bb2c8fd4ff370a6b04f`다. 허용 밖 운영 변경 없음과 DDOTS 문서 바이트 보존을 확인했다(`.build/task11-operating-status.json`·`task11-preservation.json`). 기억 파일은 열거나 수정하지 않았다. V-5 및 과거 공개 이력 개인값 부채는 유지한다. 재시작/reload·비밀 파일 열기·운영 hejo 연결·외부 발송·푸시는 없다. TASK-11 커밋 정보는 `.build/task11-git-final.json`에 남긴다.
+
+### TASK-12 — 대화 안 작성 중 표시 (9판·보완 11, 2026-11-15)
+
+**구현·자체 시험 완료.** 실행 담당이 착수하지 않아 사용자 지시("남은 순서도 너가 모두 직접 해라")로 계획 담당이 직접 구현했다. 기준 커밋 `9c2b9068af9c74d1d0cbdf48ebe6f32fa5ccf771`, 근거는 REQ-HF-19·design 6절·AT-HF-57.
+
+#### 변경과 책임
+
+- **`Shimmer.swift`(새 파일): 공용 반짝임 부품 `ShimmerLayer`.**
+  - 글자 마스크 위의 빛 띠를 1.6초 주기로 옮긴다. 움직이는 것은 띠 위치뿐이다.
+  - `IslandView`는 자체 반짝임 층 세 개를 이 부품으로 바꿨다. 동작은 같으며 AT-53·56으로 확인했다.
+- **`TypingRow.swift`(새 파일): 대화 안 기다림 줄.**
+  - 높이 22, x=43 그대로다.
+  - "작성 중"은 흐린 바탕 글자 위에 `ShimmerLayer`를 얹고, 옆에 흐린 경과 초를 쓴다.
+  - 시계, 애니메이션 시각, 동작 줄이기는 주입받는다.
+  - 창에 붙어 있을 때만 30fps 타이머를 돌린다.
+- **`ConversationModel`:** `typingSince[key]`를 둔다.
+  - 꺼져 있다가 켜질 때 기록하고, 갱신(on 재수신)으로는 바꾸지 않는다.
+  - `on:false`, 만료, 복제본 초기화 때 지운다.
+  - 경과 초의 원본이다.
+- **`ConversationView`:** 작성 중 accessory를 `TypingRow`로 바꿨다.
+  - `motionTime`·`reduceMotion` 주입 지점을 추가했다.
+  - 표시 조건(작성 중이고 흘러나오는 글이 없음)은 바꾸지 않았다.
+- **`NativeThreadCard.Text`: 흘러나올 때 커서.**
+  - 별도 2pt `systemBlue` 하위 보기다. 마지막 글자 glyph의 오른쪽에 놓이고 줄 높이를 쓴다.
+  - 문자열·속성·`streamHeights`·Layout 계산에는 들어가지 않는다.
+  - 0.5초 켜짐/꺼짐으로 깜빡이고, 동작 줄이기면 켜진 채 멈춘다.
+  - `setText`가 `streaming`일 때만 켜므로 final 편집에서 꺼진다. 숨는 글 보기도 끈다.
+  - 부드러운 덧붙임(`softenAppend`)은 그대로다.
+- **중지 버튼:** hejo 앱에는 지금 중지 버튼이 없다(grep 0). 그래서 유지할 대상이 없고, 새로 만들지도 않았다.
+- **시험:** `Tests/TypingTests.swift`(AT-HF-57 a~d와 typingSince 수명), `TestMain.swift` 호출 한 줄을 더했다. 자동 캡처 두 장은 `evidence/HEJO-FOUNDATION/TASK-12.md`에 있다.
+
+#### 실행 증거
+
+환경은 `.build/foundation9_runner.py`다. HEJO_PYTHON·HEJO_TEAM_KIT_LIB·PYTHONPATH를 지정하고, 실행마다 임시 HERMES_HOME을 만든다.
+
+| 실행 | 종료·결과 | 로그 |
+|---|---|---|
+| 첫 빌드 | 1: `CALayer.position` 이름 충돌 컴파일 오류. 속성 이름을 `bandX`로 바꿔 해결 | `.build/task12-app-1.out` |
+| `bash app/scripts/test.sh` 10회 연속(최종 소스) | 10/10 모두 0, 매 회 AT-HF-52~57 PASS | `.build/task12-repeat.log`, `.build/task12-app-01.log`~`10.log` |
+| `bash scripts/test.sh`(최종 소스) | 0: gate 80 passed, AT-22 정상 종료, 앱·네트워크·HTTP/WS 대역 통과, AT-HF-57 PASS | `.build/task12-hejo.log` |
+| 게이트웨이 Python `scripts/scan_private.py` | 0 | `.build/task12-scan.log` |
+| `import SwiftUI` 수 / `git diff --check` | 0 / 0 | — |
+
+최종 소스 해시는 `.build/task12-source-hashes.txt`에 있다. 증거 수준은 2다.
+
+**미실행:** 실제 직원 답의 반짝임·깜빡임 눈 확인과 밝은 모드 가시성. 이 둘은 TASK-09 수동으로 넘긴다.
+
+**하지 않은 것:** gate·wire·설치기·명세·시안 수정, 운영 `~/.hermes` 변경, 재시작, 비밀 파일, 외부 발송, 푸시.
+
