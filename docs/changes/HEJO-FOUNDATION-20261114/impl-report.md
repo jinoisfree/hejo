@@ -278,3 +278,66 @@ HEJO_TEAM_KIT_LIB="$HEJO_TEAM_KIT_LIB" "$HERMES_PYTHON" -m pytest \
 최종 보조 확인: Python AST·개인값 기본 패턴·변경 범위·A/B 관측 JSON·종료 표시·변형/회귀 로그 직접 대조는 종료 0(`.build/task03a-static.log`, 관측 추출 `.build/task03a-results.json`). `git diff --cached --check`도 종료 0(`.build/task03a-diff-check.log`). 이 검사는 필수 개인값 검사기의 대체가 아니다.
 
 작업 중 별도 커밋 `65d1a35fca4230e1ee59087ff073f653ab6bb6f9`가 design 6절·tasks·plan-review에 TASK-05·06의 원본 전수 검토 기록 의무를 추가했다. 변경 상세를 확인했고 TASK-03a의 design 4.1·운영 모듈·시험과 무관해 보존했다. 최초 변경 범위 검사에서 기준 이후 이 계획 문서 변경까지 불변으로 기대해 종료 1이 났다(`.build/task03a-static-initial.log`). 이후 제품·시험은 작업 기준과, 이번 자체 변경에 포함하지 않은 계획 문서는 현재 HEAD와 대조해 종료 0을 확인했다. 제품 실행 검증을 다시 해야 할 변경은 없다. 이번 커밋에는 탐침 네 파일과 이 보고서만 담는다.
+
+## TASK-03b: 착수 전 계약 확인·보류 (2026-11-14)
+
+**구현자 상태: 보류(설계 결정 필요).** 기준 `dae1eede66b478bac54e7a6c933d579fcef4f628`과 착수 HEAD가 같고 작업 트리는 깨끗했다. handoff 끝의 TASK-03b, spec 5판, design 2·2.2·3·4.1, AT-HF-02·15~18·21·22·49·50, verdict 5차를 대조했다. A 채택은 이미 사용자 승인되었으므로 다시 승인받을 사안이 아니다. 아래 두 저장·원본 계약은 그 승인에 정의되어 있지 않다.
+
+### 차단 T03B-01: 업로드 응답 전 첨부 등록을 담을 기록 행 미정
+
+- **확인:** design 2.2 HTTP 표(`design.md:85`)는 파일을 저장하고 기록장 메타에 `{file_id, employee, owner: "owner"}`를 등록한 **뒤** POST 응답으로 id를 반환하도록 한다. 클라이언트의 `send{files:[id]}`는 그 뒤의 별도 요청이다. 이 시점에는 연결할 대화 글·스레드·msg_id가 아직 없다.
+- **확인:** design 3절(`design.md:93-98`)은 JSONL 자체를 복구 원본으로 정하고, 한 줄을 `message/edit/delete/state` 기록 프레임과 내부 메타로 한정한다. 모든 기록 순번은 재전송되며, 첨부 등록도 같은 행의 메타로 복구해야 한다.
+- **실제 구현:** `gate/journal.py:12`의 RECORD_TYPES와 `:57-58`의 복구 검사는 위 네 종류만 받는다. `:114-119`는 메타만 제거한 기록 프레임을 페이지로 내보낸다. 스키마의 serverFrame에도 업로드 등록용 프레임은 없다.
+- 따라서 별도 등록 행을 추가하면 저장 형식과 재전송 계약을 정해야 한다. 기존 `message(role=system)`를 쓰려면 업로드만으로 생기는 새 글의 스레드·본문·클라이언트 표시를 정해야 한다. 메모리에만 등록하거나 `send` 때까지 영구 등록을 미루면 POST 응답 전 등록 및 재시작 복구 계약이 달라진다. 파일 옆 별도 등록 원본을 만드는 것도 JSONL 원본 계약과 맞지 않는다.
+- `files[]`의 네 필수 필드 자체는 이미 확정되어 있고 문제가 없다. 차단은 그 모양을 바꾸자는 것이 아니라, **send 이전 업로드 등록의 기록 시점·행 종류·공개 동작**이 없다는 점이다. 임의의 등록 프레임이나 가짜 대화 글을 제품에 추가하지 않았다.
+
+**계획 담당 결정 요청:** POST 응답 전 영구 등록을 유지할 경우 등록 행의 종류와 seq·재전송/표시 의미를 명시해 달라. 또는 등록을 실제 사장 글 기록 시점으로 옮길 경우 POST 이후 send 전의 재시작·GET·소유 검사 의미를 명시하고 관련 기대값을 조정해야 한다. 구현자 권고는 JSONL 단일 원본·소유 검사·재시작 복구를 유지하고, 별도 원본이나 임의의 대화 글을 만들지 않는 계약을 먼저 확정하는 것이다.
+
+### 차단 T03B-02: 직원 사진의 원본 위치 미정
+
+- **확인:** `design.md:51`과 `:87`에는 사진이 있으면 roster의 avatar URL과 `GET /v1/avatars/<직원 id>`로 제공한다는 계약만 있다. 근간·brainstorm·spec·design에서 사진 원본 경로나 설정 키는 찾지 못했다.
+- **실제 구현:** `gate/roster.py:14-15`는 avatar를 null로 둔다. 현재 참조하는 team-kit 공개 `hermes_facility.team_registry.roster()`의 반환 항목은 name·label·roles·aliases뿐이다(해당 모듈 `:64-71`). 사진 경로를 제공하지 않는다. 실제 명부·비밀 파일은 열지 않고 라이브러리 소스만 읽었다.
+- 원본 위치를 새 설정 키나 파일 규칙으로 추측하면 승인되지 않은 설정·저장 계약을 만드는 것이므로 사진 HTTP 구현을 보류했다.
+
+**계획 담당 결정 요청:** 사진 원본 칸·경로/키와 읽기 계약을 정하거나 이번 TASK의 사진 범위를 명시적으로 보류해 달라. 이미지 경로 탈출·외부 파일 노출을 막을 경계도 함께 정해야 한다.
+
+### 실행 증거·범위·다음 작업
+
+제품 코드·스키마·수락 명세·기존 수락 시험은 변경하지 않았다. 전달자·첨부·버튼 본 구현과 AT-HF-02 개정 코드화·AT-22 실행은 모두 **미실행**이며 완료를 주장하지 않는다. `gate/probes/`도 대체 구현이 생기기 전에 제거하지 않고 그대로 유지했다. A 전달자의 공개 메서드 서명 조사와 기존 시험·러너 위치 확인까지만 진행했다. 독립 범위로 분리해 인계하면 전달자·기본 버튼·버튼 글자 대체는 이 두 결정을 기다리는 동안 구현할 수 있다.
+
+읽기 조사 외에는 임시 `HERMES_HOME`에서 기록장·스키마 계약을 직접 확인했다. 실행 명령(저장소 루트, 환경 변수의 의미는 앞 절과 같음):
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 \
+PYTHONPATH="$PWD/.build/task02-deps:$PWD" \
+"$HERMES_PYTHON" - <<'PY'
+import asyncio, json, os, tempfile
+from pathlib import Path
+from jsonschema import Draft202012Validator
+from gate.journal import Journal, RECORD_TYPES
+schema = json.loads(Path('schemas/hejo-wire-v1.json').read_text())
+validator = Draft202012Validator({**schema, 'oneOf': [{'$ref': '#/$defs/serverFrame'}]})
+# 채택하지 않은 진단용 데이터다.
+row = {'v': 1, 'type': 'file_registered', '_meta': {
+    'file_id': '00000000-0000-4000-8000-000000000001', 'employee': 'alpha', 'owner': 'owner'}}
+assert not validator.is_valid(row) and row['type'] not in RECORD_TYPES
+async def inspect():
+    with tempfile.TemporaryDirectory(prefix='hejo-contract-') as temporary:
+        os.environ['HERMES_HOME'] = temporary
+        journal = Journal(temporary)
+        journal.open()
+        await journal.append(row)
+        journal.close()
+        recovered = Journal(temporary)
+        recovered.open()
+        assert recovered.records == []
+        recovered.close()
+asyncio.run(inspect())
+PY
+```
+
+실제 실행은 같은 진단에 record_types·스키마 필드·유효성·복구 건수 출력까지 포함했다. **종료 0**, `.build/task03b-preflight.log`: 기록 종류 네 개, file 필수 필드 네 개·추가 필드 금지, 진단용 새 등록 프레임 무효, 재시작 복구 0행(`journal_tail_recovered`)을 확인했다. 이는 새 형식을 넣으려면 승인된 계약 변경이 필요하다는 진단이며, 새 등록 프레임을 제안·채택한 것이 아니다. 전체 제품 기능 불가능을 증명하거나 수락 시험 합격을 뜻하지 않는다.
+
+필요 증거 수준은 2(AT-22는 3), 실제 도달은 **1(소스·스키마·로컬 기록장 진단)**이다. 실제 Hermes 통합·게이트웨이·전체 회귀는 제품 변경 전 설계 보류라 실행하지 않았고, 앞선 TASK-03a의 43 passed를 이번 TASK의 결과로 쓰지 않는다. 필수 개인값 검사기는 TASK-07 미생성으로 미실행이다. 운영 홈 쓰기·운영 재시작·외부 메시지·본체/다른 저장소 수정·설치 도우미/앱 변경·비밀 파일 열기는 하지 않았다. 이 보고서만 변경하며 롤백은 보고 커밋 되돌림이다.
+
+20-implementation 2절의 '설계에 없는 공개 인터페이스·저장 형식·설정 키 변경이 필요'할 때 멈추는 규칙에 따라 계획 담당에게 돌려보낸다. 다음 인계는 T03B-01·02 결정과 해당 설계·시험 연결을 명시하거나, 영향을 받지 않는 독립 범위를 분리해야 한다. 푸시는 실행하지 않았다.
