@@ -6,7 +6,7 @@ import AppKit
     let employeeTable = NSTableView(), history = NativeThreadList(frame:.zero), editor = DraftScrollView(frame:.zero)
     let headerDrag = ConversationHeaderDrag(), brandDrag = ConversationHeaderDrag()
     private let employeeScroll=NSScrollView(), employeeSearch=NSSearchField(), search=NSSearchField()
-    private let brand=PassiveLabel(labelWithString:"hejo."), version=PassiveLabel(labelWithString:""), heading=PassiveLabel(labelWithString:""), subtitle=PassiveLabel(labelWithString:"함께 나누는 대화")
+    let brand=PassiveLabel(labelWithString:"HEJO."), version=PassiveLabel(labelWithString:""), heading=PassiveLabel(labelWithString:""), subtitle=PassiveLabel(labelWithString:"함께 나누는 대화")
     private let handle=SidebarHandle(), sidebarToggle=ComposerButton(title:"직원 목록",symbol:"sidebar.left",point:12), searchToggle=ComposerButton(title:"검색",symbol:"magnifyingglass",point:12)
     private let banner=NSTextField(labelWithString:""), notice=NSTextField(wrappingLabelWithString:"")
     private let noticeBar=NSStackView(), attachments=NSStackView(), attachmentScroll=NSScrollView()
@@ -35,6 +35,8 @@ import AppKit
         employeeTable.dataSource=self; employeeTable.delegate=self
         employeeScroll.documentView=employeeTable; employeeScroll.drawsBackground=false; employeeScroll.hasVerticalScroller=true; employeeScroll.autohidesScrollers=true; employeeScroll.scrollerStyle = .overlay
         for view in [headerDrag,brandDrag,employeeScroll,brand,version,heading,subtitle,employeeSearch,search,history,sidebarToggle,searchToggle,banner,notice,noticeBar,modeBackground,replyButton,newButton,inputBackground,editor,draftHint,attachButton,sendButton,attachmentScroll,older,handle,drop] { addSubview(view) }
+        let logo=NSMutableAttributedString(string:"HEJO.",attributes:[.font:NSFont.systemFont(ofSize:14,weight:.semibold),.foregroundColor:NSColor.labelColor])
+        logo.addAttribute(.foregroundColor,value:NSColor.systemBlue,range:NSRange(location:0,length:1)); brand.attributedStringValue=logo
         brand.font = .systemFont(ofSize:14,weight:.semibold); version.font = .systemFont(ofSize:10); version.textColor = .labelColor.withAlphaComponent(0.7)
         version.stringValue=Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? ""
         brand.alignment = .center; version.alignment = .center; heading.font = .systemFont(ofSize:14,weight:.semibold); subtitle.font = .systemFont(ofSize:10); subtitle.textColor = .labelColor.withAlphaComponent(0.7)
@@ -109,7 +111,7 @@ import AppKit
             if model.timeline(selected).isEmpty { newKeys[current]=selected; replyMode=false }
             // A confirmed first post finishes that new-post draft; another explicit new post gets another UUID.
             if let key=newKeys[current], !model.timeline(key).isEmpty, controller.drafts[key]?.text.isEmpty == true { newKeys[current]=nil }
-        } else { threads=[]; history.show([],identity:""); heading.stringValue="hejo."; older.isHidden=true }
+        } else { threads=[]; history.show([],identity:""); heading.stringValue="HEJO."; older.isHidden=true }
         let draft=controller.draft
         if displayedKey != selected || (!editor.editor.hasMarkedText() && MessageFormat.serialize(editor.editor.attributedString()) != draft.text) {
             editor.editor.breakUndoCoalescing(); editor.editor.undoManager?.removeAllActions()

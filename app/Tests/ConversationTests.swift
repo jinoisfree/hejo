@@ -46,6 +46,15 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     let controller=try ConversationController(client:GateClient(store:store))
     try controller.model.apply(roster()); controller.model.select(employee:"beta")
     let ui=ConversationView(controller:controller,clipboardArea:directory.appendingPathComponent("clipboard"))
+    try check(ui.brand.stringValue == "HEJO." && ui.brand.alignment == .center,"AT52 uppercase centered logo")
+    let logo=ui.brand.attributedStringValue
+    try check((logo.attribute(.foregroundColor,at:0,effectiveRange:nil) as? NSColor) == .systemBlue &&
+              (1..<logo.length).allSatisfy { (logo.attribute(.foregroundColor,at:$0,effectiveRange:nil) as? NSColor) == .labelColor },"AT52 only H is systemBlue")
+    try check((logo.attribute(.font,at:0,effectiveRange:nil) as? NSFont) == .systemFont(ofSize:14,weight:.semibold),"AT52 14 semibold")
+    try check(ui.version.stringValue == (Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "") && ui.version.font?.pointSize == 10,"AT52 bundle version unchanged at 10pt")
+    let emptyUI=ConversationView(controller:try ConversationController(client:GateClient(store:try LocalStore(directory:directory.appendingPathComponent("empty")))),clipboardArea:directory.appendingPathComponent("empty-clipboard"))
+    try check(emptyUI.heading.stringValue == "HEJO.","AT52 empty-room heading")
+    print("AT-HF-52 PASS")
     let pet=PetController(store:store,atlas:try SpriteAtlas(resourceDirectory:resourceDirectory))
     pet.reducedMotion={true}; pet.pet.installConversation(ui); pet.preferredChatSize=CGSize(width:428,height:500)
     pet.onExpansionChanged={ controller.model.setVisible($0) }; pet.showChat(); pet.pet.layoutSubtreeIfNeeded()

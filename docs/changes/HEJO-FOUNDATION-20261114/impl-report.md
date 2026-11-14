@@ -806,3 +806,10 @@ ruamel로 허용 블록만 왕복 처리하고 임시 파일 쓰기→fsync→os
 `./airport-check` → 옵션 없는 `./sync`는 각각 종료 0, 토큰 경고 없음이다. 로그 `.build/task08-airport.log`·`task08-sync.log`, 명령/결과 `.build/task08-operating-checks.json`. 원본과 사본 6개 해시 일치 및 허용 외 경로 없음 확인 후 **설정 사본 6개만** `git commit --only`했다. 운영 커밋 **`855149a4d1713804fec77bb2c8fd4ff370a6b04f`**, 종료 0, 로그 `.build/task08-commit.log`·`task08-commit.json`. 실제 프로필 경로가 포함된 파일 목록은 미추적 JSON에만 둔다. DDOTS 문서 두 개와 기억 파일은 그대로 보존했다.
 
 AT-HF-30: 운영 원본 전부 auto·다른 키 차이 0·동기화 커밋 확인으로 증거 수준 3에 도달했다. 롤백은 before JSON에 따라 각 값을 복원하고 원래 없던 키/맵을 지운 뒤 같은 검증·동기화 절차를 따른다. 본체 수정·비밀 파일 열기·운영 hejo 연결·외부 발송·푸시는 없다.
+
+
+### TASK-10 — HEJO. 로고 (9판, 2026-11-15)
+
+`ConversationView` 로고를 속성 문자열 `HEJO.`로 바꿨다. H만 systemBlue, 나머지는 labelColor, 14pt semibold·가운데 정렬이다. 10pt 번들 버전 줄은 유지하고 방이 없을 때 머리글도 HEJO.로 바꿨다. AT-HF-52는 실제 ConversationView의 글자·색·글꼴·정렬·버전·빈 방 대체 글자를 확인한다. SwiftUI나 시안 파일 변경은 없다.
+
+환경 지정 `bash app/scripts/test.sh`: 종료 **0**, AT-HF-52 및 기존 앱·네트워크·대화 시험 통과. 로그 `.build/foundation9-app-task10.log`, 명령/종료 코드 `.build/foundation9-app-task10.json`; 실행 환경은 `.build/foundation9_runner.py`에 있다. 임시 홈·대역 문만 사용했고 운영 페어링은 없다. 증거 수준 2다. 커밋 대상은 ConversationView.swift·ConversationTests.swift·이 보고서 세 파일이다.
