@@ -405,3 +405,33 @@ export HEJO_TEAM_KIT_LIB
 운영 홈 쓰기·재시작·플러그인 연결·외부 메시지·비밀 파일 열기·Hermes 본체/다른 저장소 수정·다른 에이전트 실행·푸시는 하지 않았다. 롤백은 이번 문 확장·시험·보고 커밋 되돌림이며 운영 롤백은 필요하지 않다. 검토자는 파일 소유·복구 경계, 전달자 직원 고정, native 버튼 메타·resolver, 그리고 T03B-03의 시험 변경 권한을 우선 확인해 달라.
 
 최종 보조 검사도 실행했다. 변경된 텍스트 14개 파일의 AST/JSON 구문·개인값 기본 패턴, 기존 시험 함수 불변(AT-02 제외), 설계·수락 명세 불변, 스키마의 unknown_file 주석 외 불변, probes 제거, 최종 전체·AT-22·변형 로그 직접 대조는 **종료 0**(`.build/task03b-static.log`). `git diff --cached --check`도 **종료 0**(`.build/task03b-diff-check-final.log`)이다. 이 보조 검사는 필수 개인값 검사기를 대체하지 않는다. 정확한 검토 대상 전체 커밋은 최종 상태 블록에 제공한다.
+
+### 보완 5: 전달자 시험 계약 개정·수정 소유 검사 (2026-11-14)
+
+기준 커밋은 `ab26bc504d592605759268d650dc79b2dc1fa070`이며 착수 HEAD 일치·깨끗한 작업 트리를 확인했다. verdict 7차와 handoff 끝의 보완 지시 5에 따른다. **구현자 판단은 구현·자체 시험 완료, 검토 대기다.** 앞 절의 T03B-03 차단은 이번 명시적 허가에 따라 해소했다. 최종 판정은 검토 역할이 한다. 위험도 고위험, 필요 증거 수준 2와 AT-HF-22 수준 3은 그대로다.
+
+- **T03B-03:** 옛 비활성 시험을 `test_forwarder_with_independent_home_preserves_primary_resources`로 교체했다. 연결 성공, 보조 홈의 잠금·출입증·첨부 경로 미생성, LISTEN 소켓 집합 불변, 연결·해제 후 `_primary`가 기본 문 그대로임을 확인한다. 보조의 journal/files/auth/server도 생성되지 않음을 검사한다. 이 함수 외 기존 시험 기대값·수락 명세는 바꾸지 않았다.
+- **V-8:** `gate/adapter.py::_forward`에서 현재 기본 문을 찾은 뒤, edit 대상 기록장의 employee를 `_owner_profile`과 대조한다. 없거나 다른 직원의 글이면 `message_not_found`로 끝내고 기본 문의 edit를 호출하지 않는다. 기본 문 부재 시 기존 `hejo_primary_unavailable` 처리는 유지한다. 새 저장소·공개 계약·우회 경로를 만들지 않았다.
+- `test_forwarder_edit_rejects_other_employee_before_dispatch`는 다른 직원·없는 글 수정의 실패와 기본 문 무호출·기록장 불변을 확인한다. 이어 자신의 글 수정은 정상 전달되고 직원 고정이 유지됨을 확인한다. 소유 검사 블록을 제거한 변형은 기본 문 무호출 단언에서 종료 1로 검출했고, 원본 바이트 복원까지 확인했다.
+
+전체 묶음과 단독 AT-HF-22는 앞 절과 같은 Hermes venv·소스·로컬 의존성을 사용했다. `HEJO_TEAM_KIT_LIB`를 지정했으며 각 시험은 임시 HERMES_HOME, 실제 게이트웨이는 임시 HOME과 HERMES_HOME을 사용했다. 아래 변수는 실행 환경의 실제 경로를 가리키며 공개 문서에 개인 절대 경로를 적지 않는다.
+
+```sh
+export HERMES_DISABLE_LAZY_INSTALLS=1
+export PYTHONDONTWRITEBYTECODE=1
+export PYTHONPATH="$PWD/.build/task03a-deps:$PWD/.build/task02-deps:$HERMES_SOURCE:$PWD"
+export HEJO_TEAM_KIT_LIB
+"$HERMES_PYTHON" -m pytest gate/tests tests/acceptance \
+  -q -o asyncio_default_fixture_loop_scope=function -p no:cacheprovider
+"$HERMES_PYTHON" -m gate.tests.gateway_delivery
+```
+
+| 실행 | 실제 종료·결과 | 로그(저장소 기준) |
+|---|---|---|
+| 전체 묶음 | **종료 0, 59 passed** | `.build/task03b-r5-full.log` |
+| AT-HF-22 단독 실제 게이트웨이 | **종료 0**. 리스너 1, 보조 직원 배달 4건·새 스레드 4개, 오프라인 재전송 2건, 다른 플랫폼 송신 0, 정상 종료 | `.build/task03b-r5-at22.log` |
+| V-8 소유 검사 제거 변형 | 조정 실행 **종료 0**, 변형 pytest **종료 1**, 원본 바이트 복원 확인 | `.build/task03b-r5-mutation.log`, `.build/task03b-r5-mutant-edit.log` |
+| AST·기존 시험 불변·허용 변경 범위·개인값 보조 검사·실행 로그 대조 | **종료 0** | `.build/task03b-r5-static.log` |
+| `git diff --cached --check` | **종료 0** | `.build/task03b-r5-diff-check.log` |
+
+도달 증거는 **수준 2**, AT-HF-22의 실제 시작·프로필·배달·저장·수신·종료 경계는 **수준 3**이다. 나머지 미검증 범위·V-5 기술 부채는 앞 절과 같다. 필수 개인값 검사기는 TASK-07 미생성으로 미실행이며 보조 검사가 이를 대체하지 않는다. 운영 자원 쓰기·재시작, 본체·다른 저장소·설치 도우미·앱 수정, 비밀 파일 열기, 실제 외부 메시지 발송, 푸시는 하지 않았다. 롤백은 이번 보완 커밋 되돌림이다. 검토자는 허가된 기존 시험 교체와 전달 전 edit 소유 검사·무호출 증거를 확인해 달라. 검토 대상 전체 커밋은 인계 상태 블록에 기록한다.

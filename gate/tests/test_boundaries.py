@@ -261,18 +261,32 @@ async def test_yaml_env_precedence(registered, monkeypatch):
     assert os.environ["HEJO_ALLOWED_USERS"] == "someone"
 
 
-async def test_secondary_with_independent_home_never_listens(gate, airport, monkeypatch):
-    """Secondary exclusion precedes both flock and bind, even with a free home and port."""
+async def test_forwarder_with_independent_home_preserves_primary_resources(gate, airport, monkeypatch):
+    """A connected forwarder opens no listener/storage and leaves the primary hub intact."""
+    import psutil
+    import gate.adapter as adapter_module
     from gate.adapter import HejoAdapter
+    def listeners():
+        return {(connection.fd, connection.laddr) for connection in
+                psutil.Process().net_connections(kind="tcp") if connection.status == psutil.CONN_LISTEN}
+    before = listeners()
+    other_home = airport / "other"
+    assert adapter_module._primary is gate
     second = HejoAdapter(gate.config)
     second.set_owner_profile("beta")
     try:
         with monkeypatch.context() as context:
-            context.setenv("HERMES_HOME", str(airport / "other"))
-            assert not await second.connect()
-        assert not second._fatal_error_retryable
+            context.setenv("HERMES_HOME", str(other_home))
+            assert await second.connect() is True
+        assert second.is_connected
+        assert second.journal is None and second.files is None and second.auth is None and second.server is None
+        for relative in ("journal/.lock", "shared/hejo/journal/.lock", "hejo/devices.json", "shared/hejo/files"):
+            assert not (other_home / relative).exists()
+        assert listeners() == before
+        assert adapter_module._primary is gate
     finally:
         await second.disconnect()
+    assert adapter_module._primary is gate
 
 
 async def test_journal_open_failure_isolated(gate, client):

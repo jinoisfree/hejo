@@ -52,6 +52,10 @@ class HejoAdapter(BasePlatformAdapter):
         if target is None or not target.is_connected:
             log.error("hejo_primary_unavailable")
             return SendResult(success=False, error="hejo_primary_unavailable")
+        if method == "edit_message":
+            message = target.journal.message(args[0])
+            if not message or message.get("employee") != self._owner_profile:
+                return SendResult(success=False, error="message_not_found")
         if metadata is not None or method not in {"stop_typing", "get_chat_info"}:
             kwargs["metadata"] = {**(metadata or {}), "hermes_profile": self._owner_profile}
         return await getattr(target, method)(self._owner_profile, *args, **kwargs)

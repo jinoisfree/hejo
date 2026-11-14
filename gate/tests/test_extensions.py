@@ -105,3 +105,34 @@ async def test_avatar_is_absent_and_upload_auth_required(gate, client):
         async with session.post(f"http://127.0.0.1:{gate.server.port}/v1/files?employee=alpha") as response:
             assert response.status == 401
     await ws.close()
+
+
+async def test_forwarder_edit_rejects_other_employee_before_dispatch(gate):
+    """A foreign/missing message never reaches the primary edit method or journal."""
+    from gate.adapter import HejoAdapter
+    second = HejoAdapter(gate.config)
+    second.set_owner_profile("beta")
+    assert await second.connect()
+    try:
+        foreign = await gate.send("alpha", "original alpha")
+        owned = await second.send("alpha", "original beta")
+        assert foreign.success and owned.success
+        head = gate.journal.head
+        with patch.object(gate, "edit_message", wraps=gate.edit_message) as dispatch:
+            for message_id in (foreign.message_id, str(uuid.uuid4())):
+                result = await second.edit_message("alpha", message_id, "must not edit", finalize=True,
+                                                   metadata={"hermes_profile": "alpha"})
+                assert result.success is False and result.error == "message_not_found"
+            dispatch.assert_not_awaited()
+            assert gate.journal.head == head
+            assert gate.journal.message(foreign.message_id)["text"] == "original alpha"
+            assert gate.journal.message(owned.message_id)["text"] == "original beta"
+            result = await second.edit_message("alpha", owned.message_id, "edited beta", finalize=True,
+                                               metadata={"hermes_profile": "alpha"})
+            assert result.success
+            dispatch.assert_awaited_once()
+        assert gate.journal.head == head + 1
+        assert gate.journal.message(owned.message_id)["text"] == "edited beta"
+        assert gate.journal.message(owned.message_id)["employee"] == "beta"
+    finally:
+        await second.disconnect()
