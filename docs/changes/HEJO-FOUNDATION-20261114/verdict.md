@@ -220,3 +220,44 @@
      - TASK-03b의 "사진 경로"는 직원이 보내는 이미지 파일(`send_image_file`)을 가리키며, 이번 범위에 그대로 남는다.
 6. **미완료 원인 분류:** 설계 누락이며 구현 결함은 아니다.
    - 완료 조건은 handoff의 TASK-03b 인계와 '보완 지시 4' 전체다.
+
+## 검증 판정: HEJO-FOUNDATION TASK-03b / 문 확장 + 보조 프로필 전달자 (7차)
+
+1. **검토 대상:** 구현 커밋 `537fd8d6c8b9a80a926c81e7502db3fa7b38b00f`(기준 `d544ad9`). 변경 18파일이며 `gate/probes/` 제거를 포함한다.
+2. **판정: 부분 완료.** 기능과 새 수락 시험은 맞게 구현됐다. 그러나 전체 시험 묶음이 종료 1이다.
+3. **설계 적합성(4.2):** 대체로 적합하다. 확인 결과는 다음과 같다.
+   - **전달자(`gate/adapter.py`):**
+     - 보낼 때 모듈 수준 `_primary`를 조회한다.
+     - 허브가 없으면 `hejo_primary_unavailable`를 반환한다.
+     - 직원은 `_owner_profile`로 고정한다(호출자 `hermes_profile`보다 우선).
+     - 보조 어댑터는 journal·files·auth·server를 만들지 않는다.
+     - design 4.1 보강 1~3항과 맞는다.
+   - **첨부(`gate/files.py`):**
+     - 대기 칸 저장은 쓰기 → fsync → `os.replace` 순서다.
+     - `promote`·`rollback`은 이름 바꾸기와 디렉터리 fsync를 한다.
+     - 등록은 message 행의 `_meta.files`로만 한다.
+     - GET은 기록장 등록과 경로 대조로 처리한다.
+     - 경로 검사는 상위 이동(`..`)·심볼릭 링크·홈 밖을 막는다.
+     - 24시간이 지난 대기 항목과 미등록 항목을 정리한다.
+     - 스키마 변경은 `unknown_file` 코드 추가로 한정된다.
+     - design 2.2 "첨부 등록 시점" 1~4항과 맞는다.
+   - **기본 버튼:** 누른 사람의 권한을 검사한 뒤 해석 함수를 호출한다. 표식이 없으면 글자로 대체한다.
+   - **V-8(비차단):** 전달된 `edit_message`가 대상 `message_id`가 그 직원의 글인지 확인하지 않는다. `set_reply_state`는 확인한다. 직원 간 기록장 무결성을 위해 같은 검사를 넣는다.
+4. **직접 확인한 것:**
+   - 검토자 독립 실행(`gate/tests` + `tests/acceptance` 전체, `HEJO_TEAM_KIT_LIB` 지정, 임시 홈): **종료 1, 57 passed / 1 failed.** 실패는 `gate/tests/test_boundaries.py::test_secondary_with_independent_home_never_listens`(`assert not await second.connect()`)이다. 로그는 `.build/task03b-review.log`.
+   - AT-HF-22 로그 `.build/task03b-at22.log`의 `ACCEPTANCE_RESULT`:
+     - 리스너 1개, 배달 4건, 새 스레드 4개, 오프라인 재전송 2건, 직원 beta, 다른 연결 송신 0.
+     - `GATEWAY_EXIT clean`.
+     - 증거 수준 3(임시 홈 실제 게이트웨이).
+   - 변형 시험 로그(소유·직원 고정·되돌림)는 구현 담당 보고와 같다.
+5. **T03B-03 원인 분류: 설계 누락(검토자 책임).**
+   - 5판에서 보조 어댑터 계약을 "비활성"에서 "전달자"로 바꿨다. 그때 AT-HF-02만 개정 대상으로 적고, 같은 옛 계약을 담은 구현 범위 시험은 개정 허가에 넣지 않았다.
+   - 구현 담당이 기대값 변경을 거부하고 보고한 것은 지시에 맞다.
+   - 이 시험의 원래 의도(보조는 다른 홈·빈 포트에서도 flock·bind를 하지 않는다)는 새 계약에서도 그대로 유효하다.
+6. **완료 조건(보완 지시 5):**
+   - (1) 위 시험을 새 계약으로 바꾼다. 기대는 `connect()`가 True이고 다음 셋을 확인한다.
+     - 다른 홈에 `journal/.lock`·`devices.json`·`shared/hejo/files`가 생기지 않는다.
+     - 새 LISTEN 소켓이 없다.
+     - 모듈 허브가 기본 문 그대로다.
+   - (2) V-8: 전달된 `edit_message`도 대상 글의 직원이 `_owner_profile`과 다르면 실패(`message_not_found`)로 끝낸다. 시험을 추가한다.
+   - (3) 전체 묶음 종료 0 로그와 AT-HF-22 재실행 로그를 남긴다.
