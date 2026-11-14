@@ -735,3 +735,61 @@ controls 이동·hejo 등록·Slack 전후 비교 시험·AT-HF-19/20·team-kit 
 - 재개 시 두 차단 사항에 대한 계획 담당 처분을 먼저 받고, 원본의 이번 세 파일 외 변경과 처리 중 작업을 다시 확인한다. 최종 전체 시험 종료 0 뒤에만 airport-check → sync 모으기 → 토큰 경고/변경 범위 확인 → 자기 파일만 `git commit --only` 순서를 실행한다. 허용 문서 두 개는 계속 보존한다.
 
 진행 중 hejo HEAD에 별도 시안 전용 커밋 `27fcead`·`dc4cd6d95f9870d72694b88ca2a05a12297351ac`가 추가됐다. 차이는 v14 HTML/PNG 두 파일뿐이며 보존했다. 이번 구현 계약·앱/문 코드에는 영향이 없다. 보류 보고만 hejo에 별도 커밋하고, 운영 제품 코드는 커밋하지 않는다. 재현 가능한 변경 패치는 `.build/task04-resume/work.patch`, 최종 소스 사본은 `.build/task04-resume/current/`에도 보관했다.
+
+### TASK-04 보완 지시 8 — F1~F4 처분 (2026-11-14~15)
+
+기준 `d53529923056f648555bdf3a29b89597baf45cf1`, verdict 14차와 handoff 보완 지시 8을 확인했다. 착수 전 원본 세 파일의 해시가 직전 보고와 일치하고, 운영 저장소에는 허용 문서 두 개만 ` M`이며 처리 중 차례·작업은 0건이었다. 기존 문서 두 개의 바이트를 보존했다.
+
+- **F3:** 보완안 (나)를 선택했다. 공개 `forwarder` 속성이 True인 전달자에는 감싸기를 설치하지 않고, 대표 어댑터에서 표식·메타·상태 종료를 한 번 처리한다. 대표/보조 직원 각각의 질문→클릭→버튼 달린 새 질문→최종 답 흐름과 edit 질문을 시험했다. 새 질문 때 기존 answered가 유지되고 최종 답에서만 closed가 되며, 각 발송에서 `controls()` 호출이 한 번임을 확인한다. 전달자와 대표 양쪽에서 설치기를 호출하는 조건이다.
+- **F4:** 어댑터별 `_HejoReplyTracking`으로 최근 메시지 2,048개만 보관한다. 오래된 항목을 내보낼 때 working도 함께 지운다. closed 처리와 send/edit/상태 기록 실패 때 해당 스레드의 추적을 정리한다. 정상 종료·실패 네 경로·상한/최근 항목 보존을 시험했다. 기록장 정책이나 공개 통신 규격은 바꾸지 않았다.
+- **F1:** 기존 보고서 시험의 키를 KST 기준 어제로 바꿨다. `prune` 정책은 불변이며, 과거 `now`를 명시적으로 주입하는 스냅샷 시험의 날짜는 유지했다. 시험 기대값의 의미를 바꾸지 않았다.
+- **F2:** AT-47 펼침/접힘 완료 검사의 고정 0.4초 대기를 10ms 간격·단조 시계 기준 최대 2초의 조건 확인으로 바꿨다. 최종 progress 1/0 단언은 유지했다. `app/Tests/TestMain.swift`만 수정했으며 펫 제품 코드는 불변이다.
+
+추가 변경은 원본 team-kit `lib/hermes_reply/plugin.py`, `tests/test_reply_hejo.py`, `tests/test_org_review.py`와 hejo `app/Tests/TestMain.swift`다. 원본 `reply_buttons.py`의 직전 공유 이동도 이번 운영 커밋 대상에 포함한다. 새로운 설정 키·버튼 허용 문구·SwiftUI·운영 연결은 추가하지 않았다.
+
+#### 보완 8 검증
+
+실행 환경은 설치 facts가 지정한 게이트웨이 Python, `HEJO_PYTHON`·`HEJO_TEAM_KIT_LIB`·`PYTHONPATH` 지정이며 각 실행은 임시 `HERMES_HOME`·`HERMES_ROOT`를 사용했다. 정확한 환경 구성과 명령은 `.build/task04-r8/run_tests.py` 및 각 JSON 로그에 있다. 새 문 시험은 실제 Hermes 모듈/문 어댑터/WebSocket과 대역 차례를 사용하므로 해당 경계의 증거 수준은 2다. 운영 Slack·실제 모델 차례·운영 hejo 연결은 시험하지 않았다.
+
+| 명령·범위 | 실제 결과 | hejo 기준 로그 |
+|---|---|---|
+| 게이트웨이 Python `-m pytest tests/test_reply_hejo.py tests/test_org_review.py -q -o asyncio_default_fixture_loop_scope=function -p no:cacheprovider` | 종료 0, **108 passed**(hejo 17 + 기존 보고서 91) | `.build/task04-r8-focused.log` |
+| 같은 옵션, 기존 Slack 관련 9개 시험 파일 | 종료 0, **214 passed**, 변경 전 기준과 동일 | `.build/task04-r8-slack.log` |
+| 같은 옵션, 최종 `pytest tests/test_reply_hejo.py` | 종료 0, **17 passed** | `.build/task04-r8-hejo-buttons.log` |
+| 같은 옵션, team-kit `pytest tests` | 종료 0, **4801 passed, 3 skipped, 58 subtests passed** | `.build/task04-r8-team-final.log` (최종 변경본), `.build/task04-r8-team-full.log` |
+| `python3 .build/task04-r8/mutations.py` | 조정 종료 0. 전달자 중복 감싸기와 추적 상한 제거 변형은 각각 대상 시험 종료 1로 검출. 디스크의 제품 코드는 변형하지 않음 | `.build/task04-r8-mutations.json`, `.build/task04-r8-mutation-{forwarder,bounded}.log` |
+| `bash app/scripts/test.sh` 20회 순차 반복 | **20/20 모두 종료 0**, 중간 실패 없음 | `.build/task04-r8-app-repeat.log`, `.build/task04-r8-app-results.json`, `.build/task04-r8-app-01.log`~`20.log` |
+| `bash scripts/test.sh` | 종료 0. gate **80 passed**, AT-22 리스너 1·배달 4·정상 종료, 앱·연결·대화 시험 통과 | `.build/task04-r8-hejo.log` |
+| 원본 변경 범위·AST·정책 불변·기존 문서 해시 대조 | 종료 0 | `.build/task04-r8-static.log`, `.build/task04-r8-source.json` |
+
+개인값 검사(`"$HEJO_PYTHON" scripts/scan_private.py`)·`githooks/pre-commit`·`git diff --check`는 각각 종료 **0**, 개인값 위반 **0**이다. 추가 예외는 없다. 로그 `.build/task04-r8-scan-final.log`·`task04-r8-hook-final.log`·`task04-r8-diff-check.log`, 명령·종료 코드는 `.build/task04-r8-final-checks.json`에 있다.
+
+#### 보완 8 커밋·인계
+
+- `./airport-check`는 종료 **0**이다. `--rebaseline`을 사용하지 않았다. 로그 `.build/task04-r8-airport.log`, 명령·종료 코드 `.build/task04-r8-airport.json`.
+- 이어 `./sync`를 옵션 없이 실행했다. 종료 **0**, 토큰 경고 **없음**이다. `--split`·`--commit`은 사용하지 않았다. 로그 `.build/task04-r8-sync.log`, 명령·종료 코드 `.build/task04-r8-sync.json`.
+- **커밋 전 중단:** sync 뒤 상태에 허용한 문서 두 개·이번 team-kit 네 파일 외에 `hermes/profiles/<보조 프로필>/memories/MEMORY.md` 사본 변경 1건이 추가됐다. 개인값이 들어간 실제 상대 경로는 미추적 `.build/task04-r8-post-sync.json`의 `unexpected_paths`에 기록했다. 그 기억 파일의 내용을 열거나 고치거나 되돌리지 않았다. 인계 보완 TASK-04 재개 (4)-4항의 “이번 작업과 무관한 운영 사본의 변화가 보이면 커밋하지 않고 경로 목록만 보고” 조건에 따라 중단했다.
+- 운영 저장소 HEAD는 **`36c5aee148b952d0a068c1832df21d3ba7efe20d`** 그대로다. **이번 운영 커밋 해시·커밋 파일 목록은 없음**이다. team-kit 네 파일 사본은 최종 시험한 원본 SHA-256과 일치한다. DDOTS-DROP-MODEL 문서 두 개는 계속 ` M`이며 최초 해시와 일치한다. 대조 결과는 `.build/task04-r8-post-sync.json`이다.
+- hejo에서는 F2 시험 수정과 이 보고서가 미커밋 상태다. 진행 중 추가된 별도 시안 커밋·파일은 보존하고 이번 변경에 포함하지 않았다. 새 예외·수락 명세·제품 앱/문 코드 변경은 없다.
+- **상태: 구현·자체 시험 완료, 커밋 절차 보류.** F1~F4 기술 보완과 필수 시험은 통과했으나 무관한 운영 사본 변경을 처리할 권한은 이 인계에 없다. 다음 담당자는 해당 변경의 처분을 사용자에게 확인한 뒤 원본/사본·문서 보존·동시 작업 상태를 다시 대조하고 커밋 절차만 이어간다. 무관한 변경을 임의로 제외·되돌려 중단 조건을 우회하지 않는다.
+
+게이트웨이 재시작/reload·운영 hejo 연결·외부 발송·비밀 파일 열기·푸시는 하지 않았다. 실제 Slack 동작·운영 연결은 미검증이며 기존 TASK-09 범위다. V-5와 과거 공개 이력 개인값 정리 부채는 유지한다.
+
+
+### TASK-04 보완 지시 9 — 지정 파일 커밋 (2026-11-15)
+
+verdict 15차와 handoff 보완 지시 9에 따라 기억 파일 변화를 보류 사유에서 제외하고 커밋 절차만 재개했다. 기억 파일은 열기·수정·되돌리기·스테이징하지 않았다. 추가 제품 코드나 시험 수정은 없다.
+
+1. 원본·사본 네 파일 SHA-256을 `.build/task04-r8-source.json`과 다시 대조했다. 모두 일치했고 허용한 문서·기억 파일 외 예상 밖 경로는 없었다. 처리 중 차례/작업은 0건이었다. DDOTS 문서 두 개의 해시도 최초 기록과 일치했다. 로그 `.build/task04-r9-preflight.json`.
+2. 새 파일 `hermes/plugin-store/team-kit/tests/test_reply_hejo.py` 경로만 `git add`한 다음 아래 네 경로를 명시해 `git commit --only`를 실행했다. 명령은 모두 종료 **0**이다. 커밋 메시지는 `hejo 답장 버튼을 연결하고 전달자 중복 처리와 추적 누적을 방지`다. 로그 `.build/task04-r9-operating-commit.log`·`task04-r9-operating-commit.json`.
+3. 운영 저장소 커밋은 **`392a2afb46338b86ace632b185e63941114dcc77`** (`main`, 원격 `origin`)이다. 커밋 파일 목록:
+   - `hermes/plugin-store/team-kit/lib/hermes_reply/plugin.py`
+   - `hermes/plugin-store/team-kit/lib/hermes_reply/reply_buttons.py`
+   - `hermes/plugin-store/team-kit/tests/test_org_review.py`
+   - `hermes/plugin-store/team-kit/tests/test_reply_hejo.py`
+4. `git show --stat HEAD`와 `git diff-tree`로 위 네 파일만 포함됐음을 확인했다. `git status`에는 DDOTS 문서 두 개·기억 파일이 계속 ` M`으로 남고, 문서 바이트도 보존됐다. 로그 `.build/task04-r9-operating-stat.log`·`task04-r9-operating-result.json`.
+5. 시험한 코드가 바뀌지 않아 이미 통과한 전체 검사를 반복하지 않았다. 보완 8의 team-kit 전체 **4801 passed·3 skipped·58 subtests passed**, Slack **214 passed**, hejo 버튼 **17 passed**, 앱 **20/20 종료 0**, hejo 전체 **종료 0** 로그와 종료 코드 기록을 다시 확인했다. 도달 증거 수준은 2이며 운영 연결·실제 Slack·모델 차례는 미검증이다.
+
+hejo 커밋 대상은 `app/Tests/TestMain.swift`와 이 보고서 두 파일뿐이다. 진행 중 추가된 시안 파일·커밋은 보존한다. 최종 hejo 커밋 해시·파일 목록·두 저장소 상태는 `.build/task04-r9-git-final.json`, 커밋 명령·종료 코드는 `.build/task04-r9-hejo-commit.log`에 기록한다. 보고서 갱신 뒤 개인값 검사·pre-commit·공백 검사는 각각 종료 **0**, 개인값 위반 **0**이었다. 결과는 `.build/task04-r9-final-checks.json` 및 해당 로그에 둔다.
+
+앞선 보완 8의 커밋 보류 사유는 이 지시로 해소됐다. 구현·검증·커밋 결과를 검토 담당에게 인계하며 제품 최종 완료 판정은 하지 않는다. 푸시는 사용자 화면 승인 대기이며 실행하지 않았다. hejo에 원격이 없으면 임의로 등록하지 않고 대상 미확정으로 보고한다. 재시작/reload·운영 hejo 연결·외부 발송·비밀 파일 열기는 하지 않았다.

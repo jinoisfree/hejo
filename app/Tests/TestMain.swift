@@ -5,6 +5,13 @@ func check(_ condition: @autoclosure () throws -> Bool, _ message: String) throw
 }
 enum TestFailure: Error { case assertion(String) }
 @MainActor func pause(_ seconds: Double) async { try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000)) }
+@MainActor func waitForTransition(_ controller: PetController, progress: CGFloat) async {
+    let deadline = ProcessInfo.processInfo.systemUptime + 2
+    while controller.transitionProgress != progress && ProcessInfo.processInfo.systemUptime < deadline {
+        await pause(0.01)
+    }
+}
+
 @MainActor func waitFor(_ seconds: Double = 8, _ condition: () -> Bool) async throws {
     let deadline = Date().addingTimeInterval(seconds)
     while !condition(), Date() < deadline { await pause(0.025) }
@@ -84,12 +91,12 @@ final class MemoryCredentials: GateCredentialStore {
         let foot = PetLayout.visibleSprite(in: open.spriteRect)
         try check(controller.pet.genie.target.x == min(max(foot.midX, open.bubbleRect.minX), open.bubbleRect.maxX), "AT47 foot anchored distortion")
         try check(controller.transitionProgress == 0, "AT47 opening starts folded")
-        await pause(0.4)
+        await waitForTransition(controller, progress: 1)
         try check(controller.transitionProgress == 1 && controller.transitionSteps > 0, "AT47 0.30s completes")
         try check(!controller.panel.isKeyWindow, "opening does not make key")
         try check(front == NSWorkspace.shared.frontmostApplication?.processIdentifier, "opening keeps foreground app")
         controller.pet.onClick?(); try check(!controller.chatExpanded, "AT47 pet re-click folds")
-        await pause(0.4); try check(controller.transitionProgress == 0, "AT47 closing ends folded")
+        await waitForTransition(controller, progress: 0); try check(controller.transitionProgress == 0, "AT47 closing ends folded")
         controller.reducedMotion = { true }
         controller.pet.onClick?(); try check(controller.chatExpanded && controller.transitionSteps == 0, "AT47 reduce motion immediate open")
         let escape = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: controller.panel.windowNumber, context: nil, characters: "\u{1b}", charactersIgnoringModifiers: "\u{1b}", isARepeat: false, keyCode: 53)!
