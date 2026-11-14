@@ -294,3 +294,45 @@
   - (5) AT-HF-26: 같은 창 크기에서 hejo(가짜 명부·문 대역)와 ddots를 나란히 촬영할 자리와 체크리스트를 만든다. ddots 쪽 촬영은 사장 참여가 필요하면 TASK-09로 넘기고 그렇다고 표시한다. ddots 실행·설정 변경은 하지 않는다.
 - 유지·금지는 원 인계와 같다. ddots 파일 수정 금지, SwiftUI 예외 없음, `scripts/test.sh` 종료 0, 개인값 위반 0.
 - (8판 보완, 사용자 승인) 방 단위 모델: 탭·목록·안 읽은 수·카드 목록을 `Room{id, kind, title, members}`로 다룬다. 1단계에서는 `kind = direct`(직원 1:1)만 쓴다. 통신 규격은 바꾸지 않고, 앱에서 `employee`를 1:1 방에 대응시킨다. design 6절의 대화 화면 항목을 참고한다.
+
+## 인계: TASK-04 team-kit hejo 답장 버튼 (2026-11-14)
+
+- 사용자 결정(2026-11-14): 기초 공사는 지금의 ddots 화면 그대로 마무리한다. 화면 시안 개선은 별도로 계속하며, 이 TASK와 무관하다.
+- 근거: spec REQ-HF-09(AC-01·02), design 5절·2.2절(문 공개 훅), tasks TASK-04, 수락 시험 AT-HF-19·20. 문 쪽 훅은 TASK-02·03b에서 완료됐다(`gate/adapter.py`: `metadata["hejo_buttons"]`, `metadata["hejo_reply_state"]`, `set_reply_state`, `register_click_handler`).
+- 작업 위치: 운영 저장소의 규칙(`<운영 저장소>/AGENTS.md`, 실제 경로는 미추적 `AGENTS.local.md`)을 따른다. team-kit 원본은 실행 중인 `~/.hermes/plugin-store/team-kit`이다. 거기서 고치고, 운영 저장소에서 `./sync`로 모은다.
+- 할 일:
+  - (0) 착수 전 확인. 아래 셋 중 하나라도 해당하면 멈추고 보고한다.
+    - team-kit 원본과 운영 저장소에 다른 작업의 미커밋 변경이 있다.
+    - 처리 중인 작업이 있다.
+    - `./sync`가 토큰 경고를 낸다.
+  - (1) `controls()`를 `hermes_reply/plugin.py`에서 `reply_buttons`로 옮긴다. 동작을 그대로 두는 리팩터링이다. Slack이 이 함수를 계속 같이 쓰므로, 옮기기 전과 후에 기존 Slack 답장 버튼 시험이 같은 결과여야 한다.
+  - (2) `plugin.py`의 플랫폼 등록부에 `register_platform_handler('hejo', hejo_factory)`를 더한다. 설치기가 할 일은 다음과 같다.
+    - 어댑터의 `send`/`edit_message`(2.2절 서명 유지)를 감싼다.
+    - `controls(content)`로 표식을 떼어 `metadata["hejo_buttons"]`(`label`·`style`, id는 문이 발급)와 `metadata["hejo_reply_state"]="asked"`로 넘긴다.
+    - `register_click_handler("reply", …)`는 `False`를 돌려 문의 기본 처리를 쓰게 한다.
+    - 클릭 뒤에는 `await set_reply_state(msg_id, "answered")`를 부르고, 최종 답장 때는 `"closed"`를 부른다.
+    - 문 내부를 import하지 않는다.
+  - (3) 시험을 만든다.
+    - AT-HF-19·20을 team-kit 시험으로 만든다. hejo 저장소의 문 어댑터를 대역 러너로 쓰고, 임시 HERMES_HOME에서 돌린다.
+    - 기존 team-kit 시험 전체를 돌린다.
+    - hejo 저장소 `bash scripts/test.sh`를 돌린다. 문 쪽 AT-HF-21(team-kit이 없을 때 글자로 대체)이 그대로 통과해야 한다.
+  - (4) 운영 저장소에서 다음 순서로 마무리한다.
+    - `./airport-check`를 통과시킨다(`--rebaseline` 금지).
+    - `./sync --split -m "…"`로 커밋하고, 푸시하지 않는다.
+    - 커밋 해시와 변경 파일을 보고한다.
+- 금지:
+  - 게이트웨이 재시작과 `reload-plugins`. 새 코드는 다음 재시작 때 실려도 Slack 동작이 같아야 한다. 그래서 (1)의 비교 시험이 필수다.
+  - hejo를 운영 설정에 연결하는 것. 이는 TASK-09에서 한다.
+  - 실제 Slack이나 외부로 메시지를 보내는 것.
+  - 비밀 파일을 여는 것.
+  - Hermes 본체와 ddots 앱을 수정하는 것.
+  - `usage_ledger`·`hermes_router` 변경. 이는 2단계에서 한다.
+  - 버튼 허용 목록(`reply-buttons.json` labels)에 새 문구를 넣는 것.
+  - git push.
+  - hejo 저장소에 운영 저장소 이름이나 개인값을 쓰는 것.
+- 위험·증거: 운영 플러그인 코드를 바꾸므로 고위험으로 다룬다. 증거 수준은 2다.
+- 롤백: team-kit 원본 파일을 커밋 전 내용으로 되돌리고 `./sync`를 다시 실행한다. 이미 커밋했다면 운영 저장소에서 그 커밋을 되돌린다. 게이트웨이는 재시작하지 않았으므로 실행 중인 Slack은 영향받지 않는다.
+- 멈춤 조건:
+  - Slack 비교 시험에서 차이가 나면 멈춘다.
+  - 버튼 정책(`button_policy`)과 hejo 버튼 모양이 맞지 않으면 멈춘다.
+  - 운영 저장소 규칙과 이 인계가 충돌하면 멈춘다.
