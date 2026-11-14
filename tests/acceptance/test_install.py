@@ -292,3 +292,78 @@ def test_config_symlink_is_rejected_without_opening_target(install_airport, tmp_
     assert cli(home).returncode == 1
     assert outside.read_text() == "do not change\n"
     assert not (home / "hejo").exists()
+
+
+DRIFTING = """model:
+    default: test-model
+display:
+  memory_notifications: "off"
+plugins:
+  enabled:
+    - x
+    - z
+  entries:
+    x:
+      settings:
+        lists:
+          - a
+          - b
+gateway:
+  log_level: info
+
+# Section comment kept with the next key
+other: {inline: true}
+"""
+
+
+def test_operating_formatting_is_edited_line_by_line_and_restored(install_airport):
+    """A config ruamel cannot reproduce byte for byte gets only hejo lines added; uninstall restores the bytes."""
+    home = install_airport
+    for profile in PROFILES:
+        (home / profile / "config.yaml").write_text(DRIFTING)
+    assert cli(home).returncode == 0
+    for profile in PROFILES:
+        text = (home / profile / "config.yaml").read_text()
+        removed = [line for line in DRIFTING.splitlines() if line not in text.splitlines()]
+        assert removed == []
+        added = [line for line in text.splitlines() if line not in DRIFTING.splitlines()]
+        assert "    - hejo" in added and "  platforms:" in added and "    hejo:" in added
+        assert text.index("    - hejo") < text.index("  entries:")
+        assert text.index("    hejo:") < text.index("# Section comment")
+        config = YAML().load(text)
+        assert config["display"]["memory_notifications"] == "off"
+        assert config["plugins"]["enabled"] == ["x", "z", "hejo"]
+        assert config["gateway"]["platforms"]["hejo"]["enabled"] is True
+    path = home / "config.yaml"
+    path.write_text(path.read_text().replace("log_level: info", "log_level: debug"))
+    assert cli(home, "--uninstall").returncode == 0
+    assert path.read_text() == DRIFTING.replace("log_level: info", "log_level: debug")
+    assert (home / "profiles/beta/config.yaml").read_text() == DRIFTING
+
+
+def test_operating_formatting_conflict_restores_other_keys_line_by_line(install_airport):
+    home = install_airport
+    for profile in PROFILES:
+        (home / profile / "config.yaml").write_text(DRIFTING)
+    assert cli(home).returncode == 0
+    path = home / "config.yaml"
+    path.write_text(path.read_text().replace("port: 47820", "port: 47999"))
+    result = cli(home, "--uninstall")
+    assert result.returncode == 2 and "config.yaml#gateway.platforms.hejo" in result.stdout
+    text = path.read_text()
+    assert "    - hejo" not in text and "port: 47999" in text
+    assert [line for line in DRIFTING.splitlines() if line not in text.splitlines()] == []
+    assert YAML().load(text)["plugins"]["enabled"] == ["x", "z"]
+
+
+def test_empty_inline_parent_is_filled_on_its_own_line(install_airport):
+    home = install_airport
+    text = DRIFTING.replace("gateway:\n  log_level: info\n", "gateway: {}\n")
+    for profile in PROFILES:
+        (home / profile / "config.yaml").write_text(text)
+    assert cli(home).returncode == 0
+    installed = (home / "config.yaml").read_text()
+    assert "gateway: {}" not in installed and "  platforms:" in installed
+    assert [line for line in text.splitlines() if line not in installed.splitlines()] == ["gateway: {}"]
+    assert cli(home, "--uninstall").returncode == 0
+    assert (home / "config.yaml").read_text() == text

@@ -8,6 +8,7 @@ from io import StringIO
 import json
 import os
 from pathlib import Path
+import re
 import stat
 import sys
 import tempfile
@@ -20,6 +21,8 @@ from ruamel.yaml.comments import CommentedMap
 PRIMARY = {"enabled": True, "extra": {"port": 47820, "listen": ["127.0.0.1"], "allowed_users": ["owner"]}}
 FORWARDER = {"enabled": True, "extra": {"role": "forwarder"}}
 CONFIG_KEYS = (("plugins", "enabled"), ("gateway", "platforms", "hejo"))
+MISSING = object()
+YAML_WORDS = {"y", "yes", "n", "no", "true", "false", "on", "off", "null", "~"}
 
 
 def yaml_load(text):
@@ -120,8 +123,139 @@ def restore_key(document, original, keys):
                 del parent[key]
 
 
-def write_config(path, document, mode):
-    text = yaml_dump(document)
+def plain(value):
+    if isinstance(value, dict):
+        return {str(key): plain(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [plain(item) for item in value]
+    return value
+
+
+def span(lines, mapping, key, parent_end):
+    """Lines [start, end) of `key` inside a block mapping, without trailing blanks or outer comments."""
+    start, column = mapping.lc.key(key)
+    keys = list(mapping)
+    index = keys.index(key)
+    end = mapping.lc.key(keys[index + 1])[0] if index + 1 < len(keys) else parent_end
+    while end > start + 1:
+        line = lines[end - 1]
+        stripped = line.strip()
+        if stripped and not (stripped.startswith("#") and len(line) - len(line.lstrip()) <= column):
+            break
+        end -= 1
+    return start, end, column
+
+
+def render(key, value, column):
+    engine = YAML()
+    engine.default_flow_style = False
+    engine.width = 100000
+    engine.indent(mapping=2, sequence=4, offset=2)
+    stream = StringIO()
+    engine.dump({key: value}, stream)
+    return [" " * column + line if line.strip() else line for line in stream.getvalue().splitlines(keepends=True)]
+
+
+def scalar_text(value):
+    if isinstance(value, str) and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.-]*", value) and value.lower() not in YAML_WORDS:
+        return value
+    return json.dumps(value)
+
+
+def edit_once(text, keys, value):
+    """Change one key path by editing only its own lines. Raises for shapes that need manual review."""
+    lines = text.splitlines(keepends=True)
+    if lines and not lines[-1].endswith("\n"):
+        lines[-1] += "\n"
+    document = YAML().load(text)
+    node, end, owner = document, len(lines), None
+    for depth, key in enumerate(keys):
+        if not isinstance(node, dict):
+            raise ValueError("config needs manual review")
+        if key not in node and value is MISSING:
+            return "".join(lines)
+        if key not in node and not node and owner:
+            # An empty mapping such as `gateway: {}` sits on its owner's line; rewrite just that line.
+            nested = deepcopy(value)
+            for parent in reversed(keys[depth:]):
+                nested = {parent: nested}
+            owner_start, owner_stop, owner_column = owner
+            lines[owner_start:owner_stop] = render(keys[depth - 1], nested, owner_column)
+            return "".join(lines)
+        if node.fa.flow_style():
+            raise ValueError("config needs manual review")
+        if key not in node:
+            if not node:
+                raise ValueError("config needs manual review")
+            column = node.lc.key(next(iter(node)))[1]
+            last = list(node)[-1]
+            position = span(lines, node, last, end)[1]
+            nested = deepcopy(value)
+            for parent in reversed(keys[depth + 1:]):
+                nested = {parent: nested}
+            lines[position:position] = render(key, nested, column)
+            return "".join(lines)
+        start, stop, column = span(lines, node, key, end)
+        if depth == len(keys) - 1:
+            current = node[key]
+            if value is MISSING:
+                del lines[start:stop]
+            elif isinstance(current, list) and isinstance(value, list) and current and not current.fa.flow_style():
+                old, new = list(current), list(value)
+                if new[:len(old)] == old:
+                    first_line, first_column = current.lc.item(0)
+                    prefix = lines[first_line][:first_column]
+                    after = current.lc.item(len(old) - 1)[0] + 1
+                    lines[after:after] = [prefix + scalar_text(item) + "\n" for item in new[len(old):]]
+                elif all(item in old for item in new) and [item for item in old if item in new] == new:
+                    for index in reversed(range(len(old))):
+                        if old[index] not in new:
+                            del lines[current.lc.item(index)[0]]
+                else:
+                    raise ValueError("config needs manual review")
+            else:
+                lines[start:stop] = render(key, value, column)
+            return "".join(lines)
+        node, end, owner = node[key], stop, (start, stop, column)
+    raise ValueError("config needs manual review")
+
+
+def faithful(text):
+    return not text.strip() or yaml_dump(yaml_load(text)) == text
+
+
+def write_config(path, document, mode, prune=None):
+    """Write only the hejo keys. A file ruamel cannot reproduce byte for byte is edited line by line and
+    re-read with Hermes's own reader, so unrelated keys keep both their bytes and their meaning."""
+    _, current, _ = read_config(path)
+    if faithful(current):
+        text = yaml_dump(document)
+    else:
+        import hermes_yaml
+        text, base = current, yaml_load(current)
+        expected = hermes_yaml.safe_load(current) or {}
+        for keys in CONFIG_KEYS:
+            old_present, old = lookup(base, keys)
+            new_present, new = lookup(document, keys)
+            if old_present == new_present and plain(old) == plain(new):
+                continue
+            target = keys
+            if not new_present:
+                for depth in range(1, len(keys)):
+                    if lookup(base, keys[:depth])[0] and not lookup(document, keys[:depth])[0]:
+                        target = keys[:depth]
+                        break
+            text = edit_once(text, target, deepcopy(new) if new_present else MISSING)
+            parent = expected
+            for key in target[:-1]:
+                parent = parent.setdefault(key, {})
+            if new_present:
+                parent[target[-1]] = plain(new) if target == keys else plain(lookup(document, target)[1])
+            else:
+                parent.pop(target[-1], None)
+        # Hermes reads YAML 1.1: compare what Hermes itself sees, and the round-trip view of the result.
+        if hermes_yaml.safe_load(text) != expected or plain(yaml_load(text)) != plain(document):
+            raise ValueError("config needs manual review")
     atomic_write(path, text, mode)
     return text
 
