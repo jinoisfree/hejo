@@ -207,3 +207,74 @@ PYTHONPATH="$PWD/.build/task02-deps:$HERMES_SOURCE:$PWD" \
 **검토 요청·남은 범위**: V-7 시험 변경과 집중 200회·전체 20회 결과를 검토해 TASK-02 완료 조건을 판정해 달라. V-5 기술 부채, 실제 게이트웨이·Tailscale·실기기·첨부 HTTP·운영 설치 및 TASK-05 앱 송신 전 크기 검사는 후속 범위로 유지한다. 운영 변경·비밀 파일 접근·본체·다른 앱 수정·실제 메시지 발송·푸시는 실행하지 않았다. 롤백은 이번 시험·보고 커밋 되돌림이며 운영 영향은 없다. 정확한 검토 대상 커밋은 최종 상태 블록에 제공한다.
 
 작업 중 별도 커밋 `72683e4ae5642f810819ed9212b255455232bd84`가 UI 시안 HTML·PNG 두 파일을 추가했다. 제품·스키마·시험에는 차이가 없음을 커밋 간 diff로 확인했으며 해당 변경을 보존한다. 이번 보완 커밋은 이 커밋 뒤에 시험·보고서 두 파일만 기록한다. 보조 검사 초회에는 기준 이후 전체 변경 목록에 이 PNG까지 들어와 UTF-8 해석 오류가 났다. 이후 검사 대상을 이번에 stage한 두 파일로 한정했고 통과했다. 시험 실행 중 제품·시험 코드의 추가 변경은 없으므로 위 반복 검증 근거는 유지된다.
+
+## TASK-03a: 보조 프로필 배달 탐침 (2026-11-14)
+
+**탐침 결과: A 성공, B 실패(배달 전 설정 검사에서 차단).** 이 절은 구현자의 관측 보고다. 안 채택·AC 개정·운영 설정 변경 승인은 계획 담당과 사용자에게 남긴다. 수락 시험 합격을 주장하지 않는다.
+
+### 범위·실행 구조
+
+- 기준 `65a7d442804462f720552a212f2665dfe9888a3f`와 착수 HEAD 일치, 작업 트리 깨끗함을 확인했다. 근거는 handoff 마지막 TASK-03a와 design 4.1이다.
+- 추가 파일은 `gate/probes/{__init__.py,candidates.py,run.py,README.md}`다. 운영 `gate/__init__.py`·어댑터·서버·스키마·설계·수락 시험은 변경하지 않았다. 탐침은 본 모듈에서 import하지 않으며 결정 후 TASK-03b에서 제거 또는 승인 부분만 승격한다.
+- 두 안 모두 새 임시 HOME·HERMES_HOME·잠금/상태 폴더, 정리된 자식 환경에서 **실제 `gateway.run.start_gateway()`**를 실행했다. 원본 `GatewayRunner`의 프로필 검색·설정 로드·플러그인 발견·중복 검사·연결·cron ticker·종료를 사용했다. 대역 게이트웨이는 없다. 감시는 원래 중복 검사와 `wait_for_shutdown`을 호출하며 판정·연결을 대신하지 않는다.
+- 기본 프로필과 가짜 보조 프로필 `alpha`를 사용했다. 두 프로필은 별도 시험 플랫폼 `probe_peer`의 서로 다른 가짜 자격과 자기 어댑터를 가진다. 실제 Slack SDK·토큰·접속은 쓰지 않았다. 이 시험 플랫폼은 메모리에만 송신을 기록한다.
+- A는 두 프로필에서 hejo를 켜고 보조 어댑터의 `send`를 모듈 허브의 기본 문으로 전달한다. 보조 어댑터는 리스너·기록장·출입증 파일을 열지 않는다. B는 기본 프로필에서만 hejo를 켜고 보조 프로필은 명시적으로 끈다. 두 안의 탐침 등록에는 `cron_deliver_env_var`와 `parse_target_ref_fn`을 넣어 표준 대상 해석을 사용했다. 이는 본 플러그인에 채택한 변경이 아니다.
+- `send_message_tool`은 보조 프로필 런타임 범위의 작업 스레드에서 호출했다. 예약은 같은 범위에서 고정 결과를 실제 `_deliver_result`에 넘기고 보조 프로필 어댑터 지도와 실제 게이트웨이 루프를 제공했다. 다음 시간 주기·모델 실행은 기다리거나 호출하지 않았다.
+
+### 각 안의 관측
+
+| 항목 | A: 전달자 어댑터 | B: 단독 발신자 |
+|---|---|---|
+| (a) 시작·리스너 | 성공. 4개 연결(두 프로필 각각 hejo·시험 플랫폼), 실제 TCP LISTEN **1개** | 성공. 3개 연결(기본 hejo·시험 플랫폼, 보조 시험 플랫폼), 실제 TCP LISTEN **1개** |
+| (b) 중복 자격 검사 | 성공. 보조 hejo의 credential/listener 검사를 실제 통과. 둘 다 claim 없음, 거부 false. 보조 시험 플랫폼은 다른 자격 claim으로 통과 | 성공. 보조 시험 플랫폼 검사 통과. 보조 hejo는 꺼져 있어 생성·검사하지 않음 |
+| (c) `send_message` | 성공. `hejo:alpha`가 유효 대상으로 처리되고 성공 영수증 반환 | 실패. 대상 파서는 인식하지만 플랫폼 설정 검사에서 차단. 단독 발신 함수 호출 **0회** |
+| (c) 예약 `deliver=hejo` | 성공. 보조 프로필 home target과 고정 스레드로 해석, 실제 배달 반환 오류 없음 | 대상 이름·home target 해석 성공. 이후 `platform 'hejo' not configured/enabled`로 실패, 단독 발신 함수 호출 **0회** |
+| (d) 기록장·클라이언트 | 성공. 두 글 모두 `employee=alpha`, 직접 글은 새 스레드, 예약 글은 고정 스레드로 도착. 실제 JSONL 두 행·메모리 기록·클라이언트 수신 내용 일치 | 실패. 위 설정 차단 때문에 배달·JSONL 메시지·수신 모두 0건. B 허브 함수 자체는 실제 경로에서 도달 불가 |
+| (e) 다른 플랫폼 | hejo 배달 동안 두 시험 플랫폼 어댑터의 객체·연결 유지, 송신 0건. 이후 보조 시험 플랫폼 대조 송신 1건 성공, 기본 시험 플랫폼 0건 유지 | 같은 결과 |
+
+B의 막힌 지점(아래 `R`은 Hermes 소스 루트, HEAD `ebb026eef8e800e1b7471ed147b7287e878f8aa4`):
+
+- `R/tools/send_message_tool.py:228-230` → `_resolve_platform_config`, `:319-323`: 꺼진 보조 hejo 설정을 거부한다. `:541-585`의 live adapter/standalone 분기에 도달하기 전이다.
+- `R/cron/scheduler_delivery.py:420-423`: 등록된 `cron_deliver_env_var` 덕분에 이름은 유효하다. 그러나 `:1407-1408`에서 보조 설정이 꺼져 있어 배달을 거부한다.
+- A가 통과한 실제 중복 검사는 `R/gateway/run_adapters.py:1294-1312`이며, 자격 지문·리스너 claim 생성은 `:1819-1856`이다. hejo는 자격 문자열·Photon 리스너 claim이 없어서 중복 자원으로 판정되지 않는다. 소켓 검사를 별도로 해서 기본 문의 실제 리스너 하나를 확인했다.
+
+**구현자 권고:** 현재 탐침 증거로는 A를 계획 담당의 선택 후보로 넘긴다. B를 살리려면 보조 설정 enablement 또는 Hermes의 배달 전 검사 계약을 다시 정해야 하며 이번 범위에서는 우회하지 않았다. A의 보조 hejo 켜기는 사용자 승인 대상이다.
+
+### 명령·종료 코드·로그
+
+작업 폴더는 저장소 루트. `HERMES_SOURCE`·`HERMES_PYTHON`은 앞 절의 실제 Hermes 소스·venv Python이고, `HEJO_PROBE_TMPDIR`에는 짧은 임시 폴더를 지정했다. `HEJO_TEAM_KIT_LIB`는 회귀 검사에만 지정했다. 추가로 필요한 psutil은 시스템 Python의 pip로 무시된 `.build/task03a-deps`에만 설치했다(종료 0, `.build/task03a-deps.log`). 본체·본체 venv를 수정하지 않았다.
+
+```sh
+export HEJO_PROBE_TMPDIR
+export HERMES_DISABLE_LAZY_INSTALLS=1
+export PYTHONDONTWRITEBYTECODE=1
+export PYTHONPATH="$PWD/.build/task03a-deps:$PWD/.build/task02-deps:$HERMES_SOURCE:$PWD"
+"$HERMES_PYTHON" -m gate.probes.run --mode A
+"$HERMES_PYTHON" -m gate.probes.run --mode B
+HEJO_TEAM_KIT_LIB="$HEJO_TEAM_KIT_LIB" "$HERMES_PYTHON" -m pytest \
+  gate/tests tests/acceptance/test_gate_foundation.py \
+  -q -o asyncio_default_fixture_loop_scope=function -p no:cacheprovider
+```
+
+| 실행 | 실제 종료·결과 | 로그(저장소 기준) |
+|---|---|---|
+| 최종 A | 종료 **0**, 위 A 결과·`GATEWAY_EXIT clean` 확인 | `.build/task03a-A-final.log` |
+| 최종 B | 종료 **0**, 위 B 실패 원인을 재현·`GATEWAY_EXIT clean` 확인. 탐침 종료 0은 B 배달 성공을 뜻하지 않음 | `.build/task03a-B-final.log` |
+| 직원 식별 변형 | 조정 실행 종료 0. A의 전달 metadata를 기본 직원으로 바꾸면 수신 프레임 직원 단언이 **종료 1**로 실패. 원본 바이트 복원 확인 | `.build/task03a-mutation.log`, `.build/task03a-mutation-gateway.log` |
+| 기존 전체 회귀 | 종료 **0**, **43 passed**. 기존 수락·구현 시험은 수정하지 않음 | `.build/task03a-regression.log` |
+
+탐침 준비 중 실패도 보존했다. 첫 A(`.build/task03a-A.log`, 종료 1)는 임시 홈의 자동 의존성 설치·재실행이 PYTHONPATH를 교체해 탐침을 import하지 못했다. 이후 공식 `HERMES_DISABLE_LAZY_INSTALLS=1`을 적용했다. A run2(종료 1)는 psutil 미설치, run3(종료 1)은 시험 home_channel의 platform 필드 누락, run4(종료 1)는 시험 어댑터의 추상 메서드 누락과 긴 임시 경로의 Unix 소켓 한도, run5(종료 1)는 시험 플랫폼의 대상 파서 누락이었다. run6은 종료 0으로 A 경로를 사전 확인했다. 로그는 `.build/task03a-A-run2.log` ~ `-run6.log`다. B run1(종료 1)은 생략된 보조 hejo 설정이 기본 enablement로 켜져 secondary_disabled를 유발한 탐침 설정 문제였다. 명시적 false로 정렬한 run2는 종료 0이다(`.build/task03a-B-run1.log`, `-run2.log`). 최종 두 안은 모든 탐침 보완 뒤 실행했다. 본체 수정이나 설정 검사 완화는 하지 않았다.
+
+최종 로그의 공통 경고: 미사용 번들 wecom 플러그인의 cryptography 미설치, 대화 세션이 없는 시험 글의 mirror 경고. 해당 외부 플랫폼을 켜거나 연결하지 않았다. mirror는 이번 배달 성공·JSONL 저장·수신 검증과 별개이며, 실패를 숨기기 위해 의존성을 설치하거나 검사를 바꾸지 않았다.
+
+### 도달 증거·미검증·다음 판단
+
+- **증거 수준 3 도달(임시 홈 실제 게이트웨이의 시작·프로필·배달·저장·수신·종료 경계).** 고위험 탐침의 자체 증거이며 독립 검토 완료가 아니다. A/B 전체 로그와 직접 관측을 검토해 계획 담당이 design 4.1의 다음 결정을 내려야 한다.
+- 실제 Slack 및 다른 외부 플랫폼 무영향, 실제 모델, 예약 생성·시간 트리거·외부 worker/별도 프로세스 단독 발신, 리스너 재접속·프로필 hot reload·스트리밍/첨부/버튼 전달은 **미검증**이다. A의 최소 `send` 탐침만으로 다른 메서드의 제품 적합성을 주장하지 않는다.
+- 운영 홈 쓰기·플러그인 연결·운영 재시작·실제 외부 메시지·운영 비밀 파일 접근·본체·ddots·비공개 저장소 수정·푸시는 하지 않았다. 자식 감사 훅은 임시 폴더 밖의 비밀 파일 읽기·파일/DB 쓰기와 외부 소켓/DNS를 거부한다. 첫 자동 설치도 임시 데이터 루트에서 실행됐고 임시 홈과 함께 제거됐다.
+- 필수 개인값 검사기 `scripts/scan_private.py`는 TASK-07 미생성으로 미실행이다. 보조 패턴 검사는 이를 대체하지 않는다. V-5 기술 부채는 그대로다.
+- 롤백은 이번 탐침·보고 커밋 되돌림이다. 운영 변경은 없으므로 운영 롤백은 필요하지 않다. 후속 결정 전 탐침을 본 모듈에 넣거나 수락 기대값을 변경하지 않는다.
+
+최종 보조 확인: Python AST·개인값 기본 패턴·변경 범위·A/B 관측 JSON·종료 표시·변형/회귀 로그 직접 대조는 종료 0(`.build/task03a-static.log`, 관측 추출 `.build/task03a-results.json`). `git diff --cached --check`도 종료 0(`.build/task03a-diff-check.log`). 이 검사는 필수 개인값 검사기의 대체가 아니다.
+
+작업 중 별도 커밋 `65d1a35fca4230e1ee59087ff073f653ab6bb6f9`가 design 6절·tasks·plan-review에 TASK-05·06의 원본 전수 검토 기록 의무를 추가했다. 변경 상세를 확인했고 TASK-03a의 design 4.1·운영 모듈·시험과 무관해 보존했다. 최초 변경 범위 검사에서 기준 이후 이 계획 문서 변경까지 불변으로 기대해 종료 1이 났다(`.build/task03a-static-initial.log`). 이후 제품·시험은 작업 기준과, 이번 자체 변경에 포함하지 않은 계획 문서는 현재 HEAD와 대조해 종료 0을 확인했다. 제품 실행 검증을 다시 해야 할 변경은 없다. 이번 커밋에는 탐침 네 파일과 이 보고서만 담는다.
