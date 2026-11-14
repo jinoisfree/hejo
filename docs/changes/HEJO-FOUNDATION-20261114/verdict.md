@@ -261,3 +261,22 @@
      - 모듈 허브가 기본 문 그대로다.
    - (2) V-8: 전달된 `edit_message`도 대상 글의 직원이 `_owner_profile`과 다르면 실패(`message_not_found`)로 끝낸다. 시험을 추가한다.
    - (3) 전체 묶음 종료 0 로그와 AT-HF-22 재실행 로그를 남긴다.
+
+## 검증 판정: HEJO-FOUNDATION TASK-03b / 보완 5 재검토 (8차)
+
+1. **검토 대상:** 구현 커밋 `820f23a05ac43863f997f1daa81c94c247388d88`(기준 `ab26bc5`). 변경 파일은 `gate/adapter.py`, `gate/tests/{test_boundaries,test_extensions}.py`, `impl-report.md` 네 개다.
+2. **판정: 완료(TASK-03b).**
+3. **설계 적합성(4.2): 적합.**
+   - V-8: 전달된 `edit_message`가 기본 문을 호출하기 전에 대상 글의 `employee`와 `_owner_profile`을 대조한다. 다르면 `message_not_found`로 끝낸다.
+   - T03B-03: 옛 시험을 허가된 범위에서 새 계약으로 바꿨다. 새 시험은 다음을 확인한다.
+     - 연결 성공
+     - 다른 홈에 journal·devices·files가 생기지 않음
+     - LISTEN 소켓 집합이 그대로임
+     - `_primary`가 그대로 유지됨
+   - 다른 기존 시험의 기대값은 바뀌지 않았다(구현 담당 AST 비교 로그 `.build/task03b-r5-static.log`).
+4. **직접 확인한 것:**
+   - 검토자 독립 실행(`gate/tests` + `tests/acceptance`, `HEJO_TEAM_KIT_LIB` 지정, 임시 홈): **종료 0, 59 passed**(`.build/task03b-r5-review.log`).
+   - AT-HF-22 재실행 로그 `.build/task03b-r5-at22.log`: 리스너 1, 배달 4, `GATEWAY_EXIT clean`.
+   - 증거 수준: 2, AT-22는 3으로 확인했다.
+5. **지적 처분:** T03B-01·02·03과 V-8을 해소했다. V-5는 기술 부채로 유지한다.
+6. **미검증 범위:** 실제 Slack 병행 상태의 운영 게이트웨이, 실제 모델 차례, 예약 시간 트리거, 실기기는 TASK-09에서 확인한다. 필수 개인값 검사기는 TASK-07에서 만든다.

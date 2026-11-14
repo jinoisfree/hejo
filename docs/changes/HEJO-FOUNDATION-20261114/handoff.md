@@ -146,3 +146,42 @@
 - (2) V-8: 전달자의 `edit_message`가 대상 `message_id`의 기록장 `employee`가 `_owner_profile`과 다르면 `SendResult(success=False, error="message_not_found")`로 끝나게 한다. 기본 문으로는 넘기지 않는다. 다른 직원 글 수정 시도 시험을 추가한다.
 - (3) 전체 묶음(`gate/tests` + `tests/acceptance`, `HEJO_TEAM_KIT_LIB` 지정)을 종료 0으로 실행하고, `python -m gate.tests.gateway_delivery`(AT-HF-22)를 재실행해 로그를 남긴다.
 - 위 시험 하나 외의 기존 시험 기대값은 변경 금지다. 범위·금지는 원 인계와 같다.
+
+## 인계: TASK-07 설치 도우미·개인값 검사 (2026-11-14, 5판 범위)
+
+- 기준: 이 인계를 담은 커밋. TASK-02·03b 완료(verdict 4·8차)로 설정 키가 확정됐다.
+- 근거 문서: spec REQ-HF-13·14(AC 전부), design 7절(3-1 보조 프로필 전달자 포함), tasks TASK-07.
+- 수락 시험: AT-HF-27·28(5판 개정)·29·38~43.
+- 할 일:
+  - (1) `install/hejo-install [--home PATH] [--check] [--uninstall] [--force]`
+    - 기본 프로필: 링크, `plugins.enabled`, `gateway.platforms.hejo` 문 블록.
+    - 보조 프로필마다: 링크, `plugins.enabled`, `{enabled: true, extra: {role: forwarder}}`.
+    - 보조 프로필 목록은 Hermes 프로필 API로 읽는다.
+    - `<HOME>/hejo/`(0700)와 `devices.json`(0600)을 만든다.
+    - 영수증: 변경 전에 쓰고, 단계별로 `applied`를 기록한다. 대상은 보조 프로필 항목까지 포함한다.
+    - 재설치는 `before`를 바꾸지 않는다. 사장이 바꾼 값은 건드리지 않고 알린다.
+    - 중간 실패는 역순으로 되돌리고 종료 1. 제거 때 값이 달라져 있으면 그 대상은 두고 종료 2.
+    - `config.yaml`은 ruamel 왕복으로 쓰고, 임시 파일 + `os.replace`로 바꾼다.
+    - 게이트웨이 재시작은 하지 않고 안내만 출력한다.
+  - (2) `scripts/scan_private.py`, `scripts/scan_private_allow.txt`, `githooks/pre-commit`(design 7절 규칙 그대로)
+    - 운영 홈에서는 `owner/team.yaml`·`owner/vault.yaml`만 연다.
+    - 출력은 지문만 남긴다.
+    - 예외는 줄 지문 단위로 건다. 허용 대상은 가짜 시험 값과 LICENSE 고지 줄뿐이다.
+  - (3) `scripts/test.sh`: gate pytest 전체와 AT-22 러너를 실행한다. 앱 시험 자리는 TASK-05에서 붙이므로 지금은 "앱 시험 없음"을 명시한다.
+  - (4) `README.md`(설치·제거·검사 사용법, 개인값 없이)
+- 패턴 규칙을 Hermes-ddots team-kit `airport_boundaries`에서 가져온다면 다음 순서를 지킨다.
+  - 원본 파일 전체를 먼저 읽고 `copy-review.md`에 기록한다(사용자 지시: 다른 코드는 끝까지 읽고 기록한 뒤에만 베낀다).
+  - hejo에는 복사본을 둔다. Hermes-ddots를 import하거나 고치지 않는다.
+- 검사기를 저장소 전체에 처음 돌려 위반이 나오면 다음 순서로 처리한다.
+  - 값을 출력하지 않고 지문만 보고한다.
+  - 실제 개인값이면 해당 파일에서 중립 값으로 고친다. 다만 승인 문서·수락 명세의 의미는 바꾸지 않는다.
+  - LICENSE 고지 줄만 예외로 등록한다.
+  - 판단이 애매하면 멈추고 보고한다.
+- 시험: AT-HF-27·28·29·38~43을 자동화한다. AT-40·41은 파일 열기 감사 훅을 쓴다. 기존 59개 시험과 AT-22를 함께 통과해야 한다.
+- 금지:
+  - 운영 `~/.hermes`에 설치를 실행하는 것(시험은 임시 홈만 쓴다).
+  - 운영 홈의 다른 파일이나 비밀 파일을 여는 것.
+  - Hermes 본체·ddots·Hermes-ddots를 수정하는 것.
+  - 개인값을 남기는 것.
+  - 앱 코드를 쓰는 것.
+- 위험·증거: 고위험, 수준 2. 롤백은 커밋 되돌림이다.
