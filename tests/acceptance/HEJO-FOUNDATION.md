@@ -41,6 +41,8 @@
 | AT-HF-24 | REQ-HF-11.AC-02 | 자동(UI 점검 모드) | 임시 문(대역)에 페어링 → 앱 재시작 | 키체인 서비스 `io.github.hermes-hejo.hejo.gate-token`에 항목, `hejo-local.json`에 출입증 문자열 없음, 재시작 후 `welcome` 수신 |
 | AT-HF-25 | REQ-HF-11.AC-03 | 자동(UI 점검 모드) | 문 중지 → 10초 → 문 시작 | 상태 표시 "연결 끊김", 재시도 간격 증가(1,2,4…최대 30초), 문 시작 후 30초 안에 자동 복구 |
 | AT-HF-26 | REQ-HF-12.AC-01 | 수동(체크리스트) + UI 점검 | 직원 전환, 스레드 열기, 새 스레드, 보내기, 버튼 누름, 첨부 보내기·열기, 안 읽은 수 | 각 항목 기대 화면 일치, 스크린샷 증거 `evidence/HEJO-FOUNDATION/` |
+| AT-HF-47 | REQ-HF-16.AC-01 | 자동(배치·상태) + 수동(체크리스트) | 앱 시험: 펫 클릭·메뉴 "대화 열기"·다시 클릭·Esc·"펫으로 접기"를 차례로 실행하고, 동작 줄이기를 켠 상태로 반복; 수동: 다른 앱에 입력 중 펫 클릭 | 열림/닫힘 상태가 각 동작대로 바뀜, 변형 시작·끝 사각형이 펫 발치 기준(`PetPlacement`) 값과 같음, 동작 줄이기면 변형 단계 0; 열기·닫기 동안 다른 앱 포커스 유지, 스크린샷·화면 녹화 증거 `evidence/HEJO-FOUNDATION/` |
+| AT-HF-48 | REQ-HF-16.AC-02 | 자동(배치) | 펫 3 px·5 px 끌기, 대화 연 채 끌기, 가짜 화면 2개에서 두 번째 화면 가장자리로 이동, 화면 구성 변경 알림 | 3 px는 클릭(열림), 5 px는 이동(상태 불변); 대화 창이 펫과 함께 이동; 대화 창 사각형이 펫 발치 화면의 보이는 영역 안; 변경 알림 뒤 화면 안으로 다시 맞춤 |
 | AT-HF-27 | REQ-HF-13.AC-01 | 자동 | 빈 임시 홈에 `hejo-install` 2회, `--check` | 링크·`plugins.enabled`·`gateway.platforms.hejo`·`<HOME>/hejo/`(0700)·`devices.json`(0600) 생성; 2회차 파일 변경 0(바이트 동일); `--check` 종료 0 |
 | AT-HF-28 | REQ-HF-13.AC-02 | 자동 | 기존 `plugins.enabled: [x, y]`, 기존 `gateway.platforms.hejo: {enabled: false, extra: {port: 1}}`, 기존 `<HOME>/plugins/hejo` 링크(다른 대상)인 홈에서 설치 → `--uninstall` | 세 대상이 설치 전 값·링크 대상과 같음(주석 포함 `config.yaml` 해당 부분 동일), `<HOME>/hejo/`·`<HOME>/shared/hejo/` 남음, 영수증 `uninstalled` |
 | AT-HF-38 | REQ-HF-13.AC-03 | 자동 | 설치 뒤 `extra.port`를 47999로 바꾸고 `--uninstall` | 종료 코드 2, `gateway.platforms.hejo` 그대로(47999), 나머지 대상은 되돌림, 충돌 보고에 대상 경로 |
