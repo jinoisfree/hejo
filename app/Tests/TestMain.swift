@@ -23,6 +23,8 @@ final class MemoryCredentials: GateCredentialStore {
                 let args = CommandLine.arguments
                 if args.contains("--lock-child") {
                     let lock = try InstanceLock(directory: URL(fileURLWithPath: args[2])); withExtendedLifetime(lock) { }
+                } else if args.count > 1 && args[1] == "--conversation" {
+                    try await conversationNetwork(args)
                 } else if args.count > 1 && args[1].hasPrefix("--network-") {
                     try await network(args)
                 } else { try await unit() }
@@ -130,6 +132,7 @@ final class MemoryCredentials: GateCredentialStore {
         controller.endPetDrag()
         controller.panel.orderOut(nil)
         try check(LoginLaunchPresentation.resolve(.enabled, installed: false).canChange == false, "login registration requires installation")
+        try await conversationUnitTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         print("AT-HF-47 automatic PASS; AT-HF-48 PASS; cache/backoff/size/instance PASS")
     }
     func network(_ args: [String]) async throws {

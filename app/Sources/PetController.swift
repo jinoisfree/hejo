@@ -18,6 +18,7 @@ final class PetController: NSObject {
     let store: LocalStore
     var displays: () -> [PetDisplay] = { PetDisplay.current }
     var reducedMotion: () -> Bool = { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
+    var onExpansionChanged: ((Bool) -> Void)?
     private(set) var chatExpanded = false
     private(set) var placementTarget: PetPlacement?
     private(set) var transitionProgress: CGFloat = 0
@@ -56,7 +57,7 @@ final class PetController: NSObject {
     private func setExpanded(_ expanded: Bool) {
         guard expanded != chatExpanded, let old = placementTarget else { return }
         timer?.invalidate(); timer = nil; pet.endGenie(expanded: chatExpanded)
-        chatExpanded = expanded; panel.chatExpanded = expanded
+        chatExpanded = expanded; panel.chatExpanded = expanded; onExpansionChanged?(expanded)
         if !expanded { panel.makeFirstResponder(nil); panel.resignKey() }
         let start = expanded ? CGFloat(0) : 1
         // Opening measures the full native content before it is captured; closing uses the current open placement.

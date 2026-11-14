@@ -1,6 +1,6 @@
 import Foundation
 
-enum GateFailure: Error { case tooLarge, protocolError, storage, alreadyRunning, badAddress, badCode }
+enum GateFailure: Error { case tooLarge, protocolError, storage, alreadyRunning, badAddress, badCode, notConnected }
 enum ConnectionStatus: Equatable {
     case disconnected(Int), connecting, connected, wrongCode, revoked, tooLarge, storageError
     var text: String {
@@ -32,7 +32,10 @@ struct ReconnectDelay {
     private var backoff = ReconnectDelay()
     private var syncing = false
     private var welcomed = false
+    private(set) var replayComplete = false
+    private(set) var connectionEpoch = 0
     private(set) var status = ConnectionStatus.disconnected(0) { didSet { onStatus?(status) } }
+    var isConnected: Bool { welcomed && socket?.state == .running }
     var onStatus: ((ConnectionStatus) -> Void)?
     var onFrame: (([String: Any]) -> Void)?
     var onRetry: ((Int) -> Void)?
@@ -64,7 +67,7 @@ struct ReconnectDelay {
     func stop() {
         generation += 1; worker?.cancel(); worker = nil
         socket?.cancel(with: .goingAway, reason: nil); socket = nil; pairCode = nil; token = nil
-        backoff.reset(); welcomed = false; syncing = false
+        backoff.reset(); welcomed = false; syncing = false; replayComplete = false
     }
     private func connectLoop(run: Int) async {
         if pairCode == nil {
@@ -75,7 +78,7 @@ struct ReconnectDelay {
         guard run == generation else { return }
         guard pairCode != nil || token != nil else { status = .revoked; return }
         while !Task.isCancelled && run == generation {
-            status = .connecting; welcomed = false; syncing = false
+            status = .connecting; welcomed = false; syncing = false; replayComplete = false
             do {
                 let url = try Self.endpoint(store.settings.address)
                 var request = URLRequest(url: url); request.timeoutInterval = 5
@@ -99,6 +102,7 @@ struct ReconnectDelay {
                 }
             } catch {
                 guard run == generation, !Task.isCancelled else { return }
+                welcomed = false
                 if socket?.closeCode.rawValue == 1009 { status = .tooLarge }
                 if error is GateFailure { // Durable storage/protocol failures must not spin on reconnect.
                     if case GateFailure.storage = error { status = .storageError; return }
@@ -126,7 +130,7 @@ struct ReconnectDelay {
                 guard saved else { status = .storageError; return false }
                 token = issued; pairCode = nil
             }
-            welcomed = true; backoff.reset(); status = .connected
+            welcomed = true; connectionEpoch += 1; replayComplete = false; backoff.reset(); status = .connected
         case "pair_rejected": pairCode = nil; status = .wrongCode; return false
         case "auth_rejected":
             let keychain = credentials, account = store.settings.credentialAccount
@@ -136,11 +140,11 @@ struct ReconnectDelay {
         case "message", "edit", "delete", "state":
             guard let seq = frame["seq"] as? Int, seq > 0 else { throw GateFailure.protocolError }
             if seq <= store.settings.applied { return true }
-            if seq > store.settings.applied + 1 { if !syncing { syncing = true; try await sync() }; return true }
+            if seq > store.settings.applied + 1 { replayComplete = false; if !syncing { syncing = true; try await sync() }; return true }
             do { try store.append(frame) } catch { throw GateFailure.storage }
         case "sync_done":
             guard let through = frame["through"] as? Int, let more = frame["more"] as? Bool else { throw GateFailure.protocolError }
-            syncing = false
+            syncing = false; replayComplete = !more && through <= store.settings.applied
             if more || through > store.settings.applied { syncing = true; try await sync() }
         case "ping": try await send(["v": 1, "type": "pong"])
         case "error": if frame["code"] as? String == "too_large" { status = .tooLarge }
@@ -148,10 +152,21 @@ struct ReconnectDelay {
         }
         onFrame?(frame); return true
     }
+    func authorizedRequest(components: [String], query: [URLQueryItem] = []) throws -> URLRequest {
+        guard let token else { throw GateFailure.notConnected }
+        var parts = URLComponents(url: try Self.endpoint(store.settings.address), resolvingAgainstBaseURL: false)!
+        parts.scheme = parts.scheme == "wss" ? "https" : "http"
+        let safe = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_-"))
+        parts.percentEncodedPath = "/" + components.map { $0.addingPercentEncoding(withAllowedCharacters: safe)! }.joined(separator: "/")
+        parts.queryItems = query.isEmpty ? nil : query
+        var request = URLRequest(url: parts.url!); request.timeoutInterval = 30
+        request.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
+        return request
+    }
     private func sync() async throws { try await send(["v": 1, "type": "sync", "id": UUID().uuidString.lowercased(), "since": store.settings.applied]) }
     func send(_ frame: [String: Any]) async throws {
         let string: String
         do { string = try Self.encoded(frame) } catch { status = .tooLarge; throw error }
-        guard let socket else { return }; try await socket.send(.string(string))
+        guard let socket else { throw GateFailure.notConnected }; try await socket.send(.string(string))
     }
 }

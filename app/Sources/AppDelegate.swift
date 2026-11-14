@@ -5,6 +5,8 @@ import AppKit
     private var store: LocalStore!
     private var client: GateClient!
     private var pet: PetController!
+    private var conversation: ConversationController!
+    private var conversationView: ConversationView!
     private var connection: ConnectWindow!
     private var item: NSStatusItem!
     private var statusItem: NSMenuItem!
@@ -14,6 +16,27 @@ import AppKit
             try FileManager.default.createDirectory(at: AppIdentity.support, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
             instance = try InstanceLock(directory: AppIdentity.support); store = try LocalStore()
             client = GateClient(store: store); pet = PetController(store: store, atlas: try SpriteAtlas())
+            conversation = try ConversationController(client: client)
+            conversationView = ConversationView(controller: conversation)
+            pet.pet.installConversation(conversationView)
+            pet.preferredChatSize = CGSize(width: PetLayout.expandedSize.width + ConversationSidebar.width, height: PetLayout.expandedSize.height)
+            conversationView.onCollapse = { [weak self] in self?.pet.collapseChat() }
+            conversationView.onUnread = { [weak self] count in self?.pet.pet.unreadCount = count }
+            conversationView.onSidebarWidth = { [weak self] delta in
+                guard let self, let current = self.pet.placementTarget else { return }
+                self.pet.preferredChatSize.width += delta; self.pet.placePet(at: current.anchorOrigin)
+            }
+            var headerDragOrigin: CGPoint?
+            var headerDragPointer: CGPoint?
+            for header in [conversationView.headerDrag, conversationView.brandDrag] {
+                header.onBegan = { [weak self] point in headerDragPointer = point; headerDragOrigin = self?.pet.placementTarget?.anchorOrigin }
+                header.onChanged = { [weak self] point in
+                    if let start = headerDragPointer, let origin = headerDragOrigin { self?.pet.movePet(to: CGPoint(x: origin.x + point.x-start.x, y: origin.y+point.y-start.y)) }
+                }
+                header.onEnded = { [weak self] in self?.pet.endPetDrag(); headerDragOrigin = nil; headerDragPointer = nil }
+            }
+            conversationView.refresh()
+            pet.onExpansionChanged = { [weak self] expanded in self?.conversation.model.setVisible(expanded) }
             connection = ConnectWindow(client: client)
             installEditMenu()
             let menu = NSMenu(); menu.delegate = self; menu.autoenablesItems = false
@@ -29,7 +52,7 @@ import AppKit
             item.button?.image = MenuBarIcon.image(description: "hejo"); item.menu = menu
             pet.pet.onMenu = { [weak self] event in guard let self else { return }; NSMenu.popUpContextMenu(menu, with: event, for: self.pet.pet) }
             client.onStatus = { [weak self] status in
-                self?.statusItem.title = status.text; self?.pet.pet.statusLabel.stringValue = status.text; self?.connection.update(status)
+                self?.statusItem.title = status.text; self?.pet.pet.statusLabel.stringValue = status.text; self?.connection.update(status); self?.conversationView.refresh()
             }
             pet.show()
             if store.settings.address.isEmpty { connection.present() } else { client.resume() }

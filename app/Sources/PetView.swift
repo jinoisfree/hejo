@@ -17,6 +17,23 @@ final class PetPanel: NSPanel {
         super.sendEvent(event)
     }
 }
+@available(macOS 26.0, *)
+final class PetGlassView: NSGlassEffectView { override func hitTest(_ point: NSPoint) -> NSView? { nil } }
+final class PetVibrancyView: NSVisualEffectView { override func hitTest(_ point: NSPoint) -> NSView? { nil } }
+final class PetBadgeView: NSView {
+    static let height: CGFloat = 13
+    var text = "" { didSet { needsDisplay = true } }
+    private static let attributes: [NSAttributedString.Key: Any] = [.font: NSFont.boldSystemFont(ofSize: 8.5), .foregroundColor: NSColor.white]
+    static func size(_ text: String) -> CGSize { CGSize(width: max(height, ceil((text as NSString).size(withAttributes: attributes).width) + 6), height: height) }
+    override var isOpaque: Bool { false }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    override func draw(_ dirtyRect: NSRect) {
+        let edge = bounds.insetBy(dx: 0.5, dy: 0.5), path = NSBezierPath(roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5), xRadius: bounds.height / 2, yRadius: bounds.height / 2)
+        NSColor.systemBlue.setFill(); path.fill(); NSColor.white.setStroke(); path.lineWidth = 1; path.stroke()
+        let size = (text as NSString).size(withAttributes: Self.attributes)
+        (text as NSString).draw(at: NSPoint(x: edge.midX-size.width/2, y: edge.midY-size.height/2), withAttributes: Self.attributes)
+    }
+}
 final class PetSpriteView: NSView {
     var onDraw: ((CGRect) -> Void)?
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
@@ -28,6 +45,23 @@ final class PetView: NSView {
     let conversation = NSView()
     let statusLabel = NSTextField(labelWithString: "공항 연결 전")
     let collapseButton = NSButton(title: "펫으로 접기", target: nil, action: nil)
+    private var conversationContent: NSView?
+    private var glass: NSView!
+    private let tint = NSView()
+    let unreadBadge = PetBadgeView()
+    var unreadCount = 0 { didSet { updateUnreadBadge() } }
+    private func updateUnreadBadge() {
+        let text = unreadCount > 99 ? "99+" : unreadCount > 0 ? String(unreadCount) : ""
+        unreadBadge.text = text
+        let head = atlas.interactionRect(in: spriteRect), size = PetBadgeView.size(text)
+        unreadBadge.frame = CGRect(origin: CGPoint(x: floor(min(head.maxX-size.width/2,spriteRect.maxX-size.width)), y: floor(min(head.maxY-size.height/2,spriteRect.maxY-size.height))), size: size)
+        unreadBadge.isHidden = unreadCount <= 0 || placement?.expanded == true
+        unreadBadge.setAccessibilityLabel("안 읽은 답 \(unreadCount)개")
+    }
+    func installConversation(_ view: NSView) {
+        conversationContent?.removeFromSuperview(); conversationContent = view; conversation.addSubview(view)
+        statusLabel.isHidden = true; collapseButton.isHidden = true
+    }
     let genie = GenieView()
     private let sprite = PetSpriteView()
     var placement: PetPlacement?
@@ -50,12 +84,19 @@ final class PetView: NSView {
     init(atlas: SpriteAtlas) {
         self.atlas = atlas; super.init(frame: .zero)
         wantsLayer = true; conversation.wantsLayer = true
-        conversation.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+        tint.wantsLayer = true
+        if #available(macOS 26.0, *) {
+            let surface = PetGlassView(); surface.style = .clear; surface.cornerRadius = PetLayout.cornerRadius; surface.contentView = tint; glass = surface
+        } else {
+            let surface = PetVibrancyView(); surface.material = .popover; surface.blendingMode = .behindWindow; surface.state = .active; surface.addSubview(tint); glass = surface
+        }
+        glass.autoresizingMask = [.width, .height]; tint.autoresizingMask = [.width, .height]
+        conversation.addSubview(glass)
         conversation.layer?.cornerRadius = PetLayout.cornerRadius
         conversation.layer?.masksToBounds = true
         statusLabel.font = .systemFont(ofSize: 13); statusLabel.textColor = .secondaryLabelColor
         conversation.addSubview(statusLabel); conversation.addSubview(collapseButton)
-        addSubview(conversation); addSubview(genie); addSubview(sprite)
+        addSubview(conversation); addSubview(genie); addSubview(sprite); addSubview(unreadBadge); unreadBadge.isHidden = true
         genie.wantsLayer = true
         sprite.onDraw = { [weak self] cell in
             guard let self else { return }; self.atlas.draw(row: self.pose.row, frame: self.pose.column, in: cell, view: self.sprite)
@@ -96,6 +137,11 @@ final class PetView: NSView {
         sprite.frame = p.spriteRect; conversation.frame = p.bubbleRect; genie.frame = bounds
         statusLabel.frame = CGRect(x: 20, y: max(20, p.bubbleRect.height - 80), width: max(0, p.bubbleRect.width - 40), height: 36)
         collapseButton.frame = CGRect(x: 16, y: max(0, p.bubbleRect.height - 38), width: 120, height: 28)
+        glass.frame = conversation.bounds; tint.frame = conversation.bounds
+        let dark = effectiveAppearance.bestMatch(from: [.darkAqua,.aqua]) == .darkAqua
+        tint.layer?.backgroundColor = (dark ? NSColor.black : .white).withAlphaComponent(NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency ? 1 : 0.65).cgColor
+        conversationContent?.frame = CGRect(origin: .zero, size: p.bubbleRect.size)
+        updateUnreadBadge()
         sprite.needsDisplay = true
     }
     func spriteContains(_ point: CGPoint) -> Bool { atlas.opaque(at: point, in: spriteRect, row: pose.row, frame: pose.column) }

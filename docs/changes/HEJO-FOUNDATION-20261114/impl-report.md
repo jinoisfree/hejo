@@ -607,3 +607,56 @@ githooks/pre-commit
 V-5 기록장 메모리/선형 탐색과 과거 이력 개인값 정리 부채는 유지한다. 권위 원본은 문이고 캐시는 복제다. 검토자는 Keychain stdin·시험 계정 정리, applied와 캐시 복구, 연결 취소 세대 경계, 비활성 패널/펫 입력·화면 배치, 복사 제외 범위와 4판 계획 재검증을 우선 확인해 달라. TASK-06 후보 대화 코드는 아직 복사하지 않았다.
 
 운영 홈 쓰기·재시작, 본체/다른 저장소 수정, 비밀 파일 열기, 실제 외부 메시지, git push는 없다. 검사기는 허가된 두 운영 입력만 읽었다. 롤백은 이번 구현 커밋 되돌림이며 운영 롤백은 필요 없다. 검토 대상은 main에서 이 절을 담은 구현 커밋(전체 해시는 최종 인계 상태 블록)이다. Git 원격은 미등록이므로 푸시 대상이 확정되지 않았으며 푸시 불필요나 최종 완료 판정을 내리지 않는다.
+
+## TASK-06 앱 대화 화면 (2026-11-14, 보완 지시 7·방 단위 모델 포함)
+
+### 받은 기준·실제 변경
+
+최초 기준은 `91c2938a4736b0b7f62c170001c3bba2ac0aaec2`였다. 작업 중 별도 계획 커밋 `3e83fd0a63d3edf285bb556d616b4865bd76f4bd`(시안 2판), `8e89e808c14bd596e26398b72c7bdc8deb106c9f`(8판·보완 지시 7), `007b68f592ee3c549d7a407bcbcf53117e22f262`(방 단위 모델 인계 보완·시안 3판)을 직접 확인했다. 최신 spec REQ-HF-12·design 6절·handoff 보완 지시 7·AT-HF-26을 따라 **세 칸 배치를 제거하고 ddots 현재 화면을 AppKit으로 이식했다. 시안 파일을 화면 기준으로 채택하지 않았다.** 시안 4·5·6·7 추가 커밋도 변경 범위가 시안 두 파일뿐임을 확인해 보존했다. 현재 계약은 8판 그대로다. 외부 계획 변경은 보존했으며 구현자가 수락 명세나 판정 문서를 고치지 않았다. 구현·자체 시험 결과를 아래에 기록하며 최종 완료 판정은 검토 담당에게 맡긴다.
+
+원본 커밋·전체 읽기·의존·제외·상수 출처·SwiftUI → AppKit 대응은 복사 전에 `copy-review.md`에 기록했다. 기존 TASK-06 후보에 더해 ChatPanel·SlackPanel·ChatWorkspace·ChatPresentation·NativeThreadContent·SlackThreads·PetView를 끝까지 읽었다. 원본 코드·설정·실행에는 쓰지 않았다.
+
+- `ConversationModel.swift`: 직원·방·스레드·글·파일·버튼·작성 중의 중립 조회 모델이다. `Room{id, kind, title, members}`는 welcome/roster 직원에서 파생하는 1:1 direct 방이며 별도 저장/권위 원본을 만들지 않았다. 탭·목록·카드·안 읽은 수가 방을 쓰고, 송신은 기존 employee·thread 규격에 대응한다. 기록장 seq 순서로 message/edit/delete/state 적용, 중복 무시·빈칸 거부, 캐시 재구성, 스레드별 readSeq 저장, ttl 만료를 구현했다. 사진은 첫 글자 아이콘으로 대체했다.
+- `ConversationController.swift`: 초안·첨부·확인 대기를 직원/스레드별 메모리에 둔다. 업로드 중 직원 전환은 송신 대상을 바꾸지 않는다. 주소/연결 epoch가 바뀌면 전송을 멈추며 같은 client_msg_id의 확인 글이 와야 바뀌지 않은 초안을 비운다. 미확인 끊김 뒤 재동기화에도 확인이 없으면 초안을 보존하고 명시적 재전송을 기다린다. 자동 재송신은 없다. unknown_file·too_large·만료 버튼·파일 실패를 안내한다.
+- `GateHTTP.swift`·`GateClient.swift`: 같은 문의 인증 HTTP POST/GET, 50 MiB·메타·이름·바이트 수 검사, 리디렉션 거부·원자 다운로드 캐시를 구현했다. 읽기/큰 multipart 조립/파일 쓰기는 UI 밖에서 한다. 출입증은 요청 헤더에만 넣는다. 기존 1 MiB 사전 검사·applied 재전송·백오프는 유지하고, 실제 transport/안내 상태 분리·마지막 sync_done 전 송신 차단·연결 epoch만 확장했다. 새 프레임·새 공개 저장 형식은 없다.
+- `ConversationView.swift`·`ConversationChrome.swift`: 원본의 68px 탭 줄(72px 행), 끌면 180~300px 목록(58px 행)/숨김, 44px 브랜드/제목 머리글, 검색, 한 목록의 스레드 카드·한 개 펼침·이전 답글 더미·상태 레일·작성 중 점·버튼·첨부 타일, 새 글/답글 입력 전환·독립 초안, 끊김/오류/알림 띠를 AppKit으로 옮겼다. 원본의 간격·폰트·표면 상수와 NativeThreadCard의 네이티브 TextKit/카드/스트리밍/더미 그리기를 사용한다. 첨부·버튼·작성 중의 hosted 조각은 NSView로 바꿨다. Slack 링크·분기·삭제 API는 가져오지 않았고 새 규격을 만들지 않았다. 복사·접기는 로컬 동작이다. Enter/Shift Enter는 실제 키 이벤트, 한글 marked text는 AppKit 처리를 유지한다.
+- `PetView.swift`·`PetController.swift`·`AppDelegate.swift`: 단일 PetPanel·genie·4px 끌기·포커스 비탈취는 유지했다. 대화 내용을 패널 전체에 넣고 중복 머리글을 없앴다. 원본 기본 대화 폭 360+탭68, 높이500, glass/vibrancy·65% tint·투명도 줄이기를 사용한다. 머리글의 드래그와 “펫으로 접기” 문맥 메뉴, 닫힌 펫의 13px 파란 안 읽은 배지를 연결했다. 별도 SwiftUI 미니 펫은 원본 맥에서도 꺼져 있어 추가하지 않았다.
+- AppKit 파서·서식·입력·붙여넣기·드롭·아이콘·카드·리스트는 독립 복사/이식했다. SwiftUI·NSViewRepresentable·NSHosting·SlackModel·개인 설정·계정/직원 카드/공방은 없다. README와 앱 시험 진입점을 갱신했다. gate/schema/설치 코드/기존 TASK-05 기대값은 불변이다. 테스트 대역 외 운영 연결은 하지 않았다.
+
+### 시험·명령·로그
+
+일반 위험·필요/도달 증거 **수준 2**: 실제 AppKit·URLSession·Keychain·파일 저장과 임시 루프백 문 대역을 실행했다. 기존 AT-22의 실제 게이트웨이 경계는 수준 3이며 새 화면의 운영 검증으로 확대하지 않는다. 바깥 HERMES_HOME도 임시 폴더이고 HEJO_TEAM_KIT_LIB를 지정했다. 시험용 붙여넣기 영역도 각 시험 폴더에 주입했다.
+
+```sh
+export HERMES_DISABLE_LAZY_INSTALLS=1 PYTHONDONTWRITEBYTECODE=1
+export HEJO_PYTHON="$HERMES_PYTHON"
+export HEJO_TEAM_KIT_LIB
+export PYTHONPATH="$PWD/.build/task03a-deps:$PWD/.build/task02-deps:$HERMES_SOURCE:$PWD"
+# HERMES_HOME은 호출 조정기의 TemporaryDirectory
+bash scripts/test.sh
+python3 .build/task06_mutations.py
+python3 scripts/scan_private.py
+githooks/pre-commit
+```
+
+| 명령·검사 | 종료·실제 결과 | 로그(저장소 기준) |
+|---|---|---|
+| `bash scripts/test.sh` | 0, 기존 **80 passed** + AT-22 + AT-23·24·25·47 자동·48 + 대화 모델/Room/배치/HTTP·WS + Keychain 정리 | `.build/task06-r7-full.log`, `.build/task06-r7-full-result.json` |
+| `python3 .build/task06_mutations.py` | 0, 세 변형 각각 컴파일 0 / 대상 시험 1로 검출, 제품 원본 불변 | `.build/task06-r7-mutations.log`, `.build/task06-mutation-results.json` |
+| `python3 scripts/scan_private.py` | 0, 위반 0·새 예외 없음 | `.build/task06-scan.log` |
+| `githooks/pre-commit` | 0, 위반 0 | `.build/task06-hook.log` |
+| AST·쉘·복사/변경 범위·TASK-05 기대값 불변·로그·diff | 0 | `.build/task06-static.log` |
+
+모델 시험은 seq·중복·빈칸·edit/state/delete·readSeq/재시작·캐시 삭제 후 applied=0·typing ttl·방 대응을 확인한다. 화면 시험은 원본 메트릭·탭/목록/숨김·한 개 펼침·긴 답글 더미·새 글/답글 초안 격리·닫힘/열림 배지·여는 동작의 키 포커스 비탈취를 확인한다. 기존 TASK-05 시험은 그대로 유지했다. AT-22는 리스너 1·배달 4·새 스레드 4·오프라인 재전송 2·다른 플랫폼 0·GATEWAY_EXIT clean이었다.
+
+루프백 시험은 공유 JSON Schema로 양방향 프레임을 검증한다. 재전송→클릭→unknown_file 초안 보존→업로드 중 직원 전환→원래 문맥으로 송신/확인→파일 원본 바이트 GET/열기 콜백→다른 직원 GET 거부→64 KiB 사전 차단→서버 too_large 뒤 초안/연결 보존→정상 송신→리디렉션 차단→미확인 TCP 끊김/재접속/자동 재송신 0을 확인했다. 최종 대역 관측은 업로드 2·클릭 1·보내기 요청 5·성공 다운로드 1·리디렉션 후속 요청 0이다. 마지막 요청은 끊김 주입이며 배달 성공이 아니다. Keychain 시험 항목은 삭제 후 없음(종료 44)을 확인한다.
+
+변형은 임시 소스 복사본에서만 실행했다. 읽음 계산의 직원/스레드 필터 제거는 격리 단언으로, HTTP 리디렉션 허용은 후속 요청/파일 열기 단언으로, 원본 표 스타일 plain→inset은 실제 배치 후 양쪽 12pt 여백 단언으로 검출했다. 최초 여백 검사가 화면 갱신 전 셀 폭만 보아 세 번째 변형을 놓쳤다(조정 종료 1). AppKit의 실제 배치가 끝난 뒤 셀을 실현하고 viewport 좌표의 양쪽 여백을 검사하도록 강화했으며, 최종 세 변형은 모두 실패를 검출했다. `.build/task06-mutant-{unread_isolation,redirect_policy,card_clipping}.log`에 대상 종료 1의 원인이 있다. 자동 캡처도 배치 후 촬영했다. 다른 화면 조합은 같은 성질의 변형을 중복 추가하지 않았고 TASK-05 크기·끌기·seq 근거를 유지한다. 초기 구현 중 줄바꿈 시험의 잘못된 이벤트 준비와 선택 client_msg_id에 null을 넣은 대역을 고쳤다. 공유 Schema와 기존 수락 기대값은 바꾸지 않았다.
+
+### 미검증·검토·롤백
+
+`evidence/HEJO-FOUNDATION/TASK-06.md`에 AT-26 8판의 같은 창 크기 나란히 비교 자리·체크리스트를 마련했다. ddots 촬영은 개인 내용 가림과 사장 참여가 필요한 TASK-09로 인계한다. ddots를 실행/설정 변경하지 않았다. 두 자동 AppKit 캡처는 가짜 명부/대역이며 수동·ddots와 시각 동등 판정 증거가 아니다. **실행 중 ddots와의 크기·간격·색·글꼴·애니메이션 시각 동등성은 수동 미검증**이다.
+
+운영 페어링·실제 직원/외부 메시지·운영 설치/재시작, Finder/클립보드 실조작·한글 입력기·외부 앱 파일 열기, 포커스/녹화·다중 화면·최대 이력/파일 성능은 미검증이다. 파일 열기는 콜백과 바이트만 검사하고 실제 다른 앱은 실행하지 않았다. TASK-05 수동 4항목·V-5 기록장 성능·과거 이력 개인값 정리 부채는 유지한다.
+
+검토자는 8판 원본 이식/제외 경계와 Room 대응, 조회 모델/readSeq 복원, 업로드/초안/재접속 문맥, HTTP 권한/리디렉션, 패널 포커스/카드 조작, 자동·수동 증거 구분을 우선 확인해 달라. 운영 홈 쓰기·재시작·비밀 파일 열기·본체/다른 저장소 수정·실제 메시지·푸시는 없다. 개인값 검사기는 허가된 두 운영 입력만 읽었다. 롤백은 구현 커밋 되돌림이다. 원격은 미등록이며 제품 최종 완료·푸시 불필요 판정을 내리지 않는다. 구현 커밋 전체 해시와 저장소 상태는 최종 인계 블록에 기록한다.
