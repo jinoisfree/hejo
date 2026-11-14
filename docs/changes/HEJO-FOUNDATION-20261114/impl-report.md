@@ -915,3 +915,22 @@ AT-HF-30: 운영 원본 전부 auto·다른 키 차이 0·동기화 커밋 확�
   - team-kit 답장 버튼(`392a2afb`)
   - 캐시 auto(`855149a4`)
 - **아직 하지 않은 것:** hejo 문 설치(`install/hejo-install`). 설치 뒤에는 한 번 더 재시작해야 한다. 노트북 페어링과 실물 확인도 남았다.
+
+### TASK-09 2단계 이후 — 설치기 수정·설치·재시작·실물 확인 (2026-11-15, 사장 지시 "마지막 단계까지")
+
+- **설치기 결함·수정 (hejo `a30c28b`)**
+  - **결함:** 전체 ruamel 왕복이 운영 설정 6개를 각각 6~452줄 다시 썼다. YAML 1.1 reader에서 따옴표가 빠진 값의 뜻이 바뀔 위험도 있었다.
+  - **수정:** 바이트 그대로 왕복되지 않는 파일은 대상 줄만 고친다(목록 항목 추가·삭제, 매핑 끝 삽입, 빈 인라인 부모 한 줄 교체). `hermes_yaml.safe_load`로 다시 읽어 hejo 키 밖 차이 0을 검증한다. 모양이 맞지 않으면 쓰지 않고 거부한다.
+  - **시험:** `tests/acceptance/test_install.py`가 15개 통과했다(새 3개 포함). 환경 지정 `bash scripts/test.sh`는 0이다(gate 83, `.build/task09-installer-hejo.log`).
+- **운영 설치와 기록**
+  - 운영 설치: 6개 설정에 hejo 줄만 더해졌고, `--check`는 0이다(`.build/task09-install.log`).
+  - 운영 저장소: `./airport-check` 0, `./sync` 0, 설정 사본 6개만 `--only` 커밋 `8fad28e65ada45da578fa8ea1fe3af73723fa6c7`. 원본과 사본 일치를 확인했다.
+- **재시작 ②**
+  - 13 플랫폼(hejo 6, Slack 6, photon 1)이다. `127.0.0.1:47820` 리스너가 1개이고, 오류 로그 새 줄은 hejo와 무관한 기존 homeassistant 경고 1건뿐이다.
+- **실물 확인 (루프백)**
+  - `.build/task09/e2e.py`: 기본 직원 5회, 보조 직원 1회. 실제 답, 작성 중 표시, 다시 받기 순서를 확인했다(`.build/task09-e2e*.json`).
+  - `.build/task09/files.py`: 첨부 업로드·읽기·다운로드, 무출입증 401(`.build/task09-files.json`).
+  - 시험 기기 3개는 모두 취소했다(활성 0).
+- **되돌림**
+  - 설치 전 사본으로 설치·제거를 돌렸다(`.build/task09/uninstall-dryrun.sh`). 설치 결과는 운영 파일과 바이트가 같았고, 제거하면 원본과 바이트가 같았다.
+- **남은 것:** 노트북 Tailscale·눈 확인 항목. `evidence/HEJO-FOUNDATION/TASK-09.md` 체크리스트에 있다.
