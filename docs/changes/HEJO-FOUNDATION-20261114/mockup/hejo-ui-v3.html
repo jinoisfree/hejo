@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>hejo UI 시안 3판 — 펫 패널 세 칸(다크)</title>
+<style>
+  :root { --bg:#d9d9de; --glass:#1e1e21; --pane:#232327; --side:#1a1a1d; --line:#2f2f34; --text:#f2f2f4; --sub:#9a9aa3;
+          --dim:#6c6c74; --accent:#0a84ff; --accentSoft:rgba(10,132,255,.16); --card:#2a2a2f; --cardSel:#34343b; --red:#ff453a; --green:#30d158; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:30px; width:1584px; background:var(--bg); color:var(--text);
+         font:13px/1.45 -apple-system,"SF Pro Text","Apple SD Gothic Neo",sans-serif; }
+  h1 { font-size:22px; margin:0 0 4px; color:#1d1d1f; } .lead { color:#55555c; margin:0 0 20px; }
+  .cap { font-size:12px; font-weight:600; color:#55555c; margin:0 0 6px; } .cap b { color:#1d1d1f; }
+  .pet { width:96px; height:104px; margin:0 0 -22px 520px; position:relative; z-index:2;
+         background:url(../../../../app/Resources/Pet/wave.png) 0 0/400% 100% no-repeat; }
+  .panel { background:var(--glass); border-radius:18px; overflow:hidden; display:flex; flex-direction:column;
+           box-shadow:0 0 0 .5px rgba(0,0,0,.5), 0 20px 44px rgba(0,0,0,.35); }
+  .top { height:40px; display:flex; align-items:center; gap:10px; padding:0 14px; border-bottom:1px solid var(--line); }
+  .fold { font-size:12px; padding:4px 10px; border-radius:7px; background:#2e2e33; color:#e6e6ea; }
+  .top .title { flex:1; text-align:center; font-weight:600; color:#d8d8dc; font-size:12.5px; }
+  .pill { font-size:11px; padding:2px 8px; border-radius:999px; background:rgba(48,209,88,.15); color:#5fe08a; display:inline-flex; gap:5px; align-items:center; }
+  .pill::before { content:""; width:6px; height:6px; border-radius:50%; background:currentColor; }
+  .main { flex:1; display:flex; min-height:0; }
+  .rooms { width:168px; background:var(--side); border-right:1px solid var(--line); padding:8px 7px; display:flex; flex-direction:column; gap:2px; }
+  .sec { font-size:10.5px; color:var(--dim); font-weight:600; padding:6px 8px 4px; letter-spacing:.02em; }
+  .room { display:flex; align-items:center; gap:9px; padding:7px 8px; border-radius:10px; position:relative; }
+  .room.sel { background:#2c2c32; }
+  .room.sel::before { content:""; position:absolute; left:-7px; top:10px; bottom:10px; width:3px; border-radius:2px; background:var(--accent); }
+  .av { width:30px; height:30px; border-radius:9px; color:#fff; font-weight:700; font-size:13px; display:flex; align-items:center; justify-content:center; flex:none; position:relative; }
+  .av .st { position:absolute; right:-2px; bottom:-2px; width:9px; height:9px; border-radius:50%; background:var(--green); border:2px solid var(--side); }
+  .c1{background:#4f7cff}.c2{background:#ff8a3d}.c3{background:#22b08a}.c4{background:#9a6cff}.cg{background:#3a3a40;color:#8a8a92}
+  .room .n { flex:1; min-width:0; } .room .n b { display:block; font-size:12.5px; }
+  .room .n small { display:block; font-size:11px; color:var(--sub); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .badge { min-width:17px; height:17px; padding:0 5px; border-radius:9px; background:var(--red); color:#fff; font-size:10.5px; font-weight:700; display:inline-flex; align-items:center; justify-content:center; }
+  .room.later { opacity:.45; }
+  .threads { width:236px; background:var(--pane); border-right:1px solid var(--line); display:flex; flex-direction:column; }
+  .tools { padding:9px 9px 6px; display:flex; flex-direction:column; gap:6px; }
+  .search { background:#2b2b30; border-radius:8px; padding:5px 9px; color:var(--dim); font-size:12px; }
+  .newt { background:#2e2e34; border-radius:8px; padding:5px; text-align:center; font-size:12px; color:#e6e6ea; }
+  .tlist { padding:2px 9px; display:flex; flex-direction:column; gap:6px; overflow:hidden; }
+  .t { background:var(--card); border-radius:10px; padding:8px 10px; }
+  .t.sel { background:var(--cardSel); box-shadow:inset 0 0 0 1px rgba(10,132,255,.55); }
+  .t .r1 { display:flex; align-items:center; gap:6px; } .t .r1 b { flex:1; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .time { font-size:10.5px; color:var(--dim); }
+  .t .pv { font-size:11.5px; color:var(--sub); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .tags { display:flex; gap:5px; margin-top:5px; }
+  .tag { font-size:10px; padding:1px 6px; border-radius:5px; background:#36363c; color:#bdbdc4; }
+  .tag.typing { background:var(--accentSoft); color:#5aa9ff; } .tag.ask { background:rgba(255,159,10,.16); color:#ffb547; }
+  .conv { flex:1; display:flex; flex-direction:column; min-width:0; }
+  .ch { padding:10px 16px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:9px; }
+  .ch b { font-size:13.5px; } .ch small { color:var(--sub); } .ch .sp { flex:1; }
+  .msgs { flex:1; padding:12px 18px; overflow:hidden; display:flex; flex-direction:column; gap:12px; }
+  .post { display:flex; gap:9px; max-width:86%; } .post .av { width:28px; height:28px; font-size:12px; }
+  .who { font-weight:600; font-size:12.5px; } .who span { color:var(--dim); font-weight:400; margin-left:5px; font-size:11px; }
+  .body { font-size:13px; margin-top:2px; color:#e9e9ec; } .body ul { margin:4px 0; padding-left:17px; } .body b { color:#fff; }
+  .body code { font:11.5px ui-monospace,Menlo,monospace; background:#33333a; padding:1px 5px; border-radius:4px; }
+  .mine { align-self:flex-end; display:flex; flex-direction:column; align-items:flex-end; gap:4px; max-width:70%; }
+  .bub { background:var(--accent); color:#fff; padding:7px 12px; border-radius:16px 16px 5px 16px; font-size:13px; }
+  .file { display:flex; gap:9px; align-items:center; background:#2c2c32; border-radius:9px; padding:6px 10px; font-size:12px; }
+  .file .fi { width:22px; height:28px; border-radius:3px; background:#ff453a; color:#fff; font-size:7.5px; font-weight:700; display:flex; align-items:flex-end; justify-content:center; padding-bottom:3px; }
+  .file small { display:block; color:var(--sub); font-size:10.5px; }
+  .btns { display:flex; gap:6px; margin-top:7px; }
+  .b { font-size:11.5px; padding:4px 10px; border-radius:7px; background:#2f2f35; color:#e6e6ea; }
+  .b.p { background:var(--accent); color:#fff; }
+  .stream::after { content:"▍"; color:var(--accent); }
+  .typing { display:flex; gap:4px; align-items:center; color:#5aa9ff; font-size:11.5px; padding:0 18px 6px; }
+  .typing i { width:6px; height:6px; border-radius:50%; background:var(--accent); }
+  .typing i:nth-child(1){opacity:.45}.typing i:nth-child(2){opacity:.7}
+  .comp { border-top:1px solid var(--line); padding:9px 12px 11px; }
+  .chips { display:flex; gap:6px; margin-bottom:6px; } .chip { font-size:11px; background:#2f2f35; border-radius:6px; padding:2px 8px; color:#d0d0d6; }
+  .box { background:#2a2a2f; border-radius:11px; padding:8px 10px; display:flex; align-items:flex-end; gap:9px; }
+  .box .ph { flex:1; color:var(--dim); min-height:34px; font-size:12.5px; }
+  .clip { color:#a0a0a8; font-size:15px; } .send { width:28px; height:28px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; }
+  .hint { font-size:10.5px; color:var(--dim); margin-top:5px; display:flex; justify-content:space-between; }
+  .band { background:rgba(255,159,10,.14); color:#ffb547; font-size:11.5px; padding:5px 14px; border-bottom:1px solid rgba(255,159,10,.25); }
+  .row { display:flex; gap:28px; align-items:flex-start; }
+  .notes { width:330px; font-size:12.5px; line-height:1.7; color:#2a2a2e; }
+  .notes h3 { font-size:13px; margin:0 0 6px; } .notes p { margin:0 0 9px; }
+</style>
+</head>
+<body>
+<h1>hejo UI 시안 3판 — 펫 패널 세 칸 (다크)</h1>
+<p class="lead">진행 중 화면(방 목록 · 스레드 목록 · 대화)을 바탕으로 다듬은 예시. 넓을 때는 세 칸, 좁히면 스레드 목록이 접힌다. 이름은 모두 예시.</p>
+
+<p class="cap"><b>A. 넓게 (1080×560)</b> · 방 → 스레드 → 대화</p>
+<div class="pet"></div>
+<div class="panel" style="width:1080px;height:560px">
+  <div class="top"><span class="fold">⌄ 펫으로 접기</span><span class="title">비서 · 오늘 받은 메일 정리</span><span class="pill">공항 연결됨</span></div>
+  <div class="main">
+    <div class="rooms">
+      <div class="sec">직원</div>
+      <div class="room sel"><div class="av c1">비<span class="st"></span></div><div class="n"><b>비서</b><small>답장 초안 쓰는 중…</small></div><span class="badge">2</span></div>
+      <div class="room"><div class="av c2">리<span class="st"></span></div><div class="n"><b>리서처</b><small>시장 조사 요약 완료</small></div><span class="badge">1</span></div>
+      <div class="room"><div class="av c3">회<span class="st"></span></div><div class="n"><b>회계</b><small>영수증 3장 정리</small></div></div>
+      <div class="room"><div class="av c4">디<span class="st" style="background:#6c6c74"></span></div><div class="n"><b>디자이너</b><small>직무 없음</small></div></div>
+      <div class="sec" style="margin-top:8px">단체방 <span style="font-weight:400">· 2단계</span></div>
+      <div class="room later"><div class="av cg">#</div><div class="n"><b>팀 회의</b><small>곧 열려요</small></div></div>
+    </div>
+    <div class="threads">
+      <div class="tools"><div class="search">🔍 스레드 검색</div><div class="newt">＋ 새 스레드</div></div>
+      <div class="tlist">
+        <div class="t sel"><div class="r1"><b>오늘 받은 메일 정리</b><span class="time">6:18</span><span class="badge">2</span></div>
+          <div class="pv">비서: 중요 메일 3건이에요</div><div class="tags"><span class="tag typing">● 작성 중</span><span class="tag ask">답장 대기</span></div></div>
+        <div class="t"><div class="r1"><b>아침 보고</b><span class="time">8:00</span></div><div class="pv">오늘 일정 4개, 마감 1개</div><div class="tags"><span class="tag">⏰ 예약</span></div></div>
+        <div class="t"><div class="r1"><b>다음 주 일정 확인</b><span class="time">2:05</span></div><div class="pv">비워 두었어요</div></div>
+        <div class="t"><div class="r1"><b>견적서 PDF 요약</b><span class="time">어제</span></div><div class="pv">📎 견적서-요약.pdf</div></div>
+        <div class="t"><div class="r1"><b>거래처 연락처 정리</b><span class="time">11/12</span></div><div class="pv">사장: 고마워</div></div>
+      </div>
+    </div>
+    <div class="conv">
+      <div class="msgs">
+        <div class="mine"><div class="bub">오늘 온 메일 중 중요한 것만 정리해줘. 계약서도 같이 봐줘</div>
+          <div class="file"><div class="fi">PDF</div><div>계약서-초안.pdf<small>284 KB</small></div></div></div>
+        <div class="post"><div class="av c1">비</div><div><div class="who">비서<span>오후 6:15</span></div>
+          <div class="body">중요 메일 3건이에요.<ul><li><b>거래처 A</b> — 계약서 수정 요청(마감 <b>11/18</b>)</li><li><b>세무사</b> — 11월 자료 요청</li><li><b>팀 공지</b> — 다음 주 회의 시간 변경</li></ul>계약서는 <code>제7조 위약금</code> 문구가 메일 요청과 달라요.</div>
+          <div class="btns"><span class="b p">답장 초안 쓰기</span><span class="b">메모로 저장</span><span class="b">나중에</span></div></div></div>
+        <div class="mine"><div class="bub">거래처 A 답장 초안 써줘</div></div>
+        <div class="post"><div class="av c1">비</div><div><div class="who">비서<span>지금</span></div>
+          <div class="body stream">거래처 A 담당자님께, 보내주신 수정 요청 잘 받았습니다. 제7조 위약금 조항은</div></div></div>
+      </div>
+      <div class="typing"><i></i><i></i><i></i>&nbsp;비서가 작성 중</div>
+      <div class="comp"><div class="chips"><span class="chip">📎 회의록.docx ✕</span></div>
+        <div class="box"><span class="clip">📎</span><span class="ph">비서에게 답장…</span><span class="send">↑</span></div>
+        <div class="hint"><span>⏎ 보내기 · ⇧⏎ 줄바꿈 · 파일은 끌어다 놓기</span><span>Esc 접기</span></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="row" style="margin-top:30px">
+  <div>
+    <p class="cap"><b>B. 좁게 (560×560)</b> · 스레드 목록은 접히고 머리글의 ‹ 로 돌아감</p>
+    <div class="panel" style="width:560px;height:560px">
+      <div class="top"><span class="fold">⌄</span><span class="title">‹ 오늘 받은 메일 정리</span><span class="pill">연결됨</span></div>
+      <div class="main">
+        <div class="rooms" style="width:60px;align-items:center;padding:8px 0">
+          <div class="room sel" style="padding:6px"><div class="av c1">비<span class="st"></span></div></div>
+          <div class="room" style="padding:6px"><div class="av c2">리<span class="st"></span><span class="badge" style="position:absolute;top:-6px;right:-8px">1</span></div></div>
+          <div class="room" style="padding:6px"><div class="av c3">회<span class="st"></span></div></div>
+          <div class="room" style="padding:6px"><div class="av c4">디</div></div>
+        </div>
+        <div class="conv">
+          <div class="msgs">
+            <div class="mine"><div class="bub">거래처 A 답장 초안 써줘</div></div>
+            <div class="post"><div class="av c1">비</div><div><div class="who">비서<span>지금</span></div>
+              <div class="body stream">거래처 A 담당자님께, 보내주신 수정 요청 잘 받았습니다. 제7조 위약금 조항은</div></div></div>
+          </div>
+          <div class="typing"><i></i><i></i><i></i>&nbsp;작성 중</div>
+          <div class="comp"><div class="box"><span class="clip">📎</span><span class="ph">비서에게 답장…</span><span class="send">↑</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <p class="cap"><b>C. 끊김</b> · 패널 맨 위 띠</p>
+    <div class="panel" style="width:420px;height:200px">
+      <div class="band">🔌 공항과 연결이 끊겼어요 · 4초 뒤 다시 연결</div>
+      <div class="top"><span class="fold">⌄</span><span class="title">비서</span><span class="pill" style="background:rgba(255,159,10,.15);color:#ffb547">재연결 중</span></div>
+      <div class="main"><div class="conv"><div class="msgs"><div class="post"><div class="av c1">비</div><div><div class="who">비서<span>6:15</span></div><div class="body">쓰던 글은 그대로 남아 있어요.</div></div></div></div></div></div>
+    </div>
+  </div>
+  <div class="notes">
+    <h3>진행 중 화면에서 다듬은 점</h3>
+    <p>• 제목 줄에 마크다운 기호(<code>**</code>)가 보이던 것 → 제목은 일반 글자로.</p>
+    <p>• 선택된 방·스레드 강조를 파란 테두리·막대로 분명하게.</p>
+    <p>• 방 목록에 상태 점·최근 한 줄·안 읽은 수, 아래에 2단계 단체방 자리(흐리게).</p>
+    <p>• 스레드 카드에 작성 중·답장 대기·예약 표시.</p>
+    <p>• 입력 줄을 한 상자로(첨부·입력·보내기), 첨부 칩 표시.</p>
+    <p>• 좁히면 스레드 목록이 접혀 펫 패널 기본 크기에서도 쓸 수 있게.</p>
+  </div>
+</div>
+</body>
+</html>
