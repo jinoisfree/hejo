@@ -220,6 +220,13 @@
   .cr .pulse { box-shadow:0 0 0 3px rgba(255,59,71,.25), 0 0 18px rgba(255,59,71,.95) !important; }
   .keyc { display:flex; gap:14px; flex-wrap:wrap; font-size:12px; margin:4px 0 8px; } .keyc span { display:flex; align-items:center; gap:6px; } .keyc i { width:6px; height:16px; border-radius:3px; }
 </style>
+<style>
+  .cr .sg.org, .cr .sg.sky { background:linear-gradient(180deg,#c9c9d0,#8e8e96); box-shadow:none; opacity:.9; }
+  .cr .sg.red { background:#ff4a55; box-shadow:0 0 6px rgba(255,59,71,.45); }
+  .cr .sg.grn { background:#3a3a40; box-shadow:none; opacity:1; }
+  .cr .pulse { box-shadow:0 0 0 2px rgba(255,59,71,.3), 0 0 12px rgba(255,59,71,.8) !important; }
+  .cr.wide .sg.org, .cr.wide .sg.sky { color:#1d1d1f; text-shadow:none; }
+</style>
 </head>
 <body>
 <h1>할 일 | 방 | 채팅 — 왼쪽에서 오른쪽으로만 바뀐다</h1>
@@ -275,13 +282,13 @@
   <div class="call" style="left:250px;top:10px"><i>5</i>머리글·펫에 할 일 수</div>
 </div>
 
-<p class="cap" style="margin-top:26px">접힌 할 일 칸 — 막대 자체가 색으로 말한다 (기호·글자 없음)</p>
-<div class="keyc"><span><i style="background:#ff3b47"></i>급한 것(답 요청·D-DAY·지난 마감)</span><span><i style="background:#f5a623"></i>마감 다가옴</span><span><i style="background:#2ea8ff"></i>할 일</span><span><i style="background:#2fbf5b"></i>다 처리함</span></div>
+<p class="cap" style="margin-top:26px">접힌 할 일 칸 — 막대 하나, 색은 두 가지만 (기호·글자 없음)</p>
+<div class="keyc"><span><i style="background:#ff4a55"></i>급한 것(답 요청·D-DAY·지난 마감)</span><span><i style="background:#a8a8b0"></i>나머지 할 일</span><span><i style="background:#3a3a40"></i>할 일 없음</span></div>
 <div class="vgrid">
-  <div><div class="lab2">A. 할 일 0 — 초록 빛 한 줄</div><div class="mw"><div class="cr"><div class="bar2" style="height:100%"><div class="sg grn" style="flex:1"></div></div></div>
+  <div><div class="lab2">A. 할 일 0 — 어두운 회색 한 줄(조용히)</div><div class="mw"><div class="cr"><div class="bar2" style="height:100%"><div class="sg grn" style="flex:1"></div></div></div>
     <div class="strip"><div class="tab all"><div class="tile">모두</div>전체</div><div class="sline"></div><div class="tab"><div class="tile">비</div>비서</div><div class="tab sel"><div class="tile">리</div>리서처</div></div>
     <div class="conv2"><div class="colh"><b>리서처</b><small>· 대화 4개</small></div><div class="feed"><div class="fold"><div class="tile">리</div><div class="tx"><b>11월 시장 동향</b><small>요약본 올렸어요. 첨부 1개</small></div><span class="tm">어제</span></div><div class="fold"><div class="tile">리</div><div class="tx"><b>신제품 이름 후보</b><small>후보 5개 정리했어요.</small></div><span class="tm">화</span></div></div></div></div></div>
-  <div><div class="lab2">B. 할 일 5 — 색 비율로 쌓임(빨강 2·주황 2·파랑 1)</div><div class="mw"><div class="cr"><div class="bar2" style="height:100%"><div class="sg red" style="flex:2"></div><div class="sg org" style="flex:2"></div><div class="sg sky" style="flex:1"></div></div></div>
+  <div><div class="lab2">B. 할 일 5 — 밝은 회색, 급한 2개만 빨강</div><div class="mw"><div class="cr"><div class="bar2" style="height:100%"><div class="sg red" style="flex:2"></div><div class="sg org" style="flex:2"></div><div class="sg sky" style="flex:1"></div></div></div>
     <div class="strip"><div class="tab all"><div class="tile">모두</div>전체</div><div class="sline"></div><div class="tab sel"><div class="tile">비</div>비서</div><div class="tab"><div class="tile">리</div>리서처</div></div>
     <div class="conv2"><div class="colh"><b>비서</b><small>· 대화 4개</small></div><div class="feed"><div class="fold"><div class="tile">비</div><div class="tx"><b>오늘 받은 메일 정리</b><small>중요 메일 3건이에요.</small></div><span class="tm">30분 전</span></div><div class="fold"><div class="tile">비</div><div class="tx"><b>출장 숙소 예약</b><small>예약 끝났어요.</small></div><span class="tm">어제</span></div></div></div></div></div>
   <div><div class="lab2">C. 마우스를 올리면 — 막대가 넓어지고 칸마다 숫자</div><div class="mw"><div class="cr wide"><div class="bar2" style="height:100%"><div class="sg red" style="flex:2">2</div><div class="sg org" style="flex:2">2</div><div class="sg sky" style="flex:1">1</div></div></div>
@@ -292,10 +299,10 @@
     <div class="conv2"><div class="colh"><b>비서</b><small>· 대화 4개</small></div><div class="feed"><div class="fold"><div class="tile">비</div><div class="tx"><b>오늘 받은 메일 정리</b><small>중요 메일 3건이에요.</small></div><span class="tm">30분 전</span></div><div class="fold"><div class="tile">비</div><div class="tx"><b>출장 숙소 예약</b><small>예약 끝났어요.</small></div><span class="tm">어제</span></div></div></div></div></div>
 </div>
 <div class="legend" style="width:1080px;margin-top:16px"><h3>막대 규칙</h3><ul>
-<li>폭 20px, 안에 6px 색 막대. <b>색 = 종류, 길이 = 개수 비율</b>. 위가 급한 것.</li>
-<li>다 처리하면 막대 전체가 <b>은은한 초록</b>. 체크·숫자 없음.</li>
+<li>폭 20px, 안에 6px 막대. <b>색은 두 가지만</b>: 급한 것 빨강, 나머지 밝은 회색. 길이 = 개수 비율, 위가 급한 것.</li>
+<li>다 처리하면 <b>어두운 회색</b>으로 가라앉음. 체크·숫자 없음.</li>
 <li>마우스를 올리면 30px로 넓어지며 칸마다 숫자(C). 누르면 펼침.</li>
-<li>색은 처리할 일 카드의 표시와 같은 뜻(빨강=답 요청·D-DAY, 주황=마감, 파랑=할 일) — 한 번 익히면 어디서나 같음.</li>
+<li>빨강만 눈에 띄게 — 급한 일이 있을 때만 시선을 끈다. 빨강이 없으면 막대는 조용함.</li>
 </ul></div>
 </div>
 
@@ -312,7 +319,7 @@
 </ul>
 <h3>보완 적용</h3>
 <ul>
-<li><b>접힌 칸 = 색 막대</b>: 빨강·주황·파랑 비율로 남은 일, 다 하면 초록. 칸이 사라지지 않아 방·채팅이 거의 안 움직임(아래 A~D).</li>
+<li><b>접힌 칸 = 색 막대</b>: 밝은 회색 길이로 남은 일, 급한 것만 빨강, 다 하면 어두운 회색. 칸이 사라지지 않아 방·채팅이 거의 안 움직임(아래 A~D).</li>
 <li><b>할 일 수를 세 곳에</b>: 칸 머리 숫자, 창 머리글 "처리할 일 5 · 급한 것 2", 펫 배지 (⑤). 창이 닫혀 있어도 펫에서 보임.</li>
 <li><b>직접 접기</b>(⟨ 접기): 대화에 집중할 때. 접어도 막대에 숫자가 남음.</li>
 <li><b>ddots 부분은 그대로</b>: 방 탭 줄·채팅 카드·입력 줄(설명 줄 없음).</li>
