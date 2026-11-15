@@ -17,6 +17,7 @@
 | TASK-10 | 로고 `HEJO.`(H 파랑) + 버전(9판) | HF-17 / AT-52 | `H/app/Sources/ConversationView.swift`, `H/app/Tests/` | TASK-06 | 일반 · 2 | 완료(17차) |
 | TASK-11 | 아일랜드 1단계(9판, design 6절 "로고와 아일랜드"): IslandModel·IslandView, 칸·잠깐 늘어남·문제 칸·누르기·끌기 제외, 연결 끊김 띠 이전 | HF-18 / AT-53~56 | `H/app/Sources/`(Island*.swift, ConversationView·Controller 연결), `H/app/Tests/` | TASK-10 | 일반 · 2 | 완료(17차) |
 | TASK-12 | 대화 안 작성 중 표시(9판, REQ-HF-12 예외): 기다림 = "작성 중" 반짝임 + 경과 초, 흘러나옴 = 깜빡이는 커서 | HF-19 / AT-57 | `H/app/Sources/ConversationView.swift`·`NativeThreadCard.swift`, 반짝임 부품(TASK-11과 함께 씀), `H/app/Tests/` | TASK-11 | 일반 · 2 | 완료(18차, 자체 점검) |
+| TASK-13 | 자동 연결(10판, REQ-HF-20): 문의 로컬 일회용 코드 파일과 `auto` 페어링(Tailscale 같은 사용자 확인), 규격 hello `auto`·거부 이유 `untrusted`, 앱 AirportFinder(로컬 파일 → Tailscale 후보)·연결 창 "자동으로 찾기" | HF-20 / AT-58·59 | `H/gate/`(auth·server·tailnet), `H/schemas/`, `H/app/Sources/`(AirportFinder·GateClient·ConnectWindow·AppDelegate), 시험 | TASK-12 | 고위험(인증) · 2 | 진행 |
 | TASK-09 | 운영 설치·실기기 검증(9판: AT-56 수동 포함): 운영 공항에 설치, 사장 확인 뒤 게이트웨이 재시작, 노트북 페어링·대화·버튼·첨부·예약 보고, 지연 측정, 제거·복원 확인 | 전체 / AT-22(3), AT-26, AT-31(4) | 운영 설정(설치 도우미 경유), `H/evidence/` | TASK-02~08, 10~12 | 고위험 · 4 | 부분 완료(19차: 공항 설치·실물 완료, 노트북·눈 확인은 사장과) |
 
 ## 병렬 갈래

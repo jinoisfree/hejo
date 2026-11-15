@@ -12,6 +12,7 @@ import time
 import uuid
 
 PAIR_TTL = 600
+LOCAL_FILE = "local-pair.json"
 MAX_FAILURES = 5
 
 
@@ -74,10 +75,40 @@ class AuthStore:
             self.write("pairing.json", previous)
         return code
 
-    def pair(self, code, device_name):
+    def local_code(self, port):
+        """Fresh one-time code for an app on this Mac, readable only through the owner's 0600 file."""
+        with self.locked():
+            self._rotate_local(self.read("pairing.json", {}), port)
+
+    def _rotate_local(self, pair, port):
+        code = secrets.token_urlsafe(9)
+        pair.update(local_hash=digest(code), local_port=port)
+        self.write("pairing.json", pair)
+        self.write(LOCAL_FILE, {"v": 1, "port": port, "code": code})
+
+    def pair_trusted(self, device_name):
+        """Mint a device for a peer the caller already verified (owner's own Tailscale node)."""
+        with self.locked():
+            return self._mint(device_name)
+
+    def _mint(self, device_name):
+        device_id, token = str(uuid.uuid4()), secrets.token_urlsafe(32)
+        devices = self.read("devices.json", {})
+        devices[device_id] = {"hash": digest(token), "name": device_name, "revoked": False}
+        self.write("devices.json", devices)
+        return device_id, token
+
+    def pair(self, code, device_name, local=False):
         with self.locked():
             now = self.clock()
             pair = self.read("pairing.json", {})
+            if local and pair.get("local_hash") and hmac.compare_digest(pair["local_hash"], digest(code)):
+                # Consume before minting, then rotate so the file never holds a spent code.
+                pair.pop("local_hash")
+                self.write("pairing.json", pair)
+                minted = self._mint(device_name)
+                self._rotate_local(pair, pair.get("local_port"))
+                return minted
             failures = [t for t in pair.get("failures", []) if now - t < PAIR_TTL]
             if pair.get("locked_until", 0) > now:
                 raise AuthRejected("locked")

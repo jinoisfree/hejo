@@ -482,3 +482,70 @@ async def test_at_hf_46(airport):
                     {"name": "folder\\sample.txt"}, {"size": -1}, {"size": 1.5}, {"mime": 7}):
         assert not validator.is_valid({**message, "files": [{**item, **invalid}]})
     assert validator.is_valid({**message, "files": [{**item, "name": "x" * 255}]})
+
+
+async def test_at_hf_58_local_app_pairs_from_owner_file(gate, client):
+    """The Mac's own app pairs with the 0600 local file; the code is single-use, loopback-only, and rotates."""
+    import stat
+    from gate.server import GateServer
+    path = gate.auth.path / "local-pair.json"
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    first = json.loads(path.read_text())
+    assert first["port"] == gate.server.port and len(first["code"]) == 12
+    ws, welcome = await client.open(pair_code=first["code"])
+    assert welcome["type"] == "welcome" and welcome["token"]
+    await ws.close()
+    second = json.loads(path.read_text())
+    assert second["code"] != first["code"] and second["port"] == gate.server.port
+    ws, rejected = await client.open(pair_code=first["code"])
+    assert rejected["reason"] == "wrong"
+    await ws.close()
+    with patch.object(GateServer, "peer", staticmethod(lambda request: __import__("ipaddress").ip_address("100.100.1.1"))):
+        ws, rejected = await client.open(pair_code=second["code"])
+    assert rejected["reason"] == "wrong"
+    await ws.close()
+    assert len(gate.auth.devices()) == 1
+
+
+async def test_at_hf_59_tailscale_owner_device_pairs_without_code(gate, client):
+    """`auto` pairs only a Tailscale peer that Tailscale reports as the same user; anything else is untrusted."""
+    import ipaddress
+    from gate.server import GateServer
+    from gate import tailnet
+    tail = staticmethod(lambda request: ipaddress.ip_address("100.100.1.1"))
+    calls = []
+    async def owner(address):
+        calls.append(address)
+        return (True, "owner-laptop")
+    async def stranger(address):
+        calls.append(address)
+        return (False, None)
+    with patch.object(GateServer, "peer", tail), patch.object(tailnet, "owner_device", owner):
+        ws, welcome = await client.open(auto=True)
+    assert welcome["type"] == "welcome" and welcome["token"] and calls == ["100.100.1.1"]
+    await ws.close()
+    assert [d["name"] for d in gate.auth.devices().values()] == ["owner-laptop"]
+    with patch.object(GateServer, "peer", tail), patch.object(tailnet, "owner_device", stranger):
+        ws, rejected = await client.open(auto=True)
+    assert rejected == {"v": 1, "type": "pair_rejected", "reason": "untrusted"}
+    await ws.close()
+    calls.clear()
+    with patch.object(tailnet, "owner_device", owner):
+        ws, rejected = await client.open(auto=True)  # loopback peer
+    assert rejected["reason"] == "untrusted" and calls == []
+    await ws.close()
+    assert len(gate.auth.devices()) == 1
+
+
+async def test_tailnet_owner_check_compares_tailscale_users():
+    from gate import tailnet
+    async def answers(status, whois):
+        async def fake(*args, timeout=3):
+            return status if args[0] == "status" else whois
+        with patch.object(tailnet, "_json", fake):
+            return await tailnet.owner_device("100.100.1.1")
+    me = {"Self": {"UserID": 7}}
+    assert await answers(me, {"UserProfile": {"ID": 7}, "Node": {"ComputedName": "laptop"}}) == (True, "laptop")
+    assert await answers(me, {"UserProfile": {"ID": 8}, "Node": {"ComputedName": "other"}}) == (False, None)
+    assert await answers(None, None) == (False, None)
+    assert await answers({"Self": {}}, {"UserProfile": {"ID": 7}, "Node": {}}) == (False, None)

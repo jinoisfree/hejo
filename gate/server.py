@@ -8,6 +8,7 @@ import traceback
 from pathlib import Path
 from aiohttp import web, WSMsgType
 from jsonschema import Draft202012Validator
+from . import tailnet
 from .auth import AuthRejected
 from .files import MAX_FILE_BYTES, UnknownFile
 
@@ -30,6 +31,10 @@ class BoundedWebSocket(web.WebSocketResponse):
                 # frame is best effort; its failure must not skip the 1009 close.
                 pass
         return await super().close(code=code, message=message, drain=drain)
+
+
+def tailscale_address(ip):
+    return ip is not None and any(ip in net for net in NETWORKS[2:])
 
 
 def allowed_address(address):
@@ -229,6 +234,13 @@ class GateServer:
             raise FrameError("too_large", ref)
         return frame
 
+    @staticmethod
+    def peer(request):
+        try:
+            return ipaddress.ip_address(request.remote)
+        except (ValueError, TypeError):
+            return None
+
     async def websocket(self, request):
         # Never trust forwarded headers; use the actual TCP peer.
         if not allowed_address(request.remote):
@@ -248,10 +260,18 @@ class GateServer:
                 code = str(exc) if isinstance(exc, ValueError) else "hello_timeout"
                 await ws.send_json({"v": 1, "type": "error", "code": code, "ref": None})
                 return ws
-            paired = "pair_code" in hello
+            paired = "pair_code" in hello or hello.get("auto") is True
+            peer = self.peer(request)
             try:
-                if paired:
-                    device_id, token = self.adapter.auth.pair(hello["pair_code"], hello["device_name"])
+                if hello.get("auto") is True:
+                    # Code-free pairing only for the owner's own Tailscale devices, never loopback or LAN.
+                    trusted, name = (await tailnet.owner_device(str(peer))) if tailscale_address(peer) else (False, None)
+                    if not trusted:
+                        raise AuthRejected("untrusted")
+                    device_id, token = self.adapter.auth.pair_trusted(name or hello["device_name"])
+                elif paired:
+                    device_id, token = self.adapter.auth.pair(hello["pair_code"], hello["device_name"],
+                                                              local=peer is not None and peer.is_loopback)
                 else:
                     device_id = self.adapter.auth.authenticate(hello["token"])
             except AuthRejected as exc:

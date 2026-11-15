@@ -74,6 +74,7 @@ class HejoAdapter(BasePlatformAdapter):
             self.server = GateServer(self)
             await self.server.start(self.config.extra.get("listen", ["127.0.0.1"]),
                                     self.config.extra.get("port", 47820))
+            self.auth.local_code(self.server.port)
         except (OSError, ValueError, HejoJournalError):
             if self.server:
                 await self.server.stop()

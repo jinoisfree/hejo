@@ -38,6 +38,7 @@ import AppKit
             conversationView.refresh()
             pet.onExpansionChanged = { [weak self] expanded in self?.conversation.model.setVisible(expanded) }
             connection = ConnectWindow(client: client)
+            connection.onAuto = { [weak self] in self?.findAirport() }
             installEditMenu()
             let menu = NSMenu(); menu.delegate = self; menu.autoenablesItems = false
             menu.addItem(withTitle: "대화 열기", action: #selector(openChat), keyEquivalent: "").target = self
@@ -53,9 +54,10 @@ import AppKit
             pet.pet.onMenu = { [weak self] event in guard let self else { return }; NSMenu.popUpContextMenu(menu, with: event, for: self.pet.pet) }
             client.onStatus = { [weak self] status in
                 self?.statusItem.title = status.text; self?.pet.pet.statusLabel.stringValue = status.text; self?.connection.update(status); self?.conversationView.refresh()
+                if status == .wrongCode || status == .revoked { self?.connection.present() }
             }
             pet.show()
-            if store.settings.address.isEmpty { connection.present() } else { client.resume() }
+            if store.settings.address.isEmpty { findAirport() } else { client.resume() }
         } catch GateFailure.alreadyRunning {
             for app in NSRunningApplication.runningApplications(withBundleIdentifier: AppIdentity.bundleID) where app.processIdentifier != ProcessInfo.processInfo.processIdentifier { app.activate(options: []) }
             NSApp.terminate(nil)
@@ -75,6 +77,11 @@ import AppKit
     func menuWillOpen(_ menu: NSMenu) {
         let presentation = LoginLaunchPresentation.resolve(LoginLaunch.state, installed: LoginLaunch.isInstalled())
         loginItem.state = presentation.checked ? .on : .off; loginItem.isEnabled = presentation.canChange; loginItem.toolTip = presentation.message
+    }
+    /// First run and "자동으로 찾기": no address, code or name to type when the airport can be found.
+    private func findAirport() {
+        connection.searching()
+        Task { @MainActor in if await AirportFinder.connect(client) == false { connection.notFound() } }
     }
     @objc private func openChat() { pet.showChat() }
     @objc private func settings() { connection.present() }

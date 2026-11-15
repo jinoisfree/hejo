@@ -37,7 +37,7 @@ Hermes 모듈·pytest·pytest-asyncio·aiohttp·jsonschema·psutil·ruamel.yaml�
 
 HEJO. 로고 옆 한 줄 알약에 연결·전송 문제, 사장 차례(답 요청·안 읽은 수), 일하는 직원을 모아 보여 준다. 답 요청 칸을 누르면 가장 오래된 질문을 펼치고, 직원 얼굴을 누르면 그 직원에게 이동한다. 마우스를 올리면 최근 질문 한 줄을 볼 수 있다. 일하는 직원 글자에는 밝은 띠가 지나가며, macOS 동작 줄이기에서는 흐린 글자로 멈춘다. 끊김은 주황 테두리와 재접속 안내로 표시하며, 보낼 수 있는 실패에는 “다시 보내기”가 붙는다. 파일을 올릴 때는 완료 수/전체 수를 표시한다. 알약은 옆으로만 늘어나며 그 위에서 끌어도 창이 이동하지 않는다. 수동 확인 항목과 자동 캡처는 [TASK-11 증거 자리](evidence/HEJO-FOUNDATION/TASK-11.md)에 있다.
 
-연결 설정에서 문 주소(포트 포함)·문에서 발급한 12자 코드·기기 이름을 입력한다. 코드의 `-`·`_`는 그대로 입력한다. 출입증은 Keychain 서비스 `io.github.hermes-hejo.hejo.gate-token`에만 저장한다. 앱의 Application Support 안 `hejo/hejo-local.json`에는 주소·기기 이름·적용 seq·읽은 seq·펫 위치·이름만 두며, `hejo/cache/`는 문의 기록장을 복제한 조회 캐시다. 캐시를 지우면 처음부터 다시 동기화한다. 출입증이 취소되면 새 코드로 연결한다.
+처음 켜면 공항을 자동으로 찾는다. 공항 Mac에서는 문이 남긴 사장 전용 파일(`~/.hermes/hejo/local-pair.json`)의 일회용 코드로, 다른 Mac에서는 같은 사장 Tailscale 계정의 공항을 찾아 문이 Tailscale로 주인을 확인한 뒤 붙는다. 찾지 못하면 연결 설정에서 문 주소(포트 포함)·문에서 발급한 12자 코드·기기 이름을 입력한다. 코드의 `-`·`_`는 그대로 입력한다. 출입증은 Keychain 서비스 `io.github.hermes-hejo.hejo.gate-token`에만 저장한다. 앱의 Application Support 안 `hejo/hejo-local.json`에는 주소·기기 이름·적용 seq·읽은 seq·펫 위치·이름만 두며, `hejo/cache/`는 문의 기록장을 복제한 조회 캐시다. 캐시를 지우면 처음부터 다시 동기화한다. 출입증이 취소되면 새 코드로 연결한다.
 
 `bash app/scripts/test.sh`는 앱 부분만 검사한다. 네트워크 시험은 루프백 임시 대역과 무작위 Keychain 시험 계정만 사용하고 마지막에 지운다. AT-HF-47의 실제 다른 앱 입력 중 포커스·동작 녹화 체크리스트는 [증거 자리](evidence/HEJO-FOUNDATION/TASK-05.md)에 있다.
 

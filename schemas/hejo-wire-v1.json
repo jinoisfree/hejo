@@ -191,6 +191,9 @@
         "since": {
           "type": "integer",
           "minimum": 0
+        },
+        "auto": {
+          "const": true
         }
       },
       "required": [
@@ -206,8 +209,17 @@
             "token"
           ],
           "not": {
-            "required": [
-              "pair_code"
+            "anyOf": [
+              {
+                "required": [
+                  "pair_code"
+                ]
+              },
+              {
+                "required": [
+                  "auto"
+                ]
+              }
             ]
           }
         },
@@ -216,8 +228,36 @@
             "pair_code"
           ],
           "not": {
-            "required": [
-              "token"
+            "anyOf": [
+              {
+                "required": [
+                  "token"
+                ]
+              },
+              {
+                "required": [
+                  "auto"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "auto"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "token"
+                ]
+              },
+              {
+                "required": [
+                  "pair_code"
+                ]
+              }
             ]
           }
         }
@@ -288,7 +328,8 @@
             "wrong",
             "locked",
             "revoked",
-            "unknown"
+            "unknown",
+            "untrusted"
           ]
         }
       },
