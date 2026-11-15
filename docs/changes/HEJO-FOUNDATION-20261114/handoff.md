@@ -638,3 +638,32 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
 - **① V-1:** `app/Sources/AppDelegate.swift`에서 호출처가 없어진 `@objc settings()`·`resetPosition()`·`resetChatSize()`·`loginSettings()`·`login()`·`rename()`을 지운다(먼저 `grep -n '#selector(<이름>)'`과 직접 호출 0을 다시 확인). `setLoginEnabled`·설정 창 연결은 그대로 둔다. 동작 변화가 없어야 하므로 시험 기대값은 바꾸지 않는다. 검증: `app/scripts/test.sh` 0(AT-61~65·67 PASS), 개인값 검사 0. impl-report에 "TASK-17 V-1" 줄을 더한다.
 - **② TASK-18:** 보완 지시 13·spec REQ-HF-22.AC-01·AT-HF-66 그대로. 기준은 ① 커밋.
 - **검토자 참고:** 분리 worktree에서 runner를 돌릴 때는 `.build/task02-deps`·`task03a-deps`·`task04-resume`를 함께 복사해야 한다(없으면 AT-HF-22가 yaml 없음으로 실패).
+
+## 보완 지시 13-2: 쓰지 않는 코드 정리 확대 (2026-11-15, 사장 지시 "쓸데없는건 지우자")
+
+- **범위:** 13-1의 ① V-1을 이 절로 넓힌다. 대상은 `app/Sources`, `gate/`, `hub/`, `install/` 전체에서 호출처·참조가 없는 함수·변수·타입·상수·옛 동작이다. ②(TASK-18 아이콘)는 그대로 그 뒤에 한다.
+- **계획 담당 1차 후보** (앱 소스·시험에서 이름이 한 번만 나오는 것)
+  - AppDelegate 셀렉터 `settings`·`resetPosition`·`resetChatSize`·`loginSettings`·`login`·`rename`
+  - ConversationView `collapseConversation`(옛 머리줄 메뉴)
+  - `GeniePictureKey`, `PetBubbleMotion`, `ScreenWindowResolver`, `actionRects`, `avatarNameGap`, `cachedCount`, `callerAvatar`, `cover`, `defaultPaneWidth`, `diagnosticButtonFrames`, `dozeZs`, `dragAnimation`, `extended`, `fadeDuration`, `firstText`, `glide`, `hasProfileColor`, `hsl`, `maximumChatSize`, `minimumPaneWidth`, `notificationAvatar`, `paneHeight`, `paneSplit`, `perchRect`, `rank`, `replyInset`, `reportHeight`, `retarget`, `searchHeight`, `sizes`, `slideWidth`, `speakerInset`, `statusTitle`, `thumbnailPixels`, `topInset`, `uniformSize`, `usablePaneWidth`
+- **판정 규칙:** 후보마다 실제로 확인한다.
+  - 지우지 않는 것:
+    - AppKit·delegate가 이름으로 부르는 재정의·프로토콜 메서드(`canBecomeKey`, `cancelOperation`, `draggingUpdated`, `controlTextDidChange`, `menuNeedsUpdate`, `applicationWillTerminate`, `urlSession` 등)
+    - `CodingKeys`
+    - 셀렉터·키 경로·문자열로 부르는 것
+    - 응답 체인 메뉴 동작(`pasteAsPlainText`·`pasteAsRichText`는 편집 메뉴나 작성기에서 쓰이는지 확인)
+  - 다음 단계를 위해 남겨 두는 것도 지운다(필요해지면 그 단계에서 ddots에서 다시 가져온다).
+  - gate·hub·install은 같은 방법(정의 이름 전역 검색, 동적 호출 확인)으로 찾는다.
+  - 시험 전용 도우미는 시험이 쓰면 남긴다.
+- **동작 불변:**
+  - 시험 기대값을 바꾸지 않는다.
+  - 지운 것 때문에 시험이 깨지면 그것은 쓰이는 코드이므로 되돌린다.
+- **검증:**
+  - `python3 .build/foundation9_runner.py hejo` 0
+  - `app/scripts/test.sh` 0
+  - 개인값 검사 0
+  - 지운 이름 목록(파일·줄 수)과 남긴 후보·이유를 impl-report "코드 정리" 절에 적는다.
+- **적용·커밋:**
+  - 앱 설치본 교체는 TASK-18 적용 때 함께 한다.
+  - gate·hub 파일을 지웠으면 공용 릴리스(`install/hejo-release`)·게이트웨이 재시작은 하지 않는다(다음 릴리스 때 반영).
+  - 정리만 별도 `git commit --only`.
