@@ -1,3 +1,4 @@
 # repository-relative path<TAB>SHA-256 of exact line (without newline)<TAB>reason
 # Reasons: fake-test, license-notice. No file-wide exemptions.
 tests/acceptance/HEJO-FOUNDATION.md	300b3e1a2977af097fbd43764ae8ae18d2a043b7a06471a43ea2b2c128dfc621	fake-test
+tests/acceptance/test_hub.py	55a7c5509a93b489d7c7523bd01a7f1f0197f85057635d594a33b085788e9748	fake-test
