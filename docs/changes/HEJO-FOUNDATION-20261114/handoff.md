@@ -764,3 +764,16 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
   4. 관측: 새 세션 첫 답 안내 없음(TASK-22), 두 Mac 사진·구획(TASK-20), 직원 2명 단체방 @·대표·삭제·재연결(TASK-21). 캡처·로그를 evidence에 둔다.
   5. 롤백: TASK-22는 `install/hejo-install --uninstall-home-channel`(설치 도우미가 넣고 사장이 안 바꾼 값만 삭제, design 'hejo 홈 채널' 롤백) + 재시작. 손으로 키를 지우지 않는다. TASK-20·21은 이전 공용 릴리스 + 1의 사본 복원 + 재시작(적용 뒤 hejo 글 잃음, Slack 무관). TASK-21 뒤 문 코드만 되돌리면 기록장이 열리지 않으므로 사본 복원을 같이 한다.
 - 맥북프로가 준비되지 않으면 TASK-20의 두 Mac 항목은 '실물 미검증'으로 남기고 나머지는 판정한다.
+
+## 보완 지시 16: TASK-22 검토 V-1 — 홈 채널 롤백 중단 복구 (2026-11-15, 17판)
+
+검토 기록: [../56917a17-07e0-4cb3-940d-2880e1aeaae3/verdict.md](../56917a17-07e0-4cb3-940d-2880e1aeaae3/verdict.md) V-1·V-2.
+
+- **문제(재현됨):** `remove_home_channels`가 config 키를 지운 뒤 영수증을 `removed`로 저장하기 전에 끊기면, 다음 실행의 맞춤이 `applied`+값 없음을 사장 변경으로 보고 `released`로 바꾼다. 그 뒤 설치를 다시 해도 값이 돌아오지 않고, `--check`는 `owner_set`·종료 0이라 빠진 홈 채널을 알리지 않는다(REQ-HF-25.AC-01 '`--check`는 빠진 프로필을 알린다' 위반). TASK-23 롤백이 이 명령을 쓴다.
+- **고칠 것(design 'hejo 홈 채널' 17판 그대로):**
+  1. home_channel 삭제(`--uninstall-home-channel`, `--uninstall`, 실패 설치 되돌림의 home_channel 삭제 모두)를 `removing` 저장 → 키 삭제 → `removed` 저장 순서로 한다.
+  2. 맞춤 표에 `removing` 3행을 더한다(롤백이면 이어서 지움, 설치면 `applied`, 값 없음이면 `removed`, 다른 값이면 `released`).
+  3. `--check`: `released`+값 없음은 `owner_removed <경로>`·정상. 값 없는 프로필에 `owner_set`을 출력하지 않는다.
+  4. 기존 동작(갱신 쓰기 순서, C1, A/B/C 롤백, `--force`의 사장 값 보존)은 바꾸지 않는다. 영수증 version 1 유지.
+- **검증:** AT-72 17판 추가 입력(④·⑤ 중단, 사장이 지운 키)을 `test_install.py`에 더한다. 기존 AT-72 시험의 기대값은 바꾸지 않는다(단, 사장 삭제 사례 `test_at_hf_72_owner_change_check_and_forced_uninstall`의 `owner_set` 2개 기대는 17판에 따라 `owner_set` 1 + `owner_removed` 1로 바뀌므로 그 한 줄만 고치고 보고한다). `removing` 순서를 지운 돌연변이가 시험에 걸리는지 확인한다. `foundation9_runner.py hejo` 0, 개인값 검사 0. 공용 릴리스 갱신.
+- **범위:** `install/hejo-install`, `tests/acceptance/test_install.py`, impl-report. TASK-20·21은 계속 보류(ddots-inventory.md Q1~Q4 사장 답 뒤 명세를 다시 고친다). 운영 `~/.hermes` 실행·재시작 금지.

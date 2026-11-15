@@ -290,11 +290,14 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
 | `pending` | 다른 값 | 사장 값으로 보고 손대지 않음. `released` + `preserved_owner_change` |
 | `applied` | `after`와 같음 | 그대로 |
 | `applied` | 다른 값·없음 | 사장 변경으로 보고 손대지 않음. `released` + `preserved_owner_change` |
+| `removing`(17판) | `after`와 같음 | 롤백 쓰기 전 중단. 롤백(`--uninstall`·`--uninstall-home-channel`)이면 이어서 지운 뒤 `removed`. 설치·갱신이면 롤백 포기로 보고 `applied`. 점검은 `applied`처럼 본다 |
+| `removing` | 없음 | 롤백이 지운 뒤 영수증 저장 전 중단. `removed`(사장 변경 아님) |
+| `removing` | 다른 값 | 사장 값. `released` + `preserved_owner_change` |
 
 `released` 대상은 이후 어떤 제거·롤백도 건드리지 않는다. `--check`는 맞춤 결과를 영수증에 쓰지 않고 출력만 한다.
 - **제거:** 맞춤 뒤 `applied`이고 현재 값이 `after`와 같은 home_channel 대상만 키 단위로 지운다. 사장이 바꿨으면(`/sethome` 등) 지우지 않고 `preserved_owner_change <경로>`를 출력하며 충돌로 세지 않는다(종료 코드에 영향 없음). 다른 대상은 기존 규칙 그대로다.
-- **점검(`--check`):** 영수증이 `installed`인데 home_channel 대상이 없는 프로필(값도 없음)은 `missing_target <파일>#platforms.hejo.home_channel`, 종료 1. 사장이 바꾼 home_channel은 `owner_set <경로>`만 출력하고 정상(0)으로 본다.
-- **롤백(16판, R5):** 손으로 키를 지우지 않는다. `install/hejo-install --uninstall-home-channel`을 쓴다. 이 명령은 맞춤 뒤 영수증의 home_channel 대상(`owner_may_change`) 중 `applied`이고 현재 값이 `after`와 같은 것만 키 단위로 지우고 `removed`로 표시한다. 영수증 대상이 아닌 값(설치 전부터 있던 사장 값)과 `released`·사장 변경값은 지우지 않고 `preserved_owner_change <경로>`를 출력한다. 다른 hejo 대상(플러그인·문 설정)과 영수증 `status: installed`는 그대로다. 영수증은 실제 config와 맞춘 상태로 저장한다. 종료 0(지울 것 없어도 0), 영수증 읽기·쓰기 실패만 1. 그 뒤 재시작한다. 다시 넣으려면 설치를 다시 실행한다(`removed` 대상은 값이 없으면 갱신 경로가 새 대상으로 붙인다).
+- **점검(`--check`):** 영수증이 `installed`인데 home_channel 대상이 없는 프로필(값도 없음)은 `missing_target <파일>#platforms.hejo.home_channel`, 종료 1. 사장이 바꾼 home_channel은 `owner_set <경로>`만 출력하고 정상(0)으로 본다. `released`인데 값이 없으면(사장이 키를 지움) `owner_set`이 아니라 `owner_removed <경로>`를 출력하고 정상(0)으로 본다(17판, V-1: 값이 없는데 '정했다'고 알리지 않는다).
+- **롤백(16판, R5):** 손으로 키를 지우지 않는다. `install/hejo-install --uninstall-home-channel`을 쓴다. 이 명령은 맞춤 뒤 영수증의 home_channel 대상(`owner_may_change`) 중 `applied`이고 현재 값이 `after`와 같은 것만 키 단위로 지우고 `removed`로 표시한다. **지우는 순서(17판, V-1):** ① 그 대상을 `removing`으로 영수증에 저장 → ② config 키 삭제 → ③ `removed`로 저장. `--uninstall`의 home_channel 삭제도 같은 순서다. 그래서 ②와 ③ 사이에 끊겨도 맞춤이 '사장이 지움'(`released`)으로 오판하지 않고, 다시 설치하면 값이 돌아온다. 영수증 대상이 아닌 값(설치 전부터 있던 사장 값)과 `released`·사장 변경값은 지우지 않고 `preserved_owner_change <경로>`를 출력한다. 다른 hejo 대상(플러그인·문 설정)과 영수증 `status: installed`는 그대로다. 영수증은 실제 config와 맞춘 상태로 저장한다. 종료 0(지울 것 없어도 0), 영수증 읽기·쓰기 실패만 1. 그 뒤 재시작한다. 다시 넣으려면 설치를 다시 실행한다(`removed` 대상은 값이 없으면 갱신 경로가 새 대상으로 붙인다).
 
 ### SwiftUI 예외 목록
 
