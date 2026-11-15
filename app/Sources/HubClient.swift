@@ -55,4 +55,12 @@ struct HubClient {
     func save(settings: [String: String], token: String) async throws {
         _ = try await send(request("PUT", "/v1/me/settings", body: ["settings": settings], token: token))
     }
+    func state(since: Int? = nil, token: String) async throws -> StateDocument {
+        let path = "/v1/me/state" + (since.map { "?since=\($0)" } ?? "")
+        return try JSONDecoder().decode(StateDocument.self, from: JSONSerialization.data(withJSONObject: await send(request("GET", path, token: token))))
+    }
+    func patch(state: [String: StateEntry], token: String) async throws -> StateDocument {
+        let items = try JSONSerialization.jsonObject(with: JSONEncoder().encode(state))
+        return try JSONDecoder().decode(StateDocument.self, from: JSONSerialization.data(withJSONObject: await send(request("PATCH", "/v1/me/state", body: ["items": items], token: token))))
+    }
 }

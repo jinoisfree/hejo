@@ -21,7 +21,7 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     do { try model.apply(message(3)); throw TestFailure.assertion("model accepted gap") } catch GateFailure.protocolError { }
     try check(model.applied == 1,"gap never advances projection")
     model.select(key); model.setVisible(true)
-    try check(model.unread(employee:"alpha") == 0 && store.settings.readSeq[key.readKey] == 1,"opening thread persists read seq")
+    try check(model.unread(employee:"alpha") == 0 && model.memberState.read("thread:alpha/" + threadA) == 1,"opening thread persists read seq")
     model.setVisible(false)
     try commit(["v":1,"type":"edit","seq":2,"msg_id":messageA,"text":"streaming answer","final":false,"buttons":[["id":buttonA,"label":"Continue","kind":"reply","style":"primary"]]])
     try check(model.messages[messageA]?.streaming == true && model.messages.count == 1 && model.unread(key) == 1,"streaming updates same message and unread")

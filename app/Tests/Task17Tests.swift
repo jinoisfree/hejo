@@ -85,7 +85,7 @@ import AppKit
     let settings = PetSettingsWindow()
     var name = "", scale = 0.0, bubble = false
     settings.onName = { name = $0 }; settings.onScale = { scale = $0 }; settings.onBubble = { bubble = $0 }
-    try check(settings.tabs.numberOfTabViewItems == 3 && settings.tabs.tabViewItems.map(\.label) == ["일반", "화면과 펫", "계정"] &&
+    try check(settings.tabs.numberOfTabViewItems == 4 && settings.tabs.tabViewItems.map(\.label) == ["일반", "화면과 펫", "계정", "연결과 동기화"] &&
               settings.scaleSlider.minValue == 25 && settings.scaleSlider.maxValue == 200, "AT64 native settings pages and range")
     settings.nameField.stringValue = "hejo-test"
     _ = settings.nameField.sendAction(settings.nameField.action, to: settings.nameField.target)
@@ -182,7 +182,8 @@ import AppKit
     try model.apply(message(2, employee: second, thread: threadB))
     try check(model.unread(employee: second) == 2, "AT67 unread spans threads")
     (menu(second).items.first { $0.title == "모두 읽음" } as? RoomActionItem)?.trigger()
-    try check(model.unread(employee: second) == 0 && store.settings.readSeq.count == 2, "AT67 all threads marked read")
+    try check(model.unread(employee: second) == 0 && model.memberState.read("thread:" + second + "/" + threadA) == 1 && model.memberState.read("thread:" + second + "/" + threadB) == 2, "AT67 all threads marked read")
+    try check(model.memberState.read("read:" + second) == 2, "AT74 all-read advances the shared room position as well")
     (menu(second).items.first { $0.title == "알림 끄기" } as? RoomActionItem)?.trigger()
     try check(model.muted.contains(second), "AT67 mute command")
     try model.apply(message(3, employee: second, thread: threadA, state: "asked"))
@@ -206,17 +207,10 @@ import AppKit
     try model.apply(message(4, employee: second, thread: threadA))
     try check(!model.hidden.contains(second) && model.messages.count == 4, "AT67 new message reveals hidden room")
     model.hide(first)
-    let saved = model.preferenceSettings
-    try check(saved["pinned"] == third && saved["muted"] == second && saved["hidden"] == first, "AT67 member setting strings")
+    let saved = model.memberState.items
+    try check(saved["pin:" + third]?.v == "1" && saved["mute:" + second]?.v == "1" && saved["hide:" + first]?.v == "1", "AT67 member state entries")
     let reload = try ConversationModel(store: LocalStore(directory: home))
-    reload.applyMemberSettings(saved)
-    try check(reload.pinned == [third] && reload.muted == [second] && reload.hidden == [first], "AT67 local and member setting round trip")
-    StubHub.requests = []; URLProtocol.registerClass(StubHub.self); defer { URLProtocol.unregisterClass(StubHub.self) }
-    try await HubClient(address: "hub.test:47800").save(settings: saved, token: "tok")
-    let request = StubHub.requests.last
-    try check(request?.0 == "PUT" && request?.1 == "/v1/me/settings" &&
-              (request?.2["settings"] as? [String: String])?["pinned"] == third &&
-              (request?.2["settings"] as? [String: String])?["hidden"] == first, "AT67 hub setting save request")
+    try check(reload.pinned == [third] && reload.muted == [second] && reload.hidden == [first], "AT67 durable member state round trip")
     model.hide(second); model.hide(third)
     try check(model.displayRooms.isEmpty && model.selected == nil && model.messages.count == 4, "AT67 hiding last room clears selection without deleting history")
     print("AT-HF-67 PASS")

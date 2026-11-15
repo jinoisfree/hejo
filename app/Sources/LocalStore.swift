@@ -14,7 +14,12 @@ struct LocalSettings: Codable {
     var deviceName = "이 Mac"
     var credentialAccount = UUID().uuidString.lowercased()
     var applied = 0
-    var readSeq: [String: Int] = [:]
+    var readSeq: [String: Int]? = [:] // Read only until the first member-state migration.
+    var memberStates: [String: StateDocument]?
+    var pendingState: [String: [String: StateEntry]]?
+    var stateJoined: [String: Bool]?
+    var stateAccount: String?
+    var stateDevice: String?
     var petName = PetIdentity.defaultName
     var petX: Double?
     var petY: Double?
@@ -62,11 +67,14 @@ final class LocalStore {
         settings.applied = seq
         try save()
     }
-    func update(_ change: (inout LocalSettings) -> Void) throws { change(&settings); try save() }
+    func update(_ change: (inout LocalSettings) -> Void) throws {
+        var next = settings; change(&next)
+        try save(next); settings = next
+    }
     func select(address: String, device: String) throws {
         if address != settings.address {
             try Data().write(to: cacheURL, options: .atomic)
-            records = []; settings.applied = 0; settings.readSeq = [:]
+            records = []; settings.applied = 0; settings.stateAccount = nil
             settings.credentialAccount = UUID().uuidString.lowercased()
         }
         settings.address = address; settings.deviceName = device; try save()
@@ -79,9 +87,14 @@ final class LocalStore {
         try file.seekToEnd(); try file.write(contentsOf: data); try file.synchronize()
         records.append(frame); settings.applied = seq; try save()
     }
-    private func save() throws {
-        try JSONEncoder().encode(settings).write(to: settingsURL, options: .atomic)
-        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: settingsURL.path)
+    private func save(_ value: LocalSettings? = nil) throws {
+        let data = try JSONEncoder().encode(value ?? settings)
+        let fresh = directory.appendingPathComponent(".settings-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: fresh) }
+        guard FileManager.default.createFile(atPath: fresh.path, contents: data, attributes: [.posixPermissions: 0o600]) else { throw GateFailure.storage }
+        let handle = try FileHandle(forWritingTo: fresh); defer { try? handle.close() }
+        try handle.synchronize()
+        guard rename(fresh.path, settingsURL.path) == 0 else { throw GateFailure.storage }
     }
 }
 final class InstanceLock {

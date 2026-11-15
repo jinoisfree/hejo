@@ -25,6 +25,10 @@ final class StubHub: URLProtocol {
             case ("GET", "/v1/me") where request.value(forHTTPHeaderField: "Authorization") == "Bearer tok":
                 return (200, ["account": "member2", "google": false, "settings": ["petName": "Mochi"], "gate": Self.gatePort.map { ["port": $0] } as Any? ?? NSNull()])
             case ("PUT", "/v1/me/settings"): return (200, ["ok": true])
+            case ("GET", "/v1/me/state") where request.value(forHTTPHeaderField: "Authorization") == "Bearer tok":
+                return (200, ["rev": 7, "items": ["read:alpha": ["v": "42", "at": 10, "dev": "mac-a"]]])
+            case ("PATCH", "/v1/me/state") where request.value(forHTTPHeaderField: "Authorization") == "Bearer tok":
+                return (200, ["rev": 8, "items": body["items"] ?? [:]])
             default: return (401, ["error": "unknown"])
             }
         }()
@@ -105,7 +109,9 @@ final class StubHub: URLProtocol {
     StubHub.gatePort = 47821  // the member's Hermes gets linked meanwhile; the window notices by itself
     for _ in 0..<300 where client.store.settings.address.isEmpty { try await Task.sleep(nanoseconds: 20_000_000) }
     try check(client.store.settings.address == "hub.test:47821" && client.store.settings.hubAddress == "hub.test:47800", "AT60 opens this member's own gate and remembers the hub")
+    try await waitFor { signedIn["petName"] == "Mochi" }
     try check(signedIn["petName"] == "Mochi", "AT58 member settings delivered on sign-in")
+    try check(client.bearer == "tok", "AT74 sign-in callback follows adoption of the new member credential")
     window.apply(.reset)
     try check(window.primary.title == "Google로 확인하고 재설정" && window.message.stringValue.contains("Google"), "AT59 reset away from the member's Mac uses Google")
     try Data(#"{"v":1,"port":47821,"code":"Ab-_cdEFgh12"}"#.utf8).write(to: file)

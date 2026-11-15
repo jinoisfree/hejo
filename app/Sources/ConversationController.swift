@@ -14,12 +14,13 @@ struct ConversationDraft {
     var notice = "" { didSet { onChange?() } }
     var onChange: (() -> Void)?
     private(set) var transferFailure: IslandFailure? { didSet { onChange?() } }
+    private(set) var stateFailure: IslandFailure? { didSet { onChange?() } }
     private(set) var uploads: [ConversationKey: IslandUpload] = [:] { didSet { onChange?() } }
     var islandInput: IslandModel.Input {
         IslandModel.Input(messages:Array(model.messages.values),typing:model.typing,
             names:Dictionary(uniqueKeysWithValues:model.employees.map { ($0.id,$0.name) }),
             unread:model.visibleUnreadTotal,selected:model.selected,
-            status:client.status,failure:transferFailure,uploads:uploads,muted:model.muted)
+            status:client.status,failure:transferFailure ?? stateFailure,uploads:uploads,muted:model.muted)
     }
     var onOpenFile: (URL) -> Void = { NSWorkspace.shared.open($0) }
     private var replicaAddress: String
@@ -27,6 +28,10 @@ struct ConversationDraft {
     init(client: GateClient) throws {
         self.client = client; replicaAddress = client.store.settings.address; model = try ConversationModel(store: client.store); files = GateHTTP(client: client)
         model.onChange = { [weak self] in self?.onChange?() }
+        model.memberState.onFailure = { [weak self] failed in
+            self?.stateFailure = failed ? IslandFailure(message: "화면 상태를 맞추지 못했어요", firstWords: "") : nil
+        }
+        model.memberState.onUnpinned = { [weak self] count in self?.notice = "고정 자리 5개를 넘어 \(count)개의 고정을 풀었어요." }
         client.onFrame = { [weak self] frame in self?.receive(frame) }
         timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.model.expireTyping() }

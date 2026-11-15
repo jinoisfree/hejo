@@ -171,8 +171,10 @@ import AppKit
         }
         try? client.store.update { $0.hubAddress = hub.address }
         rememberChoices()
-        onSignedIn?(hub, me)
-        do { try await client.adopt(address: gate, device: AirportFinder.deviceName, token: token); pendingToken = nil }
+        do {
+            try await client.adopt(address: gate, device: AirportFinder.deviceName, token: token); pendingToken = nil
+            onSignedIn?(hub, me)
+        }
         catch { message.stringValue = "로그인 정보를 저장하지 못했어요 · 다시 시도해 주세요" }
     }
     @objc private func submit() {

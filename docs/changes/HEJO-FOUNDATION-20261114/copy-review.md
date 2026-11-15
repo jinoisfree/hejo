@@ -117,3 +117,16 @@ NativeThreadList/Card·SlackLayout·ChatStyle·DraftEditor·DraftFormat·Attachm
 ## TASK-22 홈 채널 설치
 
 앱·UI와 ddots 코드의 복사 대상은 없다. 기존 hejo 설치 도우미·시험을 직접 읽고 같은 책임 자리에서 변경했다. 따라서 새 ddots 원본 검토·앱 캡처는 해당하지 않는다. TASK-20·21의 사진·구획·단체방은 해당 ddots 원본 전체를 읽고 별도로 기록한다. ddots는 읽기만 허용하고 수정하지 않는다는 사용자 확인을 받았다.
+
+## TASK-24 회원 상태 동기화 (19판)
+
+원본 커밋 `208f6e6322f593729c9ef6ac16ac903be4c3692b`. 아래 파일을 첫 줄부터 끝까지 읽었다. 해당 파일의 원본 작업 트리 변경은 없다. 실제 경로는 AGENTS.local.md만 사용한다.
+
+| 원본 | 전체 줄 | 유지·대체·제거와 hejo 대상 |
+|---|---:|---|
+| `<운영 저장소>/ddots/Sources/SettingsSync.swift` | 145 | 항목 LWW·읽음 큰 값·삭제 표시·배치 덮어쓰기·잘라내기 원리를 hub/state.py와 MemberState.swift로 옮김. SettingsStore의 Slack 계정 파일·relay 분할은 허브 회원별 파일·HTTP로 대체. Foundation/Darwin 외 유지 의존 없음. |
+| `<운영 저장소>/ddots/Sources/SlackSettingsSync.swift` | 173 | 최초 계정별 이전·시각 1·오프라인 변경·명시적 배치 덮어쓰기 흐름 유지. SlackController/SlackModel은 ConversationModel·MemberState로, UserDefaults는 LocalStore의 원자적 저장으로, relay는 HubClient로 대체. 개인 보관·Slack 삭제·inline 사진 바이트 동기화는 제외. 사진 주소·향후 구획 상태는 승인된 회원 상태 키에 둠. |
+| `<운영 저장소>/ddots/Sources/App.swift` | 2575 | makeSyncStandard 확인 창 구조·설정 연결을 PetSettingsWindow/AppDelegate로 옮김. 창 열기·활성화 갱신은 새 MemberState 동기화로 연결. 그 밖의 Slack/iMessage·relay·개인 업무·웹·클립보드·SwiftUI 화면·운영 연결·비밀 접근은 이식하지 않음. |
+| `<운영 저장소>/ddots/Sources/SettingsPages.swift` | 229 | AppKit 탭/설정 페이지 배치와 동작 연결만 참고. 기존 hejo AppKit 탭에 연결과 동기화를 추가. NSHostingView·SwiftUI 미리보기 및 테마 편집 의존은 제외. |
+
+보완 18로 D24-01 문구와 D24-02 이전 조건이 해소됐다. 서비스 용어만 hejo로 바꾸고, 이 Mac의 회원별 이전 표시·대기열·readSeq 삭제를 같은 파일 원자적 저장으로 묶는다. 원본 이름·계정·고정 경로·토큰은 가져오지 않는다. 원본의 caps·전송 주기를 그대로 복사하지 않고 REQ-HF-26의 hejo용 한도·30초 계약을 적용한다. 다른 앱 파일을 수정하거나 import하지 않는다.

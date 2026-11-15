@@ -74,7 +74,7 @@ struct ReconnectDelay {
         stop(); try store.select(address: address, device: String(device.prefix(100)))
         let keychain = credentials, account = store.settings.credentialAccount
         guard await Task.detached(operation: { keychain.save(issued, account: account) }).value else { status = .storageError; throw GateFailure.storage }
-        rejection = nil; launch()
+        rejection = nil; token = issued; launch()
     }
     /// Sign out on this Mac: forget the token (Keychain) and disconnect. The hub still lists the device until revoked.
     func signOut() async {

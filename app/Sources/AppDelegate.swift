@@ -25,7 +25,6 @@ import AppKit
             instance = try InstanceLock(directory: AppIdentity.support); store = try LocalStore()
             client = GateClient(store: store); pet = PetController(store: store, atlas: try SpriteAtlas())
             conversation = try ConversationController(client: client)
-            conversation.model.onPreferencesChanged = { [weak self] in self?.saveMemberSettings() }
             conversationView = ConversationView(controller: conversation)
             pet.pet.installConversation(conversationView)
             conversationView.onCollapse = { [weak self] in self?.pet.collapseChat() }
@@ -51,7 +50,7 @@ import AppKit
                 header.onDoubleClick = { [weak self] in self?.pet.toggleChatWidth() }
             }
             conversationView.refresh()
-            pet.onExpansionChanged = { [weak self] expanded in self?.conversation.model.setVisible(expanded) }
+            pet.onExpansionChanged = { [weak self] expanded in self?.conversation.model.setVisible(expanded); if expanded { self?.conversation.model.memberState.activate() } }
             connection = LoginWindow(client: client)
             connection.onSignedIn = { [weak self] _, me in self?.currentAccount = me.account; self?.petSettings?.accountName.stringValue = me.account; self?.applyMemberSettings(me.settings) }
             installEditMenu()
@@ -123,7 +122,12 @@ import AppKit
         let always = settings[BubbleReveal.settingsKey].map { $0 == "true" } ?? store.settings.bubbleAlwaysShown ?? false
         try? store.update { $0.petName = name; $0.petScalePercent = size; $0.bubbleAlwaysShown = always }
         pet.resizePet(percent: size); pet.pet.bubbleAlwaysShown = always; pet.pet.bubbleName = name
-        conversation.model.applyMemberSettings(settings)
+        if let address = store.settings.hubAddress, let token = client.bearer, !currentAccount.isEmpty {
+            do {
+                try conversation.model.memberState.join(member: currentAccount, hub: address, legacy: settings)
+                conversation.model.memberState.configure(hub: HubClient(address: address), token: token)
+            } catch { conversation.model.memberState.onFailure?(true) }
+        }
         pet.pet.setAccessibilityLabel("hejo · \(store.settings.petName) · 대화 열기")
     }
     private func syncMemberSettings() async {
@@ -146,7 +150,9 @@ import AppKit
                     settings["petName"] = self.store.settings.petName
                     settings["petScale"] = String(Int(self.store.settings.petScalePercent ?? 100))
                     settings[BubbleReveal.settingsKey] = self.store.settings.bubbleAlwaysShown == true ? "true" : "false"
-                    settings.merge(self.conversation.model.preferenceSettings) { _, updated in updated }
+                    if self.store.settings.stateJoined?[self.conversation.model.memberState.account] == true {
+                        for key in ["pinned", "muted", "hidden"] { settings.removeValue(forKey: key) }
+                    }
                     try await hub.save(settings: settings, token: token)
                 } catch { break }
                 if revision == self.settingsRevision { break }
@@ -175,7 +181,7 @@ import AppKit
         wasSending = conversation.sending
     }
     @objc private func openChat() { pet.showChat() }
-    @objc private func signOut() { currentAccount = ""; petSettings?.accountName.stringValue = "로그인 전"; Task { await client.signOut(); petSettings?.updateConnection(client.status.text); connection.present() } }
+    @objc private func signOut() { conversation.model.memberState.disconnect(); currentAccount = ""; petSettings?.accountName.stringValue = "로그인 전"; Task { await client.signOut(); petSettings?.updateConnection(client.status.text); connection.present() } }
     @objc private func showOptions() {
         if petSettings == nil {
             let settings = PetSettingsWindow()
@@ -187,10 +193,24 @@ import AppKit
             settings.onResetPosition = { [weak self] in self?.pet.resetPosition() }
             settings.onOpenAccount = { [weak self] in self?.connection.present() }
             settings.onLogout = { [weak self] in self?.signOut() }
+            settings.onSyncLayout = { [weak self] in self?.synchronizeLayout() }
             petSettings = settings
         }
         petSettings?.present(name: store.settings.petName, percent: store.settings.petScalePercent ?? 100,
                              bubble: store.settings.bubbleAlwaysShown ?? false, account: currentAccount, status: client.status.text)
+    }
+    func applicationDidBecomeActive(_ notification: Notification) { conversation?.model.memberState.activate() }
+    private func synchronizeLayout() {
+        let state = conversation.model.memberState
+        Task {
+            // Probe the hub before showing confirmation; a cached connection is not sufficient.
+            guard let fetch = state.fetch, (try? await fetch(nil)) != nil else {
+                PetSettingsWindow.layoutConfirmation(connected: false).runModal(); return
+            }
+            guard PetSettingsWindow.layoutConfirmation(connected: true).runModal() == .alertFirstButtonReturn else { return }
+            do { try await state.makeLayoutStandard(); await state.sync() }
+            catch { state.onFailure?(true) }
+        }
     }
     @objc private func togglePet() { if pet.panel.isVisible { pet.panel.orderOut(nil) } else { pet.show() } }
     @objc private func togglePause() { pet.pet.isPaused.toggle(); pet.pet.noteActivity() }

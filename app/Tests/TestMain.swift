@@ -32,6 +32,8 @@ final class MemoryCredentials: GateCredentialStore {
                     let lock = try InstanceLock(directory: URL(fileURLWithPath: args[2])); withExtendedLifetime(lock) { }
                 } else if args.count > 3 && args[1] == "--task17-capture" {
                     try await task17Capture(resourceDirectory: URL(fileURLWithPath: args[2]), outputDirectory: URL(fileURLWithPath: args[3]))
+                } else if args.count > 2 && args[1] == "--task24-capture" {
+                    try await memberStateCapture(outputDirectory: URL(fileURLWithPath: args[2]))
                 } else if args.count > 3 && args[1] == "--task17-menu-capture" {
                     try await task17MenuCapture(outputDirectory: URL(fileURLWithPath: args[2]), kind: args[3])
                 } else if args.count > 1 && args[1] == "--conversation" {
@@ -147,6 +149,7 @@ final class MemoryCredentials: GateCredentialStore {
         try await islandTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await typingTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await task17Tests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
+        try await memberStateTests()
         try appIconTests()
         try await loginTests()
         try composerTests()

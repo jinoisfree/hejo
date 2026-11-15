@@ -70,10 +70,27 @@ struct ConversationThread: Identifiable {
     private(set) var selected: ConversationKey?
     private(set) var visible = false
     var onChange: (() -> Void)?
-    var onPreferencesChanged: (() -> Void)?
-    private(set) var pinned: [String]
-    private(set) var muted: Set<String>
-    private(set) var hidden: Set<String>
+    let memberState: MemberState
+    var pinned: [String] {
+        var slots: [String: Int] = [:]
+        if store.settings.stateAccount == nil {
+            for (index, room) in (store.settings.pinnedEmployees ?? []).prefix(5).enumerated() { slots[room] = index+1 }
+        }
+        for (key, entry) in memberState.items where key.hasPrefix("pin:") {
+            let slot = Int(entry.v ?? "") ?? 0
+            slots[String(key.dropFirst(4))] = (1...5).contains(slot) ? slot : nil
+        }
+        return slots.sorted { ($0.value, $0.key) < ($1.value, $1.key) }.map(\.key)
+    }
+    var muted: Set<String> { flagged("mute:", legacy: store.settings.mutedEmployees) }
+    var hidden: Set<String> { flagged("hide:", legacy: store.settings.hiddenEmployees) }
+    private func flagged(_ prefix: String, legacy: [String]?) -> Set<String> {
+        var result = Set(store.settings.stateAccount == nil ? legacy ?? [] : [])
+        for (key, entry) in memberState.items where key.hasPrefix(prefix) {
+            let room = String(key.dropFirst(prefix.count)); if entry.v != nil { result.insert(room) } else { result.remove(room) }
+        }
+        return result
+    }
     private var loadingRecords = true
     var displayRooms: [Room] {
         rooms.filter { !hidden.contains($0.id) }.sorted { left, right in
@@ -86,52 +103,39 @@ struct ConversationThread: Identifiable {
     var visibleUnreadTotal: Int { rooms.filter { !muted.contains($0.id) && !hidden.contains($0.id) }.reduce(0) { $0 + unread(room: $1) } }
     init(store: LocalStore) throws {
         self.store = store
-        pinned = store.settings.pinnedEmployees ?? []
-        muted = Set(store.settings.mutedEmployees ?? [])
-        hidden = Set(store.settings.hiddenEmployees ?? [])
+        memberState = MemberState(store: store)
         for frame in store.records { try apply(frame) }
         loadingRecords = false
-    }
-    private func persistPreferences(notifyHub: Bool = true) {
-        try? store.update { $0.pinnedEmployees = pinned; $0.mutedEmployees = muted.sorted(); $0.hiddenEmployees = hidden.sorted() }
-        onChange?(); if notifyHub { onPreferencesChanged?() }
-    }
-    func applyMemberSettings(_ settings: [String: String]) {
-        func ids(_ value: String?) -> [String]? { value.map { $0.isEmpty ? [] : $0.split(separator: ",").map(String.init) } }
-        if let ids = ids(settings["pinned"]) { var seen = Set<String>(); pinned = ids.filter { seen.insert($0).inserted } }
-        if let ids = ids(settings["muted"]) { muted = Set(ids) }
-        if let ids = ids(settings["hidden"]) { hidden = Set(ids) }
-        if let current = selected?.employee, hidden.contains(current) {
-            if let next = displayRooms.first { select(employee: next.id, notify: false) }
-            else { selected = nil }
+        memberState.onChange = { [weak self] in
+            guard let self else { return }
+            if let current = self.selected?.employee, self.hidden.contains(current) {
+                if let next = self.displayRooms.first { self.select(employee: next.id, notify: false) }
+                else { self.selected = nil }
+            }
+            self.onChange?()
         }
-        persistPreferences(notifyHub: false)
     }
-    var preferenceSettings: [String: String] { ["pinned": pinned.joined(separator: ","), "muted": muted.sorted().joined(separator: ","), "hidden": hidden.sorted().joined(separator: ",")] }
+    private func changeState(_ values: [String: String?]) {
+        do { try memberState.set(values) } catch { memberState.onFailure?(true) }
+    }
     func togglePin(_ employee: String) {
-        if let index = pinned.firstIndex(of: employee) { pinned.remove(at: index) }
-        else { pinned.append(employee) }
-        persistPreferences()
-    }
-    func toggleMute(_ employee: String) {
-        if !muted.insert(employee).inserted { muted.remove(employee) }
-        persistPreferences()
-    }
-    func hide(_ employee: String) {
-        hidden.insert(employee); pinned.removeAll { $0 == employee }
-        if selected?.employee == employee {
-            if let next = displayRooms.first { select(employee: next.id, notify: false) }
-            else { selected = nil }
+        if pinned.contains(employee) { changeState(["pin:" + employee: nil]) }
+        else {
+            let used = Set(pinned.enumerated().map { index, room in memberState.value("pin:" + room).flatMap(Int.init) ?? index+1 })
+            if let free = (1...5).first(where: { !used.contains($0) }) { changeState(["pin:" + employee: String(free)]) }
         }
-        persistPreferences()
     }
-    func restore(_ employee: String) { hidden.remove(employee); persistPreferences() }
+    func toggleMute(_ employee: String) { changeState(["mute:" + employee: muted.contains(employee) ? nil : "1"]) }
+    func hide(_ employee: String) { changeState(["hide:" + employee: "1", "pin:" + employee: nil]) }
+    func restore(_ employee: String) { changeState(["hide:" + employee: nil]) }
     func markAllRead(_ employee: String) {
-        let groups = Dictionary(grouping: messages.values.filter { $0.key.employee == employee }, by: \.key)
-        try? store.update { settings in
-            for (key, values) in groups { settings.readSeq[key.readKey] = max(settings.readSeq[key.readKey] ?? 0, values.map(\.latestSeq).max() ?? 0) }
+        var values: [String: String?] = [:]
+        let roomMessages = messages.values.filter { $0.key.employee == employee }
+        values["read:" + employee] = String(roomMessages.map(\.latestSeq).max() ?? 0)
+        for (key, messages) in Dictionary(grouping: roomMessages, by: \.key) {
+            values["thread:" + key.employee + "/" + key.thread] = String(messages.map(\.latestSeq).max() ?? 0)
         }
-        onChange?()
+        changeState(values)
     }
     func resetReplica() { messages = [:]; typing = [:]; typingSince = [:]; applied = 0; selected = nil; onChange?() }
     private func decode<T: Decodable>(_ value: Any, as type: T.Type) throws -> T {
@@ -152,7 +156,7 @@ struct ConversationThread: Identifiable {
                     files: try decode(frame["files"] ?? [], as: [MessageFile].self), buttons: try decode(frame["buttons"] ?? [], as: [MessageButton].self),
                     replyState: frame["reply_state"] as? String, seq: seq, latestSeq: seq, timestamp: ts, clientMessageID: frame["client_msg_id"] as? String)
                 messages[id] = message
-                if !loadingRecords, hidden.remove(employee) != nil { revealedHiddenRoom = true }
+                if !loadingRecords, hidden.contains(employee) { restore(employee); revealedHiddenRoom = true }
             case "edit":
                 guard let id = frame["msg_id"] as? String, let text = frame["text"] as? String, let final = frame["final"] as? Bool else { throw GateFailure.protocolError }
                 if var message = messages[id] {
@@ -168,7 +172,7 @@ struct ConversationThread: Identifiable {
             default: throw GateFailure.protocolError
             }
             applied = seq
-            if revealedHiddenRoom { persistPreferences() }
+            if revealedHiddenRoom { onChange?() }
         } else if type == "welcome" || type == "roster" {
             let rows = frame["employees"] as? [[String: Any]] ?? []
             employees = try rows.map { row in try decode(row.filter { $0.key != "avatar" }, as: Employee.self) }
@@ -196,7 +200,7 @@ struct ConversationThread: Identifiable {
     }
     func timeline(_ key: ConversationKey) -> [ConversationMessage] { messages.values.filter { $0.key == key }.sorted { $0.seq < $1.seq } }
     func unread(_ key: ConversationKey) -> Int {
-        let read = store.settings.readSeq[key.readKey] ?? 0
+        let read = max(memberState.read("read:" + key.employee), memberState.read("thread:" + key.employee + "/" + key.thread), store.settings.readSeq?[key.readKey] ?? 0)
         return messages.values.filter { $0.key == key && $0.role == "employee" && $0.latestSeq > read }.count
     }
     func unread(employee: String) -> Int { Set(messages.values.filter { $0.key.employee == employee }.map(\.key)).reduce(0) { $0 + unread($1) } }
@@ -213,8 +217,9 @@ struct ConversationThread: Identifiable {
     private func markVisibleRead() throws {
         guard visible, let selected else { return }
         let seq = timeline(selected).map(\.latestSeq).max() ?? 0
-        guard seq > (store.settings.readSeq[selected.readKey] ?? 0) else { return }
-        try store.update { $0.readSeq[selected.readKey] = seq }
+        let key = "thread:" + selected.employee + "/" + selected.thread
+        guard seq > memberState.read(key) else { return }
+        try memberState.set([key: String(seq)])
     }
     func expireTyping(now: Date = Date()) {
         let kept = typing.filter { $0.value > now }
