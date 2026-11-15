@@ -84,9 +84,9 @@ final class StubHub: URLProtocol {
     await window.refresh(find: { nil })
     try check(window.mode == .notFound, "AT58 hub not found form")
     await window.refresh(find: { "hub.test:47800" })
-    try check(window.mode == .login && !window.google.isHidden && !window.linkGoogle.isHidden && window.confirm.isHidden && !window.forgot.isHidden, "AT58 login form with Google from the hub's client")
+    try check(window.mode == .login && !window.google.isHidden && window.confirm.isHidden && !window.forgot.isHidden, "AT58 login form with Google from the hub's client")
     window.googleClient = nil; window.apply(.login)
-    try check(!window.google.isHidden && window.linkGoogle.isHidden, "AT59 Google button always on the first screen")
+    try check(!window.google.isHidden, "AT59 Google button always on the first screen")
     window.google.performClick(nil)
     try check(window.message.stringValue.contains("준비 중"), "AT59 Google before setup explains itself")
     window.googleClient = .init(id: "cid", secret: "s"); window.apply(.login)
@@ -99,7 +99,7 @@ final class StubHub: URLProtocol {
     StubHub.gatePort = nil
     window.password.stringValue = "correct horse"; window.primary.performClick(nil)
     for _ in 0..<50 where window.mode != .needsHermes { try await Task.sleep(nanoseconds: 20_000_000) }
-    try check(window.mode == .needsHermes && window.message.stringValue.contains("hejo-join"), "AT60 signed in but Hermes not linked yet")
+    try check(window.mode == .needsHermes && window.message.stringValue.contains("hejo-join") && window.message.stringValue.contains("회원 아이디: moyo"), "AT60 signed in but Hermes not linked yet, member id shown")
     StubHub.gatePort = 47821
     window.primary.performClick(nil)
     for _ in 0..<50 where client.store.settings.address.isEmpty { try await Task.sleep(nanoseconds: 20_000_000) }

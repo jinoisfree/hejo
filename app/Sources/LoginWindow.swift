@@ -16,7 +16,7 @@ import AppKit
         case "weak_password": return "비밀번호는 8자 이상으로 정해 주세요"
         case "bad_id": return "아이디는 영문·숫자·. _ - 로 3~64자예요"
         case "exists": return "이미 있는 아이디예요 · 다른 아이디를 쓰거나 로그인해 주세요"
-        case "not_linked": return "이 Google 계정에 연결된 회원이 없어요 · 아이디·비밀번호를 넣고 'Google 계정 연결'을 눌러 주세요"
+        case "not_linked": return "이 Google 계정에 연결된 회원이 없어요"
         case "google_in_use": return "이 Google 계정은 이미 다른 회원에 연결돼 있어요"
         case "google_failed": return "Google 확인에 실패했어요 · 다시 시도해 주세요"
         case "local_only": return "기존 비밀번호 없이 재설정은 내 Hermes가 있는 Mac에서만 할 수 있어요"
@@ -31,7 +31,6 @@ import AppKit
     let confirm = NSSecureTextField(string: "")
     let primary = NSButton(title: "", target: nil, action: nil)
     let google = NSButton(title: "Google로 계속하기", target: nil, action: nil)
-    let linkGoogle = NSButton(title: "Google 계정 연결", target: nil, action: nil)
     let switchMode = NSButton(title: "", target: nil, action: nil)
     let forgot = NSButton(title: "비밀번호를 잊었어요", target: nil, action: nil)
     let message = NSTextField(wrappingLabelWithString: "")
@@ -65,7 +64,7 @@ import AppKit
         account.placeholderString = "아이디"; confirm.placeholderString = "비밀번호 확인"
         address.placeholderString = "hejo 서버 주소 (예: 맥미니 Tailscale 주소)"; address.isHidden = true
         message.textColor = .secondaryLabelColor
-        for (button, action) in [(primary, #selector(submit)), (google, #selector(withGoogle)), (linkGoogle, #selector(withGoogleLink)),
+        for (button, action) in [(primary, #selector(submit)), (google, #selector(withGoogle)),
                                  (switchMode, #selector(toggleSignup)), (forgot, #selector(showReset)), (changeAddress, #selector(editAddress))] {
             button.target = self; button.action = action
         }
@@ -77,9 +76,9 @@ import AppKit
         google.image = NSImage(systemSymbolName: "g.circle.fill", accessibilityDescription: nil); google.imagePosition = .imageLeading
         primary.controlSize = .large
         let options = NSStackView(views: [keepAccount, keepPassword, autoLogin]); options.spacing = 14
-        let stack = NSStackView(views: [heading, google, or, account, password, confirm, options, primary, linkGoogle, switchMode, forgot, message, changeAddress, address])
+        let stack = NSStackView(views: [heading, google, or, account, password, confirm, options, primary, switchMode, forgot, message, changeAddress, address])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 10
-        for view in [account, password, confirm, primary, google, linkGoogle, address, message] as [NSView] {
+        for view in [account, password, confirm, primary, google, address, message] as [NSView] {
             view.widthAnchor.constraint(equalToConstant: 360).isActive = true
         }
         stack.translatesAutoresizingMaskIntoConstraints = false; w.contentView!.addSubview(stack)
@@ -128,7 +127,6 @@ import AppKit
         or.isHidden = google.isHidden
         google.title = next == .signup ? "Google로 가입하기" : "Google로 계속하기"
         or.stringValue = next == .signup ? "또는 아이디로 가입 (Google로 가입해도 아이디·비밀번호를 함께 정해요)" : "또는 아이디로 로그인"
-        linkGoogle.isHidden = !(googleReady && next == .login)
         for box in [keepAccount, keepPassword, autoLogin] { box.isHidden = ![.login, .signup].contains(next) }
         switchMode.isHidden = ![.login, .signup, .reset].contains(next)
         switchMode.title = next == .login ? "처음이에요 · 가입하기" : "로그인으로"
@@ -167,7 +165,9 @@ import AppKit
     }
     func finish(hub: HubClient, token: String) async {
         guard let me = try? await hub.me(token: token) else { message.stringValue = Self.message(for: "unreachable"); return }
-        guard let gate = hub.gateAddress(me) else { apply(.needsHermes); return }
+        guard let gate = hub.gateAddress(me) else {
+            apply(.needsHermes); message.stringValue = "회원 아이디: \(me.account)\n\n" + message.stringValue; return
+        }
         try? client.store.update { $0.hubAddress = hub.address }
         rememberChoices()
         onSignedIn?(hub, me)
@@ -197,12 +197,14 @@ import AppKit
         if mode == .signup {
             guard let secret = newPassword() else { return }
             withIDToken { token in { try await $0.signup(account: id, password: secret, device: device, googleIDToken: token) } }
-        } else { withIDToken { token in { try await $0.google(idToken: token, device: device) } } }
-    }
-    @objc private func withGoogleLink() {
-        let link = (account: account.stringValue, password: password.stringValue), device = AirportFinder.deviceName
-        guard !link.account.isEmpty, !link.password.isEmpty else { message.stringValue = "아이디와 비밀번호를 넣고 눌러 주세요"; return }
-        withIDToken { token in { try await $0.google(idToken: token, device: device, link: link) } }
+        } else if !id.isEmpty && !password.stringValue.isEmpty {
+            // Id and password typed: link this Google account to that existing member.
+            let link = (account: id, password: password.stringValue)
+            withIDToken { token in { try await $0.google(idToken: token, device: device, link: link) } }
+        } else {
+            // Plain Google: signs in, or creates the member on first use like other apps.
+            withIDToken { token in { try await $0.google(idToken: token, device: device) } }
+        }
     }
     private func withIDToken(_ work: @escaping (String) -> (HubClient) async throws -> HubClient.SignIn) {
         guard let googleClient, googleReady else { message.stringValue = "Google 로그인은 아직 준비 중이에요 · hejo의 Google 앱 등록이 끝나면 바로 쓸 수 있어요. 지금은 아이디·비밀번호로 이용해 주세요."; return }

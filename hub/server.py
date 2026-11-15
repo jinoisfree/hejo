@@ -55,11 +55,17 @@ class Hub:
         if not allowed(request.remote):
             raise web.HTTPForbidden()
         try:
-            return await handler(request)
+            response = await handler(request)
         except Rejected as exc:
-            return web.json_response({"error": exc.reason}, status=STATUS.get(exc.reason, 400))
+            response = web.json_response({"error": exc.reason}, status=STATUS.get(exc.reason, 400))
+            log.info("%s %s %s %s", request.method, request.path, response.status, exc.reason)
+            return response
         except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+            log.info("%s %s 400 bad_request", request.method, request.path)
             return web.json_response({"error": "bad_request"}, status=400)
+        # Method, path and status only: never bodies, tokens or account names.
+        log.info("%s %s %s", request.method, request.path, response.status)
+        return response
 
     async def start(self, listen, port):
         self.runner = web.AppRunner(self.app(), access_log=None)

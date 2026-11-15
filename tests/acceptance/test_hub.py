@@ -75,7 +75,6 @@ async def test_at_hf_59_google_sign_in_link_and_reset(hub, http):
             raise google.GoogleRejected("identity")
         return who["sub"], "google-address"
     with patch.object(google, "identity", identity):
-        assert (await call(http, hub, "POST", "/v1/google", {"id_token": "t", "device_name": "d"}))[1]["error"] == "not_linked"
         status, admin = await call(http, hub, "POST", "/v1/signup", {"account": "admin", "password": "correct horse", "google_id_token": "t", "device_name": "pro"})
         assert status == 200
         status, body = await call(http, hub, "POST", "/v1/signup", {"account": "other", "password": "correct horse", "google_id_token": "t", "device_name": "x"})
@@ -193,3 +192,24 @@ def test_operator_links_a_member_hermes_without_password(tmp_path):
     value = json.loads(path.read_text())
     assert stat.S_IMODE(path.stat().st_mode) == 0o600 and value["url"] == "http://127.0.0.1:47999"
     assert store.gate(value["gate_key"])
+
+
+
+async def test_first_google_sign_in_creates_the_member(hub, http):
+    """Like other apps: the first Google sign-in creates a member (id from the address), no password until set."""
+    from hub import google
+    who = {"sub": "g-new", "email": "new.person@example.invalid"}
+    async def identity(home, id_token):
+        return who["sub"], who["email"]
+    with patch.object(google, "identity", identity):
+        await call(http, hub, "POST", "/v1/signup", {"account": "new.person", "password": "correct horse", "device_name": "x"})
+        status, first = await call(http, hub, "POST", "/v1/google", {"id_token": "t", "device_name": "air"})
+        assert status == 200 and first["created"] is True and first["account"] == "new.person-2"
+        status, again = await call(http, hub, "POST", "/v1/google", {"id_token": "t", "device_name": "air"})
+        assert status == 200 and again["created"] is False and again["account"] == "new.person-2"
+        assert (await call(http, hub, "GET", "/v1/me", token=again["token"]))[1]["google"] is True
+        status, body = await call(http, hub, "POST", "/v1/login", {"account": "new.person-2", "password": "anything goes", "device_name": "d"})
+        assert body["error"] == "bad_login"  # no password yet
+        status, reset = await call(http, hub, "POST", "/v1/google", {"id_token": "t", "new_password": "chosen later", "device_name": "air"})
+        assert status == 200
+        assert (await call(http, hub, "POST", "/v1/login", {"account": "new.person-2", "password": "chosen later", "device_name": "d"}))[0] == 200

@@ -152,11 +152,26 @@ class HubStore:
                 members[member]["google_sub"], members[member]["google_email"] = sub, email
                 self.write("members.json", members)
             member = next((key for key, m in members.items() if m.get("google_sub") and hmac.compare_digest(m["google_sub"], sub)), None)
+            created = None
             if member is None:
-                raise Rejected("not_linked")
+                # First Google sign-in creates the member, as other apps do. No password until the member sets one.
+                created = self._google_account_id(members, email)
+                member = str(uuid.uuid4())
+                members[member] = {"id": created, "password": None, "settings": {}, "google_sub": sub, "google_email": email}
+                self.write("members.json", members)
             if new_password is not None:
                 self._reset(members, member, new_password)
-            return self._mint(member, device_name)
+            return {**self._mint(member, device_name), "account": members[member]["id"], "created": created is not None}
+
+    @staticmethod
+    def _google_account_id(members, email):
+        base = re.sub(r"[^A-Za-z0-9._-]", "", str(email).split("@")[0])[:56] or "member"
+        base = base if len(base) >= 3 else (base + "-hejo")[:56]
+        taken = {m["id"].lower() for m in members.values()}
+        candidate, n = base, 2
+        while candidate.lower() in taken:
+            candidate, n = f"{base}-{n}", n + 1
+        return candidate
 
     def _reset(self, members, member, password):
         members[member]["password"] = password_record(password)
