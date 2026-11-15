@@ -585,3 +585,23 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
 - **커밋:** TASK-17만 `git commit --only`로 커밋하고, impl-report에 "TASK-17" 절(명령·종료 코드·로그·커밋·캡처 경로)을 쓴다.
 - **금지:** git push(공개 GitHub 포함), 게이트웨이 재시작·reload, 비밀 파일, Hermes 본체·ddots 수정, 외부 발송, 허브·운영 설정 변경, 공개 `public` 브랜치 갱신(계획 담당이 한다).
 
+
+## 보완 지시 13: TASK-18 앱 아이콘 `HEJO.` (2026-11-15, 사용자 지시 "hejo 앱의 아이콘은 HEJO. 글씨로 만들자", 연합개발)
+
+- **배경:** 지금 번들에는 아이콘이 없어 Finder·Dock에 기본 앱 그림이 보인다. 로고(REQ-HF-17, `H`만 파랑)와 같은 글씨로 아이콘을 만든다.
+- **기준:** spec REQ-HF-22.AC-01, AT-HF-66.
+- **모양:** 1024px 캔버스, 흰 바탕 macOS 둥근 사각형(Apple 격자: 824px 정사각형을 가운데에 두고 모서리 반지름 약 185px, 아주 옅은 그림자는 선택). 가운데에 `HEJO.` 한 줄, 시스템 글꼴 heavy(또는 black) 굵기, 글자 폭이 둥근 사각형 폭의 약 78%. `H`는 `systemBlue`와 같은 sRGB 값, `EJO.`는 거의 검정(#1d1d1f 정도). 다크 모드용 별도 아이콘은 만들지 않는다.
+- **구현**
+  - 아이콘 그리기는 순수 AppKit 함수 하나로 둔다(예: `AppIcon.render(pixels:) -> NSBitmapImageRep`). 앱 시험에서 직접 부를 수 있게 앱 소스에 두되 런타임에 쓰지 않아도 된다. 앱 실행 중 Dock 아이콘을 바꾸지 않는다(`LSUIElement`는 그대로).
+  - `app/scripts/build.sh`가 같은 함수를 쓰는 작은 생성 단계(예: `swiftc`로 만든 도구 또는 앱 실행 파일의 숨은 인자)로 `AppIcon.iconset`의 10장(16·32·128·256·512와 각 @2x)을 만들고 `iconutil -c icns`로 `Contents/Resources/AppIcon.icns`를 만든다. 생성물은 `.build/` 아래에 두고 저장소에 png·icns를 커밋하지 않는다.
+  - `app/Resources/Info.plist`에 `CFBundleIconFile` = `AppIcon`을 넣는다.
+  - 작은 크기(16·32)에서도 같은 그림을 축소한다(별도 글자 배치 불필요, 단 글자가 잘리지 않아야 한다).
+- **바꾸지 않을 것:** 앱 안 로고·아일랜드·로그인·TASK-17 진행 중 파일(`AppDelegate`·`PetController`·`PetView`·`ConversationView`·`LocalStore` 등)의 동작. TASK-17 작업 트리 변경과 섞어 커밋하지 않는다.
+- **검증**
+  - AT-66 앱 시험: 1024px에서 네 모서리 화소 투명, 가운데 줄에 파랑·어두운 화소 존재, 좌우 끝 10% 열에 글자 화소 없음; 16px 그림 생성 성공
+  - `bash app/scripts/build.sh` 종료 0, 번들에 `AppIcon.icns`, `plutil -extract CFBundleIconFile raw` = `AppIcon`
+  - `app/scripts/test.sh` 10회 연속 0, `python3 .build/foundation9_runner.py hejo` 종료 0, pre-commit(개인값 검사) 0, `import SwiftUI` 0
+  - `sips -s format png`로 1024px를 `.build/`에 뽑아 눈으로 확인하고, 설치 뒤 Finder 캡처(`screencapture`) 경로를 impl-report에 적는다. Finder 아이콘 캐시가 남으면 `touch /Applications/hejo.app`만 한다(캐시 삭제·`killall Dock` 금지).
+- **적용:** TASK-17과 같은 방식으로 `/Applications/hejo.app`과 공용 `hejo.app`에 복사. 게이트웨이 재시작은 필요 없다.
+- **커밋:** TASK-18 경로만 `git commit --only`, impl-report "TASK-18" 절.
+- **금지:** git push, 게이트웨이 재시작·reload, 비밀 파일, Hermes 본체·ddots 수정, 외부 이미지·글꼴 파일 추가, 공개 `public` 브랜치 갱신.
