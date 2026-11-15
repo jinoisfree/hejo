@@ -1,0 +1,16 @@
+#!/bin/bash
+# Copy the runnable hejo parts to a place every Mac account can read (default: the Mac's shared folder, next to
+# the user folders, then hejo).
+# Each member's Hermes links its plugin there, and the hub runs from there, never from a working tree.
+set -euo pipefail
+source="$(cd "$(dirname "$0")/.." && pwd)"
+target="${1:-$(cd ~/.. && pwd)/Shared/hejo}"
+mkdir -p "$target"
+rsync -a --delete --exclude '__pycache__' --exclude 'gate/tests' --exclude '*.pyc' \
+  "$source/gate" "$source/hub" "$source/schemas" "$source/config" "$source/install" "$target/"
+[[ -f "$source/LICENSE" ]] && cp "$source/LICENSE" "$target/"
+git -C "$source" rev-parse HEAD > "$target/RELEASE" 2>/dev/null || true
+rm -f "$target/config/"*secret*
+chmod -R u=rwX,go=rX "$target"
+chmod 755 "$target/install/hejo-install" "$target/install/hejo-hub" "$target/install/hejo-release" "$target/install/hejo-join"
+printf 'RELEASED %s\n' "$target"

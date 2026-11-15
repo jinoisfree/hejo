@@ -49,9 +49,9 @@ def tailscale_ipv4():
     return str(address) if address and address in ipaddress.ip_network("100.64.0.0/10") else None
 
 
-def primary_block():
+def primary_block(port=None):
     block = deepcopy(PRIMARY)
-    block["extra"]["port"] = free_port()
+    block["extra"]["port"] = port or free_port()
     address = tailscale_ipv4()
     if address:
         block["extra"]["listen"].append(address)
@@ -313,7 +313,7 @@ def load_receipt(home):
     return receipt
 
 
-def plan(home):
+def plan(home, port=None):
     # Name-only API: no profile metadata, credentials, or gateway lifecycle calls.
     from hermes_cli.profiles import get_profile_dir, list_profile_names
     homes = [Path(get_profile_dir(name)).resolve() for name in list_profile_names()]
@@ -329,7 +329,7 @@ def plan(home):
     receipt["targets"].append({"kind": "devices", "path": "hejo/devices.json",
         "existed": devices.exists(), "before": stat.S_IMODE(devices.stat().st_mode) if devices.exists() else None,
         "after": {}, "state": "pending"})
-    primary = primary_block()
+    primary = primary_block(port)
     for profile_home in homes:
         relative = profile_home.relative_to(home)
         link_name = (relative / "plugins" / "hejo").as_posix()
@@ -478,7 +478,7 @@ def restore(home, receipt, *, uninstall=False, force=False):
     return conflicts
 
 
-def run(home, *, check=False, uninstall=False, force=False):
+def run(home, *, check=False, uninstall=False, force=False, port=None):
     receipt = load_receipt(home)
     if check:
         if not receipt or receipt["status"] != "installed":
@@ -512,7 +512,7 @@ def run(home, *, check=False, uninstall=False, force=False):
     if receipt and any(item["state"] == "applied" for item in receipt["targets"]):
         print("unresolved_receipt; finish uninstall before installing again")
         return 1
-    receipt = plan(home)
+    receipt = plan(home, port)
     bootstrap = safe_path(home, "hejo")
     bootstrap.mkdir(mode=0o700, parents=True, exist_ok=True)
     os.chmod(bootstrap, 0o700)
@@ -536,6 +536,38 @@ def run(home, *, check=False, uninstall=False, force=False):
     return 0
 
 
+def link_hub(home, url, account, password):
+    """Join this Hermes to the hejo hub as `account` (run in that member's own Mac account). Writes 0600 hub.json."""
+    import urllib.error
+    import urllib.request
+    request = urllib.request.Request(url.rstrip("/") + "/v1/link", method="POST",
+                                     data=json.dumps({"account": account, "password": password}).encode(),
+                                     headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            key = json.loads(response.read())["gate_key"]
+    except urllib.error.HTTPError as exc:
+        reason = json.loads(exc.read() or b"{}").get("error", exc.code) if exc.code < 500 else exc.code
+        print(f"hub_link_failed {reason}")
+        return 1
+    except (OSError, ValueError, KeyError):
+        print("hub_unreachable")
+        return 1
+    directory = safe_path(home, "hejo")
+    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+    atomic_write(safe_path(home, "hejo/hub.json"), json.dumps({"url": url.rstrip("/"), "gate_key": key}) + "\n")
+    print("Linked to the hejo hub; restart the Hermes gateway to apply.")
+    return 0
+
+
+def read_credentials():
+    """Account and password from a terminal prompt, or two stdin lines when not interactive."""
+    if sys.stdin.isatty():
+        import getpass
+        return input("hejo 아이디: ").strip(), getpass.getpass("hejo 비밀번호: ")
+    return sys.stdin.readline().strip(), sys.stdin.readline().rstrip("\n")
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--home", type=Path)
@@ -543,6 +575,8 @@ def main(argv=None):
     mode.add_argument("--check", action="store_true")
     mode.add_argument("--uninstall", action="store_true")
     parser.add_argument("--force", action="store_true")
+    parser.add_argument("--port", type=int, help="keep this gate port instead of the first free one")
+    parser.add_argument("--hub", help="hejo hub URL to join as a member (e.g. http://127.0.0.1:47800)")
     args = parser.parse_args(argv)
     if args.force and not args.uninstall:
         parser.error("--force requires --uninstall")
@@ -553,7 +587,10 @@ def main(argv=None):
         from hermes_constants import get_default_hermes_root
         home = get_default_hermes_root().resolve()
         os.environ["HERMES_HOME"] = str(home)
-        return run(home, check=args.check, uninstall=args.uninstall, force=args.force)
+        result = run(home, check=args.check, uninstall=args.uninstall, force=args.force, port=args.port)
+        if result == 0 and args.hub and not (args.check or args.uninstall):
+            return link_hub(home, args.hub, *read_credentials())
+        return result
     except Exception as exc:
         print(f"install_error {type(exc).__name__}")
         return 1

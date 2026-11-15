@@ -1,5 +1,5 @@
-"""Google sign-in for the owner account. The app signs in with hejo's shared desktop OAuth client and sends the
-ID token; the gate asks Google to verify it and accepts it only for that client (or a locally configured one)."""
+"""Google sign-in for members. The app signs in with hejo's shared desktop OAuth client and sends the ID token;
+the hub asks Google to verify it and accepts it only for that client (or a hub-local override)."""
 import json
 from pathlib import Path
 
@@ -8,7 +8,7 @@ import aiohttp
 INFO_URL = "https://oauth2.googleapis.com/tokeninfo"
 ISSUERS = {"accounts.google.com", "https://accounts.google.com"}
 SHARED = Path(__file__).resolve().parent.parent / "config" / "google-oauth.json"
-CLIENT_FILE = "google-client.json"  # optional per-airport override {"client_id"}, written by `gate.cli google`
+CLIENT_FILE = "google-client.json"  # optional hub-local override {"client_id"}
 
 
 class GoogleRejected(Exception):
@@ -24,7 +24,7 @@ def _client_id(path):
 
 
 def client_id(home):
-    return _client_id(Path(home) / "hejo" / CLIENT_FILE) or _client_id(SHARED)
+    return _client_id(Path(home) / CLIENT_FILE) or _client_id(SHARED)
 
 
 async def _get(url, params):

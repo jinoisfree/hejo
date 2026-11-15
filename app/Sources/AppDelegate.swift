@@ -38,6 +38,7 @@ import AppKit
             conversationView.refresh()
             pet.onExpansionChanged = { [weak self] expanded in self?.conversation.model.setVisible(expanded) }
             connection = LoginWindow(client: client)
+            connection.onSignedIn = { [weak self] _, me in self?.applyMemberSettings(me.settings) }
             installEditMenu()
             let menu = NSMenu(); menu.delegate = self; menu.autoenablesItems = false
             menu.addItem(withTitle: "대화 열기", action: #selector(openChat), keyEquivalent: "").target = self
@@ -56,7 +57,7 @@ import AppKit
                 if status == .wrongCode || status == .revoked { self?.connection.present() }
             }
             pet.show()
-            if store.settings.address.isEmpty { connection.present() } else { client.resume() }
+            if store.settings.address.isEmpty { connection.present() } else { client.resume(); Task { await syncMemberSettings() } }
         } catch GateFailure.alreadyRunning {
             for app in NSRunningApplication.runningApplications(withBundleIdentifier: AppIdentity.bundleID) where app.processIdentifier != ProcessInfo.processInfo.processIdentifier { app.activate(options: []) }
             NSApp.terminate(nil)
@@ -77,6 +78,23 @@ import AppKit
         let presentation = LoginLaunchPresentation.resolve(LoginLaunch.state, installed: LoginLaunch.isInstalled())
         loginItem.state = presentation.checked ? .on : .off; loginItem.isEnabled = presentation.canChange; loginItem.toolTip = presentation.message
     }
+    /// Member settings live at the hub so every Mac this member signs in on looks the same.
+    private func applyMemberSettings(_ settings: [String: String]) {
+        guard let name = settings["petName"], !name.isEmpty else { return }
+        try? store.update { $0.petName = PetIdentity.normalized(name) }
+        pet.pet.setAccessibilityLabel("hejo · \(store.settings.petName) · 대화 열기")
+    }
+    private func syncMemberSettings() async {
+        for _ in 0..<20 where client.bearer == nil { try? await Task.sleep(nanoseconds: 500_000_000) }
+        guard let address = store.settings.hubAddress, let token = client.bearer,
+              let me = try? await HubClient(address: address).me(token: token) else { return }
+        applyMemberSettings(me.settings)
+    }
+    private func saveMemberSettings() {
+        guard let address = store.settings.hubAddress, let token = client.bearer else { return }
+        let settings = ["petName": store.settings.petName]
+        Task { try? await HubClient(address: address).save(settings: settings, token: token) }
+    }
     @objc private func openChat() { pet.showChat() }
     @objc private func settings() { connection.present() }
     @objc private func loginSettings() { LoginLaunch.openSettings() }
@@ -91,6 +109,7 @@ import AppKit
         if alert.runModal() == .alertFirstButtonReturn {
             try? store.update { $0.petName = PetIdentity.normalized(field.stringValue) }
             pet.pet.setAccessibilityLabel("hejo · \(store.settings.petName) · 대화 열기")
+            saveMemberSettings()
         }
     }
 }

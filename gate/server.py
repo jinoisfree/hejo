@@ -9,8 +9,6 @@ import traceback
 from pathlib import Path
 from aiohttp import web, WSMsgType
 from jsonschema import Draft202012Validator
-from hermes_constants import get_hermes_home
-from . import google
 from .auth import AuthRejected
 from .files import MAX_FILE_BYTES, UnknownFile
 
@@ -35,13 +33,6 @@ class BoundedWebSocket(web.WebSocketResponse):
         return await super().close(code=code, message=message, drain=drain)
 
 
-def airport_name():
-    """Label that tells one Mac user's airport from another's on the same Mac (several Hermes homes per host)."""
-    import pwd
-    entry = pwd.getpwuid(os.getuid())
-    return ((entry.pw_gecos or "").split(",")[0].strip() or entry.pw_name)[:60]
-
-
 def allowed_address(address):
     try:
         ip = ipaddress.ip_address(address)
@@ -64,6 +55,7 @@ class Connection:
     queue: list = field(default_factory=list)
     overflow: bool = False
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    hub_token: str = None  # set for hub-issued sign-ins; re-checked with the hub while connected
 
     async def send(self, frame):
         if not self.ws.closed:
@@ -87,7 +79,6 @@ class GateServer:
             raise ValueError("listen_address_forbidden")
         app = web.Application(client_max_size=MAX_FILE_BYTES + LIMITS["frame_bytes"])
         app.router.add_get("/v1/ws", self.websocket)
-        app.router.add_get("/v1/auth", self.auth_status)
         app.router.add_post("/v1/files", self.upload)
         app.router.add_get("/v1/files/{employee}/{file_id}", self.download)
         app.router.add_get("/v1/avatars/{tail:.*}", self.avatar)
@@ -116,19 +107,19 @@ class GateServer:
             self.runner = None
         self.sites.clear()
 
-    def http_auth(self, request):
+    async def http_auth(self, request):
         if not allowed_address(request.remote):
             raise web.HTTPForbidden()
         authorization = request.headers.get("Authorization", "")
         if not authorization.startswith("Bearer "):
             raise web.HTTPUnauthorized()
         try:
-            self.adapter.auth.authenticate(authorization[7:])
+            await self.authenticate(authorization[7:])
         except AuthRejected:
             raise web.HTTPUnauthorized() from None
 
     async def upload(self, request):
-        self.http_auth(request)
+        await self.http_auth(request)
         employee = request.query.get("employee", "")
         if employee not in {e["id"] for e in self.adapter.employees()}:
             raise web.HTTPBadRequest(text="unknown_employee")
@@ -152,7 +143,7 @@ class GateServer:
             raise web.HTTPInternalServerError() from None
 
     async def download(self, request):
-        self.http_auth(request)
+        await self.http_auth(request)
         try:
             path, mime = self.adapter.files.registered(request.match_info["employee"], request.match_info["file_id"])
         except (UnknownFile, OSError):
@@ -173,7 +164,14 @@ class GateServer:
                 await asyncio.gather(*(c.ws.close(code=1008) for c in tuple(self.connections)))
                 continue
             revoked = [conn for conn in tuple(self.connections)
-                       if devices.get(conn.device_id, {}).get("revoked", True)]
+                       if conn.hub_token is None and devices.get(conn.device_id, {}).get("revoked", True)]
+            if ticks and ticks % 60 == 0:
+                for conn in tuple(self.connections):
+                    if conn.hub_token is not None:
+                        try:
+                            await self.adapter.hub.verify(conn.hub_token, fresh=True)
+                        except AuthRejected:
+                            revoked.append(conn)
             await asyncio.gather(*(conn.ws.close(code=1008) for conn in revoked))
             for conn in self.connections - set(revoked):
                 if ticks and ticks % 60 == 0:
@@ -240,18 +238,14 @@ class GateServer:
             raise FrameError("too_large", ref)
         return frame
 
-    async def google_identity(self, id_token):
+    async def authenticate(self, token):
+        """(device id, hub token or None): this gate's own devices first, then the member's hub sign-ins."""
         try:
-            return await google.identity(get_hermes_home(), id_token)
-        except google.GoogleRejected:
-            raise AuthRejected("google_failed") from None
-
-    async def auth_status(self, request):
-        """Unauthenticated sign-in hints: which methods exist. Never the account id or Google address."""
-        if not allowed_address(request.remote):
-            raise web.HTTPForbidden()
-        status = self.adapter.auth.account_status()
-        return web.json_response({**status, "google_client_id": google.client_id(get_hermes_home()), "airport": airport_name()})
+            return self.adapter.auth.authenticate(token), None
+        except AuthRejected as exc:
+            if exc.reason != "unknown" or not self.adapter.hub.enabled:
+                raise
+        return await self.adapter.hub.verify(token), token
 
     @staticmethod
     def peer(request):
@@ -281,33 +275,24 @@ class GateServer:
                 return ws
             paired = "token" not in hello
             peer = self.peer(request)
-            auth, name = self.adapter.auth, hello["device_name"]
+            auth, name, hub_token = self.adapter.auth, hello["device_name"], None
             try:
-                if "login" in hello:
-                    device_id, token = auth.login(hello["login"]["account"], hello["login"]["password"], name)
-                elif "signup" in hello:
-                    signup = hello["signup"]
-                    linked = await self.google_identity(signup["google_id_token"]) if "google_id_token" in signup else None
-                    device_id, token = auth.signup(signup["account"], signup["password"], name, linked)
-                elif "google" in hello:
-                    value = hello["google"]
-                    link = (value["account"], value["password"]) if "account" in value else None
-                    device_id, token = auth.google_login(await self.google_identity(value["id_token"]), name,
-                                                         value.get("new_password"), link)
-                elif "local" in hello:
-                    # Password reset without the old password happens only on the airport Mac itself.
-                    if peer is None or not peer.is_loopback or not auth.consume_local(hello["local"]["code"]):
+                if "local" in hello:
+                    # Password reset without the old password: only on the Mac that runs this member's Hermes.
+                    if (peer is None or not peer.is_loopback or not self.adapter.hub.enabled
+                            or not auth.consume_local(hello["local"]["code"])):
                         raise AuthRejected("local_only")
-                    device_id, token = auth.local_reset(hello["local"]["password"], name)
+                    device_id, token = await self.adapter.hub.reset(hello["local"]["password"], name)
+                    hub_token = token
                 elif "pair_code" in hello:
                     device_id, token = auth.pair(hello["pair_code"], name)
                 else:
-                    device_id = self.adapter.auth.authenticate(hello["token"])
+                    device_id, hub_token = await self.authenticate(hello["token"])
             except AuthRejected as exc:
                 await ws.send_json({"v": 1, "type": "pair_rejected" if paired else "auth_rejected",
                                     "reason": exc.reason})
                 return ws
-            conn = Connection(ws, device_id, replaying=True)
+            conn = Connection(ws, device_id, replaying=True, hub_token=hub_token)
             welcome = {"v": 1, "type": "welcome", "device_id": device_id,
                        "gate_version": "1.0.0", "employees": self.adapter.employees(),
                        "head_seq": self.adapter.journal.head}

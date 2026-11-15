@@ -31,7 +31,7 @@ TASK-02가 JSON Schema로 만들고 앱·문이 같은 파일을 기준으로 �
 
 | 방향 | type | 필드 | 의미 |
 |---|---|---|---|
-| 앱→문 | `hello` | `token`·`pair_code`·`login`·`signup`·`google`·`local` 중 하나(10판),  `device_name`, `app_version`, `since`(마지막 seq, 선택) | 첫 프레임. 5초 안에 없으면 끊음 |
+| 앱→문 | `hello` | `token`·`pair_code`·`local` 중 하나(11판; 가입·로그인은 허브 HTTP),  `device_name`, `app_version`, `since`(마지막 seq, 선택) | 첫 프레임. 5초 안에 없으면 끊음 |
 | 문→앱 | `welcome` | `device_id`, `token`(페어링 때만), `gate_version`, `employees[]`, `head_seq` | 인증 성공 |
 | 문→앱 | `pair_rejected` / `auth_rejected` | `reason`(expired·used·wrong·locked·revoked·unknown) | 실패 후 닫음 |
 | 앱→문 | `roster` | `id` | 직원 목록 재요청 |
@@ -220,16 +220,25 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
 - **동작 줄이기**: 반짝임과 깜빡임을 멈춘다.
 - **시안**: `mockup/hejo-ui-v33-chat-typing`의 1번과 4번.
 
-### 사장 계정 로그인(10판 개정, REQ-HF-20)
+### 허브와 회원(11판, REQ-HF-20)
 
-- **모델:** 각자 자기 공항을 둔다. 공항(Hermes 홈 하나)마다 주인 계정은 하나다. 한 Mac에 macOS 사용자별로 공항이 여럿일 수 있다(예: 관리자 계정·다른 사용자 계정). 노트북은 이름으로 공항을 고른다.
-- **원본:** 문 `AuthStore`가 가진 `account.json`(아이디, scrypt 기록, 실패·잠금, `google_sub`·`google_email`)과 `devices.json`(출입증)이 원본이다. 앱은 출입증만 Keychain에 둔다.
-- **가입:** `hello.signup`은 계정이 없을 때만 받는다(처음 가입자 = 주인). 공항이 리스너를 루프백과 사장 Tailscale에만 열기 때문에, 가입할 수 있는 범위도 그 안이다.
-- **로그인:** `hello.login`은 `AuthStore.login`(10분 5회 잠금)이 처리한다. `hello.google`은 `gate/google.py identity(id_token)`(tokeninfo, 10초 제한) 뒤 `google_login`이 처리한다. `account`·`password`를 같이 보내면 연결을, `new_password`를 같이 보내면 재설정을 한다.
-- **공항 Mac 증표:** 기본 문이 시작할 때 0600 `local-pair.json`을 만든다. 비밀번호 없는 재설정(`hello.local`)은 루프백이고 `consume_local`이 참일 때만 받는다. 같은 macOS 사용자만 그 파일을 읽을 수 있으므로, 같은 Mac의 다른 사용자 공항은 재설정할 수 없다.
-- **Google 클라이언트:** hejo 공용 "데스크톱 앱" OAuth 클라이언트를 쓴다. 공개 ID는 `config/google-oauth.json`(추적)에 둔다. 비밀은 추적하지 않는 `config/google-oauth-secret.json` 또는 `HEJO_GOOGLE_CLIENT_SECRET`으로 빌드 때 Info.plist에 넣는다(Google은 설치형 앱 비밀을 비공개로 보지 않는다). 공항별로 다른 클라이언트를 쓰려면 `gate.cli google <id>`로 재정의한다. ID가 비어 있으면 Google 버튼은 숨는다.
-- **공항 찾기·설치:** `AirportFinder.findAirports`는 그 Mac의 공항 증표를 먼저 보고, 없으면 Tailscale 온라인 기기의 47820~47829를 `GET /v1/auth`로 찾는다(`airport` = macOS 사용자 이름). 설치기의 `primary_block`은 첫 빈 포트를 고르고 Tailscale IPv4를 listen에 더한다.
-- **앱:** `LoginWindow`(가입·로그인·재설정·못 찾음, 공항이 여럿이면 선택), `GoogleSignIn`(PKCE, 루프백, 토큰 교환), `GateClient.signIn`(한 번만 쓰는 hello 필드)으로 이루어진다.
+- **칸:** 새 칸 `hub/`. 회원·기기·회원 설정·회원↔Hermes 연결의 원본이다. 대화 원본은 그대로 각 회원 Hermes의 문 기록장이다. 허브는 대화를 보지 않는다.
+  - 문(`gate/`)은 회원 Hermes 안에서 앱의 대화·파일을 맡는다. 출입증은 문 자신의 관리용 페어링 기기와 허브 발급 토큰 두 가지다.
+- **허브 저장(0700 `~/.hejo-hub/`):**
+  - `members.json`: 회원 내부 ID → 아이디, scrypt, 실패·잠금, `google_sub`, 설정
+  - `devices.json`: 토큰 해시 → 회원, 이름, 취소 여부
+  - `gates.json`: 회원 → 문 열쇠 해시, 포트
+- **허브 실행:** `install/hejo-hub`가 관리자 Mac 계정의 launchd 에이전트로 등록한다(127.0.0.1 + Tailscale IPv4, 47800). `install/hejo-release`가 Mac 공용 폴더(`Shared`)의 `hejo`에 실행 파일을 복사하고, 모든 Mac 계정이 그것을 읽는다. 저장소 작업 트리는 다른 계정이 읽을 수 없고, 운영에서 작업 트리를 직접 돌리지도 않는다.
+- **회원 Hermes 연결:** 회원이 자기 Mac 계정에서 `install/hejo-join`을 실행한다. 이 명령은 그 계정의 Hermes Python을 찾아 `hejo-install --hub`(플러그인 설치, 빈 포트, Tailscale listen, `/v1/link`로 0600 `hub.json`)을 실행한 뒤 게이트웨이를 재시작한다. 문은 시작할 때 `/v1/gate/register`로 포트를 알리고 실패하면 재시도한다.
+- **토큰 확인:** 문 `authenticate`는 자기 기기를 먼저 보고, 모르면 허브 `/v1/gate/verify`에 묻는다. 허브는 그 문의 회원 토큰일 때만 기기 ID를 준다. 문은 30초 캐시하고, 연결 중인 허브 토큰은 30초마다 다시 확인해 취소되면 끊는다.
+- **재설정:** Google(`/v1/google new_password`), 또는 회원 Hermes가 있는 Mac에서 `hello.local`(문의 0600 증표, 루프백) → 문이 `/v1/gate/reset` → 새 토큰. 같은 Mac의 다른 회원은 그 증표를 읽을 수 없다.
+- **앱:**
+  - `AirportFinder.findHub`(127.0.0.1:47800 → Tailscale 온라인 Mac)
+  - `HubClient`(가입·로그인·Google·me·설정)
+  - `LoginWindow`(로그인·가입·재설정·Hermes 미연결 안내)
+  - `GateClient.adopt`(허브 토큰을 Keychain에 두고 회원 문 열기)
+  - 회원 설정은 우선 펫 이름이다. 로그인할 때와 시작할 때 받고, 바꾸면 올린다.
+- **Google 클라이언트:** hejo 공용 데스크톱 클라이언트를 쓴다. 공개 ID는 `config/google-oauth.json`이고, 비밀은 추적하지 않는 파일이나 환경 변수로 빌드 때 주입한다. 허브 로컬 재정의는 `~/.hejo-hub/google-client.json`이다.
 
 ### SwiftUI 예외 목록
 

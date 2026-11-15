@@ -68,6 +68,16 @@ struct ReconnectDelay {
         stop(); try store.select(address: address, device: String(device.prefix(100)))
         signInFields = fields; rejection = nil; token = nil; launch()
     }
+    /// A token issued by the hub for this member: keep it in the Keychain and open the member's gate with it.
+    func adopt(address: String, device: String, token issued: String) async throws {
+        _ = try Self.endpoint(address)
+        stop(); try store.select(address: address, device: String(device.prefix(100)))
+        let keychain = credentials, account = store.settings.credentialAccount
+        guard await Task.detached(operation: { keychain.save(issued, account: account) }).value else { status = .storageError; throw GateFailure.storage }
+        rejection = nil; launch()
+    }
+    /// The signed-in token for hub requests (settings); nil when signed out.
+    var bearer: String? { token }
     func resume() { stop(); pairCode = nil; token = nil; launch() }
     private func launch() {
         generation += 1; let run = generation

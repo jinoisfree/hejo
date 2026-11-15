@@ -9,6 +9,7 @@ from gateway.config import Platform
 from gateway.platforms.base import BasePlatformAdapter, SendResult
 from gateway.platforms.event import MessageEvent
 from .auth import AuthStore
+from .hub import HubLink
 from .journal import Journal, HejoJournalError
 from . import roster
 from . import buttons as native_buttons
@@ -30,6 +31,8 @@ class HejoAdapter(BasePlatformAdapter):
         self.files = None
         self._file_cleanup_task = None
         self.auth = None
+        self.hub = HubLink()  # disabled until connect() reads hub.json
+        self._register_task = None
         self.server = None
         self._publish_lock = asyncio.Lock()
         self._edit_lock = asyncio.Lock()
@@ -75,6 +78,9 @@ class HejoAdapter(BasePlatformAdapter):
             await self.server.start(self.config.extra.get("listen", ["127.0.0.1"]),
                                     self.config.extra.get("port", 47820))
             self.auth.local_code(self.server.port)
+            self.hub = HubLink(get_hermes_home())
+            if self.hub.enabled:
+                self._register_task = asyncio.ensure_future(self._register())
         except (OSError, ValueError, HejoJournalError):
             if self.server:
                 await self.server.stop()
@@ -86,6 +92,18 @@ class HejoAdapter(BasePlatformAdapter):
         _primary = self
         self._file_cleanup_task = asyncio.create_task(self._cleanup_files())
         return True
+
+    async def _register(self):
+        """Tell the hub which port this member's gate serves; retried until the hub answers."""
+        delay = 1
+        while True:
+            try:
+                if await self.hub.register(self.server.port):
+                    return
+            except Exception:
+                log.warning("hejo_hub_register_failed")
+            await asyncio.sleep(delay)
+            delay = min(60, delay * 2)
 
     async def _cleanup_files(self):
         while True:
@@ -100,6 +118,9 @@ class HejoAdapter(BasePlatformAdapter):
         if self.forwarder:
             self._mark_disconnected()
             return
+        if self._register_task:
+            self._register_task.cancel()
+            await asyncio.gather(self._register_task, return_exceptions=True)
         if self._file_cleanup_task:
             self._file_cleanup_task.cancel()
             await asyncio.gather(self._file_cleanup_task, return_exceptions=True)

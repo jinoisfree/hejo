@@ -18,6 +18,8 @@ struct LocalSettings: Codable {
     var petName = PetIdentity.defaultName
     var petX: Double?
     var petY: Double?
+    /// The Mac's hejo hub (host:port) this member signed in at; nil before the first sign-in.
+    var hubAddress: String?
 }
 /// A query replica, never a second conversation authority. Recover applied from the durable cache.
 final class LocalStore {

@@ -192,69 +192,6 @@
           "type": "integer",
           "minimum": 0
         },
-        "login": {
-          "type": "object",
-          "properties": {
-            "account": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 64
-            },
-            "password": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 256
-            }
-          },
-          "required": [
-            "account",
-            "password"
-          ],
-          "additionalProperties": false
-        },
-        "google": {
-          "type": "object",
-          "properties": {
-            "id_token": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 8192
-            },
-            "new_password": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 256
-            },
-            "account": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 64
-            },
-            "password": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 256
-            }
-          },
-          "required": [
-            "id_token"
-          ],
-          "additionalProperties": false,
-          "dependentRequired": {
-            "account": [
-              "password"
-            ],
-            "password": [
-              "account"
-            ]
-          },
-          "not": {
-            "required": [
-              "new_password",
-              "account"
-            ]
-          }
-        },
         "local": {
           "type": "object",
           "properties": {
@@ -271,31 +208,6 @@
           },
           "required": [
             "code",
-            "password"
-          ],
-          "additionalProperties": false
-        },
-        "signup": {
-          "type": "object",
-          "properties": {
-            "account": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 64
-            },
-            "password": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 256
-            },
-            "google_id_token": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 8192
-            }
-          },
-          "required": [
-            "account",
             "password"
           ],
           "additionalProperties": false
@@ -322,21 +234,6 @@
               },
               {
                 "required": [
-                  "login"
-                ]
-              },
-              {
-                "required": [
-                  "signup"
-                ]
-              },
-              {
-                "required": [
-                  "google"
-                ]
-              },
-              {
-                "required": [
                   "local"
                 ]
               }
@@ -352,123 +249,6 @@
               {
                 "required": [
                   "token"
-                ]
-              },
-              {
-                "required": [
-                  "login"
-                ]
-              },
-              {
-                "required": [
-                  "signup"
-                ]
-              },
-              {
-                "required": [
-                  "google"
-                ]
-              },
-              {
-                "required": [
-                  "local"
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "required": [
-            "login"
-          ],
-          "not": {
-            "anyOf": [
-              {
-                "required": [
-                  "token"
-                ]
-              },
-              {
-                "required": [
-                  "pair_code"
-                ]
-              },
-              {
-                "required": [
-                  "signup"
-                ]
-              },
-              {
-                "required": [
-                  "google"
-                ]
-              },
-              {
-                "required": [
-                  "local"
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "required": [
-            "signup"
-          ],
-          "not": {
-            "anyOf": [
-              {
-                "required": [
-                  "token"
-                ]
-              },
-              {
-                "required": [
-                  "pair_code"
-                ]
-              },
-              {
-                "required": [
-                  "login"
-                ]
-              },
-              {
-                "required": [
-                  "google"
-                ]
-              },
-              {
-                "required": [
-                  "local"
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "required": [
-            "google"
-          ],
-          "not": {
-            "anyOf": [
-              {
-                "required": [
-                  "token"
-                ]
-              },
-              {
-                "required": [
-                  "pair_code"
-                ]
-              },
-              {
-                "required": [
-                  "login"
-                ]
-              },
-              {
-                "required": [
-                  "signup"
                 ]
               },
               {
@@ -493,21 +273,6 @@
               {
                 "required": [
                   "pair_code"
-                ]
-              },
-              {
-                "required": [
-                  "login"
-                ]
-              },
-              {
-                "required": [
-                  "signup"
-                ]
-              },
-              {
-                "required": [
-                  "google"
                 ]
               }
             ]
@@ -581,14 +346,9 @@
             "locked",
             "revoked",
             "unknown",
-            "bad_login",
             "weak_password",
-            "bad_id",
-            "no_account",
-            "not_linked",
-            "google_failed",
             "local_only",
-            "exists"
+            "hub_unavailable"
           ]
         }
       },

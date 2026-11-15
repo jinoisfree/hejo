@@ -387,3 +387,31 @@ def test_primary_block_takes_first_free_port_and_tailscale_address(installer, mo
     monkeypatch.setitem(installer, "tailscale_ipv4", lambda: None)
     assert installer["primary_block"]()["extra"]["listen"] == ["127.0.0.1"]
     assert installer["PRIMARY"]["extra"]["listen"] == ["127.0.0.1"]  # the template is never mutated
+
+
+def test_hub_link_writes_owner_only_key(install_airport, tmp_path):
+    """`--hub` joins this Hermes to the hub as a member; the gate key lands in 0600 hub.json."""
+    import asyncio, threading
+    from hub.server import Hub
+    from hub.store import HubStore
+    HubStore(tmp_path / "hub").signup("moyo", "another horse", "air")
+    loop = asyncio.new_event_loop(); hub = Hub(tmp_path / "hub")
+    loop.run_until_complete(hub.start(["127.0.0.1"], 0))
+    thread = threading.Thread(target=loop.run_forever, daemon=True); thread.start()
+    try:
+        url = f"http://127.0.0.1:{hub.port}"
+        environment = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+        run = lambda lines: subprocess.run([sys.executable, str(INSTALLER), "--home", str(install_airport), "--hub", url],
+                                           env=environment, input=lines, capture_output=True, text=True)
+        bad = run("moyo\nwrong horse\n")
+        assert bad.returncode == 1 and "hub_link_failed bad_login" in bad.stdout
+        assert not (install_airport / "hejo/hub.json").exists()
+        good = run("moyo\nanother horse\n")
+        assert good.returncode == 0, good.stdout + good.stderr
+        path = install_airport / "hejo/hub.json"
+        assert stat.S_IMODE(path.stat().st_mode) == 0o600
+        value = json.loads(path.read_text())
+        assert value["url"] == url and len(value["gate_key"]) >= 43 and "another horse" not in path.read_text()
+        assert HubStore(tmp_path / "hub").gate(value["gate_key"])
+    finally:
+        loop.call_soon_threadsafe(loop.stop); thread.join(5)

@@ -1,0 +1,68 @@
+#!/usr/bin/env python3
+"""Run the hejo hub as this Mac account's launchd agent (one hub per Mac). --uninstall stops it; data stays."""
+import argparse
+import os
+from pathlib import Path
+import plistlib
+import shutil
+import subprocess
+import sys
+
+LABEL = "io.github.hermes-hejo.hub"
+
+
+def tailscale_ipv4():
+    tool = shutil.which("tailscale") or next((p for p in ("/opt/homebrew/bin/tailscale", "/usr/local/bin/tailscale",
+        "/Applications/Tailscale.app/Contents/MacOS/Tailscale") if os.path.exists(p)), None)
+    if tool is None:
+        return None
+    try:
+        out = subprocess.run([tool, "ip", "-4"], capture_output=True, text=True, timeout=5).stdout.split()
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return out[0] if out and out[0].startswith("100.") else None
+
+
+def agent(python, release, home, port, listen):
+    arguments = [python, "-m", "hub", "--home", str(home), "--port", str(port)]
+    for address in listen:
+        arguments += ["--listen", address]
+    log = Path.home() / "Library/Logs/hejo-hub.log"
+    return {"Label": LABEL, "ProgramArguments": arguments, "WorkingDirectory": str(release),
+            "EnvironmentVariables": {"PYTHONPATH": str(release), "PYTHONDONTWRITEBYTECODE": "1"},
+            "RunAtLoad": True, "KeepAlive": True, "StandardOutPath": str(log), "StandardErrorPath": str(log)}
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--python", default=sys.executable, help="Python with aiohttp (the Hermes venv works)")
+    parser.add_argument("--home", default=str(Path.home() / ".hejo-hub"))
+    parser.add_argument("--port", type=int, default=47800)
+    parser.add_argument("--uninstall", action="store_true")
+    parser.add_argument("--print", action="store_true", help="show the agent instead of installing it")
+    args = parser.parse_args(argv)
+    plist = Path.home() / "Library/LaunchAgents" / (LABEL + ".plist")
+    domain = f"gui/{os.getuid()}"
+    if args.uninstall:
+        subprocess.run(["launchctl", "bootout", f"{domain}/{LABEL}"], capture_output=True)
+        plist.unlink(missing_ok=True)
+        print("hub_stopped")
+        return 0
+    listen = ["127.0.0.1"] + ([address] if (address := tailscale_ipv4()) else [])
+    value = agent(args.python, Path(__file__).resolve().parents[1], Path(args.home), args.port, listen)
+    if args.print:
+        print(plistlib.dumps(value).decode())
+        return 0
+    plist.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["launchctl", "bootout", f"{domain}/{LABEL}"], capture_output=True)
+    plist.write_bytes(plistlib.dumps(value))
+    result = subprocess.run(["launchctl", "bootstrap", domain, str(plist)], capture_output=True, text=True)
+    if result.returncode != 0:
+        print("hub_start_failed")
+        return 1
+    print(f"hub_running {','.join(listen)}:{args.port}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
