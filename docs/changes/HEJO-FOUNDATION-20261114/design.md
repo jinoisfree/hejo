@@ -320,7 +320,37 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
   - 소유: `BubbleReveal`(TASK-17)을 우선순위 표로 넓힌다. 입력은 `ConversationModel`·`IslandModel`·REQ-HF-28 알림 분류다.
   - 나중에 알려줘: 예약은 Mac별 `hejo-local.json` `reminders`에 둔다. 펫 알림은 그 Mac 화면의 일이라 회원 상태에 두지 않는다.
   - 말풍선 답하기: 보내기는 기존 `send`다. 직원별 `busy_input_mode`는 문 명부가 그 프로필 `config.yaml` `display.busy_input_mode`를 읽기만 해서 `queued`로 보낸다(ddots `BubbleReply.isQueued`와 같은 규칙).
-- **TASK 순서:** TASK-22 보완 16(검토 완료) → TASK-24 → TASK-20 → TASK-25 → TASK-26 → TASK-29 → TASK-30 → TASK-27 → TASK-21 → TASK-23. TASK-28(team-kit 체크리스트 메타)은 운영 저장소 쪽 별도 작업이다.
+- **TASK 순서(20판):** TASK-24 → TASK-31(도구 연결 탐침, 읽기 전용) → TASK-20 → TASK-25 → TASK-26 → TASK-29 → TASK-30 → TASK-27 → TASK-21 → TASK-32(도구 연결 구현, 탐침 뒤 계획 담당이 확정) → TASK-23. TASK-28(team-kit 체크리스트 메타)은 운영 저장소 쪽 별도 작업이다.
+
+### 직원별 도구 연결(20판, REQ-HF-32)
+
+- **원본 독해(계획 담당, 2026-11-15):**
+  - ddots: `AgentConnections.swift`(369), `AgentConnectionsView.swift`(491), `AgentConnectionActions.swift`(264), `AgentAppConnections.swift`(312, 구조·문구), `ConnectionInputField.swift`(39).
+  - 운영 저장소 team-kit: `hermes_facility/connections.py`(469), `connection_secrets.py`(270), `connection_checks.py`(437), `connection_guides.py`(68), `app_connect.py`(638), `app_registry.py`(250), `gateway_restart.py`·`mac_permission.py`(함수 목록).
+  - Hermes 본체(읽기만): `hermes_cli/tools_config.py` `TOOL_CATEGORIES`·`TOOLSET_ENV_REQUIREMENTS`, `hermes_cli/web_routers/{tools,mcp,oauth,config_env,profiles}.py`(대시보드 API: 프로필별 `/api/tools/toolsets`·`/api/env`·`/api/mcp/*`·`/api/providers/oauth/*`·`/api/gateway/restart`), 세션 토큰 인증 `X-Hermes-Session-Token`.
+- **ddots 구조에서 지키는 것:**
+  - 서버(공항)가 연결 목록·상태·이유 코드·버튼(`actions`)·입력 안내(`guide`·`fields`)를 정하고, 앱은 그리기만 한다.
+  - 비밀값은 표준 입력 한 번으로만 오가고, 인수·로그·기록에 남지 않는다.
+  - 확인을 통과한 값만 저장하고, 10분 동안 되돌릴 수 있다.
+  - 다시 시작은 처리 중이면 거절하고, 60분에 한 번이다.
+- **ddots와 달라지는 것(사장 선택):**
+  - ddots는 다른 Mac이 읽기만 한다. hejo는 모든 Mac이 문을 통해 같은 동작을 한다. 대신 위험 동작마다 재확인과 행동 기록을 둔다(근간 원칙 6).
+  - ddots는 운영 저장소 명령에 기대지만, hejo는 Hermes 공식 관리 경로를 기본 원본으로 쓰고 team-kit 명령은 감지해서 더한다.
+- **칸(새 원본 없음)**
+  - 연결 상태·도구 켜짐·MCP 설정은 Hermes 설정(사장 지시서 칸, 조립 결과 포함)이고, 비밀값은 사장 금고(각 홈 `.env`)다. 쓰기 주체는 '사장(앱 경유, 재확인)'이며, 문이 Hermes 공식 쓰기 경로로 쓴다.
+  - 되돌림용 이전 값은 금고 `<HOME>/hejo/undo/`(0600, 10분)에 둔다.
+  - 행동 기록은 공용 창고 `shared/hejo/actions.jsonl`(근간 3절 '행동 기록')에 둔다.
+  - 조립식 공항(owner/team.yaml이 원본)에서 team-kit 명령이 다루는 연결은 그 명령으로만 바꾼다. 조립 결과를 hejo가 직접 고치지 않는다(근간 '칸이 아닌 것').
+- **규격(v1 하위 호환):**
+  - 클라이언트 프레임: `connections {profile?}`, `connection_action {profile, connection, action, values?, reauth}`
+  - 서버 프레임: `connections_status {document}`, `connection_result {reply}`
+  - `values`는 비밀 필드만 담고, 문이 처리 뒤 메모리에서 버린다. 옛 앱은 이 프레임을 보내지 않는다.
+- **미정(TASK-31 탐침으로 정함):**
+  - 문이 Hermes 공식 관리 경로를 쓰는 방식: (a) 같은 프로세스에서 대시보드 라우터와 같은 함수를 부르기, (b) 설치 도우미가 공항 Mac에 `hermes dashboard` 백엔드를 루프백 전용 서비스로 두고 문만 세션 토큰으로 부르기, (c) `hermes` CLI 비대화 하위 명령.
+  - 본체 무수정·프로필 범위·비밀 범위가 지켜지는 길을 고른다.
+  - 다른 Mac에서 OAuth 동의를 끝내는 흐름(장치 코드, 붙여넣기, 콜백 중계)
+  - 다시 시작 뒤 문 재연결과 결과 보고
+- **위험:** 고위험(비밀값 쓰기, 인증된 원격 쓰기, 게이트웨이 재시작). 인계 수준 2, 최종 수준 4(공항 Mac 실물: 실제 키 하나 넣기·되돌리기, 노트북에서 다시 시작, OAuth 하나).
 
 ### hejo 홈 채널(14판, 15·16판 보강, REQ-HF-25)
 
@@ -350,7 +380,8 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
 
 | 화면 | 이유 |
 |---|---|
-| 없음 | 이번 작업의 모든 화면은 AppKit으로 만든다. 필요하면 구현 담당이 멈추고 보고한다 |
+| 도구 연결 창(20판, REQ-HF-32) | 설정 성격의 단순 화면(목록·상세·입력 창)이고, ddots 원본(`AgentConnectionsView` 등)이 SwiftUI라 원본 구조를 그대로 옮긴다. 대화 목록·카드처럼 성능이 걸린 화면이 아니다(근간 원칙 9) |
+| 그 밖 | 모든 화면은 AppKit으로 만든다. 필요하면 구현 담당이 멈추고 보고한다 |
 
 ## 7. 설치 도우미(`install/`)와 개인값 검사
 
