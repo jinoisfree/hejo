@@ -667,3 +667,18 @@
 6. **기획설계로 넘긴 것:** 보완 13-2를 TASK-19 "쓰지 않는 코드 정리"로 등록.
 7. **미검증 범위:** Finder 창 안에서의 아이콘 실물 표시(사장 눈 확인). TASK-17의 실물 미검증 항목(21차 7번)은 그대로 TASK-09 남은 항목이다.
 8. **현재 명세 반영 요청:** REQ-HF-21.AC-01~06(1단계)과 REQ-HF-22.AC-01을 현재 명세(`docs/spec/current/`)에 반영한다. HEJO-FOUNDATION을 닫을 때 한꺼번에 한다.
+
+## 검증 판정: HEJO-FOUNDATION TASK-19 / 쓰지 않는 코드 정리(보완 13-2·13-3) (23차)
+
+1. **판정: 완료.** 앱의 호출처 없는 선언을 지웠고 동작·시험 기대값은 그대로다. `gate/`·`hub/`·`install/`에는 지울 대상이 없다는 실행 담당 보고를 독립 확인으로 받아들인다.
+2. **검증 조건:** 교차 모델. 실행 담당 codex가 `9e991e1`로 구현·보고했고, 계획 담당 Claude가 검토했다(01번 계획 대화가 한도에 차서 새 계획 대화가 이어받음).
+3. **설계 적합성(4.2): 적합.** 13개 앱 파일에서 307줄을 지웠다. 새 경로나 대체 경로는 없다. `ScreenFocus.swift`·`ScreenWindowResolver.swift`는 묶음 전체가 미사용이어서 파일째 없어졌다. 남긴 것(AppKit·대리자 메서드, `CodingKeys`, 셀렉터 버튼 동작, 응답 체인의 `pasteAsPlainText`·`pasteAsRichText`, `AppIcon.render`)은 13-2 기준에 맞다.
+4. **직접 확인한 것**
+   - 지운 이름 12개 표본(`callerAvatar`·`notificationAvatar`·`collapseConversation`·`ScreenWindowResolver`·`ScreenFocus`·`GeniePictureKey`·`PetBubbleMotion`·`perchRect`·`hasProfileColor`·`cachedCount`·`contentBounds`·`allowsLook`): app·gate·hub·install·tests·schemas 전역 검색 0건. `app/Sources`에 문자열 셀렉터(`NSSelectorFromString`·`Selector("…")`) 0건.
+   - `gate/`·`hub/`·`install/` Python 정의(함수·클래스) 전체를 저장소 전역에서 이름 검색: 참조 1회 이하인 것은 pytest가 찾는 `test_*` 함수뿐이다. 제품 코드의 미참조 정의 0.
+   - 실행 담당 로그: `.build/foundation9-hejo.log` 93 passed, `.build/task19-app.log` `APP_TEST_OK`, `.build/task19-install-verify.log` 서명 2·실행 파일 일치·프로세스 1. 코드 변경 뒤 새 커밋이 없어 전체 시험을 다시 돌리지 않았다.
+   - 증거 수준: 1(자동 + 컴파일러가 남은 참조를 강제).
+5. **지적:** 차단 0, 비차단 0.
+   - 관찰: 기본 `python3`에 `ruamel`이 없어 개인값 검사 첫 실행이 종료 2였고 Hermes Python으로 0을 확인했다(`.build/task19-scan-initial.log`). 검사 도구 환경 문제이며 제품 결함이 아니다.
+6. **기획설계로 넘긴 것:** 없음. 다음은 이미 인계된 TASK-22 → TASK-20 → TASK-21(기준 `41814ac`)이다.
+7. **미검증 범위:** 없음(동작 불변 작업). TASK-17·09의 실물 미검증 항목은 그대로다.
