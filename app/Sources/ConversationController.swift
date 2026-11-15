@@ -95,7 +95,7 @@ struct ConversationDraft {
             }
             guard address == client.store.settings.address, epoch == client.connectionEpoch, canSend else { throw GateFailure.notConnected }
             try await client.send(["v":1, "type":"send", "id":id, "employee":key.employee, "thread":key.thread,
-                                   "text":draft.text, "client_msg_id":id, "files":uploaded.map(\.fileID)])
+                                   "text":draft.text.trimmingCharacters(in:.whitespacesAndNewlines), "client_msg_id":id, "files":uploaded.map(\.fileID)])
         } catch {
             pending[id] = nil; transferFailed(error,for:key)
         }

@@ -151,7 +151,7 @@ import AppKit
             if let key=newKeys[current], !model.timeline(key).isEmpty, controller.drafts[key]?.text.isEmpty == true { newKeys[current]=nil }
         } else { threads=[]; history.show([],identity:""); heading.stringValue="HEJO."; older.isHidden=true }
         let draft=controller.draft
-        if displayedKey != selected || (!editor.editor.hasMarkedText() && MessageFormat.serialize(editor.editor.attributedString()) != draft.text) {
+        if displayedKey != selected || (!editor.editor.hasMarkedText() && MessageFormat.serialize(editor.editor.attributedString(),baseSize:ChatMetrics.bodyFont) != draft.text) {
             editor.editor.breakUndoCoalescing(); editor.editor.undoManager?.removeAllActions()
             editor.editor.textStorage?.setAttributedString(MessageFormat.editor(draft.text,bodySize:ChatMetrics.bodyFont))
             editor.editor.typingAttributes=MessageFormat.Style(size:ChatMetrics.bodyFont).attributes; editor.measure()
@@ -222,7 +222,7 @@ import AppKit
     func tableViewSelectionDidChange(_ notification:Notification) { guard !rendering,rooms.indices.contains(employeeTable.selectedRow), let employee=rooms[employeeTable.selectedRow].members.first else { return }; chooseEmployee(employee) }
     func controlTextDidChange(_ notification:Notification) { refresh() }
     func textDidChange(_ notification:Notification) {
-        if let key=displayedKey { controller.setText(MessageFormat.serialize(editor.editor.attributedString()),for:key) }
+        if let key=displayedKey { controller.setText(MessageFormat.serialize(editor.editor.attributedString(),baseSize:ChatMetrics.bodyFont),for:key) }
         draftHint.isHidden = !editor.editor.string.isEmpty; formatting.refresh(); editor.measure()
         sendButton.isEnabled=controller.canSend && !controller.sending && (!editor.editor.string.isEmpty || !controller.draft.attachments.isEmpty); sendButton.needsDisplay=true
     }

@@ -143,6 +143,7 @@ final class MemoryCredentials: GateCredentialStore {
         try await islandTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await typingTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await loginTests()
+        try composerTests()
         print("AT-HF-47 automatic PASS; AT-HF-48 PASS; cache/backoff/size/instance PASS")
     }
     func network(_ args: [String]) async throws {
