@@ -910,3 +910,18 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
   - REQ-HF-24.AC-02 단체방 문맥 묶음의 `📎<파일 이름>`은 ddots에서 옮긴 문구가 아니라 hejo가 새로 정한 형식이라 그대로 둔다.
 - **문구 변환 규칙 보강(24판):** 명세가 원문을 옮기다 빠뜨리거나 공백·부호를 틀린 것이 분명한 차이는 원문이 이긴다. 원문대로 구현하고 copy-review·impl-report에 기록한 뒤 멈추지 않고 진행하며 result에서 알린다. 원문에 없는 새 문구나 뜻이 바뀌는 차이만 멈춘다.
 - **재개:** 기존 copy-review·impl-report의 D25-01 기록을 보존하고, 남은 의존 대조(종·날짜·접힌 답·표·상태·체크리스트)부터 이어 TASK-25 전체를 구현·검증한다. 끝나면 별도 커밋 뒤 result로 보고한다(보완 23 흐름 규칙).
+
+## 보완 지시 25: D25-02~05 결정 — 25판, TASK-25 재개 (2026-11-16)
+
+계획 담당이 Hermes 본체(ebb026e, 읽기만)·통신 규격·앱 GateClient·ddots 원본으로 네 쟁점을 직접 확인하고 정했다. 실행 담당의 재현(`.build/task25/test_contracts.py` 3 passed)과 일치한다.
+
+- **D25-02 스레드 삭제와 seq 연속:** 새 기록 종류·새 프레임 종류를 만들지 않는다.
+  - 확정점은 기존 `delete` 기록 한 줄 `{msg_id: 첫 글, scope:"thread", room, thread, at}`이다. 이어서 나머지 글마다 보통 `delete`를 쓴다. 중단되면 문 시작 때 빠진 것만 다시 쓴다.
+  - 재현·동기화·페이지에서 확정점 앞의 그 스레드 기록은 같은 seq의 `delete {seq, msg_id}`로 바꿔 보낸다. seq 빈칸이 생기지 않는다.
+  - 규격 `delete`에 선택 필드 `scope`·`thread`를 더한다. 새 앱은 스레드 전체를 화면·캐시에서 지운다(캐시는 같은 seq `delete`로 원자적 재작성). 옛 앱은 이어지는 `delete`로 지워진다.
+  - 앱은 알 수 없는 종류의 seq 프레임을 적용한 것으로 세고 건너뛴다.
+  - 허용 파일에 `schemas/hejo-wire-v1.json`(선택 필드·client `thread_delete`·`thread_branch`), `app/Sources/LocalStore.swift`·`GateClient.swift`·`ConversationModel.swift`를 포함한다.
+- **D25-03 종 되돌림:** `bell:`을 큰 seq 우선에서 빼고 `(at, dev)` 나중 쓴 쪽 우선으로 바꾼다(null로 지움). `read:`·`thread:`는 그대로 큰 seq 우선이다. 허용 파일: `hub/state.py`, `app/Sources/MemberState.swift`와 그 시험. 이미 저장된 `bell:` 값은 그대로 읽힌다(형식 같음).
+- **D25-04 분기:** Hermes `/branch`는 플러그인 플랫폼에서 어댑터를 부르지 않으므로(고정 목록) hejo는 `/branch`를 보내지 않는다. 앱 `thread_branch` → 문이 새 스레드·이어짐 글(`branch_from`) 기록 → 새 스레드 첫 사장 글에 원래 스레드 대화를 `[이전 스레드 대화]` 묶음(50줄·16,000자·줄 2,000자)으로 붙인다. 본체 우회는 하지 않는다. 이 묶음 코드는 TASK-21의 단체방 문맥이 함께 쓰도록 한 곳에 둔다. `create_handoff_thread`는 구현하지 않는다.
+- **D25-05 질문 대기 색:** ddots 원문대로 빨강 `#E01E5A`다(24판 원문 우선).
+- **재개:** 기존 copy-review·impl-report 기록을 보존하고 25판 기준으로 TASK-25 전체를 구현·검증한다. 별도 커밋 뒤 result로 보고한다.

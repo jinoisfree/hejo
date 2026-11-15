@@ -290,10 +290,10 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
     - 새 모듈: `hub/state.py`가 `<허브 자료>/state/<회원>.json`(0600)을 쓴다. 항목마다 `{v, at, dev}`, 파일에는 `rev`를 둔다.
     - 병합: 같은 회원의 PATCH는 회원별 잠금 안에서 읽기 → 병합 → 원자적 쓰기로 처리한다.
     - 분리: 회원 설정(`settings`, 16 KiB)과 따로 둔다. 펫 이름·크기·말풍선 설정은 `settings`에 남는다.
-  - **스레드 삭제 — 공용 창고 칸:** 기록장 `RECORD_TYPES`에 `thread_delete`를 더한다. 14판 `room_delete`와 같은 확정점·재현 제외·늦은 응답 버림·첨부 정리 규칙을 스레드 단위로 쓴다. 지운 스레드 묶음은 `(room, thread)`이다.
+  - **스레드 삭제 — 공용 창고 칸(25판):** 새 기록 종류를 더하지 않는다. 확정점은 기존 `delete` 기록에 `scope: "thread"`·`room`·`thread`를 단 한 줄이고, 이어서 나머지 글마다 보통 `delete`를 쓴다(seq 연속 유지, 옛 문으로 되돌려도 기록장이 열린다). 14판 `room_delete`와 같은 확정점·재현 제외·늦은 응답 버림·첨부 정리 규칙을 스레드 단위로 쓴다. 지운 스레드 묶음은 `(room, thread)`이다.
 - **문(`gate/`)**
   - 명부: `roster.py`에 `avatar`·`color`를 넣는다. 사진 PUT·DELETE 뒤에는 `roster` 프레임을 모든 연결에 방송한다.
-  - 분기: 어댑터에 `create_handoff_thread(parent_chat_id, name)`를 구현한다(Hermes 기본 클래스의 공개 확장점, 본체 무수정). parent가 직원 1:1(또는 TASK-21 뒤 `room:<id>`)이면 새 UUID 스레드를 만든다. 그 스레드에 이어짐 글을 기록하고 id를 돌려준다. 실패하면 None이고, Hermes가 제자리 분기로 처리한다.
+  - 분기(25판, D25-04): Hermes `/branch`는 플러그인 플랫폼에서 `create_handoff_thread`를 부르지 않는다(본체 고정 목록, Hermes ebb026e 확인). 그래서 문이 `thread_branch`를 받아 새 UUID 스레드와 이어짐 글(`branch_from`)을 기록하고, 새 스레드 첫 사장 글에 원래 스레드 대화를 문맥으로 붙인다(REQ-HF-24 문맥 묶음과 같은 방식). TASK-21은 이 묶음 코드를 함께 쓴다.
   - 중지·되돌리기: 앱이 보낸 `/stop`·되돌림 글은 기존 send 경로로 그 스레드 세션에 들어간다. Hermes 바쁜 세션 처리(`gateway/run_busy.py`의 `stop` 명령)를 구현 담당이 읽기 전용으로 확인하고, 가짜 게이트웨이 시험으로 고정한다.
   - 체크리스트: Hermes 메타 `hejo_checklist {items, selected, can_skip}`를 `message`·`edit` 프레임의 선택 필드 `checklist`로 넘긴다. 규격은 v1 하위 호환이다(옛 앱은 무시).
 - **허브(`hub/`)**
@@ -311,8 +311,8 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
   - 말풍선 버튼(링크·일정·나중에 알려줘)·말풍선 바로 답하기·상태 점(대조표 A)은 4단계로 남긴다.
   - "이 방은 보관하지 않기", 사람 초대(hejo에는 사람 회원 초대가 없음), 프로젝트 기록 카드는 이번 판에서 뺀다.
 - **위험·롤백(18판)**
-  - TASK-24(허브 영구 저장·인증)·TASK-20(사장 칸 파일 쓰기)·TASK-25(기록장 새 종류 `thread_delete`)·TASK-21은 고위험이다.
-  - `thread_delete` 기록이 생긴 뒤 이전 문 코드로 되돌리면 기록장이 열리지 않는다(14판과 같은 이유). 그래서 TASK-23 롤백은 `shared/hejo` 사본 복원을 함께 한다.
+  - TASK-24(허브 영구 저장·인증)·TASK-20(사장 칸 파일 쓰기)·TASK-25(스레드 범위 `delete`)·TASK-21은 고위험이다.
+  - (25판) 스레드 삭제는 기존 `delete` 종류만 써서 이전 문 코드로 되돌려도 기록장이 열린다. 옛 문은 지운 스레드 글을 다시 내보내지만 바로 뒤의 `delete`로 화면에서 지워진다. TASK-23 롤백의 `shared/hejo` 사본 복원은 그대로 한다.
   - 허브 상태 파일은 이전 허브가 읽지 않는 새 파일이라, 되돌려도 회원 설정은 안전하다.
   - 직원 사진 롤백은 바꾸기 전 `avatar.png`를 TASK-23 사본에 함께 떠 두고 되돌린다.
 - **펫 알림·말풍선 답하기(19판, REQ-HF-30·31)**
