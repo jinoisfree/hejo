@@ -1161,3 +1161,25 @@ AppKit `AppIcon.render(pixels:)`가 투명 1024px 캔버스의 흰 둥근 사각
 롤백·남은 위험: 허브 상태 파일은 이전 허브가 무시하는 새 파일이다. 앱 사본은 위 백업으로 되돌릴 수 있다. TASK-23에서 실제 Mac의 처음 옮기기를 실행하기 전에는 로컬 `hejo-local.json`도 보존할지 계획 담당이 확인해야 한다(새 앱이 옛 readSeq를 지우므로 이전 앱만 되돌리면 새 회원 상태를 읽지 못함). 이 실행에서는 운영 Mac의 이전을 하지 않았다. 고위험 최종 판정·비설계자 검토·실제 두 Mac 수준 4는 남아 있다.
 
 검토 대상은 `main`의 **이 절·제품·시험·캡처를 함께 담은 TASK-24 단독 커밋**이며 전체 해시는 최종 역할 인계에 기록한다. 계획 담당은 tasks.md의 TASK-24 대기 표기를 이 구현 결과와 대조하고, 새 보완 19의 TASK-31 탐침을 다음 순서로 인계할지 확인할 것. TASK-20·25·26·29·30·27·21·31·32는 이번 커밋에서 착수하지 않았다.
+
+## 구현 인계: TASK-31 도구 연결 탐침(보완 지시 19)
+
+1. **받은 설계·기준:** handoff 보완 19, REQ-HF-32·design '직원별 도구 연결(20판)'. 기준 `39e45b55306eafa0b2c913665273d74722c77794`, 연합개발 구현·자체 시험 역할. 일반 위험, 필요한 수준 **2**, 도달 수준 **2**다. 이번 지시는 읽기 전용 탐침이며 제품 구현은 하지 않는다.
+2. **구현자 판단:** **탐침·문서화 완료, 계획 담당 검토 대기.** [probe-connections.md](probe-connections.md)에 방식별 결과·실패·OAuth 제공자 표·재시작 후 결과 복구 제안·근거 파일/줄을 남겼다. (b) 루프백 백엔드가 기본 후보지만 로그 비노출·설치/수명·external 제공자·콜백 중계·영속 재시작 결과는 계획 확정 사항이다.
+3. **변경·책임 배치:** 추적 변경은 탐침 보고 신설과 이 인계 절뿐이다. 공식 관리 함수/루프백 API/CLI가 각자 실제 Hermes 설정·환경값을 쓰는 것을 임시 홈에서 확인했다. team-kit이 관리하는 연결은 그 명령에서 문서와 결과를 받는다. 제품 원본·공개 규격·설정·시험·작업 판정은 변경하지 않았다. 삭제/교체한 제품 경로, 덧댄 계층, 제품 의미 변경은 없다.
+4. **실행 근거:** `.build/task31/launch.py`가 Hermes venv와 가짜 기본+보조 2개 프로필을 준비한다. `probe.py`, `backend.py`, `provider_starters.py`, `cli_matrix.py`, `team.py`, `reconnect.py`를 직접 실행했다. 감사 훅·최소 환경으로 운영 비밀 읽기·임시 폴더 밖 쓰기·비루프백 접속·실제 서비스 신호를 제한했다. 필요한 web 의존성은 탐침 폴더에만 설치했으며 원래 venv는 바꾸지 않았다. 하위 에이전트는 쓰지 않았다.
+5. **관측한 제약:** MCP 시험과 OAuth 시작에 주입한 가짜 비밀 문자열이 원시 오류에 남는다. 대시보드 자체 오류 로그의 비노출도 미해결이다. web `configured`는 필요한 특정 키가 없는 프로필에서도 true일 수 있다. CLI MCP 추가·시험은 대화형/대기 경로가 있어 제한시간을 넘겼다. 일부 제공자 의존성 미설치도 기록했다. 이 결과를 성공한 실제 연결로 세지 않았다.
+6. **검증:** 아래 명령의 실행 결과와 개별 실패/대역 범위는 탐침 보고의 표·로그에 있다. 기능/제품 시험을 추가하거나 기존 수락 시험을 바꾸지 않았다. 제품 변경이 없어 전체 제품 시험·앱 10회·캡처·배포·공용 릴리스·돌연변이는 반복하지 않는다. 이번 목적은 채택 가능성과 한계를 관측하는 것이며 외부 경계 고장 주입을 사용했다.
+
+| 명령 | 실제 결과 | 로컬 증거 |
+|---|---|---|
+| `python3 .build/task31/launch.py probe` | 0, 함수 경로·세 프로필·60개 병행 비밀 범위 읽기·오류 노출·드레인 표식 | `.build/task31/probe.log`, `probe-results.json` |
+| `python3 .build/task31/launch.py backend` | 0, 실제 루프백 백엔드·토큰/Host·HTTP 쓰기. 외부 인증/전송·서비스 실행만 대역 | `.build/task31/backend.log`, `backend-server.log`, `backend-results.json` |
+| `python3 .build/task31/launch.py provider_starters` | 0, 실제 공급자 4개 시작 함수+가짜 HTTP; 토큰 교환 미실행 | `.build/task31/provider_starters.log`, `provider-starters-results.json` |
+| `python3 .build/task31/launch.py cli_matrix` | 0, 개별 명령의 1/시간 만료는 예상 관측으로 구분 | `.build/task31/cli_matrix.log`, `cli-results.json` |
+| `python3 .build/task31/launch.py team` | 0, 문서·stdin·0600 저장/되돌림·큰 입력 거절·고정 오류·시간 제한 | `.build/task31/team.log`, `team-results.json` |
+| `python3 .build/task31/launch.py reconnect` | 0, 가짜 서비스 runner에서 3채널/처리 중 거절/새 연결 없음 판정 | `.build/task31/reconnect.log`, `reconnect-results.json` |
+| Hermes venv `scripts/scan_private.py --repo .`·`HEJO_PYTHON` 지정 `githooks/pre-commit` | 각각 0, 새 보고서를 추적에 넣고 실행 | `.build/task31/private.log`, `hook.log`, `private-results.json` |
+
+7. **미검증·남은 위험:** 실제 게이트웨이에서 실행되는 문과 Hermes 대화의 동시 관리, 실제 제공자 인증/토큰 교환, 실제 MCP 전송, 운영 재시작·앱 재연결·두 Mac 실물은 미실행이다. 재시작 후 결과 복구는 제안이며 구현하지 않았다. 운영 홈 설치·재시작/reload·비밀 파일 열기·본체/ddots/운영 저장소 수정·외부 메시지·public 갱신·push는 하지 않았다.
+8. **검토 요청·다음 순서:** 계획 담당이 탐침의 대역 범위와 원시 오류/로그 노출, `configured` 의미, OAuth external 4종·MCP 콜백, 영속 작업 결과의 칸을 검토하고 TASK-32 계획을 확정해야 한다. TASK-20부터의 실행은 이 탐침 검토 뒤에 보완 17·18대로 이어간다. 이번에는 후속 TASK를 착수하지 않았다. TASK-24 및 앞선 보류/해소 보고는 그대로 보존했다. 검토 대상은 두 문서를 담은 별도 `git commit --only` 커밋이며 전체 해시는 최종 역할 인계에 기록한다.
