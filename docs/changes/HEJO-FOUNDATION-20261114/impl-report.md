@@ -1083,3 +1083,32 @@ AppKit `AppIcon.render(pixels:)`가 투명 1024px 캔버스의 흰 둥근 사각
 13. **대상 변경본:** main의 TASK-22 단독 커밋(이 절을 포함한 커밋). 실제 전체 해시·릴리스 결과는 최종 인계의 pushTargets·checks로 전달한다. 다음 구현은 승인된 순서대로 TASK-20 → TASK-21이다.
 
 초기 집중 시험 호출 한 번은 runner의 비-hejo 모드가 다른 작업 디렉터리를 사용해 상대 시험 경로를 찾지 못해 종료 4였다(`.build/task22-focused-initial.log`). 절대 시험 경로로 바꾼 최종 명령이 위 32개 통과다. 개발 중 발견한 실패와 최종 결과를 구분하며, 이 로그들은 공개 추적 파일에 넣지 않는다.
+
+### TASK-20·21 착수 보류 기록 — 계획 담당의 원본 독해·기능 대조표 전제
+
+보완 16 시점 후속 상태: 아래는 `b1ae3b2` 당시의 보류 근거다. 이후 계획 담당이 `3295bfe`에서 `ddots-inventory.md`를 작성해 원본 독해·대조표 근거를 보완했다. 현재 TASK-20·21은 그 대조표 Q1~Q4에 대한 사장 답과 명세 재인계를 기다리며, 이번 보완 16 범위에는 넣지 않는다.
+
+- **판단:** 보류(구현 규칙 2절에 따른 계획 담당 보완 요청). 최신 사용자 제약은 "ddots 이식 계획은 계획 담당이 ddots 원본을 끝까지 읽고 기능 대조표를 만든 뒤 명세화한다(줄 범위 인용만으로 명세 금지)"다. 구현 담당의 copy-review는 이 계획 단계 전제를 대신하지 못한다.
+- **확인한 근거:** 현재 hejo HEAD는 `b1ae3b2354babb50b7477ed5dfefb19c8027b055`다. handoff 보완 14는 원본 줄 범위와 구현 목록을 제공하고 design '사진·구획·단체방'과 REQ-HF-23·24는 목표를 정하지만, TASK-20·21의 원본 기능별 유지·변경·제외 및 REQ/AC/AT 대응 대조표는 작업 문서에서 확인되지 않는다. 기존 copy-review의 전체 독해 기록은 구현 담당의 이전 TASK-05·06·17 범위이며, TASK-20·21 계획 담당의 전제 충족 증거로 쓰지 않았다. 문서가 없다는 이유로 계획 담당이 실제로 읽지 않았다고 단정하지 않는다.
+- **이번 조사 범위:** ddots 원본 HEAD `208f6e6322f593729c9ef6ac16ac903be4c3692b`, 지정 네 파일의 작업 트리 변경 없음을 읽기 명령으로 확인했다. SlackPanel의 구획·사진 콜백 일부, SlackController의 콜백 연결 일부, SettingsSync 앞부분만 읽었다. 전체 독해·의존 검토를 마쳤다는 기록은 남기지 않았고 복사하지 않았다. hejo 제품 코드·실행 시험·설계·수락 기준 변경, 설치·릴리스·커밋·푸시 없음. 이번 변경은 이 보류 보고뿐이다.
+- **계획 담당에게 요청:** 지정 원본 파일 전체와 유지 의존을 직접 읽고 원본 커밋·파일·독해 범위를 기록한다. 기능별로 원본 동작, hejo 유지/변경/제외 및 이유, 책임 칸, REQ/AC/AT를 연결한 대조표를 작성하고 기존 명세·설계와 맞춰 재인계한다. 특히 사진 대상·표시·동기화, 구획 생성/접기/삭제/이동/순서/고정, 방 관리·멘션 전달의 이식 경계를 확인한다. 필요하면 이미 기록된 독해 증거의 위치를 명시하는 것으로 누락을 해소할 수 있다. 구현 담당이 이 대조표를 대신 확정하거나 수락 기준을 바꾸지 않는 방안을 권고한다.
+- **그동안 진행 가능한 부분:** TASK-22의 기존 검증·릴리스 증거는 그대로 유지한다. 사진 HTTP 계약 자체는 승인돼 있으나 앱 이식과 함께 TASK-20으로 묶인 구현은 보완 인계 뒤 시작한다. 같은 전체 검사는 반복하지 않는다. 새 제품 변경이 없으므로 새 기능 시험·앱 10회 반복·캡처·배포는 미실행이다.
+
+### TASK-22 보완 16 — 롤백 중단과 사장 키 삭제 구분
+
+1. **받은 설계:** handoff 보완 16, design 'hejo 홈 채널' 17판 맞춤 표·삭제 순서, AT-HF-72 ④·⑤·사장 키 삭제 사례. 검토 V-1·V-2의 설계 보완이며 기준 HEAD는 `0fa3d1b6cb7449518e867cdd0c7e56976033f0c6`다. 연합개발·고위험, 필요한 인계 증거 **수준 2**, 최종 수락 **수준 4**다.
+2. **구현자 판단·변경 후 구조:** 보완 16 구현·자체 시험 완료. 설치 도우미의 기존 영수증 version 1과 동일한 홈 채널 대상에서 삭제 의도를 먼저 기록한다. `remove_home_channels`가 `removing` 저장 → 키 삭제 → `removed` 저장을 맡으므로 선택 제거·전체 제거·신규 설치 실패 되돌림·기존 설치 갱신 실패 되돌림 모두 같은 순서를 쓴다. config 쓰기 실패는 C1대로 applied로 되돌려 저장하고 종료 1로 알린다.
+3. **더한 것·교체·설계 차이:** `reconcile_home_channels`가 removing+after는 applied, removing+없음은 removed, removing+다른 값은 released로 맞춘다. 제거 명령은 applied를 이어 지우며, 설치·갱신은 맞춤을 먼저 해서 removed 대상의 빠진 키를 다시 넣는다. 점검은 영수증을 쓰지 않고 같은 판단을 사용한다. released+값 없음은 `owner_removed`, 실제 사장 값은 `owner_set`으로 구분한다. 일반 대상의 파일 전체 복원도 removing 홈 채널이 남으면 쓰지 않는다. 이전 '먼저 삭제하고 저장' 경로를 같은 함수에서 교체했으며 설계 차이는 없다.
+4. **덧대기·성격:** 새 파일·영수증 버전·설정 원본·공개 설치 경로 없음. 기존 복구·제거 책임에 상태 전이만 통합한 의미 변경이다. 기존 영수증과 pending/applied/released/removed, C1, A/B/C 롤백·강제 제거의 사장 값 보존 계약을 유지한다. 임시 제품 코드 없음.
+5. **시험:** 기존 시험은 허가된 `test_at_hf_72_owner_change_check_and_forced_uninstall`의 기대 한 줄만 `owner_set` 2개에서 `owner_set` 1개+`owner_removed` 1개로 바꿨다. 다른 기존 시험 바이트는 변경하지 않았음을 기준 커밋과 직접 대조했다. 새 실행 사례 18개는 두 제거 명령 × 중단 ④·⑤ × 설치/선택 제거/전체 제거 복구 12개, removing 뒤 사장 변경값의 세 복구 경로 3개, 신규 설치·옛 설치 갱신 실패의 삭제 순서 2개, 사장 키 삭제의 released 유지·owner_removed·읽기 전용 점검 1개다. 제거 전 의도 선저장, 제거 뒤 사장 변경 오판 금지, config·영수증의 다른 대상과 원문 보존을 관측한다. `removing` 선저장 두 줄을 제거한 돌연변이는 14개 시험이 실패했고, 최종 전체 검사 전에 원복했다.
+6. **직접 실행한 검증·증거:** 필요한 수준 **2**, 도달 수준 **2**. 임시 HERMES_HOME·가짜 기본+보조 2개 프로필에서 실제 설치 도우미를 실행했다. 다른 에이전트는 쓰지 않았다.
+
+| 명령 | 실제 결과 | 로그 |
+|---|---|---|
+| `python3 .build/foundation9_runner.py task22-r16-install <저장소>/tests/acceptance/test_install.py` | 종료 **0**, 집중 시험 **49 passed**(마지막 독립 owner_removed 사례 추가 직전) | `.build/task22-r16-focused.log`, `.build/foundation9-task22-r16-install.log` |
+| `python3 .build/task22_r16_mutation.py` | 실행기 종료 **0**, removing 선저장 제거 시 **14 failed / 36 deselected**, pytest 종료 **1**, 소스 원복 확인 | `.build/task22-r16-mutation.log`, `.build/task22-r16-mutation.json`, `.build/foundation9-task22-r16-mutant.log` |
+| `python3 .build/foundation9_runner.py hejo`(최종 제품·시험 소스) | 종료 **0**, pytest **126 passed**(설치 시험 50개 포함), AT-22 가짜 게이트웨이 정상 종료, 앱·HTTP/WebSocket 대역 통과 | `.build/task22-r16-full.log`, `.build/task22-r16-full-detail.log` |
+| Hermes venv Python `scripts/scan_private.py --repo .`, `HEJO_PYTHON` 지정 `sh githooks/pre-commit`, `git diff --check` | 각각 종료 **0** | `.build/task22-r16-checks.json`, `.build/task22-r16-{scan,precommit,diff-check}.log` |
+| 기존 시험 바이트 대조 | 허가된 기대 한 줄 외 기존 바이트 변경 **0** | `.build/task22-r16-test-contract.json` |
+
+7. **범위·남은 위험·검토 요청:** 앱 소스 변경이 없어 새 캡처·10회 반복·앱 사본 교체는 해당하지 않는다. TASK-20·21은 착수하지 않았다. 운영 홈 설치·게이트웨이 재시작/reload·실제 발송·비밀 파일 열기·Hermes 본체·ddots·허브 코드 수정·push는 하지 않았다. 비설계자 검토와 TASK-23 수준 4는 여전히 필요하다. 검토자는 removing+after의 설치/제거 분기, removing+없음에서 새 대상 생성 전에 맞추는 순서, 점검의 읽기 전용·owner_removed, 쓰기 실패 C1과 기존 기대 한 줄 외 시험 불변을 확인할 것. 기존 pytest 비동기 표시·Swift Sendable 경고는 이번 변경과 무관한 부채로 유지했다. 제품 코드·시험·이 보고와 이전 보류 보고를 함께 TASK-22 보완 단독 커밋으로 넘긴다. 공용 릴리스 갱신은 커밋 직후 수행하며 결과는 `.build/task22-r16-release.log`와 최종 인계에 남긴다.

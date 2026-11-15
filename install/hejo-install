@@ -438,7 +438,7 @@ def restore_config(home, receipt, targets, force):
     if not selected:
         return conflicts
     owned_home_remaining = any(item.get("owner_may_change") and item["file"] == file
-                               and item["state"] == "applied" for item in receipt["targets"])
+                               and item["state"] in {"applied", "removing"} for item in receipt["targets"])
     original = yaml_load(cfg["before"])
     same_home = lookup(original, HOME_KEYS) == lookup(document, HOME_KEYS)
     if not conflicts and not owned_home_remaining and same_home and text == cfg["written"]:
@@ -459,13 +459,15 @@ def reconcile_home_channels(home, receipt, *, installing=False, check=False):
     """Recover the config/receipt boundary; owner changes release installer ownership."""
     missing = set()
     for target in receipt["targets"]:
-        if not target.get("owner_may_change") or target["state"] not in {"pending", "applied"}:
+        if not target.get("owner_may_change") or target["state"] not in {"pending", "applied", "removing"}:
             continue
         _, text, _ = read_config(safe_path(home, target["file"]))
         present, value = lookup(yaml_load(text), target["keys"])
         previous = target["state"]
         if present and value == target["after"]:
             target["state"] = "applied"
+        elif not present and previous == "removing":
+            target["state"] = "removed"
         elif not present and previous == "pending":
             missing.add(target["path"])
             if installing:
@@ -501,7 +503,14 @@ def remove_home_channels(home, receipt, targets):
                         parent = parent[key]
                     del parent[target["keys"][-1]]
                 restore_key(document, original, target["keys"])
-                written = write_config(path, document, mode)
+                target["state"] = "removing"
+                save_receipt(home, receipt)
+                try:
+                    written = write_config(path, document, mode)
+                except Exception:
+                    target["state"] = "applied"
+                    save_receipt(home, receipt)
+                    raise
                 config = receipt["configs"][target["file"]]
                 if text == config["written"]:
                     config["written"] = written
@@ -520,6 +529,8 @@ def upgrade_home_channels(home, receipt):
     added = [target for target in receipt["targets"]
              if target.get("owner_may_change") and target["state"] == "pending"]
     try:
+        # Finish recovery before deciding which profiles need a replacement target.
+        reconcile_home_channels(home, receipt, installing=True)
         for file in receipt["configs"]:
             if any(target.get("owner_may_change") and target["file"] == file
                    and target["state"] != "removed" for target in receipt["targets"]):
@@ -623,7 +634,7 @@ def run(home, *, check=False, uninstall=False, uninstall_home_channel=False, for
                 print(f"missing_target {file}#{'.'.join(HOME_KEYS)}")
                 changed.append(file + "#" + ".".join(HOME_KEYS))
             elif not any(item["state"] == "applied" and value == item["after"] for item in targets):
-                print(f"owner_set {file}#{'.'.join(HOME_KEYS)}")
+                print(f"{'owner_set' if present else 'owner_removed'} {file}#{'.'.join(HOME_KEYS)}")
         if stat.S_IMODE((home / "hejo").stat().st_mode) != 0o700:
             changed.append("hejo")
         if stat.S_IMODE((home / "hejo/install-receipt.json").stat().st_mode) != 0o600:
