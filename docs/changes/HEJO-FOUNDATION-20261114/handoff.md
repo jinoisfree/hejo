@@ -673,3 +673,52 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
 - 13-1 ①(V-1)과 ②(TASK-18)는 22차에서 완료로 판정했다. 13-2의 넓힌 정리를 TASK-19로 실행한다. 기준 커밋은 이 절을 담은 커밋이다.
 - 13-2 후보 목록에서 V-1 6개(AppDelegate 셀렉터)는 이미 지워졌으니 뺀다. 새로 생긴 `AppIcon.render`는 시험·빌드 도구가 쓰므로 남긴다.
 - 그 밖의 판정 규칙·검증·금지는 13-2와 같다. 정리 커밋 뒤 앱을 빌드해 `/Applications`와 공용 사본을 교체·실행한다(동작 불변 확인용). 게이트웨이·허브 재시작은 하지 않는다.
+
+## 보완 지시 14: TASK-20 직원 사진·구획, TASK-21 단체방 (2026-11-15, 사장 지적·선택 "부른 직원만")
+
+- **배경:** 사장 지적은 "에이전트 사진 교체, 채팅방 생성·삭제, 세션구획 세팅 등 전혀 구현이 안 되어 있다"이다. 3단계 계획이던 방·구획을 지금 순서로 당긴다. "세션"은 ddots 사이드바 구획(섹션)이다.
+- **순서:** TASK-19(코드 정리, 보완 13-2·13-3) → TASK-20 → TASK-21. 각각 별도 커밋하고, 하나가 끝나면 impl-report를 쓴 뒤 다음으로 간다.
+- **기준:**
+  - spec REQ-HF-23.AC-01·02, REQ-HF-24.AC-01~04
+  - design 6절 "사진·구획·단체방(14판)"
+  - AT-HF-68~71
+- **ddots 원본(먼저 끝까지 읽고 copy-review.md 기록):**
+  - `SlackPanel.swift` 1277~1346(sections·addSection·onRename·onPicture·onCreateRoom·onInviteAgents·onArchive·onDeleteRoom), 1955~2120(구획 배치·머리·끌어 옮기기·새 채널/섹션 버튼), 2249·2350
+  - `SlackController.swift` 318~348과 `createRoom`·`invite`·`archive`·`deleteRoom`·`rename`·`choosePicture` 본문
+  - `App.swift` 907(탭 사진)
+  - `SlackRoomPictures`
+  - `SettingsSync.swift` 11~20
+  - ddots 멘션 자동 완성 원본(작성기 @ 처리)
+  - Slack API 호출은 가져오지 않고 hejo 문 규격으로 바꾼다.
+- **TASK-20**
+  - 문: `/v1/pictures/<employee|room>/<id>` PUT(PNG만, 512 KiB 이하, 서명 바이트 확인)·DELETE·GET(인증), 명부 avatar 주소. 옛 `/v1/avatars`는 지우고 규격 문서를 갱신한다.
+  - 앱:
+    - 직원 우클릭 "사진 바꾸기…"(NSOpenPanel)·"사진 지우기"
+    - 256px PNG 변환
+    - 사진 표시(사이드바·카드·아일랜드 얼굴·접힌 말풍선)
+    - 명부 새로 고침(연결 시·5분·메뉴 열 때)
+  - 구획: AC-02 전부를 `ConversationModel`·`ConversationView`에 둔다. 허브 `sections` 키, 빈 곳·＋ 메뉴 "새 구획 만들기", 구획 머리 메뉴, 끌어 옮기기.
+  - 2단계 몫이던 "직원 정보…"는 이번에 넣지 않는다.
+- **TASK-21**
+  - 규격: room 프레임·선택 필드, `hello.features`.
+  - 문: 기록장 room·room_delete, 검증·거절 코드, 방송·재현, @/대표 전달(`chat_id=room:<id>`), 답·작성 중의 방 되찾기, 삭제 시 글·첨부 삭제.
+  - 앱:
+    - 새 방 만들기 창(AppKit: 이름·직원 체크·대표)
+    - 단체방 우클릭 메뉴(AC-03 순서 그대로)
+    - 머리줄 "제목과 설명 바꾸기…"
+    - 보관한 방 하위 메뉴
+    - 삭제 확인 창("직원이 이미 받은 내용은 직원 기억에 남을 수 있어요")
+    - @ 자동 완성
+    - 카드에 말한 직원 이름·얼굴
+- **검증**
+  - AT-68~71 자동(문 pytest + 앱 시험, 가짜 Hermes로 @ 전달 확인)
+  - `python3 .build/foundation9_runner.py hejo` 0
+  - `app/scripts/test.sh` 10회 연속 0
+  - 개인값 검사·pre-commit 0
+  - SwiftUI 0
+  - 메뉴·창 캡처
+  - TASK-21은 규격 시험(스키마 검증)과 옛 클라이언트 호환 시험을 반드시 넣는다.
+- **적용**
+  - 앱: `/Applications`·공용 사본 교체.
+  - 문(gate) 변경은 공용 릴리스(`install/hejo-release`)로 반영해야 운영에 들어간다. 여기까지 준비하고, **게이트웨이 재시작은 하지 않는다.** 재시작은 사장 확인 뒤 계획 담당이 따로 안내한다(롤백: 이전 릴리스 디렉터리 복원 후 재시작).
+- **금지:** git push, 게이트웨이 재시작·reload, `~/.hermes` 비밀 파일, Hermes 본체·ddots 수정, 허브 서버 코드 변경(설정 키만 사용), 외부 발송, public 브랜치 갱신, 문서·시험에 실제 직원 이름.

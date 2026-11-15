@@ -254,6 +254,22 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
   - **설정 창:** AppKit 창이다. 펫 이름·크기·말풍선 항상 보이기는 허브 회원 설정에 둔다(펫 위치·창 크기는 Mac별이라 로컬).
   - **다시 실행·Esc 순서:** `AppDelegate` 편집 메뉴, `PetPanel.sendEvent`.
 
+### 사진·구획·단체방(14판, REQ-HF-23·24, 2단계에서 앞당김)
+
+- **"세션 기능"의 뜻:** 사장 지적("세션구획 세팅")으로 ddots 사이드바 구획(섹션)으로 확정했다.
+- **칸 배치(새 원본 없음)**
+  - 직원·방 사진: 회원의 문이 소유한다. `<HERMES_HOME>/hejo/pictures/<종류>-<id>.png`(0600, 원자적 쓰기)에 둔다. `PUT/DELETE/GET /v1/pictures/<종류>/<id>`는 출입증 인증을 받는다. 명부 `avatar`와 방 `picture`는 `/v1/pictures/...?v=<수정 시각>` 주소다. 기존 `/v1/avatars`는 이 경로로 바꾸고 옛 경로는 지운다. 앱은 고른 그림을 256px PNG로 줄여 올리고, 주소 단위로 메모리 캐시한다.
+  - 구획: 화면 배치라 허브 회원 설정 `sections`(JSON 문자열 `[{"id","name","rooms":[id],"open"}]`)에 둔다. 소유는 `ConversationModel`이다(고정·알림·숨김과 같은 칸). ddots `SlackPanel` sections·`addSection`·`removeSection`·`move` 규칙을 옮긴다.
+  - 단체방: 대화 자료라 문 기록장이 원본이다. 기록 종류에 `room`(만들기·바꾸기 전체 상태)과 `room_delete`를 더한다. 앱 `Room{id,kind,title,members}`에 `kind=.group`·`lead`·`picture`·`description`·`archived`를 더한다.
+- **규격(v1 하위 호환)**
+  - 클라이언트 프레임 `room_save {id?, title, description?, members[], lead}`, `room_archive {id, archived}`, `room_delete {id}`
+  - 서버 `room {room}`·`room_deleted {id}` 방송. `sync`·`welcome` 재현에 방 상태를 포함한다.
+  - `send`·`message`·`typing`·`state`에 선택 필드 `room`을 더한다.
+  - 옛 클라이언트(hello에 `features`의 `rooms`가 없음)에는 room 글·room 프레임을 보내지 않는다.
+- **전달:** 단체방 사장 글은 roster 이름·별명으로 @를 찾는다(방 직원 안에서만). 없으면 `lead`에게 보낸다. 받는 직원마다 Hermes에 `chat_id = "room:<방 id>"`, 같은 thread로 넘긴다. 인증 판단은 1:1과 같은 owner·dm 규칙이다(Hermes 본체 무수정). 답(`send`)·작성 중은 chat_id에서 방을 되찾아 기록에 `room`을 붙인다. 보조 프로필 직원은 기존 전달자로 간다. 직원은 자기가 받은 글만 세션에 가진다. 다른 직원 글을 문맥으로 넘기지 않는 것이 이번 범위다(바꾸려면 사장 결정).
+- **삭제:** 문이 방 글마다 `delete` 기록과 `room_delete`를 남기고 첨부를 지운 뒤 방송한다. 이미 Hermes 세션에 들어간 내용은 지우지 않는다(사장에게 확인 창 문구로 알림).
+- **위험:** TASK-21은 규격·전달 경로를 바꾸므로 높음. 가짜 Hermes 대역 + 실제 직원 2명 방 실물(수준 4)이 필요하다. 게이트웨이 재시작은 사장 확인 뒤 한다.
+
 ### SwiftUI 예외 목록
 
 | 화면 | 이유 |
