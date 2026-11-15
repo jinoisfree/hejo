@@ -18,3 +18,14 @@
 
 - 반박: 없음.
 - 확인한 근거(읽기 전용): Hermes 본체 `gateway/config_loader.py` `merge_platform_sections` 140~174. `gateway.platforms.*` 다음 최상위 `platforms.*`를 키 단위로 얕게 병합하므로, 최상위 `platforms.hejo.home_channel`만 더해도 설치 도우미의 `gateway.platforms.hejo` `enabled`·`extra`가 지워지지 않는다. `gateway/config.py` `persist_home_channel`(`/sethome`)도 같은 최상위 자리에 쓴다.
+
+## 2회차 (2026-11-15)
+
+- 대상 planHash: `a1e915f95b18dbf4243c99e720c4214d2d48788e824ec4027f04fbd787dae456`. 판정: BLOCKED(차단 2). 기준 커밋 `da7341e`.
+
+| ID | 처분 | 이유 | 반영 위치 |
+|---|---|---|---|
+| R1-2 갱신 중단 복구에서 `pending`+값 `after`, `pending`+사장 값 누락 | **수용** | 현재 `run()`은 config 적용(521~522)과 `applied` 영수증 저장(524) 사이에 끊길 수 있다. `restore()`는 `pending`을 건너뛰므로(441~445) 그 상태면 제거가 키를 남긴다. | design 'hejo 홈 채널': 쓰는 순서(대상 `pending` 영수증 먼저 → config → `applied`), 모든 명령이 먼저 하는 맞춤 표(pending/applied × 없음/after/다른 값), `released` 상태. AT-HF-72: 중단 3지점 주입 뒤 다시 실행·제거 기대값. spec REQ-HF-25.AC-01 |
+| R5 롤백이 사장 값까지 지울 수 있음 | **수용** | 15판 롤백("키만 삭제")은 15판 보존 계약과 충돌한다. | 손 삭제를 없애고 `--uninstall-home-channel` 명령으로 바꿈: 맞춤 뒤 영수증 대상 중 `applied`이고 값이 `after`인 것만 지우고 `removed`로 표시, 나머지는 보존·보고, 다른 hejo 대상과 `installed`는 그대로. AT-HF-72에 A(설치 전 사장 값)·B(적용 뒤 변경)·C(그대로) 롤백 사례 추가. handoff 보완 15의 5번·14-1 |
+
+- 반박: 없음.

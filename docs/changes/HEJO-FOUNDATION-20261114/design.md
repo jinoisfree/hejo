@@ -275,16 +275,26 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
   - **비가역 범위:** 확정 뒤 그 방의 첨부·사진 파일은 복구할 수 없다. 기록장은 추가 전용이라 지운 방 글의 원문 바이트는 기록장 파일에 남는다(기존 1:1 `delete`와 같은 논리 삭제, 화면·동기화에서만 사라짐). 이미 Hermes 세션에 들어간 내용은 지우지 않는다(확인 창 문구로 알림).
 - **위험·롤백(15판):** TASK-20·21은 고위험이다(인증된 영구 저장·삭제, 규격·전달, 동시성). TASK-21 이전 문 코드는 모르는 기록 종류를 기록장 손상으로 보고 열기를 거부한다(`gate/journal.py` `_recover`의 `RECORD_TYPES` 검사). 따라서 단체방 기록이 한 줄이라도 생긴 뒤 문 코드만 되돌리면 hejo 문이 열리지 않는다. 운영 적용(TASK-23)은 재시작 전에 `shared/hejo/`(journal·files·pictures)를 0700 사본으로 떠 두고, 롤백은 이전 공용 릴리스 + 그 사본 복원 + 재시작이다(적용 뒤 hejo 글은 잃음, Slack 무관). 사진만 들어간 TASK-20 문은 이전 코드로 되돌려도 기록장에 영향이 없다(사진 폴더만 남음).
 
-### hejo 홈 채널(14판, 15판 보강, REQ-HF-25)
+### hejo 홈 채널(14판, 15·16판 보강, REQ-HF-25)
 
 - **칸:** 사장 지시서(각 프로필 `config.yaml`의 최상위 `platforms.hejo.home_channel`). `/sethome`이 쓰는 자리와 같다(R `gateway/config.py` `persist_home_channel`). 설치 도우미가 쓰는 `gateway.platforms.hejo`와 키가 갈라져도, Hermes는 `gateway.platforms.*` → 최상위 `platforms.*` 순으로 키 단위 얕은 병합을 하므로(R `gateway/config_loader.py` `merge_platform_sections` 140~174) `enabled`·`extra`는 그대로이고 `home_channel`만 더해진다.
 - **영수증 대상:** `{kind: config, file, keys: [platforms, hejo, home_channel], existed: false, before: null, after: {platform: hejo, chat_id: <프로필 id>, name: <이름 또는 id>}, owner_may_change: true}`. 이미 값이 있는 프로필은 대상을 만들지 않는다(사장 값 불변). 영수증 형식은 `version: 1` 그대로이고 대상만 더한다(옛 설치 도우미도 일반 config 대상으로 되돌릴 수 있다).
 - **새 설치:** 기존 `plan()`이 프로필마다 위 대상을 함께 만든다.
-- **이미 설치된 공항(갱신 경로, R1):** 영수증이 `installed`이면 지금처럼 바로 끝내지 않고, 영수증 `configs`에 있는 프로필마다 home_channel 대상이 없고 config에도 값이 없으면 대상을 영수증 끝에 붙인다. 붙인 대상만 하나씩 `apply` → 영수증 저장(대상마다)한다. `configs[file].before`(설치 전 원문)는 바꾸지 않고 `written`만 갱신한다. 기존 대상은 건드리지 않는다. 영수증에 없는 새 프로필은 이번 범위 밖이다(기존 동작과 같음, `--check`가 알림).
-- **갱신 중 실패:** 이번에 붙인 대상 중 `applied`인 것만 **키 단위**로 되돌린다(`restore_key`; 파일 전체를 설치 전 원문으로 되돌리는 경로는 쓰지 않는다 — 기존 hejo 키까지 지워지기 때문). 되돌린 대상은 영수증에서 뺀다. 영수증은 `installed`로 남고 종료 1, `upgrade_failed <경로>`를 출력한다. 프로세스가 도중에 죽어 `pending`이나 `applied` 대상이 남은 채 다시 실행되면: `applied`이고 값이 `after`면 그대로 두고, `pending`이면 현재 값이 없을 때만 다시 적용한다.
-- **제거:** home_channel 대상은 현재 값이 `after`와 같을 때만 지운다. 사장이 바꿨으면(`/sethome` 등) 지우지 않고 `preserved_owner_change <경로>`를 출력하며 충돌로 세지 않는다(종료 코드에 영향 없음). 다른 대상은 기존 규칙 그대로다.
+- **이미 설치된 공항(갱신 경로, R1):** 영수증이 `installed`이면 지금처럼 바로 끝내지 않고, 영수증 `configs`에 있는 프로필마다 home_channel 대상이 없고 config에도 값이 없으면 대상을 영수증 끝에 붙인다. **쓰는 순서(16판):** ① 붙일 대상을 모두 `state: pending`으로 영수증에 저장(fsync) → ② 대상마다 config 쓰기 → ③ 그 대상 `applied`로 영수증 저장. config를 바꾸기 전에 영수증이 먼저 대상을 안다. `configs[file].before`(설치 전 원문)는 바꾸지 않고 `written`만 갱신한다. 기존 대상은 건드리지 않는다. 영수증에 없는 새 프로필은 이번 범위 밖이다(기존 동작과 같음, `--check`가 알림).
+- **갱신 중 실패:** 이번에 붙인 대상 중 `applied`인 것만 **키 단위**로 되돌린다(`restore_key`; 파일 전체를 설치 전 원문으로 되돌리는 경로는 쓰지 않는다 — 기존 hejo 키까지 지워지기 때문). 되돌린 대상은 영수증에서 뺀다. 영수증은 `installed`로 남고 종료 1, `upgrade_failed <경로>`를 출력한다. 프로세스가 도중에 죽으면 다음 실행(설치·`--uninstall`·`--uninstall-home-channel`·`--check` 모두)이 먼저 **맞춤(reconcile)** 을 한다. home_channel 대상마다 현재 config 값으로 정한다(16판, R1-2):
+
+| 영수증 상태 | 현재 값 | 맞춤 결과 |
+|---|---|---|
+| `pending` | 없음 | 설치·갱신이면 적용 후 `applied`. 제거·점검이면 `released`(대상에서 빠짐, 바꾼 것 없음) |
+| `pending` | `after`와 같음 | `applied`로 확정(쓰기는 됐고 영수증 저장 전 중단된 경우) |
+| `pending` | 다른 값 | 사장 값으로 보고 손대지 않음. `released` + `preserved_owner_change` |
+| `applied` | `after`와 같음 | 그대로 |
+| `applied` | 다른 값·없음 | 사장 변경으로 보고 손대지 않음. `released` + `preserved_owner_change` |
+
+`released` 대상은 이후 어떤 제거·롤백도 건드리지 않는다. `--check`는 맞춤 결과를 영수증에 쓰지 않고 출력만 한다.
+- **제거:** 맞춤 뒤 `applied`이고 현재 값이 `after`와 같은 home_channel 대상만 키 단위로 지운다. 사장이 바꿨으면(`/sethome` 등) 지우지 않고 `preserved_owner_change <경로>`를 출력하며 충돌로 세지 않는다(종료 코드에 영향 없음). 다른 대상은 기존 규칙 그대로다.
 - **점검(`--check`):** 영수증이 `installed`인데 home_channel 대상이 없는 프로필(값도 없음)은 `missing_target <파일>#platforms.hejo.home_channel`, 종료 1. 사장이 바꾼 home_channel은 `owner_set <경로>`만 출력하고 정상(0)으로 본다.
-- **롤백:** 그 프로필 config에서 `platforms.hejo.home_channel`만 지우고(영수증 대상 목록이 위치) 재시작한다. 또는 `--uninstall` 뒤 이전 릴리스로 재설치.
+- **롤백(16판, R5):** 손으로 키를 지우지 않는다. `install/hejo-install --uninstall-home-channel`을 쓴다. 이 명령은 맞춤 뒤 영수증의 home_channel 대상(`owner_may_change`) 중 `applied`이고 현재 값이 `after`와 같은 것만 키 단위로 지우고 `removed`로 표시한다. 영수증 대상이 아닌 값(설치 전부터 있던 사장 값)과 `released`·사장 변경값은 지우지 않고 `preserved_owner_change <경로>`를 출력한다. 다른 hejo 대상(플러그인·문 설정)과 영수증 `status: installed`는 그대로다. 영수증은 실제 config와 맞춘 상태로 저장한다. 종료 0(지울 것 없어도 0), 영수증 읽기·쓰기 실패만 1. 그 뒤 재시작한다. 다시 넣으려면 설치를 다시 실행한다(`removed` 대상은 값이 없으면 갱신 경로가 새 대상으로 붙인다).
 
 ### SwiftUI 예외 목록
 

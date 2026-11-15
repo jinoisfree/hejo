@@ -730,7 +730,7 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
   - 본체는 고치지 않는다. 설정으로 해결한다. 저장 형식은 본체 `gateway/config.py` `persist_home_channel`·`HomeChannel.to_dict`와 같은 `{platform, chat_id, name}`이다.
 - **순서:** TASK-19 다음, TASK-20 앞(작고 바로 체감됨). 별도 커밋.
 - **구현:**
-  - `install/hejo-install`에 위 AC를 넣는다. 영수증 대상·새 설치·이미 설치된 공항의 갱신 경로·갱신 중 실패(키 단위 되돌림, 파일 전체 복원 금지)·제거 때 사장 값 보존·`--check`의 `missing_target`/`owner_set`은 design 'hejo 홈 채널' 절 그대로다.
+  - `install/hejo-install`에 위 AC를 넣는다. 영수증 대상·새 설치·이미 설치된 공항의 갱신 경로·갱신 중 실패(키 단위 되돌림, 파일 전체 복원 금지)·쓰는 순서(pending 영수증 먼저)·중단 뒤 맞춤 표·제거 때 사장 값 보존·`--check`의 `missing_target`/`owner_set`·롤백 명령 `--uninstall-home-channel`은 design 'hejo 홈 채널' 절 그대로다.
   - chat_id는 hejo 문이 쓰는 직원 id(프로필 이름, 기본 프로필은 `default`/주 프로필 id — `gate/roster.py` 규칙을 따른다)다.
   - `.env` 등 비밀 파일은 읽거나 쓰지 않는다. 그쪽에 `HEJO_HOME_CHANNEL`이 있는지는 알 수 없으므로 config 값만 본다.
 - **검증:**
@@ -762,5 +762,5 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
   2. `install/hejo-release`로 공용 릴리스 갱신 → 운영 `hejo-install`(TASK-22 갱신 경로) 실행·출력 보관 → `--check` 0.
   3. 사장 확인 뒤 게이트웨이 재시작 → `gateway.log`에 hejo 연결 확인.
   4. 관측: 새 세션 첫 답 안내 없음(TASK-22), 두 Mac 사진·구획(TASK-20), 직원 2명 단체방 @·대표·삭제·재연결(TASK-21). 캡처·로그를 evidence에 둔다.
-  5. 롤백: TASK-22는 home_channel 키만 삭제 + 재시작. TASK-20·21은 이전 공용 릴리스 + 1의 사본 복원 + 재시작(적용 뒤 hejo 글 잃음, Slack 무관). TASK-21 뒤 문 코드만 되돌리면 기록장이 열리지 않으므로 사본 복원을 같이 한다.
+  5. 롤백: TASK-22는 `install/hejo-install --uninstall-home-channel`(설치 도우미가 넣고 사장이 안 바꾼 값만 삭제, design 'hejo 홈 채널' 롤백) + 재시작. 손으로 키를 지우지 않는다. TASK-20·21은 이전 공용 릴리스 + 1의 사본 복원 + 재시작(적용 뒤 hejo 글 잃음, Slack 무관). TASK-21 뒤 문 코드만 되돌리면 기록장이 열리지 않으므로 사본 복원을 같이 한다.
 - 맥북프로가 준비되지 않으면 TASK-20의 두 Mac 항목은 '실물 미검증'으로 남기고 나머지는 판정한다.
