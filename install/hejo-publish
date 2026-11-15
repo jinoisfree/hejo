@@ -1,0 +1,16 @@
+#!/bin/bash
+# Put the current tree on the `public` branch as one clean commit (the private working history never leaves this
+# Mac). The author is the GitHub account's noreply address. Push `public` to GitHub `main` after approval.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+git diff --quiet && git diff --cached --quiet || { echo "커밋하지 않은 변경이 있어요. 먼저 커밋해 주세요." >&2; exit 1; }
+"${HEJO_PYTHON:-python3}" scripts/scan_private.py --repo "$PWD" >/dev/null || { echo "개인값 검사 실패: 공개하지 않습니다." >&2; exit 1; }
+login="$(gh api user --jq .login)"; id="$(gh api user --jq .id)"; noreply_domain="users.noreply.github.com"
+author="${id}+${login}@${noreply_domain}"
+version="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' app/Resources/Info.plist)"
+parent="$(git rev-parse -q --verify refs/heads/public || true)"
+if [[ -n "$parent" && "$(git rev-parse "$parent^{tree}")" == "$(git rev-parse 'HEAD^{tree}')" ]]; then echo "PUBLIC $parent (변경 없음)"; exit 0; fi
+commit="$(GIT_AUTHOR_NAME="$login" GIT_AUTHOR_EMAIL="$author" GIT_COMMITTER_NAME="$login" GIT_COMMITTER_EMAIL="$author" \
+  git commit-tree 'HEAD^{tree}' ${parent:+-p "$parent"} -m "hejo ${1:-$version}")"
+git update-ref refs/heads/public "$commit"
+echo "PUBLIC $commit"

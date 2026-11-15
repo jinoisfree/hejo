@@ -17,7 +17,15 @@ if [[ -z "$python" ]]; then
 fi
 [[ -n "$python" ]] || { echo "Hermes Python을 찾지 못했어요. HEJO_PYTHON=<python 경로>로 다시 실행해 주세요." >&2; exit 1; }
 curl -fsS "$hub/v1/hub" >/dev/null || { echo "맥의 hejo 서버($hub)에 연결하지 못했어요." >&2; exit 1; }
-echo "hejo 앱에서 가입한 아이디와 비밀번호로 이 계정의 Hermes를 연결합니다."
-PYTHONPATH="$hermes_home/hermes-agent${PYTHONPATH:+:$PYTHONPATH}" "$python" "$here/hejo-install" --home "$hermes_home" --hub "$hub"
+export PYTHONPATH="$hermes_home/hermes-agent${PYTHONPATH:+:$PYTHONPATH}"
+if [[ -w "$HOME/.hejo-hub" ]]; then
+  # This account owns the hub: link by member id alone (works for Google-only members, no password needed).
+  read -r -p "이 계정의 Hermes를 연결할 hejo 회원 아이디: " member
+  "$python" "$here/hejo-install" --home "$hermes_home"
+  "$here/hejo-hub-run" --home "$HOME/.hejo-hub" --link "$member" --hermes-home "$hermes_home"
+else
+  echo "hejo 앱에서 가입한 아이디와 비밀번호로 이 계정의 Hermes를 연결합니다."
+  "$python" "$here/hejo-install" --home "$hermes_home" --hub "$hub"
+fi
 "$hermes_cli" --profile default gateway restart
 echo "완료: 이 계정의 Hermes가 hejo에 연결됐어요. 노트북의 hejo 앱에서 로그인하세요."

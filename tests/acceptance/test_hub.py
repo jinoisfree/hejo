@@ -44,23 +44,23 @@ async def test_at_hf_58_members_sign_up_sign_in_and_keep_their_own_settings(hub,
     assert body["error"] == "weak_password"
     status, admin = await call(http, hub, "POST", "/v1/signup", {"account": "admin", "password": "correct horse", "device_name": "pro"})
     assert status == 200 and admin["token"]
-    status, moyo = await call(http, hub, "POST", "/v1/signup", {"account": "moyo", "password": "another horse", "device_name": "air"})
-    assert status == 200 and moyo["token"] != admin["token"]
-    status, body = await call(http, hub, "POST", "/v1/signup", {"account": "moyo", "password": "taken horse", "device_name": "x"})
+    status, member2 = await call(http, hub, "POST", "/v1/signup", {"account": "member2", "password": "another horse", "device_name": "air"})
+    assert status == 200 and member2["token"] != admin["token"]
+    status, body = await call(http, hub, "POST", "/v1/signup", {"account": "member2", "password": "taken horse", "device_name": "x"})
     assert body["error"] == "exists"
     stored = (hub.home / "members.json").read_text()
     assert "correct horse" not in stored and "another horse" not in stored
-    status, me = await call(http, hub, "GET", "/v1/me", token=moyo["token"])
-    assert me == {"account": "moyo", "google": False, "settings": {}, "gate": None}
-    assert (await call(http, hub, "PUT", "/v1/me/settings", {"settings": {"petName": "Mochi"}}, token=moyo["token"]))[0] == 200
-    assert (await call(http, hub, "GET", "/v1/me", token=moyo["token"]))[1]["settings"] == {"petName": "Mochi"}
+    status, me = await call(http, hub, "GET", "/v1/me", token=member2["token"])
+    assert me == {"account": "member2", "google": False, "settings": {}, "gate": None}
+    assert (await call(http, hub, "PUT", "/v1/me/settings", {"settings": {"petName": "Mochi"}}, token=member2["token"]))[0] == 200
+    assert (await call(http, hub, "GET", "/v1/me", token=member2["token"]))[1]["settings"] == {"petName": "Mochi"}
     assert (await call(http, hub, "GET", "/v1/me", token=admin["token"]))[1]["settings"] == {}
-    assert (await call(http, hub, "PUT", "/v1/me/settings", {"settings": {"x": "y" * 20000}}, token=moyo["token"]))[1]["error"] == "bad_settings"
+    assert (await call(http, hub, "PUT", "/v1/me/settings", {"settings": {"x": "y" * 20000}}, token=member2["token"]))[1]["error"] == "bad_settings"
     for _ in range(5):
         assert (await call(http, hub, "POST", "/v1/login", {"account": "admin", "password": "wrong horse", "device_name": "d"}))[1]["error"] == "bad_login"
     status, body = await call(http, hub, "POST", "/v1/login", {"account": "admin", "password": "correct horse", "device_name": "d"})
     assert (status, body["error"]) == (429, "locked")
-    status, body = await call(http, hub, "POST", "/v1/login", {"account": "moyo", "password": "another horse", "device_name": "d"})
+    status, body = await call(http, hub, "POST", "/v1/login", {"account": "member2", "password": "another horse", "device_name": "d"})
     assert status == 200  # one member's lockout never blocks another
     assert (await call(http, hub, "GET", "/v1/me", token="forged"))[0] == 401
     from hub import google
@@ -81,19 +81,19 @@ async def test_at_hf_59_google_sign_in_link_and_reset(hub, http):
         assert body["error"] == "google_in_use"
         status, body = await call(http, hub, "POST", "/v1/google", {"id_token": "t", "device_name": "air"})
         assert status == 200 and body["token"]
-        who["sub"] = "g-moyo"
-        await call(http, hub, "POST", "/v1/signup", {"account": "moyo", "password": "another horse", "device_name": "air"})
-        assert (await call(http, hub, "POST", "/v1/google", {"id_token": "t", "account": "moyo", "password": "bad horse", "device_name": "d"}))[1]["error"] == "bad_login"
-        assert (await call(http, hub, "POST", "/v1/google", {"id_token": "t", "account": "moyo", "password": "another horse", "device_name": "d"}))[0] == 200
-        status, moyo = await call(http, hub, "POST", "/v1/google", {"id_token": "t", "device_name": "air2"})
-        assert (await call(http, hub, "GET", "/v1/me", token=moyo["token"]))[1]["account"] == "moyo"
+        who["sub"] = "g-member2"
+        await call(http, hub, "POST", "/v1/signup", {"account": "member2", "password": "another horse", "device_name": "air"})
+        assert (await call(http, hub, "POST", "/v1/google", {"id_token": "t", "account": "member2", "password": "bad horse", "device_name": "d"}))[1]["error"] == "bad_login"
+        assert (await call(http, hub, "POST", "/v1/google", {"id_token": "t", "account": "member2", "password": "another horse", "device_name": "d"}))[0] == 200
+        status, member2 = await call(http, hub, "POST", "/v1/google", {"id_token": "t", "device_name": "air2"})
+        assert (await call(http, hub, "GET", "/v1/me", token=member2["token"]))[1]["account"] == "member2"
         who["sub"] = None
         assert (await call(http, hub, "POST", "/v1/google", {"id_token": "t", "device_name": "d"}))[1]["error"] == "google_failed"
         who["sub"] = "g-admin"
         status, reset = await call(http, hub, "POST", "/v1/google", {"id_token": "t", "new_password": "after reset!", "device_name": "pro"})
         assert status == 200
     assert (await call(http, hub, "GET", "/v1/me", token=admin["token"]))[0] == 401  # reset signed every admin device out
-    assert (await call(http, hub, "GET", "/v1/me", token=moyo["token"]))[0] == 200   # moyo untouched
+    assert (await call(http, hub, "GET", "/v1/me", token=member2["token"]))[0] == 200   # member2 untouched
     assert (await call(http, hub, "POST", "/v1/login", {"account": "admin", "password": "after reset!", "device_name": "d"}))[0] == 200
 
 
@@ -128,21 +128,21 @@ async def link_gate(gate, hub, http, account, password):
 
 async def test_at_hf_60_member_gate_accepts_only_its_members_sign_ins(gate, client, hub, http):
     _, admin = await call(http, hub, "POST", "/v1/signup", {"account": "admin", "password": "correct horse", "device_name": "pro"})
-    _, moyo = await call(http, hub, "POST", "/v1/signup", {"account": "moyo", "password": "another horse", "device_name": "air"})
+    _, member2 = await call(http, hub, "POST", "/v1/signup", {"account": "member2", "password": "another horse", "device_name": "air"})
     ws, rejected = await client.open(token=admin["token"])
     assert rejected["type"] == "auth_rejected"; await ws.close()  # not joined to a hub yet
     await link_gate(gate, hub, http, "admin", "correct horse")
     assert (await call(http, hub, "GET", "/v1/me", token=admin["token"]))[1]["gate"] == {"port": gate.server.port}
-    assert (await call(http, hub, "GET", "/v1/me", token=moyo["token"]))[1]["gate"] is None
+    assert (await call(http, hub, "GET", "/v1/me", token=member2["token"]))[1]["gate"] is None
     ws, welcome = await client.open(token=admin["token"])
     assert welcome["type"] == "welcome" and "token" not in welcome; await ws.close()
-    ws, rejected = await client.open(token=moyo["token"])
+    ws, rejected = await client.open(token=member2["token"])
     assert rejected["type"] == "auth_rejected"; await ws.close()  # another member's device never opens this Hermes
     async with http.get(f"http://127.0.0.1:{gate.server.port}/v1/files/alpha/00000000-0000-4000-8000-000000000000",
                         headers={"Authorization": "Bearer " + admin["token"]}) as response:
         assert response.status == 404  # authorized; the file simply does not exist
     async with http.get(f"http://127.0.0.1:{gate.server.port}/v1/files/alpha/00000000-0000-4000-8000-000000000000",
-                        headers={"Authorization": "Bearer " + moyo["token"]}) as response:
+                        headers={"Authorization": "Bearer " + member2["token"]}) as response:
         assert response.status == 401
     status, body = await call(http, hub, "POST", "/v1/gate/verify", {"token": admin["token"]}, gate="forged")
     assert status == 401

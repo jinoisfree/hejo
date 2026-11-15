@@ -1,5 +1,16 @@
 # hejo
 
+## 설치
+
+GitHub 릴리스에서 한 줄로 설치한다. 터미널에 붙여 넣는다.
+
+- 노트북(앱만): `curl -fsSL https://raw.githubusercontent.com/jinoisfree/hejo/main/install/get-hejo | bash`
+- Hermes가 24시간 도는 Mac(관리자 계정): `curl -fsSL https://raw.githubusercontent.com/jinoisfree/hejo/main/install/get-hejo | bash -s -- --server`
+  - 앱, hejo 서버(맥이 켜질 때 함께 켜짐), 이 계정의 Hermes 연결까지 안내에 따라 진행한다.
+- 같은 Mac의 다른 사용자 계정(그 계정의 Hermes 연결): `curl -fsSL https://raw.githubusercontent.com/jinoisfree/hejo/main/install/get-hejo | bash -s -- --join`
+
+앱을 열면 서버를 자동으로 찾는다. 처음이면 가입(Google로 계속하기 또는 아이디·비밀번호)하고, 그다음부터는 자동 로그인된다.
+
 Hermes 플랫폼 플러그인 문과 별도 Mac 앱을 만드는 프로젝트다. 근간과 현재 범위는 [구조 원본](docs/ARCHITECTURE.md), 진행 상태와 판단은 [작업 문서](docs/changes/HEJO-FOUNDATION-20261114/)를 따른다.
 
 ## 설치·제거

@@ -1,0 +1,42 @@
+#!/bin/bash
+# hejo one-line install from the latest GitHub release.
+#   Laptop (the app):            curl -fsSL https://raw.githubusercontent.com/jinoisfree/hejo/main/install/get-hejo | bash
+#   The Mac that runs Hermes:    curl -fsSL https://raw.githubusercontent.com/jinoisfree/hejo/main/install/get-hejo | bash -s -- --server
+#   Another Mac account there:   curl -fsSL https://raw.githubusercontent.com/jinoisfree/hejo/main/install/get-hejo | bash -s -- --join
+set -euo pipefail
+repo="${HEJO_REPO:-jinoisfree/hejo}"
+mode="${1:-app}"
+shared="$(cd ~/.. && pwd)/Shared/hejo"
+work="$(mktemp -d)"; trap 'rm -rf "$work"' EXIT
+say() { printf '\n▶ %s\n' "$1"; }
+
+if [[ "$mode" == "--join" ]]; then
+  [[ -x "$shared/install/hejo-join" ]] || { echo "이 Mac에 hejo 서버가 아직 없어요. 서버 Mac의 관리자 계정에서 --server로 먼저 설치해 주세요." >&2; exit 1; }
+  exec "$shared/install/hejo-join" < /dev/tty
+fi
+
+tag="$(curl -fsSL "https://api.github.com/repos/$repo/releases/latest" | /usr/bin/python3 -c 'import json,sys;print(json.load(sys.stdin)["tag_name"])')"
+say "hejo $tag 앱을 설치합니다"
+curl -fsSL -o "$work/hejo-app.zip" "https://github.com/$repo/releases/download/$tag/hejo-app.zip"
+ditto -x -k "$work/hejo-app.zip" "$work/app"
+osascript -e 'tell application id "io.github.hermes-hejo.hejo" to quit' >/dev/null 2>&1 || true
+sleep 1
+rm -rf /Applications/hejo.app
+ditto "$work/app/hejo.app" /Applications/hejo.app
+
+if [[ "$mode" == "--server" ]]; then
+  say "hejo 서버 파일을 공용 폴더에 둡니다 ($shared)"
+  curl -fsSL -o "$work/source.tar.gz" "https://codeload.github.com/$repo/tar.gz/refs/tags/$tag"
+  mkdir -p "$work/source" && tar -xzf "$work/source.tar.gz" -C "$work/source" --strip-components 1
+  bash "$work/source/install/hejo-release" "$shared"
+  ditto "$work/app/hejo.app" "$shared/hejo.app" && chmod -R go+rX "$shared/hejo.app"
+  say "hejo 서버를 켭니다 (맥이 켜질 때 함께 켜짐)"
+  "$shared/install/hejo-hub"
+  open /Applications/hejo.app
+  say "열린 hejo 창에서 가입해 주세요 (Google로 계속하기 또는 아이디·비밀번호)."
+  printf '  가입이 끝나면 여기서 Enter를 누르세요… '; read -r _ < /dev/tty
+  "$shared/install/hejo-join" < /dev/tty
+else
+  open /Applications/hejo.app
+  say "완료: hejo를 열었어요. 서버를 자동으로 찾아 로그인 화면이 나와요."
+fi

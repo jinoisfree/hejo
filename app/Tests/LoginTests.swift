@@ -23,7 +23,7 @@ final class StubHub: URLProtocol {
             case ("POST", "/v1/login"): return (401, ["error": "bad_login"])
             case ("POST", "/v1/signup"): return (400, ["error": "exists"])
             case ("GET", "/v1/me") where request.value(forHTTPHeaderField: "Authorization") == "Bearer tok":
-                return (200, ["account": "moyo", "google": false, "settings": ["petName": "Mochi"], "gate": Self.gatePort.map { ["port": $0] } as Any? ?? NSNull()])
+                return (200, ["account": "member2", "google": false, "settings": ["petName": "Mochi"], "gate": Self.gatePort.map { ["port": $0] } as Any? ?? NSNull()])
             case ("PUT", "/v1/me/settings"): return (200, ["ok": true])
             default: return (401, ["error": "unknown"])
             }
@@ -59,8 +59,8 @@ final class StubHub: URLProtocol {
     try check(none == nil, "AT58 no hub without Tailscale")
 
     let hub = HubClient(address: "100.64.0.2:47800")
-    try check(hub.gateAddress(.init(account: "moyo", google: false, gatePort: 47821, settings: [:])) == "100.64.0.2:47821"
-              && hub.gateAddress(.init(account: "moyo", google: false, gatePort: nil, settings: [:])) == nil, "AT60 member gate is the hub host with the gate port")
+    try check(hub.gateAddress(.init(account: "member2", google: false, gatePort: 47821, settings: [:])) == "100.64.0.2:47821"
+              && hub.gateAddress(.init(account: "member2", google: false, gatePort: nil, settings: [:])) == nil, "AT60 member gate is the hub host with the gate port")
     let request = hub.request("PUT", "/v1/me/settings", body: ["settings": ["petName": "Mochi"]], token: "tok")
     try check(request.url?.absoluteString == "http://100.64.0.2:47800/v1/me/settings" && request.value(forHTTPHeaderField: "Authorization") == "Bearer tok", "AT58 settings request")
     try check(LoginWindow.message(for: "bad_login").contains("아이디 또는 비밀번호") && LoginWindow.message(for: "exists").contains("이미 있는 아이디"), "AT58 rejection wording")
@@ -94,13 +94,13 @@ final class StubHub: URLProtocol {
     window.switchMode.performClick(nil)
     try check(window.mode == .signup && !window.confirm.isHidden && window.forgot.isHidden, "AT58 anyone can open sign-up")
     window.switchMode.performClick(nil)
-    window.account.stringValue = "moyo"; window.password.stringValue = "wrong horse"; window.primary.performClick(nil)
+    window.account.stringValue = "member2"; window.password.stringValue = "wrong horse"; window.primary.performClick(nil)
     for _ in 0..<50 where !window.message.stringValue.contains("맞지 않아요") { try await Task.sleep(nanoseconds: 20_000_000) }
     try check(window.message.stringValue.contains("아이디 또는 비밀번호"), "AT58 bad login shown")
     StubHub.gatePort = nil
     window.password.stringValue = "correct horse"; window.primary.performClick(nil)
     for _ in 0..<50 where window.mode != .needsHermes { try await Task.sleep(nanoseconds: 20_000_000) }
-    try check(window.mode == .needsHermes && window.message.stringValue.contains("hejo-join") && window.message.stringValue.contains("회원 아이디: moyo"), "AT60 signed in but Hermes not linked yet, member id shown")
+    try check(window.mode == .needsHermes && window.message.stringValue.contains("hejo-join") && window.message.stringValue.contains("회원 아이디: member2"), "AT60 signed in but Hermes not linked yet, member id shown")
     try check(window.primary.isHidden && window.message.stringValue.contains("자동으로 들어가요"), "AT60 no check-again button while waiting")
     StubHub.gatePort = 47821  // the member's Hermes gets linked meanwhile; the window notices by itself
     for _ in 0..<300 where client.store.settings.address.isEmpty { try await Task.sleep(nanoseconds: 20_000_000) }
@@ -116,15 +116,15 @@ final class StubHub: URLProtocol {
               "AT58 defaults kept through sign-in: keep id on, keep password off, auto sign-in on")
     try check(window.keepAccount.state == .on && window.keepPassword.state == .off && window.autoLogin.state == .on, "AT58 boxes mirror saved choices from creation")
     let saved = MemoryCredentials(); window.passwords = saved
-    window.account.stringValue = "moyo"; window.password.stringValue = "correct horse"
+    window.account.stringValue = "member2"; window.password.stringValue = "correct horse"
     window.keepAccount.state = .on; window.keepPassword.state = .on; window.autoLogin.state = .off
     window.rememberChoices()
-    try check(client.store.settings.rememberedAccount == "moyo" && saved.token == "correct horse" && !client.store.settings.signsInAutomatically, "AT58 keeps id, password (Keychain) and auto sign-in choice")
+    try check(client.store.settings.rememberedAccount == "member2" && saved.token == "correct horse" && !client.store.settings.signsInAutomatically, "AT58 keeps id, password (Keychain) and auto sign-in choice")
     try check(!(String(data: try Data(contentsOf: client.store.settingsURL), encoding: .utf8) ?? "").contains("correct horse"), "AT58 password never in the settings file")
     window.account.stringValue = ""; window.password.stringValue = ""
     window.present(); window.close()
     try check(window.keepPassword.state == .on && window.autoLogin.state == .off, "AT58 choices restored")
-    window.account.stringValue = "moyo"; window.password.stringValue = "correct horse"
+    window.account.stringValue = "member2"; window.password.stringValue = "correct horse"
     window.keepPassword.state = .off; window.keepAccount.state = .off; window.rememberChoices()
     try check(saved.token == nil && client.store.settings.rememberedAccount == nil, "AT58 unticking forgets the kept id and password")
     let tokens = MemoryCredentials(); tokens.token = "tok"

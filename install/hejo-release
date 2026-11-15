@@ -12,5 +12,5 @@ rsync -a --delete --exclude '__pycache__' --exclude 'gate/tests' --exclude '*.py
 git -C "$source" rev-parse HEAD > "$target/RELEASE" 2>/dev/null || true
 rm -f "$target/config/"*secret*
 chmod -R u=rwX,go=rX "$target"
-chmod 755 "$target/install/hejo-install" "$target/install/hejo-hub" "$target/install/hejo-release" "$target/install/hejo-join" "$target/install/hejo-hub-run"
+chmod 755 "$target/install/hejo-install" "$target/install/hejo-hub" "$target/install/hejo-release" "$target/install/hejo-join" "$target/install/hejo-hub-run" "$target/install/get-hejo"
 printf 'RELEASED %s\n' "$target"

@@ -394,7 +394,7 @@ def test_hub_link_writes_owner_only_key(install_airport, tmp_path):
     import asyncio, threading
     from hub.server import Hub
     from hub.store import HubStore
-    HubStore(tmp_path / "hub").signup("moyo", "another horse", "air")
+    HubStore(tmp_path / "hub").signup("member2", "another horse", "air")
     loop = asyncio.new_event_loop(); hub = Hub(tmp_path / "hub")
     loop.run_until_complete(hub.start(["127.0.0.1"], 0))
     thread = threading.Thread(target=loop.run_forever, daemon=True); thread.start()
@@ -403,10 +403,10 @@ def test_hub_link_writes_owner_only_key(install_airport, tmp_path):
         environment = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
         run = lambda lines: subprocess.run([sys.executable, str(INSTALLER), "--home", str(install_airport), "--hub", url],
                                            env=environment, input=lines, capture_output=True, text=True)
-        bad = run("moyo\nwrong horse\n")
+        bad = run("member2\nwrong horse\n")
         assert bad.returncode == 1 and "hub_link_failed bad_login" in bad.stdout
         assert not (install_airport / "hejo/hub.json").exists()
-        good = run("moyo\nanother horse\n")
+        good = run("member2\nanother horse\n")
         assert good.returncode == 0, good.stdout + good.stderr
         path = install_airport / "hejo/hub.json"
         assert stat.S_IMODE(path.stat().st_mode) == 0o600
