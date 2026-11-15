@@ -56,7 +56,12 @@ def main(argv=None):
     plist.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(["launchctl", "bootout", f"{domain}/{LABEL}"], capture_output=True)
     plist.write_bytes(plistlib.dumps(value))
-    result = subprocess.run(["launchctl", "bootstrap", domain, str(plist)], capture_output=True, text=True)
+    import time
+    for _ in range(10):  # bootout finishes asynchronously; bootstrap fails until the old service is gone
+        result = subprocess.run(["launchctl", "bootstrap", domain, str(plist)], capture_output=True, text=True)
+        if result.returncode == 0:
+            break
+        time.sleep(1)
     if result.returncode != 0:
         print("hub_start_failed")
         return 1
