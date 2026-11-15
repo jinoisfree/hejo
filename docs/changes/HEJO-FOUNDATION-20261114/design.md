@@ -240,6 +240,20 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
   - 회원 설정은 우선 펫 이름이다. 로그인할 때와 시작할 때 받고, 바꾸면 올린다.
 - **Google 클라이언트:** hejo 공용 데스크톱 클라이언트를 쓴다. 공개 ID는 `config/google-oauth.json`이고, 비밀은 추적하지 않는 파일이나 환경 변수로 빌드 때 주입한다. 허브 로컬 재정의는 `~/.hejo-hub/google-client.json`이다.
 
+### ddots 기능 전부 이식(12판, REQ-HF-21)
+
+- **원칙:** 사용자 지시에 따라 ddots 사용자 기능을 모두 가져온다. 이전 "가져오지 않음" 목록 중 Slack 전용 연결(`Slack*` 연결·설정, `HermesRelay*`, `HermesBridge`, Slack 링크 복사)만 계속 뺀다. 나머지는 단계별로 들인다.
+  - 2단계: 오른쪽 옆 창, 대화 기능
+  - 3단계: 방·세션·검색·멘션
+  - 4단계: 테마·투명도, 클립보드 선반, 달력, 대시보드, 말풍선 답장, 금고·드라이브 창
+- **베끼기:** 기능마다 ddots 원본 파일 전체와 의존을 끝까지 읽고, `copy-review.md`에 파일별로 기록한 뒤 가져온다. Slack 자료 구조는 hejo의 `ConversationModel`·`IslandModel`·회원 설정으로 바꿔 잇는다. 새 원본은 만들지 않는다.
+- **1단계 칸**
+  - **창 크기·넓게·초기화·자동 키움:** `PetController`가 소유한다. 저장은 `LocalSettings`(이 Mac 화면에 묶임), 규칙은 ddots `App.swift` `saveChatSize`·`toggleChatWidth`·`resetChatSize`, `ChatPresentation.replyExtraHeight`.
+  - **접힌 펫 말풍선:** `PetView` + 새 `BubbleReveal` 이식. 입력은 `ConversationModel`의 새 직원 글과 `IslandModel` 상태.
+  - **펫 상태 동작:** `PetView`/`PetAnimation`의 이미 로드된 자산을 `WorkState`로 구동한다. 입력은 replyState asked·typing·전송·실패.
+  - **설정 창:** AppKit 창이다. 펫 이름·크기·말풍선 항상 보이기는 허브 회원 설정에 둔다(펫 위치·창 크기는 Mac별이라 로컬).
+  - **다시 실행·Esc 순서:** `AppDelegate` 편집 메뉴, `PetPanel.sendEvent`.
+
 ### SwiftUI 예외 목록
 
 | 화면 | 이유 |

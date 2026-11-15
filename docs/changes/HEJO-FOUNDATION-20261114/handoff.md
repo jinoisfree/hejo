@@ -555,3 +555,33 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
    - 캐시는 필요하면 before JSON대로 `5m`으로 복원한다.
 
 금지(그대로): git push 직접 실행, 비밀 파일 열기, Hermes 본체·ddots 수정, 실제 Slack·고객 메시지 발송.
+
+## 보완 지시 12: TASK-17 ddots 기능 이식 1단계 (2026-11-15, 사용자 지시 "ddots의 모든 기능을 가져온다", 연합개발)
+
+- **배경:** ddots와 hejo를 82항목으로 비교했다. 그중 약 35가지가 없거나 일부만 있다(창 크기 기억, 말풍선, 펫 동작, 설정, 방 만들기, 오른쪽 옆 창 등). 1단계는 매일 체감되는 창·펫·알림이다. 작성기 HTML 전송 버그는 계획 담당이 이미 고쳤다(`5569f16`).
+- **기준:** spec REQ-HF-21.AC-01~05, design 6절 "ddots 기능 전부 이식", AT-HF-61~65. ddots 위치는 아래와 같다(`<운영 저장소>/ddots/Sources`).
+  - 창: `App.swift` 289(크기 불러오기)·956 `saveChatSize`·997 `toggleChatWidth`·1034 `resetChatSize`·753 / `ChatPresentation.swift` 102 `replyExtraHeight`·`slackFitHeight`
+  - 말풍선: `PetView.swift` 454 `revealBubble`, `BubbleReveal.swift`, `App.swift` 458·1210
+  - 펫 동작: `PetView.swift` 1410~1479(작업 상태), 1455 `doze.update`, `App.swift` 228(화면 꺼짐 정지)
+  - 펫·메뉴: `App.swift` 2105 `resizePet`, `resetPosition`, 1334~1335(숨기기·쉬기), `toggleBubbleAlwaysShown`
+  - 설정: `App.swift` 1870~1985, `SettingsPages.swift`
+  - 다시 실행: `SlackController.swift` 1577
+- **먼저 할 일:** 위 원본 파일과 의존을 끝까지 읽고 `copy-review.md`에 파일별로 가져올 범위·바꿀 점·뺄 Slack 부분을 기록한다(사용자 지시 2026-11-14).
+- **구현 범위**
+  - **창:** `PetController`가 크기를 `LocalSettings`에 저장하고 되살린다(화면 밖이면 맞춤). 머리줄(빈 곳) 두 번 누르기로 넓게↔원래 너비, 메뉴 "대화창 크기 초기화", 스레드를 펼치면 화면 안에서 높이를 자동으로 키우고 접으면 복귀한다(ddots 규칙 그대로).
+  - **접힌 펫 말풍선:** 새 직원 글 3초(직원 이름과 첫 줄), 마우스 올림 → 상태, 누름 → 그 스레드 열기, "말풍선 항상 보이기". 시계를 주입한다.
+  - **펫 상태 동작:** asked → 전화, typing → 노트북, 보내기 → 손 흔들기, 실패 → 실패, 3분 무조작 → 졸기, 동작 줄이기, 화면 꺼짐·잠김이면 정지. 자산은 이미 번들에 있다.
+  - **설정 창:** AppKit으로 만든다(일반, 화면과 펫). 펫 크기 25~200%, 펫 이름, 말풍선 항상 보이기, 로그인 시 실행. 펫 이름·크기·항상 보이기는 허브 회원 설정(`HubClient.save`)으로 동기화한다. 메뉴에 "설정…", "펫 위치 초기화", "펫 숨기기", "잠시 쉬기", "대화창 크기 초기화"를 둔다. 펫 이름은 말풍선·안내 글에 보인다.
+  - **키:** 편집 메뉴에 "다시 실행 ⌘⇧Z"를 둔다. Esc는 검색이 열려 있으면 검색을 먼저 닫는다.
+- **바꾸지 않을 것:** 아일랜드(REQ-HF-18)·작성 중 표시(REQ-HF-19)·로그인(REQ-HF-20)·gate·hub·wire. 새 SwiftUI는 쓰지 않는다.
+- **검증**
+  - AT-61~65 앱 시험(시계·화면 상태 주입)
+  - 환경 지정 `python3 .build/foundation9_runner.py hejo` 종료 0
+    - 주의: Hermes 업데이트로 venv 경로가 바뀔 수 있다. `.build/task04-resume/python-path`가 없으면 `~/.hermes/installs/*/environments/*/venv/bin/python` 중 aiohttp·ruamel이 있는 것으로 갱신한다.
+  - `app/scripts/test.sh` 10회 연속 0
+  - 게이트웨이 Python `scripts/scan_private.py`(pre-commit) 0, `import SwiftUI` 0
+  - 맥미니 화면 캡처(`screencapture`)로 말풍선·설정 창을 확인한다
+- **적용:** `bash app/scripts/build.sh` → `/Applications/hejo.app`과 공용 `hejo.app`(Mac 공용 폴더 `Shared/hejo`)에 복사 → 실행. 앱만 바뀌므로 게이트웨이 재시작은 필요 없다.
+- **커밋:** TASK-17만 `git commit --only`로 커밋하고, impl-report에 "TASK-17" 절(명령·종료 코드·로그·커밋·캡처 경로)을 쓴다.
+- **금지:** git push(공개 GitHub 포함), 게이트웨이 재시작·reload, 비밀 파일, Hermes 본체·ddots 수정, 외부 발송, 허브·운영 설정 변경, 공개 `public` 브랜치 갱신(계획 담당이 한다).
+
