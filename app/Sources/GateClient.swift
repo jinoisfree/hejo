@@ -8,8 +8,8 @@ enum ConnectionStatus: Equatable {
         case .disconnected(let n): return "공항과 연결이 끊겼어요 · \(n)초 뒤 다시 연결"
         case .connecting: return "공항에 연결 중"
         case .connected: return "공항에 연결됨"
-        case .wrongCode: return "코드가 맞지 않아요 · 새 12자 코드를 확인해 주세요"
-        case .revoked: return "이 기기의 출입증이 취소됐어요 · 다시 연결해 주세요"
+        case .wrongCode: return "로그인하지 못했어요 · 다시 로그인해 주세요"
+        case .revoked: return "이 기기가 로그아웃됐어요 · 다시 로그인해 주세요"
         case .tooLarge: return "너무 큼 · 보낼 내용을 줄여 주세요"
         case .storageError: return "연결 정보를 저장하지 못했어요 · 다시 시도해 주세요"
         }
@@ -29,7 +29,9 @@ struct ReconnectDelay {
     private var generation = 0
     private var token: String?
     private var pairCode: String?
-    private var autoPairing = false
+    /// One-shot sign-in fields for the next hello (`login`, `google` or `local`); cleared on welcome or rejection.
+    private var signInFields: [String: Any]?
+    private(set) var rejection: String?
     private var backoff = ReconnectDelay()
     private var syncing = false
     private var welcomed = false
@@ -60,11 +62,11 @@ struct ReconnectDelay {
         stop(); try store.select(address: address, device: String(device.prefix(100)))
         pairCode = code; token = nil; launch()
     }
-    /// Code-free pairing; the gate accepts it only from the owner's own Tailscale device.
-    func autoPair(address: String, device: String) throws {
+    /// Owner sign-in: `["login": [...]]`, `["google": [...]]` or `["local": [...]]` (airport Mac only).
+    func signIn(address: String, device: String, fields: [String: Any]) throws {
         _ = try Self.endpoint(address)
         stop(); try store.select(address: address, device: String(device.prefix(100)))
-        autoPairing = true; token = nil; launch()
+        signInFields = fields; rejection = nil; token = nil; launch()
     }
     func resume() { stop(); pairCode = nil; token = nil; launch() }
     private func launch() {
@@ -73,17 +75,17 @@ struct ReconnectDelay {
     }
     func stop() {
         generation += 1; worker?.cancel(); worker = nil
-        socket?.cancel(with: .goingAway, reason: nil); socket = nil; pairCode = nil; autoPairing = false; token = nil
+        socket?.cancel(with: .goingAway, reason: nil); socket = nil; pairCode = nil; signInFields = nil; token = nil
         backoff.reset(); welcomed = false; syncing = false; replayComplete = false
     }
     private func connectLoop(run: Int) async {
-        if pairCode == nil && !autoPairing {
+        if pairCode == nil && signInFields == nil {
             let account = store.settings.credentialAccount
             let keychain = credentials
             token = await Task.detached { keychain.read(account: account) }.value
         }
         guard run == generation else { return }
-        guard pairCode != nil || autoPairing || token != nil else { status = .revoked; return }
+        guard pairCode != nil || signInFields != nil || token != nil else { status = .revoked; return }
         while !Task.isCancelled && run == generation {
             status = .connecting; welcomed = false; syncing = false; replayComplete = false
             do {
@@ -97,7 +99,7 @@ struct ReconnectDelay {
                 }
                 defer { deadline.cancel() }
                 var hello: [String: Any] = ["v": 1, "type": "hello", "device_name": store.settings.deviceName, "app_version": AppIdentity.version, "since": store.settings.applied]
-                if let pairCode { hello["pair_code"] = pairCode } else if autoPairing { hello["auto"] = true } else { hello["token"] = token! }
+                if let pairCode { hello["pair_code"] = pairCode } else if let signInFields { hello.merge(signInFields) { $1 } } else { hello["token"] = token! }
                 try await ws.send(.string(Self.encoded(hello)))
                 while !Task.isCancelled && run == generation {
                     let message = try await ws.receive()
@@ -118,7 +120,7 @@ struct ReconnectDelay {
             guard run == generation, !Task.isCancelled else { return }
             socket?.cancel(with: .goingAway, reason: nil)
             // A one-time pairing code cannot safely be retried after an ambiguous welcome.
-            if pairCode != nil || autoPairing { pairCode = nil; autoPairing = false; status = .wrongCode; return }
+            if pairCode != nil || signInFields != nil { pairCode = nil; signInFields = nil; status = .wrongCode; return }
             let seconds = backoff.next(); if status != .tooLarge { status = .disconnected(seconds) }; onRetry?(seconds)
             do { try await Task.sleep(nanoseconds: UInt64(seconds) * 1_000_000_000) } catch { return }
         }
@@ -135,10 +137,10 @@ struct ReconnectDelay {
                 let saved = await Task.detached { keychain.save(issued, account: account) }.value
                 if let run, run != generation { return false }
                 guard saved else { status = .storageError; return false }
-                token = issued; pairCode = nil; autoPairing = false
+                token = issued; pairCode = nil; signInFields = nil
             }
             welcomed = true; connectionEpoch += 1; replayComplete = false; backoff.reset(); status = .connected
-        case "pair_rejected": pairCode = nil; autoPairing = false; status = .wrongCode; return false
+        case "pair_rejected": pairCode = nil; signInFields = nil; rejection = frame["reason"] as? String; status = .wrongCode; return false
         case "auth_rejected":
             let keychain = credentials, account = store.settings.credentialAccount
             await Task.detached { keychain.delete(account: account) }.value

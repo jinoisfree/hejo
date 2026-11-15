@@ -7,7 +7,7 @@ import AppKit
     private var pet: PetController!
     private var conversation: ConversationController!
     private var conversationView: ConversationView!
-    private var connection: ConnectWindow!
+    private var connection: LoginWindow!
     private var item: NSStatusItem!
     private var statusItem: NSMenuItem!
     private var loginItem: NSMenuItem!
@@ -37,14 +37,13 @@ import AppKit
             }
             conversationView.refresh()
             pet.onExpansionChanged = { [weak self] expanded in self?.conversation.model.setVisible(expanded) }
-            connection = ConnectWindow(client: client)
-            connection.onAuto = { [weak self] in self?.findAirport() }
+            connection = LoginWindow(client: client)
             installEditMenu()
             let menu = NSMenu(); menu.delegate = self; menu.autoenablesItems = false
             menu.addItem(withTitle: "대화 열기", action: #selector(openChat), keyEquivalent: "").target = self
             statusItem = menu.addItem(withTitle: "공항 연결 전", action: nil, keyEquivalent: ""); statusItem.isEnabled = false
             menu.addItem(.separator())
-            menu.addItem(withTitle: "연결 설정…", action: #selector(settings), keyEquivalent: ",").target = self
+            menu.addItem(withTitle: "로그인·계정…", action: #selector(settings), keyEquivalent: ",").target = self
             menu.addItem(withTitle: "펫 이름…", action: #selector(rename), keyEquivalent: "").target = self
             loginItem = menu.addItem(withTitle: "로그인 시 실행", action: #selector(login), keyEquivalent: ""); loginItem.target = self
             menu.addItem(withTitle: "로그인 항목 설정…", action: #selector(loginSettings), keyEquivalent: "").target = self
@@ -57,7 +56,7 @@ import AppKit
                 if status == .wrongCode || status == .revoked { self?.connection.present() }
             }
             pet.show()
-            if store.settings.address.isEmpty { findAirport() } else { client.resume() }
+            if store.settings.address.isEmpty { connection.present() } else { client.resume() }
         } catch GateFailure.alreadyRunning {
             for app in NSRunningApplication.runningApplications(withBundleIdentifier: AppIdentity.bundleID) where app.processIdentifier != ProcessInfo.processInfo.processIdentifier { app.activate(options: []) }
             NSApp.terminate(nil)
@@ -77,11 +76,6 @@ import AppKit
     func menuWillOpen(_ menu: NSMenu) {
         let presentation = LoginLaunchPresentation.resolve(LoginLaunch.state, installed: LoginLaunch.isInstalled())
         loginItem.state = presentation.checked ? .on : .off; loginItem.isEnabled = presentation.canChange; loginItem.toolTip = presentation.message
-    }
-    /// First run and "자동으로 찾기": no address, code or name to type when the airport can be found.
-    private func findAirport() {
-        connection.searching()
-        Task { @MainActor in if await AirportFinder.connect(client) == false { connection.notFound() } }
     }
     @objc private func openChat() { pet.showChat() }
     @objc private func settings() { connection.present() }

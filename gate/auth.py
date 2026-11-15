@@ -6,6 +6,7 @@ import hmac
 import json
 import os
 from pathlib import Path
+import re
 import secrets
 import tempfile
 import time
@@ -13,11 +14,32 @@ import uuid
 
 PAIR_TTL = 600
 LOCAL_FILE = "local-pair.json"
+ACCOUNT_FILE = "account.json"
+MIN_PASSWORD = 8
+SCRYPT_N = 2 ** 14
 MAX_FAILURES = 5
 
 
 def digest(value):
     return hashlib.sha256(value.encode()).hexdigest()
+
+
+ACCOUNT_ID = re.compile(r"[A-Za-z0-9._-]{3,64}")
+
+
+def password_record(password):
+    if not isinstance(password, str) or len(password) < MIN_PASSWORD or len(password) > 256:
+        raise AuthRejected("weak_password")
+    salt = secrets.token_bytes(16)
+    value = hashlib.scrypt(password.encode(), salt=salt, n=SCRYPT_N, r=8, p=1, dklen=32)
+    return {"salt": salt.hex(), "hash": value.hex(), "n": SCRYPT_N}
+
+
+def password_matches(password, record):
+    if not record or not isinstance(password, str) or len(password) > 256:
+        return False
+    value = hashlib.scrypt(password.encode(), salt=bytes.fromhex(record["salt"]), n=record["n"], r=8, p=1, dklen=32)
+    return hmac.compare_digest(value.hex(), record["hash"])
 
 
 class AuthRejected(Exception):
@@ -86,29 +108,94 @@ class AuthStore:
         self.write("pairing.json", pair)
         self.write(LOCAL_FILE, {"v": 1, "port": port, "code": code})
 
-    def pair_trusted(self, device_name):
-        """Mint a device for a peer the caller already verified (owner's own Tailscale node)."""
+    def consume_local(self, code):
+        """True once for the code in the owner's 0600 file; the file then holds a fresh code."""
         with self.locked():
-            return self._mint(device_name)
+            pair = self.read("pairing.json", {})
+            if not pair.get("local_hash") or not hmac.compare_digest(pair["local_hash"], digest(code)):
+                return False
+            pair.pop("local_hash")
+            self.write("pairing.json", pair)
+            self._rotate_local(pair, pair.get("local_port"))
+            return True
 
-    def _mint(self, device_name):
+    def _mint(self, device_name, devices=None):
         device_id, token = str(uuid.uuid4()), secrets.token_urlsafe(32)
-        devices = self.read("devices.json", {})
+        devices = self.read("devices.json", {}) if devices is None else devices
         devices[device_id] = {"hash": digest(token), "name": device_name, "revoked": False}
         self.write("devices.json", devices)
         return device_id, token
 
-    def pair(self, code, device_name, local=False):
+    # Owner account: one per gate, created and reset only on the airport Mac (caller proves it with consume_local).
+
+    def account_status(self):
+        with self.locked():
+            account = self.read(ACCOUNT_FILE, {})
+            return {"account": bool(account.get("id")), "google": bool(account.get("google_sub"))}
+
+    def local_setup(self, device_name, account_id=None, password=None, google=None):
+        """Create the account, reset its password, and/or link Google. Password changes sign every device out."""
+        with self.locked():
+            account = self.read(ACCOUNT_FILE, {})
+            devices = self.read("devices.json", {})
+            if not account.get("id"):
+                if account_id is None or password is None:
+                    raise AuthRejected("no_account")
+                if not ACCOUNT_ID.fullmatch(account_id):
+                    raise AuthRejected("bad_id")
+                account["id"] = account_id
+            if password is not None:
+                account["password"] = password_record(password)
+                account.pop("failures", None)
+                account.pop("locked_until", None)
+                for device in devices.values():
+                    device["revoked"] = True
+            if google is not None:
+                account["google_sub"], account["google_email"] = google
+            self.write(ACCOUNT_FILE, account)
+            return self._mint(device_name, devices)
+
+    def login(self, account_id, password, device_name):
+        with self.locked():
+            now = self.clock()
+            account = self.read(ACCOUNT_FILE, {})
+            if not account.get("id"):
+                raise AuthRejected("no_account")
+            if account.get("locked_until", 0) > now:
+                raise AuthRejected("locked")
+            same = hmac.compare_digest(account["id"].encode(), account_id.encode())
+            if not (password_matches(password, account["password"]) and same):
+                failures = [t for t in account.get("failures", []) if now - t < PAIR_TTL] + [now]
+                account["failures"] = failures
+                if len(failures) >= MAX_FAILURES:
+                    account["locked_until"] = now + PAIR_TTL
+                self.write(ACCOUNT_FILE, account)
+                raise AuthRejected("bad_login")
+            account.pop("failures", None)
+            self.write(ACCOUNT_FILE, account)
+            return self._mint(device_name)
+
+    def google_login(self, sub, device_name, new_password=None):
+        with self.locked():
+            account = self.read(ACCOUNT_FILE, {})
+            if not account.get("google_sub"):
+                raise AuthRejected("not_linked")
+            if not hmac.compare_digest(account["google_sub"], sub):
+                raise AuthRejected("bad_login")
+            devices = self.read("devices.json", {})
+            if new_password is not None:
+                account["password"] = password_record(new_password)
+                account.pop("failures", None)
+                account.pop("locked_until", None)
+                for device in devices.values():
+                    device["revoked"] = True
+                self.write(ACCOUNT_FILE, account)
+            return self._mint(device_name, devices)
+
+    def pair(self, code, device_name):
         with self.locked():
             now = self.clock()
             pair = self.read("pairing.json", {})
-            if local and pair.get("local_hash") and hmac.compare_digest(pair["local_hash"], digest(code)):
-                # Consume before minting, then rotate so the file never holds a spent code.
-                pair.pop("local_hash")
-                self.write("pairing.json", pair)
-                minted = self._mint(device_name)
-                self._rotate_local(pair, pair.get("local_port"))
-                return minted
             failures = [t for t in pair.get("failures", []) if now - t < PAIR_TTL]
             if pair.get("locked_until", 0) > now:
                 raise AuthRejected("locked")

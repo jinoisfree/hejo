@@ -1,8 +1,8 @@
 import Foundation
 import Network
 
-/// Code-free first connection (REQ-HF-20). On the airport Mac the gate leaves a one-time code in the owner's
-/// 0600 file; elsewhere the app tries the owner's online Tailscale devices and the gate checks Tailscale identity.
+/// Finding the airport for sign-in (REQ-HF-20). The owner's 0600 file marks this Mac as the airport and carries the
+/// one-time proof for sign-up and password reset; elsewhere the owner's online Tailscale Macs are probed for the port.
 enum AirportFinder {
     struct LocalPair: Equatable { var port: Int; var code: String }
     static let port = 47820
@@ -53,16 +53,25 @@ enum AirportFinder {
             DispatchQueue.global().asyncAfter(deadline: .now() + timeout) { finish(false) }
         }
     }
-    /// Local file first, then the owner's Tailscale Macs. Returns false when nothing answered.
-    @MainActor static func connect(_ client: GateClient, home: URL = defaultHome, status: () async -> Data? = { await tailscaleStatus() },
-                                   reach: (String) async -> Bool = { await reachable($0) }) async -> Bool {
-        if let local = localPair(home: home) {
-            return (try? client.pair(address: "127.0.0.1:\(local.port)", code: local.code, device: deviceName)) != nil
-        }
-        guard let data = await status() else { return false }
-        for host in peers(statusJSON: data) where await reach(host) {
-            return (try? client.autoPair(address: "\(host):\(port)", device: deviceName)) != nil
-        }
-        return false
+    /// The airport's address without typing: this Mac's own gate, else the first owner Tailscale Mac with the port open.
+    static func findAddress(home: URL = defaultHome, status: () async -> Data? = { await tailscaleStatus() },
+                            reach: (String) async -> Bool = { await reachable($0) }) async -> String? {
+        if let local = localPair(home: home) { return "127.0.0.1:\(local.port)" }
+        guard let data = await status() else { return nil }
+        for host in peers(statusJSON: data) where await reach(host) { return "\(host):\(port)" }
+        return nil
+    }
+    struct AuthStatus: Equatable { var account: Bool; var google: Bool; var googleClientID: String? }
+    /// Which sign-in methods the gate offers (`GET /v1/auth`; no account id or address is revealed).
+    @MainActor static func authStatus(address: String) async -> AuthStatus? {
+        guard var parts = URLComponents(url: (try? GateClient.endpoint(address)) ?? URL(fileURLWithPath: "/"), resolvingAgainstBaseURL: false),
+              parts.host != nil else { return nil }
+        parts.scheme = parts.scheme == "wss" ? "https" : "http"; parts.path = "/v1/auth"
+        guard let url = parts.url else { return nil }
+        var request = URLRequest(url: url); request.timeoutInterval = 5
+        guard let (data, response) = try? await URLSession.shared.data(for: request), (response as? HTTPURLResponse)?.statusCode == 200,
+              let value = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        return AuthStatus(account: value["account"] as? Bool == true, google: value["google"] as? Bool == true,
+                          googleClientID: value["google_client_id"] as? String)
     }
 }

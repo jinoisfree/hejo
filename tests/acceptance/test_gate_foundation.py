@@ -484,68 +484,114 @@ async def test_at_hf_46(airport):
     assert validator.is_valid({**message, "files": [{**item, "name": "x" * 255}]})
 
 
-async def test_at_hf_58_local_app_pairs_from_owner_file(gate, client):
-    """The Mac's own app pairs with the 0600 local file; the code is single-use, loopback-only, and rotates."""
+
+def local_code(gate):
     import stat
-    from gate.server import GateServer
     path = gate.auth.path / "local-pair.json"
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
-    first = json.loads(path.read_text())
-    assert first["port"] == gate.server.port and len(first["code"]) == 12
-    ws, welcome = await client.open(pair_code=first["code"])
-    assert welcome["type"] == "welcome" and welcome["token"]
-    await ws.close()
-    second = json.loads(path.read_text())
-    assert second["code"] != first["code"] and second["port"] == gate.server.port
-    ws, rejected = await client.open(pair_code=first["code"])
-    assert rejected["reason"] == "wrong"
-    await ws.close()
-    with patch.object(GateServer, "peer", staticmethod(lambda request: __import__("ipaddress").ip_address("100.100.1.1"))):
-        ws, rejected = await client.open(pair_code=second["code"])
-    assert rejected["reason"] == "wrong"
-    await ws.close()
-    assert len(gate.auth.devices()) == 1
+    value = json.loads(path.read_text())
+    assert value["port"] == gate.server.port
+    return value["code"]
 
 
-async def test_at_hf_59_tailscale_owner_device_pairs_without_code(gate, client):
-    """`auto` pairs only a Tailscale peer that Tailscale reports as the same user; anything else is untrusted."""
+async def test_at_hf_58_owner_account_is_created_and_reset_only_on_airport_mac(gate, client):
+    """Sign-up and password reset need the airport Mac (loopback + owner 0600 file); login works anywhere."""
     import ipaddress
     from gate.server import GateServer
-    from gate import tailnet
-    tail = staticmethod(lambda request: ipaddress.ip_address("100.100.1.1"))
-    calls = []
-    async def owner(address):
-        calls.append(address)
-        return (True, "owner-laptop")
-    async def stranger(address):
-        calls.append(address)
-        return (False, None)
-    with patch.object(GateServer, "peer", tail), patch.object(tailnet, "owner_device", owner):
-        ws, welcome = await client.open(auto=True)
-    assert welcome["type"] == "welcome" and welcome["token"] and calls == ["100.100.1.1"]
-    await ws.close()
-    assert [d["name"] for d in gate.auth.devices().values()] == ["owner-laptop"]
-    with patch.object(GateServer, "peer", tail), patch.object(tailnet, "owner_device", stranger):
-        ws, rejected = await client.open(auto=True)
-    assert rejected == {"v": 1, "type": "pair_rejected", "reason": "untrusted"}
-    await ws.close()
-    calls.clear()
-    with patch.object(tailnet, "owner_device", owner):
-        ws, rejected = await client.open(auto=True)  # loopback peer
-    assert rejected["reason"] == "untrusted" and calls == []
-    await ws.close()
-    assert len(gate.auth.devices()) == 1
+    remote = staticmethod(lambda request: ipaddress.ip_address("100.100.1.1"))
+    ws, rejected = await client.open(login={"account": "owner", "password": "correct horse"})
+    assert rejected["reason"] == "no_account"; await ws.close()
+    ws, rejected = await client.open(local={"code": "not-the-code", "account": "owner", "password": "correct horse"})
+    assert rejected["reason"] == "local_only"; await ws.close()
+    with patch.object(GateServer, "peer", remote):
+        ws, rejected = await client.open(local={"code": local_code(gate), "account": "owner", "password": "correct horse"})
+    assert rejected["reason"] == "local_only"; await ws.close()
+    ws, rejected = await client.open(local={"code": local_code(gate), "account": "owner", "password": "short"})
+    assert rejected["reason"] == "weak_password"; await ws.close()
+    first = local_code(gate)
+    ws, welcome = await client.open(local={"code": first, "account": "owner", "password": "correct horse"})
+    assert welcome["type"] == "welcome" and welcome["token"]; await ws.close()
+    assert local_code(gate) != first
+    account = json.loads((gate.auth.path / "account.json").read_text())
+    assert "correct horse" not in json.dumps(account) and account["password"]["n"] >= 2 ** 14
+    with patch.object(GateServer, "peer", remote):
+        ws, welcome = await client.open(login={"account": "owner", "password": "correct horse"})
+    assert welcome["type"] == "welcome"; await ws.close()
+    for _ in range(5):
+        ws, rejected = await client.open(login={"account": "owner", "password": "wrong password"})
+        assert rejected["reason"] == "bad_login"; await ws.close()
+    ws, rejected = await client.open(login={"account": "owner", "password": "correct horse"})
+    assert rejected["reason"] == "locked"; await ws.close()
+    # Reset on the airport Mac: no old password, lockout cleared, every earlier device signed out.
+    ws, welcome = await client.open(local={"code": local_code(gate), "password": "new battery staple"})
+    assert welcome["type"] == "welcome"; await ws.close()
+    assert sum(not d["revoked"] for d in gate.auth.devices().values()) == 1
+    ws, rejected = await client.open(login={"account": "owner", "password": "correct horse"})
+    assert rejected["reason"] == "bad_login"; await ws.close()
+    ws, welcome = await client.open(login={"account": "owner", "password": "new battery staple"})
+    assert welcome["type"] == "welcome"; await ws.close()
+    ws, rejected = await client.open(login={"account": "someone", "password": "new battery staple"})
+    assert rejected["reason"] == "bad_login"; await ws.close()
 
 
-async def test_tailnet_owner_check_compares_tailscale_users():
-    from gate import tailnet
-    async def answers(status, whois):
-        async def fake(*args, timeout=3):
-            return status if args[0] == "status" else whois
-        with patch.object(tailnet, "_json", fake):
-            return await tailnet.owner_device("100.100.1.1")
-    me = {"Self": {"UserID": 7}}
-    assert await answers(me, {"UserProfile": {"ID": 7}, "Node": {"ComputedName": "laptop"}}) == (True, "laptop")
-    assert await answers(me, {"UserProfile": {"ID": 8}, "Node": {"ComputedName": "other"}}) == (False, None)
-    assert await answers(None, None) == (False, None)
-    assert await answers({"Self": {}}, {"UserProfile": {"ID": 7}, "Node": {}}) == (False, None)
+async def test_at_hf_59_google_sign_in_links_on_airport_mac_and_resets_password(gate, client):
+    """Google works only after linking on the airport Mac, only for that Google account, and can set a new password."""
+    from aiohttp import ClientSession
+    from gate import google
+    grant = {"code": "auth-code", "verifier": "v" * 43, "redirect_uri": "http://127.0.0.1:53123/"}
+    who = {"sub": "google-owner"}
+    async def identity(home, code, verifier, redirect_uri):
+        if who["sub"] is None:
+            raise google.GoogleRejected("identity")
+        return who["sub"], "owner-google-address"
+    async with ClientSession() as http:
+        async with http.get(f"http://127.0.0.1:{gate.server.port}/v1/auth") as response:
+            assert await response.json() == {"account": False, "google": False, "google_client_id": None}
+    with patch.object(google, "identity", identity):
+        ws, rejected = await client.open(google=grant)
+        assert rejected["reason"] == "not_linked"; await ws.close()
+        ws, welcome = await client.open(local={"code": local_code(gate), "account": "owner", "password": "correct horse", "google": grant})
+        assert welcome["type"] == "welcome"; await ws.close()
+        ws, welcome = await client.open(google=grant)
+        assert welcome["type"] == "welcome"; await ws.close()
+        who["sub"] = "someone-else"
+        ws, rejected = await client.open(google=grant)
+        assert rejected["reason"] == "bad_login"; await ws.close()
+        who["sub"] = None
+        ws, rejected = await client.open(google=grant)
+        assert rejected["reason"] == "google_failed"; await ws.close()
+        who["sub"] = "google-owner"
+        ws, welcome = await client.open(google={**grant, "new_password": "after google reset"})
+        assert welcome["type"] == "welcome"; await ws.close()
+    assert sum(not d["revoked"] for d in gate.auth.devices().values()) == 1
+    ws, welcome = await client.open(login={"account": "owner", "password": "after google reset"})
+    assert welcome["type"] == "welcome"; await ws.close()
+    async with ClientSession() as http:
+        async with http.get(f"http://127.0.0.1:{gate.server.port}/v1/auth") as response:
+            body = await response.json()
+    assert body["account"] and body["google"] and "owner" not in json.dumps(body)
+
+
+async def test_google_identity_checks_audience_issuer_and_redirect(tmp_path):
+    from gate import google
+    (tmp_path / "hejo").mkdir()
+    (tmp_path / "hejo" / google.CLIENT_FILE).write_text(json.dumps({"client_id": "cid", "client_secret": "sec"}))
+    info = {"aud": "cid", "iss": "https://accounts.google.com", "email_verified": "true", "sub": "s1", "email": "e"}
+    async def post(url, data):
+        assert data["client_secret"] == "sec" and data["code_verifier"] == "ver"
+        return 200, {"id_token": "jwt"}
+    async def get(url, params):
+        return 200, dict(info)
+    with patch.object(google, "_post", post), patch.object(google, "_get", get):
+        assert await google.identity(tmp_path, "c", "ver", "http://127.0.0.1:5000/") == ("s1", "e")
+        with pytest.raises(google.GoogleRejected):
+            await google.identity(tmp_path, "c", "ver", "https://evil.example/")
+        info["aud"] = "other"
+        with pytest.raises(google.GoogleRejected):
+            await google.identity(tmp_path, "c", "ver", "http://127.0.0.1:5000/")
+        info["aud"], info["email_verified"] = "cid", "false"
+        with pytest.raises(google.GoogleRejected):
+            await google.identity(tmp_path, "c", "ver", "http://127.0.0.1:5000/")
+    (tmp_path / "hejo" / google.CLIENT_FILE).unlink()
+    with pytest.raises(google.GoogleRejected):
+        await google.identity(tmp_path, "c", "ver", "http://127.0.0.1:5000/")

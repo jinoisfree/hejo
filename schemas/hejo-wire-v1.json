@@ -192,8 +192,106 @@
           "type": "integer",
           "minimum": 0
         },
-        "auto": {
-          "const": true
+        "login": {
+          "type": "object",
+          "properties": {
+            "account": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "password": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          },
+          "required": [
+            "account",
+            "password"
+          ],
+          "additionalProperties": false
+        },
+        "google": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048
+            },
+            "verifier": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "redirect_uri": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "new_password": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          },
+          "required": [
+            "code",
+            "verifier",
+            "redirect_uri"
+          ],
+          "additionalProperties": false
+        },
+        "local": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "account": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "password": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "google": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2048
+                },
+                "verifier": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "redirect_uri": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                }
+              },
+              "required": [
+                "code",
+                "verifier",
+                "redirect_uri"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "code"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
@@ -217,7 +315,17 @@
               },
               {
                 "required": [
-                  "auto"
+                  "login"
+                ]
+              },
+              {
+                "required": [
+                  "google"
+                ]
+              },
+              {
+                "required": [
+                  "local"
                 ]
               }
             ]
@@ -236,7 +344,17 @@
               },
               {
                 "required": [
-                  "auto"
+                  "login"
+                ]
+              },
+              {
+                "required": [
+                  "google"
+                ]
+              },
+              {
+                "required": [
+                  "local"
                 ]
               }
             ]
@@ -244,7 +362,7 @@
         },
         {
           "required": [
-            "auto"
+            "login"
           ],
           "not": {
             "anyOf": [
@@ -256,6 +374,74 @@
               {
                 "required": [
                   "pair_code"
+                ]
+              },
+              {
+                "required": [
+                  "google"
+                ]
+              },
+              {
+                "required": [
+                  "local"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "google"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "token"
+                ]
+              },
+              {
+                "required": [
+                  "pair_code"
+                ]
+              },
+              {
+                "required": [
+                  "login"
+                ]
+              },
+              {
+                "required": [
+                  "local"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "local"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "token"
+                ]
+              },
+              {
+                "required": [
+                  "pair_code"
+                ]
+              },
+              {
+                "required": [
+                  "login"
+                ]
+              },
+              {
+                "required": [
+                  "google"
                 ]
               }
             ]
@@ -329,7 +515,13 @@
             "locked",
             "revoked",
             "unknown",
-            "untrusted"
+            "bad_login",
+            "weak_password",
+            "bad_id",
+            "no_account",
+            "not_linked",
+            "google_failed",
+            "local_only"
           ]
         }
       },

@@ -31,7 +31,7 @@ TASK-02가 JSON Schema로 만들고 앱·문이 같은 파일을 기준으로 �
 
 | 방향 | type | 필드 | 의미 |
 |---|---|---|---|
-| 앱→문 | `hello` | `token`·`pair_code`·`auto:true` 중 하나(10판),  `device_name`, `app_version`, `since`(마지막 seq, 선택) | 첫 프레임. 5초 안에 없으면 끊음 |
+| 앱→문 | `hello` | `token`·`pair_code`·`login`·`google`·`local` 중 하나(10판),  `device_name`, `app_version`, `since`(마지막 seq, 선택) | 첫 프레임. 5초 안에 없으면 끊음 |
 | 문→앱 | `welcome` | `device_id`, `token`(페어링 때만), `gate_version`, `employees[]`, `head_seq` | 인증 성공 |
 | 문→앱 | `pair_rejected` / `auth_rejected` | `reason`(expired·used·wrong·locked·revoked·unknown) | 실패 후 닫음 |
 | 앱→문 | `roster` | `id` | 직원 목록 재요청 |
@@ -220,12 +220,13 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
 - **동작 줄이기**: 반짝임과 깜빡임을 멈춘다.
 - **시안**: `mockup/hejo-ui-v33-chat-typing`의 1번과 4번.
 
-### 자동 연결(10판, REQ-HF-20)
+### 사장 계정 로그인(10판 개정, REQ-HF-20)
 
-- **공항 Mac:** 기본 문이 시작할 때 `AuthStore.local_code(port)`가 `pairing.json`에 `local_hash`·`local_port`를 두고, 평문 코드는 `hejo/local-pair.json`(0600)에 쓴다. `pair(code, local=True)`는 루프백 연결에서만 이 해시를 비교한다. 쓰이면 해시를 먼저 지우고 출입증을 만든 뒤 새 코드로 바꾼다. 일반 12자 코드(10분, 실패 잠금)와는 다른 칸이라 서로 덮어쓰지 않는다.
-- **다른 Mac:** `hello{auto:true}`는 규격 hello의 세 번째 변형이다(`token`·`pair_code`와 함께 쓸 수 없음). 문 `gate/tailnet.py`가 `tailscale status --json`의 `Self.UserID`와 `tailscale whois --json <연결 주소>`의 `UserProfile.ID`를 비교한다(3초 제한, 실패는 거부). 같으면 `pair_trusted(Tailscale 기기 이름)`로 출입증을 만든다.
-- **앱:** `AirportFinder.connect`는 로컬 파일 → Tailscale 온라인 기기(Mac 먼저, IPv4)의 47820 TCP 확인 순서로 찾고, `GateClient.pair` 또는 `autoPair`를 부른다. 주소가 저장되지 않은 첫 실행과 "자동으로 찾기"에서만 돈다. 취소된 출입증은 자동으로 다시 붙지 않는다.
-- **신뢰 경계:** 공항 Mac의 같은 사용자 프로세스는 이미 `~/.hermes`를 읽을 수 있으므로, 로컬 파일이 새로 여는 권한은 없다. Tailscale 쪽 신뢰는 "사장의 Tailscale 계정에 로그인된 기기"다. 노트북을 막으려면 출입증 취소와 함께 tailnet에서 그 기기를 뺀다.
+- **원본:** 문 `AuthStore`의 `account.json`(아이디, scrypt 기록, 실패·잠금, `google_sub`·`google_email`)과 기존 `devices.json`(출입증). 앱은 출입증만 Keychain에 둔다.
+- **공항 Mac 증표:** 기본 문이 시작할 때 `local_code(port)`로 `pairing.json`의 `local_hash`와 0600 `local-pair.json`을 만든다. 가입·재설정·Google 연결(`hello.local`)은 루프백이고 `consume_local`이 참일 때만 한다. 같은 사용자 프로세스는 이미 `~/.hermes`를 읽을 수 있어서 새 권한이 생기지 않는다. 이 증표만으로 출입증을 주는 길은 없다(자동 입장 없음).
+- **로그인:** `hello.login` → `AuthStore.login`(10분 5회 잠금). `hello.google` → `gate/google.py identity`(인가 코드 교환 + tokeninfo 확인, 10초 제한) → `google_login(sub)`. `new_password`가 있으면 재설정한다. 재설정은 모든 출입증을 취소한다.
+- **Google 설정:** 사장이 Google Cloud에서 "데스크톱 앱" OAuth 클라이언트를 만들고, 공항 Mac에서 `python -m gate.cli google <client_id>`에 비밀을 표준 입력으로 넣는다. 그러면 `<HOME>/hejo/google-client.json`(0600)이 생긴다. 비밀은 문에만 있고 앱·저장소에는 없다.
+- **앱:** `LoginWindow`가 `AirportFinder.findAddress`(공항 Mac 증표 → Tailscale 온라인 Mac의 47820)와 `GET /v1/auth`로 화면을 고른다(가입·로그인·재설정·못 찾음). `GoogleSignIn`은 PKCE, 루프백 리스너, 브라우저 열기를 맡는다. `GateClient.signIn`은 한 번만 쓰는 hello 필드를 보낸다.
 
 ### SwiftUI 예외 목록
 
