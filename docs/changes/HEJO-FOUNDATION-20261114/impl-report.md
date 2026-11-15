@@ -961,3 +961,25 @@ AT-HF-30: 운영 원본 전부 auto·다른 키 차이 0·동기화 커밋 확�
   - 공용 Google 데스크톱 OAuth 클라이언트를 등록하고 ID·비밀을 넣은 뒤 다시 빌드한다.
   - 다른 사용자 공항에 hejo를 설치한다(그 macOS 세션에서).
   - 노트북 실물을 확인한다.
+
+### TASK-15 — 허브와 회원 (11판, 2026-11-15, 사장 결정 B)
+
+- **사장 결정:** 회원마다 따로 가입하고, 각 Hermes는 그 회원의 hejo로 쓰고, 설정도 회원마다 둔다. 맥미니 하나를 서버로 쓴다.
+  - 맥북에어(다른 Mac 계정 회원)에는 앱만 깔고, 그 회원 Hermes에는 연결 부품을 한 번 넣는다.
+- **커밋:** `ae9ce0c`(허브·문 연결·설치기·앱), `095b18c`(운영자 연결).
+  - 허브: `hub/` 회원·기기·설정·Google·문 API
+  - 문: `gate/hub.py` 토큰 확인·포트 등록·증표 재설정. 계정 코드는 허브로 옮겼다.
+  - 설치: `install/hejo-release`, `hejo-hub`, `hejo-join`, `hejo-install --hub/--port`
+  - 앱: `HubClient`, `LoginWindow`, `GateClient.adopt`, 회원 설정(펫 이름) 동기화
+- **시험:** 환경 지정 `bash scripts/test.sh` 0이다(gate+hub 91, AT-HF-58·59·60 앱 PASS, `.build/task15-hejo.log`). 허브 시험 7개, 설치기 17개, pre-commit 0, diff --check 0.
+- **운영 적용 (관리자 Mac 계정)**
+  - `hejo-release`로 공용 폴더에 배포했다(RELEASE = `095b18c`).
+  - `hejo-hub`를 launchd 에이전트로 올렸다(127.0.0.1·Tailscale 47800, `/v1/hub` 응답 확인).
+  - 관리자 Hermes를 작업 트리에서 공용 복사본으로 다시 설치했다(`--uninstall` 뒤 `--port 47820`). 설정 6개는 이전과 바이트가 같고 링크만 공용 복사본으로 바뀌었다. 그래서 운영 저장소에 커밋할 것은 없다.
+  - 게이트웨이를 재시작했다(17:34, 13 플랫폼, 오류 새 줄 0).
+  - 앱을 다시 빌드·설치하고 로컬 설정을 초기화했다. 맥미니 화면에서 "hejo 로그인"(허브 찾음)을 확인했다. 앱 사본은 공용 폴더 `hejo/hejo.app`에 있다.
+- **남은 것**
+  - 관리자 회원 가입 → 운영자 연결(`python -m hub --link`) → 재시작
+  - moyo: 맥북에어에서 가입하고, 맥미니 moyo 계정에서 `hejo-join`을 실행한다
+  - 공용 Google 클라이언트 등록
+  - 노트북 실물 확인
