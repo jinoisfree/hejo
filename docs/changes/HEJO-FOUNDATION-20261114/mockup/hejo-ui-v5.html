@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>hejo UI 시안 5판 — 4판 구조 + ddots 디자인</title>
+<style>
+  :root { --bg:#0f0f10; --side:#141416; --list:#121214; --card:#1b1b1e; --card2:#222226; --line:#2a2a2e; --text:#f1f1f3;
+          --sub:#9b9ba3; --dim:#686870; --tile:#3a3a3e; --blue:#0a7cf0; --blueDeep:#0a5fc0; --green:#2fbf5b; --purple:#8b5cf6;
+          --orange:#f5a623; --red:#ff3b47; --sky:#2ea8ff; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:30px; width:1584px; background:#dcdce1; color:#1d1d1f;
+         font:13px/1.45 -apple-system,"SF Pro Text","Apple SD Gothic Neo",sans-serif; -webkit-font-smoothing:antialiased; }
+  h1 { font-size:22px; margin:0 0 4px; } .lead { color:#4a4a50; margin:0 0 16px; }
+  .cap { font-size:12px; font-weight:600; color:#3a3a40; margin:0 0 6px; }
+  svg { width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; flex:none; }
+  .pet { width:96px; height:104px; margin:0 0 -12px 880px; position:relative; z-index:2; background:url(../../../../app/Resources/Pet/wave.png) 0 0/400% 100% no-repeat; }
+  .win { background:var(--bg); color:var(--text); border-radius:22px; overflow:hidden; display:flex; flex-direction:column;
+         box-shadow:0 0 0 1px #000, 0 24px 54px rgba(0,0,0,.35); }
+  .bar { height:46px; display:flex; align-items:center; gap:14px; padding:0 14px; border-bottom:1px solid var(--line); }
+  .brand { width:176px; } .brand b { font-size:15px; letter-spacing:-.01em; } .brand b i { color:var(--sky); font-style:normal; } .brand small { display:block; font-size:10.5px; color:var(--dim); margin-top:-2px; }
+  .bar .ttl { flex:1; } .bar .ttl b { font-size:14px; } .bar .ttl small { display:block; font-size:11px; color:var(--sub); margin-top:-1px; }
+  .ico { color:#c8c8ce; display:flex; gap:14px; }
+  .main { flex:1; display:flex; min-height:0; }
+  /* 사이드바: ddots 탭(둥근 사각 글자 타일 + 색 숫자 점)을 목록형으로 */
+  .side { width:204px; background:var(--side); border-right:1px solid var(--line); padding:8px 8px; display:flex; flex-direction:column; gap:2px; }
+  .zone { display:flex; align-items:center; gap:4px; font-size:12px; font-weight:700; padding:10px 8px 4px; }
+  .zone .k { color:var(--orange); font-weight:900; letter-spacing:-1px; }
+  .zone.later { color:var(--dim); } .zone.later .k { color:var(--dim); }
+  .div { height:1px; background:var(--line); margin:6px 8px; }
+  .room { display:flex; align-items:center; gap:16px; padding:6px 8px; border-radius:12px; }
+  .room.sel { background:#1f2a3a; box-shadow:inset 0 0 0 1px #24446e; }
+  .tile { width:34px; height:34px; border-radius:9px; background:var(--tile); color:#f2f2f4; font-weight:700; font-size:15px; display:flex; align-items:center; justify-content:center; position:relative; flex:none; }
+  .tile.hash { background:#26262a; color:#8b8b93; }
+  .dots { position:absolute; right:-6px; top:-5px; display:flex; flex-direction:column; gap:2px; }
+  .cnt { min-width:15px; height:15px; border-radius:8px; font-size:9.5px; font-weight:800; color:#fff; display:flex; align-items:center; justify-content:center; padding:0 3px; box-shadow:0 0 0 2px var(--side); }
+  .r{background:var(--red)} .o{background:var(--orange)} .s{background:var(--sky)}
+  .room .n { flex:1; min-width:0; } .room .n b { display:block; font-size:12.5px; } .room .n small { display:block; font-size:11px; color:var(--sub); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .room.later { opacity:.45; }
+  .side .foot { margin-top:auto; font-size:11px; color:var(--sub); padding:8px; display:flex; align-items:center; gap:6px; }
+  .gd { width:7px; height:7px; border-radius:50%; background:var(--green); }
+  /* 스레드 목록 */
+  .list { width:268px; background:var(--list); border-right:1px solid var(--line); display:flex; flex-direction:column; }
+  .pills { display:flex; gap:6px; padding:10px 10px 6px; flex-wrap:wrap; }
+  .pill { font-size:11px; font-weight:600; border-radius:999px; padding:2px 9px 2px 7px; display:flex; gap:5px; align-items:center; border:1px solid; }
+  .pill i { width:7px; height:7px; border-radius:50%; }
+  .p1 { color:#ff8a92; border-color:#5a1f27; background:#2a1216; } .p1 i { background:var(--red); }
+  .p2 { color:#f7c06a; border-color:#5a4116; background:#2a2010; } .p2 i { background:var(--orange); }
+  .p3 { color:#7cc8ff; border-color:#1d4a6e; background:#0f2233; } .p3 i { background:var(--sky); }
+  .search { margin:4px 10px 8px; height:28px; border-radius:14px; background:#1c1c20; display:flex; align-items:center; gap:7px; padding:0 11px; color:var(--dim); font-size:12px; }
+  .tl { padding:0 10px; display:flex; flex-direction:column; gap:7px; }
+  .tc { background:var(--card); border-radius:14px; padding:9px 11px 9px 14px; position:relative; border:1px solid #232327; }
+  .tc::before { content:""; position:absolute; left:5px; top:10px; bottom:10px; width:3px; border-radius:2px; background:var(--rail,#3a3a3e); }
+  .tc.sel { border-color:#6d4ad8; box-shadow:0 0 0 1px #6d4ad8 inset; }
+  .tc .r1 { display:flex; gap:6px; align-items:center; } .tc .r1 b { flex:1; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .tm { font-size:10.5px; color:var(--dim); }
+  .tc .pv { font-size:11.5px; color:var(--sub); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .st { font-size:10.5px; margin-top:5px; display:flex; gap:8px; color:var(--sub); }
+  .st .w { color:#6fb6ff; }
+  /* 대화 */
+  .conv { flex:1; display:flex; flex-direction:column; min-width:0; }
+  .scroll { flex:1; padding:12px 14px; overflow:hidden; }
+  .thread { background:#151517; border:1px solid #2b2b30; border-radius:18px; padding:14px 16px 10px 22px; position:relative; }
+  .thread::before { content:""; position:absolute; left:9px; top:14px; bottom:14px; width:3px; border-radius:2px; background:var(--purple); }
+  .mine { margin-left:auto; max-width:78%; background:var(--blue); border-radius:16px; padding:10px 12px; color:#fff; font-size:13px; }
+  .frow { margin-top:7px; background:var(--blueDeep); border-radius:10px; padding:6px 10px; display:flex; gap:9px; align-items:center; font-size:12px; }
+  .frow small { display:block; font-size:10.5px; color:#bcd9ff; } .frow .dl { margin-left:auto; color:#cfe4ff; }
+  .mt { text-align:right; font-size:10.5px; color:var(--dim); margin-top:4px; }
+  .prev { display:inline-flex; align-items:center; gap:6px; background:#26262b; border-radius:999px; padding:3px 10px 3px 4px; font-size:11.5px; color:#d4d4da; margin:10px 0 6px 0; }
+  .prev .tile { width:20px; height:20px; font-size:10px; border-radius:6px; }
+  .post { display:flex; gap:10px; margin-top:8px; }
+  .post .tile { width:32px; height:32px; font-size:14px; }
+  .who { font-size:12.5px; font-weight:700; } .who span { color:var(--dim); font-weight:400; font-size:10.5px; margin-left:5px; }
+  .body { font-size:13px; color:#e8e8ec; margin-top:2px; } .body ul { margin:4px 0; padding-left:17px; }
+  .code { color:#f7c06a; background:#2a2416; padding:0 4px; border-radius:4px; font:12px ui-monospace,Menlo,monospace; }
+  .done { margin-top:5px; border-left:3px solid var(--green); padding-left:8px; font-size:12px; }
+  .btns { display:flex; gap:6px; margin-top:7px; }
+  .b { font-size:11.5px; border-radius:8px; padding:4px 10px; background:#2a2a2f; color:#e6e6ea; }
+  .b.p { background:var(--blue); color:#fff; }
+  .typing { display:flex; gap:8px; align-items:center; margin:8px 0 0 42px; }
+  .bub3 { background:#5a4630; border-radius:12px; padding:6px 12px; font-weight:900; letter-spacing:2px; color:#fff; }
+  .stop { font-size:11px; background:#26262b; border-radius:7px; padding:3px 8px; color:#d0d0d6; }
+  .acts { display:flex; justify-content:flex-end; gap:16px; font-size:11.5px; color:var(--sub); margin-top:8px; align-items:center; }
+  .acts .w { color:#6fb6ff; }
+  .comp { border-top:1px solid var(--line); padding:8px 12px 12px; }
+  .seg { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .segc { display:inline-flex; background:#1c1c20; border-radius:999px; padding:2px; font-size:11.5px; }
+  .segc span { padding:2px 10px; border-radius:999px; color:var(--sub); } .segc .on { background:#1c3f6e; color:#cfe4ff; }
+  .ctx { font-size:11.5px; color:var(--sub); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1; }
+  .faces { display:flex; gap:4px; } .faces .tile { width:22px; height:22px; font-size:10px; border-radius:6px; }
+  .inrow { display:flex; gap:8px; align-items:center; }
+  .circ { width:32px; height:32px; border-radius:50%; background:#26262b; display:flex; align-items:center; justify-content:center; color:#d8d8dc; font-size:18px; }
+  .field { flex:1; height:34px; border-radius:17px; border:1px solid #2f2f35; display:flex; align-items:center; padding:0 14px; color:var(--dim); font-size:12.5px; }
+  .send { width:34px; height:34px; border-radius:50%; background:#1c3f6e; display:flex; align-items:center; justify-content:center; color:#cfe4ff; }
+  .send svg { width:16px; height:16px; stroke-width:2.2; }
+  .row { display:flex; gap:30px; align-items:flex-start; margin-top:28px; }
+  .notes { flex:1; background:rgba(255,255,255,.75); border-radius:14px; padding:16px 20px; font-size:12.5px; line-height:1.65; color:#2a2a2e; }
+  .notes h3 { margin:0 0 6px; font-size:13.5px; } .notes ul { margin:0; padding-left:18px; }
+  .band { background:#2a2010; color:#f7c06a; font-size:12px; padding:6px 14px; border-bottom:1px solid #5a4116; display:flex; gap:8px; align-items:center; }
+</style>
+</head>
+<body>
+<h1>hejo UI 시안 5판 — 4판 구조 + ddots 디자인</h1>
+<p class="lead">구조는 4판(사이드바 → 스레드 목록 → 대화), 모양은 ddots(어두운 바탕, 둥근 사각 글자 타일과 색 숫자 점, 구역⋮ 머리글, 색 레일 카드, 파란 블록 말풍선, 이전 답글 알약, 링크·복사·분기, 답글/새 대화 전환). 이름은 예시.</p>
+
+<p class="cap">A. 넓게 (1100×650)</p>
+<div class="pet"></div>
+<div class="win" style="width:1100px;height:650px">
+  <div class="bar">
+    <div class="brand"><b><i>h</i>ejo.</b><small>0.1.0</small></div>
+    <div class="ttl"><b>오늘 받은 메일 정리</b><small>비서 · 답글 쓰는 중</small></div>
+    <div class="ico"><svg viewBox="0 0 16 16"><path d="M8 2.5a4 4 0 0 0-4 4v2.5L2.5 11h11L12 9V6.5a4 4 0 0 0-4-4zM6.5 13a1.5 1.5 0 0 0 3 0"/></svg><svg viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M6 2.5v11"/></svg><svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg><svg viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></svg></div>
+  </div>
+  <div class="main">
+    <div class="side">
+      <div class="zone">직원<span class="k">⋮</span></div>
+      <div class="room sel"><div class="tile">비<div class="dots"><span class="cnt o">1</span><span class="cnt s">2</span></div></div><div class="n"><b>비서</b><small>답글 쓰는 중…</small></div></div>
+      <div class="room"><div class="tile">리<div class="dots"><span class="cnt r">1</span></div></div><div class="n"><b>리서처</b><small>시장 조사 요약 완료</small></div></div>
+      <div class="room"><div class="tile">회</div><div class="n"><b>회계</b><small>영수증 3장 정리</small></div></div>
+      <div class="room"><div class="tile" style="opacity:.6">디</div><div class="n"><b>디자이너</b><small>직무 없음</small></div></div>
+      <div class="div"></div>
+      <div class="zone later">단체방<span class="k">⋮</span><span style="font-weight:400;margin-left:4px">2단계</span></div>
+      <div class="room later"><div class="tile hash">#</div><div class="n"><b>팀 회의</b><small>곧 열려요</small></div></div>
+      <div class="foot"><span class="gd"></span>공항 연결됨</div>
+    </div>
+    <div class="list">
+      <div class="pills"><span class="pill p1"><i></i>답 안 한 글 1</span><span class="pill p2"><i></i>질문 1</span><span class="pill p3"><i></i>알림 2</span></div>
+      <div class="search"><svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>비서의 스레드 찾기</div>
+      <div class="tl">
+        <div class="tc sel" style="--rail:var(--purple)"><div class="r1"><b>오늘 받은 메일 정리</b><span class="tm">6:18</span></div><div class="pv">비서: 중요 메일 3건이에요</div><div class="st"><span class="w">↩ 답글 쓰는 중</span><span>답글 3</span></div></div>
+        <div class="tc" style="--rail:var(--orange)"><div class="r1"><b>거래처 미팅 시간</b><span class="tm">5:40</span></div><div class="pv">비서: 목요일 2시와 4시 중 어느 쪽이 좋을까요?</div><div class="st"><span style="color:#f7c06a">● 질문</span></div></div>
+        <div class="tc" style="--rail:var(--green)"><div class="r1"><b>아침 보고</b><span class="tm">8:00</span></div><div class="pv">오늘 일정 4개, 마감 1개가 있어요.</div><div class="st"><span style="color:#5fd88a">✅ 답변 완료</span><span>⏰ 예약</span></div></div>
+        <div class="tc" style="--rail:var(--green)"><div class="r1"><b>다음 주 일정 확인</b><span class="tm">2:05</span></div><div class="pv">화요일 오전을 비워 두었어요.</div></div>
+      </div>
+    </div>
+    <div class="conv">
+      <div class="scroll">
+        <div class="thread">
+          <div class="mine">오늘 온 메일 중 중요한 것만 정리해줘. 계약서도 같이 봐줘
+            <div class="frow"><svg viewBox="0 0 16 16"><path d="M4 1.5h5l3 3v10H4z"/></svg><div>계약서-초안.pdf<small>284KB · PDF</small></div><span class="dl"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 5v5M5.5 8l2.5 2.5L10.5 8"/></svg></span></div></div>
+          <div class="mt">오후 6:12</div>
+          <div class="prev"><span class="tile">비</span>이전 답글 2개 ⌄</div>
+          <div class="post"><div class="tile">비</div><div><div class="who">비서<span>오후 6:15</span></div>
+            <div class="body">중요 메일 3건이에요.<ul><li><b>거래처 A</b> — 계약서 수정 요청(마감 <b>11/18</b>)</li><li><b>세무사</b> — 11월 자료 요청</li><li><b>팀 공지</b> — 회의 시간 변경</li></ul>계약서는 <span class="code">제7조 위약금</span> 문구가 메일 요청과 달라요.</div>
+            <div class="btns"><span class="b p">답장 초안 쓰기</span><span class="b">메모로 저장</span><span class="b">나중에</span></div>
+            <div class="done">✅ 답변 완료</div></div></div>
+          <div class="post"><div class="tile">비</div><div><div class="who">비서<span>지금</span></div>
+            <div class="body">거래처 A 담당자님께, 보내주신 수정 요청 잘 받았습니다. 제7조 위약금 조항은…</div></div></div>
+          <div class="typing"><span class="bub3">•••</span><span class="stop">■ 중지</span></div>
+          <div class="acts"><span>🔗 링크</span><span>⧉ 복사</span><span>⑂ 분기</span><span class="w">↩ 답글 쓰는 중</span></div>
+        </div>
+      </div>
+      <div class="comp">
+        <div class="seg"><span class="segc"><span class="on">답글</span><span>새 대화</span></span><span class="ctx">비서 · 오늘 받은 메일 정리</span></div>
+        <div class="inrow"><span class="circ">＋</span><span class="field">스레드에 답글</span><span class="send"><svg viewBox="0 0 16 16"><path d="M8 13V3M3.5 7.5L8 3l4.5 4.5"/></svg></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div>
+    <p class="cap">B. 좁게 (펫 기본 크기 근처, 460×560) · 사이드바는 ddots 탭 줄로, 스레드 목록은 접힘</p>
+    <div class="win" style="width:460px;height:560px">
+      <div class="bar"><div class="ttl" style="flex:1"><b>‹ 오늘 받은 메일 정리</b><small>비서 · 답글 쓰는 중</small></div><div class="ico"><svg viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></svg></div></div>
+      <div class="main">
+        <div class="side" style="width:68px;align-items:center;padding:8px 0">
+          <div class="room sel" style="padding:6px;flex-direction:column;gap:3px;font-size:10px"><div class="tile">비<div class="dots"><span class="cnt s">2</span></div></div>비서</div>
+          <div class="room" style="padding:6px;flex-direction:column;gap:3px;font-size:10px;color:var(--sub)"><div class="tile">리<div class="dots"><span class="cnt r">1</span></div></div>리서처</div>
+          <div class="room" style="padding:6px;flex-direction:column;gap:3px;font-size:10px;color:var(--sub)"><div class="tile">회</div>회계</div>
+          <div class="room" style="padding:6px;flex-direction:column;gap:3px;font-size:10px;color:var(--sub)"><div class="tile" style="opacity:.6">디</div>디자이너</div>
+        </div>
+        <div class="conv">
+          <div class="scroll"><div class="thread" style="padding:12px 12px 10px 20px">
+            <div class="mine" style="max-width:90%">거래처 A 답장 초안 써줘</div>
+            <div class="post"><div class="tile">비</div><div><div class="who">비서<span>지금</span></div><div class="body">거래처 A 담당자님께, 보내주신 수정 요청 잘 받았습니다.</div></div></div>
+            <div class="typing"><span class="bub3">•••</span><span class="stop">■ 중지</span></div>
+          </div></div>
+          <div class="comp"><div class="seg"><span class="segc"><span class="on">답글</span><span>새 대화</span></span></div>
+            <div class="inrow"><span class="circ">＋</span><span class="field">스레드에 답글</span><span class="send"><svg viewBox="0 0 16 16"><path d="M8 13V3M3.5 7.5L8 3l4.5 4.5"/></svg></span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <p class="cap">C. 끊김</p>
+    <div class="win" style="width:420px;height:200px">
+      <div class="band">🔌 공항과 연결이 끊겼어요 · 4초 뒤 다시 연결 <span style="flex:1"></span><span class="b">지금 다시</span></div>
+      <div class="scroll"><div class="mine" style="opacity:.55;max-width:80%">보내는 중… 연결되면 보내요</div></div>
+    </div>
+  </div>
+  <div class="notes">
+    <h3>ddots에서 가져온 모양</h3>
+    <ul>
+      <li>어두운 바탕, 둥근 큰 창(펫 아래로 펼침), 맨 위 <b>브랜드 + 버전</b>(hejo.)과 종·사이드바·찾기·접기 아이콘.</li>
+      <li>직원 = <b>둥근 사각 글자 타일</b>, 오른쪽 위 <b>색 숫자 점</b>(빨강 답 안 함·주황 질문·하늘 새 글).</li>
+      <li><b>구역⋮ 머리글</b>과 구분선(직원⋮, 2단계 단체방⋮).</li>
+      <li>목록 위 <b>알약 신호</b>(답 안 한 글·질문·알림), 카드 <b>왼쪽 색 레일</b>(보라 진행·주황 질문·초록 완료).</li>
+      <li>대화: <b>파란 블록 말풍선</b> 안 파일 줄, <b>이전 답글 N개</b> 알약, ✅ 답변 완료 줄, ••• 작성 중과 ■ 중지, <b>링크·복사·분기</b> 줄.</li>
+      <li>입력: <b>답글 / 새 대화</b> 전환, ＋ 원형, 둥근 칸, 원형 보내기.</li>
+      <li>4판 HIG에서 유지: 세 칸 계층, 좁으면 접힘, 상태는 색 + 글자, 키보드·동작 줄이기.</li>
+    </ul>
+  </div>
+</div>
+</body>
+</html>

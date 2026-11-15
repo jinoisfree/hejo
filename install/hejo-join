@@ -1,0 +1,31 @@
+#!/bin/bash
+# One line for each member, run in that member's own Mac account (the released copy lives in the Mac's shared
+# folder, next to the user folders):  <Shared>/hejo/install/hejo-join
+# Installs the hejo plugin into this account's Hermes, joins the Mac's hejo hub, and restarts the gateway.
+set -euo pipefail
+here="$(cd "$(dirname "$0")" && pwd)"
+hermes_cli="$(command -v hermes || echo "$HOME/.local/bin/hermes")"
+config="$("$hermes_cli" config path 2>/dev/null | tail -1)"
+hermes_home="${HERMES_HOME:-$(dirname "$config")}"
+[[ -d "$hermes_home" ]] || { echo "이 계정의 Hermes를 찾지 못했어요. HERMES_HOME=<Hermes 폴더>로 다시 실행해 주세요." >&2; exit 1; }
+hub="${HEJO_HUB:-http://127.0.0.1:47800}"
+python="${HEJO_PYTHON:-}"
+if [[ -z "$python" ]]; then
+  for candidate in "$hermes_home"/installs/*/environments/*/venv/bin/python "$hermes_home"/hermes-agent/venv/bin/python; do
+    [[ -x "$candidate" ]] && "$candidate" -c 'import ruamel.yaml, aiohttp' 2>/dev/null && { python="$candidate"; break; }
+  done
+fi
+[[ -n "$python" ]] || { echo "Hermes Python을 찾지 못했어요. HEJO_PYTHON=<python 경로>로 다시 실행해 주세요." >&2; exit 1; }
+curl -fsS "$hub/v1/hub" >/dev/null || { echo "맥의 hejo 서버($hub)에 연결하지 못했어요." >&2; exit 1; }
+export PYTHONPATH="$hermes_home/hermes-agent${PYTHONPATH:+:$PYTHONPATH}"
+if [[ -w "$HOME/.hejo-hub" ]]; then
+  # This account owns the hub: link by member id alone (works for Google-only members, no password needed).
+  read -r -p "이 계정의 Hermes를 연결할 hejo 회원 아이디: " member
+  "$python" "$here/hejo-install" --home "$hermes_home"
+  "$here/hejo-hub-run" --home "$HOME/.hejo-hub" --link "$member" --hermes-home "$hermes_home"
+else
+  echo "hejo 앱에서 가입한 아이디와 비밀번호로 이 계정의 Hermes를 연결합니다."
+  "$python" "$here/hejo-install" --home "$hermes_home" --hub "$hub"
+fi
+"$hermes_cli" --profile default gateway restart
+echo "완료: 이 계정의 Hermes가 hejo에 연결됐어요. 노트북의 hejo 앱에서 로그인하세요."

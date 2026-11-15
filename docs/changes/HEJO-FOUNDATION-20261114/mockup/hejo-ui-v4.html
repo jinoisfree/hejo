@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>hejo UI 시안 4판 — Apple HIG 적용</title>
+<style>
+  /* macOS 시스템 색(semantic) 근사값 */
+  .light { --win:#ffffff; --side:rgba(236,236,240,.86); --content:#ffffff; --list:#fafafa; --sep:rgba(0,0,0,.1);
+           --label:rgba(0,0,0,.85); --label2:rgba(0,0,0,.5); --label3:rgba(0,0,0,.26); --fill:rgba(0,0,0,.05); --fill2:rgba(0,0,0,.08);
+           --accent:#007aff; --selSide:rgba(0,0,0,.08); --selList:#0064e1; --bubbleThem:#e9e9eb; --bubbleText:rgba(0,0,0,.85);
+           --green:#28cd41; --orange:#ff9500; --red:#ff3b30; --tool:#f6f6f6; --field:#ffffff; --fieldBorder:rgba(0,0,0,.12); }
+  .dark  { --win:#1e1e1e; --side:rgba(40,40,44,.86); --content:#1e1e1e; --list:#232323; --sep:rgba(255,255,255,.1);
+           --label:rgba(255,255,255,.88); --label2:rgba(255,255,255,.55); --label3:rgba(255,255,255,.25); --fill:rgba(255,255,255,.06); --fill2:rgba(255,255,255,.1);
+           --accent:#0a84ff; --selSide:rgba(255,255,255,.1); --selList:#0a5fd0; --bubbleThem:#3b3b3d; --bubbleText:rgba(255,255,255,.9);
+           --green:#32d74b; --orange:#ff9f0a; --red:#ff453a; --tool:#2a2a2c; --field:#2b2b2d; --fieldBorder:rgba(255,255,255,.1); }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:30px; width:1584px; background:linear-gradient(135deg,#c9d6e8,#e6dfd3); color:#1d1d1f;
+         font:13px/1.38 -apple-system,"SF Pro Text","Apple SD Gothic Neo",sans-serif; -webkit-font-smoothing:antialiased; }
+  h1 { font-size:22px; margin:0 0 4px; } .lead { color:#4a4a50; margin:0 0 18px; }
+  .cap { font-size:12px; font-weight:600; color:#3a3a40; margin:0 0 6px; }
+  svg { width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; flex:none; }
+  .pet { width:96px; height:104px; margin:0 0 -10px 0; position:relative; z-index:2;
+         background:url(../../../../app/Resources/Pet/wave.png) 0 0/400% 100% no-repeat; }
+  .win { color:var(--label); background:var(--win); border-radius:16px; overflow:hidden; display:flex;
+         box-shadow:0 0 0 .5px rgba(0,0,0,.28), 0 22px 50px rgba(0,0,0,.28); }
+  /* 사이드바: 반투명 재질 위 소스 목록 */
+  .side { width:200px; background:var(--side); backdrop-filter:blur(30px); border-right:.5px solid var(--sep); display:flex; flex-direction:column; }
+  .side .tb { height:44px; display:flex; align-items:center; gap:6px; padding:0 10px; color:var(--label2); }
+  .side .tb .sp { flex:1; }
+  .ib { width:28px; height:28px; border-radius:7px; display:flex; align-items:center; justify-content:center; color:var(--label2); }
+  .ib.on { background:var(--fill2); color:var(--label); }
+  .shead { font-size:11px; font-weight:600; color:var(--label3); padding:10px 18px 4px; }
+  .srow { margin:0 8px; height:40px; border-radius:7px; display:flex; align-items:center; gap:9px; padding:0 9px; }
+  .srow.sel { background:var(--selSide); }
+  .ava { width:26px; height:26px; border-radius:50%; color:#fff; font-size:11.5px; font-weight:600; display:flex; align-items:center; justify-content:center; position:relative; flex:none; }
+  .ava .st { position:absolute; right:-1px; bottom:-1px; width:9px; height:9px; border-radius:50%; background:var(--green); box-shadow:0 0 0 2px var(--win); }
+  .ava .st.idle { background:#8e8e93; }
+  .a1{background:linear-gradient(#6b8cff,#4566f0)} .a2{background:linear-gradient(#ffa060,#f07a2a)} .a3{background:linear-gradient(#3fcf9f,#1fa67c)} .a4{background:linear-gradient(#b48cff,#8a5cf0)} .ag{background:var(--fill2);color:var(--label2)}
+  .srow .n { flex:1; min-width:0; font-size:13px; } .srow .n small { display:block; font-size:11px; color:var(--label2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .count { font-size:11px; font-weight:600; color:var(--label2); background:var(--fill2); border-radius:9px; padding:0 7px; line-height:18px; }
+  .srow.later { opacity:.5; }
+  .side .foot { margin-top:auto; padding:10px 16px; font-size:11px; color:var(--label2); display:flex; align-items:center; gap:6px; border-top:.5px solid var(--sep); }
+  .dot { width:7px; height:7px; border-radius:50%; background:var(--green); display:inline-block; }
+  /* 목록 열 */
+  .list { width:260px; background:var(--list); border-right:.5px solid var(--sep); display:flex; flex-direction:column; }
+  .tool { height:44px; display:flex; align-items:center; gap:8px; padding:0 10px 0 14px; border-bottom:.5px solid var(--sep); }
+  .tool .t { flex:1; } .tool .t b { display:block; font-size:13px; font-weight:600; } .tool .t small { font-size:11px; color:var(--label2); }
+  .search { margin:8px 10px; height:26px; border-radius:7px; background:var(--fill); display:flex; align-items:center; gap:6px; padding:0 8px; color:var(--label3); font-size:12.5px; }
+  .item { margin:0 6px; padding:8px 10px 9px 20px; border-radius:8px; position:relative; }
+  .item + .item { border-top:.5px solid var(--sep); border-radius:0; }
+  .item.sel { background:var(--selList); color:#fff; border-radius:8px; border-top-color:transparent; }
+  .item.sel + .item { border-top-color:transparent; }
+  .item .r { display:flex; gap:6px; align-items:baseline; } .item .r b { flex:1; font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .item .time { font-size:11px; color:var(--label2); } .item.sel .time, .item.sel .pv { color:rgba(255,255,255,.8); }
+  .item .pv { font-size:12px; color:var(--label2); margin-top:2px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .unread { position:absolute; left:6px; top:13px; width:8px; height:8px; border-radius:50%; background:var(--accent); }
+  .item.sel .unread { background:#fff; }
+  .meta { display:flex; gap:8px; margin-top:4px; font-size:11px; color:var(--label2); align-items:center; }
+  .item.sel .meta { color:rgba(255,255,255,.85); }
+  /* 대화 열 */
+  .conv { flex:1; display:flex; flex-direction:column; min-width:0; background:var(--content); }
+  .conv .tool { padding:0 10px 0 16px; }
+  .msgs { flex:1; padding:14px 20px 6px; display:flex; flex-direction:column; gap:10px; overflow:hidden; }
+  .day { align-self:center; font-size:11px; color:var(--label2); font-weight:500; }
+  .mine { align-self:flex-end; max-width:68%; display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
+  .bub { padding:7px 12px; border-radius:18px; font-size:13px; }
+  .bub.me { background:var(--accent); color:#fff; }
+  .them { display:flex; gap:8px; align-items:flex-end; max-width:80%; }
+  .them .bub { background:var(--bubbleThem); color:var(--bubbleText); }
+  .them .bub ul { margin:4px 0; padding-left:17px; }
+  .them .name { font-size:11px; color:var(--label2); margin:0 0 3px 12px; }
+  .code { font:12px "SF Mono",ui-monospace,Menlo,monospace; background:var(--fill2); padding:0 4px; border-radius:4px; }
+  .acts { display:flex; gap:8px; margin:7px 0 0 2px; }
+  .push { height:24px; padding:0 12px; border-radius:6px; font-size:12.5px; display:inline-flex; align-items:center; background:var(--field); box-shadow:0 0 0 .5px var(--fieldBorder), 0 .5px 1px rgba(0,0,0,.12); color:var(--label); }
+  .push.def { background:var(--accent); color:#fff; box-shadow:none; }
+  .ql { display:flex; gap:10px; align-items:center; padding:8px 12px; border-radius:12px; background:var(--fill); }
+  .ql .doc { width:26px; height:32px; border-radius:3px; background:#fff; box-shadow:0 0 0 .5px rgba(0,0,0,.2); position:relative; }
+  .ql .doc::after { content:"PDF"; position:absolute; bottom:3px; left:0; right:0; text-align:center; font-size:7px; font-weight:700; color:#e0322b; }
+  .ql b { font-size:12.5px; font-weight:500; display:block; } .ql small { font-size:11px; color:var(--label2); }
+  .caret::after { content:""; display:inline-block; width:2px; height:14px; background:var(--accent); vertical-align:-2px; margin-left:1px; }
+  .typing { align-self:flex-start; margin-left:34px; background:var(--bubbleThem); border-radius:16px; padding:9px 12px; display:flex; gap:4px; }
+  .typing i { width:7px; height:7px; border-radius:50%; background:var(--label3); } .typing i:nth-child(2){background:var(--label2)}
+  .status { font-size:11px; color:var(--label2); align-self:flex-end; }
+  .comp { padding:8px 12px 12px; display:flex; gap:8px; align-items:flex-end; }
+  .plus { width:28px; height:28px; border-radius:50%; background:var(--fill2); display:flex; align-items:center; justify-content:center; color:var(--label2); }
+  .field { flex:1; min-height:30px; border-radius:15px; background:var(--field); box-shadow:0 0 0 .5px var(--fieldBorder); padding:5px 6px 5px 12px; display:flex; flex-direction:column; gap:5px; }
+  .field .ph { color:var(--label3); font-size:13px; line-height:20px; display:flex; align-items:center; }
+  .field .ph > span:first-child { flex:1; }
+  .att { align-self:flex-start; display:flex; gap:6px; align-items:center; background:var(--fill); border-radius:8px; padding:3px 8px; font-size:11.5px; color:var(--label); }
+  .send { width:22px; height:22px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; }
+  .send svg { width:12px; height:12px; stroke-width:2.2; }
+  .banner { display:flex; align-items:center; gap:8px; padding:6px 16px; font-size:12px; background:var(--fill); border-bottom:.5px solid var(--sep); color:var(--label); }
+  .spin { width:12px; height:12px; border-radius:50%; border:2px solid var(--label3); border-top-color:var(--label); }
+  .row { display:flex; gap:30px; align-items:flex-start; margin-top:26px; }
+  .notes { flex:1; background:rgba(255,255,255,.72); border-radius:14px; padding:16px 20px; font-size:12.5px; line-height:1.65; color:#2a2a2e; }
+  .notes h3 { margin:0 0 6px; font-size:13.5px; } .notes ul { margin:0; padding-left:18px; } .notes li { margin-bottom:3px; }
+</style>
+</head>
+<body>
+<h1>hejo UI 시안 4판 — Apple HIG 적용</h1>
+<p class="lead">3판 세 칸 구조에 macOS 휴먼 인터페이스 가이드를 적용: 반투명 사이드바(소스 목록), 툴바 제목·부제, 시스템 색·글꼴, Messages식 말풍선, 표준 버튼·검색, 라이트·다크 자동. 이름은 예시.</p>
+
+<!-- 라이트 -->
+<p class="cap">A. 라이트 모드 · 넓게 (1080×580)</p>
+<div class="pet" style="margin-left:860px"></div>
+<div class="win light" style="width:1080px;height:580px">
+  <div class="side">
+    <div class="tb"><span class="ib on" title="사이드바"><svg viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M6 2.5v11"/></svg></span><span class="sp"></span><span class="ib" title="펫으로 접기"><svg viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></svg></span></div>
+    <div class="shead">직원</div>
+    <div class="srow sel"><div class="ava a1">비<span class="st"></span></div><div class="n">비서<small>답장 초안 쓰는 중…</small></div><span class="count">2</span></div>
+    <div class="srow"><div class="ava a2">리<span class="st"></span></div><div class="n">리서처<small>시장 조사 요약 완료</small></div><span class="count">1</span></div>
+    <div class="srow"><div class="ava a3">회<span class="st"></span></div><div class="n">회계<small>영수증 3장 정리</small></div></div>
+    <div class="srow"><div class="ava a4">디<span class="st idle"></span></div><div class="n">디자이너<small>직무 없음</small></div></div>
+    <div class="shead">단체방</div>
+    <div class="srow later"><div class="ava ag">#</div><div class="n">팀 회의<small>2단계에서 열려요</small></div></div>
+    <div class="foot"><span class="dot"></span>공항 연결됨</div>
+  </div>
+  <div class="list">
+    <div class="tool"><div class="t"><b>비서</b><small>스레드 5개</small></div><span class="ib" title="새 스레드"><svg viewBox="0 0 16 16"><path d="M9 2.5H4a1.5 1.5 0 0 0-1.5 1.5v8A1.5 1.5 0 0 0 4 13.5h8a1.5 1.5 0 0 0 1.5-1.5V7"/><path d="M12.5 1.8l1.7 1.7L8.5 9.2 6.5 9.7l.5-2z"/></svg></span></div>
+    <div class="search"><svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>검색</div>
+    <div class="item sel"><span class="unread"></span><div class="r"><b>오늘 받은 메일 정리</b><span class="time">오후 6:18</span></div><div class="pv">중요 메일 3건이에요. 거래처 A 계약서 수정 요청(마감 11/18), 세무사 자료 요청…</div><div class="meta">● 작성 중 · 답장 대기</div></div>
+    <div class="item"><div class="r"><b>아침 보고</b><span class="time">오전 8:00</span></div><div class="pv">오늘 일정 4개, 마감 1개가 있어요.</div><div class="meta">예약 작업</div></div>
+    <div class="item"><div class="r"><b>다음 주 일정 확인</b><span class="time">오후 2:05</span></div><div class="pv">화요일 오전을 비워 두었어요.</div></div>
+    <div class="item"><div class="r"><b>견적서 PDF 요약</b><span class="time">어제</span></div><div class="pv">견적서-요약.pdf</div></div>
+  </div>
+  <div class="conv">
+    <div class="tool"><div class="t"><b>오늘 받은 메일 정리</b><small>비서 · 응답 중</small></div><span class="ib" title="첨부 보기"><svg viewBox="0 0 16 16"><path d="M10.5 4.5l-5 5a1.8 1.8 0 0 0 2.5 2.5l5.5-5.5a3 3 0 0 0-4.2-4.2L3.7 7.9"/></svg></span><span class="ib" title="더 보기"><svg viewBox="0 0 16 16"><circle cx="4" cy="8" r=".6"/><circle cx="8" cy="8" r=".6"/><circle cx="12" cy="8" r=".6"/></svg></span></div>
+    <div class="msgs">
+      <div class="day">오늘 오후 6:12</div>
+      <div class="mine"><div class="bub me">오늘 온 메일 중 중요한 것만 정리해줘. 계약서도 같이 봐줘</div>
+        <div class="ql"><div class="doc"></div><div><b>계약서-초안.pdf</b><small>PDF 문서 · 284 KB</small></div></div></div>
+      <div class="them"><div class="ava a1">비</div><div><div class="name">비서</div>
+        <div class="bub">중요 메일 3건이에요.<ul><li><b>거래처 A</b> — 계약서 수정 요청(마감 <b>11/18</b>)</li><li><b>세무사</b> — 11월 자료 요청</li><li><b>팀 공지</b> — 회의 시간 변경</li></ul>계약서는 <span class="code">제7조 위약금</span> 문구가 메일 요청과 달라요.</div>
+        <div class="acts"><span class="push def">답장 초안 쓰기</span><span class="push">메모로 저장</span><span class="push">나중에</span></div></div></div>
+      <div class="mine"><div class="bub me">거래처 A 답장 초안 써줘</div><div class="status">읽음</div></div>
+      <div class="them"><div class="ava a1">비</div><div><div class="bub caret">거래처 A 담당자님께, 보내주신 수정 요청 잘 받았습니다. 제7조 위약금 조항은</div></div></div>
+    </div>
+    <div class="comp"><span class="plus" title="첨부"><svg viewBox="0 0 16 16"><path d="M8 3.5v9M3.5 8h9"/></svg></span>
+      <div class="field"><span class="att">📄 회의록.docx <span style="color:var(--label3)">✕</span></span><div class="ph"><span>비서에게 답장</span><span class="send"><svg viewBox="0 0 16 16"><path d="M8 13V3M3.5 7.5L8 3l4.5 4.5"/></svg></span></div></div></div>
+  </div>
+</div>
+
+<div class="row">
+  <div>
+    <p class="cap">B. 다크 모드 · 좁게 (사이드바 숨김, 560×520)</p>
+    <div class="win dark" style="width:560px;height:520px">
+      <div class="list" style="width:210px">
+        <div class="tool" style="padding-left:8px"><span class="ib" title="사이드바"><svg viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M6 2.5v11"/></svg></span><div class="t"><b>비서</b><small>스레드 5개</small></div></div>
+        <div class="search"><svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>검색</div>
+        <div class="item sel"><span class="unread"></span><div class="r"><b>오늘 받은 메일 정리</b><span class="time">6:18</span></div><div class="pv">중요 메일 3건이에요.</div></div>
+        <div class="item"><div class="r"><b>아침 보고</b><span class="time">8:00</span></div><div class="pv">오늘 일정 4개, 마감 1개.</div></div>
+        <div class="item"><div class="r"><b>다음 주 일정 확인</b><span class="time">2:05</span></div><div class="pv">비워 두었어요.</div></div>
+      </div>
+      <div class="conv">
+        <div class="tool"><div class="t"><b>오늘 받은 메일 정리</b><small>비서 · 응답 중</small></div><span class="ib"><svg viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></svg></span></div>
+        <div class="msgs">
+          <div class="mine"><div class="bub me">거래처 A 답장 초안 써줘</div></div>
+          <div class="them"><div class="ava a1">비</div><div><div class="bub caret">거래처 A 담당자님께, 보내주신 수정 요청 잘 받았습니다.</div></div></div>
+          <div class="typing"><i></i><i></i><i></i></div>
+        </div>
+        <div class="comp"><span class="plus"><svg viewBox="0 0 16 16"><path d="M8 3.5v9M3.5 8h9"/></svg></span><div class="field"><div class="ph"><span>비서에게 답장</span><span class="send"><svg viewBox="0 0 16 16"><path d="M8 13V3M3.5 7.5L8 3l4.5 4.5"/></svg></span></div></div></div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <p class="cap">C. 연결 끊김 (다크) · 툴바 아래 얇은 알림, 색만이 아닌 글자·아이콘으로</p>
+    <div class="win dark" style="width:420px;height:210px">
+      <div class="conv">
+        <div class="tool"><div class="t"><b>비서</b><small>오프라인</small></div></div>
+        <div class="banner"><span class="spin"></span>공항과 연결이 끊겼어요. 다시 연결하는 중…<span style="flex:1"></span><span class="push" style="height:22px">지금 다시 시도</span></div>
+        <div class="msgs"><div class="mine"><div class="bub me" style="opacity:.6">보내는 중… 연결되면 보내요</div></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <h3>적용한 HIG 원칙</h3>
+    <ul>
+      <li><b>계층</b>: 사이드바(반투명 재질) → 목록 → 내용. 내용이 주인공, 장식은 최소.</li>
+      <li><b>소스 목록 사이드바</b>: 구역 머리글, 둥근 선택, 개수는 회색 캡슐(빨간 배지는 앱 아이콘·펫에만).</li>
+      <li><b>툴바</b>: 제목 + 부제(직원·상태), 동작은 아이콘 버튼(새 스레드·사이드바·접기)과 도움말.</li>
+      <li><b>시스템 색·글꼴</b>: 라벨 1·2·3차 색, 강조색 = 사용자 강조 색, SF Pro 13pt 본문·11pt 보조.</li>
+      <li><b>라이트·다크 자동</b>: 같은 의미 색으로 두 모드 지원.</li>
+      <li><b>익숙한 패턴</b>: Mail식 목록(파란 점 = 안 읽음), Messages식 말풍선·작성 중 말풍선·＋ 첨부.</li>
+      <li><b>표준 컨트롤</b>: 기본 버튼 하나만 강조색, 나머지 일반 푸시 버튼. 첨부는 Quick Look 타일.</li>
+      <li><b>8pt 간격 격자</b>와 넉넉한 클릭 영역(28pt 아이콘 버튼).</li>
+      <li><b>접근성</b>: 상태를 색만으로 표시하지 않음(점 + 글자), 대비 4.5:1 이상, 키보드 이동, 동작 줄이기 존중.</li>
+      <li><b>적응형</b>: 좁아지면 사이드바부터 숨김(분할 보기 규칙).</li>
+    </ul>
+  </div>
+</div>
+</body>
+</html>

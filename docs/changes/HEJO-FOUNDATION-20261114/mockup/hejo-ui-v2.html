@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>hejo UI 시안 2판 — 펫 대화창</title>
+<style>
+  :root { --bg:#e9e9ee; --glass:#fbfbfd; --line:#e2e2e7; --text:#1d1d1f; --sub:#6e6e73; --accent:#0a84ff;
+          --soft:#eef5ff; --red:#ff3b30; --strip:#f1f1f5; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:30px; width:1584px; background:var(--bg); color:var(--text);
+         font:13px/1.45 -apple-system,"SF Pro Text","Apple SD Gothic Neo",sans-serif; }
+  h1 { font-size:22px; margin:0 0 4px; } .lead { color:var(--sub); margin:0 0 22px; }
+  .row { display:flex; gap:26px; align-items:flex-start; margin-bottom:26px; }
+  .cap { font-size:12px; font-weight:600; color:var(--sub); margin:0 0 8px; } .cap b { color:var(--text); }
+  .stage { position:relative; }
+  .pet { display:block; margin:0 0 -16px 250px; position:relative; z-index:2; }
+  .panel { position:relative; background:var(--glass); border-radius:18px; overflow:hidden; display:flex;
+           box-shadow:0 0 0 .5px rgba(0,0,0,.18), 0 16px 36px rgba(0,0,0,.18); }
+  .strip { width:68px; background:var(--strip); border-right:1px solid var(--line); padding:8px 0; display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .tab { width:52px; height:60px; border-radius:12px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; position:relative; font-size:10px; color:var(--sub); }
+  .tab.sel { background:#fff; box-shadow:0 0 0 .5px rgba(0,0,0,.12); color:var(--text); font-weight:600; }
+  .av { width:30px; height:30px; border-radius:9px; color:#fff; font-weight:700; font-size:13px; display:flex; align-items:center; justify-content:center; flex:none; }
+  .c1{background:#5e7cff}.c2{background:#ff8a3d}.c3{background:#27b38a}.c4{background:#a46cff}.me{background:#0a84ff}
+  .badge { min-width:17px; height:17px; padding:0 5px; border-radius:9px; background:var(--red); color:#fff; font-size:10.5px; font-weight:700; display:inline-flex; align-items:center; justify-content:center; }
+  .tab .badge { position:absolute; top:2px; right:0; }
+  .strip .grip { margin-top:auto; color:#b0b0b8; font-size:11px; }
+  .col { flex:1; display:flex; flex-direction:column; min-width:0; }
+  .head { height:44px; display:flex; align-items:center; gap:8px; padding:0 12px; border-bottom:1px solid var(--line); }
+  .head .t { font-weight:700; font-size:14px; flex:1; }
+  .ic { width:26px; height:26px; border-radius:7px; display:flex; align-items:center; justify-content:center; color:#555; font-size:14px; }
+  .dot { width:7px; height:7px; border-radius:50%; background:#30d158; display:inline-block; }
+  .list { flex:1; overflow:hidden; padding:8px 10px; display:flex; flex-direction:column; gap:7px; background:#f6f6f9; }
+  .card { background:#fff; border-radius:12px; padding:9px 11px; box-shadow:0 0 0 .5px rgba(0,0,0,.08); }
+  .card .top { display:flex; align-items:center; gap:6px; }
+  .card .ttl { font-weight:600; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .time { color:var(--sub); font-size:11px; }
+  .pv { color:var(--sub); font-size:12px; margin-top:3px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .chips { display:flex; gap:5px; margin-top:6px; align-items:center; }
+  .chip { font-size:10.5px; padding:1px 7px; border-radius:6px; background:#f0f0f4; color:#555; }
+  .chip.typing { background:var(--soft); color:var(--accent); }
+  .chip.ask { background:#fff3e0; color:#9a5b00; }
+  .card.open { box-shadow:0 0 0 1.5px var(--accent); }
+  .post { display:flex; gap:8px; margin-top:9px; }
+  .post .av { width:24px; height:24px; font-size:11px; border-radius:7px; }
+  .post .who { font-weight:600; font-size:12px; } .post .who span { color:var(--sub); font-weight:400; margin-left:4px; }
+  .post .body { font-size:12.5px; margin-top:1px; }
+  .post .body ul { margin:3px 0; padding-left:16px; }
+  .mine { display:flex; justify-content:flex-end; margin-top:9px; }
+  .mine div { background:var(--accent); color:#fff; border-radius:12px 12px 4px 12px; padding:6px 10px; max-width:78%; font-size:12.5px; }
+  .fold { margin:8px 0 0 32px; font-size:11.5px; color:var(--accent); border-left:2px solid #d6e6ff; padding-left:8px; }
+  .btns { display:flex; gap:5px; margin-top:7px; flex-wrap:wrap; }
+  .b { font-size:11.5px; padding:3px 9px; border-radius:7px; border:1px solid #cfcfd6; background:#fff; }
+  .b.p { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .file { display:flex; gap:8px; align-items:center; border:1px solid var(--line); border-radius:9px; padding:6px 9px; margin-top:7px; background:#fff; }
+  .file .fi { width:22px; height:28px; border-radius:3px; background:#ff3b30; color:#fff; font-size:7.5px; font-weight:700; display:flex; align-items:flex-end; justify-content:center; padding-bottom:3px; }
+  .file small { display:block; color:var(--sub); font-size:10.5px; }
+  .stream::after { content:"▍"; color:var(--accent); }
+  .comp { border-top:1px solid var(--line); padding:8px 10px 10px; background:#fff; }
+  .comp .ctx { font-size:11px; color:var(--sub); margin-bottom:5px; display:flex; justify-content:space-between; }
+  .comp .box { border:1px solid #cfcfd6; border-radius:10px; padding:7px 9px; display:flex; align-items:flex-end; gap:8px; }
+  .comp .ph { flex:1; color:#a1a1a6; font-size:12.5px; min-height:20px; }
+  .send { width:26px; height:26px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; flex:none; }
+  .clip { color:#777; font-size:15px; }
+  .band { background:#fff4e0; color:#8a5300; font-size:11.5px; padding:5px 12px; border-bottom:1px solid #f1d9ad; }
+  .rowlist { width:212px; background:var(--strip); border-right:1px solid var(--line); padding:8px; }
+  .search { border:1px solid #d6d6dc; border-radius:8px; padding:5px 8px; color:#9a9aa0; font-size:12px; background:#fff; margin-bottom:6px; }
+  .er { display:flex; gap:8px; align-items:center; padding:7px 6px; border-radius:9px; }
+  .er.sel { background:#fff; box-shadow:0 0 0 .5px rgba(0,0,0,.1); }
+  .er .n { flex:1; min-width:0; } .er .n b { display:block; font-size:12.5px; }
+  .er .n small { display:block; color:var(--sub); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .notes { width:300px; font-size:12.5px; line-height:1.7; color:#333; }
+  .notes h3 { font-size:13px; margin:0 0 6px; } .notes p { margin:0 0 10px; }
+  .k { display:inline-block; font:11px ui-monospace,Menlo,monospace; background:#e3e3e8; border-radius:4px; padding:0 4px; }
+  .mini { position:relative; width:120px; }
+</style>
+</head>
+<body>
+<h1>hejo UI 시안 2판 — 펫에서 튀어나오는 대화창</h1>
+<p class="lead">1판의 넓은 세 칸 창은 펫 패널(기본 360×500)에 맞지 않는다. ddots가 이미 쓰는 구조 — <b>왼쪽 직원 탭 줄(68px) + 스레드 카드 목록(한 번에 하나 펼침) + 아래 입력 줄</b> — 를 그대로 따른다. 이름은 모두 예시.</p>
+
+<div class="row">
+  <div class="stage">
+    <p class="cap"><b>A. 기본 — 접힌 카드</b> · 펫을 누르면 이 모양으로 펼쳐진다 (428×500)</p>
+    <div class="pet" style="width:96px;height:104px;background:url(../../../../app/Resources/Pet/wave.png) 0 0/400% 100% no-repeat;"></div>
+    <div class="panel" style="width:428px;height:500px">
+      <div class="strip">
+        <div class="tab sel"><div class="av c1">비</div>비서<span class="badge">2</span></div>
+        <div class="tab"><div class="av c2">리</div>리서처<span class="badge">1</span></div>
+        <div class="tab"><div class="av c3">회</div>회계</div>
+        <div class="tab"><div class="av c4" style="opacity:.55">디</div>디자이너</div>
+        <div class="grip">⋮⋮</div>
+      </div>
+      <div class="col">
+        <div class="head"><span class="t">비서</span><span class="dot"></span><span class="ic">✎</span><span class="ic">⌄</span></div>
+        <div class="list">
+          <div class="card"><div class="top"><span class="ttl">오늘 받은 메일 정리</span><span class="time">6:18</span><span class="badge">2</span></div>
+            <div class="pv">중요 메일 3건이에요. 거래처 A 계약서 수정 요청(마감 11/18), 세무사 자료 요청…</div>
+            <div class="chips"><span class="chip typing">● 답글 작성 중</span><span class="chip ask">답장 대기</span></div></div>
+          <div class="card"><div class="top"><span class="ttl">아침 보고</span><span class="time">8:00</span></div>
+            <div class="pv">오늘 일정 4개, 마감 1개가 있어요.</div><div class="chips"><span class="chip">⏰ 예약</span></div></div>
+          <div class="card"><div class="top"><span class="ttl">다음 주 일정 확인</span><span class="time">2:05</span></div>
+            <div class="pv">사장: 화요일 오전 비워줘 → 비서: 비워 두었어요.</div></div>
+          <div class="card"><div class="top"><span class="ttl">견적서 PDF 요약</span><span class="time">어제</span></div>
+            <div class="pv">📎 견적서-요약.pdf</div></div>
+        </div>
+        <div class="comp"><div class="ctx"><span>새 스레드</span><span>⏎ 보내기 · ⇧⏎ 줄바꿈</span></div>
+          <div class="box"><span class="clip">📎</span><span class="ph">비서에게 새 일 맡기기…</span><span class="send">↑</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <p class="cap"><b>B. 카드 하나 펼침</b> · 누른 스레드만 열리고 입력 줄이 "이 스레드에 답장"으로 바뀐다</p>
+    <div class="pet" style="width:96px;height:104px;background:url(../../../../app/Resources/Pet/approval-phone.png) 0 0/800% 100% no-repeat;"></div>
+    <div class="panel" style="width:428px;height:500px">
+      <div class="strip">
+        <div class="tab sel"><div class="av c1">비</div>비서</div>
+        <div class="tab"><div class="av c2">리</div>리서처<span class="badge">1</span></div>
+        <div class="tab"><div class="av c3">회</div>회계</div>
+        <div class="tab"><div class="av c4" style="opacity:.55">디</div>디자이너</div>
+        <div class="grip">⋮⋮</div>
+      </div>
+      <div class="col">
+        <div class="head"><span class="ic">‹</span><span class="t" style="font-size:13px">오늘 받은 메일 정리</span><span class="ic">⋯</span></div>
+        <div class="list">
+          <div class="card open">
+            <div class="mine"><div>오늘 메일 중 중요한 것만 정리해줘. 계약서도 봐줘</div></div>
+            <div class="file" style="margin-left:auto;width:200px"><div class="fi">PDF</div><div>계약서-초안.pdf<small>284 KB</small></div></div>
+            <div class="post"><div class="av c1">비</div><div><div class="who">비서<span>6:15</span></div>
+              <div class="body">중요 메일 3건이에요.<ul><li><b>거래처 A</b> — 수정 요청(마감 <b>11/18</b>)</li><li><b>세무사</b> — 11월 자료</li><li><b>팀 공지</b> — 회의 변경</li></ul></div>
+              <div class="btns"><span class="b p">답장 초안 쓰기</span><span class="b">메모로 저장</span><span class="b">나중에</span></div></div></div>
+            <div class="fold">이전 답글 2개 펼치기</div>
+            <div class="mine"><div>거래처 A 답장 초안 써줘</div></div>
+            <div class="post"><div class="av c1">비</div><div><div class="who">비서<span>지금</span></div>
+              <div class="body stream">거래처 A 담당자님께, 보내주신 수정 요청 잘 받았습니다. 제7조 위약금 조항은</div></div></div>
+          </div>
+          <div class="card" style="opacity:.75"><div class="top"><span class="ttl">아침 보고</span><span class="time">8:00</span></div></div>
+        </div>
+        <div class="comp"><div class="ctx"><span>↪ 이 스레드에 답장</span><span>Esc 접기</span></div>
+          <div class="box"><span class="clip">📎</span><span class="ph">비서에게 답장…</span><span class="send">↑</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <p class="cap"><b>C. 줄을 끌어 넓힘 → 목록</b> · 124px 넘게 끌면 이름·미리보기 목록 (ddots 그대로)</p>
+    <div class="pet" style="width:96px;height:104px;background:url(../../../../app/Resources/Pet/doze.png) 0 0/400% 100% no-repeat;margin-left:400px"></div>
+    <div class="panel" style="width:572px;height:500px">
+      <div class="rowlist">
+        <div class="search">🔍 직원·스레드 찾기</div>
+        <div class="er sel"><div class="av c1">비</div><div class="n"><b>비서</b><small>답장 초안 쓰는 중…</small></div><span class="badge">2</span></div>
+        <div class="er"><div class="av c2">리</div><div class="n"><b>리서처</b><small>시장 조사 요약 끝났어요</small></div><span class="badge">1</span></div>
+        <div class="er"><div class="av c3">회</div><div class="n"><b>회계</b><small>영수증 3장 정리 완료</small></div></div>
+        <div class="er"><div class="av c4" style="opacity:.55">디</div><div class="n"><b>디자이너</b><small>아직 직무 없음</small></div></div>
+      </div>
+      <div class="col">
+        <div class="head"><span class="t">비서</span><span class="dot"></span><span class="ic">✎</span><span class="ic">⌄</span></div>
+        <div class="list">
+          <div class="card"><div class="top"><span class="ttl">오늘 받은 메일 정리</span><span class="time">6:18</span><span class="badge">2</span></div>
+            <div class="pv">중요 메일 3건이에요. 거래처 A 계약서 수정 요청…</div><div class="chips"><span class="chip typing">● 답글 작성 중</span></div></div>
+          <div class="card"><div class="top"><span class="ttl">아침 보고</span><span class="time">8:00</span></div><div class="pv">오늘 일정 4개, 마감 1개.</div></div>
+          <div class="card"><div class="top"><span class="ttl">다음 주 일정 확인</span><span class="time">2:05</span></div><div class="pv">비워 두었어요.</div></div>
+        </div>
+        <div class="comp"><div class="box"><span class="clip">📎</span><span class="ph">비서에게 새 일 맡기기…</span><span class="send">↑</span></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="stage">
+    <p class="cap"><b>D. 끊김</b> · 패널 맨 위 띠, 입력은 남겨 두고 다시 붙으면 보냄</p>
+    <div class="panel" style="width:428px;height:230px">
+      <div class="strip"><div class="tab sel"><div class="av c1">비</div>비서</div><div class="tab"><div class="av c2">리</div>리서처</div></div>
+      <div class="col">
+        <div class="band">🔌 공항과 연결이 끊겼어요 · 4초 뒤 다시 연결</div>
+        <div class="head"><span class="t">비서</span><span class="dot" style="background:#ff9f0a"></span></div>
+        <div class="list"><div class="card"><div class="top"><span class="ttl">오늘 받은 메일 정리</span><span class="time">6:18</span></div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <p class="cap"><b>E. 접힌 상태 알림</b> · 대화가 닫혀 있을 때 새 글</p>
+    <div style="display:flex;gap:26px;align-items:flex-end">
+      <div class="mini"><div style="width:96px;height:104px;background:url(../../../../app/Resources/Pet/wave.png) 0 0/400% 100% no-repeat;"></div><span class="badge" style="position:absolute;top:6px;left:78px">3</span><div class="cap" style="margin-top:4px">펫 위 빨간 숫자</div></div>
+      <div class="mini" style="width:190px"><div style="background:#fff;border-radius:12px;padding:8px 10px;box-shadow:0 4px 14px rgba(0,0,0,.15);font-size:12px;margin-bottom:6px"><b>비서</b> · 중요 메일 3건이에요</div><div style="width:96px;height:104px;background:url(../../../../app/Resources/Pet/wave.png) 0 0/400% 100% no-repeat;margin-left:40px"></div><div class="cap" style="margin-top:4px">(선택) 펫 말풍선 한 줄 미리보기</div></div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <h3>조작 요약</h3>
+    <p><b>열기·닫기</b>: 펫 클릭 / <span class="k">Esc</span> / ⌄(펫으로 접기). 다른 앱 입력을 뺏지 않음.</p>
+    <p><b>직원 바꾸기</b>: 왼쪽 탭. 빨간 숫자 = 안 읽은 글. 흐린 탭 = 직무 없는 직원.</p>
+    <p><b>스레드</b>: 카드를 누르면 그 카드만 펼침(다른 카드는 접힘). 펼친 카드가 있으면 입력 줄은 그 스레드 답장, 없으면 새 스레드.</p>
+    <p><b>크기</b>: 패널 가장자리를 끌어 키움. 탭 줄을 오른쪽으로 끌면 목록, 왼쪽 끝까지 끌면 숨김.</p>
+    <p><b>새 스레드</b>: ✎ 또는 카드가 모두 접힌 상태에서 바로 입력.</p>
+  </div>
+</div>
+</body>
+</html>

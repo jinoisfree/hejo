@@ -1,0 +1,16 @@
+.DS_Store
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+.build/
+app/.build/
+app/dist/
+# never tracked
+.env*
+auth.json
+*token*.json
+*secret*.json
+devices.json
+pairing.json
+AGENTS.local.md

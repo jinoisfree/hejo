@@ -1,0 +1,8 @@
+name: hejo
+label: hejo
+kind: platform
+version: 1.0.0
+description: Local hejo app gateway for Hermes.
+python_dependencies:
+  - aiohttp>=3.10
+  - jsonschema>=4.20

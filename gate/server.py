@@ -1,0 +1,343 @@
+"""Address/auth boundary, websocket framing and per-device replay state."""
+import asyncio
+from dataclasses import dataclass, field
+import ipaddress
+import json
+import logging
+import os
+import traceback
+from pathlib import Path
+from aiohttp import web, WSMsgType
+from jsonschema import Draft202012Validator
+from .auth import AuthRejected
+from .files import MAX_FILE_BYTES, UnknownFile
+
+log = logging.getLogger(__name__)
+SCHEMA = json.loads((Path(__file__).resolve().parent.parent / "schemas" / "hejo-wire-v1.json").read_text())
+LIMITS = SCHEMA["x-limits"]
+CLIENT_VALIDATOR = Draft202012Validator({**SCHEMA, "oneOf": [{"$ref": "#/$defs/clientFrame"}]})
+NETWORKS = tuple(ipaddress.ip_network(net) for net in
+                 ("127.0.0.0/8", "::1/128", "100.64.0.0/10", "fd7a:115c:a1e0::/48"))
+
+
+class BoundedWebSocket(web.WebSocketResponse):
+    async def close(self, *, code=1000, message=b"", drain=True):
+        # aiohttp enforces the bound while assembling fragments, before JSON parsing.
+        if code == 1009 and not self.closed:
+            try:
+                await self.send_json({"v": 1, "type": "error", "code": "too_large", "ref": None})
+            except (ConnectionError, RuntimeError):
+                # The peer may still be sending or already disconnected. An error
+                # frame is best effort; its failure must not skip the 1009 close.
+                pass
+        return await super().close(code=code, message=message, drain=drain)
+
+
+def allowed_address(address):
+    try:
+        ip = ipaddress.ip_address(address)
+        return any(ip in net for net in NETWORKS)
+    except (ValueError, TypeError):
+        return False
+
+
+class FrameError(ValueError):
+    def __init__(self, code, ref=None):
+        self.ref = ref
+        super().__init__(code)
+
+
+@dataclass(eq=False)
+class Connection:
+    ws: object
+    device_id: str
+    replaying: bool = False
+    queue: list = field(default_factory=list)
+    overflow: bool = False
+    lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    hub_token: str = None  # set for hub-issued sign-ins; re-checked with the hub while connected
+
+    async def send(self, frame):
+        if not self.ws.closed:
+            try:
+                await self.ws.send_json(frame)
+            except (ConnectionError, RuntimeError):
+                await self.ws.close()
+
+
+class GateServer:
+    def __init__(self, adapter):
+        self.adapter = adapter
+        self.connections = set()
+        self.runner = None
+        self.sites = []
+        self.tasks = set()
+        self.port = None
+
+    async def start(self, listen, port):
+        if not listen or any(not allowed_address(addr) for addr in listen):
+            raise ValueError("listen_address_forbidden")
+        app = web.Application(client_max_size=MAX_FILE_BYTES + LIMITS["frame_bytes"])
+        app.router.add_get("/v1/ws", self.websocket)
+        app.router.add_post("/v1/files", self.upload)
+        app.router.add_get("/v1/files/{employee}/{file_id}", self.download)
+        app.router.add_get("/v1/avatars/{tail:.*}", self.avatar)
+        # Access logs contain no credential-bearing frame data or query strings.
+        self.runner = web.AppRunner(app, access_log=None)
+        await self.runner.setup()
+        try:
+            for address in listen:
+                site = web.TCPSite(self.runner, address, port if self.port is None else self.port)
+                await site.start()
+                self.sites.append(site)
+                self.port = site._server.sockets[0].getsockname()[1]
+        except Exception:
+            await self.stop()
+            raise
+        self.tasks.add(asyncio.create_task(self.maintenance()))
+
+    async def stop(self):
+        for task in self.tasks:
+            task.cancel()
+        await asyncio.gather(*self.tasks, return_exceptions=True)
+        self.tasks.clear()
+        await asyncio.gather(*(c.ws.close() for c in tuple(self.connections)))
+        if self.runner:
+            await self.runner.cleanup()
+            self.runner = None
+        self.sites.clear()
+
+    async def http_auth(self, request):
+        if not allowed_address(request.remote):
+            raise web.HTTPForbidden()
+        authorization = request.headers.get("Authorization", "")
+        if not authorization.startswith("Bearer "):
+            raise web.HTTPUnauthorized()
+        try:
+            await self.authenticate(authorization[7:])
+        except AuthRejected:
+            raise web.HTTPUnauthorized() from None
+
+    async def upload(self, request):
+        await self.http_auth(request)
+        employee = request.query.get("employee", "")
+        if employee not in {e["id"] for e in self.adapter.employees()}:
+            raise web.HTTPBadRequest(text="unknown_employee")
+        try:
+            reader = await request.multipart()
+            part = await reader.next()
+            if part is None or part.name != "file" or not part.filename:
+                raise ValueError("invalid_upload")
+            async def chunks():
+                while chunk := await part.read_chunk(65536):
+                    yield chunk
+            async with self.adapter.files.lock:
+                info = await self.adapter.files.stage(employee, part.filename, chunks())
+            return web.json_response(info)
+        except ValueError as exc:
+            if str(exc) == "too_large":
+                raise web.HTTPRequestEntityTooLarge(max_size=MAX_FILE_BYTES, actual_size=MAX_FILE_BYTES + 1) from None
+            raise web.HTTPBadRequest(text="invalid_upload") from None
+        except OSError:
+            log.error("attachment_upload_failed")
+            raise web.HTTPInternalServerError() from None
+
+    async def download(self, request):
+        await self.http_auth(request)
+        try:
+            path, mime = self.adapter.files.registered(request.match_info["employee"], request.match_info["file_id"])
+        except (UnknownFile, OSError):
+            raise web.HTTPNotFound() from None
+        return web.FileResponse(path, headers={"Content-Type": mime, "X-Content-Type-Options": "nosniff"})
+
+    async def avatar(self, request):
+        raise web.HTTPNotFound()
+
+    async def maintenance(self):
+        ticks = 0
+        while True:
+            await asyncio.sleep(0.5)
+            try:
+                devices = self.adapter.auth.devices()
+            except (OSError, ValueError, KeyError, TypeError):
+                log.error("auth_store_unavailable")
+                await asyncio.gather(*(c.ws.close(code=1008) for c in tuple(self.connections)))
+                continue
+            revoked = [conn for conn in tuple(self.connections)
+                       if conn.hub_token is None and devices.get(conn.device_id, {}).get("revoked", True)]
+            if ticks and ticks % 60 == 0:
+                for conn in tuple(self.connections):
+                    if conn.hub_token is not None:
+                        try:
+                            await self.adapter.hub.verify(conn.hub_token, fresh=True)
+                        except AuthRejected:
+                            revoked.append(conn)
+            await asyncio.gather(*(conn.ws.close(code=1008) for conn in revoked))
+            for conn in self.connections - set(revoked):
+                if ticks and ticks % 60 == 0:
+                    await conn.send({"v": 1, "type": "ping"})
+            ticks += 1
+
+    async def error(self, code, ref=None, conn=None):
+        frame = {"v": 1, "type": "error", "code": code, "ref": ref}
+        if conn:
+            await conn.send(frame)
+        else:
+            await self.broadcast(frame)
+
+    async def broadcast(self, frame):
+        for conn in tuple(self.connections):
+            if "seq" not in frame:
+                await conn.send(frame)
+                continue
+            async with conn.lock:
+                if conn.replaying:
+                    if not conn.overflow:
+                        conn.queue.append(frame)
+                        if len(conn.queue) > LIMITS["sync_queue"]:
+                            conn.queue.clear()
+                            conn.overflow = True
+                else:
+                    await conn.send(frame)
+
+    async def sync(self, conn, since, ref):
+        async with conn.lock:
+            conn.replaying = True
+            conn.overflow = False
+            conn.queue.clear()
+            page = self.adapter.journal.page(since, LIMITS["sync_page"])
+        for frame in page:
+            await conn.send(frame)
+        through = page[-1]["seq"] if page else since
+        async with conn.lock:
+            head = self.adapter.journal.head
+            more = through < head or conn.overflow
+            await conn.send({"v": 1, "type": "sync_done", "ref": ref,
+                             "through": through, "more": more, "head_seq": head})
+            if not more:
+                for frame in conn.queue:
+                    if frame["seq"] > through:
+                        await conn.send(frame)
+                conn.replaying = False
+            conn.queue.clear()
+
+    def parse(self, message):
+        if message.type != WSMsgType.TEXT:
+            raise FrameError("invalid_frame")
+        if len(message.data.encode()) > LIMITS["frame_bytes"]:
+            raise FrameError("too_large")
+        try:
+            frame = json.loads(message.data)
+        except (ValueError, UnicodeDecodeError):
+            raise FrameError("invalid_frame") from None
+        ref = frame.get("id") if isinstance(frame, dict) else None
+        ref = ref if isinstance(ref, str) else None
+        if not CLIENT_VALIDATOR.is_valid(frame):
+            raise FrameError("invalid_frame", ref)
+        if len(frame.get("text", "").encode()) > LIMITS["text_bytes"]:
+            raise FrameError("too_large", ref)
+        return frame
+
+    async def authenticate(self, token):
+        """(device id, hub token or None): this gate's own devices first, then the member's hub sign-ins."""
+        try:
+            return self.adapter.auth.authenticate(token), None
+        except AuthRejected as exc:
+            if exc.reason != "unknown" or not self.adapter.hub.enabled:
+                raise
+        return await self.adapter.hub.verify(token), token
+
+    @staticmethod
+    def peer(request):
+        try:
+            return ipaddress.ip_address(request.remote)
+        except (ValueError, TypeError):
+            return None
+
+    async def websocket(self, request):
+        # Never trust forwarded headers; use the actual TCP peer.
+        if not allowed_address(request.remote):
+            raise web.HTTPForbidden()
+        ws = BoundedWebSocket(max_msg_size=LIMITS["frame_bytes"] + 1, autoping=True, timeout=0.5)
+        await ws.prepare(request)
+        conn = None
+        try:
+            try:
+                message = await asyncio.wait_for(ws.receive(), LIMITS["hello_seconds"])
+                if ws.closed:
+                    return ws
+                hello = self.parse(message)
+                if hello["type"] != "hello":
+                    raise ValueError("hello_required")
+            except (ValueError, asyncio.TimeoutError) as exc:
+                code = str(exc) if isinstance(exc, ValueError) else "hello_timeout"
+                await ws.send_json({"v": 1, "type": "error", "code": code, "ref": None})
+                return ws
+            paired = "token" not in hello
+            peer = self.peer(request)
+            auth, name, hub_token = self.adapter.auth, hello["device_name"], None
+            try:
+                if "local" in hello:
+                    # Password reset without the old password: only on the Mac that runs this member's Hermes.
+                    if (peer is None or not peer.is_loopback or not self.adapter.hub.enabled
+                            or not auth.consume_local(hello["local"]["code"])):
+                        raise AuthRejected("local_only")
+                    device_id, token = await self.adapter.hub.reset(hello["local"]["password"], name)
+                    hub_token = token
+                elif "pair_code" in hello:
+                    device_id, token = auth.pair(hello["pair_code"], name)
+                else:
+                    device_id, hub_token = await self.authenticate(hello["token"])
+            except AuthRejected as exc:
+                await ws.send_json({"v": 1, "type": "pair_rejected" if paired else "auth_rejected",
+                                    "reason": exc.reason})
+                return ws
+            conn = Connection(ws, device_id, replaying=True, hub_token=hub_token)
+            welcome = {"v": 1, "type": "welcome", "device_id": device_id,
+                       "gate_version": "1.0.0", "employees": self.adapter.employees(),
+                       "head_seq": self.adapter.journal.head}
+            if paired:
+                welcome["token"] = token
+            await conn.send(welcome)
+            since = hello.get("since", welcome["head_seq"])
+            if since > welcome["head_seq"]:
+                await self.error("invalid_since", hello.get("id"), conn)
+                return ws
+            # Enrol only after welcome: ephemeral frames cannot overtake it either.
+            # Records committed during welcome are recovered from its head snapshot.
+            self.connections.add(conn)
+            await self.sync(conn, since, hello.get("id", "hello"))
+            async for message in ws:
+                if message.type in {WSMsgType.CLOSE, WSMsgType.CLOSED, WSMsgType.ERROR}:
+                    break
+                try:
+                    frame = self.parse(message)
+                except ValueError as exc:
+                    await self.error(str(exc), getattr(exc, "ref", None), conn)
+                    continue
+                try:
+                    if frame["type"] == "roster":
+                        await conn.send({"v": 1, "type": "roster", "ref": frame["id"],
+                                         "employees": self.adapter.employees()})
+                    elif frame["type"] == "sync":
+                        if frame["since"] > self.adapter.journal.head:
+                            await self.error("invalid_since", frame.get("id"), conn)
+                        else:
+                            await self.sync(conn, frame["since"], frame["id"])
+                    elif frame["type"] == "send":
+                        await self.adapter.receive(frame, conn)
+                    elif frame["type"] == "click":
+                        await self.adapter.click(frame, conn)
+                    elif frame["type"] != "pong":
+                        await self.error("unexpected_frame", frame.get("id"), conn)
+                except Exception as exc:
+                    # Exception messages may embed frame text. Keep only type and stack.
+                    log.error("inbound_dispatch_failed exception_type=%s.%s\n%s",
+                              type(exc).__module__, type(exc).__qualname__,
+                              "".join(traceback.format_tb(exc.__traceback__)))
+                    await self.error("dispatch_failed", frame.get("id"), conn)
+        finally:
+            if conn:
+                self.connections.discard(conn)
+            await ws.close()
+        return ws

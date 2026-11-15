@@ -1,0 +1,1020 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:hejo:wire:v1",
+  "title": "hejo wire v1",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/hello"
+    },
+    {
+      "$ref": "#/$defs/roster_request"
+    },
+    {
+      "$ref": "#/$defs/sync"
+    },
+    {
+      "$ref": "#/$defs/send"
+    },
+    {
+      "$ref": "#/$defs/click"
+    },
+    {
+      "$ref": "#/$defs/pong"
+    },
+    {
+      "$ref": "#/$defs/welcome"
+    },
+    {
+      "$ref": "#/$defs/pair_rejected"
+    },
+    {
+      "$ref": "#/$defs/auth_rejected"
+    },
+    {
+      "$ref": "#/$defs/roster_response"
+    },
+    {
+      "$ref": "#/$defs/sync_done"
+    },
+    {
+      "$ref": "#/$defs/message"
+    },
+    {
+      "$ref": "#/$defs/edit"
+    },
+    {
+      "$ref": "#/$defs/delete"
+    },
+    {
+      "$ref": "#/$defs/typing"
+    },
+    {
+      "$ref": "#/$defs/state"
+    },
+    {
+      "$ref": "#/$defs/error"
+    },
+    {
+      "$ref": "#/$defs/ping"
+    }
+  ],
+  "$defs": {
+    "employee": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string"
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "avatar": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "aliases",
+        "avatar"
+      ],
+      "additionalProperties": false
+    },
+    "button": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 30
+        },
+        "kind": {
+          "enum": [
+            "reply",
+            "approval",
+            "clarify",
+            "slash"
+          ]
+        },
+        "style": {
+          "enum": [
+            "primary",
+            "danger",
+            "default"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "kind",
+        "style"
+      ],
+      "additionalProperties": false
+    },
+    "file": {
+      "type": "object",
+      "properties": {
+        "file_id": {
+          "$ref": "#/$defs/thread",
+          "maxLength": 36
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^[^/\\\\]*$"
+        },
+        "mime": {
+          "type": "string"
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "file_id",
+        "name",
+        "mime",
+        "size"
+      ],
+      "additionalProperties": false
+    },
+    "thread": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "hello": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "hello"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "token": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pair_code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "device_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "app_version": {
+          "type": "string"
+        },
+        "since": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "local": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "password": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          },
+          "required": [
+            "code",
+            "password"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "device_name",
+        "app_version"
+      ],
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "required": [
+            "token"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "pair_code"
+                ]
+              },
+              {
+                "required": [
+                  "local"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "pair_code"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "token"
+                ]
+              },
+              {
+                "required": [
+                  "local"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "local"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "token"
+                ]
+              },
+              {
+                "required": [
+                  "pair_code"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "welcome": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "welcome"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "device_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "token": {
+          "type": "string",
+          "minLength": 1
+        },
+        "gate_version": {
+          "type": "string"
+        },
+        "employees": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/employee"
+          }
+        },
+        "head_seq": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "device_id",
+        "gate_version",
+        "employees",
+        "head_seq"
+      ],
+      "additionalProperties": false
+    },
+    "pair_rejected": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "pair_rejected"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "enum": [
+            "expired",
+            "used",
+            "wrong",
+            "locked",
+            "revoked",
+            "unknown",
+            "weak_password",
+            "local_only",
+            "hub_unavailable"
+          ]
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "auth_rejected": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "auth_rejected"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "enum": [
+            "expired",
+            "used",
+            "wrong",
+            "locked",
+            "revoked",
+            "unknown"
+          ]
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "roster_request": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "roster"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "roster_response": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "roster"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "employees": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/employee"
+          }
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "ref",
+        "employees"
+      ],
+      "additionalProperties": false
+    },
+    "sync": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "sync"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "since": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "since",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "sync_done": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "sync_done"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "through": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "more": {
+          "type": "boolean"
+        },
+        "head_seq": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "ref",
+        "through",
+        "more",
+        "head_seq"
+      ],
+      "additionalProperties": false
+    },
+    "send": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "send"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "employee": {
+          "type": "string",
+          "minLength": 1
+        },
+        "thread": {
+          "$ref": "#/$defs/thread"
+        },
+        "text": {
+          "type": "string"
+        },
+        "client_msg_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "employee",
+        "text",
+        "client_msg_id"
+      ],
+      "additionalProperties": false
+    },
+    "message": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "message"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "msg_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "employee": {
+          "type": "string",
+          "minLength": 1
+        },
+        "thread": {
+          "$ref": "#/$defs/thread"
+        },
+        "role": {
+          "enum": [
+            "owner",
+            "employee",
+            "system"
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/file"
+          }
+        },
+        "buttons": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/button"
+          }
+        },
+        "reply_state": {
+          "enum": [
+            "asked",
+            "answered",
+            "closed",
+            null
+          ]
+        },
+        "client_msg_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ts": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "seq",
+        "msg_id",
+        "employee",
+        "thread",
+        "role",
+        "text",
+        "files",
+        "buttons",
+        "reply_state",
+        "ts"
+      ],
+      "additionalProperties": false
+    },
+    "edit": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "edit"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "msg_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "text": {
+          "type": "string"
+        },
+        "final": {
+          "type": "boolean"
+        },
+        "buttons": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/button"
+          }
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "seq",
+        "msg_id",
+        "text",
+        "final"
+      ],
+      "additionalProperties": false
+    },
+    "delete": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "delete"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "msg_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "seq",
+        "msg_id"
+      ],
+      "additionalProperties": false
+    },
+    "typing": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "typing"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "employee": {
+          "type": "string",
+          "minLength": 1
+        },
+        "thread": {
+          "$ref": "#/$defs/thread"
+        },
+        "on": {
+          "type": "boolean"
+        },
+        "ttl_seconds": {
+          "const": 6
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "employee",
+        "thread",
+        "on"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "on": {
+                "const": true
+              }
+            },
+            "required": [
+              "on"
+            ]
+          },
+          "then": {
+            "required": [
+              "ttl_seconds"
+            ]
+          }
+        }
+      ]
+    },
+    "state": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "state"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "msg_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reply_state": {
+          "enum": [
+            "asked",
+            "answered",
+            "closed"
+          ]
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "seq",
+        "msg_id",
+        "reply_state"
+      ],
+      "additionalProperties": false
+    },
+    "click": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "click"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "msg_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "button_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "msg_id",
+        "button_id"
+      ],
+      "additionalProperties": false
+    },
+    "error": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "error"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "examples": [
+            "unknown_file"
+          ]
+        },
+        "ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "code",
+        "ref"
+      ],
+      "additionalProperties": false
+    },
+    "ping": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "ping"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "v",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "pong": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "pong"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "v",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "clientFrame": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/hello"
+        },
+        {
+          "$ref": "#/$defs/roster_request"
+        },
+        {
+          "$ref": "#/$defs/sync"
+        },
+        {
+          "$ref": "#/$defs/send"
+        },
+        {
+          "$ref": "#/$defs/click"
+        },
+        {
+          "$ref": "#/$defs/pong"
+        }
+      ]
+    },
+    "serverFrame": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/welcome"
+        },
+        {
+          "$ref": "#/$defs/pair_rejected"
+        },
+        {
+          "$ref": "#/$defs/auth_rejected"
+        },
+        {
+          "$ref": "#/$defs/roster_response"
+        },
+        {
+          "$ref": "#/$defs/sync_done"
+        },
+        {
+          "$ref": "#/$defs/message"
+        },
+        {
+          "$ref": "#/$defs/edit"
+        },
+        {
+          "$ref": "#/$defs/delete"
+        },
+        {
+          "$ref": "#/$defs/typing"
+        },
+        {
+          "$ref": "#/$defs/state"
+        },
+        {
+          "$ref": "#/$defs/error"
+        },
+        {
+          "$ref": "#/$defs/ping"
+        }
+      ]
+    },
+    "hookMetadata": {
+      "type": "object",
+      "properties": {
+        "hejo_buttons": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "required": [
+              "label",
+              "style"
+            ],
+            "properties": {
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 30
+              },
+              "style": {
+                "enum": [
+                  "primary",
+                  "danger",
+                  "default"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "hejo_reply_state": {
+          "enum": [
+            "asked",
+            "answered",
+            "closed"
+          ]
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "x-limits": {
+    "frame_bytes": 1048576,
+    "text_bytes": 65536,
+    "sync_page": 500,
+    "sync_queue": 2000,
+    "hello_seconds": 5,
+    "ping_seconds": 30
+  },
+  "x-sync": "Apply only seq == applied + 1; discard seq <= applied; request sync since applied on a gap. Each connection replays separately; queued live records follow sync_done(more=false)."
+}
