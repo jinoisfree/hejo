@@ -19,6 +19,43 @@ from ruamel.yaml.comments import CommentedMap
 
 
 PRIMARY = {"enabled": True, "extra": {"port": 47820, "listen": ["127.0.0.1"], "allowed_users": ["owner"]}}
+PORTS = range(47820, 47830)  # One Mac can host several users' airports; each gate takes the first free port.
+
+
+def free_port(ports=PORTS):
+    import socket
+    for port in ports:
+        with socket.socket() as probe:
+            try:
+                probe.bind(("127.0.0.1", port))
+            except OSError:
+                continue
+            return port
+    raise ValueError("no free hejo port")
+
+
+def tailscale_ipv4():
+    """This Mac's Tailscale IPv4 so laptops can reach the gate; None when Tailscale is absent or off."""
+    import ipaddress, shutil, subprocess
+    tool = shutil.which("tailscale") or next((p for p in ("/opt/homebrew/bin/tailscale", "/usr/local/bin/tailscale",
+        "/Applications/Tailscale.app/Contents/MacOS/Tailscale") if os.path.exists(p)), None)
+    if tool is None:
+        return None
+    try:
+        out = subprocess.run([tool, "ip", "-4"], capture_output=True, text=True, timeout=5).stdout.split()
+        address = ipaddress.ip_address(out[0]) if out else None
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
+    return str(address) if address and address in ipaddress.ip_network("100.64.0.0/10") else None
+
+
+def primary_block():
+    block = deepcopy(PRIMARY)
+    block["extra"]["port"] = free_port()
+    address = tailscale_ipv4()
+    if address:
+        block["extra"]["listen"].append(address)
+    return block
 FORWARDER = {"enabled": True, "extra": {"role": "forwarder"}}
 CONFIG_KEYS = (("plugins", "enabled"), ("gateway", "platforms", "hejo"))
 MISSING = object()
@@ -292,6 +329,7 @@ def plan(home):
     receipt["targets"].append({"kind": "devices", "path": "hejo/devices.json",
         "existed": devices.exists(), "before": stat.S_IMODE(devices.stat().st_mode) if devices.exists() else None,
         "after": {}, "state": "pending"})
+    primary = primary_block()
     for profile_home in homes:
         relative = profile_home.relative_to(home)
         link_name = (relative / "plugins" / "hejo").as_posix()
@@ -313,7 +351,7 @@ def plan(home):
         after_enabled = list(enabled or [])
         if "hejo" not in after_enabled:
             after_enabled.append("hejo")
-        for keys, after in zip(CONFIG_KEYS, (after_enabled, PRIMARY if profile_home == home else FORWARDER)):
+        for keys, after in zip(CONFIG_KEYS, (after_enabled, primary if profile_home == home else FORWARDER)):
             for index in range(1, len(keys)):
                 present, parent = lookup(document, keys[:index])
                 if present and not isinstance(parent, dict):

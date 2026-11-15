@@ -2,11 +2,38 @@ import AppKit
 import CryptoKit
 import Network
 
-/// Google sign-in for the desktop app (REQ-HF-20): PKCE and a one-shot loopback redirect in the browser.
-/// The app only carries the authorization code; the gate redeems it with its client secret and checks the identity.
+/// Google sign-in for the desktop app (REQ-HF-20): PKCE and a one-shot loopback redirect in the browser, then the code
+/// is redeemed with hejo's shared desktop client (Google treats installed-app secrets as non-confidential). The gate
+/// verifies the resulting ID token with Google and checks the audience.
 enum GoogleSignIn {
     struct Grant: Equatable { var code: String; var verifier: String; var redirect: String
         var fields: [String: Any] { ["code": code, "verifier": verifier, "redirect_uri": redirect] }
+    }
+    /// hejo's shared desktop OAuth client, baked into Info.plist at build time (absent → Google is hidden).
+    struct Client: Equatable { var id: String; var secret: String }
+    static var bundled: Client? {
+        guard let id = Bundle.main.object(forInfoDictionaryKey: "HejoGoogleClientID") as? String, !id.isEmpty,
+              let secret = Bundle.main.object(forInfoDictionaryKey: "HejoGoogleClientSecret") as? String, !secret.isEmpty else { return nil }
+        return Client(id: id, secret: secret)
+    }
+    static func tokenRequest(_ grant: Grant, client: Client) -> URLRequest {
+        var request = URLRequest(url: URL(string: "https://oauth2.googleapis.com/token")!)
+        request.httpMethod = "POST"; request.timeoutInterval = 15
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        var form = URLComponents()
+        form.queryItems = [.init(name: "code", value: grant.code), .init(name: "code_verifier", value: grant.verifier),
+                           .init(name: "redirect_uri", value: grant.redirect), .init(name: "client_id", value: client.id),
+                           .init(name: "client_secret", value: client.secret), .init(name: "grant_type", value: "authorization_code")]
+        request.httpBody = Data((form.percentEncodedQuery ?? "").replacingOccurrences(of: "+", with: "%2B").utf8)
+        return request
+    }
+    /// Browser sign-in, then the code is redeemed for an ID token that the gate verifies with Google.
+    static func idToken(client: Client) async -> String? {
+        guard let grant = await run(clientID: client.id),
+              let (data, response) = try? await URLSession.shared.data(for: tokenRequest(grant, client: client)),
+              (response as? HTTPURLResponse)?.statusCode == 200,
+              let value = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        return value["id_token"] as? String
     }
     static func base64URL(_ data: Data) -> String {
         data.base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")

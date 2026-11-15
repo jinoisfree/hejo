@@ -9,6 +9,15 @@ fi
 bundle=.build/hejo.app
 mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources/Pet"
 cp Resources/Info.plist "$bundle/Contents/Info.plist"
+# hejo's shared Google desktop client: public id in config/google-oauth.json, secret from an untracked file or env.
+google_id=$(/usr/bin/python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("client_id",""))' ../config/google-oauth.json)
+google_secret="${HEJO_GOOGLE_CLIENT_SECRET:-}"
+if [[ -z "$google_secret" && -f ../config/google-oauth-secret.json ]]; then
+  google_secret=$(/usr/bin/python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("client_secret",""))' ../config/google-oauth-secret.json)
+fi
+if [[ -n "$google_id" && -n "$google_secret" ]]; then
+  /usr/libexec/PlistBuddy -c "Add :HejoGoogleClientID string $google_id" -c "Add :HejoGoogleClientSecret string $google_secret" "$bundle/Contents/Info.plist"
+fi
 cp Resources/Pet/*.png Resources/Pet/LICENSE "$bundle/Contents/Resources/Pet/"
 sips -s format png Resources/Pet/spritesheet.webp --out "$bundle/Contents/Resources/Pet/spritesheet.png" >/dev/null
 xcrun swiftc -swift-version 5 -parse-as-library -O -target "$(uname -m)-apple-macosx13.0" \

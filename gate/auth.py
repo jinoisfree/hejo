@@ -126,70 +126,82 @@ class AuthStore:
         self.write("devices.json", devices)
         return device_id, token
 
-    # Owner account: one per gate, created and reset only on the airport Mac (caller proves it with consume_local).
+    # Owner account: one per airport. The first sign-up owns it; password reset needs Google or the airport Mac.
 
     def account_status(self):
         with self.locked():
             account = self.read(ACCOUNT_FILE, {})
             return {"account": bool(account.get("id")), "google": bool(account.get("google_sub"))}
 
-    def local_setup(self, device_name, account_id=None, password=None, google=None):
-        """Create the account, reset its password, and/or link Google. Password changes sign every device out."""
+    def signup(self, account_id, password, device_name, google=None):
+        """First sign-up becomes the airport's owner; afterwards sign-up is closed."""
         with self.locked():
-            account = self.read(ACCOUNT_FILE, {})
-            devices = self.read("devices.json", {})
-            if not account.get("id"):
-                if account_id is None or password is None:
-                    raise AuthRejected("no_account")
-                if not ACCOUNT_ID.fullmatch(account_id):
-                    raise AuthRejected("bad_id")
-                account["id"] = account_id
-            if password is not None:
-                account["password"] = password_record(password)
-                account.pop("failures", None)
-                account.pop("locked_until", None)
-                for device in devices.values():
-                    device["revoked"] = True
+            if self.read(ACCOUNT_FILE, {}).get("id"):
+                raise AuthRejected("exists")
+            if not isinstance(account_id, str) or not ACCOUNT_ID.fullmatch(account_id):
+                raise AuthRejected("bad_id")
+            account = {"id": account_id, "password": password_record(password)}
             if google is not None:
                 account["google_sub"], account["google_email"] = google
             self.write(ACCOUNT_FILE, account)
-            return self._mint(device_name, devices)
+            return self._mint(device_name)
 
-    def login(self, account_id, password, device_name):
+    def local_reset(self, password, device_name):
+        """Airport Mac only (caller proved it): new password without the old one; every device signs out."""
         with self.locked():
-            now = self.clock()
             account = self.read(ACCOUNT_FILE, {})
             if not account.get("id"):
                 raise AuthRejected("no_account")
-            if account.get("locked_until", 0) > now:
-                raise AuthRejected("locked")
-            same = hmac.compare_digest(account["id"].encode(), account_id.encode())
-            if not (password_matches(password, account["password"]) and same):
-                failures = [t for t in account.get("failures", []) if now - t < PAIR_TTL] + [now]
-                account["failures"] = failures
-                if len(failures) >= MAX_FAILURES:
-                    account["locked_until"] = now + PAIR_TTL
-                self.write(ACCOUNT_FILE, account)
-                raise AuthRejected("bad_login")
-            account.pop("failures", None)
+            devices = self._reset(account, password)
+            return self._mint(device_name, devices)
+
+    def _reset(self, account, password):
+        account["password"] = password_record(password)
+        account.pop("failures", None)
+        account.pop("locked_until", None)
+        devices = self.read("devices.json", {})
+        for device in devices.values():
+            device["revoked"] = True
+        self.write(ACCOUNT_FILE, account)
+        return devices
+
+    def _check_login(self, account, account_id, password):
+        now = self.clock()
+        if not account.get("id"):
+            raise AuthRejected("no_account")
+        if account.get("locked_until", 0) > now:
+            raise AuthRejected("locked")
+        same = hmac.compare_digest(account["id"].encode(), str(account_id).encode())
+        if not (password_matches(password, account["password"]) and same):
+            failures = [t for t in account.get("failures", []) if now - t < PAIR_TTL] + [now]
+            account["failures"] = failures
+            if len(failures) >= MAX_FAILURES:
+                account["locked_until"] = now + PAIR_TTL
+            self.write(ACCOUNT_FILE, account)
+            raise AuthRejected("bad_login")
+        account.pop("failures", None)
+
+    def login(self, account_id, password, device_name):
+        with self.locked():
+            account = self.read(ACCOUNT_FILE, {})
+            self._check_login(account, account_id, password)
             self.write(ACCOUNT_FILE, account)
             return self._mint(device_name)
 
-    def google_login(self, sub, device_name, new_password=None):
+    def google_login(self, google, device_name, new_password=None, link=None):
+        """Sign in with the linked Google account; `link=(id, password)` links it first; `new_password` resets."""
+        sub, email = google
         with self.locked():
             account = self.read(ACCOUNT_FILE, {})
+            if link is not None:
+                self._check_login(account, *link)
+                account["google_sub"], account["google_email"] = sub, email
+                self.write(ACCOUNT_FILE, account)
             if not account.get("google_sub"):
-                raise AuthRejected("not_linked")
+                raise AuthRejected("no_account" if not account.get("id") else "not_linked")
             if not hmac.compare_digest(account["google_sub"], sub):
                 raise AuthRejected("bad_login")
-            devices = self.read("devices.json", {})
-            if new_password is not None:
-                account["password"] = password_record(new_password)
-                account.pop("failures", None)
-                account.pop("locked_until", None)
-                for device in devices.values():
-                    device["revoked"] = True
-                self.write(ACCOUNT_FILE, account)
+            devices = self._reset(account, new_password) if new_password is not None else None
             return self._mint(device_name, devices)
 
     def pair(self, code, device_name):

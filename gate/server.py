@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 import ipaddress
 import json
 import logging
+import os
 import traceback
 from pathlib import Path
 from aiohttp import web, WSMsgType
@@ -32,6 +33,13 @@ class BoundedWebSocket(web.WebSocketResponse):
                 # frame is best effort; its failure must not skip the 1009 close.
                 pass
         return await super().close(code=code, message=message, drain=drain)
+
+
+def airport_name():
+    """Label that tells one Mac user's airport from another's on the same Mac (several Hermes homes per host)."""
+    import pwd
+    entry = pwd.getpwuid(os.getuid())
+    return ((entry.pw_gecos or "").split(",")[0].strip() or entry.pw_name)[:60]
 
 
 def allowed_address(address):
@@ -232,9 +240,9 @@ class GateServer:
             raise FrameError("too_large", ref)
         return frame
 
-    async def google_identity(self, value):
+    async def google_identity(self, id_token):
         try:
-            return await google.identity(get_hermes_home(), value["code"], value["verifier"], value["redirect_uri"])
+            return await google.identity(get_hermes_home(), id_token)
         except google.GoogleRejected:
             raise AuthRejected("google_failed") from None
 
@@ -243,8 +251,7 @@ class GateServer:
         if not allowed_address(request.remote):
             raise web.HTTPForbidden()
         status = self.adapter.auth.account_status()
-        settings = google.client(get_hermes_home())
-        return web.json_response({**status, "google_client_id": settings["client_id"] if settings else None})
+        return web.json_response({**status, "google_client_id": google.client_id(get_hermes_home()), "airport": airport_name()})
 
     @staticmethod
     def peer(request):
@@ -278,16 +285,20 @@ class GateServer:
             try:
                 if "login" in hello:
                     device_id, token = auth.login(hello["login"]["account"], hello["login"]["password"], name)
+                elif "signup" in hello:
+                    signup = hello["signup"]
+                    linked = await self.google_identity(signup["google_id_token"]) if "google_id_token" in signup else None
+                    device_id, token = auth.signup(signup["account"], signup["password"], name, linked)
                 elif "google" in hello:
-                    sub, _ = await self.google_identity(hello["google"])
-                    device_id, token = auth.google_login(sub, name, hello["google"].get("new_password"))
+                    value = hello["google"]
+                    link = (value["account"], value["password"]) if "account" in value else None
+                    device_id, token = auth.google_login(await self.google_identity(value["id_token"]), name,
+                                                         value.get("new_password"), link)
                 elif "local" in hello:
-                    # Account creation, password reset and Google linking happen only on the airport Mac itself.
-                    local = hello["local"]
-                    if peer is None or not peer.is_loopback or not auth.consume_local(local["code"]):
+                    # Password reset without the old password happens only on the airport Mac itself.
+                    if peer is None or not peer.is_loopback or not auth.consume_local(hello["local"]["code"]):
                         raise AuthRejected("local_only")
-                    linked = await self.google_identity(local["google"]) if "google" in local else None
-                    device_id, token = auth.local_setup(name, local.get("account"), local.get("password"), linked)
+                    device_id, token = auth.local_reset(hello["local"]["password"], name)
                 elif "pair_code" in hello:
                     device_id, token = auth.pair(hello["pair_code"], name)
                 else:

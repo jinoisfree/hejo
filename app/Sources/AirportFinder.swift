@@ -1,8 +1,8 @@
 import Foundation
 import Network
 
-/// Finding the airport for sign-in (REQ-HF-20). The owner's 0600 file marks this Mac as the airport and carries the
-/// one-time proof for sign-up and password reset; elsewhere the owner's online Tailscale Macs are probed for the port.
+/// Finding airports for sign-in (REQ-HF-20). The owner's 0600 file marks this Mac as an airport and carries the one-time
+/// proof for password reset; elsewhere online Tailscale Macs are probed on the hejo port range.
 enum AirportFinder {
     struct LocalPair: Equatable { var port: Int; var code: String }
     static let port = 47820
@@ -53,16 +53,33 @@ enum AirportFinder {
             DispatchQueue.global().asyncAfter(deadline: .now() + timeout) { finish(false) }
         }
     }
-    /// The airport's address without typing: this Mac's own gate, else the first owner Tailscale Mac with the port open.
-    static func findAddress(home: URL = defaultHome, status: () async -> Data? = { await tailscaleStatus() },
-                            reach: (String) async -> Bool = { await reachable($0) }) async -> String? {
-        if let local = localPair(home: home) { return "127.0.0.1:\(local.port)" }
-        guard let data = await status() else { return nil }
-        for host in peers(statusJSON: data) where await reach(host) { return "\(host):\(port)" }
-        return nil
+    static let ports = 47820..<47830
+    struct AuthStatus: Equatable { var account: Bool; var google: Bool; var googleClientID: String?; var airport: String = "" }
+    struct Airport: Equatable { var address: String; var status: AuthStatus; var local = false }
+    /// Every reachable airport without typing. This Mac's own airport (owner 0600 file) alone when present; otherwise
+    /// each online Tailscale Mac's hejo ports, since one Mac can host several users' airports.
+    static func findAirports(home: URL = defaultHome, status: () async -> Data? = { await tailscaleStatus() },
+                             probe: @escaping (String) async -> AuthStatus? = { await authStatus(address: $0) }) async -> [Airport] {
+        if let local = localPair(home: home) {
+            let address = "127.0.0.1:\(local.port)"
+            return [Airport(address: address, status: await probe(address) ?? AuthStatus(account: false, google: false, googleClientID: nil), local: true)]
+        }
+        guard let data = await status() else { return [] }
+        let addresses = peers(statusJSON: data).flatMap { host in ports.map { "\(host):\($0)" } }
+        return await withTaskGroup(of: (Int, Airport?).self) { group in
+            for (index, address) in addresses.enumerated() {
+                group.addTask {
+                    let parts = address.split(separator: ":")
+                    guard await reachable(String(parts[0]), port: Int(parts[1])!, timeout: 0.8), let found = await probe(address) else { return (index, nil) }
+                    return (index, Airport(address: address, status: found))
+                }
+            }
+            var found: [(Int, Airport)] = []
+            for await (index, airport) in group { if let airport { found.append((index, airport)) } }
+            return found.sorted { $0.0 < $1.0 }.map(\.1)
+        }
     }
-    struct AuthStatus: Equatable { var account: Bool; var google: Bool; var googleClientID: String? }
-    /// Which sign-in methods the gate offers (`GET /v1/auth`; no account id or address is revealed).
+    /// Which sign-in methods the gate offers (`GET /v1/auth`; no account id is revealed).
     @MainActor static func authStatus(address: String) async -> AuthStatus? {
         guard var parts = URLComponents(url: (try? GateClient.endpoint(address)) ?? URL(fileURLWithPath: "/"), resolvingAgainstBaseURL: false),
               parts.host != nil else { return nil }
@@ -72,6 +89,6 @@ enum AirportFinder {
         guard let (data, response) = try? await URLSession.shared.data(for: request), (response as? HTTPURLResponse)?.statusCode == 200,
               let value = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
         return AuthStatus(account: value["account"] as? Bool == true, google: value["google"] as? Bool == true,
-                          googleClientID: value["google_client_id"] as? String)
+                          googleClientID: value["google_client_id"] as? String, airport: value["airport"] as? String ?? "")
     }
 }

@@ -494,104 +494,117 @@ def local_code(gate):
     return value["code"]
 
 
-async def test_at_hf_58_owner_account_is_created_and_reset_only_on_airport_mac(gate, client):
-    """Sign-up and password reset need the airport Mac (loopback + owner 0600 file); login works anywhere."""
+
+async def test_at_hf_58_first_signup_owns_the_airport_and_reset_needs_the_airport_mac(gate, client):
+    """Anyone's first sign-up (any device) owns the airport; sign-up then closes. Reset without the old password
+    needs the airport Mac (loopback + owner 0600 file)."""
     import ipaddress
+    from aiohttp import ClientSession
     from gate.server import GateServer
     remote = staticmethod(lambda request: ipaddress.ip_address("100.100.1.1"))
     ws, rejected = await client.open(login={"account": "owner", "password": "correct horse"})
     assert rejected["reason"] == "no_account"; await ws.close()
-    ws, rejected = await client.open(local={"code": "not-the-code", "account": "owner", "password": "correct horse"})
-    assert rejected["reason"] == "local_only"; await ws.close()
-    with patch.object(GateServer, "peer", remote):
-        ws, rejected = await client.open(local={"code": local_code(gate), "account": "owner", "password": "correct horse"})
-    assert rejected["reason"] == "local_only"; await ws.close()
-    ws, rejected = await client.open(local={"code": local_code(gate), "account": "owner", "password": "short"})
+    ws, rejected = await client.open(signup={"account": "x", "password": "correct horse"})
+    assert rejected["reason"] == "bad_id"; await ws.close()
+    ws, rejected = await client.open(signup={"account": "owner", "password": "short"})
     assert rejected["reason"] == "weak_password"; await ws.close()
-    first = local_code(gate)
-    ws, welcome = await client.open(local={"code": first, "account": "owner", "password": "correct horse"})
+    with patch.object(GateServer, "peer", remote):
+        ws, welcome = await client.open(signup={"account": "owner", "password": "correct horse"})
     assert welcome["type"] == "welcome" and welcome["token"]; await ws.close()
-    assert local_code(gate) != first
+    ws, rejected = await client.open(signup={"account": "intruder", "password": "another pass"})
+    assert rejected["reason"] == "exists"; await ws.close()
     account = json.loads((gate.auth.path / "account.json").read_text())
     assert "correct horse" not in json.dumps(account) and account["password"]["n"] >= 2 ** 14
-    with patch.object(GateServer, "peer", remote):
-        ws, welcome = await client.open(login={"account": "owner", "password": "correct horse"})
-    assert welcome["type"] == "welcome"; await ws.close()
     for _ in range(5):
         ws, rejected = await client.open(login={"account": "owner", "password": "wrong password"})
         assert rejected["reason"] == "bad_login"; await ws.close()
     ws, rejected = await client.open(login={"account": "owner", "password": "correct horse"})
     assert rejected["reason"] == "locked"; await ws.close()
-    # Reset on the airport Mac: no old password, lockout cleared, every earlier device signed out.
+    first = local_code(gate)
+    with patch.object(GateServer, "peer", remote):
+        ws, rejected = await client.open(local={"code": first, "password": "new battery staple"})
+    assert rejected["reason"] == "local_only"; await ws.close()
+    ws, rejected = await client.open(local={"code": "not-the-code", "password": "new battery staple"})
+    assert rejected["reason"] == "local_only"; await ws.close()
     ws, welcome = await client.open(local={"code": local_code(gate), "password": "new battery staple"})
     assert welcome["type"] == "welcome"; await ws.close()
+    assert local_code(gate) != first
     assert sum(not d["revoked"] for d in gate.auth.devices().values()) == 1
     ws, rejected = await client.open(login={"account": "owner", "password": "correct horse"})
     assert rejected["reason"] == "bad_login"; await ws.close()
     ws, welcome = await client.open(login={"account": "owner", "password": "new battery staple"})
     assert welcome["type"] == "welcome"; await ws.close()
-    ws, rejected = await client.open(login={"account": "someone", "password": "new battery staple"})
-    assert rejected["reason"] == "bad_login"; await ws.close()
+    async with ClientSession() as http:
+        async with http.get(f"http://127.0.0.1:{gate.server.port}/v1/auth") as response:
+            body = await response.json()
+    assert body["account"] is True and body["google"] is False and body["airport"] and "owner" not in json.dumps(body)
 
 
-async def test_at_hf_59_google_sign_in_links_on_airport_mac_and_resets_password(gate, client):
-    """Google works only after linking on the airport Mac, only for that Google account, and can set a new password."""
-    from aiohttp import ClientSession
+async def test_at_hf_59_google_links_with_password_signs_in_and_resets(gate, client):
+    """Google signs in only after linking (at sign-up or with id/password), only for that Google account."""
     from gate import google
-    grant = {"code": "auth-code", "verifier": "v" * 43, "redirect_uri": "http://127.0.0.1:53123/"}
     who = {"sub": "google-owner"}
-    async def identity(home, code, verifier, redirect_uri):
+    async def identity(home, id_token):
         if who["sub"] is None:
             raise google.GoogleRejected("identity")
         return who["sub"], "owner-google-address"
-    async with ClientSession() as http:
-        async with http.get(f"http://127.0.0.1:{gate.server.port}/v1/auth") as response:
-            assert await response.json() == {"account": False, "google": False, "google_client_id": None}
     with patch.object(google, "identity", identity):
-        ws, rejected = await client.open(google=grant)
-        assert rejected["reason"] == "not_linked"; await ws.close()
-        ws, welcome = await client.open(local={"code": local_code(gate), "account": "owner", "password": "correct horse", "google": grant})
+        ws, rejected = await client.open(google={"id_token": "t"})
+        assert rejected["reason"] == "no_account"; await ws.close()
+        ws, welcome = await client.open(signup={"account": "owner", "password": "correct horse"})
         assert welcome["type"] == "welcome"; await ws.close()
-        ws, welcome = await client.open(google=grant)
+        ws, rejected = await client.open(google={"id_token": "t"})
+        assert rejected["reason"] == "not_linked"; await ws.close()
+        ws, rejected = await client.open(google={"id_token": "t", "account": "owner", "password": "wrong password"})
+        assert rejected["reason"] == "bad_login"; await ws.close()
+        ws, welcome = await client.open(google={"id_token": "t", "account": "owner", "password": "correct horse"})
+        assert welcome["type"] == "welcome"; await ws.close()
+        ws, welcome = await client.open(google={"id_token": "t"})
         assert welcome["type"] == "welcome"; await ws.close()
         who["sub"] = "someone-else"
-        ws, rejected = await client.open(google=grant)
+        ws, rejected = await client.open(google={"id_token": "t"})
         assert rejected["reason"] == "bad_login"; await ws.close()
         who["sub"] = None
-        ws, rejected = await client.open(google=grant)
+        ws, rejected = await client.open(google={"id_token": "t"})
         assert rejected["reason"] == "google_failed"; await ws.close()
         who["sub"] = "google-owner"
-        ws, welcome = await client.open(google={**grant, "new_password": "after google reset"})
+        ws, welcome = await client.open(google={"id_token": "t", "new_password": "after google reset"})
         assert welcome["type"] == "welcome"; await ws.close()
     assert sum(not d["revoked"] for d in gate.auth.devices().values()) == 1
     ws, welcome = await client.open(login={"account": "owner", "password": "after google reset"})
     assert welcome["type"] == "welcome"; await ws.close()
-    async with ClientSession() as http:
-        async with http.get(f"http://127.0.0.1:{gate.server.port}/v1/auth") as response:
-            body = await response.json()
-    assert body["account"] and body["google"] and "owner" not in json.dumps(body)
 
 
-async def test_google_identity_checks_audience_issuer_and_redirect(tmp_path):
+async def test_google_signup_links_at_once(gate, client):
     from gate import google
-    (tmp_path / "hejo").mkdir()
-    (tmp_path / "hejo" / google.CLIENT_FILE).write_text(json.dumps({"client_id": "cid", "client_secret": "sec"}))
+    async def identity(home, id_token):
+        return "google-owner", "owner-google-address"
+    with patch.object(google, "identity", identity):
+        ws, welcome = await client.open(signup={"account": "owner", "password": "correct horse", "google_id_token": "t"})
+        assert welcome["type"] == "welcome"; await ws.close()
+        ws, welcome = await client.open(google={"id_token": "t"})
+        assert welcome["type"] == "welcome"; await ws.close()
+
+
+async def test_google_identity_checks_audience_issuer_and_email(tmp_path):
+    from gate import google
     info = {"aud": "cid", "iss": "https://accounts.google.com", "email_verified": "true", "sub": "s1", "email": "e"}
-    async def post(url, data):
-        assert data["client_secret"] == "sec" and data["code_verifier"] == "ver"
-        return 200, {"id_token": "jwt"}
     async def get(url, params):
+        assert params == {"id_token": "jwt"}
         return 200, dict(info)
-    with patch.object(google, "_post", post), patch.object(google, "_get", get):
-        assert await google.identity(tmp_path, "c", "ver", "http://127.0.0.1:5000/") == ("s1", "e")
+    with patch.object(google, "SHARED", tmp_path / "missing.json"):
         with pytest.raises(google.GoogleRejected):
-            await google.identity(tmp_path, "c", "ver", "https://evil.example/")
-        info["aud"] = "other"
-        with pytest.raises(google.GoogleRejected):
-            await google.identity(tmp_path, "c", "ver", "http://127.0.0.1:5000/")
-        info["aud"], info["email_verified"] = "cid", "false"
-        with pytest.raises(google.GoogleRejected):
-            await google.identity(tmp_path, "c", "ver", "http://127.0.0.1:5000/")
-    (tmp_path / "hejo" / google.CLIENT_FILE).unlink()
-    with pytest.raises(google.GoogleRejected):
-        await google.identity(tmp_path, "c", "ver", "http://127.0.0.1:5000/")
+            await google.identity(tmp_path, "jwt")
+        (tmp_path / "hejo").mkdir()
+        (tmp_path / "hejo" / google.CLIENT_FILE).write_text(json.dumps({"client_id": "cid"}))
+        with patch.object(google, "_get", get):
+            assert await google.identity(tmp_path, "jwt") == ("s1", "e")
+            info["aud"] = "other"
+            with pytest.raises(google.GoogleRejected):
+                await google.identity(tmp_path, "jwt")
+            info["aud"], info["email_verified"] = "cid", "false"
+            with pytest.raises(google.GoogleRejected):
+                await google.identity(tmp_path, "jwt")
+            info["email_verified"], info["iss"] = "true", "https://evil.example"
+            with pytest.raises(google.GoogleRejected):
+                await google.identity(tmp_path, "jwt")

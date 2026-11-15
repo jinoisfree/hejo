@@ -8,6 +8,8 @@ import stat
 import subprocess
 import sys
 
+import re
+
 import pytest
 from ruamel.yaml import YAML
 
@@ -88,9 +90,13 @@ def test_at_hf_27_install_twice_and_check(install_airport):
         config = YAML().load((root / "config.yaml").read_text())
         assert config["plugins"]["enabled"] == ["hejo"]
         block = config["gateway"]["platforms"]["hejo"]
-        expected = ({"enabled": True, "extra": {"role": "forwarder"}} if profile else
-                    {"enabled": True, "extra": {"port": 47820, "listen": ["127.0.0.1"], "allowed_users": ["owner"]}})
-        assert block == expected
+        if profile:
+            assert block == {"enabled": True, "extra": {"role": "forwarder"}}
+        else:
+            # Port and Tailscale address depend on the machine: first free port, loopback first.
+            extra = dict(block["extra"])
+            assert 47820 <= extra.pop("port") < 47830 and extra.pop("listen")[0] == "127.0.0.1"
+            assert block["enabled"] is True and extra == {"allowed_users": ["owner"]}
     assert stat.S_IMODE((home / "hejo").stat().st_mode) == 0o700
     assert stat.S_IMODE((home / "hejo/devices.json").stat().st_mode) == 0o600
     assert stat.S_IMODE((home / "hejo/install-receipt.json").stat().st_mode) == 0o600
@@ -347,7 +353,7 @@ def test_operating_formatting_conflict_restores_other_keys_line_by_line(install_
         (home / profile / "config.yaml").write_text(DRIFTING)
     assert cli(home).returncode == 0
     path = home / "config.yaml"
-    path.write_text(path.read_text().replace("port: 47820", "port: 47999"))
+    path.write_text(re.sub(r"port: 478[0-9]{2}", "port: 47999", path.read_text()))
     result = cli(home, "--uninstall")
     assert result.returncode == 2 and "config.yaml#gateway.platforms.hejo" in result.stdout
     text = path.read_text()
@@ -367,3 +373,17 @@ def test_empty_inline_parent_is_filled_on_its_own_line(install_airport):
     assert [line for line in text.splitlines() if line not in installed.splitlines()] == ["gateway: {}"]
     assert cli(home, "--uninstall").returncode == 0
     assert (home / "config.yaml").read_text() == text
+
+
+def test_primary_block_takes_first_free_port_and_tailscale_address(installer, monkeypatch):
+    import socket
+    with socket.socket() as busy:
+        busy.bind(("127.0.0.1", 0))
+        taken = busy.getsockname()[1]
+        assert installer["free_port"](range(taken, taken + 3)) != taken
+    monkeypatch.setitem(installer, "free_port", lambda ports=None: 47823)
+    monkeypatch.setitem(installer, "tailscale_ipv4", lambda: "100.64.1.2")
+    assert installer["primary_block"]()["extra"] == {"port": 47823, "listen": ["127.0.0.1", "100.64.1.2"], "allowed_users": ["owner"]}
+    monkeypatch.setitem(installer, "tailscale_ipv4", lambda: None)
+    assert installer["primary_block"]()["extra"]["listen"] == ["127.0.0.1"]
+    assert installer["PRIMARY"]["extra"]["listen"] == ["127.0.0.1"]  # the template is never mutated

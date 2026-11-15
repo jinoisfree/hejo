@@ -215,41 +215,15 @@
         "google": {
           "type": "object",
           "properties": {
-            "code": {
+            "id_token": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 2048
-            },
-            "verifier": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 256
-            },
-            "redirect_uri": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 256
+              "maxLength": 8192
             },
             "new_password": {
               "type": "string",
               "minLength": 1,
               "maxLength": 256
-            }
-          },
-          "required": [
-            "code",
-            "verifier",
-            "redirect_uri"
-          ],
-          "additionalProperties": false
-        },
-        "local": {
-          "type": "object",
-          "properties": {
-            "code": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 64
             },
             "account": {
               "type": "string",
@@ -260,36 +234,69 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 256
-            },
-            "google": {
-              "type": "object",
-              "properties": {
-                "code": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 2048
-                },
-                "verifier": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 256
-                },
-                "redirect_uri": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 256
-                }
-              },
-              "required": [
-                "code",
-                "verifier",
-                "redirect_uri"
-              ],
-              "additionalProperties": false
             }
           },
           "required": [
-            "code"
+            "id_token"
+          ],
+          "additionalProperties": false,
+          "dependentRequired": {
+            "account": [
+              "password"
+            ],
+            "password": [
+              "account"
+            ]
+          },
+          "not": {
+            "required": [
+              "new_password",
+              "account"
+            ]
+          }
+        },
+        "local": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "password": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          },
+          "required": [
+            "code",
+            "password"
+          ],
+          "additionalProperties": false
+        },
+        "signup": {
+          "type": "object",
+          "properties": {
+            "account": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "password": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "google_id_token": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8192
+            }
+          },
+          "required": [
+            "account",
+            "password"
           ],
           "additionalProperties": false
         }
@@ -316,6 +323,11 @@
               {
                 "required": [
                   "login"
+                ]
+              },
+              {
+                "required": [
+                  "signup"
                 ]
               },
               {
@@ -349,6 +361,11 @@
               },
               {
                 "required": [
+                  "signup"
+                ]
+              },
+              {
+                "required": [
                   "google"
                 ]
               },
@@ -374,6 +391,45 @@
               {
                 "required": [
                   "pair_code"
+                ]
+              },
+              {
+                "required": [
+                  "signup"
+                ]
+              },
+              {
+                "required": [
+                  "google"
+                ]
+              },
+              {
+                "required": [
+                  "local"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "signup"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "token"
+                ]
+              },
+              {
+                "required": [
+                  "pair_code"
+                ]
+              },
+              {
+                "required": [
+                  "login"
                 ]
               },
               {
@@ -412,6 +468,11 @@
               },
               {
                 "required": [
+                  "signup"
+                ]
+              },
+              {
+                "required": [
                   "local"
                 ]
               }
@@ -437,6 +498,11 @@
               {
                 "required": [
                   "login"
+                ]
+              },
+              {
+                "required": [
+                  "signup"
                 ]
               },
               {
@@ -521,7 +587,8 @@
             "no_account",
             "not_linked",
             "google_failed",
-            "local_only"
+            "local_only",
+            "exists"
           ]
         }
       },
