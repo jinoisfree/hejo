@@ -219,6 +219,19 @@ class HubStore:
             self.write("gates.json", gates)
             return key
 
+    def operator_link(self, account_id):
+        """Gate key for a member without their password: only the Mac account that owns the hub data can do this."""
+        with self.locked():
+            members = self._members()
+            member = self._by_login(members, account_id)
+            if member is None:
+                raise Rejected("no_member")
+            key = secrets.token_urlsafe(32)
+            gates = self.read("gates.json", {})
+            gates[member] = {"key": digest(key), "port": None}
+            self.write("gates.json", gates)
+            return key
+
     def gate(self, key):
         value = digest(key) if isinstance(key, str) else ""
         with self.locked():

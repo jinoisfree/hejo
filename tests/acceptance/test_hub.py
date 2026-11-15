@@ -178,3 +178,17 @@ async def test_gate_routes_and_link_are_loopback_only(hub, http):
         assert (await call(http, hub, "POST", "/v1/gate/verify", {"token": "t"}, gate="k"))[0] == 403
     with patch.object(server, "allowed", lambda address: False):
         assert (await call(http, hub, "GET", "/v1/hub"))[0] == 403
+
+
+def test_operator_links_a_member_hermes_without_password(tmp_path):
+    import stat
+    from hub.__main__ import main
+    from hub.store import HubStore
+    store = HubStore(tmp_path / "hub")
+    store.signup("admin", "correct horse", "pro")
+    assert main(["--home", str(tmp_path / "hub"), "--link", "nobody", "--hermes-home", str(tmp_path / "hermes")]) == 1
+    assert main(["--home", str(tmp_path / "hub"), "--link", "admin", "--hermes-home", str(tmp_path / "hermes"), "--port", "47999"]) == 0
+    path = tmp_path / "hermes" / "hejo" / "hub.json"
+    value = json.loads(path.read_text())
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600 and value["url"] == "http://127.0.0.1:47999"
+    assert store.gate(value["gate_key"])
