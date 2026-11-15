@@ -35,9 +35,7 @@
 
 ## 사장과 남은 것 (노트북·눈 확인)
 
-- [ ] **노트북 연결.** 리스너는 지금 루프백뿐이다.
-  - 노트북에서 붙으려면 기본 프로필 `gateway.platforms.hejo.extra.listen`에 공항 Mac의 Tailscale 주소를 더하고 재시작한다.
-  - 공항 Mac에서 `python -m gate.cli pair`로 코드를 받아 앱 연결 창에 넣는다.
+- [ ] **노트북 연결 (자동, TASK-13).** 공항 Mac의 `hejo.app`을 노트북에 복사해 실행하면 Tailscale로 공항을 찾아 입력 없이 붙는다. 리스너는 루프백과 공항 Tailscale 주소다. 안 되면 연결 창의 "자동으로 찾기"를 누르거나, 코드를 받아 입력한다.
 - [ ] AT-31: 노트북↔Tailscale 지연 5회, 버튼 누르기, 예약 보고 1건
 - [ ] AT-22(3): 보조 프로필 예약 작업 `deliver=hejo`
 - [ ] AT-26: ddots와 나란히 비교

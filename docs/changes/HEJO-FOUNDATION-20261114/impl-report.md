@@ -934,3 +934,15 @@ AT-HF-30: 운영 원본 전부 auto·다른 키 차이 0·동기화 커밋 확�
 - **되돌림**
   - 설치 전 사본으로 설치·제거를 돌렸다(`.build/task09/uninstall-dryrun.sh`). 설치 결과는 운영 파일과 바이트가 같았고, 제거하면 원본과 바이트가 같았다.
 - **남은 것:** 노트북 Tailscale·눈 확인 항목. `evidence/HEJO-FOUNDATION/TASK-09.md` 체크리스트에 있다.
+
+### TASK-13 — 자동 연결 (10판, 2026-11-15, 사장 선택 "자동 연결")
+
+- **변경:** 커밋 `b2d3b8b`.
+  - 문 `auth.local_code`·`pair(local=True)`·`pair_trusted`, `server` hello `auto`·연결 주소 판정, `tailnet.owner_device`
+  - 규격 hello 세 번째 변형과 거부 이유 `untrusted`
+  - 앱 `AirportFinder`, `GateClient.autoPair`, 연결 창 "자동으로 찾기"와 기기 이름 기본값(Mac 이름), 첫 실행 자동 찾기
+- **시험:** 환경 지정 `bash scripts/test.sh` 0이다(gate 86, AT-HF-58·59 앱 PASS, `.build/task13-hejo.log`). pre-commit과 diff --check도 0이다.
+- **운영 적용**
+  - 게이트웨이를 재시작했다(16:37, 13 플랫폼). `local-pair.json`이 0600으로 생겼다. 리스너는 루프백과 Tailscale 2개다.
+  - 맥미니 앱을 다시 빌드·설치·실행했더니 **입력 없이 페어링**됐다. `gate.cli status` 활성 기기 1, 앱 주소 `127.0.0.1:47820`.
+- **남은 것:** 노트북 실물(AT-59 실물). 앱을 복사해 실행하면 Tailscale로 공항을 찾아 붙어야 한다.
