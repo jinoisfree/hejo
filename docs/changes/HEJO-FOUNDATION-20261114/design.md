@@ -258,8 +258,8 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
 
 - **"세션 기능"의 뜻:** 사장 지적("세션구획 세팅")으로 ddots 사이드바 구획(섹션)으로 확정했다.
 - **칸 배치(새 원본 없음)**
-  - 직원·방 사진(15판 정정): 공용 창고 칸이다(근간 3절 — `hejo/`는 금고라 사진을 두지 않는다). `<HERMES_HOME>/shared/hejo/pictures/<종류>-<id>.png`(디렉터리 0700, 파일 0600, 같은 디렉터리 임시 파일 → fsync → rename)에 둔다. 쓰기 주체는 문 하나이며 사장이 앱에서 요청할 때만 쓰고 지운다. 수명: 바꾸면 교체, 지우면 삭제, 방 삭제 확정 뒤 그 방 사진 삭제, 직원 사진은 직원이 명부에서 빠져도 남는다(사장이 따로 지움). 설치·갱신·제거는 건드리지 않는다. `PUT/DELETE/GET /v1/pictures/<종류>/<id>`는 출입증 인증을 받는다. 명부 `avatar`와 방 `picture`는 `/v1/pictures/...?v=<수정 시각>` 주소다. 기존 `/v1/avatars`는 이 경로로 바꾸고 옛 경로는 지운다. 앱은 고른 그림을 256px PNG로 줄여 올리고, 주소 단위로 메모리 캐시한다.
-  - 구획: 화면 배치라 허브 회원 설정 `sections`(JSON 문자열 `[{"id","name","rooms":[id],"open"}]`)에 둔다. 소유는 `ConversationModel`이다(고정·알림·숨김과 같은 칸). ddots `SlackPanel` sections·`addSection`·`removeSection`·`move` 규칙을 옮긴다.
+  - (18판: 직원 사진은 아래 '전수 대조 반영' 절로 대체 — 프로필 `assets/avatar.png`. 여기서는 방 사진만 유효) 직원·방 사진(15판 정정): 공용 창고 칸이다(근간 3절 — `hejo/`는 금고라 사진을 두지 않는다). `<HERMES_HOME>/shared/hejo/pictures/<종류>-<id>.png`(디렉터리 0700, 파일 0600, 같은 디렉터리 임시 파일 → fsync → rename)에 둔다. 쓰기 주체는 문 하나이며 사장이 앱에서 요청할 때만 쓰고 지운다. 수명: 바꾸면 교체, 지우면 삭제, 방 삭제 확정 뒤 그 방 사진 삭제, 직원 사진은 직원이 명부에서 빠져도 남는다(사장이 따로 지움). 설치·갱신·제거는 건드리지 않는다. `PUT/DELETE/GET /v1/pictures/<종류>/<id>`는 출입증 인증을 받는다. 명부 `avatar`와 방 `picture`는 `/v1/pictures/...?v=<수정 시각>` 주소다. 기존 `/v1/avatars`는 이 경로로 바꾸고 옛 경로는 지운다. 앱은 고른 그림을 256px PNG로 줄여 올리고, 주소 단위로 메모리 캐시한다.
+  - (18판: 아래 '전수 대조 반영' 절의 회원 상태·`SidebarLayout`으로 대체) 구획: 화면 배치라 허브 회원 설정 `sections`(JSON 문자열 `[{"id","name","rooms":[id],"open"}]`)에 둔다. 소유는 `ConversationModel`이다(고정·알림·숨김과 같은 칸). ddots `SlackPanel` sections·`addSection`·`removeSection`·`move` 규칙을 옮긴다.
   - 단체방: 대화 자료라 문 기록장이 원본이다. 기록 종류에 `room`(만들기·바꾸기 전체 상태)과 `room_delete`를 더한다. 앱 `Room{id,kind,title,members}`에 `kind=.group`·`lead`·`picture`·`description`·`archived`를 더한다.
 - **규격(v1 하위 호환)**
   - 클라이언트 프레임 `room_save {id?, title, description?, members[], lead}`, `room_archive {id, archived}`, `room_delete {id}`
@@ -274,6 +274,48 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
   - **파일 정리(확정 뒤, 멱등):** 확정 직후 그 방 글에만 등록된 첨부와 그 방 사진을 지운다. 다른 살아 있는 기록이 등록한 첨부는 남긴다. 정리 도중 실패·재시작이 있어도 문 시작 때의 `FileStore.cleanup`(살아 있는 기록이 등록한 파일만 남김 — 지운 방 기록의 등록은 살아 있지 않은 것으로 센다)과 사진 정리가 다시 지운다.
   - **비가역 범위:** 확정 뒤 그 방의 첨부·사진 파일은 복구할 수 없다. 기록장은 추가 전용이라 지운 방 글의 원문 바이트는 기록장 파일에 남는다(기존 1:1 `delete`와 같은 논리 삭제, 화면·동기화에서만 사라짐). 이미 Hermes 세션에 들어간 내용은 지우지 않는다(확인 창 문구로 알림).
 - **위험·롤백(15판):** TASK-20·21은 고위험이다(인증된 영구 저장·삭제, 규격·전달, 동시성). TASK-21 이전 문 코드는 모르는 기록 종류를 기록장 손상으로 보고 열기를 거부한다(`gate/journal.py` `_recover`의 `RECORD_TYPES` 검사). 따라서 단체방 기록이 한 줄이라도 생긴 뒤 문 코드만 되돌리면 hejo 문이 열리지 않는다. 운영 적용(TASK-23)은 재시작 전에 `shared/hejo/`(journal·files·pictures)를 0700 사본으로 떠 두고, 롤백은 이전 공용 릴리스 + 그 사본 복원 + 재시작이다(적용 뒤 hejo 글은 잃음, Slack 무관). 사진만 들어간 TASK-20 문은 이전 코드로 되돌려도 기록장에 영향이 없다(사진 폴더만 남음).
+
+### ddots 전수 대조 반영(18판, 2026-11-15, REQ-HF-23·26~29, 사장 선택 Q1~Q4)
+
+근거: [ddots-inventory.md](ddots-inventory.md)(계획 담당이 ddots 166개 파일을 직접 읽고 만든 대조표). 14판 '사진·구획·단체방'의 직원 사진·구획 부분은 이 절이 대신한다. 단체방(전달·삭제 계약)은 14판 그대로이고, 방 메뉴와 창은 REQ-HF-24.AC-05를 더한다.
+
+- **칸 배치(새 원본 없음, 근간 3절 18판 개정)**
+  - **직원 사진·색 — 직원 명부·성격 칸**
+    - 위치: 문이 프로필 디렉터리를 Hermes 프로필 API(`hermes_cli.profiles.get_profile_dir`, 기본 프로필은 `<HOME>`)로 찾는다. 경로는 박지 않는다.
+    - 읽기: `assets/avatar.png`, 없으면 `assets/slack-avatar.png` 순서로 읽는다. 색은 `profile.yaml`을 ruamel로 읽어 `ui_meta.hermes-bots.color`만 꺼낸다(ddots `ProfileAvatar.swift`의 읽기 규칙: 정해진 중첩 키 하나, 다른 color 키는 무시).
+    - 쓰기: `avatar.png`만 쓴다. 쓰기 주체는 '사장(앱 경유)'이다. 문은 출입증 인증을 받은 `PUT/DELETE`에서만 쓴다. `slack-avatar.png`·`profile.yaml`은 쓰지 않는다.
+    - 옛 경로: 14판의 `/v1/avatars`와 직원용 `shared/hejo/pictures/employee-*`는 만들지 않는다. 기존 `/v1/avatars` 라우트는 `/v1/pictures`로 바꾸고 지운다.
+  - **방·구획·홈 방 사진 — 공용 창고 칸:** `shared/hejo/pictures/<room|section|home>-<id>.png`, 14판 규칙(0700/0600, 원자적 쓰기, 인증 GET)을 따른다. 구획·홈 방 사진도 바이트는 여기 두고, 배치 항목에는 주소만 둔다.
+  - **회원 상태 — 허브 칸**
+    - 새 모듈: `hub/state.py`가 `<허브 자료>/state/<회원>.json`(0600)을 쓴다. 항목마다 `{v, at, dev}`, 파일에는 `rev`를 둔다.
+    - 병합: 같은 회원의 PATCH는 회원별 잠금 안에서 읽기 → 병합 → 원자적 쓰기로 처리한다.
+    - 분리: 회원 설정(`settings`, 16 KiB)과 따로 둔다. 펫 이름·크기·말풍선 설정은 `settings`에 남는다.
+  - **스레드 삭제 — 공용 창고 칸:** 기록장 `RECORD_TYPES`에 `thread_delete`를 더한다. 14판 `room_delete`와 같은 확정점·재현 제외·늦은 응답 버림·첨부 정리 규칙을 스레드 단위로 쓴다. 지운 스레드 묶음은 `(room, thread)`이다.
+- **문(`gate/`)**
+  - 명부: `roster.py`에 `avatar`·`color`를 넣는다. 사진 PUT·DELETE 뒤에는 `roster` 프레임을 모든 연결에 방송한다.
+  - 분기: 어댑터에 `create_handoff_thread(parent_chat_id, name)`를 구현한다(Hermes 기본 클래스의 공개 확장점, 본체 무수정). parent가 직원 1:1(또는 TASK-21 뒤 `room:<id>`)이면 새 UUID 스레드를 만든다. 그 스레드에 이어짐 글을 기록하고 id를 돌려준다. 실패하면 None이고, Hermes가 제자리 분기로 처리한다.
+  - 중지·되돌리기: 앱이 보낸 `/stop`·되돌림 글은 기존 send 경로로 그 스레드 세션에 들어간다. Hermes 바쁜 세션 처리(`gateway/run_busy.py`의 `stop` 명령)를 구현 담당이 읽기 전용으로 확인하고, 가짜 게이트웨이 시험으로 고정한다.
+  - 체크리스트: Hermes 메타 `hejo_checklist {items, selected, can_skip}`를 `message`·`edit` 프레임의 선택 필드 `checklist`로 넘긴다. 규격은 v1 하위 호환이다(옛 앱은 무시).
+- **허브(`hub/`)**
+  - `server.py`에 `/v1/me/state` GET·PATCH를 더한다.
+  - 시험: 병합 규칙(LWW·큰 seq), 한도·잘라내기, 삭제 표시, 동시 PATCH, 다른 회원 거절.
+- **앱(`app/`) 소유**
+  - `MemberState`(새): 회원 상태의 이 Mac 복제다. 권위는 허브이고, 끊긴 동안 쌓은 변경은 `hejo-local.json`의 `pendingState`에 둔다. 동기화 시점은 30초 주기, 창 열기·앱 활성화, PATCH 응답이다. 처음 옮기기(REQ-HF-26.AC-03)는 회원 상태가 비었을 때 한 번 한다. `ConversationModel`의 고정·알림·숨김·읽음은 이 모듈을 읽고 쓴다. 로컬 `readSeq`는 옮긴 뒤 지운다.
+  - `SidebarLayout`(새): ddots `SlackController` 방 목록 조립, `SlackRoomOrder.sorted`, `Ddots.stacked`, `SlackModel` sections·`addSection`·`removeSection`·`move`·`groupName`을 옮긴다. 입력은 방·최신 활동·`MemberState`, 출력은 행 목록이다. AppKit 사이드바(`ConversationView`)는 이 출력만 그린다.
+  - 카드·작업 제어(TASK-25): ddots `SlackPanel` 카드 아래 버튼·종·작업 중 줄·`AgentStop`·`BubbleReplyInterruption`·`SlackCopy`·체크리스트, `SlackThreads` 상태 색·표를 `ConversationView` 카드 부품으로 옮긴다.
+  - 알림 막대·검색·작성기(TASK-26): ddots `SlackThreads` 알림 분류, `SlackFind`·`SlackFindView`·`SlackSearch`, `ChatWorkspace` 머리줄, `SlackDrafts`·실패 목록. 검색 대상은 `cache/`의 기록장 복제이며, 서버 검색과 월 단위 기록 읽기는 없다(hejo는 캐시가 전체 기록이다).
+  - `HomeRoom`(새, TASK-27): 1:1 방들의 스레드를 모아 보여 주는 보기다. 저장소가 따로 없다. 보내기는 기존 `send(employee, thread: 새 UUID)`이다.
+- **베끼기:** 각 TASK 착수 전에 해당 ddots 파일 전체와 의존을 읽고 `copy-review.md`에 파일별로 적는다. 계획 담당의 대조표는 무엇을 옮길지의 목록이고, 줄 단위 읽기를 대신하지 않는다. ddots 파일은 읽기만 한다.
+- **가져오지 않음(이번 판):**
+  - Slack 전용 연결, 운영자 개인 업무 기능, iCloud 기록 보관(대조표 K).
+  - 말풍선 버튼(링크·일정·나중에 알려줘)·말풍선 바로 답하기·상태 점(대조표 A)은 4단계로 남긴다.
+  - "이 방은 보관하지 않기", 사람 초대(hejo에는 사람 회원 초대가 없음), 프로젝트 기록 카드는 이번 판에서 뺀다.
+- **위험·롤백(18판)**
+  - TASK-24(허브 영구 저장·인증)·TASK-20(사장 칸 파일 쓰기)·TASK-25(기록장 새 종류 `thread_delete`)·TASK-21은 고위험이다.
+  - `thread_delete` 기록이 생긴 뒤 이전 문 코드로 되돌리면 기록장이 열리지 않는다(14판과 같은 이유). 그래서 TASK-23 롤백은 `shared/hejo` 사본 복원을 함께 한다.
+  - 허브 상태 파일은 이전 허브가 읽지 않는 새 파일이라, 되돌려도 회원 설정은 안전하다.
+  - 직원 사진 롤백은 바꾸기 전 `avatar.png`를 TASK-23 사본에 함께 떠 두고 되돌린다.
+- **TASK 순서:** TASK-22 보완 16 → TASK-24 → TASK-20 → TASK-25 → TASK-26 → TASK-27 → TASK-21 → TASK-23. TASK-28(team-kit 체크리스트 메타)은 운영 저장소 쪽 별도 작업이다.
 
 ### hejo 홈 채널(14판, 15·16판 보강, REQ-HF-25)
 

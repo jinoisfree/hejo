@@ -777,3 +777,53 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
   4. 기존 동작(갱신 쓰기 순서, C1, A/B/C 롤백, `--force`의 사장 값 보존)은 바꾸지 않는다. 영수증 version 1 유지.
 - **검증:** AT-72 17판 추가 입력(④·⑤ 중단, 사장이 지운 키)을 `test_install.py`에 더한다. 기존 AT-72 시험의 기대값은 바꾸지 않는다(단, 사장 삭제 사례 `test_at_hf_72_owner_change_check_and_forced_uninstall`의 `owner_set` 2개 기대는 17판에 따라 `owner_set` 1 + `owner_removed` 1로 바뀌므로 그 한 줄만 고치고 보고한다). `removing` 순서를 지운 돌연변이가 시험에 걸리는지 확인한다. `foundation9_runner.py hejo` 0, 개인값 검사 0. 공용 릴리스 갱신.
 - **범위:** `install/hejo-install`, `tests/acceptance/test_install.py`, impl-report. TASK-20·21은 계속 보류(ddots-inventory.md Q1~Q4 사장 답 뒤 명세를 다시 고친다). 운영 `~/.hermes` 실행·재시작 금지.
+
+## 보완 지시 17: ddots 전수 대조 반영 — TASK-20 재작성, TASK-24~27 추가 (2026-11-15, 18판)
+
+사장 선택(2026-11-15):
+- Q1 직원 사진 원본: 권장대로, 각 프로필 `assets/avatar.png`
+- Q2 다른 Mac과 맞추기: 모두 맞춤
+- Q3 홈 방: 가져옴
+- Q4 대화 화면 핵심 누락: 단체방보다 먼저 채움
+
+기준 문서는 다음과 같다.
+- [ddots-inventory.md](ddots-inventory.md)(무엇을 옮길지)
+- spec REQ-HF-23·26~29와 REQ-HF-24.AC-05(무엇이 맞는지)
+- design '전수 대조 반영(18판)'(칸·소유·위험)
+- AT-68·69·73~80(시험)
+
+- **순서:** TASK-22 보완 16(커밋 22ebcb5, 계획 담당 검토 대기) → TASK-24 → TASK-20 → TASK-25 → TASK-26 → TASK-27 → TASK-21 → TASK-23. 각각 별도 커밋하고, 하나가 끝나면 impl-report를 쓴 뒤 다음으로 간다. 보완 14의 TASK-20 지시(직원 사진 `shared/hejo/pictures`, 구획 손 정렬, 회원 설정 `sections`)는 이 지시가 대신한다. TASK-21(단체방)은 보완 14·15 그대로이고 REQ-HF-24.AC-05를 더한다.
+- **베끼기(필수):**
+  - 각 TASK 착수 전에, design 18판 절이 가리키는 ddots 파일 전체와 의존을 끝까지 읽고 `copy-review.md`에 파일별로 기록한다(읽은 범위, 옮길 규칙, 바꿀 자료 구조, 뺀 것과 이유).
+  - 대조표는 목록일 뿐이며, 수치·문구·순서는 원본에서 확인한다.
+  - 명세의 문구·수치가 원본과 다르면 멈추고 보고한다(계획 담당이 고친다).
+  - ddots 파일은 읽기만 한다.
+- **TASK별 핵심**
+  - TASK-24
+    - 허브 회원 상태는 회원 설정 16 KiB와 분리한다.
+    - 처음 옮기기는 시각 0으로 넣는다.
+    - 로컬 `readSeq`는 옮긴 뒤 지운다.
+    - `ConversationModel`이 고정·알림·숨김·읽음을 `MemberState`로 읽고 쓰게 바꾸고, 옛 회원 설정 키 쓰기를 지운다(두 번째 원본 금지).
+    - 설정 창에 "연결과 동기화" 탭을 더한다(이번엔 "화면 배치 동기화…" 하나).
+  - TASK-20
+    - 문은 프로필 경로를 Hermes 프로필 API로 찾는다.
+    - `avatar.png`만 쓰고 `slack-avatar.png`·`profile.yaml`은 쓰지 않는다.
+    - 사진을 바꾸면 `roster`를 방송한다.
+    - 앱의 `systemBlue` 고정 얼굴을 없앤다.
+    - 사이드바는 `SidebarLayout` 출력만 그린다. 질문 수는 이번에, 알림 수는 TASK-26에 넣는다.
+  - TASK-25
+    - `create_handoff_thread`는 Hermes 공개 확장점으로만 구현한다. 본체 동작(`/branch`·`/stop`)은 읽기 전용으로 확인하고 가짜 게이트웨이 시험으로 고정한다. 동작이 명세와 다르면 멈추고 보고한다.
+    - `thread_delete`는 `room_delete`와 같은 확정점 규칙을 따른다.
+    - `hejo` 주소 체계를 Info.plist에 등록한다.
+  - TASK-26: 검색은 `cache/` 복제만 대상으로 한다(서버 검색 없음).
+  - TASK-27: 문 변경 없이 기존 send로 보낸다.
+- **검증(각 TASK)**
+  - 해당 AT 자동 시험
+  - `python3 .build/foundation9_runner.py hejo` 0
+  - 앱 시험(app/scripts/test.sh)
+  - 개인값 검사 0
+  - 고위험 TASK는 중요 경로 돌연변이 1개 이상이 검출되는지 확인한다.
+  - 화면 변경은 ddots 같은 상태 캡처와 나란히 비교해 evidence에 둔다.
+  - 공용 릴리스 갱신은 TASK-24·20·25·21 각각 뒤에 한다.
+- **금지:** 운영 `~/.hermes` 실행·재시작(TASK-23에서 계획 담당+사장이 한다), ddots 파일 수정, Hermes 본체 수정, 비밀 파일 열기, push, 실제 Slack·고객 발송. TASK-28은 이 작업이 아니다(운영 저장소).
+- **위험·증거:** TASK-24·20·25·21은 고위험이며, 인계 수준 2 / 최종 수준 4(TASK-23)다. TASK-26·27은 일반 · 2다.
