@@ -94,3 +94,22 @@
 NativeThreadList/Card·SlackLayout·ChatStyle·DraftEditor·DraftFormat·AttachmentDrop·ProfileAvatar는 위 TASK-06 전체 읽기 기록을 재사용한다. 새로 유지하는 호출은 모두 이미 읽은 MessageFormat/TextLayout/ProfileAvatar/ChatMetrics/ThreadAppearance/네이티브 입력과 기존 PetLayout/SpriteAtlas뿐이다. SwiftUI·NSViewRepresentable·NSHosting·Slack 계약은 가져오지 않는다. 각 원본의 나머지 호출·전역 상태·자원은 제거 경계로 분류했으며 그 모듈을 읽거나 실행해 설정을 가져오지 않는다. 개인 이름·원래 번들·경로·프로필 예시는 이식하지 않는다. 실제 ddots 실행·설정 변경·운영 저장소 쓰기는 하지 않는다.
 
 방 단위 모델 추가 인계 `007b68f592ee3c549d7a407bcbcf53117e22f262`도 반영했다. Room은 Hermes 명부 직원에서 파생하는 direct 방이며 통신 규격/캐시 권위를 추가하지 않는다. 이후 시안 문서만의 변경은 화면 기준으로 삼지 않는다.
+
+## TASK-17 창·펫·설정 (복사 전 검토)
+
+현재 원본 커밋 `208f6e6322f593729c9ef6ac16ac903be4c3692b`에서 아래 여섯 파일과 기존 전체 검토 커밋 `36c5aee148b952d0a068c1832df21d3ba7efe20d` 사이의 파일 diff는 0이다. 따라서 앞의 TASK-05/06 전체 읽기 기록을 App·ChatPresentation·PetView·SlackController에 재사용하고, 이번 작업의 해당 호출·상태 경계를 다시 읽었다. 새 후보 BubbleReveal·SettingsPages는 이번에 전체를 읽었다. 원본 실제 경로는 미추적 `AGENTS.local.md`만 사용한다.
+
+| 원본 | 전체 줄 | 유지·대체·제외와 의존 |
+|---|---:|---|
+| `<운영 저장소>/ddots/Sources/App.swift` | 2575 | 창 크기 저장·넓게·초기화, 말풍선 알림, 펫 크기·쉬기/숨기기·설정 메뉴·화면 절전 흐름만 AppDelegate/PetController에 옮긴다. UserDefaults 키는 hejo LocalSettings와 허브 회원 설정으로 바꾼다. Slack/iMessage/Relay/대시보드·부가 창의 호출·상태는 제외한다. |
+| `<운영 저장소>/ddots/Sources/ChatPresentation.swift` | 468 | replyExtraHeight·slackFitHeight의 열린 스레드 측정 원칙을 NativeThreadList 측정값과 PetController 높이 계산으로 바꾼다. SwiftUI ObservableObject·검색/달력/슬랙 상태는 제외한다. |
+| `<운영 저장소>/ddots/Sources/PetView.swift` | 1664 | BubbleReveal 갱신·말풍선 클릭, PetAnimationTimeline/Doze의 우선순위와 화면 잠금 정지를 현재 AppKit PetView에 적용한다. 기존 Genie·PetPlacement·SpriteAtlas를 유지한다. NSHosting·SlackModel·클립보드/파일 호스트는 제외한다. |
+| `<운영 저장소>/ddots/Sources/BubbleReveal.swift` | 14 | 3초 alert/held 계산을 별도 순수 모델로 이식한다. 의존은 Foundation뿐이다. |
+| `<운영 저장소>/ddots/Sources/SettingsPages.swift` | 229 | AppKit 설정 문서의 범주별 배치만 참고해 일반·화면과 펫 설정을 만든다. SwiftUI PreviewTextFrames·AppearancePreview·NSHostingView와 테마/불투명도 편집은 이번 단계에서 제외한다. |
+| `<운영 저장소>/ddots/Sources/SlackController.swift` | 1622 | 마지막 AppDelegate 편집 메뉴의 redo ⌘⇧Z 배치만 현재 메뉴에 반영한다. SlackToken·SlackController 전체는 가져오지 않는다. |
+
+유지 의존은 이미 검토·이식된 `PetLayout`·`PetAnimation`·`SpriteAtlas`·`NativeThreadList`·`ConversationModel`이다. 말풍선은 현재 모델의 직원 글과 IslandModel 상태만 읽으며 새 기록 원본을 만들지 않는다. 앱 창 크기는 LocalSettings, 이름·크기·항상 보이기는 허브 회원 설정이 원본이고 로컬 설정은 화면용 복제본이다. 원본 파일의 Slack/iMessage 식별자·계정·경로·토큰·사용자값은 이식하지 않는다.
+
+### 보완 12-2 우클릭 메뉴
+
+`<운영 저장소>/ddots/Sources/SlackPanel.swift`의 전체 파일 배치와 1987~2045 메뉴, 2096 `slackPinMenu`, 1247 `hide`/`restore`, 1351 `toggleMute`, 684~693 사이드바 너비 동작 및 관련 상태·의존을 읽었다. `ChatWorkspace.swift`는 전체 56줄을 읽고 머리줄 메뉴를 확인했다. 두 원본은 SwiftUI와 SlackModel에 의존하므로 코드를 직접 복사하지 않고 메뉴 순서와 고정·숨김·알림·너비 상태 전이만 AppKit `ConversationView`/`ConversationModel`로 옮긴다. Slack API, 그룹·채널, iMessage, 보관·삭제, 방 생성 및 전체 검색은 이 단계에 들이지 않는다. 허브 회원 설정은 기존 `HubClient.save`로 보내며 로컬 값은 오프라인 화면용 복제다.

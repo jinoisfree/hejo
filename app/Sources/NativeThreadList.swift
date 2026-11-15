@@ -11,6 +11,7 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
         override func layout() { super.layout(); resized?() }
     }
     var onBlank: (() -> Void)?
+    var onMeasured: (() -> Void)?
     let table = Table()
     private(set) var contents: [NativeThreadCard.Content] = []
     private(set) var layouts: [NativeThreadCard.Layout] = []
@@ -73,7 +74,9 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
             table.noteHeightOfRows(withIndexesChanged: IndexSet(integersIn: layouts.indices))
         } else { table.reloadData() }
         let height = layouts.reduce(CGFloat(0)) { $0 + $1.height + table.intercellSpacing.height }
+        let oldHeight = table.frame.height
         table.frame.size.height = max(contentSize.height, height)
+        if abs(oldHeight - table.frame.height) > 0.5 { DispatchQueue.main.async { [weak self] in self?.onMeasured?() } }
     }
     func numberOfRows(in tableView: NSTableView) -> Int { layouts.count }
     func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool { false }

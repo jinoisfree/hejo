@@ -14,7 +14,8 @@ enum ConversationSidebar {
     }
 }
 final class EmployeeSidebarCell: NSTableCellView {
-    var name = "", unread = 0, chosen = false, list = false
+    var name = "", unread = 0, chosen = false, list = false, muted = false
+    override func menu(for event: NSEvent) -> NSMenu? { (enclosingScrollView?.documentView as? EmployeeMenuTable)?.menu(for: event) }
     override var isFlipped: Bool { true }
     override func draw(_ dirtyRect: NSRect) {
         let dark = effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua
@@ -31,7 +32,7 @@ final class EmployeeSidebarCell: NSTableCellView {
         if unread > 0 {
             let value = unread > 99 ? "99+" : String(unread), size: CGFloat = list ? 15 : 11
             let badge=CGRect(x:face.maxX-size+(list ? 6 : 5),y:face.minY-3,width:unread > 9 ? size+5 : size,height:size)
-            (list ? NSColor.systemBlue : NSColor.systemRed).setFill(); let path=NSBezierPath(roundedRect:badge,xRadius:size/2,yRadius:size/2); path.fill()
+            (muted ? NSColor.systemGray : list ? NSColor.systemBlue : NSColor.systemRed).setFill(); let path=NSBezierPath(roundedRect:badge,xRadius:size/2,yRadius:size/2); path.fill()
             (dark ? NSColor(white:0.12,alpha:1) : .white).setStroke(); path.lineWidth=1; path.stroke()
             let attrs:[NSAttributedString.Key:Any]=[.font:NSFont.boldSystemFont(ofSize:list ? 9 : 7),.foregroundColor:NSColor.white]
             let measured=(value as NSString).size(withAttributes:attrs)
@@ -52,8 +53,10 @@ final class SidebarHandle: NSView {
 /// Noninteractive header areas own movement; buttons and text keep their events.
 final class ConversationHeaderDrag: NSView {
     var excluded:((CGPoint)->Bool)?
+    var onMenu: (() -> NSMenu?)?
+    override func menu(for event: NSEvent) -> NSMenu? { onMenu?() }
     override func hitTest(_ point:NSPoint)->NSView? { if excluded?(point) == true { return nil };return super.hitTest(point) }
-    var onBegan: ((CGPoint) -> Void)?, onChanged: ((CGPoint) -> Void)?, onEnded: (() -> Void)?
+    var onBegan: ((CGPoint) -> Void)?, onChanged: ((CGPoint) -> Void)?, onEnded: (() -> Void)?, onDoubleClick: (() -> Void)?
     private var start: CGPoint?, dragging=false
     override func acceptsFirstMouse(for event:NSEvent?) -> Bool { true }
     override func resetCursorRects() { addCursorRect(bounds,cursor:.openHand) }
@@ -63,7 +66,7 @@ final class ConversationHeaderDrag: NSView {
         if !dragging { guard hypot(point.x-start.x,point.y-start.y)>4 else { return }; dragging=true; onBegan?(start) }
         onChanged?(point)
     }
-    override func mouseUp(with event:NSEvent) { if dragging { onEnded?() }; start=nil; dragging=false }
+    override func mouseUp(with event:NSEvent) { if dragging { onEnded?() } else if event.clickCount == 2 { onDoubleClick?() }; start=nil; dragging=false }
     override func viewWillMove(toWindow newWindow:NSWindow?) { if newWindow == nil { if dragging { onEnded?() }; start=nil; dragging=false }; super.viewWillMove(toWindow:newWindow) }
 }
 final class FileChip: NSButton {

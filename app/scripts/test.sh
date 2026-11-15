@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-bash scripts/build.sh
+HEJO_SKIP_GOOGLE_SECRET=1 bash scripts/build.sh
 sources=()
 for source in Sources/*.swift; do
   [[ "$source" == Sources/AppMain.swift ]] || sources+=("$source")

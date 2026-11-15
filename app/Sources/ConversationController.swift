@@ -18,8 +18,8 @@ struct ConversationDraft {
     var islandInput: IslandModel.Input {
         IslandModel.Input(messages:Array(model.messages.values),typing:model.typing,
             names:Dictionary(uniqueKeysWithValues:model.employees.map { ($0.id,$0.name) }),
-            unread:model.rooms.reduce(0){$0+model.unread(room:$1)},selected:model.selected,
-            status:client.status,failure:transferFailure,uploads:uploads)
+            unread:model.visibleUnreadTotal,selected:model.selected,
+            status:client.status,failure:transferFailure,uploads:uploads,muted:model.muted)
     }
     var onOpenFile: (URL) -> Void = { NSWorkspace.shared.open($0) }
     private var replicaAddress: String

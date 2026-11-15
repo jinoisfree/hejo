@@ -18,6 +18,16 @@ struct LocalSettings: Codable {
     var petName = PetIdentity.defaultName
     var petX: Double?
     var petY: Double?
+    /// Mac-specific window geometry; a nil value uses the current native default.
+    var chatWidth: Double?
+    var chatHeight: Double?
+    /// Offline presentation copies of the member's hub settings.
+    var petScalePercent: Double?
+    var bubbleAlwaysShown: Bool?
+    /// Offline mirrors of the member's room-list preferences.
+    var pinnedEmployees: [String]?
+    var mutedEmployees: [String]?
+    var hiddenEmployees: [String]?
     /// The Mac's hejo hub (host:port) this member signed in at; nil before the first sign-in.
     var hubAddress: String?
     /// Sign-in conveniences (nil = default). The password itself lives only in the Keychain.

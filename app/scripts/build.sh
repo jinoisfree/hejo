@@ -11,9 +11,12 @@ mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources/Pet"
 cp Resources/Info.plist "$bundle/Contents/Info.plist"
 # hejo's shared Google desktop client: public id in config/google-oauth.json, secret from an untracked file or env.
 google_id=$(/usr/bin/python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("client_id",""))' ../config/google-oauth.json)
-google_secret="${HEJO_GOOGLE_CLIENT_SECRET:-}"
-if [[ -z "$google_secret" && -f ../config/google-oauth-secret.json ]]; then
-  google_secret=$(/usr/bin/python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("client_secret",""))' ../config/google-oauth-secret.json)
+google_secret=""
+if [[ "${HEJO_SKIP_GOOGLE_SECRET:-0}" != 1 ]]; then
+  google_secret="${HEJO_GOOGLE_CLIENT_SECRET:-}"
+  if [[ -z "$google_secret" && -f ../config/google-oauth-secret.json ]]; then
+    google_secret=$(/usr/bin/python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("client_secret",""))' ../config/google-oauth-secret.json)
+  fi
 fi
 if [[ -n "$google_id" && -n "$google_secret" ]]; then
   /usr/libexec/PlistBuddy -c "Add :HejoGoogleClientID string $google_id" -c "Add :HejoGoogleClientSecret string $google_secret" "$bundle/Contents/Info.plist"

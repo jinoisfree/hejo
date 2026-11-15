@@ -21,6 +21,7 @@ final class IslandModel {
         var status: ConnectionStatus = .connected
         var failure: IslandFailure?
         var uploads: [ConversationKey: IslandUpload] = [:]
+        var muted: Set<String> = []
     }
     struct Part {
         var kind: Kind
@@ -84,18 +85,25 @@ final class IslandModel {
         for employee in employees where workingSince[employee] == nil { workingSince[employee]=date }
         let questions=next.messages.filter { $0.role == "employee" && $0.replyState == "asked" }.sorted { $0.seq < $1.seq }
         if initialized {
-            for message in questions where !asked.contains(message.id) {
+            for message in questions where !asked.contains(message.id) && !next.muted.contains(message.key.employee) {
                 enqueue(Event(kind:.owner,text:Self.firstLine(message.text)+" · 답 요청",name:next.names[message.key.employee] ?? message.key.employee,action:.question(message.id,message.key),remaining:4))
             }
-            for message in next.messages.sorted(by:{$0.seq<$1.seq}) where message.role == "employee" && message.seq>highSequence && message.key != next.selected && recentWork[message.key] != nil && message.replyState != "asked" {
+            for message in next.messages.sorted(by:{$0.seq<$1.seq}) where message.role == "employee" && message.seq>highSequence && message.key != next.selected && recentWork[message.key] != nil && message.replyState != "asked" && !next.muted.contains(message.key.employee) {
                 enqueue(Event(kind:.worker,text:"답글 · 보기 ›",name:next.names[message.key.employee] ?? message.key.employee,action:.worker(message.key),remaining:3))
             }
         }
         asked=Set(questions.map(\.id)); highSequence=next.messages.map(\.seq).max() ?? 0
         input=next; initialized=true
         // A question answered/deleted before its queued preview is shown must not remain actionable.
-        queue.removeAll { event in if case .question(let id,_) = event.action { return !asked.contains(id) }; return false }
-        if let current=active, case .question(let id,_) = current.action, !asked.contains(id) { active=nil }
+        func hiddenEvent(_ event: Event) -> Bool {
+            switch event.action {
+            case .question(let id, let key): return !asked.contains(id) || next.muted.contains(key.employee)
+            case .worker(let key), .retry(let key): return next.muted.contains(key.employee)
+            case .reconnect: return false
+            }
+        }
+        queue.removeAll(where: hiddenEvent)
+        if let active, hiddenEvent(active) { self.active = nil }
     }
     func snapshot() -> Snapshot {
         advance()
