@@ -646,3 +646,24 @@
 8. **원인 분류: 구현 오류(정리 누락).**
    - 완료 조건: V-1을 지우고 같은 검증(runner 0, 앱 시험, 개인값 검사 0)을 통과한다.
    - TASK-18(앱 아이콘)과 같은 실행 묶음에서 별도 커밋으로 한다(보완 지시 13-1).
+
+## 검증 판정: HEJO-FOUNDATION TASK-17 V-1 · TASK-18 / 옛 메뉴 정리·앱 아이콘 HEJO. (22차)
+
+1. **판정: 완료.** TASK-17은 V-1을 처리해 완료로, TASK-18도 완료로 판정한다. 보완 13-2(전체 미사용 코드 정리)는 실행 담당의 기준 커밋(`80b44a6`)보다 뒤에 쓴 새 지시라 이번 범위가 아니다. TASK-19로 따로 인계한다.
+2. **검증 조건:** 교차 모델. 실행 담당 codex가 구현했고 계획 담당 Claude가 검토했다. 검토 대상은 `39f7e4b`(V-1)·`e485b22`(아이콘)·`44f37ba`(보고)이며, 분리 worktree에서 다시 실행한 뒤 버렸다.
+3. **설계 적합성(4.2): 적합.**
+   - V-1: 호출처가 없던 셀렉터 6개만 지웠다(17줄 삭제). 남은 경로는 설정 창의 `setLoginEnabled`·`LoginLaunch.openSettings`·`pet.resetPosition`·`resetChatSize`다.
+   - 아이콘: `AppIcon.render(pixels:)`라는 순수 AppKit 함수 하나를 시험과 빌드 도구(`app/Tools/IconMain.swift`)가 함께 쓴다. 원본이 하나다. 빌드할 때 `.build/AppIcon.iconset` 10장을 만들고 `iconutil`로 `AppIcon.icns`를 만든다. Info.plist의 `CFBundleIconFile`은 `AppIcon`이다. png·icns·글꼴은 추적하지 않는다(`git ls-files` 0). 런타임에 Dock 아이콘을 바꾸지 않는다.
+   - 모양: 824 사각형·반지름 185·heavy·폭 78%·H systemBlue sRGB·EJO. #1d1d1f. REQ-HF-22와 로고(REQ-HF-17)에 맞다.
+4. **직접 확인한 것**
+   - `python3 .build/foundation9_runner.py hejo`(worktree `44f37ba`, deps 복사): 종료 0. 93 passed, AT-HF-61~67 PASS.
+   - 빌드 번들에 `AppIcon.icns`가 있고 plist 키가 `AppIcon`이다. 개인값 검사 0, `import SwiftUI` 0.
+   - 설치본 두 사본: plist 키 `AppIcon`, icns 해시가 서로 같다. 서명 검증 통과, 앱 프로세스 1개.
+   - OS가 읽은 아이콘 그림(`app/.build/task18-workspace-icon.png`)을 직접 보았다. 흰 둥근 사각형 가운데에 `HEJO.`가 있고 H만 파랑이며 좌우 여백이 있다.
+   - AT-66 시험의 기대값은 명세 수치(모서리 투명, 가운데 줄 파랑·어두운 화소, 좌우 약 10% 여백, 16px 잘림 없음)에서 왔다. 구현 상수를 복사하지 않았다.
+   - 증거 수준: 2(자동 + 실제 설치본의 OS 아이콘 읽기).
+5. **지적:** 차단 0, 비차단 0.
+   - 관찰: Finder 아이콘 보기 캡처는 자동화 권한 거부로 못 했고 OS 아이콘 읽기로 대신했다. 앱이 `LSUIElement`라 Dock 타일은 없다. 사장이 응용 프로그램 폴더에서 눈으로 확인하면 된다.
+6. **기획설계로 넘긴 것:** 보완 13-2를 TASK-19 "쓰지 않는 코드 정리"로 등록.
+7. **미검증 범위:** Finder 창 안에서의 아이콘 실물 표시(사장 눈 확인). TASK-17의 실물 미검증 항목(21차 7번)은 그대로 TASK-09 남은 항목이다.
+8. **현재 명세 반영 요청:** REQ-HF-21.AC-01~06(1단계)과 REQ-HF-22.AC-01을 현재 명세(`docs/spec/current/`)에 반영한다. HEJO-FOUNDATION을 닫을 때 한꺼번에 한다.
