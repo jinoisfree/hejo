@@ -174,7 +174,7 @@
   - 원본: 직원 사진은 그 직원 프로필 홈의 `assets/avatar.png`다. 없으면 `assets/slack-avatar.png`를 읽는다(읽기만, hejo는 이 파일을 쓰거나 지우지 않는다). 직원 색은 그 프로필 `profile.yaml`의 `ui_meta.hermes-bots.color` 한 값(`#RRGGBB` 또는 `hsl()`)만 읽는다. 색이 없으면 앱이 이름으로 정한 색(ddots `ChatPresentation` 직원 색 팔레트, 모든 Mac에서 같은 값)을 쓴다.
   - 명부: 문 명부의 직원마다 `avatar`(인증이 필요한 사진 주소 `/v1/pictures/employee/<id>?v=<수정 시각>`, 사진이 없으면 null)와 `color`(정규화한 `#RRGGBB`, 없으면 null), `avatar_custom`(그 프로필에 `assets/avatar.png`가 있으면 true, 아니면 false. 23판, D20-02)를 보낸다. 규격 v1의 선택 필드이며 옛 앱은 무시한다.
   - 바꾸기: 직원 우클릭 "사진 바꾸기…"로 png·jpg·heic를 고르면 앱이 가운데를 정사각으로 잘라 256px PNG로 만들어 `PUT /v1/pictures/employee/<id>`로 올린다. 문은 그 프로필 홈 `assets/avatar.png`를 같은 폴더 임시 파일 → fsync → rename으로 바꾼다(폴더가 없으면 0755로 만들고, 파일은 0644). 이미지가 아니면 "이미지 파일만 쓸 수 있어요", 512 KiB를 넘으면 문이 413으로 거절하고 앱이 이유를 보인다.
-  - 지우기: "사진 지우기"는 명부 `avatar_custom`이 true일 때만 보인다(앱이 주소·사진 내용으로 짐작하지 않는다). 지우면 그 파일만 지운다. `slack-avatar.png`가 있으면 그 사진으로, 없으면 색 바탕에 첫 글자로 돌아간다.
+  - 지우기: "사진 지우기"는 명부 `avatar_custom`이 true일 때만 보인다(앱이 주소·사진 내용으로 짐작하지 않는다). 옛 문(필드 없음)에서는 "사진 지우기"와 "사진 바꾸기…"를 모두 숨긴다(옛 문에는 사진 쓰기 API도 없다). 지우면 그 파일만 지운다. `slack-avatar.png`가 있으면 그 사진으로, 없으면 색 바탕에 첫 글자로 돌아간다.
   - 퍼짐: 바꾸거나 지우면 문이 새 명부를 연결된 모든 기기에 바로 보낸다. 다른 Mac은 재연결을 기다리지 않는다.
   - 표시: 사이드바 탭·행, 카드의 말한 이, 접힌 답 더미 얼굴(최대 3), 아일랜드, 접힌 펫 말풍선, 작성기 얼굴 줄에 그 사진(없으면 색+첫 글자)이 보인다. 말한 이 이름은 직원 색이다. 지금의 파란 첫 글자 고정(`ProfileAvatar(color:.systemBlue)`)은 남지 않는다.
 - REQ-HF-23.AC-02(정상, 사이드바 배치, 18판 — 대조표 P1·P2, ddots `SlackController` 방 목록 조립·`SlackRoomOrder.sorted`·`Ddots.stacked`)
