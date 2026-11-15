@@ -110,6 +110,26 @@ final class StubHub: URLProtocol {
     try Data(#"{"v":1,"port":47821,"code":"Ab-_cdEFgh12"}"#.utf8).write(to: file)
     window.apply(.reset)
     try check(window.primary.title == "재설정" && window.message.stringValue.contains("기존 비밀번호 없이"), "AT60 reset on the member's own Mac needs no old password")
+    // Sign-in conveniences: defaults, keep id/password, automatic sign-in, sign out.
+    try check(client.store.settings.keepsAccount && !client.store.settings.keepsPassword && client.store.settings.signsInAutomatically,
+              "AT58 defaults kept through sign-in: keep id on, keep password off, auto sign-in on")
+    try check(window.keepAccount.state == .on && window.keepPassword.state == .off && window.autoLogin.state == .on, "AT58 boxes mirror saved choices from creation")
+    let saved = MemoryCredentials(); window.passwords = saved
+    window.account.stringValue = "moyo"; window.password.stringValue = "correct horse"
+    window.keepAccount.state = .on; window.keepPassword.state = .on; window.autoLogin.state = .off
+    window.rememberChoices()
+    try check(client.store.settings.rememberedAccount == "moyo" && saved.token == "correct horse" && !client.store.settings.signsInAutomatically, "AT58 keeps id, password (Keychain) and auto sign-in choice")
+    try check(!(String(data: try Data(contentsOf: client.store.settingsURL), encoding: .utf8) ?? "").contains("correct horse"), "AT58 password never in the settings file")
+    window.account.stringValue = ""; window.password.stringValue = ""
+    window.present(); window.close()
+    try check(window.keepPassword.state == .on && window.autoLogin.state == .off, "AT58 choices restored")
+    window.account.stringValue = "moyo"; window.password.stringValue = "correct horse"
+    window.keepPassword.state = .off; window.keepAccount.state = .off; window.rememberChoices()
+    try check(saved.token == nil && client.store.settings.rememberedAccount == nil, "AT58 unticking forgets the kept id and password")
+    let tokens = MemoryCredentials(); tokens.token = "tok"
+    let signing = GateClient(store: client.store, credentials: tokens)
+    await signing.signOut()
+    try check(tokens.token == nil && signing.status == .revoked, "AT58 sign out forgets the token")
     client.stop(); window.close()
     try await client.receive(["v": 1, "type": "pair_rejected", "reason": "local_only"])
     try check(client.rejection == "local_only" && client.status == .wrongCode, "AT60 rejection reason kept for the form")

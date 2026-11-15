@@ -76,6 +76,13 @@ struct ReconnectDelay {
         guard await Task.detached(operation: { keychain.save(issued, account: account) }).value else { status = .storageError; throw GateFailure.storage }
         rejection = nil; launch()
     }
+    /// Sign out on this Mac: forget the token (Keychain) and disconnect. The hub still lists the device until revoked.
+    func signOut() async {
+        stop()
+        let keychain = credentials, account = store.settings.credentialAccount
+        await Task.detached { keychain.delete(account: account) }.value
+        status = .revoked
+    }
     /// The signed-in token for hub requests (settings); nil when signed out.
     var bearer: String? { token }
     func resume() { stop(); pairCode = nil; token = nil; launch() }

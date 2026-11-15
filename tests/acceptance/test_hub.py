@@ -63,7 +63,8 @@ async def test_at_hf_58_members_sign_up_sign_in_and_keep_their_own_settings(hub,
     status, body = await call(http, hub, "POST", "/v1/login", {"account": "moyo", "password": "another horse", "device_name": "d"})
     assert status == 200  # one member's lockout never blocks another
     assert (await call(http, hub, "GET", "/v1/me", token="forged"))[0] == 401
-    assert (await call(http, hub, "GET", "/v1/hub"))[1] == {"hub": 1, "google_client_id": None}
+    from hub import google
+    assert (await call(http, hub, "GET", "/v1/hub"))[1] == {"hub": 1, "google_client_id": google.client_id(hub.home)}
 
 
 async def test_at_hf_59_google_sign_in_link_and_reset(hub, http):

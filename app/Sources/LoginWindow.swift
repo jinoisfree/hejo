@@ -35,6 +35,12 @@ import AppKit
     let switchMode = NSButton(title: "", target: nil, action: nil)
     let forgot = NSButton(title: "비밀번호를 잊었어요", target: nil, action: nil)
     let message = NSTextField(wrappingLabelWithString: "")
+    let keepAccount = NSButton(checkboxWithTitle: "아이디 저장", target: nil, action: nil)
+    let keepPassword = NSButton(checkboxWithTitle: "비밀번호 저장", target: nil, action: nil)
+    let autoLogin = NSButton(checkboxWithTitle: "자동 로그인", target: nil, action: nil)
+    /// Saved passwords go to the Keychain under their own entry, never to the settings file.
+    var passwords: GateCredentialStore = GateKeychain()
+    static let passwordEntry = "saved-login-password"
     let or = NSTextField(labelWithString: "또는 아이디로")
     let address = NSTextField(string: "")
     let changeAddress = NSButton(title: "서버 주소 직접 입력", target: nil, action: nil)
@@ -70,7 +76,8 @@ import AppKit
         google.bezelStyle = .rounded; google.controlSize = .large
         google.image = NSImage(systemSymbolName: "g.circle.fill", accessibilityDescription: nil); google.imagePosition = .imageLeading
         primary.controlSize = .large
-        let stack = NSStackView(views: [heading, google, or, account, password, confirm, primary, linkGoogle, switchMode, forgot, message, changeAddress, address])
+        let options = NSStackView(views: [keepAccount, keepPassword, autoLogin]); options.spacing = 14
+        let stack = NSStackView(views: [heading, google, or, account, password, confirm, options, primary, linkGoogle, switchMode, forgot, message, changeAddress, address])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 10
         for view in [account, password, confirm, primary, google, linkGoogle, address, message] as [NSView] {
             view.widthAnchor.constraint(equalToConstant: 360).isActive = true
@@ -78,11 +85,22 @@ import AppKit
         stack.translatesAutoresizingMaskIntoConstraints = false; w.contentView!.addSubview(stack)
         NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: w.contentView!.leadingAnchor, constant: 40),
                                      stack.topAnchor.constraint(equalTo: w.contentView!.topAnchor, constant: 28)])
-        apply(.searching); w.center()
+        loadChoices(); apply(.searching); w.center()
     }
     required init?(coder: NSCoder) { fatalError() }
 
+    /// Checkboxes always mirror the saved choices, from creation on (an unset box must never save "off").
+    func loadChoices() {
+        let settings = client.store.settings
+        keepAccount.state = settings.keepsAccount ? .on : .off
+        keepPassword.state = settings.keepsPassword ? .on : .off
+        autoLogin.state = settings.signsInAutomatically ? .on : .off
+    }
     func present() {
+        loadChoices()
+        let settings = client.store.settings
+        if settings.keepsAccount, let saved = settings.rememberedAccount, account.stringValue.isEmpty { account.stringValue = saved }
+        if settings.keepsPassword, password.stringValue.isEmpty, let saved = passwords.read(account: Self.passwordEntry) { password.stringValue = saved }
         showWindow(nil); window?.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
         Task { await refresh() }
     }
@@ -111,6 +129,7 @@ import AppKit
         google.title = next == .signup ? "Google로 가입하기" : "Google로 계속하기"
         or.stringValue = next == .signup ? "또는 아이디로 가입 (Google로 가입해도 아이디·비밀번호를 함께 정해요)" : "또는 아이디로 로그인"
         linkGoogle.isHidden = !(googleReady && next == .login)
+        for box in [keepAccount, keepPassword, autoLogin] { box.isHidden = ![.login, .signup].contains(next) }
         switchMode.isHidden = ![.login, .signup, .reset].contains(next)
         switchMode.title = next == .login ? "처음이에요 · 가입하기" : "로그인으로"
         forgot.isHidden = next != .login
@@ -150,6 +169,7 @@ import AppKit
         guard let me = try? await hub.me(token: token) else { message.stringValue = Self.message(for: "unreachable"); return }
         guard let gate = hub.gateAddress(me) else { apply(.needsHermes); return }
         try? client.store.update { $0.hubAddress = hub.address }
+        rememberChoices()
         onSignedIn?(hub, me)
         do { try await client.adopt(address: gate, device: AirportFinder.deviceName, token: token); pendingToken = nil }
         catch { message.stringValue = "로그인 정보를 저장하지 못했어요 · 다시 시도해 주세요" }
@@ -197,6 +217,17 @@ import AppKit
     @objc private func editAddress() {
         address.isHidden.toggle()
         if !address.isHidden { window?.makeFirstResponder(address) } else { address.stringValue = ""; Task { await refresh() } }
+    }
+    /// Keep the sign-in conveniences the member ticked; unticking forgets what was kept.
+    func rememberChoices() {
+        let keepID = keepAccount.state == .on, keepSecret = keepPassword.state == .on, auto = autoLogin.state == .on
+        let id = account.stringValue, secret = password.stringValue
+        try? client.store.update {
+            $0.rememberAccount = keepID; $0.rememberPassword = keepSecret; $0.autoLogin = auto
+            if keepID && !id.isEmpty { $0.rememberedAccount = id } else if !keepID { $0.rememberedAccount = nil }
+        }
+        if keepSecret && secret.count >= 8 { _ = passwords.save(secret, account: Self.passwordEntry) }
+        else if !keepSecret { passwords.delete(account: Self.passwordEntry) }
     }
     override func close() { password.stringValue = ""; confirm.stringValue = ""; super.close() }
 }

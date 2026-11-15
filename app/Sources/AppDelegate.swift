@@ -45,6 +45,7 @@ import AppKit
             statusItem = menu.addItem(withTitle: "공항 연결 전", action: nil, keyEquivalent: ""); statusItem.isEnabled = false
             menu.addItem(.separator())
             menu.addItem(withTitle: "로그인·계정…", action: #selector(settings), keyEquivalent: ",").target = self
+            menu.addItem(withTitle: "로그아웃", action: #selector(signOut), keyEquivalent: "").target = self
             menu.addItem(withTitle: "펫 이름…", action: #selector(rename), keyEquivalent: "").target = self
             loginItem = menu.addItem(withTitle: "로그인 시 실행", action: #selector(login), keyEquivalent: ""); loginItem.target = self
             menu.addItem(withTitle: "로그인 항목 설정…", action: #selector(loginSettings), keyEquivalent: "").target = self
@@ -57,7 +58,10 @@ import AppKit
                 if status == .wrongCode || status == .revoked { self?.connection.present() }
             }
             pet.show()
-            if store.settings.address.isEmpty { connection.present() } else { client.resume(); Task { await syncMemberSettings() } }
+            if store.settings.address.isEmpty || !store.settings.signsInAutomatically {
+                // Without automatic sign-in every launch starts at the login screen (saved id/password still fill in).
+                Task { if !store.settings.address.isEmpty { await client.signOut() }; connection.present() }
+            } else { client.resume(); Task { await syncMemberSettings() } }
         } catch GateFailure.alreadyRunning {
             for app in NSRunningApplication.runningApplications(withBundleIdentifier: AppIdentity.bundleID) where app.processIdentifier != ProcessInfo.processInfo.processIdentifier { app.activate(options: []) }
             NSApp.terminate(nil)
@@ -73,7 +77,11 @@ import AppKit
         }
         NSApp.mainMenu = main
     }
-    func applicationWillTerminate(_ notification: Notification) { client?.stop() }
+    func applicationWillTerminate(_ notification: Notification) {
+        client?.stop()
+        // Without automatic sign-in, quitting signs this Mac out.
+        if let store, !store.settings.signsInAutomatically { GateKeychain().delete(account: store.settings.credentialAccount) }
+    }
     func menuWillOpen(_ menu: NSMenu) {
         let presentation = LoginLaunchPresentation.resolve(LoginLaunch.state, installed: LoginLaunch.isInstalled())
         loginItem.state = presentation.checked ? .on : .off; loginItem.isEnabled = presentation.canChange; loginItem.toolTip = presentation.message
@@ -96,6 +104,7 @@ import AppKit
         Task { try? await HubClient(address: address).save(settings: settings, token: token) }
     }
     @objc private func openChat() { pet.showChat() }
+    @objc private func signOut() { Task { await client.signOut(); connection.present() } }
     @objc private func settings() { connection.present() }
     @objc private func loginSettings() { LoginLaunch.openSettings() }
     @objc private func login() {

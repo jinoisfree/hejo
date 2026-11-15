@@ -20,6 +20,14 @@ struct LocalSettings: Codable {
     var petY: Double?
     /// The Mac's hejo hub (host:port) this member signed in at; nil before the first sign-in.
     var hubAddress: String?
+    /// Sign-in conveniences (nil = default). The password itself lives only in the Keychain.
+    var rememberedAccount: String?
+    var rememberAccount: Bool?
+    var rememberPassword: Bool?
+    var autoLogin: Bool?
+    var keepsAccount: Bool { rememberAccount ?? true }
+    var keepsPassword: Bool { rememberPassword ?? false }
+    var signsInAutomatically: Bool { autoLogin ?? true }
 }
 /// A query replica, never a second conversation authority. Recover applied from the durable cache.
 final class LocalStore {
