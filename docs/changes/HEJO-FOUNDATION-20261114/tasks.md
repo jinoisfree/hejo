@@ -25,6 +25,7 @@
 | TASK-19 | 쓰지 않는 코드 정리(2026-11-15 사장 지시 "쓸데없는건 지우자", 보완 13-2): app·gate·hub·install의 호출처 없는 함수·변수·타입·상수 삭제, 동작 불변 | 동작 불변 / 기존 전체 시험 | `H/app/Sources/`, `H/gate/`, `H/hub/`, `H/install/` | TASK-18 | 일반 · 1 | 대기(인계) |
 | TASK-20 | 직원 사진·사이드바 구획(14판, REQ-HF-23): 문 사진 저장·제공·명부 avatar, 앱 사진 바꾸기/지우기·표시, 구획 만들기·이름·접기·삭제·끌어 옮기기·회원 설정 | HF-23 / AT-68·69 | `H/gate/`, `H/schemas/`(필요 시), `H/app/Sources/`, `H/app/Tests/`, `H/tests/acceptance/` 시험 코드, `copy-review.md` | TASK-19 | 일반 · 2 | 대기(인계) |
 | TASK-21 | 단체방(14판, REQ-HF-24, "부른 직원만"): 규격 room 선택 필드·room 프레임, 문 기록장·전달(@/대표)·방송·삭제, 앱 방 만들기·관리 메뉴·@ 자동 완성·보관/삭제 | HF-24 / AT-70·71 | `H/schemas/`, `H/gate/`, `H/app/Sources/`, `H/app/Tests/`, `H/tests/acceptance/` 시험 코드, `copy-review.md` | TASK-20 | 높음 · 3 | 대기(인계) |
+| TASK-22 | hejo 홈 채널 자동 설정(14판, REQ-HF-25): 설치 도구가 프로필마다 platforms.hejo.home_channel을 1:1 대화로, 영수증·제거·점검 | HF-25 / AT-72 | `H/install/hejo-install`, `H/tests/acceptance/test_install.py` | TASK-19 | 일반 · 1 | 대기(인계) |
 | TASK-09 | 운영 설치·실기기 검증(9판: AT-56 수동 포함): 운영 공항에 설치, 사장 확인 뒤 게이트웨이 재시작, 노트북 페어링·대화·버튼·첨부·예약 보고, 지연 측정, 제거·복원 확인 | 전체 / AT-22(3), AT-26, AT-31(4) | 운영 설정(설치 도우미 경유), `H/evidence/` | TASK-02~08, 10~12 | 고위험 · 4 | 부분 완료(19차: 공항 설치·실물 완료, 노트북·눈 확인은 사장과) |
 
 ## 병렬 갈래

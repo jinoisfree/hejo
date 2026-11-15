@@ -722,3 +722,23 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
   - 앱: `/Applications`·공용 사본 교체.
   - 문(gate) 변경은 공용 릴리스(`install/hejo-release`)로 반영해야 운영에 들어간다. 여기까지 준비하고, **게이트웨이 재시작은 하지 않는다.** 재시작은 사장 확인 뒤 계획 담당이 따로 안내한다(롤백: 이전 릴리스 디렉터리 복원 후 재시작).
 - **금지:** git push, 게이트웨이 재시작·reload, `~/.hermes` 비밀 파일, Hermes 본체·ddots 수정, 허브 서버 코드 변경(설정 키만 사용), 외부 발송, public 브랜치 갱신, 문서·시험에 실제 직원 이름.
+
+## 보완 지시 14-1: TASK-22 hejo 홈 채널 자동 설정 (2026-11-15, 사장 선택 "설치 때 자동 설정")
+
+- **배경:** 새 세션마다 hejo 대화 첫머리에 "📬 Hejo에 홈 채널이 설정되어 있지 않아요 … /sethome" 안내가 붙는다.
+  - 원인은 Hermes 본체 `gateway/run_turn.py`(약 1455~1479줄)다. 그 플랫폼의 홈 채널(환경 변수, 비밀 범위, `config.yaml`의 `platforms.<플랫폼>.home_channel`, 보조 프로필 설정)이 하나도 없으면 안내를 보낸다.
+  - 본체는 고치지 않는다. 설정으로 해결한다. 저장 형식은 본체 `gateway/config.py` `persist_home_channel`·`HomeChannel.to_dict`와 같은 `{platform, chat_id, name}`이다.
+- **순서:** TASK-19 다음, TASK-20 앞(작고 바로 체감됨). 별도 커밋.
+- **구현:**
+  - `install/hejo-install`에 위 AC를 넣는다.
+  - chat_id는 hejo 문이 쓰는 직원 id(프로필 이름, 기본 프로필은 `default`/주 프로필 id — `gate/roster.py` 규칙을 따른다)다.
+  - `.env` 등 비밀 파일은 읽거나 쓰지 않는다. 그쪽에 `HEJO_HOME_CHANNEL`이 있는지는 알 수 없으므로 config 값만 본다.
+- **검증:**
+  - AT-72 자동(test_install.py에 추가)
+  - `python3 .build/foundation9_runner.py hejo` 0
+  - 개인값 검사 0
+- **적용:**
+  - 공용 릴리스(`install/hejo-release`) 갱신까지 한다.
+  - 운영 `~/.hermes`에 설치 도구 실행·게이트웨이 재시작은 **하지 않는다.** 사장 확인 뒤 계획 담당이 안내한다.
+    - 롤백: 설치 도구 `--uninstall`의 home_channel 되돌리기 또는 영수증 기준 복원 후 재시작.
+- **금지:** 보완 지시 14와 같다.
