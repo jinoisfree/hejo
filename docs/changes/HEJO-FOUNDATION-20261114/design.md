@@ -258,7 +258,7 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
 
 - **"세션 기능"의 뜻:** 사장 지적("세션구획 세팅")으로 ddots 사이드바 구획(섹션)으로 확정했다.
 - **칸 배치(새 원본 없음)**
-  - 직원·방 사진: 회원의 문이 소유한다. `<HERMES_HOME>/hejo/pictures/<종류>-<id>.png`(0600, 원자적 쓰기)에 둔다. `PUT/DELETE/GET /v1/pictures/<종류>/<id>`는 출입증 인증을 받는다. 명부 `avatar`와 방 `picture`는 `/v1/pictures/...?v=<수정 시각>` 주소다. 기존 `/v1/avatars`는 이 경로로 바꾸고 옛 경로는 지운다. 앱은 고른 그림을 256px PNG로 줄여 올리고, 주소 단위로 메모리 캐시한다.
+  - 직원·방 사진(15판 정정): 공용 창고 칸이다(근간 3절 — `hejo/`는 금고라 사진을 두지 않는다). `<HERMES_HOME>/shared/hejo/pictures/<종류>-<id>.png`(디렉터리 0700, 파일 0600, 같은 디렉터리 임시 파일 → fsync → rename)에 둔다. 쓰기 주체는 문 하나이며 사장이 앱에서 요청할 때만 쓰고 지운다. 수명: 바꾸면 교체, 지우면 삭제, 방 삭제 확정 뒤 그 방 사진 삭제, 직원 사진은 직원이 명부에서 빠져도 남는다(사장이 따로 지움). 설치·갱신·제거는 건드리지 않는다. `PUT/DELETE/GET /v1/pictures/<종류>/<id>`는 출입증 인증을 받는다. 명부 `avatar`와 방 `picture`는 `/v1/pictures/...?v=<수정 시각>` 주소다. 기존 `/v1/avatars`는 이 경로로 바꾸고 옛 경로는 지운다. 앱은 고른 그림을 256px PNG로 줄여 올리고, 주소 단위로 메모리 캐시한다.
   - 구획: 화면 배치라 허브 회원 설정 `sections`(JSON 문자열 `[{"id","name","rooms":[id],"open"}]`)에 둔다. 소유는 `ConversationModel`이다(고정·알림·숨김과 같은 칸). ddots `SlackPanel` sections·`addSection`·`removeSection`·`move` 규칙을 옮긴다.
   - 단체방: 대화 자료라 문 기록장이 원본이다. 기록 종류에 `room`(만들기·바꾸기 전체 상태)과 `room_delete`를 더한다. 앱 `Room{id,kind,title,members}`에 `kind=.group`·`lead`·`picture`·`description`·`archived`를 더한다.
 - **규격(v1 하위 호환)**
@@ -267,8 +267,24 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
   - `send`·`message`·`typing`·`state`에 선택 필드 `room`을 더한다.
   - 옛 클라이언트(hello에 `features`의 `rooms`가 없음)에는 room 글·room 프레임을 보내지 않는다.
 - **전달:** 단체방 사장 글은 roster 이름·별명으로 @를 찾는다(방 직원 안에서만). 없으면 `lead`에게 보낸다. 받는 직원마다 Hermes에 `chat_id = "room:<방 id>"`, 같은 thread로 넘긴다. 인증 판단은 1:1과 같은 owner·dm 규칙이다(Hermes 본체 무수정). 답(`send`)·작성 중은 chat_id에서 방을 되찾아 기록에 `room`을 붙인다. 보조 프로필 직원은 기존 전달자로 간다. 직원은 자기가 받은 글만 세션에 가진다. 다른 직원 글을 문맥으로 넘기지 않는 것이 이번 범위다(바꾸려면 사장 결정).
-- **삭제:** 문이 방 글마다 `delete` 기록과 `room_delete`를 남기고 첨부를 지운 뒤 방송한다. 이미 Hermes 세션에 들어간 내용은 지우지 않는다(사장에게 확인 창 문구로 알림).
-- **위험:** TASK-21은 규격·전달 경로를 바꾸므로 높음. 가짜 Hermes 대역 + 실제 직원 2명 방 실물(수준 4)이 필요하다. 게이트웨이 재시작은 사장 확인 뒤 한다.
+- **삭제 계약(15판, 계획 검증 R2):**
+  - **확정점은 `room_delete {room, at}` 기록 한 줄이다.** 글마다 `delete` 기록을 쓰지 않는다. 기록장은 한 줄 추가만 원자적(fsync가 확정, 실패 시 잘라 되돌림)이므로, 한 줄이 확정이면 부분 삭제 상태가 생기지 않는다. 쓰기가 실패하면 아무것도 지우지 않고 앱에 `journal_write_failed`로 거절한다(방·글·첨부 그대로).
+  - **확정 뒤 보기:** 문은 기록장 재현 때 `room_delete`가 있는 방의 `room`·글·수정·상태 기록을 앱에 내보내지 않는다(`sync`·`welcome`·페이지·`message()` 조회 모두). 앱은 `room_deleted`를 받으면 방·글·캐시를 지운다. 1:1 글과 다른 방 글은 그대로다.
+  - **늦은 응답:** 문은 재현에서 지운 방 id 묶음을 만들어 들고 있다. 확정 뒤 Hermes에서 온 답(`send`·편집·작성 중·상태)의 `chat_id`가 `room:<지운 방>`이면 기록하지 않고 방송하지 않으며 `room_deleted_drop` 경고만 남긴다(직원 첨부도 등록하지 않음). 앱의 `room_save`·`send`가 지운 방 id를 쓰면 `room_deleted`로 거절한다. 방 id는 문이 만드는 무작위 값이라 다시 쓰이지 않는다.
+  - **파일 정리(확정 뒤, 멱등):** 확정 직후 그 방 글에만 등록된 첨부와 그 방 사진을 지운다. 다른 살아 있는 기록이 등록한 첨부는 남긴다. 정리 도중 실패·재시작이 있어도 문 시작 때의 `FileStore.cleanup`(살아 있는 기록이 등록한 파일만 남김 — 지운 방 기록의 등록은 살아 있지 않은 것으로 센다)과 사진 정리가 다시 지운다.
+  - **비가역 범위:** 확정 뒤 그 방의 첨부·사진 파일은 복구할 수 없다. 기록장은 추가 전용이라 지운 방 글의 원문 바이트는 기록장 파일에 남는다(기존 1:1 `delete`와 같은 논리 삭제, 화면·동기화에서만 사라짐). 이미 Hermes 세션에 들어간 내용은 지우지 않는다(확인 창 문구로 알림).
+- **위험·롤백(15판):** TASK-20·21은 고위험이다(인증된 영구 저장·삭제, 규격·전달, 동시성). TASK-21 이전 문 코드는 모르는 기록 종류를 기록장 손상으로 보고 열기를 거부한다(`gate/journal.py` `_recover`의 `RECORD_TYPES` 검사). 따라서 단체방 기록이 한 줄이라도 생긴 뒤 문 코드만 되돌리면 hejo 문이 열리지 않는다. 운영 적용(TASK-23)은 재시작 전에 `shared/hejo/`(journal·files·pictures)를 0700 사본으로 떠 두고, 롤백은 이전 공용 릴리스 + 그 사본 복원 + 재시작이다(적용 뒤 hejo 글은 잃음, Slack 무관). 사진만 들어간 TASK-20 문은 이전 코드로 되돌려도 기록장에 영향이 없다(사진 폴더만 남음).
+
+### hejo 홈 채널(14판, 15판 보강, REQ-HF-25)
+
+- **칸:** 사장 지시서(각 프로필 `config.yaml`의 최상위 `platforms.hejo.home_channel`). `/sethome`이 쓰는 자리와 같다(R `gateway/config.py` `persist_home_channel`). 설치 도우미가 쓰는 `gateway.platforms.hejo`와 키가 갈라져도, Hermes는 `gateway.platforms.*` → 최상위 `platforms.*` 순으로 키 단위 얕은 병합을 하므로(R `gateway/config_loader.py` `merge_platform_sections` 140~174) `enabled`·`extra`는 그대로이고 `home_channel`만 더해진다.
+- **영수증 대상:** `{kind: config, file, keys: [platforms, hejo, home_channel], existed: false, before: null, after: {platform: hejo, chat_id: <프로필 id>, name: <이름 또는 id>}, owner_may_change: true}`. 이미 값이 있는 프로필은 대상을 만들지 않는다(사장 값 불변). 영수증 형식은 `version: 1` 그대로이고 대상만 더한다(옛 설치 도우미도 일반 config 대상으로 되돌릴 수 있다).
+- **새 설치:** 기존 `plan()`이 프로필마다 위 대상을 함께 만든다.
+- **이미 설치된 공항(갱신 경로, R1):** 영수증이 `installed`이면 지금처럼 바로 끝내지 않고, 영수증 `configs`에 있는 프로필마다 home_channel 대상이 없고 config에도 값이 없으면 대상을 영수증 끝에 붙인다. 붙인 대상만 하나씩 `apply` → 영수증 저장(대상마다)한다. `configs[file].before`(설치 전 원문)는 바꾸지 않고 `written`만 갱신한다. 기존 대상은 건드리지 않는다. 영수증에 없는 새 프로필은 이번 범위 밖이다(기존 동작과 같음, `--check`가 알림).
+- **갱신 중 실패:** 이번에 붙인 대상 중 `applied`인 것만 **키 단위**로 되돌린다(`restore_key`; 파일 전체를 설치 전 원문으로 되돌리는 경로는 쓰지 않는다 — 기존 hejo 키까지 지워지기 때문). 되돌린 대상은 영수증에서 뺀다. 영수증은 `installed`로 남고 종료 1, `upgrade_failed <경로>`를 출력한다. 프로세스가 도중에 죽어 `pending`이나 `applied` 대상이 남은 채 다시 실행되면: `applied`이고 값이 `after`면 그대로 두고, `pending`이면 현재 값이 없을 때만 다시 적용한다.
+- **제거:** home_channel 대상은 현재 값이 `after`와 같을 때만 지운다. 사장이 바꿨으면(`/sethome` 등) 지우지 않고 `preserved_owner_change <경로>`를 출력하며 충돌로 세지 않는다(종료 코드에 영향 없음). 다른 대상은 기존 규칙 그대로다.
+- **점검(`--check`):** 영수증이 `installed`인데 home_channel 대상이 없는 프로필(값도 없음)은 `missing_target <파일>#platforms.hejo.home_channel`, 종료 1. 사장이 바꾼 home_channel은 `owner_set <경로>`만 출력하고 정상(0)으로 본다.
+- **롤백:** 그 프로필 config에서 `platforms.hejo.home_channel`만 지우고(영수증 대상 목록이 위치) 재시작한다. 또는 `--uninstall` 뒤 이전 릴리스로 재설치.
 
 ### SwiftUI 예외 목록
 
