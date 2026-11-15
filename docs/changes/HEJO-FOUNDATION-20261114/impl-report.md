@@ -983,3 +983,44 @@ AT-HF-30: 운영 원본 전부 auto·다른 키 차이 0·동기화 커밋 확�
   - 다른 사용자: 노트북에서 가입하고, 서버 Mac의 그 사용자 계정에서 `hejo-join`을 실행한다
   - 공용 Google 클라이언트 등록
   - 노트북 실물 확인
+
+### TASK-17 — ddots 기능 이식 1단계 (12판·보완 12-1·12-2, 2026-11-15)
+
+**구현·자체 시험 완료, 최종 검토 대기.** 받은 설계는 `handoff.md`의 보완 지시 12·12-1·12-2, 기준 커밋 `de6170203c42adf31c9aff9924ecb047b7898c4f`다. 진행 중 추가된 계획 커밋의 메뉴·알림 기준을 반영했다. 위험도 일반, 필요·도달 증거 수준은 2다. 실제 운영 앱의 설치·실행은 별도로 확인했지만 실제 직원·다른 Mac 동작을 증거 수준 4로 주장하지 않는다. 제품 변경 커밋은 `e90681281196be1b66f18c3b934b41cbd5d0c1fb`다.
+
+- `PetController`·`LocalSettings`: 대화 창 크기 저장·복원, 머리줄 두 번 클릭 넓게 전환, 설정 창 초기화, 펼친 스레드에 맞는 화면 내 자동 높이, 펫 크기와 위치를 맡는다. 창 위치·크기는 이 Mac의 설정에만 둔다.
+- `BubbleReveal`·`PetView`·`PetActivity`: 접힌 펫 말풍선의 3초/호버/항상 보이기/스레드 열기와 사장 차례·작성 중·전송·실패·3분 졸기·동작 줄이기·화면 잠금 정지를 맡는다.
+- `PetSettingsWindow`·`AppDelegate`: AppKit 일반/화면과 펫/계정 페이지, 자주 쓰는 명령만 있는 펫·상태 막대 메뉴, 다시 실행 ⌘⇧Z를 연결한다. 펫 이름·크기·말풍선 선호와 고정·알림·숨김은 기존 허브 회원 설정 키에 저장하며, 로컬 값은 오프라인 화면용 복제본이다. `ConversationView`는 검색을 먼저 닫는 Esc와 직원·빈 곳·머리줄의 각 우클릭 메뉴를 맡는다. 숨긴 방의 글은 보존하고 새 글에 다시 보이며, 마지막 방을 숨기면 선택만 비운다. 알림 끈 직원의 안 읽은 수는 회색으로 남기되 펫·아일랜드 안 읽은 합계와 강조에서 제외하고, asked 건수는 남긴다.
+- `copy-review.md`에 ddots 원본 파일별 전체 검토·유지 의존·Slack 제거 경계를 기록했다. ddots와 Hermes 본체는 수정하지 않았고, SwiftUI·Slack 호출은 앱에 들이지 않았다.
+- `app/scripts/test.sh`는 시험 빌드에 `HEJO_SKIP_GOOGLE_SECRET=1`을 지정한다. 제품 빌드의 기존 동작은 유지하면서 시험이 미추적 OAuth 비밀 설정 파일을 자동으로 읽지 않게 한 경계다.
+
+| 실행·관측 | 종료 코드·결과 | 로그·증거 |
+|---|---|---|
+| `python3 .build/foundation9_runner.py hejo` (임시 `HERMES_HOME`, Hermes Python·team-kit 경로 지정) | **0**; gate·hub·수락 93 passed, AT-HF-22 정상 종료, 앱 AT-HF-61~65·67와 기존 대역 시험 통과 | `.build/foundation9-hejo.log`·`foundation9-hejo.json` |
+| `bash app/scripts/test.sh` 10회 연속 (같은 최종 소스, 임시 `HERMES_HOME`) | **10/10 모두 0**; 매 회 AT-HF-61~65·67 및 대화 HTTP/WebSocket 대역 시험 통과 | `.build/task17-app-repeat-results.json`, `.build/task17-app-repeat-01.log`~`10.log` |
+| 게이트웨이 Python `scripts/scan_private.py`, `githooks/pre-commit`, `git diff --cached --check`, SwiftUI import 검색 | **각 0**; 개인값 위반 0·SwiftUI import 0건 | `.build/task17-scan-final.log`, `task17-hook-final.log`, `task17-swiftui-check.log` |
+| 앱 시험 실행 파일의 창 단위 `screencapture` | **0**; 가짜 직원 말풍선·화면과 펫·계정 창 직접 확인 | `evidence/HEJO-FOUNDATION/task17-bubble.png`·`task17-settings.png`·`task17-account.png`, `.build/task17-capture-final.log` |
+| 우클릭 메뉴 화면 캡처 3종 | **각 0**; 직원·빈 곳·머리줄 메뉴 직접 확인. 화면 전체에 다른 앱이 섞여 비추적 `.build/`에만 보관 | `.build/task17-menu-{employee,blank,header}.log`, `.build/task17-menu-captures/` |
+| 서명된 앱 두 사본 적용·실행 | **0**; 설치 전 백업, 두 사본 코드 서명·실행 파일 해시 일치, 앱 프로세스 1개 실행 확인 | `.build/task17-deploy.log`, `.build/task17-release-binary-hashes.log` |
+
+초기 반복 시도 한 번은 `HOME`까지 임시로 바꾸어 로컬 서명 인증서를 못 찾아 종료 1이었다(`.build/task17-app-repeat-env-fail.log`). `HOME`은 유지하고 `HERMES_HOME`만 임시로 바꾼 뒤 위 10회가 연속 통과했다. 또한 초기 직접 빌드/시험 호출에서 기존 빌드 스크립트가 미추적 OAuth 비밀 설정 파일을 **간접 읽었다**. 에이전트가 그 내용을 열거나 출력하지는 않았으나 금지 경계 위반 가능성을 발견해 사용자에게 알렸고, 시험 경로를 고쳐 최종 전체·반복 시험은 그 파일을 읽지 않게 했다. 설치 후보는 앞서 만들어진 서명 번들의 설정을 불투명하게 보존하고 최종 시험 소스의 실행 파일로 교체해 다시 서명했다. 이 경위를 검토 대상으로 남긴다.
+
+실제 회원 설정의 다른 Mac 간 동기화, 물리 다중 화면·잠금, 실제 직원 메시지에서의 말풍선·펫 동작, 우클릭 메뉴의 실사용 조작은 자동 대역·캡처 범위 밖이다. 앱 적용 과정에서 게이트웨이 재시작·reload, 허브·운영 설정 변경, 외부 발송, 다른 저장소 수정, 공개 브랜치 갱신, 푸시는 하지 않았다.
+
+### TASK-17 V-1 — 이전 메뉴 동작 정리 (2026-11-15)
+
+`AppDelegate.swift`에서 호출처가 없는 여섯 메뉴 메서드를 제거했다. 설정 창의 로그인 항목·펫 위치·창 크기 콜백은 유지했다. 코드 커밋은 `39f7e4bc9fcadfab44b9dcebc477cac060503a01`이며 `HEJO_PYTHON`·`PYTHONPATH` 지정 `bash app/scripts/test.sh` 종료 0(`.build/task18-v1-app.log`), Hermes Python `scripts/scan_private.py` 종료 0(`.build/task18-v1-scan.log`)이다. 시험 기대값과 기존 화면은 바꾸지 않았다.
+
+### TASK-18 — HEJO. 앱 아이콘 (2026-11-15)
+
+AppKit `AppIcon.render(pixels:)`가 투명 1024px 캔버스의 흰 둥근 사각형과 파란 `H`·어두운 `EJO.`를 그린다. 빌드가 16~1024px 아이콘셋 10장을 `.build/`에 생성하고 `iconutil`로 `AppIcon.icns`를 번들에 넣는다. plist의 `CFBundleIconFile`은 `AppIcon`이다. 런타임 Dock 아이콘 설정과 기존 앱 로고는 변경하지 않았다. 제품·시험·빌드 커밋은 `e485b2276bdc0ba6c618a27383d0f92b261aa109`이며 PNG·icns·글꼴 파일은 커밋하지 않았다.
+
+| 실행·관측 | 종료 코드·결과 | 로그·증거 |
+|---|---|---|
+| `HEJO_SKIP_GOOGLE_SECRET=1 bash app/scripts/build.sh`, `iconutil` 왕복, `plutil -extract CFBundleIconFile raw` | **각 0**; iconset 10장·번들 icns·`AppIcon` 키 확인 | `.build/task18-build.log`, `app/.build/AppIcon.iconset/`, `app/.build/task18-preview.png` |
+| 임시 `HERMES_HOME`·Hermes Python으로 `app/scripts/test.sh` 10회 연속(최종 소스, 02~11) | **10/10 모두 0**; AT-HF-66·AT-HF-61~65·67 통과 | `.build/task18-app-repeat.log`, `.build/foundation9-app-task18-02.log`~`11.log` |
+| `python3 .build/foundation9_runner.py hejo` | **0**; gate·hub 93 passed, AT-HF-22 정상 종료, 앱 AT-HF-66 통과 | `.build/foundation9-hejo.log`, `.build/foundation9-hejo.json` |
+| Hermes Python `scripts/scan_private.py`, `githooks/pre-commit`, `git diff --cached --check`, SwiftUI import 검색 | **각 0**; 개인값 위반 0·SwiftUI import 0건 | `.build/task18-scan-final.log`, `.build/task18-precommit-final.log`, `.build/task18-swiftui.log` |
+| 서명 후보 생성·앱 두 사본 적용·Finder 캡처 | **각 0**; 두 앱 서명 및 아이콘 해시 일치, 실행 프로세스 1개 | `.build/task18-candidate-sign.log`, `.build/task18-deploy.log`, `app/.build/task18-finder.png` |
+
+1024px와 16px 그림을 직접 확인했다. 첫 개인값 검사에서는 아이콘셋의 `@2x` 파일명이 이메일로 오인되어 종료 1이었고, 생성 파일명 표기를 유니코드 이스케이프로 바꾼 뒤 최종 검사에서 위반 0을 확인했다. 설치 후보는 기존 설치본의 plist를 내용을 출력하지 않고 복사해 아이콘 키만 추가한 뒤 다시 서명했다. Finder 선택 항목에서 새 아이콘을 확인했다. 이 앱은 `LSUIElement`이므로 실행 중 Dock 타일이 없으며 Dock 표시 여부는 실물에서 별도 관찰할 수 없다. Finder의 아이콘 보기 전환은 macOS 자동화 권한으로 거부되어 목록 보기 캡처를 남겼다. 게이트웨이·허브 재시작, 운영 설정·다른 저장소 수정, 외부 발송, 공개 브랜치 갱신, 푸시는 하지 않았다.

@@ -30,6 +30,10 @@ final class MemoryCredentials: GateCredentialStore {
                 let args = CommandLine.arguments
                 if args.contains("--lock-child") {
                     let lock = try InstanceLock(directory: URL(fileURLWithPath: args[2])); withExtendedLifetime(lock) { }
+                } else if args.count > 3 && args[1] == "--task17-capture" {
+                    try await task17Capture(resourceDirectory: URL(fileURLWithPath: args[2]), outputDirectory: URL(fileURLWithPath: args[3]))
+                } else if args.count > 3 && args[1] == "--task17-menu-capture" {
+                    try await task17MenuCapture(outputDirectory: URL(fileURLWithPath: args[2]), kind: args[3])
                 } else if args.count > 1 && args[1] == "--conversation" {
                     try await conversationNetwork(args)
                 } else if args.count > 1 && args[1].hasPrefix("--network-") {
@@ -142,7 +146,10 @@ final class MemoryCredentials: GateCredentialStore {
         try await conversationUnitTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await islandTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await typingTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
+        try await task17Tests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
+        try appIconTests()
         try await loginTests()
+        try composerTests()
         print("AT-HF-47 automatic PASS; AT-HF-48 PASS; cache/backoff/size/instance PASS")
     }
     func network(_ args: [String]) async throws {

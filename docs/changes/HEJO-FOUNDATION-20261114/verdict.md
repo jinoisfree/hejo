@@ -609,3 +609,61 @@
    - Tailscale 신뢰는 "사장 계정에 로그인된 모든 기기"다. 노트북을 잃어버리면 출입증 취소와 함께 tailnet에서 그 기기를 빼야 한다(design에 적음).
    - 게이트웨이 시작 때 Tailscale이 꺼져 있으면 Tailscale 주소를 묶지 못해 hejo 문이 시작하지 못한다(Slack 무관).
 6. **다음:** 노트북에 앱을 복사해 실행하고 자동 연결을 확인한 뒤 TASK-09 체크리스트를 진행한다.
+
+## 검증 판정: HEJO-FOUNDATION TASK-17 / ddots 기능 이식 1단계(보완 12·12-1·12-2) (21차)
+
+1. **판정: 부분 완료.** 요구·수락 기준은 모두 자동 증거로 충족했다. 남은 것은 교체된 옛 메뉴 동작 정리(V-1) 하나다.
+2. **검증 조건:** 교차 모델. 실행 담당 codex가 구현했고, 계획 담당 Claude가 다른 대화에서 검토했다. 검토 대상은 제품 `e90681281196be1b66f18c3b934b41cbd5d0c1fb`와 보고 `d5e69e20ce46f0540249945b7e4d2263befbdb53`이다. 분리 worktree에서 시험을 다시 돌렸고, 그 worktree는 버렸다.
+3. **설계 적합성(4.2): 적합.**
+   - **창·펫 위치:** 창 크기·위치는 `LocalSettings`(이 Mac 전용)에 둔다.
+   - **회원 설정:** 펫 이름·크기·말풍선 항상 보이기·고정·알림 끔·숨김은 기존 허브 회원 설정 문자열 맵에 둔다. 허브 서버는 바뀌지 않았다. 로컬 값은 오프라인용 복제본이고, 원본은 회원 설정 하나다.
+   - **메뉴(12-1):** 상태 막대와 펫 메뉴가 같은 메뉴다. 항목은 "대화 열기 / 펫 숨기기·잠시 쉬기 / 설정… / 버전 / hejo 종료"뿐이다. 계정·로그인·펫 설정은 설정 창 세 페이지(일반·화면과 펫·계정)로 옮겼다.
+   - **우클릭(12-2):** 직원 셀·빈 곳·머리줄이 각자 자기 메뉴를 갖는다(`EmployeeMenuTable.menu(for:)`, `EmployeeMenuScroll`). 앱 메뉴로 새지 않는다.
+   - **알림 끔:** `visibleUnreadTotal`을 펫·아일랜드 합계에, `IslandModel` muted 필터를 강조에 쓴다. 이 직원의 asked는 빨간 점으로만 센다(AC-06 그대로).
+   - **경계 유지:** 아일랜드·작성 중 표시·로그인·gate·hub·wire 계약은 유지했다. SwiftUI 0, Slack 호출 0.
+   - **ddots 대조:** copy-review.md에 ddots 원본별 기록이 있다.
+4. **직접 확인한 것**
+   - `python3 .build/foundation9_runner.py hejo`(분리 worktree, `d5e69e2`): 종료 0. 93 passed, AT-HF-61·62·63·64·65·67 PASS, 앱 시험 APP_TEST_OK.
+     - 첫 실행은 AT-HF-22에서 `No module named 'yaml'`로 실패했다. 검토자가 worktree에 `.build/task02-deps`·`task03a-deps`를 복사하지 않은 환경 탓이다. 복사 뒤 통과했다(제품 무관).
+   - 개인값 검사 종료 0, `import SwiftUI` 0건.
+   - 시험의 독립성: 메뉴 제목은 명세 문자열을 그대로 비교한다. 고정 순서·모두 읽음(스레드 2개)·알림 끔 집계·아일랜드 제외·숨김 보존·재등장·설정 문자열 왕복은 StubHub의 PUT 본문으로 확인한다. 수락 시험 문서(`tests/acceptance`)는 바뀌지 않았다.
+   - 캡처 3장(계정·말풍선·설정)은 가짜 값만 담았다(가짜 회원·가짜 직원·가짜 공항).
+   - 설치본: `/Applications`와 공용 사본의 실행 파일 해시가 같다. 서명 검증 통과, 프로세스 1개. 새 문자열(숨긴 대화 다시 보이기·목록에서 빼기·petScale)이 실행 파일에 있다.
+   - 증거 수준: 2(자동 대역·창 캡처)로 설계 요구 수준에 도달했다.
+5. **지적**
+   - **V-1 (비차단, 구현).**
+     - 위치: `app/Sources/AppDelegate.swift`의 `@objc settings()`·`resetPosition()`·`resetChatSize()`·`loginSettings()`·`login()`·`rename()`.
+     - 기준: 30-verification 4.3·7.1(대체된 코드 정리).
+     - 근거: 12-1로 메뉴 항목이 빠지면서 이 셀렉터를 부르는 곳이 0이 됐다(`#selector`·직접 호출 검색). `rename()`의 이름 입력 경고창은 설정 창 이름 칸으로 대체됐다.
+     - 처리: 지운다. 설정 창은 `setLoginEnabled`와 `LoginLaunch.openSettings`, `pet.resetPosition`·`resetChatSize`를 직접 쓴다.
+   - **관찰(지적 아님).** 회원 설정 저장이 실패하면 조용히 멈추고, 다음 변경 때 전체를 다시 보낸다. 인계서 "다음 저장 때 보낸다"에 맞다.
+   - **관찰(지적 아님).** 보고서가 적은 "빌드 스크립트의 OAuth 비밀 파일 간접 읽기"는 hejo 자체의 미추적 `config/google-oauth-secret.json`이다. 제품 빌드가 Info.plist에 넣으려고 읽는 정해진 경로라 `~/.hermes` 비밀 파일 금지 위반이 아니다. 시험 빌드가 `HEJO_SKIP_GOOGLE_SECRET=1`로 읽지 않게 한 변경은 수락한다.
+6. **기획설계로 넘긴 것:** 없음.
+7. **미검증 범위와 남은 위험**
+   - 실제 직원 글에서 말풍선·펫 동작을 보지 못했다.
+   - 다른 Mac 사이 회원 설정 동기화를 보지 못했다(맥북프로·맥북에어 실물은 TASK-09 남은 항목).
+   - 물리 화면 꺼짐·잠금과 우클릭 메뉴의 실사용 조작을 보지 못했다.
+8. **원인 분류: 구현 오류(정리 누락).**
+   - 완료 조건: V-1을 지우고 같은 검증(runner 0, 앱 시험, 개인값 검사 0)을 통과한다.
+   - TASK-18(앱 아이콘)과 같은 실행 묶음에서 별도 커밋으로 한다(보완 지시 13-1).
+
+## 검증 판정: HEJO-FOUNDATION TASK-17 V-1 · TASK-18 / 옛 메뉴 정리·앱 아이콘 HEJO. (22차)
+
+1. **판정: 완료.** TASK-17은 V-1을 처리해 완료로, TASK-18도 완료로 판정한다. 보완 13-2(전체 미사용 코드 정리)는 실행 담당의 기준 커밋(`80b44a6`)보다 뒤에 쓴 새 지시라 이번 범위가 아니다. TASK-19로 따로 인계한다.
+2. **검증 조건:** 교차 모델. 실행 담당 codex가 구현했고 계획 담당 Claude가 검토했다. 검토 대상은 `39f7e4b`(V-1)·`e485b22`(아이콘)·`44f37ba`(보고)이며, 분리 worktree에서 다시 실행한 뒤 버렸다.
+3. **설계 적합성(4.2): 적합.**
+   - V-1: 호출처가 없던 셀렉터 6개만 지웠다(17줄 삭제). 남은 경로는 설정 창의 `setLoginEnabled`·`LoginLaunch.openSettings`·`pet.resetPosition`·`resetChatSize`다.
+   - 아이콘: `AppIcon.render(pixels:)`라는 순수 AppKit 함수 하나를 시험과 빌드 도구(`app/Tools/IconMain.swift`)가 함께 쓴다. 원본이 하나다. 빌드할 때 `.build/AppIcon.iconset` 10장을 만들고 `iconutil`로 `AppIcon.icns`를 만든다. Info.plist의 `CFBundleIconFile`은 `AppIcon`이다. png·icns·글꼴은 추적하지 않는다(`git ls-files` 0). 런타임에 Dock 아이콘을 바꾸지 않는다.
+   - 모양: 824 사각형·반지름 185·heavy·폭 78%·H systemBlue sRGB·EJO. #1d1d1f. REQ-HF-22와 로고(REQ-HF-17)에 맞다.
+4. **직접 확인한 것**
+   - `python3 .build/foundation9_runner.py hejo`(worktree `44f37ba`, deps 복사): 종료 0. 93 passed, AT-HF-61~67 PASS.
+   - 빌드 번들에 `AppIcon.icns`가 있고 plist 키가 `AppIcon`이다. 개인값 검사 0, `import SwiftUI` 0.
+   - 설치본 두 사본: plist 키 `AppIcon`, icns 해시가 서로 같다. 서명 검증 통과, 앱 프로세스 1개.
+   - OS가 읽은 아이콘 그림(`app/.build/task18-workspace-icon.png`)을 직접 보았다. 흰 둥근 사각형 가운데에 `HEJO.`가 있고 H만 파랑이며 좌우 여백이 있다.
+   - AT-66 시험의 기대값은 명세 수치(모서리 투명, 가운데 줄 파랑·어두운 화소, 좌우 약 10% 여백, 16px 잘림 없음)에서 왔다. 구현 상수를 복사하지 않았다.
+   - 증거 수준: 2(자동 + 실제 설치본의 OS 아이콘 읽기).
+5. **지적:** 차단 0, 비차단 0.
+   - 관찰: Finder 아이콘 보기 캡처는 자동화 권한 거부로 못 했고 OS 아이콘 읽기로 대신했다. 앱이 `LSUIElement`라 Dock 타일은 없다. 사장이 응용 프로그램 폴더에서 눈으로 확인하면 된다.
+6. **기획설계로 넘긴 것:** 보완 13-2를 TASK-19 "쓰지 않는 코드 정리"로 등록.
+7. **미검증 범위:** Finder 창 안에서의 아이콘 실물 표시(사장 눈 확인). TASK-17의 실물 미검증 항목(21차 7번)은 그대로 TASK-09 남은 항목이다.
+8. **현재 명세 반영 요청:** REQ-HF-21.AC-01~06(1단계)과 REQ-HF-22.AC-01을 현재 명세(`docs/spec/current/`)에 반영한다. HEJO-FOUNDATION을 닫을 때 한꺼번에 한다.

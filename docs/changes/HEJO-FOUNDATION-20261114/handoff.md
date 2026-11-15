@@ -555,3 +555,121 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
    - 캐시는 필요하면 before JSON대로 `5m`으로 복원한다.
 
 금지(그대로): git push 직접 실행, 비밀 파일 열기, Hermes 본체·ddots 수정, 실제 Slack·고객 메시지 발송.
+
+## 보완 지시 12: TASK-17 ddots 기능 이식 1단계 (2026-11-15, 사용자 지시 "ddots의 모든 기능을 가져온다", 연합개발)
+
+- **배경:** ddots와 hejo를 82항목으로 비교했다. 그중 약 35가지가 없거나 일부만 있다(창 크기 기억, 말풍선, 펫 동작, 설정, 방 만들기, 오른쪽 옆 창 등). 1단계는 매일 체감되는 창·펫·알림이다. 작성기 HTML 전송 버그는 계획 담당이 이미 고쳤다(`5569f16`).
+- **기준:** spec REQ-HF-21.AC-01~05, design 6절 "ddots 기능 전부 이식", AT-HF-61~65. ddots 위치는 아래와 같다(`<운영 저장소>/ddots/Sources`).
+  - 창: `App.swift` 289(크기 불러오기)·956 `saveChatSize`·997 `toggleChatWidth`·1034 `resetChatSize`·753 / `ChatPresentation.swift` 102 `replyExtraHeight`·`slackFitHeight`
+  - 말풍선: `PetView.swift` 454 `revealBubble`, `BubbleReveal.swift`, `App.swift` 458·1210
+  - 펫 동작: `PetView.swift` 1410~1479(작업 상태), 1455 `doze.update`, `App.swift` 228(화면 꺼짐 정지)
+  - 펫·메뉴: `App.swift` 2105 `resizePet`, `resetPosition`, 1334~1335(숨기기·쉬기), `toggleBubbleAlwaysShown`
+  - 설정: `App.swift` 1870~1985, `SettingsPages.swift`
+  - 다시 실행: `SlackController.swift` 1577
+- **먼저 할 일:** 위 원본 파일과 의존을 끝까지 읽고 `copy-review.md`에 파일별로 가져올 범위·바꿀 점·뺄 Slack 부분을 기록한다(사용자 지시 2026-11-14).
+- **구현 범위**
+  - **창:** `PetController`가 크기를 `LocalSettings`에 저장하고 되살린다(화면 밖이면 맞춤). 머리줄(빈 곳) 두 번 누르기로 넓게↔원래 너비, 메뉴 "대화창 크기 초기화", 스레드를 펼치면 화면 안에서 높이를 자동으로 키우고 접으면 복귀한다(ddots 규칙 그대로).
+  - **접힌 펫 말풍선:** 새 직원 글 3초(직원 이름과 첫 줄), 마우스 올림 → 상태, 누름 → 그 스레드 열기, "말풍선 항상 보이기". 시계를 주입한다.
+  - **펫 상태 동작:** asked → 전화, typing → 노트북, 보내기 → 손 흔들기, 실패 → 실패, 3분 무조작 → 졸기, 동작 줄이기, 화면 꺼짐·잠김이면 정지. 자산은 이미 번들에 있다.
+  - **설정 창:** AppKit으로 만든다(일반, 화면과 펫). 펫 크기 25~200%, 펫 이름, 말풍선 항상 보이기, 로그인 시 실행. 펫 이름·크기·항상 보이기는 허브 회원 설정(`HubClient.save`)으로 동기화한다. 메뉴에 "설정…", "펫 위치 초기화", "펫 숨기기", "잠시 쉬기", "대화창 크기 초기화"를 둔다. 펫 이름은 말풍선·안내 글에 보인다.
+  - **키:** 편집 메뉴에 "다시 실행 ⌘⇧Z"를 둔다. Esc는 검색이 열려 있으면 검색을 먼저 닫는다.
+- **바꾸지 않을 것:** 아일랜드(REQ-HF-18)·작성 중 표시(REQ-HF-19)·로그인(REQ-HF-20)·gate·hub·wire. 새 SwiftUI는 쓰지 않는다.
+- **검증**
+  - AT-61~65 앱 시험(시계·화면 상태 주입)
+  - 환경 지정 `python3 .build/foundation9_runner.py hejo` 종료 0
+    - 주의: Hermes 업데이트로 venv 경로가 바뀔 수 있다. `.build/task04-resume/python-path`가 없으면 `~/.hermes/installs/*/environments/*/venv/bin/python` 중 aiohttp·ruamel이 있는 것으로 갱신한다.
+  - `app/scripts/test.sh` 10회 연속 0
+  - 게이트웨이 Python `scripts/scan_private.py`(pre-commit) 0, `import SwiftUI` 0
+  - 맥미니 화면 캡처(`screencapture`)로 말풍선·설정 창을 확인한다
+- **적용:** `bash app/scripts/build.sh` → `/Applications/hejo.app`과 공용 `hejo.app`(Mac 공용 폴더 `Shared/hejo`)에 복사 → 실행. 앱만 바뀌므로 게이트웨이 재시작은 필요 없다.
+- **커밋:** TASK-17만 `git commit --only`로 커밋하고, impl-report에 "TASK-17" 절(명령·종료 코드·로그·커밋·캡처 경로)을 쓴다.
+- **금지:** git push(공개 GitHub 포함), 게이트웨이 재시작·reload, 비밀 파일, Hermes 본체·ddots 수정, 외부 발송, 허브·운영 설정 변경, 공개 `public` 브랜치 갱신(계획 담당이 한다).
+
+
+## 보완 지시 13: TASK-18 앱 아이콘 `HEJO.` (2026-11-15, 사용자 지시 "hejo 앱의 아이콘은 HEJO. 글씨로 만들자", 연합개발)
+
+- **배경:** 지금 번들에는 아이콘이 없어 Finder·Dock에 기본 앱 그림이 보인다. 로고(REQ-HF-17, `H`만 파랑)와 같은 글씨로 아이콘을 만든다.
+- **기준:** spec REQ-HF-22.AC-01, AT-HF-66.
+- **모양:** 1024px 캔버스, 흰 바탕 macOS 둥근 사각형(Apple 격자: 824px 정사각형을 가운데에 두고 모서리 반지름 약 185px, 아주 옅은 그림자는 선택). 가운데에 `HEJO.` 한 줄, 시스템 글꼴 heavy(또는 black) 굵기, 글자 폭이 둥근 사각형 폭의 약 78%. `H`는 `systemBlue`와 같은 sRGB 값, `EJO.`는 거의 검정(#1d1d1f 정도). 다크 모드용 별도 아이콘은 만들지 않는다.
+- **구현**
+  - 아이콘 그리기는 순수 AppKit 함수 하나로 둔다(예: `AppIcon.render(pixels:) -> NSBitmapImageRep`). 앱 시험에서 직접 부를 수 있게 앱 소스에 두되 런타임에 쓰지 않아도 된다. 앱 실행 중 Dock 아이콘을 바꾸지 않는다(`LSUIElement`는 그대로).
+  - `app/scripts/build.sh`가 같은 함수를 쓰는 작은 생성 단계(예: `swiftc`로 만든 도구 또는 앱 실행 파일의 숨은 인자)로 `AppIcon.iconset`의 10장(16·32·128·256·512와 각 @2x)을 만들고 `iconutil -c icns`로 `Contents/Resources/AppIcon.icns`를 만든다. 생성물은 `.build/` 아래에 두고 저장소에 png·icns를 커밋하지 않는다.
+  - `app/Resources/Info.plist`에 `CFBundleIconFile` = `AppIcon`을 넣는다.
+  - 작은 크기(16·32)에서도 같은 그림을 축소한다(별도 글자 배치 불필요, 단 글자가 잘리지 않아야 한다).
+- **바꾸지 않을 것:** 앱 안 로고·아일랜드·로그인·TASK-17 진행 중 파일(`AppDelegate`·`PetController`·`PetView`·`ConversationView`·`LocalStore` 등)의 동작. TASK-17 작업 트리 변경과 섞어 커밋하지 않는다.
+- **검증**
+  - AT-66 앱 시험: 1024px에서 네 모서리 화소 투명, 가운데 줄에 파랑·어두운 화소 존재, 좌우 끝 10% 열에 글자 화소 없음; 16px 그림 생성 성공
+  - `bash app/scripts/build.sh` 종료 0, 번들에 `AppIcon.icns`, `plutil -extract CFBundleIconFile raw` = `AppIcon`
+  - `app/scripts/test.sh` 10회 연속 0, `python3 .build/foundation9_runner.py hejo` 종료 0, pre-commit(개인값 검사) 0, `import SwiftUI` 0
+  - `sips -s format png`로 1024px를 `.build/`에 뽑아 눈으로 확인하고, 설치 뒤 Finder 캡처(`screencapture`) 경로를 impl-report에 적는다. Finder 아이콘 캐시가 남으면 `touch /Applications/hejo.app`만 한다(캐시 삭제·`killall Dock` 금지).
+- **적용:** TASK-17과 같은 방식으로 `/Applications/hejo.app`과 공용 `hejo.app`에 복사. 게이트웨이 재시작은 필요 없다.
+- **커밋:** TASK-18 경로만 `git commit --only`, impl-report "TASK-18" 절.
+- **금지:** git push, 게이트웨이 재시작·reload, 비밀 파일, Hermes 본체·ddots 수정, 외부 이미지·글꼴 파일 추가, 공개 `public` 브랜치 갱신.
+
+## 보완 지시 12-1: TASK-17 메뉴 정리 (2026-11-15, 사용자 선택 "이대로 정리")
+
+- **배경:** 사장이 펫 메뉴 캡처를 보고 "여기에 이런 옵션이 있는 게 맞냐"고 물었다. 설치된 앱 메뉴에 설정 항목(펫 이름…, 로그인 시 실행, 로그인 항목 설정…)과 계정 항목(로그인·계정…, 로그아웃)이 섞여 있다. ddots는 "자주 쓰는 동작은 메뉴, 설정과 미리보기는 설정 창"이 원칙이다(`App.swift` 1329 주석). 작업 트리의 TASK-17 진행분은 오히려 메뉴에 항목을 더 늘렸다(설정…·펫 위치 초기화·대화창 크기 초기화 추가, 기존 항목 유지).
+- **바뀐 기준:** spec REQ-HF-21.AC-01·AC-04, AT-HF-61·64 (이 커밋에서 갱신). 보완 지시 12의 "메뉴에 … 펫 위치 초기화 … 대화창 크기 초기화를 둔다"는 이 절로 대체한다.
+- **메뉴(상태 막대·펫 오른쪽 클릭이 같은 메뉴):** 대화 열기 / 구분선 / 펫 숨기기(숨김 상태면 "펫 보이기") / 잠시 쉬기(쉬는 중이면 "다시 움직이기") / 구분선 / 설정…(⌘,) / 흐린 `hejo <CFBundleShortVersionString> (빌드 <CFBundleVersion>)` / 구분선 / hejo 종료(⌘Q). 그 밖의 항목은 넣지 않는다.
+- **설정 창 페이지(AppKit, ddots `SettingsPages.swift` 배치 참고):**
+  - 일반: 로그인 시 실행(체크), 로그인 항목 설정 열기(버튼)
+  - 화면과 펫: 펫 크기, 펫 이름, 말풍선 항상 보이기, 펫 위치 초기화(버튼), 대화창 크기 초기화(버튼)
+  - 계정: 아이디, 공항 연결 상태(지금 메뉴의 상태 줄 글을 옮김, 실시간 갱신), 로그인·계정 창 열기(버튼, 기존 LoginWindow), 로그아웃(버튼)
+- **시험:** 메뉴 항목 제목·구분선 순서를 그대로 확인하는 앱 시험을 AT-64에 더한다. 기존 시험 중 메뉴 항목 제목으로 찾는 것(로그아웃·로그인·계정 등)은 설정 창 버튼으로 옮긴다.
+- 그 밖의 범위·검증·금지는 보완 지시 12와 같다.
+
+## 보완 지시 12-2: TASK-17 우클릭 메뉴 1단계 (2026-11-15, 사장 승인 "좋다 구현해")
+
+- **배경:** 사장 캡처에서 사이드바 직원 아이콘을 우클릭하면 앱 전체 메뉴(로그인·종료 등)가 떴다. 직원 줄에는 그 직원 메뉴가 떠야 한다. 계획 담당이 ddots 방 목록 메뉴(`SlackPanel.swift` 1987~2045 `.contextMenu`, `ChatWorkspace.swift` 33 머리줄 메뉴)를 기준으로 구성안을 내고 사장이 승인했다.
+- **기준:** spec REQ-HF-21.AC-06, AT-HF-67. 먼저 위 ddots 두 곳과 `slackPinMenu`, `toggleMute`, `hide`, 사이드바 너비 전환 코드를 끝까지 읽고 `copy-review.md`에 기록한다. Slack API 호출 부분은 가져오지 않는다.
+- **구현 범위(이번 1단계 몫만)**
+  - 직원 셀(`EmployeeSidebarCell`/사이드바 표) `menu(for:)`: 대화 열기(지금 열린 직원이면 없음) / 구분선 / 맨 위에 고정·고정 해제 / 모두 읽음 / 알림 끄기·켜기 / 구분선 / 목록에서 빼기. 우클릭이 펫·앱 메뉴로 새지 않게 한다.
+  - 사이드바 빈 곳: 숨긴 대화 다시 보이기 ▸(하위 메뉴, 숨긴 직원 없으면 흐림) / 구분선 / 목록 넓게·좁게(기존 사이드바 너비 규칙 사용).
+  - 머리줄(`ConversationView` 77~78행 메뉴 교체): 알림 끄기·켜기 / 모두 읽음 / 구분선 / 방 목록 보이기·숨기기 / 구분선 / 펫으로 접기.
+  - 동작: 고정은 목록 맨 위(고정 순서 유지), 모두 읽음은 그 직원 모든 스레드의 `readSeq`를 최신으로(ConversationModel 136행 규칙), 알림 끔은 사이드바 회색 숫자만·펫 숫자/접힌 펫 말풍선/아일랜드 강조 제외(단 asked는 아일랜드 사장 차례 칸에 셈), 목록에서 빼기는 숨김만(글 보존, 새 글 오면 다시 보임).
+  - 저장: 고정·알림 끔·숨김을 허브 회원 설정(`HubClient.save`, 값은 문자열이므로 직원 id를 쉼표로 이은 `pinned`·`muted`·`hidden` 키)에 두고, 로그인 때 되살린다. 허브 서버 코드는 바꾸지 않는다(설정 크기 제한 안에서). 허브가 안 될 때는 로컬 값으로 동작하고 다음 저장 때 보낸다.
+  - 2·3단계 항목(하던 일 멈추기, 직원 정보, 사진, 방 메뉴, 새 방, 전체 검색, 제목 바꾸기)은 이번에 넣지 않는다. 자리만 비워 둔다.
+- **시험:** AT-67 앱 시험(메뉴 제목 순서, 고정 정렬, 모두 읽음, 알림 끔 집계, 숨김·재등장, 설정 직렬화 왕복; `StubHub`로 저장 요청 확인). 수동: 직원 우클릭·빈 곳·머리줄 메뉴 캡처.
+- 그 밖의 검증·적용·커밋·금지는 보완 지시 12와 같다(TASK-17 커밋에 함께 넣는다).
+
+## 보완 지시 13-1: TASK-17 V-1 정리 + TASK-18 재확정 (2026-11-15, 21차 판정 뒤)
+
+- **순서:** ① TASK-17 V-1 정리 커밋, ② TASK-18 앱 아이콘(보완 지시 13 그대로) 커밋. 두 커밋은 분리한다.
+- **① V-1:** `app/Sources/AppDelegate.swift`에서 호출처가 없어진 `@objc settings()`·`resetPosition()`·`resetChatSize()`·`loginSettings()`·`login()`·`rename()`을 지운다(먼저 `grep -n '#selector(<이름>)'`과 직접 호출 0을 다시 확인). `setLoginEnabled`·설정 창 연결은 그대로 둔다. 동작 변화가 없어야 하므로 시험 기대값은 바꾸지 않는다. 검증: `app/scripts/test.sh` 0(AT-61~65·67 PASS), 개인값 검사 0. impl-report에 "TASK-17 V-1" 줄을 더한다.
+- **② TASK-18:** 보완 지시 13·spec REQ-HF-22.AC-01·AT-HF-66 그대로. 기준은 ① 커밋.
+- **검토자 참고:** 분리 worktree에서 runner를 돌릴 때는 `.build/task02-deps`·`task03a-deps`·`task04-resume`를 함께 복사해야 한다(없으면 AT-HF-22가 yaml 없음으로 실패).
+
+## 보완 지시 13-2: 쓰지 않는 코드 정리 확대 (2026-11-15, 사장 지시 "쓸데없는건 지우자")
+
+- **범위:** 13-1의 ① V-1을 이 절로 넓힌다. 대상은 `app/Sources`, `gate/`, `hub/`, `install/` 전체에서 호출처·참조가 없는 함수·변수·타입·상수·옛 동작이다. ②(TASK-18 아이콘)는 그대로 그 뒤에 한다.
+- **계획 담당 1차 후보** (앱 소스·시험에서 이름이 한 번만 나오는 것)
+  - AppDelegate 셀렉터 `settings`·`resetPosition`·`resetChatSize`·`loginSettings`·`login`·`rename`
+  - ConversationView `collapseConversation`(옛 머리줄 메뉴)
+  - `GeniePictureKey`, `PetBubbleMotion`, `ScreenWindowResolver`, `actionRects`, `avatarNameGap`, `cachedCount`, `callerAvatar`, `cover`, `defaultPaneWidth`, `diagnosticButtonFrames`, `dozeZs`, `dragAnimation`, `extended`, `fadeDuration`, `firstText`, `glide`, `hasProfileColor`, `hsl`, `maximumChatSize`, `minimumPaneWidth`, `notificationAvatar`, `paneHeight`, `paneSplit`, `perchRect`, `rank`, `replyInset`, `reportHeight`, `retarget`, `searchHeight`, `sizes`, `slideWidth`, `speakerInset`, `statusTitle`, `thumbnailPixels`, `topInset`, `uniformSize`, `usablePaneWidth`
+- **판정 규칙:** 후보마다 실제로 확인한다.
+  - 지우지 않는 것:
+    - AppKit·delegate가 이름으로 부르는 재정의·프로토콜 메서드(`canBecomeKey`, `cancelOperation`, `draggingUpdated`, `controlTextDidChange`, `menuNeedsUpdate`, `applicationWillTerminate`, `urlSession` 등)
+    - `CodingKeys`
+    - 셀렉터·키 경로·문자열로 부르는 것
+    - 응답 체인 메뉴 동작(`pasteAsPlainText`·`pasteAsRichText`는 편집 메뉴나 작성기에서 쓰이는지 확인)
+  - 다음 단계를 위해 남겨 두는 것도 지운다(필요해지면 그 단계에서 ddots에서 다시 가져온다).
+  - gate·hub·install은 같은 방법(정의 이름 전역 검색, 동적 호출 확인)으로 찾는다.
+  - 시험 전용 도우미는 시험이 쓰면 남긴다.
+- **동작 불변:**
+  - 시험 기대값을 바꾸지 않는다.
+  - 지운 것 때문에 시험이 깨지면 그것은 쓰이는 코드이므로 되돌린다.
+- **검증:**
+  - `python3 .build/foundation9_runner.py hejo` 0
+  - `app/scripts/test.sh` 0
+  - 개인값 검사 0
+  - 지운 이름 목록(파일·줄 수)과 남긴 후보·이유를 impl-report "코드 정리" 절에 적는다.
+- **적용·커밋:**
+  - 앱 설치본 교체는 TASK-18 적용 때 함께 한다.
+  - gate·hub 파일을 지웠으면 공용 릴리스(`install/hejo-release`)·게이트웨이 재시작은 하지 않는다(다음 릴리스 때 반영).
+  - 정리만 별도 `git commit --only`.
+
+## 보완 지시 13-3: TASK-19 = 보완 13-2 실행 (2026-11-15, 22차 판정 뒤)
+
+- 13-1 ①(V-1)과 ②(TASK-18)는 22차에서 완료로 판정했다. 13-2의 넓힌 정리를 TASK-19로 실행한다. 기준 커밋은 이 절을 담은 커밋이다.
+- 13-2 후보 목록에서 V-1 6개(AppDelegate 셀렉터)는 이미 지워졌으니 뺀다. 새로 생긴 `AppIcon.render`는 시험·빌드 도구가 쓰므로 남긴다.
+- 그 밖의 판정 규칙·검증·금지는 13-2와 같다. 정리 커밋 뒤 앱을 빌드해 `/Applications`와 공용 사본을 교체·실행한다(동작 불변 확인용). 게이트웨이·허브 재시작은 하지 않는다.

@@ -13,9 +13,9 @@ import AppKit
     private var highlightUntil:Date?
     var reconnect:()->Void
     var retrySend:(ConversationKey)->Void
-    let employeeTable = NSTableView(), history = NativeThreadList(frame:.zero), editor = DraftScrollView(frame:.zero)
+    let employeeTable = EmployeeMenuTable(), history = NativeThreadList(frame:.zero), editor = DraftScrollView(frame:.zero)
     let headerDrag = ConversationHeaderDrag(), brandDrag = ConversationHeaderDrag()
-    private let employeeScroll=NSScrollView(), employeeSearch=NSSearchField(), search=NSSearchField()
+    private let employeeScroll=EmployeeMenuScroll(), employeeSearch=NSSearchField(), search=NSSearchField()
     let brand=PassiveLabel(labelWithString:"HEJO."), version=PassiveLabel(labelWithString:""), heading=PassiveLabel(labelWithString:""), subtitle=PassiveLabel(labelWithString:"함께 나누는 대화")
     private let handle=SidebarHandle(), sidebarToggle=ComposerButton(title:"직원 목록",symbol:"sidebar.left",point:12), searchToggle=ComposerButton(title:"검색",symbol:"magnifyingglass",point:12)
     let notice=NSTextField(wrappingLabelWithString:"")
@@ -32,6 +32,8 @@ import AppKit
     private(set) var replyMode=true
     private var shownSidebarWidth=ConversationSidebar.width, searchOpen=false, editorHeight:CGFloat=17
     var onCollapse:(()->Void)?
+    var onOpenThreadHeight: ((CGFloat?) -> Void)?
+    private var reportedOpenHeight: CGFloat?
     @objc private func collapseConversation() { onCollapse?() }
     var onUnread:((Int)->Void)?, onSidebarWidth:((CGFloat)->Void)?
     override var isFlipped:Bool { true }
@@ -45,6 +47,8 @@ import AppKit
         employeeTable.selectionHighlightStyle = .none; employeeTable.focusRingType = .none; employeeTable.intercellSpacing = .zero
         let column=NSTableColumn(identifier:.init("employees")); column.resizingMask = .autoresizingMask; employeeTable.addTableColumn(column)
         employeeTable.dataSource=self; employeeTable.delegate=self
+        employeeTable.makeMenu = { [weak self] row in self?.employeeMenu(row: row) }
+        employeeScroll.makeBlankMenu = { [weak self] in self?.blankMenu() }
         employeeScroll.documentView=employeeTable; employeeScroll.drawsBackground=false; employeeScroll.hasVerticalScroller=true; employeeScroll.autohidesScrollers=true; employeeScroll.scrollerStyle = .overlay
         for view in [headerDrag,brandDrag,island,employeeScroll,brand,version,heading,subtitle,employeeSearch,search,history,sidebarToggle,searchToggle,notice,modeBackground,replyButton,newButton,inputBackground,editor,draftHint,attachButton,sendButton,attachmentScroll,older,handle,drop] { addSubview(view) }
         let logo=NSMutableAttributedString(string:"HEJO.",attributes:[.font:NSFont.systemFont(ofSize:14,weight:.semibold),.foregroundColor:NSColor.labelColor])
@@ -54,7 +58,7 @@ import AppKit
         brand.alignment = .center; version.alignment = .center; heading.font = .systemFont(ofSize:14,weight:.semibold); subtitle.font = .systemFont(ofSize:10); subtitle.textColor = .labelColor.withAlphaComponent(0.7)
         employeeSearch.placeholderString="직원 검색"; employeeSearch.delegate=self; employeeSearch.font = .systemFont(ofSize:12)
         search.placeholderString="단어나 문장으로 검색"; search.delegate=self
-        sidebarToggle.invoke={ [weak self] in self?.toggleSidebar() }; searchToggle.invoke={ [weak self] in self?.searchOpen.toggle(); self?.refresh() }
+        sidebarToggle.invoke={ [weak self] in self?.toggleSidebar() }; searchToggle.invoke={ [weak self] in self?.toggleSearch() }
         handle.width={ [weak self] in self?.sidebarWidth ?? 0 }; handle.onWidth={ [weak self] in self?.setSidebarWidth($0) }
         handle.onEnd={ [weak self] in if let self,self.sidebarWidth>0 { self.shownSidebarWidth=self.sidebarWidth } }
         notice.font = .systemFont(ofSize:11); notice.textColor = .systemRed
@@ -72,10 +76,11 @@ import AppKit
         drop.canAttach={ [weak self] in self?.controller.model.selected != nil && self?.controller.sending == false }
         drop.onPaste={ [weak self] board in self?.paste(board) ?? false }; drop.onTarget={ [weak self] target in self?.layer?.borderWidth=target ? 2 : 0 }
         layer?.borderColor=NSColor.controlAccentColor.cgColor
-        let menu=NSMenu(); let collapse=menu.addItem(withTitle:"펫으로 접기",action:#selector(collapseConversation),keyEquivalent:""); collapse.target=self
-        headerDrag.menu=menu; brandDrag.menu=menu
+        headerDrag.onMenu = { [weak self] in self?.headerMenu() }
+        brandDrag.onMenu = { [weak self] in self?.headerMenu() }
         clipboard.recoverLeftovers()
         history.onBlank={ [weak self] in self?.foldAll() }
+        history.onMeasured={ [weak self] in self?.reportOpenHeight() }
         island.onAction={ [weak self] action in self?.activateIsland(action) }
         island.onWidthChange={ [weak self] in self?.needsLayout=true }
         headerDrag.excluded={ [weak self] point in self?.island.frame.contains(point) == true }
@@ -111,6 +116,46 @@ import AppKit
         let delta=next-sidebarWidth; sidebarWidth=next; onSidebarWidth?(delta); refresh()
     }
     func toggleSidebar() { if sidebarWidth>0 { shownSidebarWidth=sidebarWidth; setSidebarWidth(0) } else { setSidebarWidth(shownSidebarWidth) } }
+    func employeeMenu(row: Int) -> NSMenu {
+        guard rooms.indices.contains(row) else { return blankMenu() }
+        let employee = rooms[row].id, model = controller.model, menu = NSMenu()
+        if model.selected?.employee != employee {
+            menu.addItem(RoomActionItem("대화 열기") { [weak self] in self?.chooseEmployee(employee) })
+            menu.addItem(.separator())
+        }
+        menu.addItem(RoomActionItem(model.pinned.contains(employee) ? "고정 해제" : "맨 위에 고정") { model.togglePin(employee) })
+        menu.addItem(RoomActionItem("모두 읽음") { model.markAllRead(employee) })
+        menu.addItem(RoomActionItem(model.muted.contains(employee) ? "알림 켜기" : "알림 끄기") { model.toggleMute(employee) })
+        menu.addItem(.separator())
+        menu.addItem(RoomActionItem("목록에서 빼기") { model.hide(employee) })
+        return menu
+    }
+    func blankMenu() -> NSMenu {
+        let menu = NSMenu(), model = controller.model
+        let restore = NSMenuItem(title: "숨긴 대화 다시 보이기", action: nil, keyEquivalent: "")
+        let submenu = NSMenu()
+        for employee in model.employees.filter({ model.hidden.contains($0.id) }) {
+            submenu.addItem(RoomActionItem(employee.name) { model.restore(employee.id) })
+        }
+        if submenu.items.isEmpty { restore.isEnabled = false } else { restore.submenu = submenu }
+        menu.addItem(restore); menu.addItem(.separator())
+        menu.addItem(RoomActionItem(ConversationSidebar.isList(sidebarWidth) ? "목록 좁게" : "목록 넓게") { [weak self] in
+            self?.setSidebarWidth(ConversationSidebar.isList(self?.sidebarWidth ?? 0) ? ConversationSidebar.width : ConversationSidebar.expandedWidth)
+        })
+        return menu
+    }
+    func headerMenu() -> NSMenu {
+        let menu = NSMenu(), model = controller.model, employee = model.selected?.employee
+        let mute = RoomActionItem(employee.map { model.muted.contains($0) ? "알림 켜기" : "알림 끄기" } ?? "알림 끄기") { if let employee { model.toggleMute(employee) } }
+        mute.isEnabled = employee != nil; menu.addItem(mute)
+        let read = RoomActionItem("모두 읽음") { if let employee { model.markAllRead(employee) } }
+        read.isEnabled = employee != nil; menu.addItem(read)
+        menu.addItem(.separator())
+        menu.addItem(RoomActionItem(sidebarWidth == 0 ? "방 목록 보이기" : "방 목록 숨기기") { [weak self] in self?.toggleSidebar() })
+        menu.addItem(.separator())
+        menu.addItem(RoomActionItem("펫으로 접기") { [weak self] in self?.onCollapse?() })
+        return menu
+    }
     func chooseEmployee(_ employee:String) {
         openThread=nil; replyMode=false
         if let key=newKeys[employee] { controller.model.select(key) }
@@ -119,6 +164,24 @@ import AppKit
     func chooseThread(_ key:ConversationKey) {
         replyMode=true; openThread=openThread == key ? nil : key; controller.model.select(key)
         history.scrollTo(key.thread)
+    }
+    func openFromBubble(_ key: ConversationKey) {
+        reveal(key); refresh(); history.scrollTo(key.thread)
+    }
+    @discardableResult func closeSearchIfOpen() -> Bool {
+        guard searchOpen else { return false }
+        searchOpen=false; search.stringValue=""; refresh(); return true
+    }
+    var isSearchOpen: Bool { searchOpen }
+    func toggleSearch() { searchOpen.toggle(); refresh() }
+    private func reportOpenHeight() {
+        let needed: CGFloat?
+        if let openThread, let layout=history.layouts.first(where: { $0.content.id == openThread.thread }) {
+            needed = max(0, bounds.height - history.frame.height) + layout.height + 32
+        } else { needed = nil }
+        if let needed, let reportedOpenHeight, abs(needed - reportedOpenHeight) < 1 { return }
+        if needed == nil && reportedOpenHeight == nil { return }
+        reportedOpenHeight = needed; onOpenThreadHeight?(needed)
     }
     func createThread() {
         guard let employee=controller.model.selected?.employee else { return }
@@ -134,7 +197,7 @@ import AppKit
     func refresh() {
         guard !rendering else { return }; rendering=true; defer { rendering=false }
         let model=controller.model, selected=model.selected
-        rooms=model.rooms.filter { employeeSearch.stringValue.isEmpty || $0.title.localizedCaseInsensitiveContains(employeeSearch.stringValue) }
+        rooms=model.displayRooms.filter { employeeSearch.stringValue.isEmpty || $0.title.localizedCaseInsensitiveContains(employeeSearch.stringValue) }
         employeeTable.rowHeight=ConversationSidebar.isList(sidebarWidth) ? ConversationSidebar.rowHeight : ConversationSidebar.tabHeight
         employeeTable.reloadData()
         if let index=rooms.firstIndex(where:{$0.members.contains(selected?.employee ?? "")}) { employeeTable.selectRowIndexes(IndexSet(integer:index),byExtendingSelection:false) }
@@ -151,7 +214,7 @@ import AppKit
             if let key=newKeys[current], !model.timeline(key).isEmpty, controller.drafts[key]?.text.isEmpty == true { newKeys[current]=nil }
         } else { threads=[]; history.show([],identity:""); heading.stringValue="HEJO."; older.isHidden=true }
         let draft=controller.draft
-        if displayedKey != selected || (!editor.editor.hasMarkedText() && MessageFormat.serialize(editor.editor.attributedString()) != draft.text) {
+        if displayedKey != selected || (!editor.editor.hasMarkedText() && MessageFormat.serialize(editor.editor.attributedString(),baseSize:ChatMetrics.bodyFont) != draft.text) {
             editor.editor.breakUndoCoalescing(); editor.editor.undoManager?.removeAllActions()
             editor.editor.textStorage?.setAttributedString(MessageFormat.editor(draft.text,bodySize:ChatMetrics.bodyFont))
             editor.editor.typingAttributes=MessageFormat.Style(size:ChatMetrics.bodyFont).attributes; editor.measure()
@@ -167,7 +230,8 @@ import AppKit
         replyButton.isEnabled = !threads.isEmpty; replyButton.chosen=replyMode; newButton.chosen = !replyMode
         for button in [replyButton,newButton,sendButton] { button.needsDisplay=true }
         notice.stringValue=controller.notice
-        islandModel.update(controller.islandInput);tickIsland(); onUnread?(model.rooms.reduce(0){$0+model.unread(room:$1)})
+        islandModel.update(controller.islandInput);tickIsland(); onUnread?(model.visibleUnreadTotal)
+        reportOpenHeight()
         needsLayout=true; needsDisplay=true
     }
     override func layout() {
@@ -216,13 +280,13 @@ import AppKit
     func tableView(_ tableView:NSTableView,viewFor column:NSTableColumn?,row:Int)->NSView? {
         let id=NSUserInterfaceItemIdentifier("employee-tab"), room=rooms[row]
         let cell=tableView.makeView(withIdentifier:id,owner:nil) as? EmployeeSidebarCell ?? EmployeeSidebarCell(frame:.zero)
-        cell.identifier=id; cell.name=room.title; cell.chosen=room.members.contains(controller.model.selected?.employee ?? ""); cell.unread=controller.model.unread(room:room); cell.list=ConversationSidebar.isList(sidebarWidth); cell.needsDisplay=true
+        cell.identifier=id; cell.name=room.title; cell.chosen=room.members.contains(controller.model.selected?.employee ?? ""); cell.unread=controller.model.unread(room:room); cell.muted=controller.model.muted.contains(room.id); cell.list=ConversationSidebar.isList(sidebarWidth); cell.needsDisplay=true
         cell.setAccessibilityLabel(room.title+", 안 읽은 글 \(cell.unread)개"); return cell
     }
     func tableViewSelectionDidChange(_ notification:Notification) { guard !rendering,rooms.indices.contains(employeeTable.selectedRow), let employee=rooms[employeeTable.selectedRow].members.first else { return }; chooseEmployee(employee) }
     func controlTextDidChange(_ notification:Notification) { refresh() }
     func textDidChange(_ notification:Notification) {
-        if let key=displayedKey { controller.setText(MessageFormat.serialize(editor.editor.attributedString()),for:key) }
+        if let key=displayedKey { controller.setText(MessageFormat.serialize(editor.editor.attributedString(),baseSize:ChatMetrics.bodyFont),for:key) }
         draftHint.isHidden = !editor.editor.string.isEmpty; formatting.refresh(); editor.measure()
         sendButton.isEnabled=controller.canSend && !controller.sending && (!editor.editor.string.isEmpty || !controller.draft.attachments.isEmpty); sendButton.needsDisplay=true
     }
