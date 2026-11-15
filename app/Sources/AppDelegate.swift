@@ -176,7 +176,6 @@ import AppKit
     }
     @objc private func openChat() { pet.showChat() }
     @objc private func signOut() { currentAccount = ""; petSettings?.accountName.stringValue = "로그인 전"; Task { await client.signOut(); petSettings?.updateConnection(client.status.text); connection.present() } }
-    @objc private func settings() { connection.present() }
     @objc private func showOptions() {
         if petSettings == nil {
             let settings = PetSettingsWindow()
@@ -193,14 +192,8 @@ import AppKit
         petSettings?.present(name: store.settings.petName, percent: store.settings.petScalePercent ?? 100,
                              bubble: store.settings.bubbleAlwaysShown ?? false, account: currentAccount, status: client.status.text)
     }
-    @objc private func resetPosition() { pet.resetPosition() }
-    @objc private func resetChatSize() { pet.resetChatSize() }
     @objc private func togglePet() { if pet.panel.isVisible { pet.panel.orderOut(nil) } else { pet.show() } }
     @objc private func togglePause() { pet.pet.isPaused.toggle(); pet.pet.noteActivity() }
-    @objc private func loginSettings() { LoginLaunch.openSettings() }
-    @objc private func login() {
-        setLoginEnabled(LoginLaunch.state != .enabled)
-    }
     private func setLoginEnabled(_ enabled: Bool) {
         do { try LoginLaunch.setEnabled(enabled) }
         catch { let alert = NSAlert(); alert.messageText = "로그인 항목을 확인해 주세요"; alert.informativeText = LoginLaunchPresentation.resolve(LoginLaunch.state, installed: LoginLaunch.isInstalled(), failed: true).message; alert.runModal() }
@@ -219,15 +212,5 @@ import AppKit
     private func setBubbleAlwaysShown(_ value: Bool) {
         try? store.update { $0.bubbleAlwaysShown = value }
         pet.pet.bubbleAlwaysShown = value; saveMemberSettings()
-    }
-    @objc private func rename() {
-        let alert = NSAlert(); alert.messageText = "펫 이름"; let field = NSTextField(string: store.settings.petName)
-        field.frame = CGRect(x: 0, y: 0, width: 240, height: 24); alert.accessoryView = field
-        alert.addButton(withTitle: "저장"); alert.addButton(withTitle: "취소")
-        if alert.runModal() == .alertFirstButtonReturn {
-            try? store.update { $0.petName = PetIdentity.normalized(field.stringValue) }
-            pet.pet.setAccessibilityLabel("hejo · \(store.settings.petName) · 대화 열기")
-            saveMemberSettings()
-        }
     }
 }
