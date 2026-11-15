@@ -116,13 +116,13 @@ import AppKit
         mode = next
         let titles: [Mode: (String, String)] = [.searching: ("hejo 서버를 찾는 중…", ""), .notFound: ("hejo 서버를 찾지 못했어요", "다시 찾기"),
             .login: ("hejo 로그인", "로그인"), .signup: ("가입하기", "가입"),
-            .reset: ("비밀번호 재설정", hermesHere ? "재설정" : "Google로 확인하고 재설정"), .needsHermes: ("Hermes 연결이 필요해요", "다시 확인")]
+            .reset: ("비밀번호 재설정", hermesHere ? "재설정" : "Google로 확인하고 재설정"), .needsHermes: ("Hermes 연결을 기다리는 중", "")]
         heading.stringValue = titles[next]!.0; primary.title = titles[next]!.1
         account.isHidden = ![.login, .signup].contains(next)
         password.isHidden = ![.login, .signup, .reset].contains(next)
         confirm.isHidden = ![.signup, .reset].contains(next)
         password.placeholderString = next == .reset ? "새 비밀번호 (8자 이상)" : "비밀번호 (8자 이상)"
-        primary.isHidden = next == .searching || (next == .reset && !hermesHere && !googleReady)
+        primary.isHidden = next == .searching || next == .needsHermes || (next == .reset && !hermesHere && !googleReady)
         google.isHidden = ![.login, .signup].contains(next)  // always on the first screens; explains itself until Google is set up
         or.isHidden = google.isHidden
         google.title = next == .signup ? "Google로 가입하기" : "Google로 계속하기"
@@ -139,7 +139,7 @@ import AppKit
             case .reset where hermesHere: return "내 Hermes가 있는 Mac이라 기존 비밀번호 없이 새로 정할 수 있어요. 다른 기기는 모두 로그아웃돼요."
             case .reset where googleReady: return "새 비밀번호를 정하고 Google로 본인 확인을 해 주세요. 다른 기기는 모두 로그아웃돼요."
             case .reset: return "내 Hermes가 있는 Mac(맥미니의 내 계정)의 hejo에서 재설정할 수 있어요. Google 계정을 연결해 두면 어디서든 재설정할 수 있어요."
-            case .needsHermes: return "이 회원의 Hermes가 아직 hejo에 연결되지 않았어요. 맥미니의 내 Mac 계정 터미널에서 \(Self.joinCommand) 을 한 번 실행한 뒤 '다시 확인'을 눌러 주세요."
+            case .needsHermes: return "이 회원의 Hermes가 아직 hejo에 연결되지 않았어요. 맥미니의 내 Mac 계정 터미널에서 \(Self.joinCommand) 을 한 번 실행해 주세요. 연결되면 자동으로 들어가요."
             default: return ""
             }
         }()
@@ -166,7 +166,8 @@ import AppKit
     func finish(hub: HubClient, token: String) async {
         guard let me = try? await hub.me(token: token) else { message.stringValue = Self.message(for: "unreachable"); return }
         guard let gate = hub.gateAddress(me) else {
-            apply(.needsHermes); message.stringValue = "회원 아이디: \(me.account)\n\n" + message.stringValue; return
+            apply(.needsHermes); message.stringValue = "회원 아이디: \(me.account)\n\n" + message.stringValue
+            waitForHermes(hub: hub, token: token); return
         }
         try? client.store.update { $0.hubAddress = hub.address }
         rememberChoices()
@@ -212,6 +213,19 @@ import AppKit
         Task {
             guard let token = await GoogleSignIn.idToken(client: googleClient) else { message.stringValue = Self.message(for: "google_failed"); return }
             NSApp.activate(ignoringOtherApps: true); signIn(work(token))
+        }
+    }
+    /// No "check again" button: while this member's Hermes is not linked yet, look every few seconds and go in.
+    var waitInterval: UInt64 = 3_000_000_000
+    private var waiting: Task<Void, Never>?
+    private func waitForHermes(hub: HubClient, token: String) {
+        waiting?.cancel()
+        waiting = Task { [weak self] in
+            while let self, self.mode == .needsHermes, !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: self.waitInterval)
+                guard self.mode == .needsHermes, let me = try? await hub.me(token: token), hub.gateAddress(me) != nil else { continue }
+                await self.finish(hub: hub, token: token); return
+            }
         }
     }
     @objc private func toggleSignup() { apply(mode == .login ? .signup : .login) }

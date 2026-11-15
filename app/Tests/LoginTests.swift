@@ -80,6 +80,7 @@ final class StubHub: URLProtocol {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString); defer { try? FileManager.default.removeItem(at: directory) }
     let client = GateClient(store: try LocalStore(directory: directory), credentials: MemoryCredentials())
     let window = LoginWindow(client: client); window.home = home; window.googleClient = .init(id: "cid", secret: "s")
+    window.waitInterval = 50_000_000
     var signedIn: [String: String] = [:]; window.onSignedIn = { _, me in signedIn = me.settings }
     await window.refresh(find: { nil })
     try check(window.mode == .notFound, "AT58 hub not found form")
@@ -100,9 +101,9 @@ final class StubHub: URLProtocol {
     window.password.stringValue = "correct horse"; window.primary.performClick(nil)
     for _ in 0..<50 where window.mode != .needsHermes { try await Task.sleep(nanoseconds: 20_000_000) }
     try check(window.mode == .needsHermes && window.message.stringValue.contains("hejo-join") && window.message.stringValue.contains("회원 아이디: moyo"), "AT60 signed in but Hermes not linked yet, member id shown")
-    StubHub.gatePort = 47821
-    window.primary.performClick(nil)
-    for _ in 0..<50 where client.store.settings.address.isEmpty { try await Task.sleep(nanoseconds: 20_000_000) }
+    try check(window.primary.isHidden && window.message.stringValue.contains("자동으로 들어가요"), "AT60 no check-again button while waiting")
+    StubHub.gatePort = 47821  // the member's Hermes gets linked meanwhile; the window notices by itself
+    for _ in 0..<300 where client.store.settings.address.isEmpty { try await Task.sleep(nanoseconds: 20_000_000) }
     try check(client.store.settings.address == "hub.test:47821" && client.store.settings.hubAddress == "hub.test:47800", "AT60 opens this member's own gate and remembers the hub")
     try check(signedIn["petName"] == "Mochi", "AT58 member settings delivered on sign-in")
     window.apply(.reset)
