@@ -1,0 +1,16 @@
+#!/bin/bash
+# launchd entry for the hub: find this account's current Hermes Python (Hermes updates replace its venvs) and run.
+set -euo pipefail
+here="$(cd "$(dirname "$0")/.." && pwd)"
+python="${HEJO_PYTHON:-}"
+if [[ -z "$python" ]]; then
+  hermes_cli="$(command -v hermes || echo "$HOME/.local/bin/hermes")"
+  config="$("$hermes_cli" config path 2>/dev/null | tail -1 || true)"
+  hermes_home="${HERMES_HOME:-$(dirname "${config:-.}")}"
+  for candidate in "$hermes_home"/installs/*/environments/*/venv/bin/python "$hermes_home"/hermes-agent/venv/bin/python; do
+    [[ -x "$candidate" ]] && "$candidate" -c 'import aiohttp' 2>/dev/null && { python="$candidate"; break; }
+  done
+fi
+[[ -n "$python" ]] || { echo "hub: no Python with aiohttp" >&2; exit 1; }
+export PYTHONPATH="$here" PYTHONDONTWRITEBYTECODE=1
+exec "$python" -m hub "$@"

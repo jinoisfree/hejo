@@ -35,6 +35,7 @@ import AppKit
     let switchMode = NSButton(title: "", target: nil, action: nil)
     let forgot = NSButton(title: "비밀번호를 잊었어요", target: nil, action: nil)
     let message = NSTextField(wrappingLabelWithString: "")
+    let or = NSTextField(labelWithString: "또는 아이디로")
     let address = NSTextField(string: "")
     let changeAddress = NSButton(title: "서버 주소 직접 입력", target: nil, action: nil)
     private(set) var mode = Mode.searching
@@ -64,7 +65,12 @@ import AppKit
         }
         primary.keyEquivalent = "\r"
         for link in [switchMode, forgot, changeAddress] { link.isBordered = false; link.contentTintColor = .linkColor }
-        let stack = NSStackView(views: [heading, account, password, confirm, primary, google, linkGoogle, switchMode, forgot, message, changeAddress, address])
+        // Google first, like other apps' sign-in screens; the id/password form follows.
+        or.textColor = .secondaryLabelColor; or.font = .systemFont(ofSize: 11)
+        google.bezelStyle = .rounded; google.controlSize = .large
+        google.image = NSImage(systemSymbolName: "g.circle.fill", accessibilityDescription: nil); google.imagePosition = .imageLeading
+        primary.controlSize = .large
+        let stack = NSStackView(views: [heading, google, or, account, password, confirm, primary, linkGoogle, switchMode, forgot, message, changeAddress, address])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 10
         for view in [account, password, confirm, primary, google, linkGoogle, address, message] as [NSView] {
             view.widthAnchor.constraint(equalToConstant: 360).isActive = true
@@ -100,8 +106,10 @@ import AppKit
         confirm.isHidden = ![.signup, .reset].contains(next)
         password.placeholderString = next == .reset ? "새 비밀번호 (8자 이상)" : "비밀번호 (8자 이상)"
         primary.isHidden = next == .searching || (next == .reset && !hermesHere && !googleReady)
-        google.isHidden = !googleReady || ![.login, .signup].contains(next)
-        google.title = next == .signup ? "Google 계정도 연결해서 가입" : "Google로 계속하기"
+        google.isHidden = ![.login, .signup].contains(next)  // always on the first screens; explains itself until Google is set up
+        or.isHidden = google.isHidden
+        google.title = next == .signup ? "Google로 가입하기" : "Google로 계속하기"
+        or.stringValue = next == .signup ? "또는 아이디로 가입 (Google로 가입해도 아이디·비밀번호를 함께 정해요)" : "또는 아이디로 로그인"
         linkGoogle.isHidden = !(googleReady && next == .login)
         switchMode.isHidden = ![.login, .signup, .reset].contains(next)
         switchMode.title = next == .login ? "처음이에요 · 가입하기" : "로그인으로"
@@ -177,7 +185,7 @@ import AppKit
         withIDToken { token in { try await $0.google(idToken: token, device: device, link: link) } }
     }
     private func withIDToken(_ work: @escaping (String) -> (HubClient) async throws -> HubClient.SignIn) {
-        guard let googleClient, googleReady else { message.stringValue = "이 서버에서는 Google 로그인을 쓸 수 없어요"; return }
+        guard let googleClient, googleReady else { message.stringValue = "Google 로그인은 아직 준비 중이에요 · hejo의 Google 앱 등록이 끝나면 바로 쓸 수 있어요. 지금은 아이디·비밀번호로 이용해 주세요."; return }
         message.stringValue = "브라우저에서 Google 계정을 선택해 주세요…"
         Task {
             guard let token = await GoogleSignIn.idToken(client: googleClient) else { message.stringValue = Self.message(for: "google_failed"); return }

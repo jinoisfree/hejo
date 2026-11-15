@@ -23,19 +23,19 @@ def tailscale_ipv4():
     return out[0] if out and out[0].startswith("100.") else None
 
 
-def agent(python, release, home, port, listen):
-    arguments = [python, "-m", "hub", "--home", str(home), "--port", str(port)]
+def agent(release, home, port, listen):
+    # hejo-hub-run finds the account's current Hermes Python at each start (Hermes updates replace its venvs).
+    arguments = [str(release / "install" / "hejo-hub-run"), "--home", str(home), "--port", str(port)]
     for address in listen:
         arguments += ["--listen", address]
     log = Path.home() / "Library/Logs/hejo-hub.log"
     return {"Label": LABEL, "ProgramArguments": arguments, "WorkingDirectory": str(release),
-            "EnvironmentVariables": {"PYTHONPATH": str(release), "PYTHONDONTWRITEBYTECODE": "1"},
+            "EnvironmentVariables": {"PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:" + str(Path.home() / ".local/bin")},
             "RunAtLoad": True, "KeepAlive": True, "StandardOutPath": str(log), "StandardErrorPath": str(log)}
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--python", default=sys.executable, help="Python with aiohttp (the Hermes venv works)")
     parser.add_argument("--home", default=str(Path.home() / ".hejo-hub"))
     parser.add_argument("--port", type=int, default=47800)
     parser.add_argument("--uninstall", action="store_true")
@@ -49,7 +49,7 @@ def main(argv=None):
         print("hub_stopped")
         return 0
     listen = ["127.0.0.1"] + ([address] if (address := tailscale_ipv4()) else [])
-    value = agent(args.python, Path(__file__).resolve().parents[1], Path(args.home), args.port, listen)
+    value = agent(Path(__file__).resolve().parents[1], Path(args.home), args.port, listen)
     if args.print:
         print(plistlib.dumps(value).decode())
         return 0
