@@ -1,44 +1,27 @@
-## 검증 판정: 56917a17 / HEJO-FOUNDATION TASK-22 hejo 홈 채널 자동 설정
+## 검증 판정: 56917a17 / HEJO-FOUNDATION TASK-22 보완 16 + TASK-24 착수 보류
 
-1. **판정:** 부분 완료
-2. **검증 조건:** 교차 모델(구현 codex gpt-6.1-sol, 검토 Claude Opus 5.5 계획 담당). 같은 대화 검토가 아니다. 다만 계획 담당이 설계도 맡았으므로 고위험 규칙(보완 15)에 따라 이 판정은 최대 부분 완료다. 검토한 코드 상태는 `b1ae3b2354babb50b7477ed5dfefb19c8027b055`이며, 깨끗한 임시 worktree에서 확인했다. 작업 트리의 `impl-report.md` 수정(TASK-20 착수 보류 8줄)은 실행 담당이 아직 커밋하지 않은 문서이고 제품 변경이 아니다.
-3. **설계 적합성(4.2):** 대체로 충족하지만, 결함 하나를 계획 담당 설계에서 찾았다(V-1).
-   - 맞는 점:
-     - 최상위 `platforms.hejo.home_channel` 칸, 영수증 version 1 유지, `owner_may_change` 대상을 쓴다.
-     - 갱신 경로는 pending을 먼저 저장하고, 실패하면 키 단위로 되돌린다. 맞춤 표 5행, `released`, `--uninstall-home-channel`, `missing_target`/`owner_set`도 들어 있다.
-     - REQ-HF-25.AC-01과 AT-72 입력을 모두 다룬다.
-   - 결함(V-1):
-     - 16판 맞춤 표는 `applied`+값 없음을 늘 사장 변경(`released`)으로 본다.
-     - 그래서 롤백이 키를 지운 뒤 영수증을 저장하기 전에 끊긴 경우와, 사장이 키를 지운 경우를 구별하지 못한다.
-     - 결과적으로 이 경로에서 AC-01의 '`--check`는 빠진 프로필을 알린다'가 지켜지지 않는다.
-4. **직접 확인한 것:**
-   - `python3 .build/foundation9_runner.py hejo`(b1ae3b2 worktree): 종료 0, pytest 108 passed, 앱·대역 시험 통과. 로그 `/tmp/t22-review-full.log`.
-   - 독립 돌연변이(검토자 작성): 갱신 실패 때 `remove_home_channels(added)`를 빼면 `test_install.py`가 1 failed / 31 passed로 잡아낸다. 소스는 원복했다.
-   - 개인값 검사 `scripts/scan_private.py --repo .`(b1ae3b2): 종료 0.
-   - 수락 시험 변경: `test_install.py`의 기존 줄 삭제는 0건이고 추가만 했다. `HEJO-FOUNDATION.md`의 AT 기대값 변경은 없다.
-   - 실행 보고 대조: 보고한 변경 파일 6개가 git 변경과 같다. 보고에 없는 변경은 없다. 롤백 실패 사례 시험 확인(C1)의 읽기·쓰기 실패 → 종료 1·`applied` 유지 시험이 있다. 실행 담당의 돌연변이 3종 로그, 옛 설치 소스로 한 갱신(`task22-legacy.log` PASS), 공용 릴리스(`task22-release.json` 종료 0)도 확인했다.
-   - 증거 수준: 2(임시 HERMES_HOME에서 실제 설치 도우미를 실행). 요구한 인계 수준 2에 도달했다. 최종 수준 4(운영 재시작 뒤 첫 답에 안내 없음)는 TASK-23 몫이다.
+1. **판정:** 부분 완료. TASK-22 보완 16은 이번 검토 범위에서 통과다. 고위험 조건(비설계자 검토, TASK-23 실물)은 남았다. TASK-24는 계획 문서 차이로 보류됐고 제품 변경은 없다.
+2. **검증 조건:** 교차 모델(구현 codex gpt-6.1-sol, 검토 Claude Opus 5.5 계획 담당). 같은 대화 검토가 아니다. 계획 담당이 설계도 했으므로 고위험 판정 상한은 부분 완료다. 검토한 코드는 `22ebcb586f422fd1ae4d68b7bd59761e6b200584`(깨끗한 임시 worktree)이고, TASK-24 보고는 `705c240` 위 미커밋 `impl-report.md` 9줄이다.
+3. **설계 적합성(4.2)**
+   - 보완 16: 17판 설계를 충족한다.
+     - 맞춤 표 `removing` 3행: 값이 같으면 `applied`(롤백 명령이면 이어서 지워 `removed`), 값이 없으면 `removed`, 값이 다르면 `released`.
+     - 지우는 순서: `removing` 저장 → 쓰기 → `removed`.
+     - 쓰기가 실패하면 `applied`로 되돌리고 종료 1(C1 유지).
+     - `owner_removed`를 따로 출력한다.
+     - 갱신 경로는 대상을 붙이기 전에 맞춤을 먼저 한다.
+   - TASK-24 보류: 설계 결함 2건(D24-01 확인 창 문구가 원본과 다름, D24-02 처음 옮기기 조건이 design·spec·AT 사이에서 어긋남)은 실행 담당 지적이 맞다. 계획 담당 결함이다.
+4. **직접 확인한 것**
+   - `foundation9_runner.py hejo`(22ebcb5): 종료 0, 126 passed. 로그 `/tmp/r16-review-full.log`.
+   - 검토자 돌연변이(`removing` 선저장 제거): `test_install.py` 17 failed / 33 passed로 검출했다. 원복했다.
+   - 개인값 검사(22ebcb5): 0.
+   - 기존 시험 변경: 허가된 한 줄(`owner_set` 2개 기대 → 17판 기대)뿐이다.
+   - ddots `App.swift` 1685~1694, `SlackSettingsSync.swift` 60~100을 직접 대조했고 D24-01·02 지적과 일치한다.
+   - 공개판: `public` 347a68a는 커밋 2개, 대조표 파일 없음, 개인값 검사 0.
 5. **지적 목록**
-   - V-1
-     - 위치: `install/hejo-install` `remove_home_channels`·`reconcile_home_channels`, design 'hejo 홈 채널' 맞춤 표
-     - 위반 기준: REQ-HF-25.AC-01('`--check`는 빠진 프로필을 알린다', '어느 지점에서 끊겨도 맞춰진다')
-     - 근거: worktree에 임시 시험을 넣어 재현했다. 설치 → `--uninstall-home-channel` 중 `save_receipt`에서 중단 → 다시 설치하면 종료 0, `preserved_owner_change`가 나오고 기본 프로필 `platforms`는 None이다(값이 돌아오지 않음). `--check`는 `owner_set`·종료 0이고 대상 상태는 `released`다.
-     - 등급: 비차단(드문 중단 경로)이지만 TASK-23 롤백 전에 고친다.
-     - 보낼 곳: 기획설계(설계 결함) → 17판 보완 16으로 구현에 넘긴다.
-   - V-2
-     - 위치: `run --check`
-     - 위반 기준: design 점검 항목
-     - 근거: `released`이고 값이 없는 프로필(사장이 키를 지움)에 `owner_set`을 출력한다(`test_at_hf_72_owner_change_check_and_forced_uninstall`이 `owner_set` 2개를 기대함). 값이 없는데 '사장이 정했다'고 알리게 된다.
-     - 등급: 비차단
-     - 보낼 곳: 기획설계 → 17판에서 `owner_removed`로 고친다(보완 16).
-   - 기술 부채: 기존 비동기 pytest 경고·Swift Sendable 경고(실행 보고와 같음, 이번 변경과 무관).
-6. **기획설계로 넘긴 것:** V-1·V-2를 계획 담당이 직접 고쳤다. design 17판(맞춤 표 `removing` 3행, 지우는 순서, `owner_removed`), AT-72 입력·기대값 추가, handoff 보완 16.
-7. **미검증 범위와 남은 위험:**
-   - 운영 공항 적용·재시작·새 세션 첫 답 확인은 수준 4이며 TASK-23에서 한다.
-   - 비설계자 독립 검토는 아직 없다.
-   - `.env`의 `HEJO_HOME_CHANNEL` 여부는 설계상 확인하지 않는다.
-8. **미완료 원인 분류:** 설계 오류(V-1·V-2, 계획 담당 16판 맞춤 표). 완료까지 남은 조건은 다음과 같다.
-   1. 보완 16 구현과 검토
-   2. 비설계자 검토
-   3. TASK-23 실물 수준 4
-9. **현재 명세 반영 요청:** 없음(완료 아님).
+   - 차단: 없음.
+   - 비차단: 없음.
+   - 계획 쪽(이번에 처리): D24-01·D24-02 → 19판(보완 18)에서 고쳤다.
+6. **기획설계로 넘긴 것:** D24-01·02. 계획 담당이 19판으로 직접 고쳤다. 사장 추가 선택(문맥·펫 알림·말풍선 답하기)도 반영했다.
+7. **미검증 범위와 남은 위험:** TASK-22는 운영 적용과 재시작 뒤 첫 답에 안내가 없는지(수준 4), 비설계자 검토가 남았다. TASK-24 이후는 미착수다.
+8. **원인 분류:** 설계 오류(D24-01·02, 18판 명세와 원본 차이). 완료까지 남은 조건은 보완 18 실행(TASK-24부터), 각 TASK 검토, 비설계자 검토, TASK-23이다.
+9. **현재 명세 반영 요청:** 없음.

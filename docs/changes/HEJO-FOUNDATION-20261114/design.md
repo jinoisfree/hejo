@@ -266,7 +266,7 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
   - 서버 `room {room}`·`room_deleted {id}` 방송. `sync`·`welcome` 재현에 방 상태를 포함한다.
   - `send`·`message`·`typing`·`state`에 선택 필드 `room`을 더한다.
   - 옛 클라이언트(hello에 `features`의 `rooms`가 없음)에는 room 글·room 프레임을 보내지 않는다.
-- **전달:** 단체방 사장 글은 roster 이름·별명으로 @를 찾는다(방 직원 안에서만). 없으면 `lead`에게 보낸다. 받는 직원마다 Hermes에 `chat_id = "room:<방 id>"`, 같은 thread로 넘긴다. 인증 판단은 1:1과 같은 owner·dm 규칙이다(Hermes 본체 무수정). 답(`send`)·작성 중은 chat_id에서 방을 되찾아 기록에 `room`을 붙인다. 보조 프로필 직원은 기존 전달자로 간다. 직원은 자기가 받은 글만 세션에 가진다. 다른 직원 글을 문맥으로 넘기지 않는 것이 이번 범위다(바꾸려면 사장 결정).
+- **전달:** 단체방 사장 글은 roster 이름·별명으로 @를 찾는다(방 직원 안에서만). 없으면 `lead`에게 보낸다. 받는 직원마다 Hermes에 `chat_id = "room:<방 id>"`, 같은 thread로 넘긴다. 인증 판단은 1:1과 같은 owner·dm 규칙이다(Hermes 본체 무수정). 답(`send`)·작성 중은 chat_id에서 방을 되찾아 기록에 `room`을 붙인다. 보조 프로필 직원은 기존 전달자로 간다. 직원은 자기가 받은 글만 세션에 가진다. (19판) 문은 넘길 때 그 직원이 받지 못한 같은 스레드 앞 글을 문맥 묶음으로 앞에 붙인다(REQ-HF-24.AC-02 형식·한도). 받은 기록은 기록장에서 계산한다(그 스레드에서 그 직원이 받은 사장 글의 seq와 그 직원이 쓴 글). 새 저장소는 없다. 문맥은 Hermes로 넘기는 글에만 붙고, 기록장·앱 표시는 원문이다.
 - **삭제 계약(15판, 계획 검증 R2):**
   - **확정점은 `room_delete {room, at}` 기록 한 줄이다.** 글마다 `delete` 기록을 쓰지 않는다. 기록장은 한 줄 추가만 원자적(fsync가 확정, 실패 시 잘라 되돌림)이므로, 한 줄이 확정이면 부분 삭제 상태가 생기지 않는다. 쓰기가 실패하면 아무것도 지우지 않고 앱에 `journal_write_failed`로 거절한다(방·글·첨부 그대로).
   - **확정 뒤 보기:** 문은 기록장 재현 때 `room_delete`가 있는 방의 `room`·글·수정·상태 기록을 앱에 내보내지 않는다(`sync`·`welcome`·페이지·`message()` 조회 모두). 앱은 `room_deleted`를 받으면 방·글·캐시를 지운다. 1:1 글과 다른 방 글은 그대로다.
@@ -300,7 +300,7 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
   - `server.py`에 `/v1/me/state` GET·PATCH를 더한다.
   - 시험: 병합 규칙(LWW·큰 seq), 한도·잘라내기, 삭제 표시, 동시 PATCH, 다른 회원 거절.
 - **앱(`app/`) 소유**
-  - `MemberState`(새): 회원 상태의 이 Mac 복제다. 권위는 허브이고, 끊긴 동안 쌓은 변경은 `hejo-local.json`의 `pendingState`에 둔다. 동기화 시점은 30초 주기, 창 열기·앱 활성화, PATCH 응답이다. 처음 옮기기(REQ-HF-26.AC-03)는 회원 상태가 비었을 때 한 번 한다. `ConversationModel`의 고정·알림·숨김·읽음은 이 모듈을 읽고 쓴다. 로컬 `readSeq`는 옮긴 뒤 지운다.
+  - `MemberState`(새): 회원 상태의 이 Mac 복제다. 권위는 허브이고, 끊긴 동안 쌓은 변경은 `hejo-local.json`의 `pendingState`에 둔다. 동기화 시점은 30초 주기, 창 열기·앱 활성화, PATCH 응답이다. 처음 옮기기(REQ-HF-26.AC-03)는 이 Mac의 `stateJoined.<회원>` 표시가 없을 때 한 번 한다(허브가 비었는지와 무관, 19판). 옮길 값·표시·`readSeq` 삭제를 `pendingState`와 함께 한 번의 원자적 저장으로 쓴다. `ConversationModel`의 고정·알림·숨김·읽음은 이 모듈을 읽고 쓴다. 로컬 `readSeq`는 옮긴 뒤 지운다.
   - `SidebarLayout`(새): ddots `SlackController` 방 목록 조립, `SlackRoomOrder.sorted`, `Ddots.stacked`, `SlackModel` sections·`addSection`·`removeSection`·`move`·`groupName`을 옮긴다. 입력은 방·최신 활동·`MemberState`, 출력은 행 목록이다. AppKit 사이드바(`ConversationView`)는 이 출력만 그린다.
   - 카드·작업 제어(TASK-25): ddots `SlackPanel` 카드 아래 버튼·종·작업 중 줄·`AgentStop`·`BubbleReplyInterruption`·`SlackCopy`·체크리스트, `SlackThreads` 상태 색·표를 `ConversationView` 카드 부품으로 옮긴다.
   - 알림 막대·검색·작성기(TASK-26): ddots `SlackThreads` 알림 분류, `SlackFind`·`SlackFindView`·`SlackSearch`, `ChatWorkspace` 머리줄, `SlackDrafts`·실패 목록. 검색 대상은 `cache/`의 기록장 복제이며, 서버 검색과 월 단위 기록 읽기는 없다(hejo는 캐시가 전체 기록이다).
@@ -315,7 +315,12 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
   - `thread_delete` 기록이 생긴 뒤 이전 문 코드로 되돌리면 기록장이 열리지 않는다(14판과 같은 이유). 그래서 TASK-23 롤백은 `shared/hejo` 사본 복원을 함께 한다.
   - 허브 상태 파일은 이전 허브가 읽지 않는 새 파일이라, 되돌려도 회원 설정은 안전하다.
   - 직원 사진 롤백은 바꾸기 전 `avatar.png`를 TASK-23 사본에 함께 떠 두고 되돌린다.
-- **TASK 순서:** TASK-22 보완 16 → TASK-24 → TASK-20 → TASK-25 → TASK-26 → TASK-27 → TASK-21 → TASK-23. TASK-28(team-kit 체크리스트 메타)은 운영 저장소 쪽 별도 작업이다.
+- **펫 알림·말풍선 답하기(19판, REQ-HF-30·31)**
+  - 원본: ddots `App.swift` 말풍선 우선순위·`PetAction`, `Conversation*` 새 답 말풍선(nudge)·나중에 알려줘, `PetView` 말풍선·배지·생각 풍선·상태 점, `BubbleReply.swift` 전체.
+  - 소유: `BubbleReveal`(TASK-17)을 우선순위 표로 넓힌다. 입력은 `ConversationModel`·`IslandModel`·REQ-HF-28 알림 분류다.
+  - 나중에 알려줘: 예약은 Mac별 `hejo-local.json` `reminders`에 둔다. 펫 알림은 그 Mac 화면의 일이라 회원 상태에 두지 않는다.
+  - 말풍선 답하기: 보내기는 기존 `send`다. 직원별 `busy_input_mode`는 문 명부가 그 프로필 `config.yaml` `display.busy_input_mode`를 읽기만 해서 `queued`로 보낸다(ddots `BubbleReply.isQueued`와 같은 규칙).
+- **TASK 순서:** TASK-22 보완 16(검토 완료) → TASK-24 → TASK-20 → TASK-25 → TASK-26 → TASK-29 → TASK-30 → TASK-27 → TASK-21 → TASK-23. TASK-28(team-kit 체크리스트 메타)은 운영 저장소 쪽 별도 작업이다.
 
 ### hejo 홈 채널(14판, 15·16판 보강, REQ-HF-25)
 
