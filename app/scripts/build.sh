@@ -8,6 +8,13 @@ if ! security find-identity -v -p codesigning | /usr/bin/grep -Fq "\"$identity\"
 fi
 bundle=.build/hejo.app
 mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources/Pet"
+iconset=.build/AppIcon.iconset
+rm -rf "$iconset"
+xcrun swiftc -swift-version 5 -parse-as-library -O -target "$(uname -m)-apple-macosx13.0" \
+  Sources/AppIcon.swift Tools/IconMain.swift -o .build/icon-generator -framework AppKit
+.build/icon-generator "$iconset"
+iconutil -c icns "$iconset" -o .build/AppIcon.icns
+cp .build/AppIcon.icns "$bundle/Contents/Resources/AppIcon.icns"
 cp Resources/Info.plist "$bundle/Contents/Info.plist"
 # hejo's shared Google desktop client: public id in config/google-oauth.json, secret from an untracked file or env.
 google_id=$(/usr/bin/python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("client_id",""))' ../config/google-oauth.json)
