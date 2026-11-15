@@ -1055,3 +1055,31 @@ AppKit `AppIcon.render(pixels:)`가 투명 1024px 캔버스의 흰 둥근 사각
 | 서명 후보 생성·앱 두 사본 교체·실행·독립 서명/해시/프로세스 확인 | **각 0**; 서명 2개·실행 파일 해시 동일·앱 프로세스 1개 | `.build/task19-deploy.log`, `.build/task19-install-verify.log` |
 
 기본 `python3 scripts/scan_private.py` 첫 실행은 환경에 `ruamel`이 없어 종료 2(`.build/task19-scan-initial.log`로 보존); 기존 Hermes Python으로 재실행해 종료 0을 확인했다. 설치 후보는 시험 빌드에 기존 설치본의 plist를 내용을 표시하지 않고 복사해 기존 로그인 설정을 보존하고 다시 서명했다. 게이트웨이·허브 재시작, 운영 설정·다른 저장소·공개 브랜치 변경, 외부 발송, 푸시는 하지 않았다.
+
+### TASK-22 — hejo 홈 채널 설치·갱신·안전한 제거
+
+1. **받은 설계:** handoff 보완 14-1·15, design의 'hejo 홈 채널'(16판), AT-HF-72와 계획 검증 C1. 기준 `e9a4285c12ebbe2f6fa7a48d06c923a9b7a775b7`, 연합개발·고위험. 필요 증거는 구현 인계 수준 **2**, 최종 수락 수준 **4**다.
+2. **구현자 판단:** TASK-22 구현·자체 시험 완료. 운영 적용·실물 수락과 독립 검토는 미실행이다. TASK-20·21은 아직 착수하지 않았다.
+3. **구조·변경:** `install/hejo-install`이 기존 영수증 version 1 안에 `owner_may_change` 홈 채널 대상을 저장한다. 새 설치·옛 installed 영수증 갱신 모두 최상위 `platforms.hejo.home_channel`이 없는 프로필에만 쓴다. 이름은 허용된 직원 id 대체값을 사용한다. pending 영수증 선저장 → config → applied 순서이며, 기존 대상·`configs.before`는 유지한다.
+4. **더한 것·지운 것:** 기존 installed 즉시 반환을 빠진 홈 채널 갱신으로 교체했다. 명령 시작의 맞춤, released 소유권 포기, 키 단위 되돌림, `--uninstall-home-channel`, 점검의 `missing_target`/`owner_set`을 추가했다. README·문의 설정 설명도 같은 키로 맞췄다. 파일 전체 복원은 기존 일반 설치 대상의 되돌리기에만 남겼으며, 홈 채널 소유권이 남았거나 원문과 현재 홈 채널이 다르면 그 최적화를 쓰지 않는다.
+5. **설계와 차이:** 없음. C1대로 config 읽기·쓰기 실패는 종료 1이며 해당 대상은 applied로 남는다. `--force`도 사장 홈 채널 변경값을 지우지 않는다. 옛 원문에 있던 사장 값이 갱신 전에 삭제된 경우, 갱신 제거가 그 옛 값을 되살리지 않도록 시험을 더했다.
+6. **덧대기·임시 코드:** 별도 영수증·설정 원본·우회 설치 경로 없음. 기존 원자적 쓰기·줄 단위 YAML 편집에 홈 채널 키를 통합했다. pending/applied/released/removed는 중단 복구와 소유권 판단에 쓰이며 임시 분기가 아니다.
+7. **성격:** 의미 변경. 설치가 홈 채널도 설정하며, 재설치는 기존 연결을 보존한 채 빠진 값만 보강한다. 갱신 실패는 이번 대상만 키 단위로 되돌리고 installed를 유지한다.
+8. **시험:** `test_install.py`에 AT-72 실행 시험 15사례를 추가했다. 기본+보조 2개 설치·재설치·기존 사장 값·제거, 옛 영수증의 점검·갱신·두 번째 프로필 쓰기 실패, 중단 3지점에서 재설치/즉시 제거, 읽기 전용 점검, A/B/C 롤백·재설치, C1 읽기/쓰기 실패, 사장 삭제값·강제 제거·맞춤 직후 사장 변경·옛 사장 값 비복원을 보호한다. 기존 수락 기준·기존 실행 시험 기대값은 바꾸지 않았다. 영수증 선저장 제거·쓴 값 맞춤 오판·삭제 직전 사장 값 검사 제거의 3 mutation은 각각 시험 실패(종료 1)로 검출했고 소스를 원복했다.
+9. **증거:** 필요한 수준 **2**, 도달 수준 **2**(임시 HERMES_HOME에서 실제 설치 도우미·가짜 프로필 실행). 아래 검증은 동일한 최종 제품·시험 소스로 직접 실행했다. 다른 에이전트는 쓰지 않았다.
+
+| 명령·관측 | 실제 결과 | 로그 |
+|---|---|---|
+| `python3 .build/foundation9_runner.py task22-install <저장소>/tests/acceptance/test_install.py` | 종료 **0**, 설치 시험 **32 passed** | `.build/task22-focused.log`, `.build/foundation9-task22-install.log` |
+| `python3 .build/foundation9_runner.py hejo` | 종료 **0**, pytest **108 passed**, AT-22 가짜 게이트웨이 정상 종료, 앱·HTTP/WebSocket 대역 통과 | `.build/task22-full-final.log`, `.build/task22-full-detail.log` |
+| `python3 .build/task22_legacy.py` | 종료 **0**, 기준 커밋의 실제 옛 설치 소스로 만든 영수증 → missing_target 3개 → 갱신·점검·제거 통과 | `.build/task22-legacy.log` |
+| `python3 .build/task22_mutation.py` | 실행기 종료 **0**, mutant 3종 각각 pytest 종료 **1**, 소스 원복 확인 | `.build/task22-mutation.log`, `.build/task22-mutation-results.json`, `.build/foundation9-task22-mutant-*.log` |
+| Hermes venv Python `scripts/scan_private.py`, `HEJO_PYTHON` 지정 `sh githooks/pre-commit`, `git diff --check` | 각각 종료 **0** | `.build/task22-check-results.json`, `.build/task22-{scan,precommit,diff-check}.log` |
+| `rg -n '^\s*import\s+SwiftUI\b' app/Sources` | 검색 종료 **1**(일치 없음), import **0건** | `.build/task22-swiftui.log` |
+
+10. **미검증·적용:** 운영 홈에서 설치 도우미·게이트웨이 재시작/reload는 실행하지 않았다. 실물 첫 응답 확인은 TASK-23이다. 앱 소스 변경이 없어 10회 반복·새 화면 캡처·앱 사본 교체는 해당하지 않는다. 공용 릴리스는 커밋 뒤 `install/hejo-release`로 갱신하고 결과를 `.build/task22-release.log`에 남긴다. 실제 Slack·고객 발송, 비밀 파일 열기, Hermes 본체·ddots 수정, 허브 코드·public 브랜치 변경, push 없음.
+11. **부채:** 기존 전체 시험의 비동기 pytest 표시·Swift Sendable 경고는 이번 변경과 무관하여 그대로 남겼다.
+12. **검토 요청:** 맞춤 표의 pending+없음과 applied+없음 구분, check가 영수증을 쓰지 않는 경로, config 삭제 실패 뒤 applied 보존, 사장 값과 설치 전 원문을 갱신 실패·제거가 건드리지 않는지 확인할 것.
+13. **대상 변경본:** main의 TASK-22 단독 커밋(이 절을 포함한 커밋). 실제 전체 해시·릴리스 결과는 최종 인계의 pushTargets·checks로 전달한다. 다음 구현은 승인된 순서대로 TASK-20 → TASK-21이다.
+
+초기 집중 시험 호출 한 번은 runner의 비-hejo 모드가 다른 작업 디렉터리를 사용해 상대 시험 경로를 찾지 못해 종료 4였다(`.build/task22-focused-initial.log`). 절대 시험 경로로 바꾼 최종 명령이 위 32개 통과다. 개발 중 발견한 실패와 최종 결과를 구분하며, 이 로그들은 공개 추적 파일에 넣지 않는다.

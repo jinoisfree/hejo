@@ -27,6 +27,8 @@ Hermes 모듈과 ruamel.yaml을 import할 수 있는 Python으로 실행한다. 
 
 `hejo/install-receipt.json`은 최초 설정·플러그인 목록·링크를 보관한다. 재설치는 이 before를 바꾸거나 사장이 고친 값을 덮어쓰지 않는다. 실패하면 적용한 단계를 역순 복구하고 종료 1이다. 기록용 `hejo/`와 failed 영수증은 남는다. 원래 있던 금고 자료는 보존한다. 제거도 금고·기록장·첨부를 남긴다. 설치 뒤 바뀐 대상은 충돌 경로를 알리고 보존하며 종료 2다. 원래 값으로 강제 복구하기로 결정한 경우에만 `--uninstall --force`를 쓴다. `--check`는 설치 상태와 대상 값·권한을 읽기 전용으로 검사한다.
 
+설치·재설치는 각 프로필의 `platforms.hejo.home_channel`이 없을 때 그 프로필의 1:1 대화를 설정한다. 기존 설치를 갱신하다 실패하면 이번에 더한 홈 채널 키만 되돌리고 영수증은 `installed`로 남는다. 홈 채널만 되돌리려면 `--uninstall-home-channel`을 쓴다. 설치 도우미가 넣고 사장이 바꾸지 않은 값만 지우며, 사장 변경값은 `--uninstall --force`를 포함한 모든 제거에서 보존한다. `--check`의 `missing_target`은 빠진 홈 채널(종료 1), `owner_set`은 사장이 정한 값(정상)을 뜻한다.
+
 ## 개인값 검사
 
 Python 3와 ruamel.yaml이 필요하다. `python3 scripts/scan_private.py`는 Git 추적 텍스트 전체를 검사하며 운영 홈에서는 owner/team.yaml·owner/vault.yaml만 읽는다. `--home`과 `--repo`로 임시 공항·시험 저장소를 지정할 수 있다. 발견값은 출력하지 않고 종류·파일·줄·SHA-256 지문을 출력한다. 종료 0은 위반 없음, 1은 탐지, 2는 검사 오류다. 바이너리는 이름만 표시하고 생략한다.

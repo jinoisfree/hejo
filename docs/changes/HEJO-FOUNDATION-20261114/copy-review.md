@@ -113,3 +113,7 @@ NativeThreadList/Card·SlackLayout·ChatStyle·DraftEditor·DraftFormat·Attachm
 ### 보완 12-2 우클릭 메뉴
 
 `<운영 저장소>/ddots/Sources/SlackPanel.swift`의 전체 파일 배치와 1987~2045 메뉴, 2096 `slackPinMenu`, 1247 `hide`/`restore`, 1351 `toggleMute`, 684~693 사이드바 너비 동작 및 관련 상태·의존을 읽었다. `ChatWorkspace.swift`는 전체 56줄을 읽고 머리줄 메뉴를 확인했다. 두 원본은 SwiftUI와 SlackModel에 의존하므로 코드를 직접 복사하지 않고 메뉴 순서와 고정·숨김·알림·너비 상태 전이만 AppKit `ConversationView`/`ConversationModel`로 옮긴다. Slack API, 그룹·채널, iMessage, 보관·삭제, 방 생성 및 전체 검색은 이 단계에 들이지 않는다. 허브 회원 설정은 기존 `HubClient.save`로 보내며 로컬 값은 오프라인 화면용 복제다.
+
+## TASK-22 홈 채널 설치
+
+앱·UI와 ddots 코드의 복사 대상은 없다. 기존 hejo 설치 도우미·시험을 직접 읽고 같은 책임 자리에서 변경했다. 따라서 새 ddots 원본 검토·앱 캡처는 해당하지 않는다. TASK-20·21의 사진·구획·단체방은 해당 ddots 원본 전체를 읽고 별도로 기록한다. ddots는 읽기만 허용하고 수정하지 않는다는 사용자 확인을 받았다.

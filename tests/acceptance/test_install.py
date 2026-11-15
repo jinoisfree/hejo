@@ -415,3 +415,262 @@ def test_hub_link_writes_owner_only_key(install_airport, tmp_path):
         assert HubStore(tmp_path / "hub").gate(value["gate_key"])
     finally:
         loop.call_soon_threadsafe(loop.stop); thread.join(5)
+
+
+@pytest.fixture
+def home_channels_airport(install_airport):
+    from hermes_cli.profiles import create_profile
+    create_profile("gamma", no_alias=True, no_skills=True)
+    for file in ("config.yaml", "profiles/beta/config.yaml", "profiles/gamma/config.yaml"):
+        (install_airport / file).write_text(DRIFTING)
+    return install_airport
+
+
+def home_targets(home):
+    return [item for item in receipt(home)["targets"] if item.get("owner_may_change")]
+
+
+def set_owner_home(home, profile="default"):
+    path = home / ("config.yaml" if profile == "default" else f"profiles/{profile}/config.yaml")
+    yaml = YAML()
+    document = yaml.load(path.read_text())
+    document.setdefault("platforms", {}).setdefault("hejo", {})["home_channel"] = {
+        "platform": "hejo", "chat_id": "owner-room", "name": "Owner choice"}
+    with path.open("w") as stream:
+        yaml.dump(document, stream)
+    return path.read_bytes()
+
+
+def legacy_install(home, installer, monkeypatch):
+    # Create the old version-1 installed receipt: no home targets or top-level platforms.
+    with monkeypatch.context() as patch:
+        patch.setitem(installer, "home_target", lambda file, document: None)
+        assert installer["main"](["--home", str(home)]) == 0
+    data = receipt(home)
+    assert not home_targets(home)
+    assert data["status"] == "installed"
+    return data
+
+
+def test_at_hf_72_new_install_three_profiles_and_owner_value(home_channels_airport):
+    """New installation uses profile ids, preserves existing owner values, and is idempotent."""
+    home = home_channels_airport
+    owner_bytes = set_owner_home(home, "beta")
+    assert cli(home).returncode == 0
+    data = receipt(home)
+    assert len(home_targets(home)) == 2
+    for profile in ("default", "beta", "gamma"):
+        file = "config.yaml" if profile == "default" else f"profiles/{profile}/config.yaml"
+        document = YAML().load((home / file).read_text())
+        expected = {"platform": "hejo", "chat_id": profile, "name": profile}
+        if profile == "beta":
+            expected = {"platform": "hejo", "chat_id": "owner-room", "name": "Owner choice"}
+        assert document["platforms"]["hejo"]["home_channel"] == expected
+    snapshot = {file: (home / file).stat().st_mtime_ns for file in data["configs"]}
+    assert cli(home).returncode == 0
+    assert receipt(home) == data
+    assert snapshot == {file: (home / file).stat().st_mtime_ns for file in data["configs"]}
+    checked = cli(home, "--check")
+    assert checked.returncode == 0 and "owner_set profiles/beta/config.yaml#platforms.hejo.home_channel" in checked.stdout
+    assert cli(home, "--uninstall").returncode == 0
+    assert (home / "profiles/beta/config.yaml").read_bytes() == owner_bytes
+    assert (home / "config.yaml").read_text() == DRIFTING
+    assert (home / "profiles/gamma/config.yaml").read_text() == DRIFTING
+
+
+def test_at_hf_72_upgrade_old_receipt_and_missing_target(home_channels_airport, installer, monkeypatch):
+    """Upgrade adds only absent home keys, keeping legacy targets and original snapshots."""
+    home = home_channels_airport
+    before = legacy_install(home, installer, monkeypatch)
+    disk = (home / "hejo/install-receipt.json").read_bytes()
+    result = cli(home, "--check")
+    assert result.returncode == 1 and result.stdout.count("missing_target ") == 3
+    assert (home / "hejo/install-receipt.json").read_bytes() == disk
+    owner = set_owner_home(home, "beta")
+    assert cli(home).returncode == 0
+    after = receipt(home)
+    assert after["targets"][:len(before["targets"])] == before["targets"]
+    assert all(after["configs"][file]["before"] == cfg["before"] for file, cfg in before["configs"].items())
+    assert len(home_targets(home)) == 2
+    assert (home / "profiles/beta/config.yaml").read_bytes() == owner
+    assert cli(home, "--check").returncode == 0
+
+
+def test_at_hf_72_upgrade_failure_rolls_back_only_new_keys(home_channels_airport, installer, monkeypatch):
+    """A second-profile failure removes this upgrade's keys without undoing the installed gate."""
+    home = home_channels_airport
+    before = legacy_install(home, installer, monkeypatch)
+    configs = {file: (home / file).read_bytes() for file in before["configs"]}
+    write = installer["write_config"]
+    def fail_second(path, document, mode):
+        if path == home / "profiles/beta/config.yaml":
+            raise OSError("injected second-profile write failure")
+        return write(path, document, mode)
+    with monkeypatch.context() as patch:
+        patch.setitem(installer, "write_config", fail_second)
+        assert installer["main"](["--home", str(home)]) == 1
+    after = receipt(home)
+    assert after["status"] == "installed"
+    assert after["targets"] == before["targets"]
+    for file, original in configs.items():
+        assert (home / file).read_bytes() == original
+        assert after["configs"][file]["before"] == before["configs"][file]["before"]
+    assert cli(home).returncode == 0
+    assert cli(home, "--check").returncode == 0
+
+
+@pytest.mark.parametrize("interruption", ["pending", "written", "owner_changed"])
+@pytest.mark.parametrize("recover", ["install", "uninstall"])
+def test_at_hf_72_interruption_reconcile(home_channels_airport, installer, monkeypatch, interruption, recover):
+    """The durable pending target recovers all three crash boundaries, including immediate uninstall."""
+    home = home_channels_airport
+    legacy_install(home, installer, monkeypatch)
+    save, apply = installer["save_receipt"], installer["apply"]
+    class Interrupted(BaseException):
+        pass
+    def save_and_stop(root, data):
+        save(root, data)
+        if any(item.get("owner_may_change") for item in data["targets"]):
+            assert all(item["state"] == "pending" for item in home_targets(home))
+            assert all("platforms" not in YAML().load((home / file).read_text()) for file in data["configs"])
+            raise Interrupted()
+    def apply_and_stop(root, data, target):
+        apply(root, data, target)
+        if target.get("owner_may_change"):
+            assert home_targets(home)[0]["state"] == "pending"
+            raise Interrupted()
+    with monkeypatch.context() as patch:
+        patch.setitem(installer, "save_receipt" if interruption == "pending" else "apply",
+                      save_and_stop if interruption == "pending" else apply_and_stop)
+        with pytest.raises(Interrupted):
+            installer["main"](["--home", str(home)])
+    owner = set_owner_home(home) if interruption == "owner_changed" else None
+    snapshot = (home / "config.yaml").stat().st_mtime_ns
+    disk = (home / "hejo/install-receipt.json").read_bytes()
+    checked = cli(home, "--check")
+    assert checked.returncode == 1  # Other profiles still have no home channel.
+    assert (home / "hejo/install-receipt.json").read_bytes() == disk
+    result = cli(home) if recover == "install" else cli(home, "--uninstall")
+    assert result.returncode == 0, result.stdout
+    if recover == "install":
+        if interruption == "written":
+            assert (home / "config.yaml").stat().st_mtime_ns == snapshot
+        target = home_targets(home)[0]
+        assert target["state"] == ("released" if owner else "applied")
+        assert cli(home, "--uninstall").returncode == 0
+    if owner:
+        expected = YAML().load(owner.decode())["platforms"]
+        assert YAML().load((home / "config.yaml").read_text())["platforms"] == expected
+        assert "preserved_owner_change" in result.stdout
+    else:
+        assert (home / "config.yaml").read_text() == DRIFTING
+    for profile in ("beta", "gamma"):
+        assert (home / f"profiles/{profile}/config.yaml").read_text() == DRIFTING
+
+
+def test_at_hf_72_rollback_abc_and_reinstall(home_channels_airport):
+    """Selective rollback preserves A's preexisting and B's changed value and removes C only."""
+    home = home_channels_airport
+    set_owner_home(home)
+    assert cli(home).returncode == 0
+    set_owner_home(home, "beta")
+    before = receipt(home)
+    unchanged = {file: (home / file).read_bytes() for file in ("config.yaml", "profiles/beta/config.yaml")}
+    result = cli(home, "--uninstall-home-channel")
+    assert result.returncode == 0
+    assert "preserved_owner_change config.yaml#platforms.hejo.home_channel" in result.stdout
+    assert "preserved_owner_change profiles/beta/config.yaml#platforms.hejo.home_channel" in result.stdout
+    assert receipt(home)["status"] == "installed"
+    assert [item for item in receipt(home)["targets"] if not item.get("owner_may_change")] == [
+        item for item in before["targets"] if not item.get("owner_may_change")]
+    assert [item["state"] for item in home_targets(home)] == ["released", "removed"]
+    for file, original in unchanged.items():
+        assert (home / file).read_bytes() == original
+    assert "platforms" not in YAML().load((home / "profiles/gamma/config.yaml").read_text())
+    assert cli(home, "--uninstall-home-channel").returncode == 0
+    assert cli(home).returncode == 0
+    assert cli(home, "--check").returncode == 0
+    for file, original in unchanged.items():
+        assert (home / file).read_bytes() == original
+
+
+@pytest.mark.parametrize("failure", ["read", "write"])
+def test_at_hf_72_c1_rollback_config_failure_keeps_applied(home_channels_airport, installer, monkeypatch, failure):
+    """Config I/O failure returns 1 and never marks the still-present home channel removed (C1)."""
+    home = home_channels_airport
+    assert cli(home).returncode == 0
+    original = (home / "config.yaml").read_bytes()
+    name = "read_config" if failure == "read" else "write_config"
+    operation = installer[name]
+    def fail(path, *args, **kwargs):
+        if path == home / "config.yaml":
+            raise OSError("injected config I/O failure")
+        return operation(path, *args, **kwargs)
+    with monkeypatch.context() as patch:
+        patch.setitem(installer, name, fail)
+        assert installer["main"](["--home", str(home), "--uninstall-home-channel"]) == 1
+    assert (home / "config.yaml").read_bytes() == original
+    target = next(item for item in home_targets(home) if item["file"] == "config.yaml")
+    assert target["state"] == "applied"
+    assert receipt(home)["status"] == "installed"
+    assert cli(home, "--uninstall-home-channel").returncode == 0
+
+
+def test_at_hf_72_owner_change_check_and_forced_uninstall(home_channels_airport):
+    """Owner changes, including deleting the key, remain released even under forced uninstall."""
+    home = home_channels_airport
+    assert cli(home).returncode == 0
+    owner = set_owner_home(home)
+    path = home / "profiles/beta/config.yaml"
+    yaml = YAML()
+    document = yaml.load(path.read_text())
+    del document["platforms"]["hejo"]["home_channel"]
+    with path.open("w") as stream:
+        yaml.dump(document, stream)
+    disk = (home / "hejo/install-receipt.json").read_bytes()
+    checked = cli(home, "--check")
+    assert checked.returncode == 0 and checked.stdout.count("owner_set ") == 2
+    assert (home / "hejo/install-receipt.json").read_bytes() == disk
+    result = cli(home, "--uninstall", "--force")
+    assert result.returncode == 0
+    assert YAML().load((home / "config.yaml").read_text())["platforms"] == YAML().load(owner.decode())["platforms"]
+    assert not YAML().load(path.read_text())["platforms"]["hejo"]
+
+
+def test_at_hf_72_owner_change_between_reconcile_and_removal(home_channels_airport, installer, monkeypatch):
+    """A concurrent owner edit after reconciliation is rechecked at the key deletion boundary."""
+    home = home_channels_airport
+    assert cli(home).returncode == 0
+    read = installer["read_config"]
+    calls = 0
+    owner = None
+    def change_before_removal(path):
+        nonlocal calls, owner
+        if path == home / "config.yaml":
+            calls += 1
+            if calls == 2:
+                owner = set_owner_home(home)
+        return read(path)
+    with monkeypatch.context() as patch:
+        patch.setitem(installer, "read_config", change_before_removal)
+        assert installer["main"](["--home", str(home), "--uninstall-home-channel"]) == 0
+    assert owner is not None and (home / "config.yaml").read_bytes() == owner
+    assert home_targets(home)[0]["state"] == "released"
+
+
+def test_at_hf_72_upgrade_does_not_restore_obsolete_owner_home(home_channels_airport, installer, monkeypatch):
+    """Removing an upgraded key cannot resurrect an owner value from the legacy before snapshot."""
+    home = home_channels_airport
+    set_owner_home(home)
+    legacy_install(home, installer, monkeypatch)
+    path = home / "config.yaml"
+    yaml = YAML()
+    document = yaml.load(path.read_text())
+    del document["platforms"]["hejo"]["home_channel"]
+    with path.open("w") as stream:
+        yaml.dump(document, stream)
+    assert cli(home).returncode == 0
+    assert cli(home, "--uninstall-home-channel").returncode == 0
+    assert "home_channel" not in yaml.load(path.read_text())["platforms"]["hejo"]
+    assert cli(home, "--uninstall").returncode == 0
+    assert "home_channel" not in yaml.load(path.read_text())["platforms"]["hejo"]

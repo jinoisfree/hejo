@@ -28,7 +28,7 @@ python -m pytest gate/tests tests/acceptance/test_gate_foundation.py \
 기본 문이 없으면 `hejo_primary_unavailable` 실패와 로그로 끝난다.
 전달자의 직원 신원은 `_owner_profile`로 고정되어 호출자의 chat_id·메타로 바뀌지 않는다.
 
-예약 기본 대상은 각 프로필의 `gateway.platforms.hejo.home_channel`에
+예약 기본 대상은 각 프로필의 `platforms.hejo.home_channel`에
 `{platform: hejo, chat_id: <그 직원 id>}`로 둔다. 스레드 값은 넣지 않는다.
 그래서 예약 보고마다 문이 새 UUID 스레드를 만든다. 대상 문법은 `hejo:<직원 id>`이며
 `parse_target_ref_fn`·`validate_target_ref_fn`으로 경로 구분자 없는 프로필 id 문법을 검사한다.
