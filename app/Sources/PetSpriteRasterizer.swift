@@ -12,7 +12,6 @@ final class PetSpriteRasterizer {
     private var cache: [Key: CGImage] = [:]
     private var order: [Key] = []
     private(set) var cachedBytes = 0
-    var cachedCount: Int { cache.count }
     // Two worst-case 8-frame rows at 200% on 2x: 2 * 8 * 768 * 832 * 4 = 39 MiB.
     static let byteLimit = 48 * 1024 * 1024
     static let countLimit = 128

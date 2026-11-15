@@ -34,7 +34,6 @@ import AppKit
     var onCollapse:(()->Void)?
     var onOpenThreadHeight: ((CGFloat?) -> Void)?
     private var reportedOpenHeight: CGFloat?
-    @objc private func collapseConversation() { onCollapse?() }
     var onUnread:((Int)->Void)?, onSidebarWidth:((CGFloat)->Void)?
     override var isFlipped:Bool { true }
     var threadTable:NSTableView { history.table }

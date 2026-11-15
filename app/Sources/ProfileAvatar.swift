@@ -2,7 +2,6 @@ import AppKit
 
 /// Immutable, decoded thumbnail passed from the monitor queue to the UI. No UI-time file reads.
 struct ProfileAvatar: Equatable {
-    var hasProfileColor = false
     var color: NSColor = .systemGray
     static func initial(_ name: String) -> String { String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(1)) }
     var foreground: NSColor {

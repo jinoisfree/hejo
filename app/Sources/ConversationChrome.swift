@@ -4,8 +4,8 @@ import AppKit
 enum ConversationSidebar {
     static let width: CGFloat = 68, expandedWidth: CGFloat = 212, tabHeight: CGFloat = 72
     static let listMinimum: CGFloat = 180, listMaximum: CGFloat = 300, rowHeight: CGFloat = 58
-    static let searchHeight: CGFloat = 52, listThreshold: CGFloat = 124, hideThreshold: CGFloat = 34
-    static let topInset: CGFloat = 4, inset: CGFloat = 6, faces: CGFloat = 34
+    static let listThreshold: CGFloat = 124, hideThreshold: CGFloat = 34
+    static let inset: CGFloat = 6, faces: CGFloat = 34
     static func isList(_ width: CGFloat) -> Bool { width >= listThreshold }
     static func snapped(_ dragged: CGFloat) -> CGFloat {
         if dragged < hideThreshold { return 0 }

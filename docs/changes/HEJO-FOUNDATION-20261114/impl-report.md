@@ -1024,3 +1024,34 @@ AppKit `AppIcon.render(pixels:)`가 투명 1024px 캔버스의 흰 둥근 사각
 | 서명 후보 생성·앱 두 사본 적용·Finder 캡처 | **각 0**; 두 앱 서명 및 아이콘 해시 일치, 실행 프로세스 1개 | `.build/task18-candidate-sign.log`, `.build/task18-deploy.log`, `app/.build/task18-finder.png` |
 
 1024px와 16px 그림을 직접 확인했다. 첫 개인값 검사에서는 아이콘셋의 `@2x` 파일명이 이메일로 오인되어 종료 1이었고, 생성 파일명 표기를 유니코드 이스케이프로 바꾼 뒤 최종 검사에서 위반 0을 확인했다. 설치 후보는 기존 설치본의 plist를 내용을 출력하지 않고 복사해 아이콘 키만 추가한 뒤 다시 서명했다. Finder 선택 항목에서 새 아이콘을 확인했다. 이 앱은 `LSUIElement`이므로 실행 중 Dock 타일이 없으며 Dock 표시 여부는 실물에서 별도 관찰할 수 없다. Finder의 아이콘 보기 전환은 macOS 자동화 권한으로 거부되어 목록 보기 캡처를 남겼다. 게이트웨이·허브 재시작, 운영 설정·다른 저장소 수정, 외부 발송, 공개 브랜치 갱신, 푸시는 하지 않았다.
+
+### TASK-19 — 코드 정리 (보완 지시 13-2·13-3, 2026-11-15)
+
+`app/Sources`의 선언 이름을 앱 소스·시험 전체에서 조회하고, `gate/`·`hub/`·`install/`의 Python 최상위 정의도 전역 참조를 검사했다. 아래는 호출처가 없는 앱 코드만 지운 결과다. 줄 수는 정리 전후 `git diff --numstat`의 삭제 행 기준이다.
+
+| 파일 | 지운 이름·역할 | 삭제 행 |
+|---|---|---:|
+| `ChatStyle.swift` | `callerAvatar`, `notificationAvatar`, `thumbnailPixels`, `avatarNameGap`, `speakerInset`, `replyInset`, `PaletteRGB.hsl` | 13 |
+| `ConversationChrome.swift` | `searchHeight`, `topInset` | 2 |
+| `ConversationView.swift` | 옛 머리줄의 `collapseConversation` 셀렉터 | 1 |
+| `MessageFormat.swift` | `uniformSize`, `sizes`, `extended` | 11 |
+| `NativeThreadCard.swift` | `reportHeight`, `statusTitle`, `diagnosticButtonFrames`, `firstText` | 8 |
+| `PetAnimation.swift` | `allowsLook`, `dragAnimation`, `dozeZs` | 14 |
+| `PetLayout.swift` | `maximumChatSize`, 옛 오른쪽 창의 `defaultPaneWidth`·`defaultPaneHeight`·`paneHeight`·`minimumPaneWidth`·`usablePaneWidth`·`paneSplit`, 옛 말풍선 버튼의 `actionRowHeight`·`maximumActions`·`bubbleSize(actionCount:)`·`actionRects`, `effectiveScale`, `perchRect`, `ChatWidthSlide`, `PetBubbleMotion`, `GeniePictureKey` | 120 |
+| `PetSpritePresentation.swift` | `contentBounds` | 5 |
+| `PetSpriteRasterizer.swift` | `cachedCount` | 1 |
+| `PetState.swift` | 포커스 탐지에서만 쓰던 `Provider`, `WorkState.rank` | 16 |
+| `ProfileAvatar.swift` | `hasProfileColor` | 1 |
+| `ScreenFocus.swift` | 쓰이지 않는 `ScreenTarget`·`ScreenFocus`·`ScreenWindow`·`ScreenWindowSelection` 묶음 | 83 |
+| `ScreenWindowResolver.swift` | 쓰이지 않는 `ScreenWindowResolver` | 32 |
+
+남긴 후보는 AppKit·대리자 메서드(`cancelOperation`, 드래그·텍스트·메뉴·URL 세션 콜백), `CodingKeys`, 셀렉터로 부르는 버튼 동작, 응답 체인의 `pasteAsPlainText`·`pasteAsRichText`다. `AppIcon.render`는 빌드 도구와 시험이 사용한다. `gate/`·`hub/`·`install/`에서는 시험과 동적 등록을 포함해 안전하게 지울 미참조 최상위 정의가 확인되지 않아 제품 코드를 바꾸지 않았다. 기존 시험 기대값은 변경하지 않았다.
+
+| 실행·관측 | 종료 코드·결과 | 로그 |
+|---|---|---|
+| `python3 .build/foundation9_runner.py hejo` (임시 `HERMES_HOME`) | **0**; gate·hub·수락 93 passed, AT-HF-22 및 앱·네트워크 대역 통과 | `.build/task19-full.log`, `.build/foundation9-hejo.log` |
+| `python3 .build/foundation9_runner.py app-task19` (임시 `HERMES_HOME`, 내부 명령 `bash app/scripts/test.sh`) | **0**; 앱 시험·네트워크 대역 통과 | `.build/task19-app.log`, `.build/foundation9-app-task19.log` |
+| Hermes Python `scripts/scan_private.py`, `githooks/pre-commit`, `git diff --check` | **각 0**; 개인값 위반 0·공백 오류 0 | `.build/task19-scan.log`, `.build/task19-precommit.log` |
+| 서명 후보 생성·앱 두 사본 교체·실행·독립 서명/해시/프로세스 확인 | **각 0**; 서명 2개·실행 파일 해시 동일·앱 프로세스 1개 | `.build/task19-deploy.log`, `.build/task19-install-verify.log` |
+
+기본 `python3 scripts/scan_private.py` 첫 실행은 환경에 `ruamel`이 없어 종료 2(`.build/task19-scan-initial.log`로 보존); 기존 Hermes Python으로 재실행해 종료 0을 확인했다. 설치 후보는 시험 빌드에 기존 설치본의 plist를 내용을 표시하지 않고 복사해 기존 로그인 설정을 보존하고 다시 서명했다. 게이트웨이·허브 재시작, 운영 설정·다른 저장소·공개 브랜치 변경, 외부 발송, 푸시는 하지 않았다.
