@@ -350,6 +350,34 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
   - 본체 무수정·프로필 범위·비밀 범위가 지켜지는 길을 고른다.
   - 다른 Mac에서 OAuth 동의를 끝내는 흐름(장치 코드, 붙여넣기, 콜백 중계)
   - 다시 시작 뒤 문 재연결과 결과 보고
+- **TASK-31 탐침 뒤 결정(21판, 근거 [probe-connections.md](probe-connections.md), 계획 담당 원본 확인 `tools_config.py:754~781`, `pyproject.toml:137`, `subcommands/dashboard.py:1~7`)**
+  - **D1 방식 (b) 채택: 서버의 루프백 관리 백엔드를 문만 부른다.**
+    - 백엔드: Hermes 공식 화면 없는 백엔드(`hermes serve`, 화면 빌드 없음)를 127.0.0.1의 빈 포트에 띄운다. 착수 첫 단계에서 이 백엔드가 **메시징 게이트웨이를 따로 띄우지 않는지** 확인한다. 띄운다면 `hermes dashboard --no-open --skip-build`로 대신하고, 둘 다 띄운다면 멈추고 보고한다.
+    - 세션 토큰: 설치 도우미가 금고 `<HOME>/hejo/admin.json`(0600, 포트·토큰)에 만든다. launchd 사용자 에이전트는 hejo 래퍼(`install/hejo-admin`)를 실행하고, 래퍼가 그 파일을 읽어 `HERMES_DASHBOARD_SESSION_TOKEN` 환경으로 백엔드를 띄운다. 그래서 plist·인수·로그에 토큰이 없다. 백엔드 stdout/stderr는 버린다.
+    - 수명: launchd에서 늘 켜 두고 죽으면 다시 띄운다. 에이전트 plist와 금고 파일은 설치 영수증 대상이고, 제거하면 지운다. 토큰은 앱으로 보내지 않는다.
+    - 프로필 권한: 회원 출입증 → 그 회원의 문 → 그 공항의 프로필만이다. hejo가 판단한다.
+    - Hermes 의존성: 서버의 Hermes 실행 환경에 관리 백엔드 의존성(`fastapi`·`uvicorn`, Hermes 기본 의존성)이 없으면 설치 도우미는 Hermes 실행 환경에 직접 설치하지 않는다(본체 무수정). "서버의 Hermes를 업데이트해 주세요(`hermes update`)"를 출력하고, 백엔드 단계는 `skipped`로 영수증에 남긴다. 연결 창은 같은 문장과 함께 team-kit 연결만 보인다.
+    - 실패: 백엔드가 응답하지 않으면 문은 `admin_unavailable`로 답하고, 창은 "서버의 관리 기능이 꺼져 있어요"를 보인다.
+  - **D2 오류 비노출:**
+    - 문은 백엔드·team-kit 응답에서 허용 필드만 골라 이유 코드로 바꾼다. 원시 `detail`·`error`·traceback·로그 원문·토큰 미리보기는 앱·행동 기록·hejo 로그에 넣지 않는다. 시험은 가짜 비밀값 바이트가 hejo 쪽 모든 출력에 없음을 검사한다.
+    - 남는 위험: Hermes 자체 로그 파일(서버 로컬, 금고 수준)에 traceback이 남을 수 있다. 본체를 고치지 않으므로 받아들이고 위험 표에 적는다.
+  - **D3 키 상태:** 백엔드의 `configured`를 "필요 키 있음"으로 번역하지 않는다. 제공자 행의 env 이름별 **존재 여부**만 보인다. 상태는 "키 저장됨(확인 안 함)" / "키 없음" / "키 필요 없음"이다. "연결됨"은 확인 호출이 통과했을 때만 쓴다. 저장 성공은 연결 성공이 아니다.
+  - **D4 OAuth 제공자:**
+    - 장치 코드 제공자(Nous·Codex·MiniMax·xAI): 앱에서 시작하면 확인 주소와 코드를 보이고 그 Mac의 브라우저를 연다. 폴링은 서버가 한다.
+    - 외부 CLI 제공자(Qwen·Copilot·Anthropic·Claude Code): 원격 실행하지 않는다. "서버에서 `<공식 명령>`을 실행해 주세요" 안내와 상태만 보인다.
+  - **D5 MCP:** 목록·추가·시험·켜기·끄기·삭제를 지원한다. MCP OAuth의 루프백 콜백 중계는 이번 범위에서 뺀다(공급자 redirect 제한·포트 충돌 미검증). "서버에서 로그인해 주세요"로 안내한다. 나중 작업 후보다.
+  - **D6 다시 시작:**
+    - 요청은 백엔드가 실행한다. 백엔드는 게이트웨이와 별개 프로세스라 문이 끊겨도 살아 있다.
+    - 순서: 문은 재확인을 마친 요청을 작업 id와 함께 행동 기록에 **먼저** 남기고 재시작을 요청한다. 앱이 다시 붙으면 `connection_result {job}`으로 결과를 다시 요청한다.
+    - 결과 판정: 새 문은 새 게이트웨이 PID·시작 시각이 요청 뒤인지 공식 runtime 상태(`gateway/status.py`)로 확인한다. 그런 뒤 활성 프로필별 플랫폼 연결 수를 세어 `done`(N개) / `partial` / `unknown` / `timeout`(180초)을 행동 기록에 남기고 돌려준다.
+    - 처리 중 판정: Hermes runtime 상태의 진행 중 대화가 있으면 거절한다. 판정할 수 없으면 "처리 중인지 확인하지 못해 시작하지 않았어요"로 거절한다. drain 표식만으로 유휴로 보지 않는다.
+    - 60분 제한: 행동 기록 기준이다. team-kit 공항이면 team-kit `gateway restart`를 우선 쓴다.
+  - **D7 team-kit 명령 대행:**
+    - 허용 하위 명령: `status`·`check`·`secret guide|set|undo`·`permission`·`gateway restart`·`reconnect`·`apps`·`app`.
+    - 입력: 프로필은 명부 id만, stdin은 16 KiB까지다.
+    - 작업별 제한 시간은 ddots `ConnectionCommands.timeout`과 같다(check 30·all 90·secret 30·permission 130·gateway 150초).
+    - 판정은 종료 코드가 아니라 응답 `outcome`으로 한다. 동작 뒤 `status --json`을 다시 받는다.
+  - **D8 목록 범위:** 백엔드가 돌려준 행만 보인다. 제공자 플러그인 의존성 누락으로 빠진 행은 "이 서버에서 불러오지 못한 제공자 N개"로 알린다.
 - **위험:** 고위험(비밀값 쓰기, 인증된 원격 쓰기, 게이트웨이 재시작). 인계 수준 2, 최종 수준 4(서버 실물: 실제 키 하나 넣기·되돌리기, 노트북에서 다시 시작, OAuth 하나).
 
 ### hejo 홈 채널(14판, 15·16판 보강, REQ-HF-25)
