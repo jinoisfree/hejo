@@ -25,6 +25,7 @@ import AppKit
             instance = try InstanceLock(directory: AppIdentity.support); store = try LocalStore()
             client = GateClient(store: store); pet = PetController(store: store, atlas: try SpriteAtlas())
             conversation = try ConversationController(client: client)
+            pet.pet.avatarForEmployee = { [weak self] id in self?.conversation.avatar(id) ?? ProfileAvatar(color:PictureCodec.color(name:id,hex:nil)) }
             conversationView = ConversationView(controller: conversation)
             pet.pet.installConversation(conversationView)
             conversationView.onCollapse = { [weak self] in self?.pet.collapseChat() }

@@ -130,3 +130,41 @@ NativeThreadList/Card·SlackLayout·ChatStyle·DraftEditor·DraftFormat·Attachm
 | `<운영 저장소>/ddots/Sources/SettingsPages.swift` | 229 | AppKit 탭/설정 페이지 배치와 동작 연결만 참고. 기존 hejo AppKit 탭에 연결과 동기화를 추가. NSHostingView·SwiftUI 미리보기 및 테마 편집 의존은 제외. |
 
 보완 18로 D24-01 문구와 D24-02 이전 조건이 해소됐다. 서비스 용어만 hejo로 바꾸고, 이 Mac의 회원별 이전 표시·대기열·readSeq 삭제를 같은 파일 원자적 저장으로 묶는다. 원본 이름·계정·고정 경로·토큰은 가져오지 않는다. 원본의 caps·전송 주기를 그대로 복사하지 않고 REQ-HF-26의 hejo용 한도·30초 계약을 적용한다. 다른 앱 파일을 수정하거나 import하지 않는다.
+
+## TASK-20 착수 전 대조 — D20-01 보류(2026-11-16)
+
+기준 계획 `40c137f4b3c67384972bda64829eec950f28d10b`, ddots 원본 `208f6e6322f593729c9ef6ac16ac903be4c3692b`. 아래 두 원본 파일의 HEAD 대비 변경은 없다. 실제 경로는 AGENTS.local.md만 사용한다. **이 절은 TASK-20 전체 독해 완료나 복사 완료 기록이 아니다.**
+
+| 원본 | 이번에 확인한 범위 | 판정·남은 독해 |
+|---|---|---|
+| `<운영 저장소>/ddots/Sources/ProfileAvatar.swift` | 115줄 전체 | 사진 썸네일·가운데 자르기·첫 글자/대비색·중첩 색 키·hex/hsl 파싱을 확인. 원본 49행은 slack-avatar.png 우선이지만 hejo는 사장 선택 Q1과 REQ-HF-23.AC-01에 따라 avatar.png 우선으로 바꾸는 승인된 차이다. ImageIO/AppKit 의존을 포함한 hejo 이식은 아직 하지 않았다. |
+| `<운영 저장소>/ddots/Sources/SlackController.swift` | 앞부분과 구획 삭제 callback, 특히 324~333행 | 삭제 문구가 spec·AT의 원문 일치 조건과 달라 보완 17에 따라 멈춤. 파일 전체·나머지 의존 독해는 미완료이며 이 부분 대조를 전체 독해로 재사용하면 안 된다. |
+
+구체적인 원문·명세 차이와 계획 담당 결정 요청은 impl-report.md의 **TASK-20 D20-01**에 기록했다. SlackPanel·SlackThreads의 관련 부분도 살폈으나 전체 파일과 유지 의존의 독해는 아직 끝나지 않았다. 문구 기준을 확정해 재인계하면 지정된 전체 원본·의존의 남은 독해와 파일별 유지/대체/제외 기록부터 이어간다. 제품 코드·시험·앱 화면은 변경하지 않았다.
+
+### TASK-20 재개 — 보완 21, 22판 대조 완료
+
+원본 커밋은 위와 같고 아래 파일의 원본 작업 트리 변경은 없다. 앞의 보류 기록은 당시 상태로 보존한다. D20-01은 계획 커밋 `817a8e743ccd08f91558f667c22ac7b5f59a3e2a`의 삭제 본문과 문구 변환 규칙으로 해소됐다. 이번에는 아래 파일을 끝까지 읽은 뒤 구현에 착수한다.
+
+| 원본 (`<운영 저장소>/ddots/Sources/`) | 전체 줄 | 유지·대체·제외 및 의존 |
+|---|---:|---|
+| ProfileAvatar.swift | 115 | 앞 절의 전체 독해 재사용. 중앙 자르기·ImageIO·첫 글자·중첩 색 파싱 유지. 사진 순서는 Q1 승인대로 avatar.png 우선. AppKit 사진 캐시는 인증된 주소별 메모리 복제로 대체. |
+| SlackController.swift | 1622 | 방 목록 조립·구획 callback·사진 선택·삭제 확인 흐름 유지. SlackRoomOrder/Ddots/SlackModel을 SidebarLayout·ConversationModel로, 기존 설정 쓰기를 MemberState로 대체. Slack 전송·토큰·개인 기록·검색·정리 작업 제외. 삭제 문구는 변환 규칙 1번, Slack 전용 설명은 2번 적용. |
+| SlackThreads.swift | 1471 | SlackRoomOrder.sorted의 5자리·빈 자리 메움·누락 방 보존, Ddots.stacked의 고정 제외·명부 순서 유지. Slack 상태·전송·휴리스틱 대신 문 명부와 기록 메타 사용. 저장소/계정/개인 예시는 제외. |
+| SlackPanel.swift | 3574 | sections/addSection/removeSection/move/groupName, 머리·신호 점·레일·끌기·고정·＋ 메뉴 순서와 수치 유지. SwiftUI는 AppKit으로 옮기고 관찰 모델은 MemberState로 대체. 용어는 변환 규칙 1번. Slack 전용 설명은 2번으로 제외. 로컬 배치 저장은 Q2 승인에 따라 회원 상태로 대체. 새 방/보관 등 TASK-21 기능은 이번 범위에서 제외. |
+| SlackRoomDialogs.swift | 282 | SlackRoomPictures의 중앙 정사각 자르기·256 PNG, 이름 30자·빈 이름 기본값 유지. 로컬 사진 저장은 명시된 인증 API와 공용 창고로 대체. 로컬에만 저장한다는 설명은 Q2의 회원 상태 동기화로 대체되는 원본 동작에 속한다. Slack API·방 생성 호출 제외. |
+| ChatPresentation.swift | 468 | 직원 색과 얼굴을 화면에 전달하는 의존 확인. 색 원본은 프로필 읽기, 없으면 이름 기반 고정 해시로 대체. Slack/iMessage·검색·달력 상태 제외. |
+| ChatStyle.swift | 293 | 얼굴 크기·모서리·HSL·팔레트·이름 순서 의존 확인. 개인 설정과 Slack 호출 제외. 색 값 없는 직원의 이름 해시는 모든 Mac에서 같은 계산 사용. |
+| SlackLayout.swift | 346 | SlackZones와 SlackSectionLayout의 구획 간격·레일 배치 유지. TextKit 의존은 기존 hejo TextLayout을 사용하고 Slack 모델·SwiftUI 연결 제외. |
+
+Foundation·AppKit·ImageIO 외 유지하는 제품 의존은 기존 hejo MemberState·GateHTTP·ProfileAvatar·NativeThreadCard·IslandView이다. 구획 머리 얼굴·구획 사진 메뉴와 직원 사진 서버 쓰기는 원본의 얼굴/사진 도우미에 명세의 명시적 기능을 결합한다. 원본의 Slack 연결·로컬 전용 사진/설정 원본은 복사하지 않는다. 문구의 나머지 구조·수치·버튼·문장부호는 변환 규칙 3번으로 유지한다. ddots 실행·파일 변경·앱 간 동기화는 하지 않는다.
+
+독해 후 사진 API 초안을 작성하다 D20-02(사진 지우기 표시 조건의 전달 계약 누락)를 확인했다. 초안은 미추적 빌드 폴더에 보관하고 제품 파일은 이번 작업 시작의 HEAD로 되돌렸다. 전체 독해 완료와 구현 완료는 구분한다. 구현·통합 시험 완료 기록이 아니며 D20-02 근거·재개 조건은 impl-report에 있다.
+
+### TASK-20 보완 22 — D20-02 해소와 실제 이식
+
+23판 `b79727a`·`8703b88`의 avatar_custom 선택 필드와 옛 문 메뉴 숨김 계약을 적용했다. 위 전체 독해 기록은 재사용하며 앞선 두 보류 절은 당시 상태로 남긴다. 초안의 상대 import를 기존 시험의 `gate.tests.support` 방식으로 고쳐 같은 pytest 경로에서 수집한다.
+
+실제 앱 이식은 AppKit이다. ProfileAvatar는 인증 캐시에서 받은 이미지를 그린다. SlackRoomPictures의 중앙 자르기·256 PNG는 ImageIO로, 순서·구획 계산은 SidebarLayout으로, 편집은 ConversationModel과 MemberState로 옮겼다. 사진 서버 쓰기는 gate/pictures.py 하나가 맡으며 프로필 색은 design대로 ruamel로 읽는다. 고정 슬롯·기본 세 구획·명부 순서·마지막 1:1 묶음·신호 점의 2pt/2pt 간격·29/36 머리 높이·58/72 행 높이·16/13 굵은 머리 글씨·들여쓰기를 유지한다. 문구 변환 규칙 1번으로 방·직원 용어를 적용하고, Slack 전용 설명은 2번으로 제외했다. Q1의 사진 우선순위와 Q2의 회원별 배치 동기화는 명시적 승인 차이다. 홈의 실제 대화 조립과 단체방 생성·보관은 후속 TASK 경계를 유지한다.
+
+화면 대조용 ddots 시험 창은 SlackPanel의 slackRow·slackFolded·신호 점·카운터·slackFaces 함수 원문을 추출해 가짜 모델로 실행한다. 사진·명부·계정 서비스는 대역이다. 원본 앱을 실행하거나 원본 설정을 읽지 않는다. 원본의 이름·계정·경로·개인 자료는 이식하지 않았다. 캡처 한계와 결과는 evidence의 TASK-20 문서에 기록한다.

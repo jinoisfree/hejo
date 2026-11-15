@@ -32,6 +32,7 @@ final class IslandModel {
         var iconOnly = false
         var action: Action?
         var faceActions: [Action] = []
+        var faceEmployees: [String] = []
     }
     struct Snapshot {
         var parts: [Part] = []
@@ -135,12 +136,14 @@ final class IslandModel {
             let elapsed=max(0,Int(date.timeIntervalSince(workingSince[employees[0]] ?? date)/60))
             let shownEmployees=Array(employees.prefix(3))
             let faceActions=shownEmployees.compactMap { employee in keys.first(where:{$0.employee == employee}).map(Action.worker) }
-            parts.append(Part(kind:.worker,text:employees.count==1 ? "일하는 중 · \(elapsed)분" : "\(employees.count)명 일하는 중",faces:shownEmployees.map { input.names[$0] ?? $0 },shimmering:true,action:keys.first.map(Action.worker),faceActions:faceActions))
+            parts.append(Part(kind:.worker,text:employees.count==1 ? "일하는 중 · \(elapsed)분" : "\(employees.count)명 일하는 중",faces:shownEmployees.map { input.names[$0] ?? $0 },shimmering:true,action:keys.first.map(Action.worker),faceActions:faceActions,faceEmployees:shownEmployees))
         }
         let event=parts.contains(where:{$0.kind == .problem}) ? nil : active
         if let event {
             let action:Action? = event.kind == .owner ? oldest.map { .question($0.id,$0.key) } : event.action
-            let part=Part(kind:event.kind,text:event.text,faces:[event.name],redDot:event.kind == .owner,action:action)
+            let employee:String
+            switch event.action { case .question(_,let key),.worker(let key),.retry(let key):employee=key.employee;case .reconnect:employee="" }
+            let part=Part(kind:event.kind,text:event.text,faces:[event.name],redDot:event.kind == .owner,action:action,faceEmployees:[employee])
             if let index=parts.firstIndex(where:{$0.kind == event.kind}) { parts[index]=part } else { parts.append(part) }
             for index in parts.indices where parts[index].kind != event.kind { parts[index].iconOnly=true }
         } else if parts.contains(where:{$0.kind == .problem}) {

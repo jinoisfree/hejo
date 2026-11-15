@@ -4,6 +4,10 @@ struct Employee: Codable, Equatable, Identifiable {
     var id: String
     var name: String
     var aliases: [String]
+    var avatar: String? = nil
+    var color: String? = nil
+    var avatarCustom: Bool? = nil
+    enum CodingKeys: String,CodingKey { case id,name,aliases,avatar,color;case avatarCustom="avatar_custom" }
 }
 /// The UI's conversation unit. The roster is authoritative; this is its direct-room projection.
 struct Room: Identifiable, Equatable {
@@ -92,13 +96,70 @@ struct ConversationThread: Identifiable {
         return result
     }
     private var loadingRecords = true
-    var displayRooms: [Room] {
-        rooms.filter { !hidden.contains($0.id) }.sorted { left, right in
-            let a = pinned.firstIndex(of: left.id), b = pinned.firstIndex(of: right.id)
-            if let a, let b { return a < b }
-            if a != nil { return true }; if b != nil { return false }
-            return (employees.firstIndex(where: { $0.id == left.id }) ?? Int.max) < (employees.firstIndex(where: { $0.id == right.id }) ?? Int.max)
+    var sidebar: SidebarLayout {
+        func decoded<T:Decodable>(_ key:String,_ fallback:T) -> T { memberState.value(key).flatMap { $0.data(using:.utf8) }.flatMap { try? JSONDecoder().decode(T.self,from:$0) } ?? fallback }
+        var layout=SidebarLayout()
+        let sections=decoded("layout:sections",SidebarLayout.defaults)
+        if !sections.isEmpty { var ids=Set<String>();layout.sections=sections.filter { !$0.id.isEmpty && ids.insert($0.id).inserted } }
+        if layout.sections.isEmpty { layout.sections=SidebarLayout.defaults }
+        layout.stack=decoded("layout:stack",SidebarLayout.Stack())
+        for (key,entry) in memberState.items {
+            if key.hasPrefix("zone:"),let value=entry.v { layout.zones[String(key.dropFirst(5))]=value }
+            if key.hasPrefix("pin:"),let value=entry.v,let slot=Int(value),(1...5).contains(slot) { layout.pins[String(key.dropFirst(4))]=slot }
         }
+        for (index,id) in pinned.enumerated() where layout.pins[id]==nil { layout.pins[id]=index+1 }
+        let fractional=ISO8601DateFormatter();fractional.formatOptions=[.withInternetDateTime,.withFractionalSeconds]
+        let seconds=ISO8601DateFormatter()
+        layout.items=rooms.enumerated().filter { !hidden.contains($0.element.id) }.map { index,room in
+            let posts=messages.values.filter { room.members.contains($0.key.employee) }
+            let latest=posts.map { (fractional.date(from:$0.timestamp) ?? seconds.date(from:$0.timestamp))?.timeIntervalSince1970 ?? Double($0.latestSeq) }.max() ?? 0
+            return SidebarLayout.Item(id:room.id,name:room.title,kind:.direct,members:room.members,rank:index,latest:latest,unread:unread(room:room),questions:posts.filter { $0.replyState=="asked" }.count,muted:muted.contains(room.id))
+        }
+        return layout
+    }
+    private func saveLayout<T:Encodable>(_ key:String,_ value:T) {
+        if let data=try? JSONEncoder().encode(value),let json=String(data:data,encoding:.utf8) {
+            guard data.count<=4096 else { memberState.onFailure?(true);return }
+            changeState([key:json])
+        }
+    }
+    func toggleSection(_ id:String?) {
+        var layout=sidebar
+        if let id,let index=layout.sections.firstIndex(where:{$0.id==id}) { layout.sections[index].open.toggle();saveLayout("layout:sections",layout.sections) }
+        else if id==nil { layout.stack.open.toggle();saveLayout("layout:stack",layout.stack) }
+    }
+    func addSection() {
+        var sections=sidebar.sections
+        let next=(sections.compactMap { Int($0.id) }+[4]).max()!+1
+        sections.append(.init(id:String(next)));saveLayout("layout:sections",sections)
+    }
+    func editSection(_ id:String?,name:String?=nil,picture:String?=nil,clearPicture:Bool=false) {
+        var layout=sidebar
+        if let id,let index=layout.sections.firstIndex(where:{$0.id==id}) {
+            if let name { layout.sections[index].name=String(name.prefix(30)) }
+            if picture != nil || clearPicture { layout.sections[index].picture=picture }
+            saveLayout("layout:sections",layout.sections)
+        } else if id==nil { if let name { layout.stack.name=String(name.prefix(30)) };saveLayout("layout:stack",layout.stack) }
+    }
+    func removeSection(_ id:String) {
+        let layout=sidebar
+        guard layout.sections.count>1,layout.sections.contains(where:{$0.id==id}),let first=layout.sections.first(where:{$0.id != id}) else { return }
+        let remaining=layout.sections.filter{$0.id != id}
+        guard let data=try? JSONEncoder().encode(remaining),let value=String(data:data,encoding:.utf8) else { return }
+        var changes:[String:String?]=["layout:sections":value]
+        for (room,zone) in layout.zones where zone==id { changes["zone:"+room]=first.id }
+        changeState(changes)
+    }
+    func move(_ id:String,to section:String) { if sidebar.canMove(id,to:section) { changeState(["zone:"+id:section]) } }
+    func pin(_ id:String,slot:Int?) {
+        if let slot,!(1...5).contains(slot) { return }
+        var changes:[String:String?]=["pin:"+id:slot.map(String.init)]
+        if let slot { for (other,position) in sidebar.pins where position==slot && other != id { changes["pin:"+other] = .some(nil) } }
+        changeState(changes)
+    }
+    var displayRooms: [Room] {
+        let layout=sidebar,ordered=layout.sections.flatMap { layout.group($0.id) }+layout.stacked
+        return ordered.compactMap { item in rooms.first{$0.id==item.id} }
     }
     var visibleUnreadTotal: Int { rooms.filter { !muted.contains($0.id) && !hidden.contains($0.id) }.reduce(0) { $0 + unread(room: $1) } }
     init(store: LocalStore) throws {
@@ -175,7 +236,7 @@ struct ConversationThread: Identifiable {
             if revealedHiddenRoom { onChange?() }
         } else if type == "welcome" || type == "roster" {
             let rows = frame["employees"] as? [[String: Any]] ?? []
-            employees = try rows.map { row in try decode(row.filter { $0.key != "avatar" }, as: Employee.self) }
+            employees = try rows.map { row in try decode(row, as: Employee.self) }
             if let selected, !employees.contains(where: { $0.id == selected.employee }) { self.selected = nil }
         } else if type == "typing", let employee = frame["employee"] as? String, let thread = frame["thread"] as? String {
             let key = ConversationKey(employee: employee, thread: thread)

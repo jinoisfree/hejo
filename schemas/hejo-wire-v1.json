@@ -75,6 +75,8 @@
             "type": "string"
           }
         },
+        "avatar_custom": { "type": "boolean" },
+        "color": { "type": ["string", "null"], "pattern": "^#[0-9A-F]{6}$" },
         "avatar": {
           "type": [
             "string",

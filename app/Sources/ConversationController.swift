@@ -8,6 +8,29 @@ struct ConversationDraft {
     let client: GateClient
     let model: ConversationModel
     let files: GateHTTP
+    lazy var pictures: PictureCache = { let cache=PictureCache(http:files);cache.onChange={ [weak self] in self?.onChange?() };return cache }()
+    func avatar(_ employee:String) -> ProfileAvatar {
+        let person=model.employees.first{$0.id==employee}
+        return ProfileAvatar(color:PictureCodec.color(name:person?.name ?? employee,hex:person?.color),image:pictures.image(person?.avatar))
+    }
+    func changePicture(kind:String,id:String,url:URL?) async -> String? {
+        let address=client.store.settings.address,epoch=client.connectionEpoch,token=client.bearer
+        do {
+            let data:Data?
+            if let url { data=try await Task.detached { try PictureCodec.png(Data(contentsOf:url)) }.value } else { data=nil }
+            guard address==client.store.settings.address,epoch==client.connectionEpoch,token==client.bearer else { return nil }
+            let picture=try await files.setPicture(kind:kind,id:id,data:data)
+            guard address==client.store.settings.address,epoch==client.connectionEpoch,token==client.bearer else { return nil }
+            return picture
+        } catch {
+            switch error {
+            case FileTransferFailure.invalidFile: notice="이미지 파일만 쓸 수 있어요"
+            case FileTransferFailure.tooLarge: notice="사진은 512 KiB까지 쓸 수 있어요"
+            case FileTransferFailure.unauthorized: notice="출입증을 확인하지 못했어요. 다시 연결해 주세요."
+            default: notice="사진을 바꾸지 못했어요. 연결을 확인해 주세요."
+            };return nil
+        }
+    }
     private(set) var drafts: [ConversationKey: ConversationDraft] = [:]
     private var reconnectPending = Set<String>()
     private var pending: [String: (key: ConversationKey, draft: ConversationDraft)] = [:]
@@ -39,6 +62,7 @@ struct ConversationDraft {
     }
     deinit { timer?.invalidate() }
     func receive(_ frame: [String: Any]) {
+        if ["welcome","roster"].contains(frame["type"] as? String ?? "") { pictures.invalidate() }
         if frame["type"] as? String == "welcome" { reconnectPending = Set(pending.keys) }
         if frame["type"] as? String == "sync_done", frame["more"] as? Bool == false {
             let unconfirmed = reconnectPending.intersection(pending.keys)

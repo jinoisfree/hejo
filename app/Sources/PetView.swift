@@ -55,6 +55,7 @@ final class PetView: NSView {
     var bubbleAlwaysShown = false { didSet { updateFoldedBubble() } }
     var bubbleName = "hejo" { didSet { updateFoldedBubble() } }
     private var bubbleSender = ""
+    var avatarForEmployee:((String)->ProfileAvatar)?
     var bubbleStatus = "" { didSet { updateFoldedBubble() } }
     private(set) var bubbleTarget: ConversationKey?
     private var bubbleLine = ""
@@ -78,6 +79,7 @@ final class PetView: NSView {
         foldedBubble.isHidden = !shown
         foldedBubble.headline = bubbleHover ? bubbleName + " · 지금 상태" : bubbleName + " · " + bubbleSender
         foldedBubble.detail = bubbleHover ? bubbleStatus : bubbleLine
+        foldedBubble.sender=bubbleSender;foldedBubble.avatar=bubbleHover ? nil : bubbleTarget.flatMap { avatarForEmployee?($0.employee) }
         foldedBubble.setAccessibilityLabel(foldedBubble.headline + " · " + foldedBubble.detail + " · 대화 열기")
     }
     private func updateUnreadBadge() {

@@ -11,6 +11,8 @@ from aiohttp import web, WSMsgType
 from jsonschema import Draft202012Validator
 from .auth import AuthRejected
 from .files import MAX_FILE_BYTES, UnknownFile
+from .pictures import Pictures, MAX_PICTURE_BYTES, valid_png
+from hermes_constants import get_hermes_home
 
 log = logging.getLogger(__name__)
 SCHEMA = json.loads((Path(__file__).resolve().parent.parent / "schemas" / "hejo-wire-v1.json").read_text())
@@ -73,6 +75,9 @@ class GateServer:
         self.sites = []
         self.tasks = set()
         self.port = None
+        runner = getattr(adapter, "_message_handler", None)
+        runner = getattr(runner, "__self__", None)
+        self.pictures = Pictures(get_hermes_home(), getattr(getattr(runner, "config", None), "multiplex_profiles", True))
 
     async def start(self, listen, port):
         if not listen or any(not allowed_address(addr) for addr in listen):
@@ -81,7 +86,9 @@ class GateServer:
         app.router.add_get("/v1/ws", self.websocket)
         app.router.add_post("/v1/files", self.upload)
         app.router.add_get("/v1/files/{employee}/{file_id}", self.download)
-        app.router.add_get("/v1/avatars/{tail:.*}", self.avatar)
+        app.router.add_route("GET", "/v1/pictures/{kind}/{identifier}", self.picture)
+        app.router.add_route("PUT", "/v1/pictures/{kind}/{identifier}", self.picture)
+        app.router.add_route("DELETE", "/v1/pictures/{kind}/{identifier}", self.picture)
         # Access logs contain no credential-bearing frame data or query strings.
         self.runner = web.AppRunner(app, access_log=None)
         await self.runner.setup()
@@ -150,8 +157,38 @@ class GateServer:
             raise web.HTTPNotFound() from None
         return web.FileResponse(path, headers={"Content-Type": mime, "X-Content-Type-Options": "nosniff"})
 
-    async def avatar(self, request):
-        raise web.HTTPNotFound()
+    async def picture(self, request):
+        await self.http_auth(request)
+        kind, identifier = request.match_info["kind"], request.match_info["identifier"]
+        if kind == "employee" and identifier not in {e["id"] for e in self.adapter.employees()}:
+            raise web.HTTPNotFound()
+        try:
+            picture = None
+            if request.method == "GET":
+                path = self.pictures.path(kind, identifier)
+                if not path.is_file():
+                    raise KeyError("unknown_picture")
+                return web.FileResponse(path, headers={"Content-Type": "image/png", "X-Content-Type-Options": "nosniff"})
+            if request.method == "PUT":
+                data = bytearray()
+                async for chunk in request.content.iter_chunked(65536):
+                    data.extend(chunk)
+                    if len(data) > MAX_PICTURE_BYTES:
+                        raise web.HTTPRequestEntityTooLarge(max_size=MAX_PICTURE_BYTES, actual_size=len(data))
+                if not valid_png(bytes(data)):
+                    raise web.HTTPUnsupportedMediaType(text="invalid_picture")
+                path = self.pictures.put(kind, identifier, bytes(data))
+                picture = f"/v1/pictures/{kind}/{identifier}?v={path.stat().st_mtime_ns}"
+            else:
+                self.pictures.delete(kind, identifier)
+            if kind == "employee":
+                await asyncio.gather(*(c.send({"v": 1, "type": "roster", "ref": "picture", "employees": self.adapter.employees()}) for c in tuple(self.connections)))
+            return web.json_response({"ok": True, "picture": picture})
+        except KeyError:
+            raise web.HTTPNotFound() from None
+        except OSError:
+            log.error("picture_write_failed")
+            raise web.HTTPInternalServerError() from None
 
     async def maintenance(self):
         ticks = 0

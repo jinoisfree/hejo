@@ -36,6 +36,8 @@ final class MemoryCredentials: GateCredentialStore {
                     try await memberStateCapture(outputDirectory: URL(fileURLWithPath: args[2]))
                 } else if args.count > 3 && args[1] == "--task17-menu-capture" {
                     try await task17MenuCapture(outputDirectory: URL(fileURLWithPath: args[2]), kind: args[3])
+                } else if args.count > 1 && args[1] == "--pictures" {
+                    try await pictureNetwork(args)
                 } else if args.count > 1 && args[1] == "--conversation" {
                     try await conversationNetwork(args)
                 } else if args.count > 1 && args[1].hasPrefix("--network-") {
@@ -150,6 +152,7 @@ final class MemoryCredentials: GateCredentialStore {
         try await typingTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await task17Tests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await memberStateTests()
+        try picturesSidebarTests()
         try appIconTests()
         try await loginTests()
         try composerTests()

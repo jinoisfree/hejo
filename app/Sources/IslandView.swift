@@ -4,6 +4,7 @@ import AppKit
 @MainActor final class IslandView: NSView {
     private(set) var snapshot = IslandModel.Snapshot()
     var onAction: ((IslandModel.Action) -> Void)?
+    var avatar:(String)->ProfileAvatar = { ProfileAvatar(color:PictureCodec.color(name:$0,hex:nil)) }
     var onWidthChange: (() -> Void)?
     var reduceMotion: () -> Bool = { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
     private(set) var hoveredOwner = false
@@ -102,7 +103,7 @@ import AppKit
             if part.redDot || snapshot.restored {
                 (snapshot.restored ? NSColor.systemGreen : .systemRed).setFill();NSBezierPath(ovalIn:CGRect(x:x,y:12,width:5,height:5)).fill();x+=9
             }
-            for name in part.faces { ProfileAvatar(color:.systemBlue).draw(in:CGRect(x:x,y:7,width:16,height:16),name:name);x+=18 }
+            for (index,name) in part.faces.enumerated() { avatar(part.faceEmployees.indices.contains(index) ? part.faceEmployees[index] : name).draw(in:CGRect(x:x,y:7,width:16,height:16),name:name);x+=18 }
             let compact=part.iconOnly || (part.kind == .worker && workerFacesOnly)
             if !compact {
                 let style=NSMutableParagraphStyle();style.lineBreakMode = .byTruncatingTail

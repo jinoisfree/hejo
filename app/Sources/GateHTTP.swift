@@ -21,7 +21,23 @@ enum FileTransferFailure: Error { case tooLarge, invalidFile, unauthorized, unav
     }
     private func check(_ response: URLResponse) throws {
         guard let http = response as? HTTPURLResponse else { throw FileTransferFailure.unavailable }
-        switch http.statusCode { case 200..<300: return; case 401: throw FileTransferFailure.unauthorized; case 413: throw FileTransferFailure.tooLarge; default: throw FileTransferFailure.unavailable }
+        switch http.statusCode { case 200..<300: return; case 401: throw FileTransferFailure.unauthorized; case 413: throw FileTransferFailure.tooLarge; case 415: throw FileTransferFailure.invalidFile; default: throw FileTransferFailure.unavailable }
+    }
+    func picture(_ path:String) async throws -> Data {
+        guard let uri=URLComponents(string:path),uri.scheme==nil,uri.host==nil,uri.fragment==nil else { throw FileTransferFailure.invalidFile }
+        let segments=uri.path.split(separator:"/").map(String.init)
+        guard segments.count==4,segments[0]=="v1",segments[1]=="pictures",["employee","room"].contains(segments[2]) else { throw FileTransferFailure.invalidFile }
+        let request=try client.authorizedRequest(components:segments,query:uri.queryItems ?? [])
+        let (data,response)=try await session.data(for:request);try check(response)
+        return data // The 512 KiB limit is for PUT; existing profile photos may be larger.
+    }
+    @discardableResult func setPicture(kind:String,id:String,data:Data?) async throws -> String? {
+        if let data,data.count>PictureCodec.maximum { throw FileTransferFailure.tooLarge }
+        var request=try client.authorizedRequest(components:["v1","pictures",kind,id])
+        request.httpMethod=data==nil ? "DELETE" : "PUT";request.httpBody=data
+        request.setValue("image/png",forHTTPHeaderField:"Content-Type")
+        let (result,response)=try await session.data(for:request);try check(response)
+        return (try JSONSerialization.jsonObject(with:result) as? [String:Any])?["picture"] as? String
     }
     func upload(_ url: URL, employee: String) async throws -> MessageFile {
         let data = try await Task.detached { () throws -> Data in

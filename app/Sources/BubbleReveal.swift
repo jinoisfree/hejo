@@ -14,6 +14,8 @@ final class FoldedBubbleView: NSView {
     var onHover: ((Bool) -> Void)?
     var headline = "" { didSet { needsDisplay = true } }
     var detail = "" { didSet { needsDisplay = true } }
+    var avatar:ProfileAvatar? { didSet { needsDisplay=true } }
+    var sender=""
     private var tracking: NSTrackingArea?
     override var isFlipped: Bool { true }
     override func updateTrackingAreas() {
@@ -31,8 +33,10 @@ final class FoldedBubbleView: NSView {
         NSColor.windowBackgroundColor.withAlphaComponent(0.94).setFill(); path.fill()
         NSColor.labelColor.withAlphaComponent(0.14).setStroke(); path.lineWidth = 1; path.stroke()
         let title = NSMutableParagraphStyle(); title.lineBreakMode = .byTruncatingTail
-        (headline as NSString).draw(in: CGRect(x: 12, y: 9, width: bounds.width - 24, height: 18),
-                                   withAttributes: [.font: NSFont.systemFont(ofSize: 12, weight: .semibold), .foregroundColor: NSColor.labelColor, .paragraphStyle: title])
+        if let avatar { avatar.draw(in:CGRect(x:12,y:9,width:20,height:20),name:sender) }
+        let x:CGFloat=avatar==nil ? 12 : 38
+        (headline as NSString).draw(in: CGRect(x:x, y: 9, width: bounds.width-x-12, height: 18),
+                                   withAttributes: [.font: NSFont.systemFont(ofSize: 12, weight: .semibold), .foregroundColor: avatar?.color ?? NSColor.labelColor, .paragraphStyle: title])
         (detail as NSString).draw(in: CGRect(x: 12, y: 29, width: bounds.width - 24, height: 16),
                                  withAttributes: [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: NSColor.secondaryLabelColor, .paragraphStyle: title])
     }
