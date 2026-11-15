@@ -631,3 +631,10 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
   - 2·3단계 항목(하던 일 멈추기, 직원 정보, 사진, 방 메뉴, 새 방, 전체 검색, 제목 바꾸기)은 이번에 넣지 않는다. 자리만 비워 둔다.
 - **시험:** AT-67 앱 시험(메뉴 제목 순서, 고정 정렬, 모두 읽음, 알림 끔 집계, 숨김·재등장, 설정 직렬화 왕복; `StubHub`로 저장 요청 확인). 수동: 직원 우클릭·빈 곳·머리줄 메뉴 캡처.
 - 그 밖의 검증·적용·커밋·금지는 보완 지시 12와 같다(TASK-17 커밋에 함께 넣는다).
+
+## 보완 지시 13-1: TASK-17 V-1 정리 + TASK-18 재확정 (2026-11-15, 21차 판정 뒤)
+
+- **순서:** ① TASK-17 V-1 정리 커밋, ② TASK-18 앱 아이콘(보완 지시 13 그대로) 커밋. 두 커밋은 분리한다.
+- **① V-1:** `app/Sources/AppDelegate.swift`에서 호출처가 없어진 `@objc settings()`·`resetPosition()`·`resetChatSize()`·`loginSettings()`·`login()`·`rename()`을 지운다(먼저 `grep -n '#selector(<이름>)'`과 직접 호출 0을 다시 확인). `setLoginEnabled`·설정 창 연결은 그대로 둔다. 동작 변화가 없어야 하므로 시험 기대값은 바꾸지 않는다. 검증: `app/scripts/test.sh` 0(AT-61~65·67 PASS), 개인값 검사 0. impl-report에 "TASK-17 V-1" 줄을 더한다.
+- **② TASK-18:** 보완 지시 13·spec REQ-HF-22.AC-01·AT-HF-66 그대로. 기준은 ① 커밋.
+- **검토자 참고:** 분리 worktree에서 runner를 돌릴 때는 `.build/task02-deps`·`task03a-deps`·`task04-resume`를 함께 복사해야 한다(없으면 AT-HF-22가 yaml 없음으로 실패).
