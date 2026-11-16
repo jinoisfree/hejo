@@ -1114,3 +1114,14 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
   - + 버튼: 목록 마지막 줄 바로 아래에 둔다(ddots `slackAddRoom` 위치). 맨 아래 고정이 아니다.
   - 한글 입력: 원인 후보는 `RoomDialogs.swift:26~27`의 Slack 채널 이름 변환이다(소문자·빈칸→-·영숫자만). 입력 중에 글자를 고치면 조합 중 글자가 깨진다. 방 이름은 자유 글로 하고, 조합 중에는 글자를 고치지 않는다. 85줄의 Slack 안내 문구도 뺀다. 다른 입력칸(제목·설명·구획 이름·작성기)도 함께 확인한다.
 - **보완 37 추가 2(사장 지적 '섹션 열리는 애니메이션'):** spec REQ-HF-34.AC-08과 AT-85를 따른다. ddots 원문은 `SlackModel.motion = easeInOut(0.24)`, `animated{}`, 사이드바 `.animation(value: rooms)`, 선택 표시 spring(0.34, 0.88)이다. hejo는 지금 움직임이 없다. AppKit에서는 `NSAnimationContext`(0.24, easeInEaseOut)로 줄 frame·alpha·rail 높이를 함께 움직이고, '동작 줄이기'면 즉시 바꾼다.
+- **보완 37 추가 3(사장 지시 '도구 진행 글은 작업이 끝나면 사라져야'):** spec REQ-HF-34.AC-09와 AT-85를 따른다.
+  - 근거(계획 담당 확인, Hermes ebb026e):
+    - `gateway/run_turn.py` 4183~4215는 성공한 차례의 진행 글을 `delete_message`로 지운다.
+    - 3115~3122는 어댑터에 `delete_message`가 없으면 정리를 끈다.
+    - `display_config.py`의 순서는 `display.platforms.<p>.cleanup_progress` → `display.cleanup_progress` → 플랫폼 기본이다.
+    - 운영 설정 5곳에 `display.cleanup_progress: false`가 있다.
+  - 할 일:
+    - `HejoAdapter.delete_message`를 구현한다(자기 글만, 보통 `delete`).
+    - 설치 도우미에 `display.platforms.hejo.cleanup_progress: true`를 키 단위로 넣는다(값 없을 때만, 영수증, 되돌리기, `--check`). 홈 채널 규칙과 같다.
+    - AC-03(stop_typing 때 끝내기)은 그대로 둔다. 정리를 꺼 둔 사장이나 실패한 차례의 남는 진행 글이 '작성 중'으로 보이지 않게 하는 장치다.
+  - 운영 반영은 0.2.0 배포 때 계획 담당과 사장이 한다. 설치 도우미를 실행하고 게이트웨이를 다시 시작해야 한다.
