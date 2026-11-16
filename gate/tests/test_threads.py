@@ -59,6 +59,28 @@ async def test_at75_delete_commit_failure_redaction_reconnect_and_late_output(ga
 
 
 @pytest.mark.asyncio
+async def test_at75_deleted_thread_edit_body_redacted_from_page_and_sync(gate, client):
+    ws, welcome = await client.pair()
+    thread = str(uuid.uuid4())
+    sent = await gate.send("alpha", "original body", metadata={"thread_id": thread})
+    await client.read(ws)
+    assert (await gate.edit_message("alpha", sent.message_id, "edited secret body", finalize=True)).success
+    edit = await client.read(ws)
+    assert edit["type"] == "edit" and edit["text"] == "edited secret body"
+    await ws.send_json(request("thread_delete", thread))
+    point = await client.read(ws)
+    assert point["scope"] == "thread"
+    expected = {"v": 1, "type": "delete", "seq": edit["seq"], "msg_id": sent.message_id}
+    page = gate.journal.page(0)
+    assert next(row for row in page if row["seq"] == edit["seq"]) == expected
+    assert all("text" not in row and "files" not in row and "buttons" not in row for row in page)
+    replay, _ = await client.open(token=welcome["token"], since=0)
+    frames = await client.until(replay, "sync_done")
+    assert frames[:-1] == page
+    assert next(row for row in frames if row.get("seq") == edit["seq"]) == expected
+
+
+@pytest.mark.asyncio
 async def test_at75_restart_finishes_missing_deletes_and_exclusive_files(gate, tmp_path):
     class Sink:
         async def send(self, row): pass
