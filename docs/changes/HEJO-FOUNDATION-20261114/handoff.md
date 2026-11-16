@@ -1188,3 +1188,23 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
   - Hermes 본체·ddots 수정.
   - 비밀 키 출력.
   - 문구는 '서버'를 쓴다.
+
+## 보완 지시 39: TASK-34 검토 통과 — N34-01 시험 보강 뒤 TASK-35 (2026-11-17)
+
+- **TASK-34(44ab635):** 완료. 판정은 [verdict.md](../56917a17-07e0-4cb3-940d-2880e1aeaae3/verdict.md)에 있다.
+  - 깨끗한 worktree에서 hejo 전체 시험 189 passed를 확인했다.
+  - 검토자 돌연변이 5개 중 3개를 잡았다.
+- **N34-01(먼저, 시험만, `gate/tests/test_progress.py`):**
+  - 같은 대화에서 스레드 A·B가 둘 다 `final:false` 글을 흘리는 중일 때, `stop_typing(chat, metadata={"thread_id": A})`를 보낸다.
+  - 기대:
+    - A 글만 `edit final:true` 한 번을 받는다.
+    - B 글에는 편집 기록이 0이다.
+    - B 작성 중 상태가 남는다.
+  - 같은 경우를 보조 프로필 전달자 경로로도 시험한다. 전달자가 `thread_id`를 문에 그대로 넘겨야 한다.
+  - 돌연변이로 시험을 확인한다. 아래 두 가지를 각각 넣으면 새 시험이 실패해야 한다.
+    - 필터 `(selected is None or entry[1]==selected)` 제거
+    - 전달자 metadata를 `{"hermes_profile":…}`로 되돌림
+  - 제품 코드는 바꾸지 않는다. 시험만 따로 커밋한다.
+- **다음 순서:**
+  - TASK-35 → TASK-33(0.2.0, 34·35 포함) → TASK-36~47(보완 38 그대로)
+  - TASK-36을 시작하기 전에 handoff의 최신 보완 지시와 ddots-inventory 2판을 다시 읽는다. 계획 담당이 마지막 대조 결과로 행을 더할 수 있다.
