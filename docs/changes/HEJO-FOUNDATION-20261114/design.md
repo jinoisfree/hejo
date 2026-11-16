@@ -462,3 +462,48 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
 - 고위험: 네트워크 리스너·인증(출입증), 운영 게이트웨이 설정 변경, 동시성(기록장 순번).
 - 롤백: `install/hejo-install --uninstall`(영수증 키만 되돌림) → 게이트웨이 재시작. 기록장·금고는 남는다. team-kit 변경은 운영 저장소 커밋 되돌림. 캐시는 `5m` 복원.
 - 운영 재시작은 Slack 대화를 잠시 끊으므로 TASK-09에서 진행 중 차례가 없을 때 사장 확인 뒤 한다.
+
+## 11. 앱 자동 업데이트(30판, REQ-HF-33)
+
+- **사장 선택(2026-11-16):**
+  - 받는 곳은 GitHub 릴리스(ddots 방식)다.
+  - 새 버전이 있으면 매번 묻는다.
+  - 서버의 hejo는 명령으로 갱신한다.
+- **칸:**
+  - 배포 원본은 GitHub 공개 저장소의 릴리스다. 공개본 `public` 스냅샷 커밋에 태그 `v<버전>`을 단다.
+  - 앱 교체 주체는 각 Mac의 Sparkle이다. 사장이 "업데이트"를 누른 뒤에만 바꾼다.
+  - 서명 비밀 키는 배포하는 Mac의 로그인 키체인에만 둔다. 공개 키는 `app/Resources/Info.plist`의 `SUPublicEDKey`에 둔다.
+  - 새 영구 원본은 없다. 앱 쪽 상태(오늘 다시 보지 않음, 알림 켜기, 설치 대기 버전)는 이 Mac의 사용자 기본값에 둔다. 다른 Mac과 맞추지 않는다. 회원 상태로 옮기지 않는 이유는 Mac마다 설치 상태가 다르기 때문이다.
+- **베낄 원본(전체 독해 필수):**
+  - ddots `Sources/AppUpdate.swift`(416), `UpdateRelease.swift`(126), `UpdateUserDriver.swift`(87), `UpdateReminder.swift`(16), `UpdateIdlePolicy.swift`(63, `SilentUpdateSettings.installed`와 `UpdateNoticePolicy`·`UpdateNoticeSettings`만)
+  - ddots `scripts/fetch_sparkle.sh`(Sparkle 2.10.0, 지문 고정), `setup-updates.sh`, `package.sh`, `release_update.py`(prepare·publish), `build.sh`(Frameworks·rpath·서명 순서)
+  - **빼는 것:**
+    - 조용한 설치(유휴 대기·3회 실패 되돌아옴)는 사장이 "매번 묻기"를 골라서 뺀다.
+    - 대화 공유 relay 정지·복구는 hejo에 relay가 없어 뺀다.
+    - 토큰 연결 창·`UpdateCredential`은 공개 저장소라 뺀다.
+    - `update-feed` 가지 게시는 공개 저장소에서는 자산 공개 주소로 받을 수 있어서 뺀다. 별도 가지에 원격 쓰기도 생기지 않는다.
+    - live 확인 스모크 훅도 뺀다.
+- **바꾸는 것:**
+  - 주소: 피드는 `https://github.com/<저장소>/releases/latest/download/appcast.xml`, 압축은 `https://github.com/<저장소>/releases/download/v<버전>/hejo-<버전>-arm64.zip`이다. `UpdateRelease.allows`는 이 압축 주소·버전·크기·`installationType=application`·노트 없음·델타 없음을 확인한다.
+  - 저장소 이름은 Info.plist `HejoUpdateRepository`에서 읽는다. 공개판 기본값은 공개 저장소다. 개인 계정 이름을 코드 상수로 넣지 않는다.
+  - 설치 완료는 macOS 알림 센터가 아니라 펫 말풍선으로 알린다(사장 선택).
+  - 메뉴: 설정… / 흐린 버전 줄 / 업데이트 확인… / 구분선 / 종료.
+  - 일반 탭에 "업데이트 알림 받기"를 둔다.
+- **빌드:**
+  - `app/scripts/build.sh`가 고정 지문의 Sparkle을 `.build`에 받아 검증한다(ddots `fetch_sparkle.sh`).
+  - `-F … -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks`로 링크한다. `Contents/Frameworks`에 넣고, Sparkle 안의 XPC·Autoupdate·Updater를 같은 인증서로 서명한 뒤 앱을 서명한다.
+  - Sparkle LICENSE를 Resources에 넣는다.
+  - 시험(`app/scripts/test.sh`)은 네트워크 없이 돈다. 릴리스 해석·허용 검사·묻기 창 문구·하루 쉬기·버전 비교를 순수 함수로 시험한다.
+- **배포 도구 `install/hejo-ship`(ddots `release_update.py`를 hejo에 맞춤):**
+  - `setup`: 키를 만들고 공개 키를 Info.plist에 넣는다. 기존 키와 다르면 멈춘다.
+  - `prepare`: 깨끗한 트리와 공개본 트리가 같은지 확인하고, 압축·재검증·서명 뒤 `prepared.json`을 쓴다. 원격 쓰기는 0이다.
+  - `publish --approve-commit`: 사장이 직접 실행한다. ddots 순서 그대로 초안 → 자산 확인 → appcast 서명·업로드 → 공개·latest다. 기존 태그와 릴리스는 바꾸지 않는다.
+  - `BuildInfo.json`에 소스 트리 해시를 넣는다. 공개본 커밋 트리와 같아야 `prepare`가 통과한다.
+- **규칙·위험:**
+  - 고위험: 모든 Mac에 실행 파일을 보내는 공급망 경로다. EdDSA 검증, 고정 지문 Sparkle, 사장만 공개, 기존 태그 불변으로 줄인다.
+  - 앱이 서버보다 앞설 수 있다. 통신 규격 v1 하위 호환을 배포 조건으로 하고, "옛 문 + 새 앱" 시험을 둔다.
+  - 이미 깔린 0.1.0은 업데이트 기능이 없어 한 번은 손으로 설치한다.
+  - 비밀 키를 잃으면 새 키로 바꿔야 하고, 그러면 모든 Mac에서 한 번 손으로 설치해야 한다. setup이 백업 방법을 출력한다.
+- **롤백:**
+  - 잘못된 릴리스가 나가면 사장이 GitHub에서 그 릴리스를 초안으로 되돌린다. 그러면 latest가 이전 릴리스로 돌아간다.
+  - 이미 바뀐 Mac은 이전 버전 zip을 손으로 설치한다. 같은 버전 번호는 다시 쓰지 않는다.
