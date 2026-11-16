@@ -96,6 +96,9 @@
             "string",
             "null"
           ]
+        },
+        "queued": {
+          "type": "boolean"
         }
       },
       "required": [

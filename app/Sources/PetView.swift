@@ -2,17 +2,18 @@ import AppKit
 
 final class PetPanel: NSPanel {
     var chatExpanded = false
+    var bubbleReplyPresented=false
     var onCollapse: (() -> Void)?
     var onWorkspaceKey:((NSEvent)->Bool)?
-    override var canBecomeKey: Bool { chatExpanded }
+    override var canBecomeKey: Bool { chatExpanded || bubbleReplyPresented }
     override var canBecomeMain: Bool { false }
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
-    override func cancelOperation(_ sender: Any?) { onCollapse?() }
+    override func cancelOperation(_ sender: Any?) {if (contentView as? PetView)?.bubbleReply?.escape()==true {return};onCollapse?()}
     override func sendEvent(_ event: NSEvent) {
         if chatExpanded,event.type == .keyDown,onWorkspaceKey?(event)==true {return}
-        if event.type == .keyDown, event.keyCode == 53 { onCollapse?(); return }
+        if event.type == .keyDown, event.keyCode == 53 {cancelOperation(nil);return}
         // Only an actual text input click may request key focus. Opening the pet never does.
-        if event.type == .leftMouseDown, chatExpanded,
+        if event.type == .leftMouseDown, (chatExpanded || bubbleReplyPresented),
            let hit = contentView?.hitTest(event.locationInWindow), (hit as? NSTextView)?.isEditable == true || (hit as? NSTextField)?.isEditable == true {
             makeKey()
         }
@@ -62,7 +63,22 @@ final class PetView: NSView {
     var bubbleNotice=BubbleReveal.Notice(kind:.idle,headline:"",detail:"",key:nil) {
         didSet {bubbleTarget=bubbleNotice.key;updateFoldedBubble();if bubbleNotice.actions.count != oldValue.actions.count {onBubbleSize?()}}
     }
-    var foldedSize:CGSize {CGSize(width:231,height:bubbleNotice.actions.isEmpty ? 56:90)}
+    var bubbleReply:BubbleReplyCard?
+    var bubbleReplyAllowed=true
+    var bubbleReplyConnected=false
+    var foldedSize:CGSize {CGSize(width:231,height:(bubbleNotice.actions.isEmpty ? 56:90)+(bubbleReply?.visible==true ? bubbleReply!.height:0))}
+    func installBubbleReply(_ card:BubbleReplyCard){
+        bubbleReply=card;foldedBubble.addSubview(card)
+        card.onGeometry={ [weak self] in guard let self else{return};self.onBubbleSize?();self.updateFoldedBubble() }
+    }
+    func updateBubbleReply(pointerOver:Bool){
+        guard let card=bubbleReply else{return}
+        card.update(.init(enabled:bubbleReplyAllowed,connected:bubbleReplyConnected,paused:isPaused,resting:activityPose == .doze,chatExpanded:placement?.expanded==true,bubbleShown:!foldedBubble.isHidden,hasTarget:card.target != nil),pointerOver:pointerOver)
+        (window as? PetPanel)?.bubbleReplyPresented=card.visible
+        let wasVisible=card.visible
+        card.frame=CGRect(x:0,y:bubbleNotice.actions.isEmpty ? 56:90,width:foldedBubble.bounds.width,height:card.height)
+        if wasVisible {card.layoutSubtreeIfNeeded()}
+    }
     var onBubbleSize:(()->Void)?
     private var bubbleHover=false,bubbleViewHover=false
     var onBubbleOpen:((ConversationKey?)->Void)?
@@ -81,7 +97,7 @@ final class PetView: NSView {
     func updateFoldedBubble(){
         let notice=bubbleNotice
         let alive=notice.until.map{Date(timeIntervalSince1970:bubbleNow())<$0} ?? false
-        let shown=placement?.expanded != true && (notice.held || alive || bubbleHover || bubbleAlwaysShown)
+        let shown=placement?.expanded != true && (notice.held || alive || bubbleHover || bubbleAlwaysShown || bubbleReply?.visible==true)
         foldedBubble.isHidden = !shown
         foldedBubble.headline=notice.headline.isEmpty ? bubbleName:notice.headline
         foldedBubble.detail=notice.kind == .idle ? bubbleStatus:notice.detail
@@ -89,6 +105,12 @@ final class PetView: NSView {
         foldedBubble.kind=notice.kind;foldedBubble.unread=unreadCount;foldedBubble.actions=notice.actions
         foldedBubble.tick(at:activityNow(),paused:isPaused || !animationsAllowed)
         foldedBubble.setAccessibilityLabel(foldedBubble.headline+" · "+foldedBubble.detail+" · 대화 열기")
+        if let card=bubbleReply {
+            card.isHidden = !card.visible || placement?.expanded==true
+            card.frame=CGRect(x:0,y:notice.actions.isEmpty ? 56:90,width:foldedBubble.bounds.width,height:card.height)
+            (window as? PetPanel)?.bubbleReplyPresented=card.visible && placement?.expanded != true
+            foldedBubble.setAccessibilityCustomActions(card.eligible ? [NSAccessibilityCustomAction(name:BubbleReply.accessibilityName,handler:{ [weak card] in card?.openNow();return true })]:[])
+        }
         updateUnreadBadge();layoutThoughtDots()
     }
     private func layoutThoughtDots(){
@@ -176,12 +198,13 @@ final class PetView: NSView {
         guard window?.isVisible == true, animationsAllowed, placement != nil else { updateAnimationVisibility(); return }
         let now = activityNow()
         updateActivityPresentation(at: now)
-        if isPaused {replyJump=false;jumpElapsed=playback.update(now:now,reply:false,pointerElapsed:nil,enabled:false);sprite.needsDisplay = true;return}
+        if isPaused {updateBubbleReply(pointerOver:false);replyJump=false;jumpElapsed=playback.update(now:now,reply:false,pointerElapsed:nil,enabled:false);sprite.needsDisplay = true;return}
         let pointer = pointerLocation(), origin = window!.convertPoint(toScreen: .zero)
         let global = PetLayout.visibleSprite(in: spriteRect).offsetBy(dx: origin.x, dy: origin.y)
         let bridge=global.union(placement!.bubbleRect.offsetBy(dx:origin.x,dy:origin.y))
         bubbleHover = bubbleViewHover || global.contains(pointer) || (bubbleHover && !foldedBubble.isHidden && bridge.contains(pointer))
         updateFoldedBubble()
+        updateBubbleReply(pointerOver:!foldedBubble.isHidden && placement!.bubbleRect.offsetBy(dx:origin.x,dy:origin.y).contains(pointer))
         let phase=self.pointer.update(pointer:pointer,sprite:global,display:window!.screen?.frame ?? global,now:now,reducedMotion:reduceMotion())
         let pointerElapsed:TimeInterval?;if case .jumping(let elapsed)=phase {pointerElapsed=elapsed} else {pointerElapsed=nil}
         jumpElapsed=playback.update(now:now,reply:replyJump,pointerElapsed:pointerElapsed,enabled:!isPaused && !hasAsked && !sendFailed && !reduceMotion())

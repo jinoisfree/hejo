@@ -7,7 +7,8 @@ struct Employee: Codable, Equatable, Identifiable {
     var avatar: String? = nil
     var color: String? = nil
     var avatarCustom: Bool? = nil
-    enum CodingKeys: String,CodingKey { case id,name,aliases,avatar,color;case avatarCustom="avatar_custom" }
+    var queued: Bool? = nil
+    enum CodingKeys: String,CodingKey { case id,name,aliases,avatar,color,queued;case avatarCustom="avatar_custom" }
 }
 /// The UI's conversation unit. The roster is authoritative; this is its direct-room projection.
 struct Room: Identifiable, Equatable {

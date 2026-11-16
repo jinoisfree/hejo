@@ -15,6 +15,7 @@ import AppKit
     private var petSettings: PetSettingsWindow?
     private var bubble: BubbleReveal!
     private var bubbleTimer: Timer?
+    private var bubbleReply:BubbleReplyCard!
     private var wasSending = false
     private var settingsRevision = 0
     private var settingsTask: Task<Void, Never>?
@@ -31,6 +32,8 @@ import AppKit
             bubble = BubbleReveal(store:store)
             client = GateClient(store: store); pet = PetController(store: store, atlas: try SpriteAtlas())
             conversation = try ConversationController(client: client)
+            bubbleReply=BubbleReplyCard(controller:conversation);pet.pet.installBubbleReply(bubbleReply)
+            pet.pet.bubbleReplyAllowed=store.settings.bubbleReplyEnabled ?? true
             pet.pet.avatarForEmployee = { [weak self] id in self?.conversation.avatar(id) ?? ProfileAvatar(color:PictureCodec.color(name:id,hex:nil)) }
             conversationView = ConversationView(controller: conversation)
             pet.pet.installConversation(conversationView)
@@ -133,6 +136,8 @@ import AppKit
         let size = settings["petScale"].flatMap(Double.init).map { min(200,max(25,$0)) } ?? store.settings.petScalePercent ?? 100
         let always = settings[BubbleReveal.settingsKey].map { $0 == "true" } ?? store.settings.bubbleAlwaysShown ?? false
         try? store.update { $0.petName = name; $0.petScalePercent = size; $0.bubbleAlwaysShown = always }
+        let replyEnabled=settings[BubbleReply.settingsKey].map{$0=="true"} ?? store.settings.bubbleReplyEnabled ?? true
+        try? store.update{$0.bubbleReplyEnabled=replyEnabled};pet.pet.bubbleReplyAllowed=replyEnabled;petSettings?.bubbleReplyCheck.state=replyEnabled ? .on:.off
         pet.resizePet(percent: size); pet.pet.bubbleAlwaysShown = always; pet.pet.bubbleName = name
         if let address = store.settings.hubAddress, let token = client.bearer, !currentAccount.isEmpty {
             do {
@@ -162,6 +167,7 @@ import AppKit
                     settings["petName"] = self.store.settings.petName
                     settings["petScale"] = String(Int(self.store.settings.petScalePercent ?? 100))
                     settings[BubbleReveal.settingsKey] = self.store.settings.bubbleAlwaysShown == true ? "true" : "false"
+                    settings[BubbleReply.settingsKey] = self.store.settings.bubbleReplyEnabled != false ? "true":"false"
                     if self.store.settings.stateJoined?[self.conversation.model.memberState.account] == true {
                         for key in ["pinned", "muted", "hidden"] { settings.removeValue(forKey: key) }
                     }
@@ -186,7 +192,16 @@ import AppKit
         if jumped {pet.pet.requestReplyJump()}
         var notice=bubble.notice
         if bubble.persistenceFailed {notice.detail="알림을 저장하지 못했어요. 저장 공간을 확인해 주세요."}
+        if notice.key==nil,notice.kind == .failure,let key=bubbleReply.target?.key,conversation.bubbleProblems[key] != nil,!model.timeline(key).isEmpty {notice.key=key}
+        let target=notice.key.flatMap{key->BubbleReplyTarget? in
+            guard !model.timeline(key).isEmpty else{return nil}
+            return BubbleReplyTarget(key:key,speaker:model.name(key.employee),working:conversation.working(key),queued:model.employees.first{$0.id==key.employee}?.queued ?? false)
+        }
+        if let target,target.working,conversation.interruptions[target.key] != nil {notice.detail=BubbleReply.interruptedSubtitle;notice.kind = .writing}
+        pet.pet.bubbleReplyConnected=conversation.canSend
+        bubbleReply.aim(target)
         pet.pet.bubbleNotice=notice
+        if !conversation.canSend || pet.chatExpanded || pet.pet.isPaused || !pet.pet.bubbleReplyAllowed {pet.pet.updateBubbleReply(pointerOver:false)}
         let asked = questions.filter{ id in model.messages[id].map{!model.muted.contains($0.key.employee)} ?? false }.count
         let working = Set(model.typing.filter{$0.value>Date() && !model.muted.contains($0.key.employee)}.keys.map(\.employee)).count
         pet.pet.hasAsked = asked > 0; pet.pet.isTyping = working > 0
@@ -217,6 +232,9 @@ import AppKit
             let settings = PetSettingsWindow()
             settings.onName = { [weak self] value in self?.setPetName(value) }
             settings.onScale = { [weak self] value in self?.setPetScale(value) }
+            settings.onBubbleReply={ [weak self] enabled in
+                guard let self else{return};try? self.store.update{$0.bubbleReplyEnabled=enabled};self.pet.pet.bubbleReplyAllowed=enabled;self.refreshPetActivity();self.saveMemberSettings()
+            }
             settings.onBubble = { [weak self] value in self?.setBubbleAlwaysShown(value) }
             settings.onLogin = { [weak self] value in self?.setLoginEnabled(value) }
             settings.onResetChat = { [weak self] in self?.pet.resetChatSize() }
@@ -226,6 +244,7 @@ import AppKit
             settings.onSyncLayout = { [weak self] in self?.synchronizeLayout() }
             petSettings = settings
         }
+        petSettings?.bubbleReplyCheck.state=store.settings.bubbleReplyEnabled != false ? .on:.off
         petSettings?.present(name: store.settings.petName, percent: store.settings.petScalePercent ?? 100,
                              bubble: store.settings.bubbleAlwaysShown ?? false, account: currentAccount, status: client.status.text)
     }

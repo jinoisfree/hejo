@@ -8,10 +8,12 @@ import AppKit
     let scaleSlider = NSSlider(value: 100, minValue: 25, maxValue: 200, target: nil, action: nil)
     let scaleValue = NSTextField(labelWithString: "100%")
     let bubbleCheck = NSButton(checkboxWithTitle: "말풍선 항상 보이기", target: nil, action: nil)
+    let bubbleReplyCheck=NSButton(checkboxWithTitle:"말풍선에서 바로 답하기",target:nil,action:nil)
+    var onBubbleReply:((Bool)->Void)?
     let loginCheck = NSButton(checkboxWithTitle: "로그인 시 실행", target: nil, action: nil)
     let loginStatus = NSTextField(wrappingLabelWithString: "")
     let accountName = NSTextField(labelWithString: "로그인 전")
-    let connectionStatus = NSTextField(labelWithString: "공항 연결 전")
+    let connectionStatus = NSTextField(labelWithString: "서버 연결 전")
     let openAccount = NSButton(title: "로그인·계정 창 열기", target: nil, action: nil)
     let logout = NSButton(title: "로그아웃", target: nil, action: nil)
     let syncLayout = NSButton(title: "화면 배치 동기화…", target: nil, action: nil)
@@ -54,10 +56,11 @@ import AppKit
         bubbleCheck.frame = CGRect(x: 24, y: 96, width: 240, height: 25)
         bubbleCheck.target = self; bubbleCheck.action = #selector(changeBubble)
         petView.addSubview(bubbleCheck)
+        bubbleReplyCheck.frame=CGRect(x:24,y:72,width:300,height:25);bubbleReplyCheck.target=self;bubbleReplyCheck.action=#selector(changeBubbleReply);petView.addSubview(bubbleReplyCheck)
         let resetChat = NSButton(title: "대화창 크기 초기화", target: self, action: #selector(resetChatSize))
-        resetChat.frame = CGRect(x: 24, y: 46, width: 160, height: 30)
+        resetChat.frame = CGRect(x: 24, y: 30, width: 160, height: 30)
         let resetPet = NSButton(title: "펫 위치 초기화", target: self, action: #selector(resetPetPosition))
-        resetPet.frame = CGRect(x: 195, y: 46, width: 130, height: 30)
+        resetPet.frame = CGRect(x: 195, y: 30, width: 130, height: 30)
         petView.addSubview(resetChat); petView.addSubview(resetPet)
         pet.view = petView; tabs.addTabViewItem(pet)
 
@@ -83,7 +86,7 @@ import AppKit
         syncLayout.target = self; syncLayout.action = #selector(synchronizeLayout)
         syncView.addSubview(syncLayout); sync.view = syncView; tabs.addTabViewItem(sync)
     }
-    func present(name: String, percent: Double, bubble: Bool, account: String = "", status: String = "공항 연결 전") {
+    func present(name: String, percent: Double, bubble: Bool, account: String = "", status: String = "서버 연결 전") {
         nameField.stringValue = name
         scaleSlider.doubleValue = percent; scaleValue.stringValue = "\(Int(percent))%"
         bubbleCheck.state = bubble ? .on : .off
@@ -97,6 +100,7 @@ import AppKit
     }
     @objc private func changeName() { onName?(nameField.stringValue) }
     @objc private func changeScale() { scaleValue.stringValue = "\(Int(scaleSlider.doubleValue))%"; onScale?(scaleSlider.doubleValue) }
+    @objc private func changeBubbleReply(){onBubbleReply?(bubbleReplyCheck.state == .on)}
     @objc private func changeBubble() { onBubble?(bubbleCheck.state == .on) }
     @objc private func changeLogin() { onLogin?(loginCheck.state == .on) }
     @objc private func openLoginSettings() { LoginLaunch.openSettings() }

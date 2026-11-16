@@ -29,6 +29,7 @@ struct LocalSettings: Codable {
     /// Offline presentation copies of the member's hub settings.
     var petScalePercent: Double?
     var bubbleAlwaysShown: Bool?
+    var bubbleReplyEnabled: Bool?
     var reminders: [String:Double]?
     /// Offline mirrors of the member's room-list preferences.
     var pinnedEmployees: [String]?

@@ -1407,3 +1407,28 @@ AppKit `AppIcon.render(pixels:)`가 투명 1024px 캔버스의 흰 둥근 사각
 **증거·미검증·검토점.** 필요/도달 수준 2다. 화면은 evidence/HEJO-FOUNDATION/TASK-29.md에 있고 같은 가짜 상태의 원본 AppKit 그리기와 hejo 제어·펫 조립 시험이다. 운영 앱 전체·두 Mac·실제 Hermes 답 도착·실제 브라우저 외부 열기를 시험하지 않았다. 링크 시험은 NSWorkspace 실행 대신 콜백 대상/허용 체계까지 확인하며 실제 열기는 TASK-23에 남는다. 기존 Swift 6 경고와 pytest 경고는 유지한다. 별도 에이전트는 쓰지 않았다. 검토자는 replay→새 답 경계·예약의 읽음/삭제 취소·알림 끈 방의 펫 동작과 26판 생각 점 차이를 특히 확인해 주면 된다. 범위 밖 새 부채는 발견하지 않았다.
 
 **검토 대상·적용·롤백.** 이 절·copy-review·캡처·앱 변경을 포함하는 TASK-29 단독 커밋이다. 앱 두 사본은 기존 번들 설정을 보존해 교체하고 재실행하지 않는다. 공용 릴리스는 커밋 직후 갱신해 RELEASE와 파일을 대조한다. 교체 전 백업은 `.build/task29/deploy-backup`·`release-backup`이다. 앱 코드 롤백 때 이 사본을 사용하며 reminders는 선택 필드이므로 옛 앱이 무시한다. 운영 홈 설치·재시작/reload·비밀 파일 열기·ddots/본체/운영 저장소 수정·외부 발송·public 갱신·push는 하지 않았다. TASK-30 이후는 미착수다.
+
+## 구현 인계: TASK-30 말풍선에서 바로 답하기(보완 29)
+
+- 기준: TASK-29 검토 뒤 `6b1e27b`. 요청 범위 TASK-30만 구현했고 다음 TASK-27·21·32는 미착수다. 필요 증거 수준 2 / 도달 수준 2이며 실제 서버·운영 앱 실물은 TASK-23에 남는다.
+- 칸: 기존 ConversationController.drafts·pending 확인 ID·interruptions를 재사용한다. BubbleReplyCard는 hover·포커스·표시 오류만 가지며 별도 초안 저장소·전송 경로를 만들지 않는다. 말풍선은 텍스트만 보내고 대화창 첨부는 보존한다. 늦은 거절/재연결 미확인은 원래 스레드 입력으로 복원하고 자동 재전송하지 않는다.
+- AppKit: 0.3초 hover·빈 입력 0.6초·설정/연결/쉬기/대화 열림/대상 조건, 일반/작성 중/queue 안내, Return·⇧Return, 스레드별 초안, Esc 입력 먼저, 접근성 이름을 연결했다. 마우스로 실제 입력을 누를 때만 키 창이 되며 열림 자체는 포커스를 훔치지 않는다. IME 조합은 재발행으로 덮어쓰지 않는다. 끼어들기 표시는 기존 작업 제어 상태를 사용한다.
+- 명부: gate/roster.py가 각 프로필 config.yaml의 display.busy_input_mode를 원본 규칙으로 읽기만 하고 queued boolean을 보낸다. 필요 동반 변경으로 규격 employee 선택 필드·앱 Codable을 추가했다. 필드 없는 옛 명부는 false, 추가 필드는 옛 앱이 무시한다. Hermes 본체·설정 쓰기는 없다.
+- 설정: ‘화면과 펫’의 ‘말풍선에서 바로 답하기’ 기본 켬. 기존 펫 설정 허브 원본/로컬 오프라인 사본 경로를 사용한다.
+- 원본 대조: copy-review에 파일별 전체 독해·의존 경계·변환 규칙을 기록했다. 원본 3줄은 표시 높이 제한이고 넘는 글을 스크롤하므로 같은 동작을 유지했다(26판). 원본의 한 칸 초안 비우기 대신 승인된 hejo 계약대로 기존 스레드별 초안을 복원한다. 새 계약·사장 선택 변경은 없다.
+- 화면: evidence/HEJO-FOUNDATION/TASK-30.md. 원본 BubbleReplyView·NativeDraft 전체 분리 실행과 실제 hejo AppKit 조립을 같은 가짜 입력·231pt로 비교했다. 서식/테마/붙여넣기 변환은 불활성 대역이며 원본 앱·운영 앱 전체 비교가 아니다. 이 상태의 원본 60px·hejo 57px 높이 차이도 증거 문서에 명시했고 화소 완전 일치로 주장하지 않는다.
+
+검증은 아래 최종 변경본 기준이다.
+
+| 검사 | 실제 결과·증거 |
+| --- | --- |
+| AT-82·전체 | 종료 0, 157 passed 및 AT-82·기존 앱/가짜 Hermes/통신 통과. `.build/task30/frozen-foundation.json`, `frozen-foundation.log` |
+| 앱 반복 | 10회 모두 종료 0, 최종 입력 83개 파일 해시 불변. `.build/task30/frozen-app-results.json`, `frozen-progress.log`, `.build/foundation9-app-task30-frozen-01.log`~`10.log` |
+| 돌연변이 | hover dwell 비교 제거 시 즉시 열림을 ‘AT82 hover does not take keyboard before dwell’가 검출(컴파일 0·시험 1). 원본 바이트 불변, `.build/task30/mutation.json`, `mutation-hover.log`. |
+| 캡처·루프백 | 최종 소스로 캡처 종료 0, 같은 상태 원본 분리 컴파일·실행 0; 최종 전체/반복 검사 안의 루프백 전송·거절 통과. `.build/task30/capture-final.json`, `reference.json`, `network.json` |
+| 개인값·훅·정적 | Hermes venv 개인값 검사·HEJO_PYTHON 지정 훅·diff 각각 종료 0, SwiftUI/알림 센터 API 0건. `.build/task30/final-checks.json`, `static.json` |
+| 적용 | 앱 두 사본 서명 2개·기존 번들 설정 보존·후보 해시와 일치·임시 사본의 서명 제거 뒤 코드 해시가 빌드와 일치. `.build/task30/deploy.json`, `binary-verification.json`; 공용 릴리스는 커밋 직후 실행하고 `release-verify.json`에 기록 |
+
+개발 중 오류: 첫 새 시험은 비동기 호출을 동기 단정 autoclosure에 넣어 컴파일되지 않았고, 가짜 문 typing TTL을 규격 6 대신 10으로 넣어 거절됐다. 시험 코드를 고쳐 집중 검증했다. 전체 검사 중 시험 진입점 수정이 겹친 첫 실행은 컴파일러의 ‘input file modified during build’로 실패했다. 이후 최종 소스를 고정해 전체 검사와 반복 검사를 새로 실행했으며 실패 실행을 통과 근거로 세지 않았다.
+
+위험·롤백: 실제 서버 busy queue/steer·한국어 장기 입력·운영 창 결합은 TASK-23에서 확인한다. 필요하면 앱 두 사본은 `.build/task30/deploy-backup`을 사용해 원래 위치로 돌리고 공용 릴리스는 `release-backup`으로 복원한다. 재실행·운영 설치·게이트웨이 재시작 없이 파일 사본만 교체했다. 운영 홈 실행·비밀 파일 열기·ddots/본체/운영 저장소 수정·외부 발송·public 갱신·push는 하지 않았다. 별도 커밋 뒤 계획 담당 검토를 요청한다.

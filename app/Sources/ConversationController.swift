@@ -42,7 +42,27 @@ struct ConversationFailedSend: Identifiable {
     }
     private(set) var drafts: [ConversationKey: ConversationDraft] = [:]
     private var reconnectPending = Set<String>()
-    private var pending: [String: (key: ConversationKey, draft: ConversationDraft)] = [:]
+    private struct PendingSend {var key:ConversationKey;var draft:ConversationDraft;var bubble=false}
+    private var pending:[String:PendingSend]=[:]
+    private(set) var bubbleProblems:[ConversationKey:String]=[:]
+    func draft(for key:ConversationKey)->ConversationDraft {drafts[key] ?? ConversationDraft()}
+    func bubblePending(_ key:ConversationKey)->Bool {pending.values.contains{$0.key==key}}
+    private func failPending(_ entry:PendingSend,reason:String){
+        if entry.bubble {
+            let current=drafts[entry.key]?.text ?? ""
+            drafts[entry.key,default:ConversationDraft()].text=[entry.draft.text,current].filter{!$0.isEmpty}.joined(separator:"\n")
+            bubbleProblems[entry.key]=reason
+        } else {saveFailure(entry.key,draft:entry.draft,reason:reason)}
+    }
+    /// Text-only use of the same send/pending/confirmation path. Main-composer attachments stay in their draft.
+    @discardableResult func sendBubbleReply(_ key:ConversationKey) async ->Bool {
+        let words=draft(for:key).text
+        guard !words.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty,!bubblePending(key) else{return false}
+        guard !model.timeline(key).isEmpty,canSend else {bubbleProblems[key]="연결과 스레드를 확인해 주세요.";onChange?();return false}
+        guard words.utf8.count<=65_536 else {bubbleProblems[key]="너무 큼 · 글은 64 KiB까지 보낼 수 있어요.";onChange?();return false}
+        bubbleProblems[key]=nil;drafts[key,default:ConversationDraft()].text=""
+        return await transmit(key,draft:ConversationDraft(text:words),bubble:true)
+    }
     private(set) var failures:[ConversationFailedSend]=[]
     private var newPostIDs=Set<String>()
     private var followup:ConversationKey?
@@ -145,12 +165,12 @@ struct ConversationFailedSend: Identifiable {
                 transferFailure=IslandFailure(message:"전송 확인이 없어요. 내용을 확인하고 다시 보내 주세요.",firstWords:IslandModel.firstLine(entry.draft.text),retryKey:entry.key,isSend:true)
             }
             for id in unconfirmed {
-                if let entry=pending.removeValue(forKey:id) {saveFailure(entry.key,draft:entry.draft,reason:"전송 확인이 없어요. 내용을 확인하고 다시 보내 주세요.")}
+                if let entry=pending.removeValue(forKey:id) {failPending(entry,reason:"전송 확인이 없어요. 내용을 확인하고 다시 보내 주세요.")}
                 newPostIDs.remove(id)
             }
         }
         if frame["type"] as? String == "welcome", replicaAddress != client.store.settings.address {
-            model.resetReplica(); drafts = [:]; pending = [:]; failures=[];newPostIDs=[];followup=nil;transferFailure=nil; uploads=[:];stopped=[];interruptions=[:];branching=[:];deleting=[];confirmingDelete=[:];checklistSelections=[:];replicaAddress = client.store.settings.address
+            model.resetReplica(); drafts = [:]; pending = [:]; failures=[];newPostIDs=[];followup=nil;transferFailure=nil;bubbleProblems=[:]; uploads=[:];stopped=[];interruptions=[:];branching=[:];deleting=[];confirmingDelete=[:];checklistSelections=[:];replicaAddress = client.store.settings.address
         }
         do { try model.apply(frame) } catch { notice = "대화 기록을 읽지 못했어요. 다시 연결해 주세요." }
         if let employee=frame["employee"] as? String,let thread=frame["thread"] as? String {
@@ -168,14 +188,14 @@ struct ConversationFailedSend: Identifiable {
         }
         if frame["scope"] as? String == "thread",let room=frame["room"] as? String,let thread=frame["thread"] as? String {
             let key=ConversationKey(employee:room,thread:thread)
-            drafts[key]=nil;pending=pending.filter{$0.value.key != key};deleting.remove(key);stopped.remove(key);interruptions[key]=nil
+            drafts[key]=nil;bubbleProblems[key]=nil;pending=pending.filter{$0.value.key != key};deleting.remove(key);stopped.remove(key);interruptions[key]=nil
             failures.removeAll{$0.key==key};if followup==key {followup=nil}
             checklistSelections=checklistSelections.filter{model.messages[$0.key] != nil}
         }
         if let id = frame["client_msg_id"] as? String, let entry = pending.removeValue(forKey: id) {
             if newPostIDs.remove(id) != nil {followup=entry.key}
             transferFailure=nil;notice=""
-            if drafts[entry.key]?.text == entry.draft.text && drafts[entry.key]?.attachments == entry.draft.attachments && drafts[entry.key]?.picks == entry.draft.picks { drafts[entry.key] = ConversationDraft() }
+            if !entry.bubble, drafts[entry.key]?.text == entry.draft.text && drafts[entry.key]?.attachments == entry.draft.attachments && drafts[entry.key]?.picks == entry.draft.picks { drafts[entry.key] = ConversationDraft() }
         }
         if frame["type"] as? String == "error" {
             deleting=[]
@@ -190,7 +210,7 @@ struct ConversationFailedSend: Identifiable {
             }
             let repair=["unknown_file","too_large","button_expired"].contains(frame["code"] as? String ?? "")
             transferFailure=IslandFailure(message:message,firstWords:entry.map { IslandModel.firstLine($0.draft.text) } ?? "",retryKey:repair ? nil : entry?.key,isSend:entry != nil)
-            if let entry {saveFailure(entry.key,draft:entry.draft,reason:message)}
+            if let entry {failPending(entry,reason:message)}
         }
         onChange?()
     }
@@ -244,9 +264,12 @@ struct ConversationFailedSend: Identifiable {
         guard !draft.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !draft.attachments.isEmpty else { return }
         guard canSend else { transferFailed(GateFailure.notConnected,for:key); return }
         guard draft.text.utf8.count <= 65_536 else { transferFailure=IslandFailure(message:"너무 큼 · 글은 64 KiB까지 보낼 수 있어요.",firstWords:IslandModel.firstLine(draft.text),isSend:true);saveFailure(key,draft:draft,reason:"너무 큼 · 글은 64 KiB까지 보낼 수 있어요.");return }
+        _=await transmit(key,draft:draft)
+    }
+    private func transmit(_ key:ConversationKey,draft:ConversationDraft,bubble:Bool=false) async ->Bool {
         let id = UUID().uuidString.lowercased(), address = client.store.settings.address, epoch = client.connectionEpoch
         if model.timeline(key).isEmpty {newPostIDs.insert(id)}
-        pending[id] = (key, draft); notice = ""
+        pending[id] = PendingSend(key:key,draft:draft,bubble:bubble); notice = ""
         if !draft.attachments.isEmpty { uploads[key]=IslandUpload(completed:0,total:draft.attachments.count) }
         defer { uploads[key]=nil }
         do {
@@ -260,9 +283,11 @@ struct ConversationFailedSend: Identifiable {
                                    "text":draft.text.trimmingCharacters(in:.whitespacesAndNewlines), "client_msg_id":id, "files":uploaded.map(\.fileID)])
             stopped.remove(key);if working(key) {interruptions[key]=clock()}
         } catch {
-            pending[id] = nil;newPostIDs.remove(id);transferFailed(error,for:key)
+            pending[id] = nil;newPostIDs.remove(id)
+            if bubble {failPending(PendingSend(key:key,draft:draft,bubble:true),reason:"전송하지 못했어요. 연결을 확인해 주세요.")} else {transferFailed(error,for:key)}
+            onChange?();return false
         }
-        onChange?()
+        onChange?();return true
     }
     func click(_ button: MessageButton, message: ConversationMessage) async {
         if button.kind=="reply",button.label=="의견" {model.select(message.key);onRevealThread?(message.key);return}

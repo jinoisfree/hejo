@@ -260,3 +260,24 @@ SlackPanel(3574)·SlackThreads(1471)·SlackController(1622)·DraftEditor(231)·D
 26판 동작 원문 우선: PetView.layoutThoughtDots는 말풍선이 보이고 간격이 26pt 이상일 때 점을 그린다. 숨겨진 말풍선 때 점을 그린다는 명세 문장 대신 이 원본 동작을 유지한다. 배지는 숨긴 동안만 머리 옆에 보이며 말풍선 안에는 수가 남는다. 문구 변환 규칙 1번은 ddots→hejo/펫 이름·에이전트→직원, 2번으로 Slack/iMessage/캘린더 사실만 제외한다. 원본의 ‘새 메시지’·‘다시 알림’·‘답변을 생각하고 있어요’와 버튼 순서를 유지한다. 서버 통신·허브·기록장 계약과 사장 선택 변경은 없다.
 
 유지 의존 추가 대조: PetAnimation.swift(167)·WritingShimmer.swift(67) 전체를 읽었다. jump 0.84초 한 번·작업/승인 우선순위는 기존 PetChatPlayback으로 연결한다. ProfileAvatar(115)·PetLayout(404)의 앞선 전체 독해를 재사용하며 actionRects·bubbleSize와 배지/점 배치를 대조했다. ChatStyle.swift는 ChatMetrics(이름 14pt·보조 11pt·얼굴 20px·간격 8)와 나머지 테마/팔레트/ThreadAppearance 의존을 끝까지 읽었다. SwiftUI modifier 자체는 제외하고 기존 AppKit ShimmerLayer를 사용한다.
+
+
+## TASK-30 착수 대조(보완 29)
+
+기준 6b1e27b3fb7143ffa1c09a74af21c9220706b154. BubbleReply.swift(130) 전체를 다시 읽었고 BubbleReplyCard.swift(103)·BubbleReplyIntegration.swift(34)·BubbleReplySmoke.swift(116) 전체를 읽었다. PetView(1664)·SlackController(1622)·DraftEditor(231)의 기존 전체 독해 기록은 208f6e63과 파일 차이 0을 확인해 재사용하고, 입력 hover/키 창/Esc/배치·workingTarget/replyTarget/sendReply/비동기 실패 callback을 다시 끝까지 대조했다.
+
+| 원본 파일 | 이식·유지 의존과 제외 |
+| --- | --- |
+| `<운영 저장소>/ddots/Sources/BubbleReply.swift` | 0.3초/0.6초·3줄 표시·안내 3종·조건·Esc·접기 예약을 AppKit BubbleReply로 이식. 중단 상태는 TASK-25의 ConversationController.interruptions를 재사용. |
+| `<운영 저장소>/ddots/Sources/BubbleReplyCard.swift` | ObservableObject/SwiftUI 대신 기본 NSView·기존 DraftScrollView/DraftTextView. 텍스트·포커스 유지, 실패 이유·복원, 28px 보내기 버튼, 입력 padding 12/7·바깥 10/7을 유지. |
+| `<운영 저장소>/ddots/Sources/BubbleReplyIntegration.swift` | 같은 send 경로·비동기 거절 복원을 기존 pending client_msg_id 상관관계에 연결. Slack callback·별도 전송 경로는 제외. |
+| `<운영 저장소>/ddots/Sources/PetView.swift` | hover·키 입력 클릭 시에만 key·Esc 입력 먼저·아래쪽 입력 배치를 PetView/PetPanel에 연결. NSHosting/클립보드·파일 놓기 제외. |
+| `<운영 저장소>/ddots/Sources/SlackController.swift` | 작성 중 가운데 사장이 마지막으로 쓴 스레드 선택은 기존 BubbleReveal 키 선택을 유지. queued 읽기·답 보내기·실패/끼어들기를 hejo 명부/기존 제어기로 연결. |
+| `<운영 저장소>/ddots/Sources/DraftEditor.swift` | 기존 hejo DraftScrollView를 재사용해 Return/Shift Return·입력 높이 최대 3줄(넘는 글은 스크롤)을 유지. 서식/붙여넣기 파서는 기존 책임을 유지. |
+| `<운영 저장소>/ddots/Sources/BubbleReplySmoke.swift` | 실제 포인터·키/실패/hold 시나리오를 가짜 문 수락 시험으로 대응. 운영 Slack·원본 앱 자체는 실행하지 않음. |
+
+문구 변환 1번은 기본 대상 ‘에이전트’→‘직원’, 2번으로 Slack 전용 사실만 제외한다. 원본 초안 retarget는 한 칸을 비우지만 hejo는 REQ-HF-31/AT-82의 스레드별 복원과 기존 ConversationController.drafts를 유지한다. 새 초안 원본을 만들지 않고 동일 스레드 입력을 재사용하며, 말풍선 보내기는 텍스트만 보내고 기존 첨부는 남긴다. 설정은 기존 펫 설정의 허브 원본·로컬 오프라인 사본 경로를 사용한다.
+
+명부 queued는 승인된 design의 읽기 전용 값이다. 기존 employee 스키마가 추가 필드를 막으므로 이 승인된 선택 boolean 필드를 규격·앱 Employee에 함께 반영한다(새 의미 추가 아님). 옛 명부의 필드 없음은 false로 읽고 옛 앱의 Codable은 추가 필드를 무시한다. config.yaml 읽기는 원본 isQueued의 display 블록·queue 판정과 같은 규칙을 쓰며 설정·본체에 쓰지 않는다. hejo 전송·저장·허브 계약이나 사장 선택을 바꾸지 않는다.
+
+최종 원문 비교: BubbleReplyView·NativeDraft 원본 전체를 분리 실행해 같은 평문 상태의 입력 줄을 비교했다. 서식·테마·붙여넣기 변환은 불활성 대역이며 원본 앱 전체가 아니다. AppKit 외곽 capsule의 안쪽 폭·줄바꿈을 맞췄다. IME 조합 중 같은 초안의 재발행은 편집기를 덮어쓰지 않고, 대상 변경·보낸 글 비우기는 undo 범위를 함께 비운다. 원본의 3줄은 표시 높이 한도이며 네 번째 줄을 버리지 않는 동작을 유지한다(26판); 화면 자료는 evidence/HEJO-FOUNDATION/TASK-30.md다.
