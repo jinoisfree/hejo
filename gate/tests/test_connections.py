@@ -112,6 +112,33 @@ class CatalogAdmin(Admin):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('previous,method',[('old','PUT'),(None,'DELETE')])
+async def test_d9_successful_compensation_with_wrong_presence_is_partial(tmp_path,previous,method):
+    """A successful compensation reply cannot hide a mismatched stored-key presence."""
+    from gate.connection_manager import Connections
+
+    class WrongPresence(CatalogAdmin):
+        async def request(self,verb,route,*,profile=None,body=None):
+            result=await super().request(verb,route,profile=profile,body=body)
+            if route=='/api/env' and verb in ('PUT','DELETE'):
+                # Only the compensation returns success; its storage state is wrong.
+                assert len(self.writes)==2 and verb==method
+                self.value=None if previous else 'synthetic-residual-value'
+            return result
+
+    admin=WrongPresence(previous,fail=True)
+    manager=Connections(tmp_path,lambda:[{'id':'alpha','name':'직원 A'}],admin=admin,snapshot=lambda:None)
+    reply=await manager.perform('device',{'profile':'alpha','connection':'key:SYNTHETIC_KEY',
+        'action':'secret_set','reauth':True,'values':{'value':'synthetic-private-value'}})
+    assert [entry[0] for entry in admin.writes]==['PUT',method]
+    assert bool(admin.value)!=bool(previous)
+    assert reply['outcome']=='partial' and reply['reason']=='write_partial'
+    assert reply['instruction']=='저장이 중간에 멈췄어요. 서버에서 이 키를 확인해 주세요'
+    assert manager.audit.rows()[-1]['outcome']=='partial'
+    assert 'synthetic-private-value' not in manager.audit.path.read_text()+json.dumps(reply)
+
+
+@pytest.mark.asyncio
 async def test_action_boundary_auth_profile_no_secret_output_or_action_bytes(tmp_path):
     from gate.connection_manager import Connections
     admin=CatalogAdmin();manager=Connections(tmp_path,lambda:[{'id':'alpha','name':'직원 A'}],admin=admin,snapshot=lambda:None)
