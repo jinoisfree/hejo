@@ -84,6 +84,7 @@ struct ConversationFailedSend: Identifiable {
     private var followup:ConversationKey?
     var notice = "" { didSet { onChange?() } }
     var onChange: (() -> Void)?
+    var onConnectionsFrame: (([String:Any])->Void)?
     var onRevealThread: ((ConversationKey)->Void)?
     private(set) var stopped = Set<ConversationKey>()
     private(set) var interruptions: [ConversationKey:Date] = [:]
@@ -176,6 +177,7 @@ struct ConversationFailedSend: Identifiable {
     }
     deinit { timer?.invalidate() }
     func receive(_ frame: [String: Any]) {
+        if ["connections_status","connection_result"].contains(frame["type"] as? String ?? "") {onConnectionsFrame?(frame);return}
         if ["welcome","roster"].contains(frame["type"] as? String ?? "") { pictures.invalidate() }
         if frame["type"] as? String == "welcome" { reconnectPending = Set(pending.keys) }
         if frame["type"] as? String == "sync_done", frame["more"] as? Bool == false {

@@ -150,6 +150,7 @@ import UniformTypeIdentifiers
         let delta=next-sidebarWidth; sidebarWidth=next; onSidebarWidth?(delta); refresh()
     }
     func toggleSidebar() { if sidebarWidth>0 { shownSidebarWidth=sidebarWidth; setSidebarWidth(0) } else { setSidebarWidth(shownSidebarWidth) } }
+    var onConnections:((String)->Void)?
     func employeeMenu(row: Int) -> NSMenu {
         guard sidebarRows.indices.contains(row) else { return blankMenu() }
         let selected=sidebarRows[row]
@@ -174,6 +175,7 @@ import UniformTypeIdentifiers
             menu.addItem(RoomActionItem("사진 바꾸기…") { [weak self] in self?.choosePicture(kind:"employee",id:employee) })
             if person.avatarCustom==true { menu.addItem(RoomActionItem("사진 지우기") { [weak self] in Task { _=await self?.controller.changePicture(kind:"employee",id:employee,url:nil) } }) }
         }
+        menu.addItem(RoomActionItem("도구 연결…") { [weak self] in self?.onConnections?(employee) })
         menu.addItem(RoomActionItem("목록에서 빼기") { model.hide(employee) })
         return menu
     }

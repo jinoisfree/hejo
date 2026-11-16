@@ -12,6 +12,7 @@ import AppKit
     private var hideItem: NSMenuItem?
     private var pauseItem: NSMenuItem?
     private var currentAccount = ""
+    private var toolsWindow:ConnectionsWindow?
     private var petSettings: PetSettingsWindow?
     private var bubble: BubbleReveal!
     private var bubbleTimer: Timer?
@@ -36,6 +37,7 @@ import AppKit
             pet.pet.bubbleReplyAllowed=store.settings.bubbleReplyEnabled ?? true
             pet.pet.avatarForEmployee = { [weak self] id in self?.conversation.avatar(id) ?? ProfileAvatar(color:PictureCodec.color(name:id,hex:nil)) }
             conversationView = ConversationView(controller: conversation)
+            conversationView.onConnections={ [weak self] profile in self?.showConnections(profile) }
             conversationView.homePetImage=pet.pet.atlas.image(row:0,frame:0)
             pet.pet.installConversation(conversationView)
             conversationView.onCollapse = { [weak self] in self?.pet.collapseChat() }
@@ -229,6 +231,7 @@ import AppKit
     }
     @objc private func openChat() { pet.showChat() }
     @objc private func signOut() { conversation.model.memberState.disconnect(); currentAccount = ""; petSettings?.accountName.stringValue = "로그인 전"; Task { await client.signOut(); petSettings?.updateConnection(client.status.text); connection.present() } }
+    private func showConnections(_ profile:String?=nil){if toolsWindow==nil {toolsWindow=ConnectionsWindow(controller:conversation)};toolsWindow?.show(profile:profile)}
     @objc private func showOptions() {
         if petSettings == nil {
             let settings = PetSettingsWindow()
@@ -243,6 +246,7 @@ import AppKit
             settings.onResetPosition = { [weak self] in self?.pet.resetPosition() }
             settings.onOpenAccount = { [weak self] in self?.connection.present() }
             settings.onLogout = { [weak self] in self?.signOut() }
+            settings.onConnections={ [weak self] in self?.showConnections() }
             settings.onSyncLayout = { [weak self] in self?.synchronizeLayout() }
             petSettings = settings
         }

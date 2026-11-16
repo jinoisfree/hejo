@@ -1033,6 +1033,12 @@
         },
         {
           "$ref": "#/$defs/room_delete"
+        },
+        {
+          "$ref": "#/$defs/connections"
+        },
+        {
+          "$ref": "#/$defs/connection_action"
         }
       ]
     },
@@ -1079,6 +1085,12 @@
         },
         {
           "$ref": "#/$defs/room_deleted"
+        },
+        {
+          "$ref": "#/$defs/connections_status"
+        },
+        {
+          "$ref": "#/$defs/connection_result"
         }
       ]
     },
@@ -1414,6 +1426,137 @@
         "type",
         "seq",
         "id"
+      ],
+      "additionalProperties": false
+    },
+    "connections": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "connections"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "profile": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "connection_action": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "connection_action"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "profile": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "connection": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "action": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "values": {
+          "type": "object",
+          "maxProperties": 32,
+          "additionalProperties": {
+            "type": "string",
+            "maxLength": 4096
+          }
+        },
+        "reauth": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "id",
+        "profile",
+        "connection",
+        "action",
+        "reauth"
+      ],
+      "additionalProperties": false
+    },
+    "connections_status": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "connections_status"
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "document": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "ref",
+        "document"
+      ],
+      "additionalProperties": false
+    },
+    "connection_result": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "connection_result"
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "reply": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "ref",
+        "reply"
       ],
       "additionalProperties": false
     }

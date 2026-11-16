@@ -10,6 +10,8 @@ from pathlib import Path
 from aiohttp import web, WSMsgType
 from jsonschema import Draft202012Validator
 from .auth import AuthRejected
+from .connection_manager import Connections
+from .connections import ConnectionFailure
 from .files import MAX_FILE_BYTES, UnknownFile
 from .pictures import Pictures, MAX_PICTURE_BYTES, valid_png
 from .journal import HejoJournalError
@@ -77,6 +79,7 @@ class GateServer:
         self.sites = []
         self.tasks = set()
         self.port = None
+        self.admin_connections = Connections(get_hermes_home(), adapter.employees)
         runner = getattr(adapter, "_message_handler", None)
         runner = getattr(runner, "__self__", None)
         self.pictures = Pictures(get_hermes_home(), getattr(getattr(runner, "config", None), "multiplex_profiles", True))
@@ -240,6 +243,10 @@ class GateServer:
             for conn in self.connections - set(revoked):
                 if ticks and ticks % 60 == 0:
                     await conn.send({"v": 1, "type": "ping"})
+            try:
+                self.admin_connections.secrets.purge()
+            except (OSError,ValueError,KeyError):
+                log.error("connection_undo_cleanup_failed")
             ticks += 1
 
     async def error(self, code, ref=None, conn=None):
@@ -392,6 +399,19 @@ class GateServer:
                     if frame["type"] == "roster":
                         await conn.send({"v": 1, "type": "roster", "ref": frame["id"],
                                          "employees": self.adapter.employees()})
+                    elif frame['type'] in {'connections','connection_action'}:
+                        try:
+                            if frame['type']=='connections':
+                                document=await self.admin_connections.document(frame.get('profile'))
+                                await conn.send({'v':1,'type':'connections_status','ref':frame['id'],'document':document})
+                            else:
+                                reply=await self.admin_connections.perform(conn.device_id,frame)
+                                await conn.send({'v':1,'type':'connection_result','ref':frame['id'],'reply':reply})
+                        except (ConnectionFailure,OSError,ValueError):
+                            await conn.send({'v':1,'type':'connection_result','ref':frame['id'],
+                                             'reply':{'outcome':'failed','reason':'admin_unavailable'}})
+                        finally:
+                            frame.pop('values',None)
                     elif frame["type"] == "sync":
                         if frame["since"] > self.adapter.journal.head:
                             await self.error("invalid_since", frame.get("id"), conn)

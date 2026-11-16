@@ -330,3 +330,40 @@ REQ-HF-24.AC-02는 본문 @직원만(없으면 대표)을 부르며, AC-05는 �
 기준 `0c5a3bd573172c2dfdcdbb196c82c743295163c0`. 앞 보류 기록은 보존한다. 고정 채널 홈 새 글은 본문 호출 우선, 없을 때만 선택 얼굴 호출 앞붙임, 둘 다 없으면 대표, 별명 시작은 이름으로 변환한다. 채널 없을 때만 기존 홈 1:1 규칙이다. 새 규격 필드 없이 승인된 room을 쓴다. 앞선 원본 전체 독해·diff 확인을 재사용한다. 초안의 임의 얼굴 우선 앞붙임은 제거하고 이 결정을 적용한다.
 
 추가 유지 의존 SlackBridge.swift(1652줄)는 이번에 파일 전체를 끝까지 읽었다. 이 중 `channelName`의 앞 # 제거·소문자·빈칸 -·문자/숫자/-/_·80자 규칙만 RoomDialogs.name으로 옮겼다. 나머지 SlackAPI·토큰·요청 제한·회복/캐시·읽음 API·메시지별 삭제·외부 파일 전송·계정/사람 검색 의존은 전부 제외했다. 직원 명부는 기존 Hermes 프로필 API, 방 기록/수신·삭제는 hejo 승인 계약, 사진은 Pictures를 쓴다. 원본 초대 Picks의 22px 행·머리·스크롤·참여 중 흐림·가능한 직원이 없을 때 초대 버튼 비활성화를 유지했다. 명칭은 변환 규칙 1번, Slack 공개/비공개·관리자 제한 안내는 2번으로 제외했다. 기존 AC-03 메뉴 순서를 유지하며 REQ-HF-24의 직원 빼기는 작성기 얼굴의 우클릭에서 요청한다(2명 미만·대표 제거는 비활성). 이는 hejo의 방 관리 연결이며 새 통신 계약이 아니다.
+
+
+## TASK-32 착수·공식 쓰기 계약 대조(보완 33)
+
+기준 `b19e03720dda05525db92de472fdbf2004c8ac72`. TASK-21 검토 결과와 실제 깨끗한 트리를 확인했다. 이번은 제품 이식 전 책임·보안 계약 대조이며 제품 코드를 옮기지 않았다.
+
+| 원본 | 읽은 범위·유지 의존 | 현재 처분 |
+| --- | --- | --- |
+| `<운영 저장소>/ddots/Sources/AgentConnections.swift`(369줄) | 전체. 문서·버튼·이유 코드·명령 제한·캐시·시각 처리 | 문이 준 버튼만 표시·stdin 비밀값·작업별 제한을 확인. 다른 Mac 읽기 전용 제한은 승인된 서버 대행으로 교체할 대상이다. 아직 이식하지 않았다. |
+| `AgentConnectionActions.swift`(264줄) | 전체. SecretInput·입력/지우기·ConnectionInputField·Guide·AgentConnectionsModel 의존 | 전체 창·모델 의존 독해는 미완료다. 비밀값 안내와 검증 후 저장·되돌림 흐름을 확인했으나 이식하지 않았다. |
+
+읽기 전용 원본 현재 HEAD는 `6ad0650b35ba4b7367050f9af80f0ef15ad4d5c1`이며 위 두 파일은 기존 독해 기준 `208f6e63` 대비 diff 0이다. 나머지 지정 UI·앱 연결·입력·team-kit 유지 의존 전체 독해는 미완료다. 일부 독해를 전체 이식 준비 완료로 세지 않는다.
+
+공식 관리 경로는 Hermes `ebb026eef8e800e1b7471ed147b7287e878f8aa4`의 subcommands/dashboard.py 전체, main.py의 cmd_dashboard/prepare_runtime, web_server.py의 lifespan/start_server·세션 검사, credential_lifecycle.py 전체, config_env.py의 env 저장/삭제·제공자 검증, config.py의 save_env_value/remove_env_value를 대조했다. D1에서 실제 serve를 임시 홈 기본+보조 두 프로필로 기동해 목록 HTTP 200을 받았다. 모든 자식 실행은 감사 훅으로 차단·기록했고 관측된 시도는 Git 버전 조회뿐이며 메시징 게이트웨이 실행 시도는 없었다. 관측은 기동·도구 목록 조회 구간이며 모든 관리 동작의 실물 검증은 아니다. 기존 task31의 추적하지 않는 web 의존성만 탐침 경로로 재사용했고 Hermes venv에 설치하지 않았다.
+
+D32-01: 공식 env 저장은 config.yaml의 같은 이전 값까지 갱신하고, 그 후속 쓰기 실패 뒤 .env 새 값이 남는다. REQ-HF-32.AC-03·04의 단일 키 쓰기/실패 불변과 충돌해 제품 구현을 보류했다. 검증 불가능한 키의 공식 validate가 ok=true/reachable=false인 경계도 확인했다. 이는 ddots 문구·동작 옮김 차이가 아니라 hejo 보안·Hermes 연동 계약이므로 26판 코드 우선으로 덮지 않았다. 상세와 선택지는 impl-report.md TASK-32 절, 재현은 `.build/task32/`다.
+
+
+### TASK-32 재개·29판 해소와 남은 원본 독해
+
+기준 `4fe20c13bca8a558bf1a0ad1681d8c3d81d0e8d0`. D32-01 기록은 보존하고 design D9로 해소했다. hejo는 공식 PUT/DELETE로만 쓰고 보상 실패를 partial로 드러낸다. D1 실제 serve 기동 근거는 재사용한다.
+
+이번에 전체를 끝까지 읽은 원본: ddots AgentConnectionsView.swift(491), AgentAppConnections.swift(312), ConnectionInputField.swift(39), InstalledApps.swift(152), InstalledAppsView.swift(137). 앞선 AgentConnections.swift(369)·AgentConnectionActions.swift(264) 독해와 합쳐 모델·연결 UI·앱 진행·입력·안내·캐시·시각·아이콘 의존을 확인했다. SwiftUI는 연결 창 예외 범위에서 유지한다. 원본의 다른 Mac 읽기 전용·로컬 HermesLocator/RemoteHermes·로컬 권한 조회·클립보드 감시는 가져오지 않고 기존 문 연결·서버 명령·앱의 화면 기록 제외로 대체할 대상이다. 문구는 변환 규칙 1번(직원·서버), 서비스 전용 제외는 2번이다. 상태에서 버튼을 추론하지 않는 구조·200px 직원 목록·22px 내용 여백·760x500 최소 크기·시각 표시는 유지할 대상이다.
+
+team-kit 경계는 실행 파일 hermes/bin/hermes-connections와 hermes_facility/connections.py(469), connection_secrets.py(270), connection_checks.py(437), connection_guides.py(68), app_connect.py(638), app_registry.py(250), gateway_restart.py(149), mac_permission.py(364)를 전체 독해했다. 이 코드를 hejo에 복사하지 않는다. 문은 고정 허용 명령·스키마·outcome·stdout 한도·stdin 비밀값·작업별 제한의 프로세스 경계만 유지한다. 명령 내부의 app_setup·config_assembly·plugin_store·mac_apps catalog/discovery·서비스별 HTTP·권한 worker는 외부 명령의 구현이며 hejo가 직접 호출하거나 소유하지 않는다. 그 구현을 우회·복제하지 않는다. 따라서 외부 조립/권한 전체 코드를 hejo 유지 의존으로 옮기는 것으로 기록하지 않는다. 프로필·권한 범위·재확인·행동 기록은 hejo 문에서 검사한다.
+
+### TASK-32 실제 옮김 대응
+
+- `AgentConnections.swift` → `app/Sources/ConnectionModels.swift`: 문서·행·상태·이유 문장·시각 계산을 가져왔다. 원본 로컬 CLI 실행기와 디스크 상태 캐시는 제외하고 기존 출입증 문 연결을 쓴다. 원시 오류를 덧붙이는 문장은 D2에 따라 고정 안내로 바꿨다.
+- `AgentConnectionsView.swift`·`AgentConnectionActions.swift` → `ConnectionsWindow.swift`: 직원 목록 200px, 내용 여백 22px, 최소 크기 760×500, 상태 알약·서비스 타일·상세·동작 줄·단계 안내를 재사용했다. 기본 창은 860×590이다. 원문 `summary`처럼 0개인 알약은 숨긴다(26판 코드 우선). 재확인은 hejo 고유 LocalAuthentication 계약이며, 취소는 전송 전에 끝난다.
+- `ConnectionInputField.swift`는 입력기 힌트·secure/plain 분기를 그대로 가져왔다. 입력 중 부모 창과 시트의 화면 공유를 제외하고, 닫기/성공 때 입력 사전을 지운다. 클립보드 기록 기능 자체는 hejo에 없으므로 원본 클립보드 감시 중지 연결을 추가하지 않았다.
+- `AgentAppConnections.swift`·`InstalledApps.swift`·`InstalledAppsView.swift`의 명령이 준 단계·선택지·입력·기본 계정·권한·다시 시작 흐름은 문이 받은 `next`로 그린다. Mac 앱 정보와 동작은 `gate/connection_manager.py`·`connection_runtime.py`의 고정 team-kit 명령 경계에 있다. 다른 Mac의 폴더 선택기를 서버 경로로 오인해 보내지 않는다. 로컬 앱 목록/로컬 권한 전용 쪽지 화면은 가져오지 않고 서버 직원의 연결 목록에 합친다(REQ-HF-32.AC-02).
+- team-kit의 `secret set`은 stdin JSON을 그대로 받으며 `--values-stdin` 인수가 없다. 이 인수는 `app connect`에만 붙인다. 원본 parser와 대조하고 실제 가짜 실행 파일 시험으로 고정했다. `reconnect`의 `state`, 다른 동작의 `outcome`을 구분하며, 0이 아닌 종료 코드에 유효한 `outcome`이 있으면 그 결과를 따른다. 다시 시작 명령의 거절도 pending으로 숨기지 않는다.
+- Hermes 공식 도구 묶음/config·env 존재·MCP 목록/카탈로그·OAuth 행만 읽는다. `configured`를 키 충족으로 쓰지 않는다. 비밀값은 `gate/connections.py`의 공식 validate/reveal/PUT/DELETE와 승인된 10분 금고를 통한다. 재시작 작업 정보는 기존 승인된 행동 기록에 남고 별도 영구 상태 원본을 만들지 않는다.
+- 문구 차이는 변환 규칙 1번(에이전트→직원, Hermes 실행 Mac→서버)·2번(원본 앱 전용 로컬/읽기 전용 설명 제외)이다. D9의 저장됨(확인 안 함)·보상 실패 문장은 hejo 고유 승인 계약이다. 원본의 4px 제목 아래 여백·성공 안내의 초록 아이콘과 달리 hejo 안내는 중립 회색 텍스트이며, 사진 없는 얼굴은 기존 hejo 명부 색을 쓴다. 비교 캡처에 이 차이를 남겼다. 화면 증거는 `evidence/HEJO-FOUNDATION/TASK-32.md`다.
+
+추가 대조: 공식 백엔드에서 기본+보조 두 프로필의 실제 목록은 합계 1,368행·553,466바이트였다. 기존 1MiB 통신 한도를 늘리지 않고 `connections.profile`로 선택한 직원만 읽는다. 직원 목록은 기존 명부를 직접 읽고, 이미 읽은 요약은 창의 메모리에만 둔다. 새 디스크 캐시는 없다. 서버도 전체 결과가 한도를 넘으면 거절한다. 서버 명령에서 온 안내의 ‘이 Mac’·‘맥미니’는 변환 규칙 1번으로 ‘서버’로 바꾸되 id·경로·URL은 바꾸지 않으며 회귀 시험에 넣었다.

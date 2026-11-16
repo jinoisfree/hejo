@@ -28,7 +28,10 @@ final class MemoryCredentials: GateCredentialStore {
         Task { @MainActor in
             do {
                 let args = CommandLine.arguments
-                if args.contains("--lock-child") {
+                if args.count>2 && args[1]=="--task32-capture" {
+                    NSApp.appearance=NSAppearance(named:.aqua)
+                    try await connectionsTests(outputDirectory:URL(fileURLWithPath:args[2]))
+                } else if args.contains("--lock-child") {
                     let lock = try InstanceLock(directory: URL(fileURLWithPath: args[2])); withExtendedLifetime(lock) { }
                 } else if args.count > 4 && args[1] == "--rooms-network" {
                     try await roomsNetwork(args)
@@ -182,6 +185,7 @@ final class MemoryCredentials: GateCredentialStore {
         try await threadToolsTests()
         try await workspaceTests()
         try await homeRoomTests(resourceDirectory:URL(fileURLWithPath:CommandLine.arguments.last!))
+        try await connectionsTests()
         try await roomsTests(resourceDirectory:URL(fileURLWithPath:CommandLine.arguments.last!))
         try await bubbleReplyTests(resourceDirectory:URL(fileURLWithPath:CommandLine.arguments.last!))
         try await petNotificationTests(resourceDirectory:URL(fileURLWithPath:CommandLine.arguments.last!))

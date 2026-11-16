@@ -17,6 +17,7 @@ import AppKit
     let openAccount = NSButton(title: "로그인·계정 창 열기", target: nil, action: nil)
     let logout = NSButton(title: "로그아웃", target: nil, action: nil)
     let syncLayout = NSButton(title: "화면 배치 동기화…", target: nil, action: nil)
+    var onConnections:(()->Void)?
     var onSyncLayout: (() -> Void)?
     var onName: ((String) -> Void)?, onScale: ((Double) -> Void)?, onBubble: ((Bool) -> Void)?, onLogin: ((Bool) -> Void)?
     var onResetChat: (() -> Void)?, onResetPosition: (() -> Void)?
@@ -84,6 +85,7 @@ import AppKit
         let syncView = NSView(frame: tabs.bounds)
         syncLayout.frame = CGRect(x: 24, y: 210, width: 200, height: 32)
         syncLayout.target = self; syncLayout.action = #selector(synchronizeLayout)
+        let tools=NSButton(title:"직원별 도구 연결…",target:self,action:#selector(openConnections));tools.frame=CGRect(x:24,y:160,width:200,height:32);syncView.addSubview(tools)
         syncView.addSubview(syncLayout); sync.view = syncView; tabs.addTabViewItem(sync)
     }
     func present(name: String, percent: Double, bubble: Bool, account: String = "", status: String = "서버 연결 전") {
@@ -109,6 +111,7 @@ import AppKit
     func updateConnection(_ text: String) { connectionStatus.stringValue = text }
     @objc private func openAccountWindow() { onOpenAccount?() }
     @objc private func logoutAccount() { onLogout?() }
+    @objc private func openConnections(){onConnections?()}
     @objc private func synchronizeLayout() { onSyncLayout?() }
     static func layoutConfirmation(connected: Bool) -> NSAlert {
         let alert = NSAlert()

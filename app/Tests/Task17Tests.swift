@@ -170,7 +170,7 @@ import AppKit
     let menuEvent = NSEvent.mouseEvent(with: .rightMouseDown, location: view.employeeTable.convert(rowPoint, to: nil), modifierFlags: [], timestamp: 0,
                                        windowNumber: menuWindow.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!
     try check(titles(view.employeeTable.menu(for: menuEvent)!) == titles(menu(second)), "AT67 right click resolves employee menu")
-    try check(titles(menu(second)) == ["대화 열기", "|", "맨 위에 고정", "2번째 자리에 고정", "3번째 자리에 고정", "4번째 자리에 고정", "5번째 자리에 고정", "모두 읽음", "알림 끄기", "|", "목록에서 빼기"], "AT67 employee menu exact order")
+    try check(titles(menu(second)) == ["대화 열기", "|", "맨 위에 고정", "2번째 자리에 고정", "3번째 자리에 고정", "4번째 자리에 고정", "5번째 자리에 고정", "모두 읽음", "알림 끄기", "|", "도구 연결…", "목록에서 빼기"], "AT67 employee menu exact order")
     try check(!titles(menu(first)).contains("대화 열기"), "AT67 current employee has no open command")
     try check(titles(view.blankMenu()) == ["새 방 만들기…", "새 섹션 만들기", "|", "목록에서 뺀 방", "|", "목록 넓게"], "AT67 blank menu exact order")
     try check(titles(view.headerMenu()) == ["제목과 설명 편집…", "|", "이 대화의 알림 끄기", "방 목록 보이기 / 숨기기", "방 목록 너비 전환", "전체 검색 (⌘F)", "모두 읽음", "|", "펫으로 접기"], "AT79 replaces AT67 header with original workspace menu order")

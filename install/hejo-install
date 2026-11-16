@@ -14,6 +14,9 @@ import sys
 import tempfile
 import uuid
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import admin_support
+
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap
 
@@ -620,6 +623,7 @@ def run(home, *, check=False, uninstall=False, uninstall_home_channel=False, for
         if not receipt or receipt["status"] != "installed":
             print("not_installed")
             return 1
+        admin_changed = not admin_support.check(home, receipt)
         changed = [item["path"] for item in receipt["targets"]
                    if not item.get("owner_may_change") and not matches(home, item)]
         from hermes_cli.profiles import get_profile_dir, list_profile_names
@@ -637,6 +641,7 @@ def run(home, *, check=False, uninstall=False, uninstall_home_channel=False, for
                 print(f"{'owner_set' if present else 'owner_removed'} {file}#{'.'.join(HOME_KEYS)}")
         if stat.S_IMODE((home / "hejo").stat().st_mode) != 0o700:
             changed.append("hejo")
+        if admin_changed: changed.append("hejo/admin.json")
         if stat.S_IMODE((home / "hejo/install-receipt.json").stat().st_mode) != 0o600:
             changed.append("hejo/install-receipt.json")
         for path in changed:
@@ -657,7 +662,9 @@ def run(home, *, check=False, uninstall=False, uninstall_home_channel=False, for
         if not receipt:
             print("not_installed")
             return 0
+        admin_removed = admin_support.remove(home, receipt, save_receipt)
         conflicts = restore(home, receipt, uninstall=True, force=force)
+        if not admin_removed: conflicts.append("hejo/admin.json")
         receipt["status"] = "uninstalled"
         save_receipt(home, receipt)
         for path in conflicts:
@@ -665,7 +672,9 @@ def run(home, *, check=False, uninstall=False, uninstall_home_channel=False, for
         print("Gateway was not restarted; review changes before restarting it.")
         return 2 if conflicts else 0
     if receipt and receipt["status"] == "installed":
-        return upgrade_home_channels(home, receipt)
+        result = upgrade_home_channels(home, receipt)
+        if result == 0 and not admin_support.prepare(home, receipt, save_receipt): return 1
+        return result
     if receipt and any(item["state"] == "applied" for item in receipt["targets"]):
         print("unresolved_receipt; finish uninstall before installing again")
         return 1
@@ -679,10 +688,12 @@ def run(home, *, check=False, uninstall=False, uninstall_home_channel=False, for
             apply(home, receipt, target)
             target["state"] = "applied"
             save_receipt(home, receipt)
+        admin_support.prepare(home, receipt, save_receipt)
         receipt["status"] = "installed"
         save_receipt(home, receipt)
     except Exception as exc:
         reconcile_home_channels(home, receipt)
+        admin_support.remove(home, receipt, save_receipt)
         conflicts = restore(home, receipt)
         receipt["status"] = "failed"
         save_receipt(home, receipt)

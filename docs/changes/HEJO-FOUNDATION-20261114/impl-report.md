@@ -1510,3 +1510,71 @@ D21-01은 계획 커밋 `0c5a3bd573172c2dfdcdbb196c82c743295163c0`의 고정 채
 위험·미검증: 실제 서버 직원 2명·두 Mac·바쁜 세션/긴 한국어 입력·운영 적용은 TASK-23에 남는다. 새 앱을 운영 문에 연결하는 실물 호환은 그때 맞는 공용 릴리스로 적용한 뒤 확인한다. room/room_delete가 기록된 뒤 문 코드만 되돌리면 안 된다. **design 15판의 운영 shared/hejo 자료 사본(기록장·첨부·사진)과 이전 릴리스를 함께 복원**해야 한다. 이번 `.build/task21/deploy-backup`·`release-backup`은 앱/공용 릴리스 교체용이고 TASK-23 운영 자료 사본을 대신하지 않는다. 설치·제거·운영 데이터 롤백은 이번에 실행하지 않았다.
 
 검토자는 GateServer.project·Journal.replay·RoomCommands.room_context, 늦은 출력과 보조 전달자의 방 주소, LocalStore.redacting·홈 작성 위치를 특히 확인하면 된다. TASK-21 별도 커밋 대상은 이 절·copy-review·제품/시험·화면 증거다. 앱 두 사본은 기존 번들 설정을 보존하고 재실행하지 않는다. 공용 릴리스는 커밋 뒤 표식/파일을 대조한다. 운영 홈 설치·실행·재시작/reload·비밀 파일 열기·ddots/Hermes 본체/운영 저장소 수정·외부 발송·public 갱신·push는 하지 않았다. TASK-32는 미착수다. 계획 담당 검토로 넘기며 푸시 승인 대기로 멈추지 않는다.
+
+
+## 구현 인계: TASK-32 착수·D32-01 보류(보완 33)
+
+1. 받은 설계: REQ-HF-32·AT-83, design 20판·21판 D1~D8, handoff 보완 33, 기준 `b19e03720dda05525db92de472fdbf2004c8ac72`. 고위험이며 인계 필요 수준 2 / 현재 TASK-32 전체 도달 수준 1(착수 대조)이다. 아래 실제 공식 함수·HTTP 재현은 해당 경계의 조사 근거이며 제품 AT-83 통과가 아니다. 구현자 판단은 **보류(구현 규칙 2절, 공식 쓰기 경로와 hejo 보안·무결성 계약 충돌)**다.
+2. D1 관측: 임시 HERMES_HOME 기본+alpha+beta에서 Hermes venv로 `hermes serve --isolated --host 127.0.0.1 --port <임시>`를 실행했다. 실제 도구 목록 HTTP 200·28행, 메시징 게이트웨이 실행 시도 없음. 모든 자식 실행을 차단·기록하는 감사 훅에서 Git 버전 조회 시도만 관측했다. 허용한 자식 서비스가 뒤에서 실행됐다는 뜻이 아니다. 실제 외부 계정·MCP·재시작은 하지 않았다. 탐침 자식만 종료했다. 기존 venv의 fastapi·uvicorn은 없으며, task31의 별도 deps를 탐침 PYTHONPATH에서만 재사용했다. 제품 설치에서는 D1의 업데이트 안내·skipped가 필요하다는 조건은 바꾸지 않았다.
+3. **D32-01 — 단일 키 쓰기와 실패 불변:** 공식 `PUT /api/env`는 Hermes config_env.py:328~349 → credential_lifecycle.py:163~201로 간다. save_env_value 뒤 이전 값과 같은 config.yaml api_key 거울을 `_scrub_config_yaml_mirrors`(:82~138)로 갱신한다. 임시 alpha 프로필의 같은 가짜 이전 값으로 실행하면 응답 ok=true, config_updates=[model.api_key]이고 config.yaml이 실제 변경된다. 그 atomic_config_replace 한 지점만 메모리 대역으로 실패시키면 공식 라우터 함수가 status_code=500 예외를 내지만 .env 바이트는 달라지고 새 값이 남으며 config.yaml은 이전 바이트다. 본체 파일은 수정하지 않았다.
+4. 충돌 계약: REQ-HF-32.AC-03은 지정 이름의 줄만 원자적으로 쓰고, AC-04·AT-83은 쓰기 실패 시 기존 값 바이트 불변을 요구한다. 근간 설계는 조립 결과 직접 수정도 금지한다. D1·보완 33은 공식 루프백 백엔드 경로·본체 무수정을 고정한다. 이 공식 동작을 성공으로 숨기거나, .env만 독자적으로 쓰거나, config 전체를 복원하거나, 본체를 고치는 선택은 채택하지 않았다. 실제 등록 제공자 키는 auth pool 등 추가 저장소에도 영향을 줄 수 있다(credential_lifecycle 설명과 호출 근거); 이번 재현은 합성 일반 키로 config 거울과 후속 실패만 확인했고 운영 auth 파일은 열지 않았고 auth pool 갱신 결과를 실물 검증했다고 주장하지 않는다.
+5. 추가 검증 경계: config_env.py:965~1032의 `/api/providers/validate`는 검사 표에 없는 키에 ok=true/reachable=false를 반환한다. 합성 일반 키로 실제 인증 검사를 거쳐 이 반환을 확인했다(네트워크 호출 없음). D3의 ‘키 저장됨(확인 안 함)’ 표시와 별개로, AC-03의 ‘실제 읽기 확인을 통과한 값만 저장’에 대해 지원하지 않는 키의 허용/거절 정책이 필요하다. ok만 검사해 검증 완료로 표시하면 안 된다.
+6. 계획 담당에게 넘길 선택: (A) 공식 관리 경로의 다중 저장소 효과를 계약에 명시하고, 해당 파일·키의 사전 확인/동시성/실패 복구/되돌림 경계를 설계한다. (B) 단일 키 쓰기·실패 불변을 유지한다면 이를 실제로 보장하는 공식 실행 경로와 지원 키 범위를 다시 정한다. 권고는 **먼저 공식 경로의 실제 쓰기 집합과 실패 원자성을 확정**하는 것이다. 검사 없는 키는 확인을 통과한 것으로 간주하지 않는 정책도 명시해야 한다. 어느 선택도 구현자가 채택하지 않았다.
+
+| 실행 | 실제 결과·한계 |
+| --- | --- |
+| `python3 .build/task32/probe_backend.py` | 종료 0. 실제 serve 기동·임시 프로필 목록 HTTP, 메시징 게이트웨이 자식 실행 시도 없음. `.build/task32/serve-result.json`, `serve.log`, `spawn-attempts.jsonl`. 종료 시 소유 탐침 자식에만 SIGTERM을 보냈고 종료 코드는 143이다. |
+| `python3 .build/task32/run_probe.py probe_write_contract` | 종료 0. 실제 공식 라우터·프로필 쓰기, config 거울 변경, 후속 쓰기 실패의 status_code=500 예외/.env 변경 잔류, 검사 없는 키 ok/reachable 경계 재현. `.build/task32/write-contract.json`, `probe_write_contract.log`. 최초 실행은 가짜 Request에 app이 없어 검사 단계에서 종료 1, 실제 Starlette Request로 고친 최종 실행은 0이다. |
+
+제품 변경·설치 도우미·규격·AT-83 코드·전체 검사·앱 반복·돌연변이·캡처·배포·릴리스·TASK-32 커밋은 미실행이다. ddots 지정 원본 중 모델/동작 두 파일 전체 독해와 일부 공식 경로 대조만 했으며 나머지 유지 의존은 미완료다. 보고 파일 copy-review.md·impl-report.md 두 개만 실행 담당 소유 변경으로 남겨 재개 뒤 TASK-32 커밋에 보존한다. 기존 TASK-21 설치본·공용 릴리스·검증 근거는 그대로다. 최종 보고 변경본의 개인값·훅·diff 검사는 `.build/task32/report-checks.json`에 기록한다.
+
+운영 홈·실제 비밀 파일 열기·게이트웨이 재시작·launchd 등록·Hermes venv 설치·본체/ddots/운영 저장소 수정·외부 발송·public 갱신·push는 하지 않았다. 푸시 승인이 아닌 D32-01 설계 계약 때문에 멈춘다.
+
+## TASK-32 보완 34 구현 진행 기록
+
+D32-01은 29판 D9로 해소했다. 위 보류 기록은 당시 근거로 보존한다. 현재 main의 기준은 `4fe20c13bca8a558bf1a0ad1681d8c3d81d0e8d0`이며 TASK-32 커밋·배포는 아직 하지 않았다. 구현 파일과 시험은 작업 트리에 있다. 고위험의 필요 증거 수준은 인계 2 / 최종 4이며, 아래 경계별 근거가 TASK-32 전체 최종 검증·실물을 대신하지 않는다.
+
+- 문: `connections.py`(공식 루프백·D9·10분 금고), `connection_runtime.py`(행동 기록·재시작 판정·고정 명령), `connection_manager.py`(명부 범위·허용 동작·문서·OAuth/MCP/team-kit)를 추가했다. 기존 인증된 연결에만 응답하고 대화 기록장·방송에 넣지 않는다. 비밀값 입력은 공식 reveal/validate/PUT/DELETE, 실패는 공식 보상만 쓴다. partial은 값 없는 행동 기록과 승인된 문장으로 드러낸다. hejo의 env/config 직접 쓰기는 없다.
+- 앱: 예외 범위 SwiftUI 연결 창·입력기를 기존 AppKit 설정/직원 메뉴와 연결했다. LocalAuthentication 취소면 프레임이 없다. 앱 연결 이어가기에서 재시작하는 경우도 같은 재시작 확인창을 거친다. 화면 공유 제외·성공/닫기 입력 삭제·원시 오류 비노출·관리 응답 캐시 제외를 연결했다. 선택 직원의 문서만 요청하고 직원 목록은 기존 명부를 읽는다.
+- 설치: `admin_support.py`·`hejo-admin`과 기존 설치 영수증에 private 토큰/KeepAlive plist의 준비·점검·제거를 추가했다. 영수증에는 토큰 대신 파일 해시만 둔다. 소유자가 바꾼 파일은 보존한다. 의존성이 없으면 업데이트 안내와 skipped다. 래퍼는 토큰을 환경에만 놓고 공식 serve를 loopback으로 실행하며 stdout/stderr를 버린다. 실제 launchd 등록과 운영 적용은 TASK-23이다.
+- 기존 시험 변경: `Task17Tests.swift`의 정확한 메뉴 목록에 승인된 ‘도구 연결…’ 한 항목만 추가했다(REQ-HF-32.AC-01). 나머지 기대값과 단정은 유지했다. 수락 기준 문서는 바꾸지 않았다.
+
+현재 확인한 근거:
+
+| 실행 | 결과·범위 |
+| --- | --- |
+| `python3 .build/foundation9_runner.py task32-api-final <gate 시험>` | 종료 0, 16 passed. D9 보상/partial/만료, 인증된 루프백 응답 격리, 토큰/오류 미노출, chunked JSON, 고정 명령 stdin/한도/제한 시간/outcome, 재시작 바쁨·유실 채널·명령 거절, OAuth/MCP, 용어 변환. `.build/foundation9-task32-api-final.log`. |
+| `python3 .build/task32/run_probe.py official_management` | 종료 0. 실제 공식 serve + 임시 기본/alpha/beta의 목록, 실제 공식 키 저장/되돌리기·프로필 분리. 1,368행·553,466바이트. 메시징 게이트웨이 실행 시도 없음. `.build/task32/official-management-result.json`. 실제 OAuth 토큰 교환·MCP 외부 전송·게이트웨이 재시작은 하지 않았다. |
+| `python3 .build/task32/run_probe.py official_compensation` | 종료 0. 실제 공식 함수의 env 저장 뒤 config 거울 실패를 메모리 대역으로 주입하고 D9 보상을 실행했다. env/config 바이트가 모두 원래와 같다. `.build/task32/official-compensation.json`. 본체 파일은 바꾸지 않았다. |
+| `python3 .build/task32/mutations.py` | 종료 0. 보상 제거·바쁨 거절 제거 사본이 각각 pytest 1로 검출됐다. 실제 소스는 바꾸지 않았다. `.build/task32/mutations.json`. |
+| `python3 .build/task32/wrapper_probe.py` | 종료 0. exec를 메모리 대역으로 바꿔 공식 serve 인수·환경 토큰·0600 거절을 확인했다. 실제 launchd 등록 없음. `.build/task32/wrapper.json`. |
+| `reference.py`·`white_capture.py` | 각각 종료 0. 같은 가짜 상태의 원본 보기 조각/실제 hejo 보기 조립. 운영 앱 전체 비교가 아니다. `evidence/HEJO-FOUNDATION/TASK-32.md`. |
+| `python3 .build/task32/byte_search.py` | 종료 0. 실제 시험의 hejo 행동 기록/일반 지속 파일에 가짜 비밀값 바이트 0. 승인된 admin 토큰·이전 값 금고와 외부 Hermes 로그는 구분했다. 통신·방송·로그·인수는 자동 시험에서 따로 검사한다. `.build/task32/byte-search.json`. |
+
+중간 전체/앱 검사는 구현 보강 중 입력 변경을 감지한 것이 있어 최종 실적으로 세지 않는다. 최종 소스를 고정한 `frozen.py`의 전체 검사·앱 시험 10회, 최종 개인값/훅, 앱 두 사본·공용 릴리스, 별도 커밋 결과는 이 아래에 이어 기록한다. 현재 이 작업 전체가 검증 완료됐다는 뜻은 아니다.
+
+남은 실물: 실제 키 넣기/되돌리기, OAuth 동의, 실제 게이트웨이 새 PID/채널 재연결, 다른 Mac의 서버 권한 창, launchd 활성화와 창 결합은 TASK-23이다. Hermes 자체 로그에 원시 오류가 남을 수 있는 D2의 받아들인 위험은 유지한다. 운영 홈 실행/설치·재시작·launchd 등록·비밀 파일 열기·본체/ddots/운영 저장소 수정·Hermes venv 설치·외부 발송·public 갱신·push는 하지 않았다.
+
+### TASK-32 최종 검증 진행 경계
+
+고정 입력 148개 파일 기준 `python3 .build/foundation9_runner.py hejo`는 종료 0, 180 passed와 가짜 Hermes/앱/통신 검사를 통과했다. AT-HF-83 APP PASS도 확인했다. `.build/task32/frozen-progress.json` 첫 행의 `inputsUnchanged=true`, `.build/task32/frozen-inputs.json`의 소스 해시가 근거다. 같은 드라이버가 `app-task32-verified-01`부터 10회 연속을 이어 실행 중이다. 10회 완료를 아직 선언하지 않는다.
+
+`python3 .build/task32/final_checks.py`는 종료 0이다(개인값 검사, HEJO_PYTHON 지정 커밋 훅, diff 검사 각각 0). 제품 SwiftUI import는 승인된 연결 창/입력기 두 파일뿐이며 알림 센터 API는 0이다. 이 경계에서 TASK-32 커밋·앱 교체·공용 릴리스 갱신은 아직 하지 않았다. 반복 검사 완료 뒤 그 결과와 교체/커밋/릴리스 근거를 이어 적는다.
+
+
+### TASK-32 구현·자체 검증 인계 결과
+
+위 진행 경계 이후 기존 `frozen.py` 실행을 그대로 기다렸다. 완료한 검사를 다시 시작하지 않았다. 전체 검사 1행과 앱 시험 10행이 모두 종료 코드 0·`inputsUnchanged=true`이며, 고정 입력 148개가 끝까지 같다. 인계 필요/도달 증거 수준은 **2/2**다. 고위험 최종 완료에는 비설계자 검토와 TASK-23 실물 수준 4가 남으며, 구현자가 최종 완료를 판정하지 않는다.
+
+| 최종 실행 | 실제 결과·근거 |
+| --- | --- |
+| `python3 .build/task32/frozen.py` | 종료 0. 내부 `python3 .build/foundation9_runner.py hejo`는 종료 0, 180 passed·AT-HF-83 APP PASS·가짜 Hermes/통신 통과. `.build/task32/frozen-progress.json`, `frozen-inputs.json`, `.build/foundation9-hejo.log`. |
+| `bash app/scripts/test.sh` 10회 연속 | 기존 드라이버의 `app-task32-verified-01`~`10`에서 모두 종료 0·입력 불변. `.build/foundation9-app-task32-verified-01.log`~`10.log`와 `frozen-progress.json`. |
+| `python3 .build/task32/deploy.py` | 종료 0. 앱 두 사본 교체·서명 2개 확인·기존 번들 설정/주소 체계 보존·운영 앱 재실행 없음. `.build/task32/deploy.json`; 백업 `deploy-backup`. |
+| `python3 .build/task32/verify_binary.py` | 종료 0. 임시 사본의 서명을 제거한 빌드/후보/배치 코드 해시가 모두 같다. 후보와 두 배치 실행 파일 해시도 같고 기존 Info.plist 바이트를 보존했다. `.build/task32/binary-verification.json`. |
+
+보상 제거·바쁨 거절 제거 돌연변이, 가짜 비밀값 바이트 검색, 공식 백엔드/실제 공식 보상 경계, 원본 분리 캡처는 위 표의 같은 구현 근거를 재사용한다. 기획설계 문서·수락 기준은 수정하지 않았다. D32-01 보류·29판 해소와 원본 독해 기록을 보존한 보고 파일을 포함해 소유 파일 24개만 `git commit --only` 대상으로 삼는다.
+
+이 보고 추가 뒤 `final_checks.py`와 커밋 도우미로 개인값/훅/diff를 확인한다. 커밋 실행 결과는 `.build/task32/commit-result.json`·`commit.log`에 남긴다. 이어 `release.py`로 공용 릴리스를 갱신하고 `final_verify.py`로 RELEASE 표식·전체 릴리스 파일·앱 서명/설정·검증 소스·깨끗한 작업 트리를 대조한다. 실제 커밋과 릴리스 최종 결과는 `release-verify.json`·`final-verification.json` 및 result 인계에서 확인한다. 이 문서 작성 시점에는 커밋/릴리스 이후 결과를 미리 통과로 세지 않았다.
+
+구현 범위는 문 공식 관리 경계·설치 준비/점검/제거·승인된 연결 UI 예외와 시험/증거다. 실제 서버 키·OAuth 동의·게이트웨이 재시작·두 Mac·권한 창·launchd 활성화·운영 창 결합은 TASK-23에 남는다. 운영 홈 설치/실행·재시작·launchd 등록·실제 비밀 파일 열기·Hermes venv 설치·본체/ddots/운영 저장소 수정·외부 발송·public 갱신·push는 하지 않았다. 운영 자료 롤백은 기존 design 15판대로 shared/hejo 사본과 이전 릴리스를 함께 복원해야 하며 이번 앱/릴리스 백업이 운영 자료 사본을 대신하지 않는다. 계획 담당 검토로 인계하고 푸시 승인 대기로 진행을 멈추지 않는다.
