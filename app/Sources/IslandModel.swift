@@ -111,8 +111,8 @@ final class IslandModel {
         let date=now
         if wasDisconnected {
             let text: String
-            if let retryAt { text="공항 연결 끊김 · \(max(0,Int(ceil(retryAt.timeIntervalSince(date)))))초 뒤 다시 연결 · 지금 연결" }
-            else { text="공항 연결 중 · 지금 연결" }
+            if let retryAt { text="서버 연결 끊김 · \(max(0,Int(ceil(retryAt.timeIntervalSince(date)))))초 뒤 다시 연결 · 지금 연결" }
+            else { text="서버 연결 중 · 지금 연결" }
             return Snapshot(parts:[Part(kind:.problem,text:text,action:.reconnect)],disconnected:true)
         }
         if let until=restoredUntil, until>date { return Snapshot(parts:[Part(kind:.problem,text:"다시 연결됨")],restored:true) }

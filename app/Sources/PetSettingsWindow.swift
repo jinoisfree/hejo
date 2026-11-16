@@ -71,7 +71,7 @@ import AppKit
         }
         accountLabel("아이디", y: 246)
         accountName.frame = CGRect(x: 24, y: 218, width: 350, height: 22)
-        accountLabel("공항 연결 상태", y: 180)
+        accountLabel("서버 연결 상태", y: 180)
         connectionStatus.frame = CGRect(x: 24, y: 152, width: 350, height: 22)
         openAccount.frame = CGRect(x: 24, y: 85, width: 185, height: 32)
         openAccount.target = self; openAccount.action = #selector(openAccountWindow)

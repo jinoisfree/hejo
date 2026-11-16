@@ -36,6 +36,7 @@ import AppKit
             pet.pet.bubbleReplyAllowed=store.settings.bubbleReplyEnabled ?? true
             pet.pet.avatarForEmployee = { [weak self] id in self?.conversation.avatar(id) ?? ProfileAvatar(color:PictureCodec.color(name:id,hex:nil)) }
             conversationView = ConversationView(controller: conversation)
+            conversationView.homePetImage=pet.pet.atlas.image(row:0,frame:0)
             pet.pet.installConversation(conversationView)
             conversationView.onCollapse = { [weak self] in self?.pet.collapseChat() }
             conversationView.onOpenThreadHeight = { [weak self] height in self?.pet.fitOpenThread(height) }
@@ -146,6 +147,7 @@ import AppKit
             } catch { conversation.model.memberState.onFailure?(true) }
         }
         pet.pet.setAccessibilityLabel("hejo · \(store.settings.petName) · 대화 열기")
+        conversationView.refresh()
     }
     private func syncMemberSettings() async {
         for _ in 0..<20 where client.bearer == nil { try? await Task.sleep(nanoseconds: 500_000_000) }
@@ -188,7 +190,7 @@ import AppKit
             let key=message.key
             return message.latestSeq<=max(model.memberState.read("read:"+key.employee),model.memberState.read("thread:"+key.employee+"/"+key.thread))
         }.map(\.id))
-        let jumped=bubble.update(.init(messages:messages,questions:questions,typing:model.typing,names:input.names,muted:model.muted,readIDs:readIDs,opened:model.selected,chatOpen:pet.chatExpanded,paused:pet.pet.isPaused,ready:client.replayComplete,failure:input.failure),now:Date())
+        let jumped=bubble.update(.init(messages:messages,questions:questions,typing:model.typing,names:input.names,muted:model.petMuted,readIDs:readIDs,opened:model.selected,chatOpen:pet.chatExpanded,paused:pet.pet.isPaused,ready:client.replayComplete,failure:input.failure),now:Date())
         if jumped {pet.pet.requestReplyJump()}
         var notice=bubble.notice
         if bubble.persistenceFailed {notice.detail="알림을 저장하지 못했어요. 저장 공간을 확인해 주세요."}
@@ -202,8 +204,8 @@ import AppKit
         bubbleReply.aim(target)
         pet.pet.bubbleNotice=notice
         if !conversation.canSend || pet.chatExpanded || pet.pet.isPaused || !pet.pet.bubbleReplyAllowed {pet.pet.updateBubbleReply(pointerOver:false)}
-        let asked = questions.filter{ id in model.messages[id].map{!model.muted.contains($0.key.employee)} ?? false }.count
-        let working = Set(model.typing.filter{$0.value>Date() && !model.muted.contains($0.key.employee)}.keys.map(\.employee)).count
+        let asked = questions.filter{ id in model.messages[id].map{!model.petMuted.contains($0.key.employee)} ?? false }.count
+        let working = Set(model.typing.filter{$0.value>Date() && !model.petMuted.contains($0.key.employee)}.keys.map(\.employee)).count
         pet.pet.hasAsked = asked > 0; pet.pet.isTyping = working > 0
         pet.pet.sendFailed = bubble.notice.kind == .failure
         pet.pet.bubbleStatus = "일하는 직원 \(working)명 · 사장 차례 \(asked)건"
@@ -271,6 +273,7 @@ import AppKit
         let name = PetIdentity.normalized(value)
         try? store.update { $0.petName = name }
         pet.pet.bubbleName = name
+        conversationView.refresh()
         pet.pet.setAccessibilityLabel("hejo · \(name) · 대화 열기")
         saveMemberSettings()
     }

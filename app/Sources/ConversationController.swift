@@ -128,7 +128,7 @@ struct ConversationFailedSend: Identifiable {
         IslandModel.Input(messages:Array(model.messages.values).map { var message=$0;if model.confirmed(message.id) {message.replyState=nil};return message },typing:model.typing,
             names:Dictionary(uniqueKeysWithValues:model.employees.map { ($0.id,$0.name) }),
             unread:model.visibleUnreadTotal,selected:model.selected,
-            status:client.status,failure:transferFailure ?? stateFailure,uploads:uploads,muted:model.muted)
+            status:client.status,failure:transferFailure ?? stateFailure,uploads:uploads,muted:model.petMuted)
     }
     var onOpenFile: (URL) -> Void = { NSWorkspace.shared.open($0) }
     private var replicaAddress: String
@@ -182,7 +182,7 @@ struct ConversationFailedSend: Identifiable {
             if frame["role"] as? String == "employee" { interruptions[key]=nil }
             if frame["role"] as? String == "employee",followup==key,!ThreadTools.thinking(frame["text"] as? String ?? "") {
                 followup=nil
-                if model.selected?.employee==key.employee,draft.isEmpty {model.select(key);onRevealThread?(key)}
+                if model.selected?.employee==key.employee,draft.isEmpty {let home=model.isHome;model.select(key,inHome:home);onRevealThread?(key)}
             }
             if !working(key) { interruptions[key]=nil }
         }
@@ -225,6 +225,15 @@ struct ConversationFailedSend: Identifiable {
         if drafts[key]!.picks.contains(employee) {drafts[key]!.picks.remove(employee)} else {drafts[key]!.picks.insert(employee)}
         onChange?()
     }
+    func pickHome(_ employee:String) {
+        guard model.home.members.contains(where:{$0.id==employee}) else{return}
+        cancelFollowup()
+        if let key=model.selected,!model.timeline(key).isEmpty {model.selectHome()}
+        guard let key=model.selected else{return}
+        let selected=drafts[key]?.picks.contains(employee)==true
+        drafts[key,default:ConversationDraft()].picks=selected ? []:[employee]
+        onChange?()
+    }
     func cancelFollowup() {followup=nil}
     private func saveFailure(_ key:ConversationKey,draft:ConversationDraft,reason:String) {
         failures.append(.init(key:key,draft:draft,newPost:model.timeline(key).isEmpty,reason:reason))
@@ -258,10 +267,20 @@ struct ConversationFailedSend: Identifiable {
         if let message = result.notice { notice = message }; onChange?()
     }
     func removeAttachment(_ url: URL) { if let key = model.selected { drafts[key]?.attachments.removeAll { $0 == url }; onChange?() } }
-    func sendCurrent(for destination: ConversationKey? = nil) async {
+    func sendCurrent(for destination: ConversationKey? = nil,homeNew:Bool=false) async {
         guard let key = destination ?? model.selected, !pending.values.contains(where: { $0.key == key }) else { return }
         let draft = drafts[key] ?? ConversationDraft()
         guard !draft.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !draft.attachments.isEmpty else { return }
+        if key.employee==HomeRoom.id || homeNew {
+            let words=draft
+            switch model.home.destination(text:words.text,picked:words.picks.first) {
+            case .refused(let reason):notice=reason;onChange?();return
+            case .employee(let employee):
+                let destination=ConversationKey(employee:employee,thread:UUID().uuidString.lowercased())
+                drafts[destination]=words;drafts[key]=nil;if model.selected==key {model.select(destination,inHome:true)}
+                await sendCurrent(for:destination);return
+            }
+        }
         guard canSend else { transferFailed(GateFailure.notConnected,for:key); return }
         guard draft.text.utf8.count <= 65_536 else { transferFailure=IslandFailure(message:"너무 큼 · 글은 64 KiB까지 보낼 수 있어요.",firstWords:IslandModel.firstLine(draft.text),isSend:true);saveFailure(key,draft:draft,reason:"너무 큼 · 글은 64 KiB까지 보낼 수 있어요.");return }
         _=await transmit(key,draft:draft)

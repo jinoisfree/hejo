@@ -82,6 +82,25 @@ struct ConversationThread: Identifiable {
     private(set) var typingSince: [ConversationKey: Date] = [:]
     private(set) var selected: ConversationKey?
     private(set) var visible = false
+    private(set) var isHome=false
+    var selectionIdentity:String {isHome ? HomeRoom.id:selected?.employee ?? ""}
+    var home:HomeRoom {
+        let settings=memberState.value("layout:home").flatMap{$0.data(using:.utf8)}.flatMap{try? JSONDecoder().decode(HomeRoom.Settings.self,from:$0)} ?? HomeRoom.Settings()
+        return HomeRoom(settings:settings,employees:employees)
+    }
+    var petMuted:Set<String> {muted.union(home.settings.muted==true ? Set(home.members.map(\.id)):[])}
+    func configureHome(_ update:(inout HomeRoom.Settings)->Void){var settings=home.settings;update(&settings);saveLayout("layout:home",settings)}
+    func toggleHomeMember(_ employee:String){
+        var ids=home.members.map(\.id);if let index=ids.firstIndex(of:employee){ids.remove(at:index)}else{ids.append(employee)}
+        configureHome{$0.members=ids}
+    }
+    func selectHome(_ key:ConversationKey?=nil,notify:Bool=true){select(key ?? ConversationKey(employee:HomeRoom.id,thread:UUID().uuidString.lowercased()),notify:notify,inHome:true)}
+    var homeThreads:[ConversationThread] {
+        home.members.flatMap{threads(employee:$0.id)}.sorted{a,b in
+            let x=timeline(a.key).map{ThreadTools.date($0.timestamp)}.max() ?? .distantPast,y=timeline(b.key).map{ThreadTools.date($0.timestamp)}.max() ?? .distantPast
+            return x==y ? a.id<b.id:x<y
+        }
+    }
     var onChange: (() -> Void)?
     var noticeClock:()->Date=Date.init
     let memberState: MemberState
@@ -125,6 +144,8 @@ struct ConversationThread: Identifiable {
             let latest=posts.map { (fractional.date(from:$0.timestamp) ?? seconds.date(from:$0.timestamp))?.timeIntervalSince1970 ?? Double($0.latestSeq) }.max() ?? 0
             return SidebarLayout.Item(id:room.id,name:room.title,kind:.direct,members:room.members,rank:index,latest:latest,unread:unread(room:room),questions:notices(room.id).filter(\.questions).reduce(0){$0+$1.messages.count},alerts:notices(room.id).filter{!$0.questions}.reduce(0){$0+$1.messages.count},muted:muted.contains(room.id))
         }
+        let memberIDs=home.members.map(\.id),posts=messages.values.filter{memberIDs.contains($0.key.employee)}
+        layout.items.insert(.init(id:HomeRoom.id,name:store.settings.petName,kind:.home,members:memberIDs,latest:Double(posts.map(\.latestSeq).max() ?? 0),unread:memberIDs.reduce(0){$0+unread(employee:$1)},muted:home.settings.muted==true,picture:home.settings.picture),at:0)
         return layout
     }
     private func saveLayout<T:Encodable>(_ key:String,_ value:T) {
@@ -171,7 +192,7 @@ struct ConversationThread: Identifiable {
         let layout=sidebar,ordered=layout.sections.flatMap { layout.group($0.id) }+layout.stacked
         return ordered.compactMap { item in rooms.first{$0.id==item.id} }
     }
-    var visibleUnreadTotal: Int { rooms.filter { !muted.contains($0.id) && !hidden.contains($0.id) }.reduce(0) { $0 + unread(room: $1) } }
+    var visibleUnreadTotal: Int { rooms.filter { !petMuted.contains($0.id) && !hidden.contains($0.id) }.reduce(0) { $0 + unread(room: $1) } }
     init(store: LocalStore) throws {
         self.store = store
         memberState = MemberState(store: store)
@@ -179,7 +200,9 @@ struct ConversationThread: Identifiable {
         loadingRecords = false
         memberState.onChange = { [weak self] in
             guard let self else { return }
-            if let current = self.selected?.employee, self.hidden.contains(current) {
+            if self.isHome {
+                if let key=self.selected,key.employee != HomeRoom.id,!self.home.members.contains(where:{$0.id==key.employee}) {self.selectHome(notify:false)}
+            } else if let current = self.selected?.employee, self.hidden.contains(current) {
                 if let next = self.displayRooms.first { self.select(employee: next.id, notify: false) }
                 else { self.selected = nil }
             }
@@ -196,10 +219,11 @@ struct ConversationThread: Identifiable {
             if let free = (1...5).first(where: { !used.contains($0) }) { changeState(["pin:" + employee: String(free)]) }
         }
     }
-    func toggleMute(_ employee: String) { changeState(["mute:" + employee: muted.contains(employee) ? nil : "1"]) }
+    func toggleMute(_ employee: String) { if employee==HomeRoom.id {configureHome{$0.muted = $0.muted != true};return};changeState(["mute:" + employee: muted.contains(employee) ? nil : "1"]) }
     func hide(_ employee: String) { changeState(["hide:" + employee: "1", "pin:" + employee: nil]) }
     func restore(_ employee: String) { changeState(["hide:" + employee: nil]) }
     func markAllRead(_ employee: String) {
+        if employee==HomeRoom.id {for person in home.members {markAllRead(person.id)};return}
         var values: [String: String?] = [:]
         let roomMessages = messages.values.filter { $0.key.employee == employee }
         values["read:" + employee] = String(roomMessages.map(\.latestSeq).max() ?? 0)
@@ -208,7 +232,7 @@ struct ConversationThread: Identifiable {
         }
         changeState(values);readAllNotices(employee)
     }
-    func resetReplica() { messages = [:]; typing = [:]; typingSince = [:]; applied = 0; selected = nil; onChange?() }
+    func resetReplica() { messages = [:]; typing = [:]; typingSince = [:]; applied = 0; selected = nil; isHome=false; onChange?() }
     private func decode<T: Decodable>(_ value: Any, as type: T.Type) throws -> T {
         try JSONDecoder().decode(type, from: JSONSerialization.data(withJSONObject: value))
     }
@@ -255,7 +279,7 @@ struct ConversationThread: Identifiable {
         } else if type == "welcome" || type == "roster" {
             let rows = frame["employees"] as? [[String: Any]] ?? []
             employees = try rows.map { row in try decode(row, as: Employee.self) }
-            if let selected, !employees.contains(where: { $0.id == selected.employee }) { self.selected = nil }
+            if let selected, !(isHome && selected.employee==HomeRoom.id), !employees.contains(where: { $0.id == selected.employee }) { if isHome {selectHome(notify:false)} else {self.selected=nil} }
         } else if type == "typing", let employee = frame["employee"] as? String, let thread = frame["thread"] as? String {
             let key = ConversationKey(employee: employee, thread: thread)
             if frame["on"] as? Bool == true {
@@ -263,7 +287,7 @@ struct ConversationThread: Identifiable {
                 typing[key] = now.addingTimeInterval(TimeInterval(frame["ttl_seconds"] as? Int ?? 6))
             } else { typing[key] = nil; typingSince[key] = nil }
         }
-        if selected == nil, let first = displayRooms.first { select(employee: first.id, notify: false) }
+        if selected == nil {if isHome {selectHome(notify:false)} else if let first=displayRooms.first {select(employee:first.id,notify:false)}}
         try markVisibleRead()
         onChange?()
     }
@@ -303,13 +327,13 @@ struct ConversationThread: Identifiable {
     func check(_ id:String,line:Int,original:Bool)->Bool { memberState.value("check:"+id+":"+String(line)).map{$0=="1"} ?? original }
     func toggleCheck(_ id:String,line:Int,original:Bool) { changeState(["check:"+id+":"+String(line):check(id,line:line,original:original) ? "0":"1"]) }
     func unread(employee: String) -> Int { Set(messages.values.filter { $0.key.employee == employee }.map(\.key)).reduce(0) { $0 + unread($1) } }
-    func name(_ employee: String) -> String { employees.first { $0.id == employee }?.name ?? employee }
+    func name(_ employee: String) -> String { if employee==HomeRoom.id {return store.settings.petName};return employees.first { $0.id == employee }?.name ?? employee }
     func select(employee: String, notify: Bool = true) {
         guard employees.contains(where: { $0.id == employee }) else { return }
         select(threads(employee: employee).first?.key ?? ConversationKey(employee: employee, thread: UUID().uuidString.lowercased()), notify: notify)
     }
-    func select(_ key: ConversationKey, notify: Bool = true) {
-        selected = key; try? markVisibleRead(); if notify { onChange?() }
+    func select(_ key: ConversationKey, notify: Bool = true,inHome:Bool=false) {
+        isHome=inHome;selected = key; try? markVisibleRead(); if notify { onChange?() }
     }
     func newThread() { if let selected { select(ConversationKey(employee: selected.employee, thread: UUID().uuidString.lowercased())) } }
     func setVisible(_ value: Bool) { visible = value; try? markVisibleRead(); onChange?() }

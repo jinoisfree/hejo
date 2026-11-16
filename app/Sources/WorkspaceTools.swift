@@ -67,6 +67,10 @@ struct RoomNotice: Equatable {
 }
 @MainActor extension ConversationModel {
     func notices(_ employee:String,now:Date?=nil)->[RoomNotice] {
+        if employee==HomeRoom.id {
+            let all=home.members.flatMap{notices($0.id,now:now)},alerts=all.filter{!$0.questions}.flatMap(\.messages)
+            return all.filter(\.questions)+(alerts.isEmpty ? []:[RoomNotice(id:"alert",title:"알림",questions:false,messages:alerts)])
+        }
         let now=now ?? noticeClock()
         var questions:[String:[ConversationMessage]]=[:],alerts:[ConversationMessage]=[]
         for thread in threads(employee:employee).sorted(by:{ThreadTools.date(timeline($0.key).first?.timestamp ?? "")<ThreadTools.date(timeline($1.key).first?.timestamp ?? "")}) {

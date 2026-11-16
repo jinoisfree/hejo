@@ -1432,3 +1432,29 @@ AppKit `AppIcon.render(pixels:)`가 투명 1024px 캔버스의 흰 둥근 사각
 개발 중 오류: 첫 새 시험은 비동기 호출을 동기 단정 autoclosure에 넣어 컴파일되지 않았고, 가짜 문 typing TTL을 규격 6 대신 10으로 넣어 거절됐다. 시험 코드를 고쳐 집중 검증했다. 전체 검사 중 시험 진입점 수정이 겹친 첫 실행은 컴파일러의 ‘input file modified during build’로 실패했다. 이후 최종 소스를 고정해 전체 검사와 반복 검사를 새로 실행했으며 실패 실행을 통과 근거로 세지 않았다.
 
 위험·롤백: 실제 서버 busy queue/steer·한국어 장기 입력·운영 창 결합은 TASK-23에서 확인한다. 필요하면 앱 두 사본은 `.build/task30/deploy-backup`을 사용해 원래 위치로 돌리고 공용 릴리스는 `release-backup`으로 복원한다. 재실행·운영 설치·게이트웨이 재시작 없이 파일 사본만 교체했다. 운영 홈 실행·비밀 파일 열기·ddots/본체/운영 저장소 수정·외부 발송·public 갱신·push는 하지 않았다. 별도 커밋 뒤 계획 담당 검토를 요청한다.
+
+## 구현 인계: TASK-27 홈 방(보완 30)
+
+1. 받은 설계: handoff.md 보완 30·REQ-HF-29·AT-80, 기준 `cfe7e920e44891b40f6062b9a64431dadfa0fe59`. 연합개발 구현·자체 시험, 일반·필요 증거 수준 2 / 도달 수준 2다. 구현자 판단은 구현·자체 시험 완료이며 최종 판정은 계획 담당에게 넘긴다.
+2. 책임·칸: HomeRoom은 기존 직원 명부·기록장 투영을 받아 구성원/대상/활동 순서를 계산한다. 설정은 허브 회원 상태의 승인된 `layout:home` 하나다(members·recipient·muted·picture). 사진 바이트는 TASK-20의 인증된 room API와 `home-main` 경로를 써서 공용 창고 `shared/hejo/pictures/home-main.png`에 둔다. 새 영구 원본·문/허브/규격 변경은 없다.
+3. 구현: ConversationModel의 홈 선택·합친 목록·사진 주소·직원 포함/제외·기본 대상·알림 설정, ConversationController의 기존 초안/선택/전송 연결, ConversationView의 홈 행·사진/설정 메뉴·카드 직원 얼굴/이름·작성기 얼굴을 추가했다. 기존 ComposerFaces에 홈의 24px 얼굴·밝기·명시 선택 링을 반영했다. AppDelegate의 펫 배지·말풍선·작성 중 필터는 홈 소속 직원의 알림 끔을 반영한다. 펫 이름이 바뀌면 홈도 즉시 갱신한다. 화면의 기존 연결 문구 두 곳은 사용자 지시에 따라 ‘서버’로 맞췄다.
+4. 전송·초안: 홈 새 글은 기존 메모리 초안의 임시 위치를 쓰고 직원과 새 UUID를 정한 뒤 기존 send/첨부/pending 경로로 보낸다. 첫 글 확인 뒤에도 화면이 새 글 모드라면 그 의도를 전달해 다음 직원·새 UUID를 다시 정하며 답글과 구별한다. 임시 `@home`은 Hermes 프로필 이름 규칙 밖의 UI 식별자이며 문/기록장에 보내지 않는다. 얼굴 > @이름/별칭 > 기본 순서, 두 명/제외 대상 거절, 얼굴 다시 누르기 해제, 홈에서 연 스레드 답글·읽음의 원래 1:1 키를 유지한다. 뺀 얼굴의 오래된 명시 선택도 다른 직원으로 바꾸지 않고 거절한다. 기존 대체 경로를 남기지 않았고 별도 초안/기록 사본은 없다.
+5. 원본·차이: copy-review.md에 파일별 전체 독해 재사용 근거와 재대조·유지 의존을 기록했다. 26판에 따라 원본 byActivity 오름차순(최신 활동이 아래)을 유지했다. 승인된 Q2/Q3에 따라 로컬 제외/기본 대상 대신 회원 상태를 쓰며 한 명만 보낸다. Slack 공용 채널·업무별 자동 라우팅·개인 설정은 제외했다. 고정 채널 메뉴는 명시된 TASK-21 뒤에 남긴다. 그 밖의 새 계약 변경은 없다. 기능 추가이며 동작 보존만의 리팩토링이 아니다.
+6. 시험: HomeRoomTests는 활동 순서·기록 중복 없음·대상 우선순위·거절 문구·얼굴 토글/링·읽음 공유·홈 알림 끔·회원 상태 복원·메뉴 체크를 보호한다. home_room_fixture는 실제 루프백 WebSocket에서 새 스레드/원래 답글/거절 무송신을 관측하고 기존 사진 API의 인증·PUT·실패/성공 DELETE와 주소 보존을 검증한다. 기존 수락 기준·시험 기대값은 바꾸지 않았다.
+
+| 검사 | 실제 결과·증거 |
+| --- | --- |
+| 전체 검사 | 종료 0, 157 passed 및 AT-80·기존 앱/가짜 Hermes/통신 통과. `.build/task27/frozen-foundation.json`, `frozen-foundation.log` |
+| 앱 반복 | 10회 모두 종료 0, 최종 입력 86개 파일 해시 불변. `.build/task27/frozen-app-results.json`, `frozen-progress.log`, `.build/foundation9-app-task27-frozen-01.log`~`10.log` |
+| 핵심 돌연변이 | 명시 얼굴을 무시한 HomeRoom 사본은 우선순위 시험에 검출됐고, 최종 Controller에서 빈 입력 검사를 지운 사본은 ‘AT80 empty Return keeps home draft and receiver’에 검출됐다. 각각 컴파일 0·시험 1·원본 불변. `.build/task27/priority-mutation.json`, `mutation.json`, `mutation-priority.log`, `mutation-empty.log`. |
+| 화면·루프백 | 최종 코드 캡처·원본 분리 실행·가짜 문 집중 시험 각각 종료 0. `.build/task27/capture-final.json`, `reference.json`, `reference.log`, `network.json`. |
+| 개인값·정적 | Hermes venv 개인값 검사·HEJO_PYTHON 지정 훅·diff 각각 종료 0, SwiftUI/알림 센터 API 0건. `.build/task27/final-checks.json`, `static.json` |
+| 적용 | 앱 두 사본 서명 2개·기존 번들 설정 보존·후보 해시와 일치·임시 사본의 서명 제거 뒤 코드 해시가 빌드와 일치. `.build/task27/deploy.json`, `binary-verification.json`; 공용 릴리스는 커밋 직후 실행하고 `release-verify.json`에 기록 |
+
+증거는 evidence/HEJO-FOUNDATION/TASK-27.md다. 원본 ddotsFaces·avatarBadge와 실제 ComposerFaces를 같은 직원·색·@직원 B/명시 선택 상태로 비교했고 원본 byActivity를 실행했다. 원본 앱·운영 앱 전체 비교는 아니다. 얼굴 PNG는 시험 창과 같은 흰 배경에 합성했으며 내용·배치를 고치지 않았다. 전체 hejo 그림은 실제 AppKit 보기 조립이다.
+
+개발 중 오류는 최종 근거에서 제외했다. 초기 컴파일의 선택 방 optional 타입 오류, 초안이 없을 때 얼굴 선택의 nil 접근, 명부 없이 재시작 복원을 단정한 시험 구성, 가짜 welcome의 필수 avatar 누락을 고쳤다. 원본 얼굴 크기·링 모양을 대조했다. 이후 코드 대조에서 빈 Return 때 홈 작성 키가 직원 키로 먼저 바뀌어 다음 @대상을 잘못 보낼 수 있는 경계를 발견했다. 진행 중 반복 검사는 자식 검사가 끝난 경계에서 중단했고 `.build/task27/pre-empty-guard/`에 보존해 최종 근거에서 제외했다. 빈 입력 검사 순서를 고치고 작성 위치·선택 보존 시험과 돌연변이를 추가했다. 첫 글 확인 직후 연속 새 글도 UI 모드대로 별도 직원/UUID로 보내는 루프백 경계를 더한 뒤 최종 소스로 전체/10회 반복을 새로 실행했다. 선택 링 분리 캡처의 첫 컴파일은 Chrome의 불필요 의존을 포함해 실패했으며 실제 ComposerFaces 전체만 분리해 해결했다. 제품 시험 실패를 수락 기준 완화로 처리하지 않았다.
+
+미검증·위험: 실제 서버·두 Mac 상태 맞춤·실물 사진/긴 입력은 TASK-23에 남는다. 단체방과 고정 채널 결합은 TASK-21 범위다. 범위 밖 새 부채·임시 제품 코드·하위 에이전트 사용은 없다. 검토자는 홈 임시 작성 위치가 전송/기록장에 나가지 않는지, 제외 대상 무송신, 읽음 공유, 홈 알림 필터를 특히 확인해 주면 된다.
+
+검토 대상은 이 절·copy-review·화면 증거·제품/시험을 포함한 TASK-27 별도 커밋(main)이다. 앱 두 사본은 기존 번들 설정을 보존해 교체하고 재실행하지 않는다. 공용 릴리스는 커밋 직후 갱신하고 RELEASE/파일을 대조한다. 교체 전 사본은 `.build/task27/deploy-backup`·`release-backup`이며 롤백 시 이 사본을 복원한다. 운영 홈 설치·재시작/reload·비밀 파일 열기·ddots/Hermes 본체/운영 저장소 수정·외부 발송·public 갱신·push는 하지 않았다. TASK-21·32는 미착수다.

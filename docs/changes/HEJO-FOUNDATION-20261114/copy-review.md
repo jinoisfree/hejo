@@ -281,3 +281,26 @@ SlackPanel(3574)·SlackThreads(1471)·SlackController(1622)·DraftEditor(231)·D
 명부 queued는 승인된 design의 읽기 전용 값이다. 기존 employee 스키마가 추가 필드를 막으므로 이 승인된 선택 boolean 필드를 규격·앱 Employee에 함께 반영한다(새 의미 추가 아님). 옛 명부의 필드 없음은 false로 읽고 옛 앱의 Codable은 추가 필드를 무시한다. config.yaml 읽기는 원본 isQueued의 display 블록·queue 판정과 같은 규칙을 쓰며 설정·본체에 쓰지 않는다. hejo 전송·저장·허브 계약이나 사장 선택을 바꾸지 않는다.
 
 최종 원문 비교: BubbleReplyView·NativeDraft 원본 전체를 분리 실행해 같은 평문 상태의 입력 줄을 비교했다. 서식·테마·붙여넣기 변환은 불활성 대역이며 원본 앱 전체가 아니다. AppKit 외곽 capsule의 안쪽 폭·줄바꿈을 맞췄다. IME 조합 중 같은 초안의 재발행은 편집기를 덮어쓰지 않고, 대상 변경·보낸 글 비우기는 undo 범위를 함께 비운다. 원본의 3줄은 표시 높이 한도이며 네 번째 줄을 버리지 않는 동작을 유지한다(26판); 화면 자료는 evidence/HEJO-FOUNDATION/TASK-30.md다.
+
+
+## TASK-27 착수 대조(보완 30)
+
+기준 cfe7e920e44891b40f6062b9a64431dadfa0fe59. SlackPanel(3574)·SlackThreads(1471)·SlackController(1622)·App(2575)·DdotsConfig(231)·DraftEditor(231)는 기존 전체 독해 기준 208f6e63과 diff 0을 확인해 전체 기록을 재사용한다. 이번에는 Ddots 전체(구성·소속·합침·활동 순서·대표 얼굴·홈 고정 채널 경계), SlackPanel의 홈 선택/대상/얼굴/초안/메뉴/알림 합계를 끝까지 다시 대조했다. DdotsRoute(28)와 SlackDrafts(92) 전체도 읽었다.
+
+| 원본 파일 | 유지 의존·교체·제외 |
+| --- | --- |
+| `<운영 저장소>/ddots/Sources/SlackThreads.swift` | Ddots.members/rooms/merged/byActivity·SlackMention 전체를 확인. 홈은 실제 방이 아닌 보기이며 최근 활동을 아래에 둠. Slack user id·원격 이력·공용 채널은 제외하고 hejo 기록장 투영·직원 명부를 사용. |
+| `<운영 저장소>/ddots/Sources/SlackPanel.swift` | 홈 postProfile/recipient/aim·ddotsFaces·draftPlace/moveDraft·unreadTotal·홈 우클릭을 재대조. 얼굴 다시 누르기 해제, 빈 새 글은 얼굴을 밝히지 않음, 명시 선택/답글만 링. AppKit ComposerFaces와 기존 초안·스레드 카드로 옮김. |
+| `<운영 저장소>/ddots/Sources/SlackController.swift` | shownRooms/shownThreads·publish의 membership/latest/threads·muted 홈 합집합을 재대조. 원본의 활동 오름차순(최근 스레드가 아래)·기록 창을 유지하며 hejo ThreadWindow·MemberState로 연결. Slack 캐시/월 읽기/개인 수신 제외는 복사하지 않음. |
+| `<운영 저장소>/ddots/Sources/SlackDrafts.swift` | 전체 읽음. 기존 hejo ConversationController.drafts·picks·실패 글과 선택 상태를 재사용. DdotsFaceLight 빈 글/수동 선택/답글 밝힘과 링 규칙을 유지. 별도 초안 원본 없음. |
+| `<운영 저장소>/ddots/Sources/DdotsRoute.swift` | 전체 읽음. @이름·별칭 경계를 유지하고 hejo 명부에 해석. HermesRouting의 업무별 자동 라우팅·Slack cross_owner·개인 계약은 제외. 받는 직원 한 명·명시 얼굴 우선·두 명/제외 직원 거절은 승인 REQ-HF-29 계약. |
+| `<운영 저장소>/ddots/Sources/DdotsConfig.swift` | 기존 전체 독해 재사용. 로컬 recipient/excluded/appearance 원본 대신 승인 Q2에 따른 `layout:home` 허브 회원 상태를 사용. 새 영구 원본 없음. |
+| `<운영 저장소>/ddots/Sources/App.swift`·`DraftEditor.swift` | 기존 전체 독해 재사용. 홈 설정의 앱 연결·입력 유지 경계를 대조. 기존 펫 이름/그림과 AppKit 편집기·사진 클라이언트를 사용. |
+
+26판 원문 우선: byActivity는 오름차순으로 최신 활동을 목록 아래에 둔다. hejo도 카드 순서에 이를 유지한다. 문구 변환 1번은 채널→방·에이전트→직원·홈 이름은 펫 이름, 2번은 Slack 전용 사실 제거다. 홈 사진·보일 직원·기본 받을 직원·한 명 제한·`layout:home`은 REQ-HF-29/Q2·Q3 승인 차이다. 고정 채널 메뉴는 명시된 TASK-21 뒤로 남긴다. 사진 바이트는 TASK-20의 room API 안 home- 접두 경로(shared/hejo/pictures)를 재사용한다. 홈의 임시 작성 위치는 기존 메모리 초안 칸이며 기록장에 가상 직원/방을 쓰지 않는다.
+
+추가 유지 의존: ChatPanel.swift(591)의 앞선 전체 독해를 208f6e63과 diff 0으로 재사용하고 face/avatarBadge를 다시 읽었다. 24px 얼굴·3/1pt 패딩·2pt 간격·30px 부드러운 사각 링을 ComposerFaces 홈 모드에 반영한다. 원본과 같은 가짜 직원 3명·@직원 B 상태를 원본 ddotsFaces/그리기와 비교한다. 선택 버튼 콜백·개인 아바타 로드는 대역이며 원본 앱 전체 실행이 아니다. 홈 표시명이 즉시 바뀌도록 기존 펫 이름 적용 뒤 보기도 갱신한다. 기존 화면의 서버 연결 문구 두 곳도 사용자 용어 규칙에 맞췄다.
+
+화면 대조 완료: 같은 가짜 이름·색·@직원 B/얼굴 선택 상태에서 원본 ddotsFaces와 실제 ComposerFaces의 24px 얼굴·밝기·30px 링·간격을 비교했다. 원본 byActivity도 분리 실행했다. 원본 앱 전체·운영 앱 전체 실행은 아니며 evidence/HEJO-FOUNDATION/TASK-27.md에 한계를 함께 남겼다. 사진 삭제 실패는 기존 주소를 유지하고, 이미 고른 직원이 홈에서 빠졌을 때에는 다른 직원으로 조용히 바꾸지 않고 같은 제외 안내로 거절한다.
+
+빈 Return은 작성 위치·명시 얼굴을 바꾸지 않고, 연속 새 글은 원본 newPost/draftPlace처럼 화면의 새 글/답글 의도를 기존 제어기에 전달해 새 UUID와 원래 답글을 구별한다. 이 의도는 UI 메모리 상태이며 새 저장소·통신 필드가 아니다.
