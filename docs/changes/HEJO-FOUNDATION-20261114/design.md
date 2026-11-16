@@ -508,3 +508,66 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
 - **롤백:**
   - 잘못된 릴리스가 나가면 사장이 GitHub에서 그 릴리스를 초안으로 되돌린다. 그러면 latest가 이전 릴리스로 돌아간다.
   - 이미 바뀐 Mac은 이전 버전 zip을 손으로 설치한다. 같은 버전 번호는 다시 쓰지 않는다.
+
+## 12. ddots와 같게 맞추기 2차(33판, REQ-HF-36~41)
+
+- **기준과 읽는 법**
+  - 기준표는 `ddots-inventory.md` 2판이다. 행마다 ddots 근거 줄이 기대값이다.
+  - 구현 담당은 TASK마다 그 TASK 행이 가리키는 ddots 함수 전체와 그 함수가 부르는 코드를 읽는다. 그리고 `copy-review.md`에 행 ID별로 대응을 적는다: ddots 함수 → hejo 클래스, 상수, 뺀 것과 이유.
+  - 행 요약과 코드가 다르면 코드를 따르고 보고서에 적는다.
+- **왜 다시 하는가**
+  - 8판은 화면을 "같은 크기·간격·색·글꼴·애니메이션의 AppKit으로 옮긴다"고 했다. 그러나 규칙 코드(`SlackController`·`SlackThreads`·`SlackModel`)는 "가져오지 않음"으로 두고 명세 문장으로 다시 만들었다.
+  - 그 결과 규칙·수치·움직임이 빠지거나 계획 담당 값으로 바뀌었다(2판 §0-1·§0-3).
+  - 33판부터는 규칙도 ddots 함수를 옮긴다. 데이터 원본만 Slack 대신 문·허브다.
+- **규칙 계층(TASK-36·37)**
+  - 읽음
+    - 방 읽음 `read:<방>`과 스레드 읽음 `thread:<키>`는 기존 회원 상태 키(REQ-HF-26)를 그대로 쓴다. 새 원본은 없다.
+    - 방에 들어가면 `read:<방>`을 그 방 최신 글 seq로 올린다. 종 울린 스레드는 `thread:` 값을 올리지 않아 남긴다.
+    - 처음 보는 방: 이 Mac이 그 방 값을 처음 만날 때 허브 값도 없으면, 그때 최신 seq로 값을 만든다.
+  - 안 읽은 수
+    - 글의 **처음 seq**(post를 만든 프레임)로 센다. edit·state·delete 프레임 seq로는 세지 않는다.
+    - 생각 중 줄(ThreadTools 정규식)은 뺀다.
+  - 종·질문·버튼
+    - ddots `SlackThreads.notices`·`pendingPosts`·`requestsApproval`·`ReplyButtonPolicy`를 앱 쪽 순수 함수로 옮긴다.
+    - 문(gate)의 `reply_state`는 그대로 입력으로 쓴다.
+    - 글자로 하는 승인 요청 판정은 앱 표시(질문 수·종·펫)에만 쓰고, 문 기록은 바꾸지 않는다.
+  - 보내는 중 글
+    - `ConversationModel`에 이 Mac 메모리 전용 대기 글(클라이언트 msg id 키)을 둔다.
+    - 문이 같은 id를 기록하면 대기 글을 지우고 기록 글로 바꾼다. 실패하면 대기 글을 지우고 기존 보내지 못한 글 목록으로 옮긴다.
+    - 기록장·허브에는 쓰지 않는다(조회용 상태).
+- **사이드바(TASK-38)**
+  - 구조: `NSTableView`를 유지하되 `reloadData`로 여닫지 않는다.
+    - 행마다 안정된 id(`home`, `section:<id>`, `stack`, `room:<id>`, `divider:<n>`, `add`, `blank`)를 둔다.
+    - 이전 목록과 새 목록의 차이로 `removeRows`·`insertRows(.effectFade)`·`moveRow`를 `NSAnimationContext.runAnimationGroup(duration 0.24, timing easeInEaseOut)` 안에서 부른다.
+    - 남는 행은 셀을 다시 만들지 않고 값만 바꾼다.
+  - 레일: 셀 조각 대신 표 위 겹 층에 구획마다 `CAShapeLayer` 하나를 둔다. 경로 높이를 같은 시간·곡선으로 보간한다.
+  - 색: 머리 글자색·배지·신호 점은 `CABasicAnimation` 0.24로 바꾼다. 선택 상자는 옛 셀 상자 opacity 1→0, 새 셀 상자 0→1을 `CASpringAnimation(damping·stiffness를 SwiftUI response 0.34·dampingFraction 0.88에서 환산)`으로 바꾼다.
+  - 동작 줄이기(`NSWorkspace.accessibilityDisplayShouldReduceMotion`)면 duration 0이다.
+- **카드·목록(TASK-39·40):** 카드 엔진(`NativeThreadCard`·`TextLayout`)은 이미 ddots와 같다. 바꾸는 곳은 카드에 넣는 내용(`ConversationView.threadContent`·`postPieces`)과 hosted 조각을 옮긴 AppKit 보기(답 버튼·파일 타일·작업 줄·체크리스트)다. 스크롤은 ddots `NativeThreadList.performScroll`·`eased`·`glide`·`keep`을 옮긴다.
+- **펫·창(TASK-41)**
+  - 이미 복사된 `dragged(by:)`와 `GenieView.blurredImage`를 연결한다.
+  - `PetBubbleMotion`(지수 추종)은 ddots `PetLayout.swift`에서 옮긴다.
+  - 접힌 말풍선은 펼친 대화창과 같은 유리 보기(`NSGlassEffectView`, 없으면 `NSVisualEffectView`) + 덮개 0.35 + 모서리 20이다.
+- **설정(TASK-42·43)**
+  - 설정 창은 탭마다 `NSScrollView`다.
+  - 대화창 모양 값(테마·불투명도·글씨·내 말풍선 색)은 ddots처럼 이 Mac에만 둔다(`hejo-local.json`). `ChatStyle`이 읽어 카드·작성기·패널에 적용한다.
+  - 다른 Mac 받기는 1.5초 주기다. 앞 요청이 끝나기 전에는 다음을 보내지 않는다.
+- **새 기능 칸(TASK-44~47)**: 모두 사장 Mac(관제 화면) 칸이다. 문·허브·Hermes 설정은 바꾸지 않는다.
+
+  | 다루는 것 | 원본·쓰는 곳 | 쓰기 주체 | 수명 |
+  |---|---|---|---|
+  | 받은·보낸 파일 사본(REQ-HF-37) | 다운로드 폴더(사용자 다운로드) | 앱(사장이 열거나 보낼 때) | 사장이 지울 때까지 |
+  | 대화창 모양 값(REQ-HF-38) | `hejo-local.json` | 앱 | Mac별 영구 |
+  | 옆 창 탭·방문 기록(REQ-HF-39) | `WKWebsiteDataStore` 기본 저장소, 비밀 첨부는 비영구 저장소 | 앱 | ddots와 같음 |
+  | 캘린더(REQ-HF-40) | macOS 캘린더(EventKit) 읽기만 | — | 저장 없음 |
+  | 작업 목록(REQ-HF-41) | 읽기: `~/.codex/sessions`, `~/.claude/projects`. 쓰기: 앱 지원 폴더의 훅 상태 파일, 사장이 누를 때만 각 CLI 설정 파일에 훅 줄(백업·영수증 `hejo/hooks-receipt.json`) | 앱 | 연결 해제 때 원래 설정으로 되돌림 |
+
+- **SwiftUI:** ddots의 캘린더·옆 창·작업 목록·설정 화면은 SwiftUI다. hejo는 예외 없이 AppKit으로 옮긴다(NFR-HF-03, 아래 예외 목록에 더하지 않음). 옆 창은 `WKWebView`(AppKit)다.
+- **대안**
+  - (기각) ddots SwiftUI 화면을 `NSHostingView`로 그대로 넣기: 빠르지만 NFR-HF-03·AGENTS 규칙에 어긋나고, Slack 모델에 묶인 상태 객체를 끊어 내야 해서 결국 다시 짜야 한다.
+  - (기각) 차이마다 따로 덧대기: 이번 누락의 원인이므로 쓰지 않는다. ddots 함수 단위로 옮긴다.
+- **위험·롤백**
+  - 읽음 규칙 변경으로 첫 실행 때 안 읽은 수가 크게 줄어든다. 의도된 결과(ddots와 같음)다.
+  - 회원 상태 키 형식은 바꾸지 않아 이전 앱과 섞여도 깨지지 않는다.
+  - 작업 목록 훅은 사장 Mac의 다른 앱 설정을 바꾸므로 백업·영수증·연결 해제를 필수로 둔다.
+  - 각 TASK는 앱만 바꾸므로 이전 버전 zip으로 되돌린다.
