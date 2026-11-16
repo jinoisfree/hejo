@@ -101,7 +101,9 @@ enum FaceGroup {
 final class ComposerFaces: NSView {
     var faces:[(String,ProfileAvatar)] = [] { didSet { needsDisplay=true } }
     override var isFlipped:Bool { true }
-    override func hitTest(_ point:NSPoint)->NSView? { nil }
+    var onPick:((Int)->Void)?
+    override func mouseDown(with event:NSEvent) {let index=Int(convert(event.locationInWindow,from:nil).x/24);if faces.indices.contains(index) {onPick?(index)}}
+    override func hitTest(_ point:NSPoint)->NSView? {onPick == nil ? nil:super.hitTest(point)}
     override func draw(_ dirtyRect:NSRect) { for (i,face) in faces.enumerated() { face.1.draw(in:CGRect(x:CGFloat(i)*24,y:0,width:20,height:20),name:face.0) } }
 }
 final class SidebarHandle: NSView {

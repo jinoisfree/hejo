@@ -141,7 +141,8 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     controller.addAttachments([original]); controller.setText("reject attachment"); print("CONVERSATION_STAGE unknown_file"); fflush(stdout)
     await controller.sendCurrent()
     try await waitFor { controller.transferFailure?.message.contains("첨부를 찾지") == true }
-    try check(controller.draft.text == "reject attachment" && controller.draft.attachments == [original],"unknown_file keeps original draft and attachment")
+    try check(controller.draft.isEmpty && controller.failures.last?.draft.text == "reject attachment" && controller.failures.last?.draft.attachments == [original],"AT79 unknown_file keeps original words/files in failure list")
+    controller.restoreFailure(controller.failures.last!.id)
     controller.setText("normal request"); print("CONVERSATION_STAGE send"); fflush(stdout)
     let sending=Task { await controller.sendCurrent(for:key) }
     await pause(0.05); controller.model.select(employee:"beta")
@@ -168,7 +169,7 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     try check(controller.transferFailure?.message.contains("너무 큼") == true,"composer blocks 64KiB text before socket send")
     controller.setText("too large reply"); print("CONVERSATION_STAGE too_large"); fflush(stdout); await controller.sendCurrent()
     try await waitFor { controller.transferFailure?.message.contains("너무 큼") == true && !controller.sending }
-    try check(controller.draft.text == "too large reply","too_large keeps draft")
+    try check(controller.draft.isEmpty && controller.failures.last?.draft.text == "too large reply","AT79 too_large keeps failed message without automatic resend")
     try check(client.isConnected,"recoverable too_large keeps live transport")
     controller.setText("normal request again"); await controller.sendCurrent()
     try await waitFor { controller.draft.text.isEmpty && !controller.sending }
@@ -177,7 +178,7 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     try check(opened == nil,"HTTP redirects cannot carry credentials or open unverified files")
     controller.setText("disconnect unacknowledged"); await controller.sendCurrent()
     try await waitFor { controller.canSend && controller.transferFailure?.message.contains("전송 확인") == true }
-    try check(!controller.sending && controller.draft.text == "disconnect unacknowledged","unconfirmed send survives reconnect without automatic resend")
+    try check(!controller.sending && controller.failures.last?.draft.text == "disconnect unacknowledged","AT79 unconfirmed send survives in failure list without automatic resend")
     try check(controller.transferFailure?.retryKey == key,"AT55 reconnect retains original retry destination")
     controller.setText("normal retry",for:key)
     controller.model.select(employee:"beta")

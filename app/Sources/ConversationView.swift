@@ -17,7 +17,21 @@ import UniformTypeIdentifiers
     var retrySend:(ConversationKey)->Void
     let employeeTable = EmployeeMenuTable(), history = NativeThreadList(frame:.zero), editor = DraftScrollView(frame:.zero)
     let headerDrag = ConversationHeaderDrag(), brandDrag = ConversationHeaderDrag()
-    private let employeeScroll=EmployeeMenuScroll(), employeeSearch=NSSearchField(), search=NSSearchField()
+    private let employeeScroll=EmployeeMenuScroll()
+    let employeeSearch=NSSearchField(), search=NSSearchField()
+    let searchResults=WorkspaceResults(frame:.zero), sidebarHits=WorkspaceResults(frame:.zero)
+    let noticeBar=NSStackView(), failureBar=NSStackView()
+    private(set) var searchGroups:[WorkspaceSearch.Group]=[]
+    private(set) var searchSelection=0
+    private var searchGeneration=UUID(), searchInput="", searchSeq = -1
+    private var searchContext=""
+    private var noticeSecond=0
+    private var shownNotices:[RoomNotice]=[]
+    private var searchWork:DispatchWorkItem?
+    private var searchHighlight:String?
+    private var noticeCursor:[String:Int]=[:]
+    private var lastPlaces:[String:ConversationKey]=[:]
+    private var composerMembers:[String]=[]
     let brand=PassiveLabel(labelWithString:"HEJO."), version=PassiveLabel(labelWithString:""), heading=PassiveLabel(labelWithString:""), subtitle=PassiveLabel(labelWithString:"함께 나누는 대화")
     private let handle=SidebarHandle(), sidebarToggle=ComposerButton(title:"직원 목록",symbol:"sidebar.left",point:12), searchToggle=ComposerButton(title:"검색",symbol:"magnifyingglass",point:12)
     let notice=NSTextField(wrappingLabelWithString:"")
@@ -45,7 +59,7 @@ import UniformTypeIdentifiers
     var threadTable:NSTableView { history.table }
     init(controller:ConversationController,clipboardArea:URL?=nil,islandModel:IslandModel=IslandModel()) {
         self.controller=controller; self.islandModel=islandModel
-        reconnect={ controller.client.resume() }; retrySend={ key in Task { await controller.sendCurrent(for:key) } }
+        reconnect={ controller.client.resume() }; retrySend={ key in Task { await controller.retrySaved(key) } }
         clipboard=ClipboardAttachments(area:clipboardArea ?? ClipboardAttachments.defaultArea)
         super.init(frame:.zero); wantsLayer=true
         employeeTable.headerView=nil; employeeTable.backgroundColor = .clear; employeeTable.style = .plain
@@ -54,9 +68,11 @@ import UniformTypeIdentifiers
         employeeTable.dataSource=self; employeeTable.delegate=self
         employeeTable.registerForDraggedTypes([Self.roomDrag]);employeeTable.setDraggingSourceOperationMask(.move,forLocal:true)
         employeeTable.makeMenu = { [weak self] row in self?.employeeMenu(row: row) }
+        employeeTable.onBlankDoubleClick={ [weak self] in self?.cycleSidebarWidth() }
+        employeeScroll.onBlankDoubleClick={ [weak self] in self?.cycleSidebarWidth() }
         employeeScroll.makeBlankMenu = { [weak self] in self?.blankMenu() }
         employeeScroll.documentView=employeeTable; employeeScroll.drawsBackground=false; employeeScroll.hasVerticalScroller=true; employeeScroll.autohidesScrollers=true; employeeScroll.scrollerStyle = .overlay
-        for view in [headerDrag,brandDrag,island,employeeScroll,brand,version,heading,subtitle,employeeSearch,search,history,sidebarToggle,searchToggle,notice,modeBackground,replyButton,newButton,inputBackground,editor,draftHint,attachButton,sendButton,attachmentScroll,older,handle,drop,addRoom,composerFaces] { addSubview(view) }
+        for view in [headerDrag,brandDrag,island,employeeScroll,brand,version,heading,subtitle,employeeSearch,search,history,sidebarToggle,searchToggle,notice,modeBackground,replyButton,newButton,inputBackground,editor,draftHint,attachButton,sendButton,attachmentScroll,older,handle,drop,addRoom,composerFaces,searchResults,sidebarHits,noticeBar,failureBar] { addSubview(view) }
         addRoom.invoke={ [weak self] in guard let self else { return };self.addMenu().popUp(positioning:nil,at:CGPoint(x:0,y:addRoom.bounds.height),in:addRoom) }
         island.avatar={ [weak controller] id in controller?.avatar(id) ?? ProfileAvatar(color:PictureCodec.color(name:id,hex:nil)) }
         let logo=NSMutableAttributedString(string:"HEJO.",attributes:[.font:NSFont.systemFont(ofSize:14,weight:.semibold),.foregroundColor:NSColor.labelColor])
@@ -66,6 +82,11 @@ import UniformTypeIdentifiers
         brand.alignment = .center; version.alignment = .center; heading.font = .systemFont(ofSize:14,weight:.semibold); subtitle.font = .systemFont(ofSize:10); subtitle.textColor = .labelColor.withAlphaComponent(0.7)
         employeeSearch.placeholderString="직원 검색"; employeeSearch.delegate=self; employeeSearch.font = .systemFont(ofSize:12)
         search.placeholderString="단어나 문장으로 검색"; search.delegate=self
+        searchResults.onChoose={ [weak self] _,line in self?.revealSearch(line) }
+        sidebarHits.onChoose={ [weak self] _,line in self?.revealSearch(line) }
+        for stack in [noticeBar,failureBar] {stack.orientation = .vertical;stack.alignment = .leading;stack.spacing=6}
+        noticeBar.orientation = .horizontal;noticeBar.alignment = .centerY;noticeBar.spacing=8
+        composerFaces.onPick={ [weak self] index in guard let self,self.composerMembers.count>=2,self.composerMembers.indices.contains(index) else{return};self.controller.mention(self.composerMembers[index]);self.window?.makeFirstResponder(self.editor.editor) }
         sidebarToggle.invoke={ [weak self] in self?.toggleSidebar() }; searchToggle.invoke={ [weak self] in self?.toggleSearch() }
         handle.width={ [weak self] in self?.sidebarWidth ?? 0 }; handle.onWidth={ [weak self] in self?.setSidebarWidth($0) }
         handle.onEnd={ [weak self] in if let self,self.sidebarWidth>0 { self.shownSidebarWidth=self.sidebarWidth } }
@@ -101,6 +122,8 @@ import UniformTypeIdentifiers
     deinit { islandTimer?.invalidate() }
     func tickIsland() {
         island.show(islandModel.snapshot())
+        let second=Int(controller.clock().timeIntervalSince1970)
+        if second != noticeSecond {noticeSecond=second;if let room=controller.model.selected?.employee,controller.model.notices(room) != shownNotices {refresh()}}
         if let until=highlightUntil, until<=islandModel.now { highlightUntil=nil;highlightedMessageID=nil;refresh() }
     }
     func activateIsland(_ action:IslandModel.Action) {
@@ -116,8 +139,8 @@ import UniformTypeIdentifiers
     }
     private func reveal(_ key:ConversationKey) {
         if identity != key.employee { identity=key.employee;windowed.reset() }
-        searchOpen=false;search.stringValue="";openThread=key;replyMode=true
-        controller.model.select(key,notify:false)
+        searchOpen=false;searchGeneration=UUID();searchWork?.cancel();search.stringValue="";openThread=key;replyMode=true
+        controller.model.select(key,notify:false);controller.model.markAlertSeen(key)
     }
     func setSidebarWidth(_ value:CGFloat) {
         let next=ConversationSidebar.snapped(value); guard next != sidebarWidth else { return }
@@ -211,25 +234,44 @@ import UniformTypeIdentifiers
         })
         return menu
     }
+    func cycleSidebarWidth() {setSidebarWidth(sidebarWidth==ConversationSidebar.width ? ConversationSidebar.expandedWidth:ConversationSidebar.width)}
     func headerMenu() -> NSMenu {
-        let menu = NSMenu(), model = controller.model, employee = model.selected?.employee
-        let mute = RoomActionItem(employee.map { model.muted.contains($0) ? "알림 켜기" : "알림 끄기" } ?? "알림 끄기") { if let employee { model.toggleMute(employee) } }
-        mute.isEnabled = employee != nil; menu.addItem(mute)
-        let read = RoomActionItem("모두 읽음") { if let employee { model.markAllRead(employee) } }
-        read.isEnabled = employee != nil; menu.addItem(read)
-        menu.addItem(.separator())
-        menu.addItem(RoomActionItem(sidebarWidth == 0 ? "방 목록 보이기" : "방 목록 숨기기") { [weak self] in self?.toggleSidebar() })
-        menu.addItem(.separator())
-        menu.addItem(RoomActionItem("펫으로 접기") { [weak self] in self?.onCollapse?() })
-        return menu
+        let menu=NSMenu(),model=controller.model,employee=model.selected?.employee
+        menu.addItem(RoomActionItem("제목과 설명 편집…") { [weak self] in self?.editHeader() });menu.addItem(.separator())
+        menu.addItem(RoomActionItem(employee.map{model.muted.contains($0) ? "이 대화의 알림 켜기":"이 대화의 알림 끄기"} ?? "이 대화의 알림 끄기") {if let employee {model.toggleMute(employee)}})
+        menu.addItem(RoomActionItem("방 목록 보이기 / 숨기기") { [weak self] in self?.toggleSidebar() })
+        menu.addItem(RoomActionItem("방 목록 너비 전환") { [weak self] in self?.cycleSidebarWidth() })
+        menu.addItem(RoomActionItem("전체 검색 (⌘F)") { [weak self] in self?.openSearch() })
+        menu.addItem(RoomActionItem("모두 읽음") {if let employee {model.markAllRead(employee)}})
+        menu.addItem(.separator());menu.addItem(RoomActionItem("펫으로 접기") { [weak self] in self?.onCollapse?() });return menu
+    }
+    func editHeader() {
+        guard let employee=controller.model.selected?.employee else{return}
+        let value=controller.model.header(employee),heading=NSTextField(string:value.title),detail=NSTextField(string:value.description)
+        heading.setAccessibilityLabel("대화 제목");detail.setAccessibilityLabel("대화 설명")
+        let stack=NSStackView(views:[NSTextField(labelWithString:"제목"),heading,NSTextField(labelWithString:"설명"),detail])
+        stack.orientation = .vertical;stack.alignment = .leading;stack.spacing=6;stack.frame=CGRect(x:0,y:0,width:320,height:110)
+        for field in [heading,detail] {field.widthAnchor.constraint(equalToConstant:320).isActive=true}
+        let alert=NSAlert();alert.messageText="대화 제목과 설명";alert.informativeText="hejo에 표시할 글이에요.";alert.accessoryView=stack
+        for title in ["저장","취소","기본값 복원"] {alert.addButton(withTitle:title)}
+        alert.window.initialFirstResponder=heading
+        switch alert.runModal() {
+        case .alertFirstButtonReturn: let name=heading.stringValue.trimmingCharacters(in:.whitespacesAndNewlines);controller.model.saveHeader(employee,title:name.isEmpty ? value.title:name,description:detail.stringValue.trimmingCharacters(in:.whitespacesAndNewlines))
+        case .alertThirdButtonReturn: controller.model.saveHeader(employee,title:"",description:"")
+        default:break
+        }
     }
     func chooseEmployee(_ employee:String) {
+        controller.cancelFollowup()
+        if let key=controller.model.selected,!controller.draft.isEmpty {lastPlaces[key.employee]=key}
+        if let saved=lastPlaces[employee],controller.drafts[saved]?.isEmpty==false {openThread=controller.model.timeline(saved).isEmpty ? nil:saved;replyMode=openThread != nil;controller.model.select(saved);return}
         openThread=nil; replyMode=false
         if let key=newKeys[employee] { controller.model.select(key) }
         else { let key=ConversationKey(employee:employee,thread:UUID().uuidString.lowercased()); newKeys[employee]=key; controller.model.select(key) }
     }
     func chooseThread(_ key:ConversationKey) {
-        replyMode=true; openThread=openThread == key ? nil : key; controller.model.select(key)
+        controller.cancelFollowup()
+        replyMode=true; openThread=openThread == key ? nil : key; controller.model.select(key);controller.model.markAlertSeen(key)
         history.scrollTo(key.thread)
     }
     func openFromBubble(_ key: ConversationKey) {
@@ -237,10 +279,81 @@ import UniformTypeIdentifiers
     }
     @discardableResult func closeSearchIfOpen() -> Bool {
         guard searchOpen else { return false }
-        searchOpen=false; search.stringValue=""; refresh(); return true
+        searchOpen=false; searchGeneration=UUID();searchWork?.cancel();search.stringValue="";searchGroups=[];refresh(); return true
     }
     var isSearchOpen: Bool { searchOpen }
-    func toggleSearch() { searchOpen.toggle(); refresh() }
+    func toggleSearch() {if searchOpen {_=closeSearchIfOpen()} else {openSearch()} }
+    func openSearch() {searchOpen=true;refresh();window?.makeFirstResponder(search)}
+    func handleWorkspaceKey(_ event:NSEvent)->Bool {
+        if event.modifierFlags.contains(.command),["f","ㄹ"].contains(event.charactersIgnoringModifiers?.lowercased() ?? "") {openSearch();return true}
+        guard searchOpen else{return false}
+        if let input=window?.firstResponder as? NSTextView,input.hasMarkedText() {return false}
+        switch event.keyCode {
+        case 53:return closeSearchIfOpen()
+        case 125:moveSearch(1)
+        case 126:moveSearch(-1)
+        case 36:chooseSearch()
+        default:return false
+        };return true
+    }
+    func moveSearch(_ delta:Int) {searchSelection=min(max(0,searchSelection+delta),max(0,searchGroups.count-1));showSearchResults()}
+    func chooseSearch() {if searchGroups.indices.contains(searchSelection),let line=searchGroups[searchSelection].matches.first {revealSearch(line)}}
+    func revealSearch(_ message:ConversationMessage) {
+        expandedMessages.insert(message.id)
+        searchHighlight=search.stringValue.isEmpty ? employeeSearch.stringValue:search.stringValue
+        _=closeSearchIfOpen();reveal(message.key);highlightedMessageID=message.id;highlightUntil=islandModel.now.addingTimeInterval(1.6)
+        refresh();history.scrollTo(message.key.thread,message:message.id)
+    }
+    private func showSearchResults() {
+        let model=controller.model
+        searchResults.show(searchGroups,query:search.stringValue,selection:searchSelection,name:model.name,room:{"@"+model.header($0).title})
+    }
+    func scheduleSearch() {
+        guard searchOpen else{return}
+        let query=search.stringValue
+        let context=controller.client.store.settings.address+"|"+(controller.client.store.settings.stateAccount ?? "")+"|"+controller.model.hidden.sorted().joined(separator:",")+"|"+controller.model.employees.map{$0.id+":"+$0.name}.joined(separator:",")
+        guard query != searchInput || searchSeq != controller.model.applied || context != searchContext else{return}
+        searchContext=context;searchInput=query;searchSeq=controller.model.applied;searchGeneration=UUID();searchWork?.cancel()
+        let generation=searchGeneration,model=controller.model,posts=Array(model.messages.values),names=Dictionary(uniqueKeysWithValues:model.employees.map{($0.id,$0.name)}),hidden=model.hidden
+        let work=DispatchWorkItem { [weak self] in
+            DispatchQueue.global(qos:.utility).async {
+                let groups=WorkspaceSearch.groups(query,messages:posts,names:names,hidden:hidden)
+                DispatchQueue.main.async { [weak self] in guard let self,self.searchOpen,self.searchGeneration==generation else{return};self.searchGroups=groups;self.searchSelection=0;self.showSearchResults();self.needsLayout=true }
+            }
+        }
+        searchWork=work;DispatchQueue.main.asyncAfter(deadline:.now()+0.25,execute:work)
+    }
+    func jumpNotice(_ item:RoomNotice) {
+        guard !item.messages.isEmpty else{return}
+        let next=item.questions ? (noticeCursor[item.id] ?? -1)+1:0,index=next%item.messages.count;noticeCursor[item.id]=index
+        guard let message=controller.model.messages[item.messages[index]] else{return}
+        controller.cancelFollowup();reveal(message.key);highlightedMessageID=message.id;highlightUntil=islandModel.now.addingTimeInterval(1.6)
+        refresh();history.scrollTo(message.key.thread,message:message.id)
+    }
+    private func refreshWorkspaceBars() {
+        for stack in [noticeBar,failureBar] {for view in stack.arrangedSubviews {stack.removeArrangedSubview(view);view.removeFromSuperview()}}
+        let model=controller.model,employee=model.selected?.employee ?? ""
+        shownNotices=model.notices(employee)
+        if !shownNotices.isEmpty {let pin=NSImageView();pin.image=NSImage(systemSymbolName:"pin.fill",accessibilityDescription:nil)?.withSymbolConfiguration(.init(pointSize:9,weight:.regular));pin.contentTintColor = .secondaryLabelColor;pin.wantsLayer=true;pin.layer?.setAffineTransform(CGAffineTransform(rotationAngle:.pi/4));noticeBar.addArrangedSubview(pin)}
+        for item in shownNotices {
+            let button=NoticePill(item);button.invoke={ [weak self] in self?.jumpNotice(item) };noticeBar.addArrangedSubview(button)
+        }
+        let alerts=model.notices(employee).filter{!$0.questions}.flatMap(\.messages).count
+        if alerts>0 {let button=FileChip(title:"모두 읽음");button.isBordered=false;button.font = .systemFont(ofSize:11,weight:.medium);button.image=NSImage(systemSymbolName:"checkmark.circle",accessibilityDescription:nil);button.imagePosition = .imageLeading;button.contentTintColor = .secondaryLabelColor;button.toolTip="이 방의 알림 \(alerts)건을 모두 읽음으로";button.invoke={model.readAllNotices(employee)};noticeBar.addArrangedSubview(button)}
+        for failure in controller.failures.filter({$0.key.employee==employee}) {
+            let row=NSStackView();row.spacing=6
+            let place=failure.newPost ? "새 글":model.timeline(failure.key).first.map{"답글 · "+String(MessageFormat.plain($0.text).prefix(16))} ?? "답글"
+            let words=failure.draft.text.trimmingCharacters(in:.whitespacesAndNewlines)
+            let what=words.isEmpty ? "파일 \(failure.draft.attachments.count)개":String(words.prefix(40))+(failure.draft.attachments.isEmpty ? "":" · 파일 \(failure.draft.attachments.count)개")
+            let title=NSTextField(labelWithString:"보내지 못함 · "+place+" · "+what);title.font = .systemFont(ofSize:11);title.lineBreakMode = .byTruncatingTail;row.addArrangedSubview(title)
+            let restore=FileChip(title:"되살리기");restore.invoke={ [weak controller] in controller?.restoreFailure(failure.id) };row.addArrangedSubview(restore)
+            let discard=FileChip(title:"지우기");discard.invoke={ [weak controller] in controller?.discardFailure(failure.id) };row.addArrangedSubview(discard);failureBar.addArrangedSubview(row)
+        }
+        let elsewhere=controller.failures.filter{$0.key.employee != employee}
+        if let first=elsewhere.first {
+            let button=FileChip(title:"다른 방에서 보내지 못한 글 \(elsewhere.count)개 · 보러 가기");button.invoke={ [weak self] in self?.chooseEmployee(first.key.employee) };failureBar.addArrangedSubview(button)
+        }
+    }
     private func reportOpenHeight() {
         let needed: CGFloat?
         if let openThread, let layout=history.layouts.first(where: { $0.content.id == openThread.thread }) {
@@ -252,7 +365,7 @@ import UniformTypeIdentifiers
     }
     func createThread() {
         guard let employee=controller.model.selected?.employee else { return }
-        replyMode=false
+        controller.cancelFollowup();replyMode=false
         if let key=newKeys[employee] { controller.model.select(key) }
         else { let key=ConversationKey(employee:employee,thread:UUID().uuidString.lowercased()); newKeys[employee]=key; controller.model.select(key) }
     }
@@ -267,15 +380,16 @@ import UniformTypeIdentifiers
         rooms=model.displayRooms.filter { employeeSearch.stringValue.isEmpty || $0.title.localizedCaseInsensitiveContains(employeeSearch.stringValue) }
         let layout=model.sidebar
         sidebarRows=employeeSearch.stringValue.isEmpty ? layout.rows : layout.items.filter { $0.name.localizedCaseInsensitiveContains(employeeSearch.stringValue) }.map { .init(kind:.room,id:$0.id,name:$0.name,zone:layout.zone($0.id),items:[$0]) }
-        composerFaces.faces=(selected.flatMap { model.room(for:$0.employee)?.members } ?? []).map { (model.name($0),controller.avatar($0)) }
+        composerMembers=selected.flatMap { model.room(for:$0.employee)?.members } ?? []
+        composerFaces.faces=composerMembers.map { (model.name($0),controller.avatar($0)) }
         addRoom.toolTip="방 추가 (\(model.hidden.count))";addRoom.setAccessibilityLabel(addRoom.toolTip!)
         employeeTable.rowHeight=ConversationSidebar.isList(sidebarWidth) ? ConversationSidebar.rowHeight : ConversationSidebar.tabHeight
         employeeTable.reloadData()
         if let selected,let index=rowIndex(for:selected.employee) { employeeTable.selectRowIndexes(IndexSet(integer:index),byExtendingSelection:false) } else { employeeTable.deselectAll(nil) }
         if let selected {
             let current=selected.employee
-            threads=(model.room(for:current).map { model.threads(room:$0,query:searchOpen ? search.stringValue : "") } ?? []).sorted { (model.timeline($0.key).first?.seq ?? 0) < (model.timeline($1.key).first?.seq ?? 0) }
-            heading.stringValue=model.room(for:current)?.title ?? model.name(current); subtitle.stringValue="함께 나누는 대화"
+            threads=(model.room(for:current).map { model.threads(room:$0,query:"") } ?? []).sorted { (model.timeline($0.key).first?.seq ?? 0) < (model.timeline($1.key).first?.seq ?? 0) }
+            heading.stringValue=model.header(current).title; subtitle.stringValue=model.header(current).description
             if identity != current { windowed.reset(); identity=current; openThread=nil }
             let shown=Set(windowed.visibleIDs(threads.map(\.id),revealing:openThread?.thread))
             var cards:[NativeThreadCard.Content]=[], previous:Date?
@@ -297,7 +411,7 @@ import UniformTypeIdentifiers
             editor.editor.typingAttributes=MessageFormat.Style(size:ChatMetrics.bodyFont).attributes; editor.measure()
         }
         displayedKey=selected
-        draftHint.stringValue=replyMode ? "스레드에 답글" : selected.map { model.name($0.employee)+"에게 새 글" } ?? "직원을 선택하세요"
+        draftHint.stringValue=replyMode ? "스레드에 답글" : selected.map { "@"+model.name($0.employee)+"에게 새 글" } ?? "직원을 선택하세요"
         draftHint.isHidden = !editor.editor.string.isEmpty; editor.editor.setAccessibilityLabel(draftHint.stringValue+" · Enter 보내기, Shift Enter 줄바꿈")
         for view in attachments.arrangedSubviews { attachments.removeArrangedSubview(view); view.removeFromSuperview() }
         for file in draft.attachments { let chip=FileChip(title:"📎 "+file.lastPathComponent+" ×"); chip.font = .systemFont(ofSize:11); chip.invoke={ [weak self] in self?.controller.removeAttachment(file) }; attachments.addArrangedSubview(chip) }
@@ -307,6 +421,10 @@ import UniformTypeIdentifiers
         replyButton.isEnabled = !threads.isEmpty; replyButton.chosen=replyMode; newButton.chosen = !replyMode
         for button in [replyButton,newButton,sendButton] { button.needsDisplay=true }
         notice.stringValue=controller.notice
+        refreshWorkspaceBars();scheduleSearch()
+        let names=Dictionary(uniqueKeysWithValues:model.employees.map{($0.id,$0.name)})
+        let hits=WorkspaceSearch.sidebar(employeeSearch.stringValue,messages:Array(model.messages.values),names:names,hidden:model.hidden)
+        sidebarHits.show(hits.map{WorkspaceSearch.Group(key:$0.key,root:$0,matches:[$0],exact:false)},query:employeeSearch.stringValue,selection:-1,compact:true,name:model.name,room:{"@"+model.header($0).title})
         islandModel.update(controller.islandInput);tickIsland(); onUnread?(model.visibleUnreadTotal)
         reportOpenHeight()
         needsLayout=true; needsDisplay=true
@@ -332,9 +450,13 @@ import UniformTypeIdentifiers
         older.frame=CGRect(x:x+12,y:y,width:right-24,height:older.isHidden ? 0 : 24); if !older.isHidden { y+=24 }
         let noticeHeight:CGFloat=notice.stringValue.isEmpty ? 0 : 38, attachmentsHeight:CGFloat=controller.draft.attachments.isEmpty ? 0 : 30
         let inputHeight=max(42,editorHeight+22), composerHeight=10+22+6+attachmentsHeight+inputHeight+10
-        let bottom=max(y,h-composerHeight-noticeHeight)
+        let failureHeight=CGFloat(failureBar.arrangedSubviews.count)*28
+        noticeBar.isHidden=noticeBar.arrangedSubviews.isEmpty || searchOpen;noticeBar.frame=CGRect(x:x+12,y:y+7,width:right-24,height:23)
+        if !noticeBar.isHidden {y+=38}
+        let bottom=max(y,h-composerHeight-noticeHeight-failureHeight)
         history.frame=CGRect(x:x,y:y,width:right,height:max(1,bottom-y)); notice.frame=CGRect(x:x+10,y:bottom+7,width:right-20,height:max(0,noticeHeight-10))
-        let top=bottom+noticeHeight+10
+        failureBar.frame=CGRect(x:x+8,y:bottom+noticeHeight,width:right-16,height:failureHeight)
+        let top=bottom+noticeHeight+failureHeight+10
         modeBackground.frame=CGRect(x:x+10,y:top,width:108,height:22); replyButton.frame=CGRect(x:x+12,y:top+2,width:50,height:18); newButton.frame=CGRect(x:x+62,y:top+2,width:54,height:18)
         composerFaces.frame=CGRect(x:x+128,y:top,width:max(0,right-150),height:22)
         attachmentScroll.frame=CGRect(x:x+10,y:top+28,width:right-20,height:attachmentsHeight); attachments.frame=CGRect(x:0,y:0,width:max(right-20,attachments.fittingSize.width),height:attachmentsHeight)
@@ -344,6 +466,10 @@ import UniformTypeIdentifiers
         editor.frame=CGRect(x:x+70,y:line+11,width:max(1,right-146),height:max(17,inputHeight-22))
         draftHint.frame=CGRect(x:x+70,y:line+11,width:max(1,right-146),height:20)
         sendButton.frame=CGRect(x:w-52,y:line+inputHeight-42,width:42,height:42)
+        history.isHidden=searchOpen;searchResults.isHidden = !searchOpen
+        searchResults.frame=history.frame
+        sidebarHits.isHidden = !list || employeeSearch.stringValue.isEmpty
+        if !sidebarHits.isHidden {let top=employeeScroll.frame.minY+min(employeeScroll.frame.height/2,CGFloat(sidebarRows.count)*58);sidebarHits.frame=CGRect(x:0,y:top,width:left,height:max(1,h-top-28));employeeScroll.frame.size.height=max(0,top-employeeScroll.frame.minY)}
         drop.frame=CGRect(x:x,y:top,width:right,height:max(1,h-top))
         modeBackground.layer?.backgroundColor=NSColor.labelColor.withAlphaComponent(0.1).cgColor
         inputBackground.layer?.backgroundColor=NSColor.labelColor.withAlphaComponent(0.04).cgColor; inputBackground.layer?.borderColor=NSColor.labelColor.withAlphaComponent(0.18).cgColor
@@ -353,6 +479,7 @@ import UniformTypeIdentifiers
         (dark ? NSColor(white:0.07,alpha:0.4) : .clear).setFill(); bounds.fill()
         NSColor.labelColor.withAlphaComponent(0.035).setFill(); CGRect(x:sidebarWidth,y:0,width:max(0,bounds.width-sidebarWidth),height:44).fill()
         (dark ? NSColor(white:0.10,alpha:0.45) : NSColor.white.withAlphaComponent(0.12)).setFill(); CGRect(x:0,y:0,width:sidebarWidth,height:bounds.height).fill()
+        if !noticeBar.isHidden {NSColor.labelColor.withAlphaComponent(0.04).setFill();CGRect(x:sidebarWidth,y:44,width:max(0,bounds.width-sidebarWidth),height:38).fill();NSColor.labelColor.withAlphaComponent(0.1).setFill();CGRect(x:sidebarWidth,y:81,width:max(0,bounds.width-sidebarWidth),height:1).fill()}
         NSColor.labelColor.withAlphaComponent(0.1).setFill(); CGRect(x:sidebarWidth-1,y:0,width:1,height:bounds.height).fill(); CGRect(x:0,y:43,width:bounds.width,height:1).fill()
     }
     func numberOfRows(in tableView:NSTableView)->Int { sidebarRows.count }
@@ -391,7 +518,15 @@ import UniformTypeIdentifiers
         controller.model.move(id,to:zone);return true
     }
     func tableView(_ tableView:NSTableView,draggingSession session:NSDraggingSession,endedAt screenPoint:NSPoint,operation:NSDragOperation) { dropSection=nil;employeeTable.reloadData() }
-    func controlTextDidChange(_ notification:Notification) { refresh() }
+    func controlTextDidChange(_ notification:Notification) {refresh()}
+    func control(_ control:NSControl,textView:NSTextView,doCommandBy selector:Selector)->Bool {
+        guard control === search else{return false}
+        if selector == #selector(NSResponder.moveDown(_:)) {moveSearch(1);return true}
+        if selector == #selector(NSResponder.moveUp(_:)) {moveSearch(-1);return true}
+        if selector == #selector(NSResponder.insertNewline(_:)) {chooseSearch();return true}
+        if selector == #selector(NSResponder.cancelOperation(_:)) {return closeSearchIfOpen()}
+        return false
+    }
     func textDidChange(_ notification:Notification) {
         if let key=displayedKey { controller.setText(MessageFormat.serialize(editor.editor.attributedString(),baseSize:ChatMetrics.bodyFont),for:key) }
         draftHint.isHidden = !editor.editor.string.isEmpty; formatting.refresh(); editor.measure()
@@ -469,6 +604,7 @@ import UniformTypeIdentifiers
             }
             if attributes[.link] != nil { text.addAttributes([.underlineStyle:NSUnderlineStyle.single.rawValue,.foregroundColor:mine ? UserBubblePalette(dark:dark).link.nsColor : NSColor.systemBlue],range:range) }
         }
+        if let query=searchHighlight,message.id==highlightedMessageID {for range in WorkspaceSearch.highlights(text.string,query:query) {text.addAttributes([.backgroundColor:NSColor.yellow,.foregroundColor:NSColor.black],range:NSRange(range,in:text.string))}}
         var checks:[Int:(line:Int,original:Bool)]=[:]
         if !mine && !message.streaming {
             var offset=0,line=0

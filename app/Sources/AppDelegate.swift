@@ -35,6 +35,7 @@ import AppKit
             pet.pet.installConversation(conversationView)
             conversationView.onCollapse = { [weak self] in self?.pet.collapseChat() }
             conversationView.onOpenThreadHeight = { [weak self] height in self?.pet.fitOpenThread(height) }
+            pet.panel.onWorkspaceKey = { [weak self] event in self?.conversationView.handleWorkspaceKey(event) ?? false }
             pet.panel.onCollapse = { [weak self] in guard let self else { return }; if !self.conversationView.closeSearchIfOpen() { self.pet.collapseChat() } }
             pet.pet.onBubbleOpen = { [weak self] key in guard let self else { return }; if let key { self.conversationView.openFromBubble(key) }; self.pet.showChat() }
             let previousChange = conversation.onChange

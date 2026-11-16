@@ -29,8 +29,8 @@ struct SidebarLayout {
         var open = false
         var picture: String?
         var unread: Int { items.filter { !($0.muted && (kind == .section || kind == .stack)) }.reduce(0) { $0+$1.unread } }
-        var questions: Int { items.filter { !$0.muted }.reduce(0) { $0+$1.questions } }
-        var alerts: Int { items.filter { !$0.muted }.reduce(0) { $0+$1.alerts } }
+        var questions: Int { items.filter { !$0.muted || kind == .room }.reduce(0) { $0+$1.questions } }
+        var alerts: Int { items.filter { !$0.muted || kind == .room }.reduce(0) { $0+$1.alerts } }
         var faces: [String] { var seen=Set<String>(); return Array(items.flatMap(\.members).filter { seen.insert($0).inserted }.prefix(4)) }
         var signals: [String] { [(unread,"unread"),(questions,"question"),(alerts,"alert")].filter { $0.0>0 }.map(\.1) }
     }

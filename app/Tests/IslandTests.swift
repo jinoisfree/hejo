@@ -124,7 +124,7 @@ private func islandMessage(_ seq:Int,_ key:ConversationKey = islandA,asked:Bool=
     ui.refresh();ui.layoutSubtreeIfNeeded()
     let fail=ui.island.partRects.first { $0.0.kind == .problem }!.1
     ui.island.activate(at:CGPoint(x:fail.midX,y:fail.midY))
-    try check(retries == [islandB] && controller.drafts[islandB]?.text == "Draft kept" && controller.notice.isEmpty,"AT56 retry keeps original destination and draft; failure notice moved")
+    try check(retries == [islandB] && controller.failures.last?.draft.text == "Draft kept" && controller.drafts[islandB]?.isEmpty == true && controller.notice.contains("되살리기"),"AT79 retry keeps destination and failure list preserves original draft")
     ui.frame.size.width=428;ui.needsLayout=true;ui.layoutSubtreeIfNeeded()
     try check(ui.island.frame.width <= 146 && ui.heading.frame.width>=120 && ui.island.frame.height==30,"AT53 narrow header reserves title and right icons")
     ui.frame.size.width=760;ui.needsLayout=true;ui.layoutSubtreeIfNeeded()
@@ -136,7 +136,7 @@ private func islandMessage(_ seq:Int,_ key:ConversationKey = islandA,asked:Bool=
     ui.island.mouseDown(with:down);ui.island.mouseDragged(with:drag);try check(drags==0 && pet.panel.frame==initial,"AT56 dragging island never moves window")
     ui.island.show(working);ui.layoutSubtreeIfNeeded()
     try check(ui.island.animationSteps == 0 && !ui.island.isShimmering,"AT56 reduced motion has no width animation steps or shimmer")
-    try check(ui.history.frame.minY == 44 && ui.notice.stringValue.isEmpty,"AT55 no connection strip occupies space below header")
+    try check(ui.history.frame.minY == (ui.noticeBar.isHidden ? 44:82) && ui.notice.stringValue.contains("되살리기"),"AT77/79 notice bar has its own space; failure guidance stays above composer")
     func capture(_ name:String) throws {
         ui.layoutSubtreeIfNeeded();pet.pet.layoutSubtreeIfNeeded()
         let image=pet.pet.bitmapImageRepForCachingDisplay(in:pet.pet.bounds)!

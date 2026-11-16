@@ -42,14 +42,16 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
         if follows, !contents.isEmpty { table.scrollRowToVisible(contents.count - 1) }
     }
     override func scrollWheel(with event: NSEvent) { userScrolls += 1; super.scrollWheel(with: event) }
-    func scrollTo(_ id: String) {
+    func scrollTo(_ id: String,message:String?=nil) {
         scrollRevision += 1
         let revision=scrollRevision, input=userScrolls
         for delay in [0.0, 0.15, 0.45] {
             DispatchQueue.main.asyncAfter(deadline:.now()+delay) { [weak self] in
                 guard let self, self.scrollRevision == revision, self.userScrolls == input,
                       let index=self.contents.firstIndex(where:{$0.id == id}) else { return }
-                let rect=self.table.rect(ofRow:index), bounds=self.contentView.bounds
+                var rect=self.table.rect(ofRow:index)
+                if let message,let anchor=self.layouts[index].anchors[message] {rect=anchor.offsetBy(dx:rect.minX,dy:rect.minY)}
+                let bounds=self.contentView.bounds
                 let wanted=min(max(0,rect.maxY-bounds.height),max(0,self.table.bounds.height-bounds.height))
                 if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion { self.contentView.scroll(to:CGPoint(x:bounds.minX,y:wanted)) }
                 else { NSAnimationContext.runAnimationGroup { context in context.duration=0.24; self.contentView.animator().setBoundsOrigin(CGPoint(x:bounds.minX,y:wanted)) } }

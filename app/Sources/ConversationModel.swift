@@ -82,6 +82,7 @@ struct ConversationThread: Identifiable {
     private(set) var selected: ConversationKey?
     private(set) var visible = false
     var onChange: (() -> Void)?
+    var noticeClock:()->Date=Date.init
     let memberState: MemberState
     var pinned: [String] {
         var slots: [String: Int] = [:]
@@ -121,7 +122,7 @@ struct ConversationThread: Identifiable {
         layout.items=rooms.enumerated().filter { !hidden.contains($0.element.id) }.map { index,room in
             let posts=messages.values.filter { room.members.contains($0.key.employee) }
             let latest=posts.map { (fractional.date(from:$0.timestamp) ?? seconds.date(from:$0.timestamp))?.timeIntervalSince1970 ?? Double($0.latestSeq) }.max() ?? 0
-            return SidebarLayout.Item(id:room.id,name:room.title,kind:.direct,members:room.members,rank:index,latest:latest,unread:unread(room:room),questions:posts.filter { $0.replyState=="asked" && !confirmed($0.id) }.count,muted:muted.contains(room.id))
+            return SidebarLayout.Item(id:room.id,name:room.title,kind:.direct,members:room.members,rank:index,latest:latest,unread:unread(room:room),questions:notices(room.id).filter(\.questions).reduce(0){$0+$1.messages.count},alerts:notices(room.id).filter{!$0.questions}.reduce(0){$0+$1.messages.count},muted:muted.contains(room.id))
         }
         return layout
     }
@@ -204,7 +205,7 @@ struct ConversationThread: Identifiable {
         for (key, messages) in Dictionary(grouping: roomMessages, by: \.key) {
             values["thread:" + key.employee + "/" + key.thread] = String(messages.map(\.latestSeq).max() ?? 0)
         }
-        changeState(values)
+        changeState(values);readAllNotices(employee)
     }
     func resetReplica() { messages = [:]; typing = [:]; typingSince = [:]; applied = 0; selected = nil; onChange?() }
     private func decode<T: Decodable>(_ value: Any, as type: T.Type) throws -> T {

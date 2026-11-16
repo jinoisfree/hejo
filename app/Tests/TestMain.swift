@@ -30,6 +30,11 @@ final class MemoryCredentials: GateCredentialStore {
                 let args = CommandLine.arguments
                 if args.contains("--lock-child") {
                     let lock = try InstanceLock(directory: URL(fileURLWithPath: args[2])); withExtendedLifetime(lock) { }
+                } else if args.count > 3 && args[1] == "--workspace-network" {
+                    try await workspaceNetwork(args)
+                } else if args.count > 2 && args[1] == "--task26-capture" {
+                    NSApp.appearance=NSAppearance(named:.aqua)
+                    try await workspaceTests(outputDirectory:URL(fileURLWithPath:args[2]))
                 } else if args.count > 2 && args[1] == "--task25-capture" {
                     try await threadToolsTests(outputDirectory:URL(fileURLWithPath:args[2]))
                 } else if args.count > 3 && args[1] == "--threads" {
@@ -157,6 +162,7 @@ final class MemoryCredentials: GateCredentialStore {
         try await task17Tests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await memberStateTests()
         try await threadToolsTests()
+        try await workspaceTests()
         try picturesSidebarTests()
         try appIconTests()
         try await loginTests()

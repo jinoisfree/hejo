@@ -3,11 +3,13 @@ import AppKit
 final class PetPanel: NSPanel {
     var chatExpanded = false
     var onCollapse: (() -> Void)?
+    var onWorkspaceKey:((NSEvent)->Bool)?
     override var canBecomeKey: Bool { chatExpanded }
     override var canBecomeMain: Bool { false }
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
     override func cancelOperation(_ sender: Any?) { onCollapse?() }
     override func sendEvent(_ event: NSEvent) {
+        if chatExpanded,event.type == .keyDown,onWorkspaceKey?(event)==true {return}
         if event.type == .keyDown, event.keyCode == 53 { onCollapse?(); return }
         // Only an actual text input click may request key focus. Opening the pet never does.
         if event.type == .leftMouseDown, chatExpanded,

@@ -210,3 +210,35 @@ Foundation·AppKit·ImageIO 외 유지하는 제품 의존은 기존 hejo Member
 ### TASK-25 구현 뒤 같은 상태 대조
 
 원본 NativeThreadCard·SlackLayout과 기존 hejo 카드 렌더러에 동일한 가짜 상태를 넣어 실행했다. 유지 의존 MessageFormat/ChatStyle과 가짜 사진 공급자는 공통이며 원본 앱 전체 실행은 아니다. 질문 빨강·종·얼굴 3개·접힌 답·표·아래 버튼 5개의 배치 영역이 같고 캡처 181,272픽셀 중 차이는 186픽셀이다. 상세와 실제 ConversationView 날짜·표·제어 캡처는 evidence/HEJO-FOUNDATION/TASK-25.md에 기록했다. Slack 주소→hejo 주소는 변환 규칙 1번과 승인된 주소 계약, Slack 전용 구절 제외는 규칙 2번, 첨부 공백·Notion·NAS는 24판 원문 복구다. 새 문구 계약 충돌은 남지 않았다. 원본·유지 의존 파일을 수정하지 않았다.
+
+
+## TASK-26 착수 대조 — D26-01 검색 상한·선택 순서
+
+기준 `880b1aedd5258c0472f23f6eb379e58390734c08`의 보완 26에 따라 시작했다. N25-01은 앞선 시험 전용 커밋으로 분리했다. 실제 원본 경로는 AGENTS.local.md를 따르며 원본 파일은 읽기만 했다.
+
+| 원본 (`<운영 저장소>/ddots/Sources/`) | 이번 독해 | 확인한 경계 |
+|---|---|---|
+| SlackFind.swift | 225줄 전체 | 0.25초 입력 대기·세대 무효화·검색 중 키·선택/이동·1.6초 반짝. 월 기록 읽기·원격 Slack 검색은 설계가 명시적으로 제외한다. hejo 캐시 검색 작업자와 AppKit 입력 처리는 아직 구현하지 않았다. |
+| SlackSearch.swift | 121줄 전체 | 정규화·단어/구절·겹친 하이라이트 병합·메타 미리보기·groups. 원격 API·기록장 변환은 제외 대상이다. 72~82줄의 최신 글 상한→묶음→구절 우선 정렬이 REQ-HF-28.AC-02와 다르다(D26-01). |
+| SlackFindView.swift | 107줄 전체 | 검색 결과의 방/날짜/첫 글·일치 3개·+N·선택 강조·노랑/검정 하이라이트. SwiftUI 호스트는 AppKit 대체 대상이다. 상태 문구 변환은 SlackNotice.displayStatus 의존이며 최종 유지 의존 대조는 미완료다. |
+| SlackDrafts.swift | 92줄 전체 | 자리별 글/첨부/고른 얼굴, 메모리 수명, 실패 원래 자리 복구·중복 첨부 제거·10개 제한·실패 후 자동 전송 없음. DdotsFaceLight의 라우팅 의존은 후속 홈 방 범위와 구별해야 하며 아직 이식하지 않았다. |
+| ChatWorkspace.swift | 56줄 전체 | 머리줄 메뉴 순서·검색 입력창 확인. 서비스 이름은 변환 규칙 1번, SwiftUI는 AppKit 대체 대상이다. |
+| SlackPanel.swift | 이전 전체 독해 기록은 보존. 이번에는 1200~1515줄의 머리줄/초안/실패/자동 답글 대상을 다시 대조 | 나머지 알림 막대·작성기 얼굴·실패 목록 화면과 유지 의존의 TASK-26 대조는 아직 미완료다. SlackThreads·SlackController의 TASK-26 대상 재대조도 남는다. |
+
+**D26-01.** 명세는 '구절이 일치하는 것을 먼저, 그다음 최신 순으로 최대 200묶음'이라고 하지만 원본 groups는 먼저 최신 일치 **글** 200개만 남기고 그 안에서 묶음과 구절 우선 순서를 만든다. 원본의 해당 함수와 불활성 자료형만 분리 컴파일해 두 입력을 재현했다. (1) 한 스레드의 일치 글 500개 → 묶음 1개·일치 글 200개. (2) 새 단어 분산 일치 200개와 오래된 정확 구절 일치 1개 → 오래된 정확 일치가 제외된다. 문구 치환·공백 복구와 달리 검색에 포함되는 글과 +N건이 달라지므로 구현자가 상한 단위·선택 순서를 정하지 않는다. 근거·선택지는 impl-report에 기록했다. 제품 복사 전 대조 중이며 전체 의존 독해 완료 기록이 아니다.
+
+
+### TASK-26 보완 27 재개 — D26-01 해소와 유지 의존
+
+기준 `7e71fc501b937287b341d306ae33a0fc626923ab`의 26판으로 D26-01이 해소됐다. 앞 기록은 당시 상태로 보존한다. 최신 일치 글 200개를 먼저 고른 뒤 묶고 구절 일치 묶음·최신 순으로 그린다. ddots 동작은 26판 규칙에 따라 코드 우선이다.
+
+SlackPanel(3574)·SlackThreads(1471)·SlackController(1622)·DraftEditor(231)·DraftFormat(128)은 기존 전체 독해 기준 `208f6e63`과 파일 차이 없음을 확인하고 전체 독해 기록을 재사용했다. 이번에는 SlackThreads의 SlackNotice items/item/grouped와 SlackMention 전체, SlackPanel의 notices/bells/jump/go·머리줄/초안/실패 복구·자동 답글·mentionFaces·slackFailures·slackNoticeBar, SlackController의 머리줄 편집 callback을 끝까지 재대조했다. 질문·알림은 기존 hejo asked/confirmed/bell·기록장 투영을 사용하고 Slack의 본문 승인 휴리스틱·사용자 DM·기타 상태 추측은 가져오지 않는다. 단체방 멤버 명부는 TASK-21 전까지 기존 Room.members 소비 경계다.
+
+추가 SlackRoomDialogs.swift는 전체를 읽었다. editHeader의 AppKit 제목/설명/세 버튼만 유지하며 Slack 방 생성·초대·사진 파일 저장은 제외한다. Foundation/AppKit·UniformTypeIdentifiers는 기존 의존이다. SlackFind(225)·SlackSearch(121)·SlackFindView(107)·SlackDrafts(92)·ChatWorkspace(56)의 앞선 전체 독해를 재사용한다. 메시지·서식·표·그림은 기존 hejo NativeThreadCard/MessageFormat/TextLayout/ProfileAvatar/ComposerFaces에 연결한다. 새 런타임 의존은 없다.
+
+문구는 변환 규칙 1번(Slack/ddots→hejo, 채널→방, 에이전트→직원)·2번(Slack만의 사실 제거)을 따른다. 머리줄 원문의 ‘이 Mac’ 한정은 사장 선택 Q2(모든 Mac 맞춤)가 대신하며 title: 회원 상태를 사용한다. 검색 월 읽기·원격 Slack API는 설계가 제외했으므로 복사하지 않는다. 영구 원본을 추가하지 않는다.
+
+
+### TASK-26 원문 실행 비교와 최종 구현 차이
+
+알림 막대 원문 함수는 질문 2·알림 3, SlackFindView와 SlackSearch의 미리보기/하이라이트 원문은 needle·plain body·needle.txt 한 글 상태로 별도 실행했다. 원본 계정/콜백/라우팅은 불활성 대역이며 원본 앱 전체 실행이 아니다. 같은 상태의 실제 AppKit 화면과 나란히 비교하고 evidence/HEJO-FOUNDATION/TASK-26.md에 남겼다. 원문의 알림 버튼은 ‘모두 읽음’이며 n건은 도움말에 있다. 메뉴의 ‘방 목록 보이기 / 숨기기’·‘전체 검색 (⌘F)’ 띄어쓰기도 그대로 유지했다(24판 원문 우선). 알림 #36C5F0·질문 #ECB22E, 결과 안쪽 여백·선택 테두리·날짜 오른쪽 정렬·첫 글 14pt·파일 하이라이트를 적용했다. 원본의 스레드 첫 글 날짜 순, 확인/완료 뒤 알림 제외, 스레드 방문 때 일반 알림 종 읽음도 같은 계산에 반영했다. hejo의 기록된 스트리밍 글은 아직 보내지 않은 pending 글과 다르므로 검색 대상에 남긴다. 월 기록·Slack API·개인 업무 기능을 가져오지 않았으며 hejo 고유 계약이나 사장 선택을 바꾸지 않았다.

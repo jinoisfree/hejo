@@ -5,9 +5,9 @@ enum ConnectionStatus: Equatable {
     case disconnected(Int), connecting, connected, wrongCode, revoked, tooLarge, storageError
     var text: String {
         switch self {
-        case .disconnected(let n): return "공항과 연결이 끊겼어요 · \(n)초 뒤 다시 연결"
-        case .connecting: return "공항에 연결 중"
-        case .connected: return "공항에 연결됨"
+        case .disconnected(let n): return "서버와 연결이 끊겼어요 · \(n)초 뒤 다시 연결"
+        case .connecting: return "서버에 연결 중"
+        case .connected: return "서버에 연결됨"
         case .wrongCode: return "로그인하지 못했어요 · 다시 로그인해 주세요"
         case .revoked: return "이 기기가 로그아웃됐어요 · 다시 로그인해 주세요"
         case .tooLarge: return "너무 큼 · 보낼 내용을 줄여 주세요"
