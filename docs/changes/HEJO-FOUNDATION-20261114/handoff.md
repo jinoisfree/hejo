@@ -1019,3 +1019,15 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
   - 고위험이라 돌연변이를 1개 이상 검출해야 한다(비밀값 미기록, 바쁨 거절 등).
   - 끝나면 별도 커밋 뒤 result로 보고한다.
 - **이어서:** TASK-23(사장과 운영 적용·실물 확인), 비설계자 검토.
+
+## 보완 지시 34: D32-01 해소 — 비밀값 쓰기 실패 보상(29판, design D9), TASK-32 재개 (2026-11-16)
+
+- **D1:** 확인을 통과했다. 실행 담당이 임시 `HERMES_HOME`에서 `hermes serve`를 띄워 조회했고, 메시징 게이트웨이 실행 시도가 없었다. `hermes serve`를 쓴다.
+- **D32-01 결정:** design D9, spec REQ-HF-32.AC-04 29판 줄, AT-83에 반영했다.
+  - 공식 `PUT /api/env`가 `config.yaml` 거울을 함께 고치는 것은 공식 동작이라 받는다.
+  - 공식 쓰기가 실패하면 문이 같은 공식 경로로 되돌린다. 이전 값이 있으면 `PUT`, 없었으면 `DELETE`다. 이전 값은 `POST /api/env/reveal`로 메모리에만 받아 둔다.
+  - hejo는 `.env`·`config.yaml`을 직접 쓰지 않는다.
+  - 되돌리기까지 실패하면 `write_partial` 문장과 행동 기록 `partial`을 남긴다.
+  - 검사 표가 없는 키(`ok=true, reachable=false`)는 저장하고 "키 저장됨(확인 안 함)"으로 보인다. `ok=false`면 저장하지 않는다.
+- **의존:** fastapi·uvicorn이 Hermes venv에 없는 것은 design D1대로 처리한다. 설치 도우미는 "hermes update" 안내를 내고 `skipped`로 남긴다. 시험은 기존 task31 별도 deps를 PYTHONPATH에만 쓴다.
+- **재개:** 미커밋 copy-review·impl-report 기록을 보존하고 남은 ddots 의존(연결 UI·앱 연결·입력·team-kit) 독해부터 이어서 보완 33 전체를 구현·검증한다. 별도 커밋 뒤 result로 보고한다.
