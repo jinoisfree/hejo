@@ -29,7 +29,7 @@ func controlFrame(_ seq:Int,thread:String=controlThread,text:String="✅ 보고�
     for (mark,hex) in [("❌","#E01E5A"),("⚠️","#ECB22E"),("✅","#2EB67D"),("📌","#1D9BD1")] {try check(ThreadTools.color(mark+" 제목")==MessageFormat.color(hex),"AT76 status exact hex")}
     try check(ThreadTools.color("제목")==nil,"AT76 ordinary report has no status color")
     var faces=Array(repeating:model.messages[controlMessage]!,count:5)
-    for i in faces.indices {faces[i].key.employee="fake-\(i)"}
+    for i in faces.indices {faces[i].key.employee="fake-\(i)";faces[i].employee="fake-\(i)"}
     try check(ThreadTools.answeredFaces(faces)==["fake-0","fake-1","fake-2"],"AT76 answered faces cap three")
     var answer:String?
     let checklist=ReplyChecklistView(.init(items:["전체","하나","둘"],selected:[],canSkip:true)){answer=$0}

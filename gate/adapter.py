@@ -17,6 +17,7 @@ from . import buttons as native_buttons
 from .files import FileStore, UnknownFile, RETENTION_SECONDS
 from .server import GateServer, LIMITS
 from .context import conversation_lines, thinking, with_context
+from .rooms import RoomCommands, recipients
 
 log = logging.getLogger(__name__)
 _primary = None
@@ -28,7 +29,12 @@ class ThreadDeleted(ValueError):
         super().__init__("thread_deleted_drop")
 
 
-class HejoAdapter(BasePlatformAdapter):
+class RoomDeleted(ValueError):
+    def __init__(self):
+        super().__init__("room_deleted_drop")
+
+
+class HejoAdapter(RoomCommands, BasePlatformAdapter):
     MAX_MESSAGE_LENGTH = 65536
     supports_code_blocks = True
 
@@ -57,12 +63,15 @@ class HejoAdapter(BasePlatformAdapter):
     def forwarder(self):
         return getattr(self, "_owner_profile", None) not in {None, "default"}
 
-    async def _forward(self, method, *args, metadata=None, **kwargs):
+    async def _forward(self, method, *args, metadata=None, chat_id=None, **kwargs):
         target = _primary
         if target is None or not target.is_connected:
             log.error("hejo_primary_unavailable")
             return SendResult(success=False, error="hejo_primary_unavailable")
         if method == "edit_message":
+            if target.journal.room_id({"type":"edit","msg_id":args[0]}) in target.journal.deleted_rooms:
+                log.warning("room_deleted_drop")
+                return SendResult(success=False,error="room_deleted_drop")
             if target.journal.message_threads.get(args[0]) in target.journal.deleted_threads:
                 log.warning("thread_deleted_drop")
                 return SendResult(success=False, error="thread_deleted_drop")
@@ -71,7 +80,7 @@ class HejoAdapter(BasePlatformAdapter):
                 return SendResult(success=False, error="message_not_found")
         if metadata is not None or method not in {"stop_typing", "get_chat_info"}:
             kwargs["metadata"] = {**(metadata or {}), "hermes_profile": self._owner_profile}
-        return await getattr(target, method)(self._owner_profile, *args, **kwargs)
+        return await getattr(target, method)(chat_id if chat_id and chat_id.startswith("room:") else self._owner_profile, *args, **kwargs)
 
     async def connect(self, *, is_reconnect=False):
         global _primary
@@ -86,6 +95,7 @@ class HejoAdapter(BasePlatformAdapter):
             self.auth = AuthStore(get_hermes_home())
             self.server = GateServer(self)
             await self._finish_thread_deletions()
+            self.cleanup_rooms()
             await self.server.start(self.config.extra.get("listen", ["127.0.0.1"]),
                                     self.config.extra.get("port", 47820))
             self.auth.local_code(self.server.port)
@@ -150,12 +160,15 @@ class HejoAdapter(BasePlatformAdapter):
     async def _record(self, frame, internal=None):
         # Keep journal commit and publication in the same ordered lane.
         async with self._publish_lock:
-            self._validate_frame(frame)
             key = ((frame.get("room", frame.get("employee")), frame.get("thread"))
                    if frame["type"] == "message" else self.journal.message_threads.get(frame.get("msg_id")))
+            if key and key[0] in self.journal.deleted_rooms:
+                log.warning("room_deleted_drop")
+                raise RoomDeleted()
             if frame["type"] != "delete" and key in self.journal.deleted_threads:
                 log.warning("thread_deleted_drop")
                 raise ThreadDeleted()
+            self._validate_frame(frame)
             try:
                 saved = await self.journal.append(dict(frame, v=1), internal)
             except HejoJournalError:
@@ -185,14 +198,20 @@ class HejoAdapter(BasePlatformAdapter):
     async def _finish_thread_deletions(self):
         deleted = {row["msg_id"] for row in self.journal.records if row["type"] == "delete"}
         for msg_id, key in tuple(self.journal.message_threads.items()):
-            if key in self.journal.deleted_threads and msg_id not in deleted:
+            if key in self.journal.deleted_threads and key[0] not in self.journal.deleted_rooms and msg_id not in deleted:
                 saved = await self.journal.append({"v": 1, "type": "delete", "msg_id": msg_id})
                 await self.server.broadcast(saved)
         self.files.cleanup()
 
     async def thread_delete(self, frame, conn):
         key = (frame["room"], frame["thread"])
+        if key[0] in self.journal.deleted_rooms:
+            await self.server.error("room_deleted", frame.get("id"), conn)
+            return
         async with self.files.lock, self._publish_lock:
+            if key[0] in self.journal.deleted_rooms:
+                await self.server.error("room_deleted", frame.get("id"), conn)
+                return
             if key not in self.journal.deleted_threads:
                 first = next((row for row in self.journal.records if row["type"] == "message"
                               and self.journal.message_threads.get(row["msg_id"]) == key), None)
@@ -218,6 +237,9 @@ class HejoAdapter(BasePlatformAdapter):
     async def thread_branch(self, frame, conn):
         room, thread = frame["room"], frame["thread"]
         async with self._publish_lock:
+            if room in self.journal.deleted_rooms:
+                await self.server.error("room_deleted", frame.get("id"), conn)
+                return
             if self.journal.deleted(room, thread):
                 await self.server.error("thread_deleted", frame.get("id"), conn)
                 return
@@ -236,7 +258,7 @@ class HejoAdapter(BasePlatformAdapter):
             context = conversation_lines(posts, names, limit=50, characters=16000, line_characters=2000)
             try:
                 saved = await self.journal.append({"v": 1, "type": "message", "msg_id": str(uuid.uuid4()),
-                    "employee": room, "thread": str(uuid.uuid4()), "role": "employee",
+                    "employee": self.journal.rooms[room]["lead"] if room in self.journal.rooms else room, **({"room":room} if room in self.journal.rooms else {}), "thread": str(uuid.uuid4()), "role": "employee",
                     "text": f"‘{title}’에서 이어지는 스레드", "files": [], "buttons": [], "reply_state": None,
                     "branch_from": {"thread": thread}, "ts": datetime.now(timezone.utc).isoformat()},
                     {"branch_context": context, "branch_client_msg_id": frame["client_msg_id"]})
@@ -265,13 +287,19 @@ class HejoAdapter(BasePlatformAdapter):
 
     async def send(self, chat_id, content, reply_to=None, metadata=None):
         if self.forwarder:
-            return await self._forward("send", content, reply_to=reply_to, metadata=metadata)
+            return await self._forward("send", content, chat_id=chat_id, reply_to=reply_to, metadata=metadata)
         metadata = metadata or {}
+        room = chat_id[5:] if chat_id.startswith("room:") else None
+        if room in self.journal.deleted_rooms:
+            log.warning("room_deleted_drop")
+            return SendResult(success=False, error="room_deleted_drop")
+        if room and room not in self.journal.rooms:
+            return SendResult(success=False, error="room_not_found")
         if not metadata.get("hejo_buttons"):
             content = native_buttons.plain_labels(content)
         if len(content.encode()) > LIMITS["text_bytes"]:
             return SendResult(success=False, error="too_large", error_kind="too_long")
-        employee = metadata.get("hermes_profile") or chat_id
+        employee = metadata.get("hermes_profile") or (self.journal.rooms.get(chat_id[5:], {}).get("lead", "default") if chat_id.startswith("room:") else chat_id)
         thread = metadata.get("thread_id")
         if not thread and reply_to:
             previous = self.journal.message(reply_to)
@@ -279,7 +307,7 @@ class HejoAdapter(BasePlatformAdapter):
             thread = previous.get("thread") if previous else (key[1] if key else None)
         thread = thread or str(uuid.uuid4())
         msg_id = str(uuid.uuid4())
-        context = dict(msg_id=msg_id, employee=employee, thread=thread, message_text=content)
+        context = dict(msg_id=msg_id, employee=employee, thread=thread, message_text=content, **({"room":room} if room else {}))
         try:
             buttons, internal = self._buttons(metadata, context)
             if metadata.get("_hejo_file_registration"):
@@ -290,14 +318,17 @@ class HejoAdapter(BasePlatformAdapter):
             await self._record({"type": "message", "msg_id": msg_id, "employee": employee,
                                 "thread": thread, "role": "employee", "text": content, "files": metadata.get("_hejo_files", []),
                                 "buttons": buttons, "reply_state": state,
-                                "ts": datetime.now(timezone.utc).isoformat(), **self._checklist(metadata)}, internal)
+                                "ts": datetime.now(timezone.utc).isoformat(), **({"room":room} if room else {}), **self._checklist(metadata)}, internal)
             return SendResult(success=True, message_id=msg_id)
         except (HejoJournalError, ValueError) as exc:
             return SendResult(success=False, error=str(exc))
 
     async def edit_message(self, chat_id, message_id, content, *, finalize=False, metadata=None):
         if self.forwarder:
-            return await self._forward("edit_message", message_id, content, finalize=finalize, metadata=metadata)
+            return await self._forward("edit_message", message_id, content, chat_id=chat_id, finalize=finalize, metadata=metadata)
+        if self.journal.room_id({"type":"edit", "msg_id":message_id}) in self.journal.deleted_rooms:
+            log.warning("room_deleted_drop")
+            return SendResult(success=False, error="room_deleted_drop")
         if not (metadata or {}).get("hejo_buttons"):
             content = native_buttons.plain_labels(content)
         if len(content.encode()) > LIMITS["text_bytes"]:
@@ -306,9 +337,11 @@ class HejoAdapter(BasePlatformAdapter):
         if self.journal.message_threads.get(message_id) in self.journal.deleted_threads:
             log.warning("thread_deleted_drop")
             return SendResult(success=False, error="thread_deleted_drop")
-        if not previous or previous.get("employee") != chat_id:
+        if not previous or ("room:" + previous["room"] if previous.get("room") else previous.get("employee")) != chat_id:
             return SendResult(success=False, error="message_not_found", error_kind="not_found")
         frame = {"type": "edit", "msg_id": message_id, "text": content, "final": finalize}
+        if previous.get("room"):
+            frame["room"] = previous["room"]
         try:
             frame.update(self._checklist(metadata or {}))
             self._validate_frame(frame)
@@ -318,7 +351,7 @@ class HejoAdapter(BasePlatformAdapter):
         if metadata and "hejo_buttons" in metadata:
             try:
                 frame["buttons"], internal = self._buttons(metadata, dict(
-                    msg_id=message_id, employee=previous["employee"], thread=previous["thread"], message_text=content))
+                    msg_id=message_id, employee=previous["employee"], thread=previous["thread"], message_text=content, **({"room":previous["room"]} if previous.get("room") else {})))
             except ValueError as exc:
                 return SendResult(success=False, error=str(exc))
         async with self._edit_lock:
@@ -344,7 +377,7 @@ class HejoAdapter(BasePlatformAdapter):
             await asyncio.sleep(0.5)
             async with self._edit_lock:
                 await self._flush_edit(msg_id)
-        except ThreadDeleted:
+        except (ThreadDeleted, RoomDeleted):
             pass
         except ValueError:
             log.warning("stream_edit_too_large")
@@ -361,6 +394,9 @@ class HejoAdapter(BasePlatformAdapter):
             if target is None or not target.is_connected:
                 log.error("hejo_primary_unavailable")
                 return SendResult(success=False, error="hejo_primary_unavailable")
+            if target.journal.room_id({"type":"state","msg_id":msg_id}) in target.journal.deleted_rooms:
+                log.warning("room_deleted_drop")
+                return
             message = target.journal.message(msg_id)
             if target.journal.message_threads.get(msg_id) in target.journal.deleted_threads:
                 log.warning("thread_deleted_drop")
@@ -373,11 +409,15 @@ class HejoAdapter(BasePlatformAdapter):
         if self.journal.message_threads.get(msg_id) in self.journal.deleted_threads:
             log.warning("thread_deleted_drop")
             return
-        if not self.journal.message(msg_id):
+        if self.journal.room_id({"type":"state","msg_id":msg_id}) in self.journal.deleted_rooms:
+            log.warning("room_deleted_drop")
+            return
+        message = self.journal.message(msg_id)
+        if not message:
             raise ValueError("message_not_found")
         try:
-            await self._record({"type": "state", "msg_id": msg_id, "reply_state": state})
-        except ThreadDeleted:
+            await self._record({"type": "state", "msg_id": msg_id, "reply_state": state, **({"room":message["room"]} if message.get("room") else {})})
+        except (ThreadDeleted, RoomDeleted):
             pass
 
     def register_click_handler(self, kind, handler):
@@ -392,7 +432,7 @@ class HejoAdapter(BasePlatformAdapter):
             await self.server.error("button_expired", frame.get("id"), conn)
             return
         if button["kind"] != "reply":
-            if self._is_sender_authorized("owner", "dm", message["employee"], thread_id=message["thread"]) is False:
+            if self._is_sender_authorized("owner", "dm", "room:"+message["room"] if message.get("room") else message["employee"], thread_id=message["thread"]) is False:
                 await self.server.error("unauthorized", frame.get("id"), conn)
                 return
             if not await native_buttons.resolve(button):
@@ -400,40 +440,50 @@ class HejoAdapter(BasePlatformAdapter):
             return
         click = {key: button[key] for key in
                  ("msg_id", "button_id", "label", "employee", "thread", "message_text")}
+        if message.get("room"):
+            click["room"]=message["room"]
         click["message_text"] = message["text"]
         handler = self._click_handlers.get("reply")
         if handler and await handler(click):
             return
         await self.receive({"employee": click["employee"], "thread": click["thread"],
                             "text": click["label"], "client_msg_id": str(uuid.uuid4()),
-                            "id": frame.get("id")}, conn,
+                            "id": frame.get("id"), **({"room":click["room"]} if click.get("room") else {})}, conn,
                            raw={"_hermes_button": {"label": click["label"], "message_id": click["msg_id"],
                                                    "message_text": click["message_text"]}})
 
     async def receive(self, frame, conn, raw=None):
+        room_id = frame.get("room")
         employee = frame["employee"]
-        if employee not in {e["id"] for e in self.employees()}:
-            await self.server.error("unknown_employee", frame.get("id"), conn)
-            return
         thread = frame.get("thread") or str(uuid.uuid4())
-        if self.journal.deleted(employee, thread):
-            await self.server.error("thread_deleted", frame.get("id"), conn)
-            return
-        # A reconnect after an uncertain acknowledgement must not execute the turn twice.
-        for row in self.journal.records:
-            if (row.get("role") == "owner" and row.get("client_msg_id") == frame["client_msg_id"]):
-                await conn.send(self.journal.public(row))
-                return
-        source = self.build_source(chat_id=employee, chat_type="dm", user_id="owner", thread_id=thread)
-        source.profile = employee
-        msg_id = str(uuid.uuid4())
         async with self.files.lock:
-            if self.journal.deleted(employee, thread):
+            if room_id in self.journal.deleted_rooms:
+                await self.server.error("room_deleted", frame.get("id"), conn)
+                return
+            room = self.journal.rooms.get(room_id)
+            if room_id and not room:
+                await self.server.error("room_not_found", frame.get("id"), conn)
+                return
+            known = {e["id"] for e in self.employees()}
+            if employee not in known:
+                await self.server.error("unknown_employee", frame.get("id"), conn)
+                return
+            scope = room_id or employee
+            if self.journal.deleted(scope, thread):
                 await self.server.error("thread_deleted", frame.get("id"), conn)
                 return
+            for row in self.journal.records:
+                if row.get("role") == "owner" and row.get("client_msg_id") == frame["client_msg_id"]:
+                    await conn.send(self.server.project(row, conn))
+                    return
+            targets = recipients(frame["text"], room, self.employees()) if room else [employee]
+            if not set(targets) <= known:
+                await self.server.error("unknown_employee", frame.get("id"), conn)
+                return
+            contexts = {target:self.room_context(room_id, thread, target) for target in targets} if room else {}
             previous = [row for row in self.journal.records if row["type"] == "message"
-                        and row.get("employee") == employee and row.get("thread") == thread]
-            context = next((row.get("_meta", {}).get("branch_context", "") for row in previous), "") if not any(row.get("role") == "owner" for row in previous) else ""
+                        and self.journal.message_threads.get(row["msg_id"]) == (scope, thread)]
+            branch = next((row.get("_meta", {}).get("branch_context", "") for row in previous), "") if not any(row.get("role") == "owner" for row in previous) else ""
             try:
                 attachments, moved = self.files.promote(employee, frame.get("files", []))
             except (UnknownFile, OSError):
@@ -441,72 +491,99 @@ class HejoAdapter(BasePlatformAdapter):
                 return
             try:
                 registrations = self.files.registration(employee, "owner", attachments)
-                await self._record({"type": "message", "msg_id": msg_id, "employee": employee,
-                                    "thread": thread, "role": "owner", "text": frame["text"],
-                                    "files": attachments, "buttons": [], "reply_state": None,
-                                    "client_msg_id": frame["client_msg_id"],
-                                    "ts": datetime.now(timezone.utc).isoformat()},
-                                   {"files": registrations} if registrations else None)
+                internal = {"files":registrations, **({"recipients":targets} if room else {})}
+                msg_id = str(uuid.uuid4())
+                await self._record({"type":"message", "msg_id":msg_id, "employee":employee,
+                    "thread":thread, "role":"owner", "text":frame["text"], "files":attachments,
+                    "buttons":[], "reply_state":None, "client_msg_id":frame["client_msg_id"],
+                    "ts":datetime.now(timezone.utc).isoformat(), **({"room":room_id} if room else {})}, internal)
             except HejoJournalError:
                 self.files.rollback(moved)
                 return
-        await self.handle_message(MessageEvent(text=with_context(context, frame["text"], "이전 스레드 대화"), source=source, user_id="owner",
-                                               message_id=msg_id, raw_message=raw or frame,
-                                               media_urls=[entry["path"] for entry in registrations],
-                                               media_types=[entry["mime"] for entry in registrations]))
+        async def deliver(target):
+            source = self.build_source(chat_id="room:"+room_id if room else employee, chat_type="dm", user_id="owner", thread_id=thread)
+            source.profile = target
+            text = with_context(contexts.get(target, ""), frame["text"], "방 대화 — 받기 전 글") if room else frame["text"]
+            text = with_context(branch, text, "이전 스레드 대화")
+            await self.handle_message(MessageEvent(text=text, source=source, user_id="owner", message_id=msg_id,
+                raw_message=raw or frame, media_urls=[entry["path"] for entry in registrations],
+                media_types=[entry["mime"] for entry in registrations]))
+        await asyncio.gather(*(deliver(target) for target in targets))
 
     async def send_typing(self, chat_id, metadata=None):
         if self.forwarder:
-            return await self._forward("send_typing", metadata=metadata)
+            return await self._forward("send_typing", metadata=metadata, chat_id=chat_id)
         metadata = metadata or {}
-        employee = metadata.get("hermes_profile") or chat_id
+        if chat_id.startswith("room:") and chat_id[5:] in self.journal.deleted_rooms:
+            log.warning("room_deleted_drop")
+            return
+        employee = metadata.get("hermes_profile") or (self.journal.rooms.get(chat_id[5:], {}).get("lead", "default") if chat_id.startswith("room:") else chat_id)
         thread = metadata.get("thread_id")
         if thread:
-            self._typing_threads.setdefault(employee, set()).add(thread)
+            self._typing_threads.setdefault(chat_id, set()).add((employee, thread))
             threads = [thread]
         else:
-            threads = sorted(self._typing_threads.get(employee, set()))
+            threads = [entry[1] for entry in sorted(self._typing_threads.get(chat_id, set()))]
         for thread in threads:
             async with self._publish_lock:
-                if self.journal.deleted(employee, thread):
+                room = chat_id[5:] if chat_id.startswith("room:") else None
+                if room in self.journal.deleted_rooms:
+                    log.warning("room_deleted_drop")
+                    continue
+                if self.journal.deleted(room or employee, thread):
                     log.warning("thread_deleted_drop")
                     continue
                 await self.server.broadcast({"v": 1, "type": "typing", "employee": employee,
-                                             "thread": thread, "on": True, "ttl_seconds": 6})
+                                             "thread": thread, "on": True, "ttl_seconds": 6, **({"room":room} if room else {})})
 
-    async def stop_typing(self, chat_id):
+    async def stop_typing(self, chat_id, metadata=None):
         if self.forwarder:
-            return await self._forward("stop_typing")
-        for thread in sorted(self._typing_threads.pop(chat_id, set())):
+            return await self._forward("stop_typing", chat_id=chat_id, metadata={"hermes_profile":self._owner_profile})
+        active=self._typing_threads.get(chat_id,set())
+        owner=(metadata or {}).get("hermes_profile") or getattr(self,"_owner_profile","default")
+        stopping={entry for entry in active if not chat_id.startswith("room:") or entry[0]==owner}
+        self._typing_threads[chat_id]=active-stopping
+        for employee, thread in sorted(stopping):
             async with self._publish_lock:
-                if self.journal.deleted(chat_id, thread):
+                room = chat_id[5:] if chat_id.startswith("room:") else None
+                if room in self.journal.deleted_rooms:
+                    log.warning("room_deleted_drop")
+                    continue
+                if self.journal.deleted(room or chat_id, thread):
                     log.warning("thread_deleted_drop")
                     continue
-                await self.server.broadcast({"v": 1, "type": "typing", "employee": chat_id, "thread": thread, "on": False})
+                await self.server.broadcast({"v": 1, "type": "typing", "employee": employee, "thread": thread, "on": False, **({"room":room} if room else {})})
 
     async def get_chat_info(self, chat_id):
         if self.forwarder:
-            return await self._forward("get_chat_info")
+            return await self._forward("get_chat_info", chat_id=chat_id)
         employee = next((e for e in self.employees() if e["id"] == chat_id), None)
         return {"name": employee["name"] if employee else chat_id, "type": "dm", "chat_id": chat_id}
 
     async def send_document(self, chat_id, file_path, caption=None, file_name=None,
                             reply_to=None, metadata=None, **kwargs):
         if self.forwarder:
-            return await self._forward("send_document", file_path, caption=caption, file_name=file_name,
+            return await self._forward("send_document", file_path, chat_id=chat_id, caption=caption, file_name=file_name,
                                        reply_to=reply_to, metadata=metadata, **kwargs)
-        employee = (metadata or {}).get("hermes_profile") or chat_id
+        employee = (metadata or {}).get("hermes_profile") or (self.journal.rooms.get(chat_id[5:], {}).get("lead", "default") if chat_id.startswith("room:") else chat_id)
+        room = chat_id[5:] if chat_id.startswith("room:") else None
+        if room in self.journal.deleted_rooms:
+            log.warning("room_deleted_drop")
+            return SendResult(success=False, error="room_deleted_drop")
         thread = (metadata or {}).get("thread_id")
         if not thread and reply_to:
             key = self.journal.message_threads.get(reply_to)
             thread = key[1] if key else None
-        if self.journal.deleted(employee, thread):
+        if self.journal.deleted(room or employee, thread):
             log.warning("thread_deleted_drop")
             return SendResult(success=False, error="thread_deleted_drop")
         path = self.validate_media_delivery_path(file_path)
         if path is None:
             return SendResult(success=False, error="invalid_file")
         async with self.files.lock:
+            if room in self.journal.deleted_rooms:
+                log.warning("room_deleted_drop")
+                return SendResult(success=False, error="room_deleted_drop")
             try:
                 info = await self.files.copy(employee, path, file_name)
                 descriptors, moved = self.files.promote(employee, [info["file_id"]])
@@ -523,7 +600,7 @@ class HejoAdapter(BasePlatformAdapter):
 
     async def send_image_file(self, chat_id, image_path, caption=None, reply_to=None, metadata=None, **kwargs):
         if self.forwarder:
-            return await self._forward("send_image_file", image_path, caption=caption,
+            return await self._forward("send_image_file", image_path, chat_id=chat_id, caption=caption,
                                        reply_to=reply_to, metadata=metadata, **kwargs)
         return await self.send_document(chat_id, image_path, caption=caption,
                                         reply_to=reply_to, metadata=metadata, **kwargs)
@@ -534,7 +611,7 @@ class HejoAdapter(BasePlatformAdapter):
             if target is None or not target.is_connected:
                 log.error("hejo_primary_unavailable")
                 return SendResult(success=False, error="hejo_primary_unavailable")
-            return await target._send_exec_approval_prompt(replace(prompt, chat_id=self._owner_profile,
+            return await target._send_exec_approval_prompt(replace(prompt, chat_id=prompt.chat_id if prompt.chat_id.startswith("room:") else self._owner_profile,
                 metadata={**(prompt.metadata or {}), "hermes_profile": self._owner_profile}))
         return await self.send(prompt.chat_id, prompt.text, metadata={
             **(prompt.metadata or {}), "_hejo_native_buttons": native_buttons.native_metadata(
@@ -542,7 +619,7 @@ class HejoAdapter(BasePlatformAdapter):
 
     async def send_clarify(self, chat_id, question, choices, clarify_id, session_key, metadata=None):
         if self.forwarder:
-            return await self._forward("send_clarify", question, choices, clarify_id, session_key, metadata=metadata)
+            return await self._forward("send_clarify", question, choices, clarify_id, session_key, chat_id=chat_id, metadata=metadata)
         if not choices:
             from tools.clarify_gateway import mark_awaiting_text
             mark_awaiting_text(clarify_id)
@@ -555,7 +632,7 @@ class HejoAdapter(BasePlatformAdapter):
 
     async def send_slash_confirm(self, chat_id, title, message, session_key, confirm_id, metadata=None):
         if self.forwarder:
-            return await self._forward("send_slash_confirm", title, message, session_key, confirm_id, metadata=metadata)
+            return await self._forward("send_slash_confirm", title, message, session_key, confirm_id, chat_id=chat_id, metadata=metadata)
         return await self.send(chat_id, title + "\n\n" + message, metadata={**(metadata or {}),
             "_hejo_native_buttons": native_buttons.native_metadata("slash", session_key,
                 [("Approve once", "once", "primary"), ("Always", "always", "default"),

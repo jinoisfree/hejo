@@ -68,7 +68,7 @@ final class LocalStore {
         if valid != data { try valid.write(to: cacheURL, options: .atomic) }
         settings.applied = seq
         // Repair an older cache that committed a scope marker before it could be compacted.
-        for frame in records where frame["scope"] as? String == "thread" { try redactThread(frame) }
+        for frame in records where frame["scope"] as? String == "thread" || frame["type"] as? String == "room_deleted" { try redactThread(frame) }
         try save()
     }
     func update(_ change: (inout LocalSettings) -> Void) throws {
@@ -85,7 +85,7 @@ final class LocalStore {
     }
     func append(_ frame: [String: Any]) throws {
         guard let seq = frame["seq"] as? Int, seq == settings.applied + 1 else { throw GateFailure.protocolError }
-        if frame["type"] as? String == "delete", frame["scope"] as? String == "thread" {
+        if frame["type"] as? String == "room_deleted" || (frame["type"] as? String == "delete" && frame["scope"] as? String == "thread") {
             let next = records + [frame]
             let redacted = Self.redacting(next, point: frame)
             try rewrite(redacted)
@@ -98,9 +98,12 @@ final class LocalStore {
         records.append(frame); settings.applied = seq; try save()
     }
     private static func redacting(_ rows: [[String: Any]], point: [String: Any]) -> [[String: Any]] {
-        guard let room = point["room"] as? String, let thread = point["thread"] as? String else { return rows }
-        let ids = Set(rows.filter { ($0["room"] as? String ?? $0["employee"] as? String) == room && $0["thread"] as? String == thread && $0["type"] as? String == "message" }.compactMap { $0["msg_id"] as? String })
+        let whole=point["type"] as? String == "room_deleted"
+        guard let room = (whole ? point["id"]:point["room"]) as? String else {return rows}
+        let thread=point["thread"] as? String
+        let ids = Set(rows.filter { ($0["room"] as? String ?? $0["employee"] as? String) == room && (whole || $0["thread"] as? String == thread) && $0["type"] as? String == "message" }.compactMap { $0["msg_id"] as? String })
         return rows.map { row in
+            if whole,row["type"] as? String == "room",let data=row["room"] as? [String:Any],data["id"] as? String==room {return ["v":1,"type":"room","seq":row["seq"]!,"room":["id":room,"deleted":true]]}
             guard ["message","edit","state"].contains(row["type"] as? String ?? ""),let id=row["msg_id"] as? String,ids.contains(id) else { return row }
             return ["v":1,"type":"delete","seq":row["seq"]!,"msg_id":id]
         }

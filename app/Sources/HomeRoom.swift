@@ -8,6 +8,7 @@ struct HomeRoom {
         var recipient:String?
         var muted:Bool?
         var picture:String?
+        var channel:String?
     }
     var settings:Settings
     var employees:[Employee]
@@ -29,6 +30,24 @@ struct HomeRoom {
             if !used.contains(where:{NSIntersectionRange($0,range).length>0}) {used.append(range);result.insert(id)}
         }
         return result
+    }
+    /// Channel mode follows Ddots.post: explicit calls win; only a leading alias is normalized.
+    func channelPost(_ text:String,picked:String?)->String {
+        var shown=text
+        if text.hasPrefix("@") {
+            let aliases=employees.flatMap{person in person.aliases.filter{!$0.isEmpty}.map{($0,person.name)}}.sorted{$0.0.count>$1.0.count}
+            for (alias,name) in aliases {
+                let call="@"+alias
+                guard text.hasPrefix(call) else{continue}
+                let tail=String(text.dropFirst(call.count))
+                if tail.isEmpty || tail.first.map({!$0.isLetter && !$0.isNumber})==true {shown="@"+name+tail;break}
+            }
+        }
+        // Calls to employees outside this room also count: the gate ignores them then falls back to lead.
+        if mentioned(shown).isEmpty,let picked,let person=employees.first(where:{$0.id==picked}) {
+            return "@"+person.name+(shown.isEmpty ? "":" "+shown)
+        }
+        return shown
     }
     func destination(text:String,picked:String?)->Destination {
         let called=mentioned(text),allowed=Set(members.map(\.id))

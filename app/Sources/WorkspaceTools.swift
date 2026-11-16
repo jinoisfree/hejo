@@ -34,7 +34,7 @@ enum WorkspaceSearch {
         for range in highlights(text,query:query) {result.addAttributes([.backgroundColor:NSColor.yellow,.foregroundColor:NSColor.black],range:NSRange(range,in:text))};return result
     }
     static func words(_ line:ConversationMessage,names:[String:String])->String {
-        ([line.text]+line.files.map(\.name)+[line.role=="owner" ? "나":names[line.key.employee] ?? line.key.employee,line.replyState.map{ThreadTools.stateLabel($0)+" "+$0} ?? ""]).joined(separator:"\n")
+        ([line.text]+line.files.map(\.name)+[line.role=="owner" ? "나":names[line.speaker] ?? line.speaker,line.replyState.map{ThreadTools.stateLabel($0)+" "+$0} ?? ""]).joined(separator:"\n")
     }
     static func preview(_ query:String,message:ConversationMessage)->(body:String,notes:[String]) {
         let terms=normalized(query).split(whereSeparator:\.isWhitespace).map(String.init)
@@ -68,7 +68,7 @@ struct RoomNotice: Equatable {
 @MainActor extension ConversationModel {
     func notices(_ employee:String,now:Date?=nil)->[RoomNotice] {
         if employee==HomeRoom.id {
-            let all=home.members.flatMap{notices($0.id,now:now)},alerts=all.filter{!$0.questions}.flatMap(\.messages)
+            let all=homeScope.flatMap{notices($0,now:now)},alerts=all.filter{!$0.questions}.flatMap(\.messages)
             return all.filter(\.questions)+(alerts.isEmpty ? []:[RoomNotice(id:"alert",title:"알림",questions:false,messages:alerts)])
         }
         let now=now ?? noticeClock()
@@ -96,6 +96,8 @@ struct RoomNotice: Equatable {
     }
     func readAllNotices(_ employee:String,now:Date=Date()) { for id in notices(employee,now:now).filter({!$0.questions}).flatMap(\.messages) {if let message=messages[id] {markNoticeRead(message.key)}} }
     func header(_ employee:String)->(title:String,description:String) {
+        if let room=groups[employee] {return (room.title,room.description ?? "")}
+        if employee==HomeRoom.id,let channel=homeChannel {return ("#"+channel.title,channel.description ?? "")}
         if let text=memberState.value("title:"+employee),let data=text.data(using:.utf8),let value=try? JSONDecoder().decode([String:String].self,from:data),let title=value["title"],!title.isEmpty {return (title,value["description"] ?? "")}
         return (room(for:employee)?.title ?? name(employee),"함께 나누는 대화")
     }

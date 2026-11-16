@@ -99,6 +99,8 @@ enum FaceGroup {
     }
 }
 final class ComposerFaces: NSView {
+    var makeMenu:((Int)->NSMenu?)?
+    override func menu(for event:NSEvent)->NSMenu? {let index=Int(convert(event.locationInWindow,from:nil).x/(homeStyle ? 34:24));return faces.indices.contains(index) ? makeMenu?(index):nil}
     var faces:[(String,ProfileAvatar)] = [] { didSet { needsDisplay=true } }
     override var isFlipped:Bool { true }
     var homeStyle=false,ring=false

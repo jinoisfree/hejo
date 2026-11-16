@@ -185,7 +185,7 @@ import AppKit
         let model = conversation.model
         let input=conversation.islandInput
         let messages=Array(model.messages.values)
-        let questions=Set(model.employees.flatMap{model.notices($0.id).filter(\.questions).flatMap(\.messages)})
+        let questions=Set(model.rooms.flatMap{model.notices($0.id).filter(\.questions).flatMap(\.messages)})
         let readIDs=Set(messages.filter{ message in
             let key=message.key
             return message.latestSeq<=max(model.memberState.read("read:"+key.employee),model.memberState.read("thread:"+key.employee+"/"+key.thread))

@@ -11,12 +11,18 @@ struct Employee: Codable, Equatable, Identifiable {
     enum CodingKeys: String,CodingKey { case id,name,aliases,avatar,color,queued;case avatarCustom="avatar_custom" }
 }
 /// The UI's conversation unit. The roster is authoritative; this is its direct-room projection.
-struct Room: Identifiable, Equatable {
-    enum Kind: String { case direct }
+struct Room: Identifiable, Equatable, Codable {
+    enum Kind: String, Codable { case direct,group }
     var id: String
     var kind: Kind
     var title: String
     var members: [String]
+    var lead:String? = nil
+    var picture:String? = nil
+    var description:String? = nil
+    var archived:Bool? = nil
+    init(id:String,title:String,members:[String],lead:String,picture:String?=nil,description:String="",archived:Bool=false){self.id=id;kind = .group;self.title=title;self.members=members;self.lead=lead;self.picture=picture;self.description=description;self.archived=archived}
+    init(from decoder:Decoder)throws {let c=try decoder.container(keyedBy:CodingKeys.self);id=try c.decode(String.self,forKey:.id);kind = try c.decodeIfPresent(Kind.self,forKey:.kind) ?? .group;title=try c.decode(String.self,forKey:.title);members=try c.decode([String].self,forKey:.members);lead=try c.decodeIfPresent(String.self,forKey:.lead);picture=try c.decodeIfPresent(String.self,forKey:.picture);description=try c.decodeIfPresent(String.self,forKey:.description);archived=try c.decodeIfPresent(Bool.self,forKey:.archived)}
     init(employee: Employee) { id=employee.id; kind = .direct; title=employee.name; members=[employee.id] }
 }
 struct ConversationKey: Hashable {
@@ -53,6 +59,8 @@ struct ConversationMessage: Identifiable, Equatable {
     var clientMessageID: String?
     var checklist: ReplyChecklist? = nil
     var branchFrom: String? = nil
+    var employee:String? = nil
+    var speaker:String {employee ?? key.employee}
 }
 struct ReplyChecklist: Codable, Equatable {
     var items: [String]
@@ -71,14 +79,19 @@ struct ConversationThread: Identifiable {
 @MainActor final class ConversationModel {
     let store: LocalStore
     private(set) var employees: [Employee] = []
-    var rooms: [Room] { employees.map(Room.init(employee:)) }
-    func room(for employee: String) -> Room? { rooms.first { $0.members.contains(employee) } }
-    func unread(room: Room) -> Int { room.members.reduce(0) { $0 + unread(employee: $1) } }
-    func threads(room: Room, query: String = "") -> [ConversationThread] { room.members.flatMap { threads(employee: $0, query: query) } }
+    private(set) var groups:[String:Room]=[:]
+    var rooms: [Room] { employees.map(Room.init(employee:)) + groups.values.sorted{$0.title<$1.title} }
+    var homeChannel:Room? {home.settings.channel.flatMap{groups[$0]}.flatMap{$0.archived==true ? nil:$0}}
+    var homeScope:[String] {homeChannel.map{[$0.id]} ?? home.members.map(\.id)}
+    func people(_ room:String)->[Employee] {let ids=groups[room]?.members;return employees.filter{ids?.contains($0.id) ?? true}}
+    func room(for employee: String) -> Room? { rooms.first { $0.id==employee } }
+    func unread(room: Room) -> Int { unread(employee:room.id) }
+    func threads(room: Room, query: String = "") -> [ConversationThread] { threads(employee:room.id,query:query) }
     private(set) var messages: [String: ConversationMessage] = [:]
     private(set) var applied = 0
     private(set) var typing: [ConversationKey: Date] = [:]
     /// When each live typing indicator first turned on; refreshes keep it, expiry or `on:false` forget it.
+    private(set) var typingPeople:[ConversationKey:[String:Date]]=[:]
     private(set) var typingSince: [ConversationKey: Date] = [:]
     private(set) var selected: ConversationKey?
     private(set) var visible = false
@@ -88,7 +101,8 @@ struct ConversationThread: Identifiable {
         let settings=memberState.value("layout:home").flatMap{$0.data(using:.utf8)}.flatMap{try? JSONDecoder().decode(HomeRoom.Settings.self,from:$0)} ?? HomeRoom.Settings()
         return HomeRoom(settings:settings,employees:employees)
     }
-    var petMuted:Set<String> {muted.union(home.settings.muted==true ? Set(home.members.map(\.id)):[])}
+    var homeRecipients:HomeRoom {var result=home;if let channel=homeChannel {result.settings.members=channel.members};return result}
+    var petMuted:Set<String> {muted.union(home.settings.muted==true ? Set(home.members.map(\.id)+(homeChannel.map{[$0.id]} ?? [])):[])}
     func configureHome(_ update:(inout HomeRoom.Settings)->Void){var settings=home.settings;update(&settings);saveLayout("layout:home",settings)}
     func toggleHomeMember(_ employee:String){
         var ids=home.members.map(\.id);if let index=ids.firstIndex(of:employee){ids.remove(at:index)}else{ids.append(employee)}
@@ -96,7 +110,7 @@ struct ConversationThread: Identifiable {
     }
     func selectHome(_ key:ConversationKey?=nil,notify:Bool=true){select(key ?? ConversationKey(employee:HomeRoom.id,thread:UUID().uuidString.lowercased()),notify:notify,inHome:true)}
     var homeThreads:[ConversationThread] {
-        home.members.flatMap{threads(employee:$0.id)}.sorted{a,b in
+        homeScope.flatMap{threads(employee:$0)}.sorted{a,b in
             let x=timeline(a.key).map{ThreadTools.date($0.timestamp)}.max() ?? .distantPast,y=timeline(b.key).map{ThreadTools.date($0.timestamp)}.max() ?? .distantPast
             return x==y ? a.id<b.id:x<y
         }
@@ -139,13 +153,13 @@ struct ConversationThread: Identifiable {
         for (index,id) in pinned.enumerated() where layout.pins[id]==nil { layout.pins[id]=index+1 }
         let fractional=ISO8601DateFormatter();fractional.formatOptions=[.withInternetDateTime,.withFractionalSeconds]
         let seconds=ISO8601DateFormatter()
-        layout.items=rooms.enumerated().filter { !hidden.contains($0.element.id) }.map { index,room in
-            let posts=messages.values.filter { room.members.contains($0.key.employee) }
+        layout.items=rooms.enumerated().filter { !hidden.contains($0.element.id) && $0.element.archived != true }.map { index,room in
+            let posts=messages.values.filter { room.id==$0.key.employee }
             let latest=posts.map { (fractional.date(from:$0.timestamp) ?? seconds.date(from:$0.timestamp))?.timeIntervalSince1970 ?? Double($0.latestSeq) }.max() ?? 0
-            return SidebarLayout.Item(id:room.id,name:room.title,kind:.direct,members:room.members,rank:index,latest:latest,unread:unread(room:room),questions:notices(room.id).filter(\.questions).reduce(0){$0+$1.messages.count},alerts:notices(room.id).filter{!$0.questions}.reduce(0){$0+$1.messages.count},muted:muted.contains(room.id))
+            return SidebarLayout.Item(id:room.id,name:room.title,kind:room.kind == .direct ? .direct:.group,members:room.members,rank:index,latest:latest,unread:unread(room:room),questions:notices(room.id).filter(\.questions).reduce(0){$0+$1.messages.count},alerts:notices(room.id).filter{!$0.questions}.reduce(0){$0+$1.messages.count},muted:muted.contains(room.id),picture:room.picture)
         }
-        let memberIDs=home.members.map(\.id),posts=messages.values.filter{memberIDs.contains($0.key.employee)}
-        layout.items.insert(.init(id:HomeRoom.id,name:store.settings.petName,kind:.home,members:memberIDs,latest:Double(posts.map(\.latestSeq).max() ?? 0),unread:memberIDs.reduce(0){$0+unread(employee:$1)},muted:home.settings.muted==true,picture:home.settings.picture),at:0)
+        let memberIDs=homeChannel?.members ?? home.members.map(\.id),scope=homeScope,posts=messages.values.filter{scope.contains($0.key.employee)}
+        layout.items.insert(.init(id:HomeRoom.id,name:store.settings.petName,kind:.home,members:memberIDs,latest:Double(posts.map(\.latestSeq).max() ?? 0),unread:scope.reduce(0){$0+unread(employee:$1)},muted:home.settings.muted==true,picture:home.settings.picture),at:0)
         return layout
     }
     private func saveLayout<T:Encodable>(_ key:String,_ value:T) {
@@ -201,7 +215,7 @@ struct ConversationThread: Identifiable {
         memberState.onChange = { [weak self] in
             guard let self else { return }
             if self.isHome {
-                if let key=self.selected,key.employee != HomeRoom.id,!self.home.members.contains(where:{$0.id==key.employee}) {self.selectHome(notify:false)}
+                if let key=self.selected,key.employee != HomeRoom.id,!self.homeScope.contains(key.employee) {self.selectHome(notify:false)}
             } else if let current = self.selected?.employee, self.hidden.contains(current) {
                 if let next = self.displayRooms.first { self.select(employee: next.id, notify: false) }
                 else { self.selected = nil }
@@ -223,7 +237,7 @@ struct ConversationThread: Identifiable {
     func hide(_ employee: String) { changeState(["hide:" + employee: "1", "pin:" + employee: nil]) }
     func restore(_ employee: String) { changeState(["hide:" + employee: nil]) }
     func markAllRead(_ employee: String) {
-        if employee==HomeRoom.id {for person in home.members {markAllRead(person.id)};return}
+        if employee==HomeRoom.id {for room in homeScope {markAllRead(room)};return}
         var values: [String: String?] = [:]
         let roomMessages = messages.values.filter { $0.key.employee == employee }
         values["read:" + employee] = String(roomMessages.map(\.latestSeq).max() ?? 0)
@@ -232,7 +246,7 @@ struct ConversationThread: Identifiable {
         }
         changeState(values);readAllNotices(employee)
     }
-    func resetReplica() { messages = [:]; typing = [:]; typingSince = [:]; applied = 0; selected = nil; isHome=false; onChange?() }
+    func resetReplica() { groups=[:];messages = [:]; typingPeople=[:];typing = [:]; typingSince = [:]; applied = 0; selected = nil; isHome=false; onChange?() }
     private func decode<T: Decodable>(_ value: Any, as type: T.Type) throws -> T {
         try JSONDecoder().decode(type, from: JSONSerialization.data(withJSONObject: value))
     }
@@ -243,17 +257,26 @@ struct ConversationThread: Identifiable {
             if seq <= applied { return }
             guard seq == applied + 1 else { throw GateFailure.protocolError }
             switch type {
+            case "room":
+                if let data=frame["room"] as? [String:Any],let id=data["id"] as? String {
+                    if data["deleted"] as? Bool == true {removeRoom(id)} else {
+                        let room=try decode(data,as:Room.self);let previous=groups[id];groups[id]=room
+                        if !loadingRecords,previous==nil,memberState.value("zone:"+id)==nil {move(id,to:sidebar.sections[0].id)}
+                    }
+                }
+            case "room_deleted":if let id=frame["id"] as? String {removeRoom(id)}
             case "message":
                 guard let id = frame["msg_id"] as? String, let employee = frame["employee"] as? String,
                       let thread = frame["thread"] as? String, let text = frame["text"] as? String,
                       let role = frame["role"] as? String, let ts = frame["ts"] as? String else { throw GateFailure.protocolError }
-                let message = ConversationMessage(id: id, key: ConversationKey(employee: employee, thread: thread), role: role, text: text,
+                let message = ConversationMessage(id: id, key: ConversationKey(employee: frame["room"] as? String ?? employee, thread: thread), role: role, text: text,
                     files: try decode(frame["files"] ?? [], as: [MessageFile].self), buttons: try decode(frame["buttons"] ?? [], as: [MessageButton].self),
                     replyState: frame["reply_state"] as? String, seq: seq, latestSeq: seq, timestamp: ts, clientMessageID: frame["client_msg_id"] as? String)
                 messages[id] = message
+                messages[id]?.employee=employee
                 if let checklist=frame["checklist"] { messages[id]?.checklist=try decode(checklist,as:ReplyChecklist.self) }
                 messages[id]?.branchFrom=(frame["branch_from"] as? [String:Any])?["thread"] as? String
-                if !loadingRecords, hidden.contains(employee) { restore(employee); revealedHiddenRoom = true }
+                if !loadingRecords, hidden.contains(message.key.employee) { restore(message.key.employee); revealedHiddenRoom = true }
             case "edit":
                 guard let id = frame["msg_id"] as? String, let text = frame["text"] as? String, let final = frame["final"] as? Bool else { throw GateFailure.protocolError }
                 if var message = messages[id] {
@@ -265,7 +288,7 @@ struct ConversationThread: Identifiable {
             case "delete":
                 if frame["scope"] as? String == "thread",let room=frame["room"] as? String,let thread=frame["thread"] as? String {
                     let key=ConversationKey(employee:room,thread:thread)
-                    messages=messages.filter { $0.value.key != key };typing[key]=nil;typingSince[key]=nil
+                    messages=messages.filter { $0.value.key != key };typing[key]=nil;typingSince[key]=nil;typingPeople[key]=nil
                     if selected==key { selected=nil }
                 } else if let id = frame["msg_id"] as? String { messages[id] = nil }
             case "state":
@@ -278,18 +301,26 @@ struct ConversationThread: Identifiable {
             if revealedHiddenRoom { onChange?() }
         } else if type == "welcome" || type == "roster" {
             let rows = frame["employees"] as? [[String: Any]] ?? []
+            if type=="welcome",let rooms=frame["rooms"] as? [[String:Any]] {groups=try Dictionary(uniqueKeysWithValues:rooms.map{row in let room=try decode(row,as:Room.self);return(room.id,room)})}
             employees = try rows.map { row in try decode(row, as: Employee.self) }
-            if let selected, !(isHome && selected.employee==HomeRoom.id), !employees.contains(where: { $0.id == selected.employee }) { if isHome {selectHome(notify:false)} else {self.selected=nil} }
+            if let selected, !(isHome && selected.employee==HomeRoom.id), !rooms.contains(where: { $0.id == selected.employee }) { if isHome {selectHome(notify:false)} else {self.selected=nil} }
         } else if type == "typing", let employee = frame["employee"] as? String, let thread = frame["thread"] as? String {
-            let key = ConversationKey(employee: employee, thread: thread)
+            let key = ConversationKey(employee: frame["room"] as? String ?? employee, thread: thread)
             if frame["on"] as? Bool == true {
                 if (typing[key].map { $0 <= now } ?? true) { typingSince[key] = now }
-                typing[key] = now.addingTimeInterval(TimeInterval(frame["ttl_seconds"] as? Int ?? 6))
-            } else { typing[key] = nil; typingSince[key] = nil }
+                let expiry=now.addingTimeInterval(TimeInterval(frame["ttl_seconds"] as? Int ?? 6));typingPeople[key,default:[:]][employee]=expiry;typing[key]=typingPeople[key]?.values.max()
+            } else {typingPeople[key]?[employee]=nil;typing[key]=typingPeople[key]?.values.filter{$0>now}.max();if typing[key]==nil {typingSince[key]=nil}}
         }
         if selected == nil {if isHome {selectHome(notify:false)} else if let first=displayRooms.first {select(employee:first.id,notify:false)}}
         try markVisibleRead()
         onChange?()
+    }
+    /// Called only after a fresh welcome/current replay, never for historical room records.
+    func clearArchivedPins(){for room in groups.values where room.archived==true && pinned.contains(room.id) {pin(room.id,slot:nil)}}
+    private func removeRoom(_ id:String){
+        groups[id]=nil;typingPeople=typingPeople.filter{$0.key.employee != id};messages=messages.filter{$0.value.key.employee != id};typing=typing.filter{$0.key.employee != id};typingSince=typingSince.filter{$0.key.employee != id}
+        if selected?.employee==id {selected=nil}
+        if pinned.contains(id) {pin(id,slot:nil)}
     }
     func threads(employee: String, query: String = "") -> [ConversationThread] {
         let grouped = Dictionary(grouping: messages.values.filter { $0.key.employee == employee }, by: \.key)
@@ -327,9 +358,9 @@ struct ConversationThread: Identifiable {
     func check(_ id:String,line:Int,original:Bool)->Bool { memberState.value("check:"+id+":"+String(line)).map{$0=="1"} ?? original }
     func toggleCheck(_ id:String,line:Int,original:Bool) { changeState(["check:"+id+":"+String(line):check(id,line:line,original:original) ? "0":"1"]) }
     func unread(employee: String) -> Int { Set(messages.values.filter { $0.key.employee == employee }.map(\.key)).reduce(0) { $0 + unread($1) } }
-    func name(_ employee: String) -> String { if employee==HomeRoom.id {return store.settings.petName};return employees.first { $0.id == employee }?.name ?? employee }
+    func name(_ employee: String) -> String { if employee==HomeRoom.id {return store.settings.petName};return groups[employee]?.title ?? employees.first { $0.id == employee }?.name ?? employee }
     func select(employee: String, notify: Bool = true) {
-        guard employees.contains(where: { $0.id == employee }) else { return }
+        guard rooms.contains(where: { $0.id == employee }) else { return }
         select(threads(employee: employee).first?.key ?? ConversationKey(employee: employee, thread: UUID().uuidString.lowercased()), notify: notify)
     }
     func select(_ key: ConversationKey, notify: Bool = true,inHome:Bool=false) {
@@ -345,6 +376,7 @@ struct ConversationThread: Identifiable {
         try memberState.set([key: String(seq)])
     }
     func expireTyping(now: Date = Date()) {
+        typingPeople=typingPeople.mapValues{$0.filter{$0.value>now}}.filter{!$0.value.isEmpty}
         let kept = typing.filter { $0.value > now }
         if kept.count != typing.count { typing = kept; typingSince = typingSince.filter { kept[$0.key] != nil }; onChange?() }
     }

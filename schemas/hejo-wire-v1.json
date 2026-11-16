@@ -62,6 +62,21 @@
     },
     {
       "$ref": "#/$defs/thread_branch"
+    },
+    {
+      "$ref": "#/$defs/room_save"
+    },
+    {
+      "$ref": "#/$defs/room_archive"
+    },
+    {
+      "$ref": "#/$defs/room_delete"
+    },
+    {
+      "$ref": "#/$defs/room"
+    },
+    {
+      "$ref": "#/$defs/room_deleted"
     }
   ],
   "$defs": {
@@ -230,6 +245,13 @@
             "password"
           ],
           "additionalProperties": false
+        },
+        "features": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
         }
       },
       "required": [
@@ -332,6 +354,12 @@
         "head_seq": {
           "type": "integer",
           "minimum": 0
+        },
+        "rooms": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/room_data"
+          }
         }
       },
       "required": [
@@ -560,6 +588,9 @@
             "type": "string",
             "minLength": 1
           }
+        },
+        "room": {
+          "$ref": "#/$defs/thread"
         }
       },
       "required": [
@@ -650,6 +681,9 @@
             "thread"
           ],
           "additionalProperties": false
+        },
+        "room": {
+          "$ref": "#/$defs/thread"
         }
       },
       "required": [
@@ -703,6 +737,9 @@
         },
         "checklist": {
           "$ref": "#/$defs/checklist"
+        },
+        "room": {
+          "$ref": "#/$defs/thread"
         }
       },
       "required": [
@@ -783,6 +820,9 @@
         },
         "ttl_seconds": {
           "const": 6
+        },
+        "room": {
+          "$ref": "#/$defs/thread"
         }
       },
       "required": [
@@ -840,6 +880,9 @@
             "answered",
             "closed"
           ]
+        },
+        "room": {
+          "$ref": "#/$defs/thread"
         }
       },
       "required": [
@@ -981,6 +1024,15 @@
         },
         {
           "$ref": "#/$defs/thread_branch"
+        },
+        {
+          "$ref": "#/$defs/room_save"
+        },
+        {
+          "$ref": "#/$defs/room_archive"
+        },
+        {
+          "$ref": "#/$defs/room_delete"
         }
       ]
     },
@@ -1021,6 +1073,12 @@
         },
         {
           "$ref": "#/$defs/ping"
+        },
+        {
+          "$ref": "#/$defs/room"
+        },
+        {
+          "$ref": "#/$defs/room_deleted"
         }
       ]
     },
@@ -1153,6 +1211,209 @@
         "items",
         "selected",
         "can_skip"
+      ],
+      "additionalProperties": false
+    },
+    "room_data": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/thread"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": {
+              "type": "string"
+            },
+            "members": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "minItems": 2,
+              "uniqueItems": true
+            },
+            "lead": {
+              "type": "string",
+              "minLength": 1
+            },
+            "picture": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "archived": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "id",
+            "title",
+            "description",
+            "members",
+            "lead",
+            "picture",
+            "archived"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/thread"
+            },
+            "deleted": {
+              "const": true
+            }
+          },
+          "required": [
+            "id",
+            "deleted"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "room_save": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "room_save"
+        },
+        "id": {
+          "$ref": "#/$defs/thread"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 2,
+          "uniqueItems": true
+        },
+        "lead": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "title",
+        "members",
+        "lead"
+      ],
+      "additionalProperties": false
+    },
+    "room_archive": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "room_archive"
+        },
+        "id": {
+          "$ref": "#/$defs/thread"
+        },
+        "archived": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "id",
+        "archived"
+      ],
+      "additionalProperties": false
+    },
+    "room_delete": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "room_delete"
+        },
+        "id": {
+          "$ref": "#/$defs/thread"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "room": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "room"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "room": {
+          "$ref": "#/$defs/room_data"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "seq",
+        "room"
+      ],
+      "additionalProperties": false
+    },
+    "room_deleted": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "room_deleted"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "id": {
+          "$ref": "#/$defs/thread"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "seq",
+        "id"
       ],
       "additionalProperties": false
     }

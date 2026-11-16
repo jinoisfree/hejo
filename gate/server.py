@@ -12,6 +12,7 @@ from jsonschema import Draft202012Validator
 from .auth import AuthRejected
 from .files import MAX_FILE_BYTES, UnknownFile
 from .pictures import Pictures, MAX_PICTURE_BYTES, valid_png
+from .journal import HejoJournalError
 from hermes_constants import get_hermes_home
 
 log = logging.getLogger(__name__)
@@ -58,6 +59,7 @@ class Connection:
     overflow: bool = False
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     hub_token: str = None  # set for hub-issued sign-ins; re-checked with the hub while connected
+    features: set = field(default_factory=set)
 
     async def send(self, frame):
         if not self.ws.closed:
@@ -159,8 +161,33 @@ class GateServer:
 
     async def picture(self, request):
         await self.http_auth(request)
+        identifier = request.match_info["identifier"]
+        if request.match_info["kind"] == "room" and not identifier.startswith(("home-", "section-")) and request.method != "GET":
+            async with self.adapter.files.lock, self.adapter._publish_lock:
+                room = self.adapter.journal.rooms.get(identifier)
+                if room is None:
+                    raise web.HTTPNotFound()
+                path = self.pictures.path("room", identifier)
+                before = path.read_bytes() if path.is_file() else None
+                response = await self._picture(request)
+                picture = json.loads(response.body)["picture"]
+                try:
+                    saved = await self.adapter.journal.append({"v": 1, "type": "room", "room": {**room, "picture": picture}})
+                except HejoJournalError:
+                    if before is None:
+                        self.pictures.delete("room", identifier)
+                    else:
+                        self.pictures.put("room", identifier, before)
+                    raise web.HTTPInternalServerError(text="journal_write_failed") from None
+                await self.broadcast(saved)
+                return response
+        return await self._picture(request)
+
+    async def _picture(self, request):
         kind, identifier = request.match_info["kind"], request.match_info["identifier"]
         if kind == "employee" and identifier not in {e["id"] for e in self.adapter.employees()}:
+            raise web.HTTPNotFound()
+        if kind == "room" and not identifier.startswith(("home-", "section-")) and identifier not in self.adapter.journal.rooms:
             raise web.HTTPNotFound()
         try:
             picture = None
@@ -225,7 +252,8 @@ class GateServer:
     async def broadcast(self, frame):
         for conn in tuple(self.connections):
             if "seq" not in frame:
-                await conn.send(frame)
+                if not self.adapter.journal.room_id(frame) or "rooms" in conn.features:
+                    await conn.send(frame)
                 continue
             async with conn.lock:
                 if conn.replaying:
@@ -235,7 +263,13 @@ class GateServer:
                             conn.queue.clear()
                             conn.overflow = True
                 else:
-                    await conn.send(frame)
+                    await conn.send(self.project(frame, conn))
+
+    def project(self, frame, conn):
+        room = self.adapter.journal.room_id(frame)
+        if room and "rooms" not in conn.features:
+            return {"v": 1, "type": "delete", "seq": frame["seq"], "msg_id": frame.get("msg_id", "room:" + room)}
+        return self.adapter.journal.replay(frame)
 
     async def sync(self, conn, since, ref):
         async with conn.lock:
@@ -244,7 +278,7 @@ class GateServer:
             conn.queue.clear()
             page = self.adapter.journal.page(since, LIMITS["sync_page"])
         for frame in page:
-            await conn.send(self.adapter.journal.replay(frame))
+            await conn.send(self.project(frame, conn))
         through = page[-1]["seq"] if page else since
         async with conn.lock:
             head = self.adapter.journal.head
@@ -254,7 +288,7 @@ class GateServer:
             if not more:
                 for frame in conn.queue:
                     if frame["seq"] > through:
-                        await conn.send(self.adapter.journal.replay(frame))
+                        await conn.send(self.project(frame, conn))
                 conn.replaying = False
             conn.queue.clear()
 
@@ -329,10 +363,12 @@ class GateServer:
                 await ws.send_json({"v": 1, "type": "pair_rejected" if paired else "auth_rejected",
                                     "reason": exc.reason})
                 return ws
-            conn = Connection(ws, device_id, replaying=True, hub_token=hub_token)
+            conn = Connection(ws, device_id, replaying=True, hub_token=hub_token, features=set(hello.get("features", [])))
             welcome = {"v": 1, "type": "welcome", "device_id": device_id,
                        "gate_version": "1.0.0", "employees": self.adapter.employees(),
                        "head_seq": self.adapter.journal.head}
+            if "rooms" in conn.features:
+                welcome["rooms"] = list(self.adapter.journal.rooms.values())
             if paired:
                 welcome["token"] = token
             await conn.send(welcome)
@@ -369,6 +405,8 @@ class GateServer:
                         await self.adapter.thread_delete(frame, conn)
                     elif frame["type"] == "thread_branch":
                         await self.adapter.thread_branch(frame, conn)
+                    elif frame["type"] in {"room_save", "room_archive", "room_delete"}:
+                        await self.adapter.room_command(frame, conn)
                     elif frame["type"] != "pong":
                         await self.error("unexpected_frame", frame.get("id"), conn)
                 except Exception as exc:

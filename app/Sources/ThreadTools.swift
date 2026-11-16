@@ -30,7 +30,7 @@ enum ThreadTools {
     static func stateLabel(_ state:String)->String {state=="asked" ? "답을 기다리는 중":state=="answered" || state=="closed" ? "처리 완료":state}
     static func answeredFaces(_ messages:[ConversationMessage])->[String] {
         var seen=Set<String>()
-        return Array(messages.dropLast().filter{$0.role=="employee" && seen.insert($0.key.employee).inserted}.prefix(3)).map{$0.key.employee}
+        return Array(messages.dropLast().filter{$0.role=="employee" && seen.insert($0.speaker).inserted}.prefix(3)).map{$0.speaker}
     }
     static func copy(_ messages:[ConversationMessage],key:ConversationKey,name:(String)->String,zone:TimeZone = .current)->String {
         let stamp=DateFormatter();stamp.locale=Locale(identifier:"en_US_POSIX");stamp.timeZone=zone;stamp.dateFormat="yyyy-MM-dd HH:mm"
@@ -38,7 +38,7 @@ enum ThreadTools {
         var sections=["@"+name(key.employee)+" 스레드 · 글 \(lines.count)개\n"+link(key).absoluteString]
         sections += lines.map { message in
             let body=message.text.replacingOccurrences(of:#"<((?:https?://|mailto:)[^<>\s]+)>"#,with:"$1",options:.regularExpression)
-            var parts=["["+stamp.string(from:date(message.timestamp))+"] "+(message.role=="owner" ? "나":name(message.key.employee))]
+            var parts=["["+stamp.string(from:date(message.timestamp))+"] "+(message.role=="owner" ? "나":name(message.speaker))]
             if !body.isEmpty { parts.append(body) }
             if let state=message.replyState { parts.append("["+stateLabel(state)+"]") }
             parts += message.files.map{"📎 "+$0.name}

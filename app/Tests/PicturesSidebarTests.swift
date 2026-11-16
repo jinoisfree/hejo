@@ -131,7 +131,7 @@ import UniformTypeIdentifiers
     try check(model.sidebar.zone("alpha")=="1" && model.sidebar.sections.count==2,"AT69 removal moves to first remaining")
     model.addSection();try check(model.sidebar.sections.count==3 && model.sidebar.sections.last?.id=="5","AT69 empty section after existing sections")
     model.editSection("5",name:String(repeating:"a",count:40));try check(model.sidebar.sections.last?.name.count==30,"AT69 section name length")
-    try check(view.addMenu().items.map(\.title)==["새 섹션 만들기","","목록에서 뺀 방"],"AT69 phase one plus menu")
+    try check(view.addMenu().items.map(\.title)==["새 방 만들기…","새 섹션 만들기","","목록에서 뺀 방"],"AT69 room addition plus menu")
     let replica=try ConversationModel(store:LocalStore(directory:directory))
     try check(replica.sidebar.sections==model.sidebar.sections && replica.sidebar.pins==model.sidebar.pins,"AT69 reopen uses MemberState")
     print("AT-HF-68 automatic PASS; AT-HF-69 automatic PASS")

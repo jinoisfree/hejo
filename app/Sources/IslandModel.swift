@@ -87,10 +87,10 @@ final class IslandModel {
         let questions=next.messages.filter { $0.role == "employee" && $0.replyState == "asked" }.sorted { $0.seq < $1.seq }
         if initialized {
             for message in questions where !asked.contains(message.id) && !next.muted.contains(message.key.employee) {
-                enqueue(Event(kind:.owner,text:Self.firstLine(message.text)+" · 답 요청",name:next.names[message.key.employee] ?? message.key.employee,action:.question(message.id,message.key),remaining:4))
+                enqueue(Event(kind:.owner,text:Self.firstLine(message.text)+" · 답 요청",name:next.names[message.speaker] ?? message.key.employee,action:.question(message.id,message.key),remaining:4))
             }
             for message in next.messages.sorted(by:{$0.seq<$1.seq}) where message.role == "employee" && message.seq>highSequence && message.key != next.selected && recentWork[message.key] != nil && message.replyState != "asked" && !next.muted.contains(message.key.employee) {
-                enqueue(Event(kind:.worker,text:"답글 · 보기 ›",name:next.names[message.key.employee] ?? message.key.employee,action:.worker(message.key),remaining:3))
+                enqueue(Event(kind:.worker,text:"답글 · 보기 ›",name:next.names[message.speaker] ?? message.key.employee,action:.worker(message.key),remaining:3))
             }
         }
         asked=Set(questions.map(\.id)); highSequence=next.messages.map(\.seq).max() ?? 0

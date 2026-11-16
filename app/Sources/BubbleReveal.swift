@@ -86,7 +86,7 @@ import AppKit
         if let shown=current, shown.until!<=now || !ids.contains(shown.id ?? "") || acknowledged.contains(shown.id ?? "") || shown.key.map({input.muted.contains($0.employee)}) == true {current=nil}
         if input.paused {notice=Notice(kind:.idle,headline:"쉬고 있어요",detail:"메뉴에서 다시 시작할 수 있어요",key:nil)}
         else if let question=liveQuestions.first(where:{!openedQuestions.contains($0.id)}) {
-            notice=Notice(kind:.approval,headline:(input.names[question.key.employee] ?? "직원")+" · 답변이 필요해요",detail:Self.preview(question.text),key:question.key,sender:input.names[question.key.employee] ?? "직원",id:question.id)
+            notice=Notice(kind:.approval,headline:(input.names[question.speaker] ?? "직원")+" · 답변이 필요해요",detail:Self.preview(question.text),key:question.key,sender:input.names[question.speaker] ?? "직원",id:question.id)
         } else if let failure=input.failure,failure.retryKey.map({!input.muted.contains($0.employee)}) ?? true {
             notice=Notice(kind:.failure,headline:"보내지 못했어요",detail:failure.message,key:failure.retryKey)
         } else if let key=input.typing.filter({$0.value>now && !input.muted.contains($0.key.employee)}).keys.sorted(by:{ a,b in
@@ -99,7 +99,7 @@ import AppKit
         return !fresh.isEmpty && !input.paused
     }
     private func reply(_ message:ConversationMessage,names:[String:String],now:Date,reminder:Bool)->Notice {
-        let name=names[message.key.employee] ?? "직원"
+        let name=names[message.speaker] ?? "직원"
         return Notice(kind:.reply,headline:name+" · "+(reminder ? "다시 알림":"새 메시지"),detail:Self.preview(message.text),key:message.key,sender:name,id:message.id,body:message.text,until:now.addingTimeInterval(Self.alertStay))
     }
     @discardableResult func remindLater(now:Date)->Bool {

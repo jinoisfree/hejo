@@ -13,8 +13,25 @@ final class DraftTextView: NSTextView {
         }
         return super.performKeyEquivalent(with: event)
     }
+    var mentions:[String]=[]
+    private var completingMention=false
+    override var rangeForUserCompletion:NSRange {
+        let before=(string as NSString).substring(to:min(selectedRange().location,(string as NSString).length))
+        if let at=before.lastIndex(of:"@") {
+            let suffix=String(before[at...]);if mentions.contains(where:{("@"+$0).lowercased().hasPrefix(suffix.lowercased())}) {return NSRange(at..<before.endIndex,in:before)}
+        }
+        return super.rangeForUserCompletion
+    }
+    override func completions(forPartialWordRange range:NSRange,indexOfSelectedItem index:UnsafeMutablePointer<Int>?)->[String]? {
+        let prefix=(string as NSString).substring(with:range)
+        guard prefix.hasPrefix("@") else{return []}
+        let values=mentions.map{"@"+$0}.filter{$0.lowercased().hasPrefix(prefix.lowercased())}
+        completingMention = !values.isEmpty;index?.pointee=0;return values
+    }
+    override func insertCompletion(_ word:String,forPartialWordRange range:NSRange,movement:Int,isFinal:Bool){super.insertCompletion(word,forPartialWordRange:range,movement:movement,isFinal:isFinal);if isFinal {completingMention=false}}
     var onSubmit: (() -> Void)?
     override func keyDown(with event: NSEvent) {
+        if completingMention,[36,76,48,53,123,124,125,126].contains(event.keyCode) {super.keyDown(with:event);return}
         if [36,76].contains(event.keyCode), !hasMarkedText() {
             if event.modifierFlags.intersection([.shift,.option]).isEmpty { onSubmit?() }
             else { insertText("\n", replacementRange: selectedRange()) }

@@ -39,7 +39,7 @@ func homeRequire<T>(_ value:T?,_ message:String)throws->T {guard let value else{
     try check(model.petMuted==Set(["alpha","beta"]) && controller.islandInput.muted==Set(["alpha","beta"]) && model.visibleUnreadTotal==1,"AT80 muted home quiets only included direct rooms without double badge")
     model.configureHome{$0.muted=false};try check(model.petMuted.isEmpty,"AT80 home alerts restore")
     view.chooseHome();let menu=view.homeMenu()
-    try check(menu.items.filter{!$0.isSeparatorItem}.map(\.title)==["사진 바꾸기…","홈에 보일 직원","기본 받을 직원","알림 끄기"],"AT80 home native menu order")
+    try check(menu.items.filter{!$0.isSeparatorItem}.map(\.title)==["사진 바꾸기…","홈에 보일 직원","기본 받을 직원","알림 끄기","고정 채널 변경"],"AT80 home native menu order")
     try check(menu.items.first{$0.title=="홈에 보일 직원"}?.submenu?.items.map(\.state)==[.on,.on,.off],"AT80 membership checkmarks")
     let reopened=try ConversationModel(store:LocalStore(directory:home));try reopened.apply(["type":"roster","employees":try JSONSerialization.jsonObject(with:JSONEncoder().encode(model.employees))]);try check(reopened.home.members.map(\.id)==["alpha","beta"] && reopened.home.defaultRecipient=="beta","AT80 home settings restore through member state")
     if let outputDirectory {

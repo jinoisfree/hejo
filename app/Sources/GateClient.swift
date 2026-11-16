@@ -115,7 +115,7 @@ struct ReconnectDelay {
                     ws.cancel(with: .goingAway, reason: nil)
                 }
                 defer { deadline.cancel() }
-                var hello: [String: Any] = ["v": 1, "type": "hello", "device_name": store.settings.deviceName, "app_version": AppIdentity.version, "since": store.settings.applied]
+                var hello: [String: Any] = ["v": 1, "type": "hello", "device_name": store.settings.deviceName, "app_version": AppIdentity.version, "since": store.settings.applied, "features":["rooms"]]
                 if let pairCode { hello["pair_code"] = pairCode } else if let signInFields { hello.merge(signInFields) { $1 } } else { hello["token"] = token! }
                 try await ws.send(.string(Self.encoded(hello)))
                 while !Task.isCancelled && run == generation {
