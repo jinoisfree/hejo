@@ -1113,3 +1113,4 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
   - DM 묶음: 머리줄은 이름 글자만이다(ddots `slackFolded`). 얼굴 줄은 없고 기본 이름은 "DM"이다.
   - + 버튼: 목록 마지막 줄 바로 아래에 둔다(ddots `slackAddRoom` 위치). 맨 아래 고정이 아니다.
   - 한글 입력: 원인 후보는 `RoomDialogs.swift:26~27`의 Slack 채널 이름 변환이다(소문자·빈칸→-·영숫자만). 입력 중에 글자를 고치면 조합 중 글자가 깨진다. 방 이름은 자유 글로 하고, 조합 중에는 글자를 고치지 않는다. 85줄의 Slack 안내 문구도 뺀다. 다른 입력칸(제목·설명·구획 이름·작성기)도 함께 확인한다.
+- **보완 37 추가 2(사장 지적 '섹션 열리는 애니메이션'):** spec REQ-HF-34.AC-08과 AT-85를 따른다. ddots 원문은 `SlackModel.motion = easeInOut(0.24)`, `animated{}`, 사이드바 `.animation(value: rooms)`, 선택 표시 spring(0.34, 0.88)이다. hejo는 지금 움직임이 없다. AppKit에서는 `NSAnimationContext`(0.24, easeInEaseOut)로 줄 frame·alpha·rail 높이를 함께 움직이고, '동작 줄이기'면 즉시 바꾼다.
