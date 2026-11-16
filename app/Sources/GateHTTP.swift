@@ -65,6 +65,7 @@ enum FileTransferFailure: Error { case tooLarge, invalidFile, unauthorized, unav
     }
     func download(_ file: MessageFile, employee: String) async throws -> URL {
         try Self.validate(file)
+        let wasRegistered=client.store.hasFile(file.fileID)
         let request = try client.authorizedRequest(components: ["v1", "files", employee, file.fileID])
         let (temporary, response) = try await session.download(for: request)
         defer { try? FileManager.default.removeItem(at: temporary) }
@@ -72,13 +73,14 @@ enum FileTransferFailure: Error { case tooLarge, invalidFile, unauthorized, unav
         let values = try temporary.resourceValues(forKeys: [.fileSizeKey])
         guard values.fileSize == file.size else { throw FileTransferFailure.changed }
         let cache = client.store.directory
-        return try await Task.detached {
+        let data=try await Task.detached {try Data(contentsOf:temporary)}.value
+        // Serialize cache publication with scope redaction on the main actor, including an in-flight download.
+        if wasRegistered && !client.store.hasFile(file.fileID) {throw FileTransferFailure.unavailable}
             let destination = cache.appendingPathComponent("cache/files/" + file.fileID, isDirectory: true)
             try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
             let target = destination.appendingPathComponent(file.name)
-            let data = try Data(contentsOf: temporary); try data.write(to: target, options: .atomic)
+            try data.write(to: target, options: .atomic)
             try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: target.path)
             return target
-        }.value
     }
 }

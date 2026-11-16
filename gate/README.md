@@ -64,3 +64,10 @@ Hermes 게이트웨이 의존성 및 소켓 관측용 psutil이 필요하고 자
 ```sh
 HERMES_DISABLE_LAZY_INSTALLS=1 python -m gate.tests.gateway_delivery
 ```
+
+스레드 제어는 인증된 같은 WS 연결의 `thread_delete`·`thread_branch`로 요청한다.
+삭제는 기존 delete 기록의 scope로 확정하고, 재전송은 같은 seq의 delete로 치환한다.
+분기는 문이 새 스레드를 만들며 첫 사장 글에만 이전 대화 문맥을 붙인다.
+Hermes `/branch`나 세션 DB를 우회하지 않으므로 도구 호출 기록·`/resume` 계보는 복제하지 않는다.
+`metadata.hejo_checklist`는 message/edit의 선택 checklist 필드로 전달한다.
+정확한 필드와 한도는 [통신 규격](../schemas/hejo-wire-v1.json)을 따른다.

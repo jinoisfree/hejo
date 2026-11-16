@@ -10,6 +10,7 @@ import UniformTypeIdentifiers
     var motionTime: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
     var reduceMotion: () -> Bool = { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
     private var islandTimer:Timer?
+    private var copiedID:String?
     private(set) var highlightedMessageID:String?
     private var highlightUntil:Date?
     var reconnect:()->Void
@@ -94,7 +95,7 @@ import UniformTypeIdentifiers
         islandTimer=Timer.scheduledTimer(withTimeInterval:0.1,repeats:true) { [weak self] _ in
             Task { @MainActor in self?.tickIsland() }
         }
-        controller.onChange={ [weak self] in self?.refresh() }; refresh()
+        controller.onChange={ [weak self] in self?.refresh() }; controller.onRevealThread={ [weak self] key in self?.openFromBubble(key) }; refresh()
     }
     required init?(coder:NSCoder) { fatalError() }
     deinit { islandTimer?.invalidate() }
@@ -277,7 +278,13 @@ import UniformTypeIdentifiers
             heading.stringValue=model.room(for:current)?.title ?? model.name(current); subtitle.stringValue="함께 나누는 대화"
             if identity != current { windowed.reset(); identity=current; openThread=nil }
             let shown=Set(windowed.visibleIDs(threads.map(\.id),revealing:openThread?.thread))
-            history.show(threads.filter { shown.contains($0.id) }.map(threadContent),identity:current)
+            var cards:[NativeThreadCard.Content]=[], previous:Date?
+            for thread in threads where shown.contains(thread.id) {
+                let date=ThreadTools.date(model.timeline(thread.key).first?.timestamp ?? "")
+                if previous==nil || !Calendar.current.isDate(previous!,inSameDayAs:date) { cards.append(dayContent(date,id:thread.id)) }
+                cards.append(threadContent(thread));previous=date
+            }
+            history.show(cards,identity:current)
             older.isHidden=shown.count >= threads.count
             if model.timeline(selected).isEmpty { newKeys[current]=selected; replyMode=false }
             // A confirmed first post finishes that new-post draft; another explicit new post gets another UUID.
@@ -399,59 +406,97 @@ import UniformTypeIdentifiers
         controller.addAttachments(result.files); if let notice=result.notice { controller.notice=notice }; return true
     }
     private func threadContent(_ thread:ConversationThread)->NativeThreadCard.Content {
-        let messages=controller.model.timeline(thread.key), expanded=openThread == thread.key
-        guard let root=messages.first else { preconditionFailure("Empty thread projection") }
-        let replies=Array(messages.dropFirst()), foldable=replies.count>2
-        let shown=expanded || !foldable ? replies : replies.filter { $0.id == replies.last?.id || ($0.replyState == "asked" && !$0.buttons.isEmpty) }
-        let hidden=replies.count-shown.count, dark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua
+        let model=controller.model,messages=model.timeline(thread.key),expanded=openThread==thread.key
+        guard let root=messages.first else {preconditionFailure("Empty thread projection")}
+        let replies=Array(messages.dropFirst()),foldable=replies.count>2
+        let shown=expanded || !foldable ? replies:replies.filter{$0.id==replies.last?.id || ($0.replyState=="asked" && (!$0.buttons.isEmpty || $0.checklist != nil) && !model.confirmed($0.id))}
+        let hidden=replies.count-shown.count,dark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua
         let pick:()->Void={ [weak self] in self?.chooseThread(thread.key) }
-        var top=postPieces(root,conversational:false), answer:[NativeThreadCard.Piece]=[]
+        let top=postPieces(root,conversational:false)
+        var answer:[NativeThreadCard.Piece]=[]
         if hidden>0 {
-            var seen=Set<String>()
-            let faces=Array(replies.filter { $0.role == "employee" && seen.insert($0.key.employee).inserted }.prefix(3)).map { (controller.model.name($0.key.employee),controller.avatar($0.key.employee)) }
+            let faces=ThreadTools.answeredFaces(replies).map{(model.name($0),controller.avatar($0))}
             answer.append(.stack(faces:faces,title:"이전 답글 \(hidden)개",toggle:pick,identifier:"stack-"+thread.id))
         }
-        for message in shown { answer += postPieces(message,conversational:true) }
-        if controller.model.typing[thread.key] != nil && !messages.contains(where:{$0.streaming}) {
-            let since=controller.model.typingSince[thread.key] ?? islandModel.now
-            answer.append(.accessory(id:thread.id+":typing",height:22,view:{ [weak self] in
-                TypingRow(since:since,clock:{ self?.islandModel.now ?? Date() },animationTime:{ self?.motionTime() ?? 0 },reduceMotion:{ self?.reduceMotion() ?? true })
-            }))
+        for message in shown {answer += postPieces(message,conversational:true)}
+        if controller.working(thread.key) || controller.stopped.contains(thread.key) {
+            if controller.stopped.contains(thread.key) {
+                answer.append(.accessory(id:thread.id+":undo",height:24,view:{ [weak self] in
+                    let row=NSStackView();row.spacing=6
+                    let label=NSTextField(labelWithString:"중지를 요청했어요");label.font = .systemFont(ofSize:ChatMetrics.auxiliaryFont);row.addArrangedSubview(label)
+                    let undo=FileChip(title:"되돌리기");undo.invoke={ [weak self] in Task {await self?.controller.sendText(ThreadTools.undo,key:thread.key)} };row.addArrangedSubview(undo)
+                    return MessageAccessory(row,limit:row.fittingSize.width)
+                }))
+            } else {
+                let since=model.typingSince[thread.key] ?? messages.last(where:{$0.role=="owner"}).map{ThreadTools.date($0.timestamp)} ?? Date()
+                let activity=messages.last(where:{$0.role != "owner" && ThreadTools.thinking($0.text)})?.text.components(separatedBy:"\n").dropFirst().first ?? (messages.contains(where:{$0.streaming}) ? "답변을 작성하고 있습니다":"답변을 준비하고 있습니다")
+                answer.append(.accessory(id:thread.id+":work",height:22,view:{ [weak self] in
+                    WorkingControlRow(since:since,activity:activity,clock:{self?.islandModel.now ?? Date()},animationTime:{self?.motionTime() ?? 0},reduceMotion:{self?.reduceMotion() ?? true},stop:{ [weak self] in Task {await self?.controller.stop(thread.key)} })
+                }))
+            }
         }
-        let state=messages.reversed().compactMap(\.replyState).first
-        let tone:NSColor?=state == "asked" ? NSColor(srgbRed:0.925,green:0.698,blue:0.18,alpha:1) : state == "answered" || state == "closed" ? NSColor(srgbRed:0.18,green:0.714,blue:0.49,alpha:1) : nil
-        let target=replyMode && controller.model.selected == thread.key
-        let highlighted=messages.contains { $0.id == highlightedMessageID } && (highlightUntil.map { $0>islandModel.now } ?? false)
-        var actions:[NativeThreadCard.Action]=[.init(title:"복사",symbol:"doc.on.doc",label:"스레드 전체 복사",identifier:"copy-"+thread.id,invoke:{ [weak self] in
-            guard let self else { return }; let text=messages.map { ($0.role == "owner" ? "나" : self.controller.model.name($0.key.employee))+"\n"+$0.text }.joined(separator:"\n\n")
-            NSPasteboard.general.clearContents(); NSPasteboard.general.setString(text,forType:.string)
-        })]
-        if foldable && expanded { actions.append(.init(title:"접기",symbol:"chevron.up",label:"접기",identifier:"fold-"+thread.id,alwaysLabel:true,invoke:pick)) }
-        if top.isEmpty { top=postPieces(root,conversational:false) }
-        return NativeThreadCard.Content(id:thread.id,top:top,replies:answer.isEmpty ? nil : answer,rail:nil,actions:actions,deleting:nil,
-            style:.init(inset:ThreadAppearance.inset,fill:0,stroke:highlighted ? .systemOrange : target ? .controlAccentColor : NSColor.labelColor.withAlphaComponent(dark ? 0.16 : 0.12),lineWidth:highlighted ? 2.5 : target ? 1.5 : 1,background:ThreadAppearance.surface(dark:dark),status:tone,replyBackground:ThreadAppearance.replySurface(dark:dark)),
-            bell:controller.model.unread(thread.key)>0 ? true : nil,onBell:{ [weak self] in self?.controller.model.select(thread.key) },clickCard:pick,textClick:!expanded && foldable ? pick : nil,
+        let state=messages.reversed().first{$0.replyState != nil && !model.confirmed($0.id)}?.replyState
+        let tone:NSColor?=state=="asked" ? MessageFormat.color("#E01E5A"):state=="answered" || state=="closed" ? MessageFormat.color("#2EB67D"):messages.lazy.compactMap{ThreadTools.color($0.text)}.first
+        let target=replyMode && model.selected==thread.key
+        let highlighted=messages.contains{$0.id==highlightedMessageID} && (highlightUntil.map{$0>islandModel.now} ?? false)
+        let now=controller.clock(),copiedLink=copiedID=="link:"+thread.id,copiedText=copiedID=="text:"+thread.id
+        let branchAsked=controller.branching[thread.key].map{now.timeIntervalSince($0)<6} ?? false
+        let sure=controller.confirmingDelete[thread.key].map{now.timeIntervalSince($0)<4} ?? false
+        var actions:[NativeThreadCard.Action]=[
+            .init(title:copiedLink ? "복사됨":"링크",symbol:copiedLink ? "checkmark":"link",label:"스레드 링크 복사",identifier:"copy-link-"+thread.id,invoke:{ [weak self] in self?.copyText(ThreadTools.link(thread.key).absoluteString,id:"link:"+thread.id) }),
+            .init(title:copiedText ? "복사됨":"복사",symbol:copiedText ? "checkmark":"doc.on.doc",label:"스레드 전체 복사",identifier:"copy-"+thread.id,invoke:{ [weak self] in guard let self else{return};self.copyText(ThreadTools.copy(messages,key:thread.key,name:self.controller.model.name),id:"text:"+thread.id) })]
+        if messages.contains(where:{$0.role=="employee"}) {actions.append(.init(title:"분기",symbol:branchAsked ? "checkmark":"arrow.triangle.branch",label:"새 스레드로 이어가기",identifier:"branch-"+thread.id,enabled:controller.canSend && !branchAsked,color:replies.count>=50 ? .systemOrange:.secondaryLabelColor,invoke:{ [weak self] in Task {await self?.controller.branch(thread.key)} }))}
+        if !controller.deleting.contains(thread.key) {actions.append(.init(title:sure ? "정말 삭제":"삭제",symbol:"trash",label:sure ? "스레드 삭제 확인 · 되돌릴 수 없어요":"스레드 삭제",identifier:"delete-"+thread.id,enabled:controller.canSend,color:sure ? .systemRed:.secondaryLabelColor,alwaysLabel:sure,invoke:{ [weak self] in Task {await self?.controller.deleteThread(thread.key)} }))}
+        if foldable && expanded {actions.append(.init(title:"접기",symbol:"chevron.up",label:"접기",identifier:"fold-"+thread.id,alwaysLabel:true,invoke:pick))}
+        return .init(id:thread.id,top:top,replies:answer.isEmpty ? nil:answer,rail:nil,actions:actions,deleting:controller.deleting.contains(thread.key) ? "삭제 중…":nil,
+            style:.init(inset:ThreadAppearance.inset,fill:0,stroke:highlighted ? .systemOrange:target ? .controlAccentColor:NSColor.labelColor.withAlphaComponent(dark ? 0.16:0.12),lineWidth:highlighted ? 2.5:target ? 1.5:1,background:ThreadAppearance.surface(dark:dark),status:tone,replyBackground:ThreadAppearance.replySurface(dark:dark)),
+            bell:model.bell(thread.key),onBell:{ [weak self] in self?.controller.model.toggleBell(thread.key) },clickCard:pick,textClick:!expanded && foldable ? pick:nil,
             bubbleWidth:max(ChatMetrics.minimumBubbleWidth,(bounds.width-sidebarWidth)*ChatMetrics.bubbleWidthFraction),quiet:NSColor.labelColor.withAlphaComponent(0.7),expanded:expanded,replyTarget:target)
     }
     private func postPieces(_ message:ConversationMessage,conversational:Bool)->[NativeThreadCard.Piece] {
         let dark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua, mine=message.role == "owner"
+        if !mine,ThreadTools.thinking(message.text) {return []}
         let foldable = !mine && !message.streaming && LongReply.needsFolding(message.text), folded=foldable && !expandedMessages.contains(message.id)
         let body=folded ? LongReply.preview(message.text) : message.text, stripped=TextLayout.strip(body)
         let text=NSMutableAttributedString(attributedString:MessageFormat.renderNative(mine ? body : stripped.source,bodySize:ChatMetrics.bodyFont))
         let all=NSRange(location:0,length:text.length), paragraph=NSMutableParagraphStyle(); paragraph.lineSpacing=mine ? 0 : 2
         text.addAttribute(.paragraphStyle,value:paragraph,range:all)
         if mine { text.addAttribute(.foregroundColor,value:UserBubblePalette(dark:dark).foreground.nsColor,range:all) }
-        else { TextLayout.apply(to:text,lines:stripped.lines,bar:.systemBlue,lineSpacing:2) }
-        text.enumerateAttributes(in:all) { attributes,range,_ in
+        else { TextLayout.apply(to:text,lines:stripped.lines,bar:controller.avatar(message.key.employee).color,lineSpacing:2) }
+        text.enumerateAttributes(in:NSRange(location:0,length:text.length)) { attributes,range,_ in
             if !mine,let font=attributes[.font] as? NSFont,NSFontManager.shared.traits(of:font).contains(.fixedPitchFontMask) {
                 text.addAttributes([.font:NSFont.monospacedSystemFont(ofSize:13,weight:.regular),.foregroundColor:dark ? NSColor(srgbRed:0.96,green:0.68,blue:0.36,alpha:1) : NSColor(srgbRed:0.76,green:0.32,blue:0.09,alpha:1),.backgroundColor:NSColor.labelColor.withAlphaComponent(0.1)],range:range)
             }
             if attributes[.link] != nil { text.addAttributes([.underlineStyle:NSUnderlineStyle.single.rawValue,.foregroundColor:mine ? UserBubblePalette(dark:dark).link.nsColor : NSColor.systemBlue],range:range) }
         }
+        var checks:[Int:(line:Int,original:Bool)]=[:]
+        if !mine && !message.streaming {
+            var offset=0,line=0
+            for character in text.string {
+                let length=String(character).utf16.count
+                if character=="☐" || character=="☑" {
+                    let original=character=="☑";checks[offset]=(line,original)
+                    text.replaceCharacters(in:NSRange(location:offset,length:length),with:controller.model.check(message.id,line:line,original:original) ? "☑":"☐")
+                    text.addAttribute(.link,value:URL(string:"hejo-check://toggle/\(offset)")!,range:NSRange(location:offset,length:1))
+                }
+                if character=="\n" {line+=1};offset+=length
+            }
+        }
         let post=NativeThreadCard.Post(id:message.id,mine:mine,text:text,speaker:mine ? "나" : controller.model.name(message.key.employee),time:displayTime(message.timestamp),avatar:controller.avatar(message.key.employee),nameColor:mine ? .labelColor : controller.avatar(message.key.employee).color,
             conversational:conversational && !mine && !message.streaming && message.files.isEmpty && ThreadAppearance.isConversational(message.text),streaming:message.streaming,
-            foldTitle:foldable ? (folded ? "더 보기" : "접기") : nil,fold:{ [weak self] in guard let self else { return }; if self.expandedMessages.contains(message.id) { self.expandedMessages.remove(message.id) } else { self.expandedMessages.insert(message.id) }; self.refresh() },openLink:{ url in if ["http","https","mailto"].contains(url.scheme?.lowercased() ?? "") { NSWorkspace.shared.open(url) } })
+            marks:message.replyState=="answered" || message.replyState=="closed" ? [.init(color:MessageFormat.color("#2EB67D")!,text:NSAttributedString(string:"처리 완료"))]:[],foldTitle:foldable ? (folded ? "더 보기" : "접기") : nil,fold:{ [weak self] in guard let self else { return }; if self.expandedMessages.contains(message.id) { self.expandedMessages.remove(message.id) } else { self.expandedMessages.insert(message.id) }; self.refresh() },openLink:{ [weak self] url in
+                guard let self else{return}
+                if url.scheme=="hejo-check",let offset=Int(url.lastPathComponent),let check=checks[offset] {self.controller.model.toggleCheck(message.id,line:check.line,original:check.original)}
+                else if url.scheme=="hejo" {self.controller.openLink(url)}
+                else if ["http","https","mailto"].contains(url.scheme?.lowercased() ?? "") {NSWorkspace.shared.open(url)}
+            })
         var pieces:[NativeThreadCard.Piece]=[.post(post)]
+        if mine,controller.interruptions[message.key] != nil,message.id==controller.model.timeline(message.key).last(where:{$0.role=="owner"})?.id {
+            pieces.append(.accessory(id:message.id+":interruption",height:16,view:{
+                let label=NSTextField(labelWithString:"끼어들었어요");label.font = .systemFont(ofSize:ChatMetrics.auxiliaryFont);label.textColor = .secondaryLabelColor
+                return MessageAccessory(label,mine:true,limit:130)
+            }))
+        }
         for file in message.files {
             pieces.append(.accessory(id:file.id,height:file.mime.hasPrefix("image/") ? 110 : 46,view:{ [weak self] in
                 let tile=FileTile(file:file)
@@ -464,7 +509,13 @@ import UniformTypeIdentifiers
                 return container
             }))
         }
-        if !message.buttons.isEmpty {
+        if let checklist=controller.checklistSelection(message),!controller.model.confirmed(message.id) {
+            pieces.append(.accessory(id:message.id+":checklist",height:CGFloat((checklist.items.count+1)/2+1)*32,view:{ [weak self] in
+                let choices=ReplyChecklistView(checklist,changed:{ [weak self] selected in self?.controller.selectChecklist(message,selected:selected) }) { [weak self] text in Task {await self?.controller.sendText(text,key:message.key)} }
+                return MessageAccessory(choices,limit:choices.fittingSize.width)
+            }))
+        }
+        if !message.buttons.isEmpty && !controller.model.confirmed(message.id) {
             pieces.append(.accessory(id:message.id+":buttons",height:32,view:{ [weak self] in
                 let stack=NSStackView(); stack.orientation = .horizontal; stack.spacing=8
                 for item in message.buttons {
@@ -479,6 +530,16 @@ import UniformTypeIdentifiers
             }))
         }
         return pieces
+    }
+    private func copyText(_ text:String,id:String) {
+        NSPasteboard.general.clearContents();NSPasteboard.general.setString(text,forType:.string)
+        copiedID=id;refresh();DispatchQueue.main.asyncAfter(deadline:.now()+1.6) { [weak self] in if self?.copiedID==id {self?.copiedID=nil;self?.refresh()} }
+    }
+    private func dayContent(_ date:Date,id:String)->NativeThreadCard.Content {
+        let formatter=DateFormatter();formatter.dateFormat="yyyy년 M월 d일 EEEE"
+        return .init(id:"date:"+id,top:[.accessory(id:"date-label:"+id,height:14,view:{
+            let label=NSTextField(labelWithString:formatter.string(from:date));label.font = .systemFont(ofSize:ChatMetrics.auxiliaryFont);label.textColor = .secondaryLabelColor;label.alignment = .center;return label
+        })],replies:nil,rail:nil,actions:[],deleting:nil,style:.init(inset:0,fill:0,stroke:nil,lineWidth:0,background:.clear),bell:nil,onBell:{},clickCard:{},textClick:nil,bubbleWidth:500,quiet:.secondaryLabelColor,expanded:false)
     }
     private func displayTime(_ value:String)->String {
         let formatter=ISO8601DateFormatter(); formatter.formatOptions=[.withInternetDateTime,.withFractionalSeconds]

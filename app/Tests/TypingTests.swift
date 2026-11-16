@@ -44,9 +44,9 @@ private func descendants<T:NSView>(_ root:NSView,_ type:T.Type)->[T] {
         pet.pet.cacheDisplay(in:pet.pet.bounds,to:image)
         try image.representation(using:.png,properties:[:])!.write(to:URL(fileURLWithPath:FileManager.default.currentDirectoryPath).appendingPathComponent(".build/"+name))
     }
-    row.tick();try check(row.elapsedText == "0초" && row.accessibilityLabel() == "작성 중 0초","AT57 words and elapsed at 0s")
+    row.tick();try check(row.elapsedText == "0초" && row.accessibilityLabel() == "답변을 준비하고 있습니다 0초","AT76 activity words and elapsed at 0s replace the AT57 waiting label")
     time.addTimeInterval(12);row.tick();try check(row.elapsedText == "12초","AT57 elapsed 12s")
-    time.addTimeInterval(53);row.tick();try check(row.elapsedText == "1분 5초","AT57 elapsed over a minute")
+    time.addTimeInterval(53);row.tick();try check(row.elapsedText == "65초","AT76 work row keeps elapsed seconds as ddots does")
     try check(!descendants(ui,NSTextField.self).contains { $0.stringValue.contains("●") },"AT57 no dot glyphs")
     motion=0;row.tick();let start=row.shimmerPosition
     try check(row.isShimmering,"AT57 waiting words shimmer")
@@ -63,7 +63,7 @@ private func descendants<T:NSView>(_ root:NSView,_ type:T.Type)->[T] {
     controller.receive(["v":1,"type":"edit","seq":3,"msg_id":typingAnswer,"text":"Hello world, streaming","final":false])
     try check(model.messages[typingAnswer]?.streaming == true,"AT57 fixture message is streaming")
     ui.refresh();ui.layoutSubtreeIfNeeded()
-    try check(descendants(ui,TypingRow.self).isEmpty,"AT57 waiting row hidden while streaming")
+    try check(descendants(ui,TypingRow.self).count == 1 && descendants(ui,WorkingControlRow.self).count == 1,"AT76 streaming keeps one work-control row without duplicating the post")
     let streaming=descendants(ui,NativeThreadCard.Text.self).filter { $0.showsCaret && !$0.isHidden }
     try check(streaming.count == 1 && streaming[0].string == "Hello world, streaming","AT57 caret only on streaming post; string unchanged")
     let text=streaming[0]

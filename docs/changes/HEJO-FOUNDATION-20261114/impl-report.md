@@ -1241,3 +1241,73 @@ AppKit `AppIcon.render(pixels:)`가 투명 1024px 캔버스의 흰 둥근 사각
 공용 릴리스는 이 TASK 단독 커밋 직후 `install/hejo-release`로 갱신한다. 기존 사본·실행 결과·커밋 표식과 파일 해시 대조는 `.build/task20/release-backup/`·`release.log`·`release.json`·`release-verify.json`에 남기고 최종 인계에서 실제 값을 확인한다. TASK-25 이후는 아직 착수하지 않았다.
 
 최종 사진·코드·시험·보고 파일을 Git 검사 대상에 넣은 뒤 Hermes venv `scripts/scan_private.py --repo .`, HEJO_PYTHON 지정 `githooks/pre-commit`, `git diff HEAD --check`는 각각 종료 **0**이었다(`.build/task20/private-final.log`·`hook-final.log`·`diff-final.log`·`final-checks.json`). 바이너리는 검사기가 생략하므로 가짜 자료 캡처를 직접 확인했다. 지정 원본 8개는 승인된 ddots 기준 커밋과 파일 diff가 없음을 다시 확인했다.
+
+## TASK-25 착수 — D25-01 문구 계약 대조 보류
+
+- **받은 설계·판단:** 보완 23, 기준 `4c875301429dfdbe7d519de57c2eb4f074b19316`, REQ-HF-27·AT-75/76. 고위험·필요 인계 증거 수준 2. 현재 판단은 **보류(계획 담당 결정 대기)**, 도달 수준은 원본 대조·분리 실행의 **1**이다. TASK-20은 검토 통과 상태를 보존하고 재구현·재시험하지 않았다. 푸시 승인을 진행 조건으로 삼지 않는다.
+- **확인한 사실:** 원본 전체 독해 재사용 가능 여부와 새 의존 독해를 copy-review에 파일별로 기록했다. 원본 작업 트리의 해당 다섯 파일은 기존 기준과 diff가 없다. 제품의 기록장·어댑터도 읽었으며 `thread_delete`는 아직 구현하지 않았다.
+
+| 지점 | 원본 근거 | 명세 근거 | 규칙 밖 차이 |
+|---|---|---|---|
+| 첨부 복사 줄 | `<운영 저장소>/ddots/Sources/SlackThreads.swift:974`, SlackCopy.text가 `"📎 " + 파일 이름` 생성 | spec.md:235는 `"📎<파일 이름>"`, AT-75는 복사 형식 원문 일치 | 이모지 뒤 U+0020 공백 유무. 용어 치환·Slack 전용 사실 제거가 아님. |
+| 중지 되돌리기 글 | `<운영 저장소>/ddots/Sources/AgentStop.swift:9`, 괄호 안 `메모·파일·Notion·NAS·보낸 메시지 등` | spec.md:254는 `메모·파일·보낸 메시지 등`, AT-76은 되돌림 글 원문 | `Notion·NAS·` 삭제. 두 항목은 Slack 전용 사실이 아니며 현재 변환 규칙에 삭제 예외가 없음. |
+
+- **재현·검사 범위:** `.build/task25/probe_text.py`가 원본 SlackCopy enum을 그대로 추출해 Foundation만 쓰는 가짜 글 한 개·첨부 sample.txt의 Swift 실행 파일을 만들었다. 컴파일·실행은 각각 종료 0이고, 실제 출력 `📎 sample.txt`와 명세 입력 `📎sample.txt`가 다름을 확인했다. 상태·생각 중 줄은 이 입력에 없고 해당 외부 의존은 대역이다. AgentStop.undoRequest는 원문 문자열을 추출해 명세와 비교했고 `Notion·NAS·`만 제거하면 일치했다. 결과는 `.build/task25/text-comparison.json`, 전체 로그는 `text-probe.log`·`text-compile.log`, 실제 복사 출력은 `copy-output.txt`다. **제품/API/앱 수락 시험으로 주장하지 않는다.**
+- **결정 요청·권고:** (1) 첨부는 원본처럼 `📎 <파일 이름>`으로 명세를 고친다. (2) 되돌리기 글은 원본 전체를 유지하거나, 현재 hejo 문구를 의도한 차이로 명시 승인한다. 구현자는 (1)의 원문 공백 복구와 (2)의 의도적 서비스 예시 간소화 승인 여부를 계획 담당이 함께 확정하기를 권고한다. 원문을 고치거나 수락 기대값을 임의로 선택하지 않았다.
+- **멈춤 근거·재개:** spec.md:167~172의 22판 규칙은 위 세 변환으로 설명되지 않는 문구 차이를 보고하도록 정한다. 공통 규칙과 구현 역할 2절도 충돌하는 수락 기준을 임의 수정하지 않도록 한다. 결정 뒤 기존 독해 기록을 보존하고 종·날짜·표 등 남은 의존 대조부터 이어 TASK-25 전체 구현·시험을 수행한다. 분리 가능한 상세 조사 외 제품 구현은 보류했다.
+- **이번 변경·미실행:** 추적 변경은 copy-review·impl-report 두 보고 파일뿐이다. AT-75/76 통합, 전체 foundation 검사, 앱 시험 10회, 돌연변이, 화면 캡처, 앱 두 사본 교체, 공용 릴리스 갱신·커밋은 미실행이다. 후속 TASK도 미착수다. 운영 홈 실행·재시작/reload·비밀 파일 열기·ddots/본체/운영 저장소 수정·외부 발송·public 갱신·push는 하지 않았다. 두 보고 파일은 실행 담당 소유이며 재개 후 TASK-25 커밋에 보존한다.
+- **보고 파일 검사:** Hermes venv `scripts/scan_private.py --repo .`、HEJO_PYTHON 지정 `sh githooks/pre-commit`、`git diff --check`는 각각 종료 0이다. 로그는 `.build/task25/private.log`·`hook.log`·`diff-check.log`에 있다. 검사 대상은 위 기준 커밋 위 보고 파일 두 개이며 제품 동작 검증을 대신하지 않는다.
+
+## TASK-25 보완 24 재개 — D25-01 해소·의미 계약 보고
+
+**기준·판단.** `cf0a23cd0778a57b5cc69b3933e5380099b2075d`, REQ-HF-27(24판)·AT-75/76, 고위험·필요 수준 2. D25-01은 해소됐고 기존 기록을 보존했다. 남은 원본·유지 의존을 copy-review에 추가 대조했다. 다음 쟁점은 공백·부호·문구 누락이 아니라 공개 통신·회원 상태 의미·공식 확장점의 충돌이다. 구현 역할 2절에 따라 해당 계약 구현을 보류하며, 승인 없이 수락 기준·허브 병합·Hermes 본체를 바꾸지 않았다.
+
+| 번호 | 확인된 충돌과 근거 | 결정 선택지·구현자 권고 |
+|---|---|---|
+| D25-02 삭제 뒤 sync의 seq | REQ-HF-27.AC-02는 지운 스레드 기록을 재현·동기화·페이지에서 제외한다. 반면 REQ-HF-06.AC-04와 schemas/hejo-wire-v1.json의 x-sync는 빈칸 없는 연속 seq다. GateClient.swift:166~174은 빈칸이면 sync 재요청, LocalStore.swift:63/83와 ConversationModel.swift:210은 연속만 허용한다. seq 1을 삭제 대상으로 빼고 남은 seq 2부터 보내면 적용할 수 없고, head_seq/through만으로 삭제된 빈칸임을 구별할 수도 없다. | 삭제로 건너뛴 범위를 인증된 문이 명시하는 통신 계약과 캐시 복구 규칙을 설계하거나, 재현 제외 요구를 바꿔야 한다. 권고는 원문 제외를 지키되 명시적 생략 범위를 규격에 추가하고 설명되지 않는 빈칸의 기존 재동기화는 유지하는 쪽이다. 정확한 프레임·영속 복구·옛 앱 호환 판정은 계획 담당 결정이 필요하다. |
+| D25-03 종 읽음 되돌리기 | REQ-HF-26.AC-01은 bell:도 큰 seq 우선이다. hub/state.py:15/48~53, MemberState.swift:38~43이 이를 구현한다. REQ-HF-27.AC-03은 종을 다시 누르면 읽지 않음으로 되돌리도록 한다. 이미 100을 저장한 뒤 더 늦은 null·0·같은 100을 보내도 기존 100이 이겨 해제되지 않는다. ddots는 SlackController.swift:361~367·SlackSettingsSync.swift:107~109에서 dismissed:를 null로 만들고 SettingsSync의 LWW로 동기화한다. | 권고는 read:/thread:의 큰 seq 우선은 유지하고 bell:만 원본처럼 LWW로 분리하는 것이다. REQ-HF-26·한도 정리 기준·hub/state.py·앱 MemberState·시험 변경 범위의 명시 승인이 필요하다. 새 숨은 키나 Mac별 두 번째 원본으로 우회하지 않는다. |
+| D25-04 실제 /branch의 확장점 미호출 | Hermes 기준 `ebb026eef8e800e1b7471ed147b7287e878f8aa4`. gateway/slash_commands_branch_thread.py:18/38~39의 집합은 Discord/Telegram/Slack/Matrix뿐이고 hejo면 parent=None이다. slash_commands_session.py:1148~1151은 adapter를 찾기 전에 반환하므로 create_handoff_thread를 구현해도 호출되지 않는다. 같은 파일:1083~1087은 None이면 제자리 분기다. 공개 PluginContext.register_command도 plugins.py:688~693에서 기본 /branch 이름 충돌을 거절한다. | 현재 Hermes에서 신규 스레드 분기를 보장할 공식 경로를 계획 담당이 확정해야 한다. 권고는 실제 지원 버전/공식 확장점 탐침을 선행 조건으로 두고, 확보 전에는 제자리 분기를 새 스레드 성공으로 표시하지 않는 것이다. 내부 집합 monkey patch·플랫폼 위장·Hermes 세션 DB 복제는 승인 범위 밖이며 사용하지 않는다. 가짜 Hermes가 임의로 hook을 호출하게 해 실물 지원을 주장하지 않는다. |
+| D25-05 질문 대기 rail 색 | spec REQ-HF-27.AC-03은 질문 대기 노랑이다. ddots SlackThreads.swift:633~636은 pending이 있으면 askingColor를 쓰고 DdotsConfig.swift:122은 #E01E5A(빨강)다. NativeThreadContent.swift:30~33도 이 경로를 쓴다. 네 보고서 이모지 색 hex 자체는 명세와 일치한다. | 질문 대기 노랑을 hejo의 의도적 상태 매핑 차이로 승인할지, 원본 빨강으로 명세를 맞출지 확정 요청한다. 이는 문자열 옮김 누락이 아니라 색의 상태 의미 변경이다. |
+
+**분리 재현(제품 수락 시험과 구별).** `.build/task25/test_contracts.py`를 Hermes venv·임시 HERMES_HOME/HERMES_ROOT에서 실행했다. 최종 **종료 0, 3 passed**다. (1) 실제 LocalStore.swift를 가짜 의존·임시 캐시와 컴파일해 seq 2 단독 append 거절과 seq 2부터 시작한 캐시 재열기 시 잘라내기를 확인했다. seq 1→2는 성공하는 대조군이다. 서버 삭제는 아직 없으므로 필터된 입력만 모형화했다. (2) 실제 MemberStateStore.patch/get에서 bell=100 뒤 더 늦은 null·0·100이 모두 무시됨을 관측했다. 일반 LWW 키의 null은 반영되는 대조군이다. (3) 실제 Hermes GatewaySessionCommandsMixin._branch_open_thread를 호출해 hejo의 어댑터 호출 0회·결과 None, Slack 대조군 호출 1회·새 id를 관측했다. 전송 어댑터만 대역이며 전체 /branch 세션 복제나 운영 게이트웨이 실행 시험은 아니다. D25-05는 소스 대조만 했고 화면 재현은 미실행이다.
+
+최초 탐침은 공식 hejo 플랫폼 등록 누락으로 **1 failed / 2 passed**였으며 제품 결함으로 세지 않는다. 기존 시험과 같은 PluginContext 등록 후 다시 실행했다. 최초 로그는 `.build/task25/contracts-first-failure.log`, 최종은 `.build/foundation9-task25-contracts.log`·`.build/task25/contracts-run.log`, 결과는 `.build/task25/replay-contract.json`·`bell-contract.json`·`branch-contract.json`, Swift 컴파일/실행 로그는 `contracts-swift-compile.log`·`contracts-swift.log`다.
+
+**변경·재개 경계.** 추적 변경은 기존 보류 기록을 보존한 copy-review.md·impl-report.md뿐이며 제품·수락 기준·기존 시험·커밋은 바꾸지 않았다. 필요 수준 2, 도달 수준은 제한된 계약 재현의 1이다. 계획 담당이 D25-02~05의 계약과 허용 파일을 정하면 그 기준으로 TASK-25 전체 구현·AT-75/76·전체 검사·앱 반복·돌연변이·같은 상태 캡처·앱 두 사본 교체·공용 릴리스·단독 커밋까지 이어간다. 후속 TASK는 미착수다. 현재는 전체 검사·앱 반복·돌연변이·캡처·적용·릴리스 갱신을 하지 않았다. 운영 홈 실행·재시작/reload·비밀 파일 열기·ddots/본체/운영 저장소 수정·외부 발송·public 갱신·push도 하지 않았다. result로 계획 담당에게 넘기며 푸시 승인 대기로 멈추지 않는다.
+
+**보고 변경본 검사.** 위 기준 커밋 위 두 보고 파일의 Hermes venv 개인값 검사·HEJO_PYTHON 지정 pre-commit·diff 공백 검사는 각각 종료 0이다. 근거는 `.build/task25/private-v24.log`·`hook-v24.log`·`diff-v24.log`와 `report-checks-v24.json`이다. D25-01 해소 문자열 확인은 `.build/task25/text-v24.json`에 있다. 상태 파일은 읽기만 했고 tasks의 보완 24 진행 상태와 현재 HEAD를 대조했다.
+
+
+## TASK-25 보완 25 — 스레드 카드·작업 제어 구현 인계
+
+**받은 설계·판단.** 기준 `eac02ca5b6a0eee05af3e02971ab394959a7b717`, handoff 보완 25·24·23과 REQ-HF-27·AT-73/75/76. 고위험, 필요 인계 수준 **2**. D25-01~05의 기존 보고는 당시 상태로 보존했고 24·25판의 해소 계약을 적용했다. 구현자 판단은 **구현·자체 시험 완료**, 실제 도달 수준 **2**다. 비설계자 검토·TASK-23 실물 수준 4·최종 판정은 남는다. 푸시를 진행 조건으로 삼지 않는다.
+
+**구조와 자료 흐름.** 기록 원본은 Journal 하나다. message 위치·삭제된 스레드 표는 기록장에서 복구하는 파생 인덱스이며 별도 영구 원본이 없다. 문맥 묶음은 gate/context.py 한 곳에 두고 TASK-21이 재사용하도록 했다. 앱은 기존 LocalStore 복제와 MemberState를 사용한다. 새 저장소·Hermes 본체 수정·플랫폼 위장·세션 DB 복제·create_handoff_thread 구현은 없다.
+
+- 삭제: 기존 delete의 scope 한 줄을 fsync한 뒤 방송한다. 그 전 실패는 journal_write_failed이며 삭제·첨부 정리를 하지 않는다. 확정 뒤 남은 글 delete를 보충하고, 중간 실패는 재시작 때 빠진 것만 처리한다. replay/page는 원문·수정·상태를 같은 seq의 delete로 치환하며 message()는 돌려주지 않는다. 공개 순번의 빈칸은 만들지 않는다. 늦은 답·수정·상태·작성 중·첨부는 thread_deleted_drop으로 버리고 지운 스레드 입력은 thread_deleted로 거절한다. 공유 첨부의 다른 살아 있는 등록은 유지한다.
+- 앱 삭제: scope 수신 때 스레드 투영·초안·대기 전송·미전송 체크리스트 선택을 지운다. 캐시는 같은 seq delete로 0600 임시 파일→fsync→rename 재작성한다. 전용 다운로드 캐시는 지우며 공유 캐시는 남긴다. 다운로드가 진행 중이면 등록이 지워졌는지 다시 확인하고 캐시 게시를 같은 main actor에서 직렬화한다. 알 수 없는 durable 종류도 순번을 저장·적용하고 화면에서는 건너뛴다.
+- 종: bell:은 hub/state.py·MemberState 모두 (at,dev) LWW·null 삭제다. read:/thread:의 큰 seq 우선과 기존 값의 숫자 형식 검사는 유지한다. 종을 읽음으로 하면 스레드 읽음 위치도 전진하고, 다시 누르면 종만 되돌린다.
+- 분기: thread_branch의 client_msg_id로 중복 확정을 막고 새 UUID·이어짐 직원 글·branch_from을 기록한다. 분기 순간의 살아 있는 대화에서 생각 중·지운 글을 빼 최신 50줄·16,000자·본문 줄 2,000자로 묶는다. 새 스레드 첫 사장 글의 Hermes 이벤트에만 문맥을 붙이고 기록장·앱에는 원문을 남긴다. **도구 호출 기록·Hermes 세션·/resume 계보를 복제하지 않는다.**
+- UI: hejo 주소 선언·파싱·기존/없는 목표 이동, 링크/복사 1.6초 표시, 분기 6초 중복 방지·50개 주황, 삭제 4초 재확인·처리 중 표시를 연결했다. 날짜 줄·최대 세 얼굴·네 보고서 색·질문 대기 빨강·처리 완료·TextKit 표·작업 활동 문구/경과 초/2×3 점 꼬리·중지/되돌리기·끼어들기 캡션을 AppKit으로 조립한다. 의견은 작성칸을 열고 확인은 confirm:만 쓴다. checklist 메타는 message/edit에 전달하고 체크 글은 check:만 쓴다. 미전송 선택은 같은 글의 화면 재생성 때 보존하고 서버 메타 변경·스레드 삭제 때 버린다.
+
+**계약·기존 시험의 변경 근거.** 새로운 의미는 승인된 25판 그대로다. 첨부 복사 공백과 Notion·NAS 예시는 24판 원문이다. spec/design/handoff/tasks/수락 명세 Markdown은 구현자가 고치지 않았다. 기존 ConversationTests의 행 수 가정은 REQ-HF-27 날짜 행을 구분하도록 바꿨다. TypingTests의 옛 ‘작성 중’·분/초 표시·스트리밍 동안 대기 행 없음은 REQ-HF-27.AC-04가 요구하는 활동 문구·경과 초·작업 제어 한 줄로 대체했다. 타자 시작 시각·갱신·만료·줄 높이·shimmer·동작 줄이기·스트리밍 캐럿·선택·첨부·재연결 검사는 유지했다. 기존 시험 삭제·skip·오차 완화는 없다.
+
+**보호하는 시험.** gate/tests/test_threads.py는 확정 전 쓰기 실패·같은 seq 치환·늦은 출력·재연결·누락 delete 복구·정리 실패 재시작·공유 첨부 보존·분기 스냅샷/첫 글 한 번·공식 busy stop 경로·체크리스트 프레임과 프레임 한도를 검증한다. AT-73 추가 시험은 종 null/늦은 과거 값과 read 전진을 구분한다. ThreadToolsTests는 복사 원문·주소·종·색·얼굴·체크·날짜·실제 TextKit 표·캐시 소거·미전송 선택·unknown seq를 검사한다. thread_fixture.py는 실제 루프백 WS에서 의견/확인 무송신, 중지/되돌리기/분기/삭제 각 한 번, 끼어들기 해소를 관측한다.
+
+**최종 검사·적용 결과.** 아래 결과는 최종 변경본의 로그를 확인하고 기입했다.
+
+| 검사·적용 | 실제 결과와 로그 |
+|---|---|
+| 전체 검사 `python3 .build/foundation9_runner.py hejo` | 종료 0, Python 155 passed와 가짜 Hermes·앱·통신 시험 통과. `.build/task25/release-foundation.log`, `release-foundation-run.log` |
+| 최종 앱 시험 `bash app/scripts/test.sh` 10회 | 모두 종료 0. `.build/task25/verified-app-results.json`, `.build/foundation9-app-task25-verified-01.log`~`10.log`; 소스 해시 불변 확인 |
+| 삭제 seq 치환·종 병합 돌연변이 | 격리 사본에서 각각 pytest 종료 1로 검출, 제품 원본 불변. `.build/task25/mutations.json`, `mutation-projection.log`, `mutation-bell.log` |
+| 옛 코드 호환 탐침 | 이전 Journal 열기·이전 LocalStore/ConversationModel live/replay 컴파일·실행 0. `.build/task25/compatibility.json` |
+| 같은 상태 원본/이식 카드·실제 대화 캡처 | 컴파일·실행·루프백 시험 모두 0. `.build/task25/reference-capture.json`, `post-checks.json`; 캡처 한계는 증거 문서 참조 |
+| 앱 두 사본 교체 | 종료 0, 서명 두 개·실행 파일 해시 일치·hejo 주소 등록. 기존 두 사본의 동일한 번들 설정을 보존했고 운영 앱을 실행하지 않음. `.build/task25/deploy.json`, `deploy-execution.log` |
+| 개인값·커밋 전 훅·정적 검사 | Hermes venv 개인값 검사·HEJO_PYTHON 지정 훅·diff 검사 각각 종료 0, 제품 SwiftUI import 0건. `.build/task25/final-checks.json`, `private-final.log`, `hook-final.log`, `diff-final.log`, `static.json` |
+
+**증거와 한계.** 화면 근거는 evidence/HEJO-FOUNDATION/TASK-25.md다. ddots와 hejo 카드에 같은 가짜 상태를 넣은 원본 코드 실행 비교이며 운영 ddots나 실제 두 Mac 화면이 아니다. 별도의 hejo 실제 대화 조립 캡처에 날짜·표·제어 상태를 남겼다. legacy 탐침은 이전 Journal 파서와 이전 LocalStore/ConversationModel의 live/replay 적용을 확인한다. 옛 앱의 캐시는 원문 소거 기능이 없으며 옛 코드의 늦은 출력 차단까지 보장하지 않는다. 실제 모델·도구 부작용·두 Mac·운영 문 재시작·OS의 콜드 URL 실행은 TASK-23에 남는다. stop 시험은 실제 busy 명령 함수와 가짜 interrupt 경계이며 실제 도구 실행을 중단한 증거가 아니다.
+
+**실패 이력·판단.** 초반 시험은 날짜 행·작업 제어로 대체된 옛 UI 기대값, 고정 TTL과 다른 가짜 값, 기존 자동 typing/허용 사용자 설정을 소비하지 않은 시험 도우미에서 실패했고 각각 위 계약에 맞춰 고쳤다. 반복 중 소스 보강으로 생긴 빌드 입력 변경 실패도 최종 열 번에 넣지 않았다. 마지막 연속 열 번의 소스는 해시로 불변을 확인했다. AirportFinder/기존 시험의 Swift 6 경고와 기존 비동기 표시 pytest 경고는 이 작업 밖이며 기준을 낮추지 않았다.
+
+**인계·롤백 경계.** 검토 대상은 이 절을 포함한 TASK-25 단독 커밋이다. 기존 D25 보류 기록을 함께 보존했다. 허브 서버의 state 병합만 승인 범위대로 고쳤으며 운영 허브·설치·게이트웨이 재시작/reload·비밀 파일·ddots/본체/운영 저장소·외부 발송·public·push는 건드리지 않았다. 앱 두 사본은 기존 번들 설정을 보존해 교체하고 운영 앱은 시작하지 않는다. 공유 릴리스는 이 단독 커밋 직후 install/hejo-release로 갱신하며 실행·표식·파일 대조 결과를 .build/task25/release*.json/log에 둔다. TASK-23은 배포 전 공용 창고·앱 사본과 설치 도우미의 정해진 롤백을 확인해야 한다. 기록 종류는 기존 delete이므로 옛 문이 파일을 열 수 있지만, 이 사실을 옛 런타임의 소거·차단 기능 보장으로 확장하지 않는다. 후속 TASK-26 이후는 미착수다.

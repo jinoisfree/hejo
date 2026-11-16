@@ -50,6 +50,14 @@ struct ConversationMessage: Identifiable, Equatable {
     var latestSeq: Int
     var timestamp: String
     var clientMessageID: String?
+    var checklist: ReplyChecklist? = nil
+    var branchFrom: String? = nil
+}
+struct ReplyChecklist: Codable, Equatable {
+    var items: [String]
+    var selected: [String]
+    var canSkip: Bool
+    enum CodingKeys:String,CodingKey { case items,selected;case canSkip="can_skip" }
 }
 struct ConversationThread: Identifiable {
     var key: ConversationKey
@@ -113,7 +121,7 @@ struct ConversationThread: Identifiable {
         layout.items=rooms.enumerated().filter { !hidden.contains($0.element.id) }.map { index,room in
             let posts=messages.values.filter { room.members.contains($0.key.employee) }
             let latest=posts.map { (fractional.date(from:$0.timestamp) ?? seconds.date(from:$0.timestamp))?.timeIntervalSince1970 ?? Double($0.latestSeq) }.max() ?? 0
-            return SidebarLayout.Item(id:room.id,name:room.title,kind:.direct,members:room.members,rank:index,latest:latest,unread:unread(room:room),questions:posts.filter { $0.replyState=="asked" }.count,muted:muted.contains(room.id))
+            return SidebarLayout.Item(id:room.id,name:room.title,kind:.direct,members:room.members,rank:index,latest:latest,unread:unread(room:room),questions:posts.filter { $0.replyState=="asked" && !confirmed($0.id) }.count,muted:muted.contains(room.id))
         }
         return layout
     }
@@ -217,20 +225,28 @@ struct ConversationThread: Identifiable {
                     files: try decode(frame["files"] ?? [], as: [MessageFile].self), buttons: try decode(frame["buttons"] ?? [], as: [MessageButton].self),
                     replyState: frame["reply_state"] as? String, seq: seq, latestSeq: seq, timestamp: ts, clientMessageID: frame["client_msg_id"] as? String)
                 messages[id] = message
+                if let checklist=frame["checklist"] { messages[id]?.checklist=try decode(checklist,as:ReplyChecklist.self) }
+                messages[id]?.branchFrom=(frame["branch_from"] as? [String:Any])?["thread"] as? String
                 if !loadingRecords, hidden.contains(employee) { restore(employee); revealedHiddenRoom = true }
             case "edit":
                 guard let id = frame["msg_id"] as? String, let text = frame["text"] as? String, let final = frame["final"] as? Bool else { throw GateFailure.protocolError }
                 if var message = messages[id] {
                     message.text = text; message.streaming = !final; message.latestSeq = seq
                     if let buttons = frame["buttons"] { message.buttons = try decode(buttons, as: [MessageButton].self) }
+                    if let checklist = frame["checklist"] { message.checklist = try decode(checklist, as: ReplyChecklist.self) }
                     messages[id] = message
                 }
-            case "delete": if let id = frame["msg_id"] as? String { messages[id] = nil }
+            case "delete":
+                if frame["scope"] as? String == "thread",let room=frame["room"] as? String,let thread=frame["thread"] as? String {
+                    let key=ConversationKey(employee:room,thread:thread)
+                    messages=messages.filter { $0.value.key != key };typing[key]=nil;typingSince[key]=nil
+                    if selected==key { selected=nil }
+                } else if let id = frame["msg_id"] as? String { messages[id] = nil }
             case "state":
                 if let id = frame["msg_id"] as? String, var message = messages[id] {
                     message.replyState = frame["reply_state"] as? String; message.latestSeq = seq; messages[id] = message
                 }
-            default: throw GateFailure.protocolError
+            default: break // Future durable kinds still advance the contiguous replica cursor.
             }
             applied = seq
             if revealedHiddenRoom { onChange?() }
@@ -264,6 +280,26 @@ struct ConversationThread: Identifiable {
         let read = max(memberState.read("read:" + key.employee), memberState.read("thread:" + key.employee + "/" + key.thread), store.settings.readSeq?[key.readKey] ?? 0)
         return messages.values.filter { $0.key == key && $0.role == "employee" && $0.latestSeq > read }.count
     }
+    func bell(_ key:ConversationKey) -> Bool? {
+        let latest=timeline(key).filter{$0.role=="employee"}.map(\.latestSeq).max() ?? 0
+        guard latest>0 else { return nil }
+        let value=memberState.read("bell:"+key.employee+"/"+key.thread)
+        if value>=latest { return false }
+        if memberState.items["bell:"+key.employee+"/"+key.thread] != nil || unread(key)>0 { return true }
+        return nil
+    }
+    func toggleBell(_ key:ConversationKey) {
+        let name="bell:"+key.employee+"/"+key.thread
+        if bell(key)==false { changeState([name:nil]) }
+        else {
+            let seq=String(timeline(key).map(\.latestSeq).max() ?? 0)
+            changeState([name:seq,"thread:"+key.employee+"/"+key.thread:seq])
+        }
+    }
+    func confirm(_ message:ConversationMessage) { changeState(["confirm:"+message.id:"1"]) }
+    func confirmed(_ id:String)->Bool { memberState.value("confirm:"+id) != nil }
+    func check(_ id:String,line:Int,original:Bool)->Bool { memberState.value("check:"+id+":"+String(line)).map{$0=="1"} ?? original }
+    func toggleCheck(_ id:String,line:Int,original:Bool) { changeState(["check:"+id+":"+String(line):check(id,line:line,original:original) ? "0":"1"]) }
     func unread(employee: String) -> Int { Set(messages.values.filter { $0.key.employee == employee }.map(\.key)).reduce(0) { $0 + unread($1) } }
     func name(_ employee: String) -> String { employees.first { $0.id == employee }?.name ?? employee }
     func select(employee: String, notify: Bool = true) {

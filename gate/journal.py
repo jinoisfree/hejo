@@ -24,6 +24,8 @@ class Journal:
         self.head = 0
         self.faulted = False
         self.fd = None
+        self.message_threads = {}
+        self.deleted_threads = {}
 
     def open(self):
         self.path.mkdir(parents=True, mode=0o700, exist_ok=True)
@@ -76,6 +78,28 @@ class Journal:
                 raise HejoJournalError("journal_seq_order")
             previous = row["seq"]
         self.records, self.head = records, previous
+        self.message_threads, self.deleted_threads = {}, {}
+        for row in records:
+            self._index(row)
+
+    def _index(self, row):
+        if row["type"] == "message":
+            self.message_threads[row["msg_id"]] = (row.get("room", row["employee"]), row["thread"])
+        if row["type"] == "delete" and row.get("scope") == "thread":
+            self.deleted_threads.setdefault((row["room"], row["thread"]), row)
+
+    def deleted(self, room, thread):
+        return (room, thread) in self.deleted_threads
+
+    def hidden(self, row):
+        key = self.message_threads.get(row.get("msg_id"))
+        return key in self.deleted_threads
+
+    def replay(self, row):
+        point = self.deleted_threads.get(self.message_threads.get(row.get("msg_id")))
+        if point and row["seq"] < point["seq"] and row["type"] in {"message", "edit", "state"}:
+            return {"v": 1, "type": "delete", "seq": row["seq"], "msg_id": row["msg_id"]}
+        return self.public(row)
 
     async def append(self, frame, internal=None):
         async with self.lock:
@@ -109,6 +133,7 @@ class Journal:
                     os.close(fd)
             self.records.append(row)
             self.head = row["seq"]
+            self._index(row)
             return self.public(row)
 
     @staticmethod
@@ -116,15 +141,19 @@ class Journal:
         return deepcopy({k: v for k, v in row.items() if k != "_meta"})
 
     def page(self, since, limit=500):
-        return [self.public(row) for row in self.records if row["seq"] > since][:limit]
+        return [self.replay(row) for row in self.records if row["seq"] > since][:limit]
 
     def message(self, msg_id):
+        if self.message_threads.get(msg_id) in self.deleted_threads:
+            return None
         result = None
         for row in self.records:
             if row.get("msg_id") != msg_id:
                 continue
             if row["type"] == "message":
                 result = deepcopy(row)
+            elif row["type"] == "delete":
+                result = None
             elif result is not None:
                 result.update({k: v for k, v in row.items() if k not in {"v", "type", "seq"}})
         return result

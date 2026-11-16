@@ -35,7 +35,7 @@ struct StateDocument: Codable, Equatable {
     var items: [String: StateEntry] { Self.merge(document.items, pending) }
     init(store: LocalStore) { self.store = store }
     deinit { timer?.invalidate() }
-    static func isRead(_ key: String) -> Bool { ["read:", "thread:", "bell:"].contains { key.hasPrefix($0) } }
+    static func isRead(_ key: String) -> Bool { ["read:", "thread:"].contains { key.hasPrefix($0) } }
     static func isLayout(_ key: String) -> Bool { ["layout:", "zone:", "pin:", "hide:", "mute:", "title:"].contains { key.hasPrefix($0) } }
     static func wins(_ key: String, _ new: StateEntry, _ old: StateEntry?) -> Bool {
         guard let old else { return true }

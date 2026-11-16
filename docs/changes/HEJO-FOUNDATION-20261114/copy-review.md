@@ -168,3 +168,45 @@ Foundation·AppKit·ImageIO 외 유지하는 제품 의존은 기존 hejo Member
 실제 앱 이식은 AppKit이다. ProfileAvatar는 인증 캐시에서 받은 이미지를 그린다. SlackRoomPictures의 중앙 자르기·256 PNG는 ImageIO로, 순서·구획 계산은 SidebarLayout으로, 편집은 ConversationModel과 MemberState로 옮겼다. 사진 서버 쓰기는 gate/pictures.py 하나가 맡으며 프로필 색은 design대로 ruamel로 읽는다. 고정 슬롯·기본 세 구획·명부 순서·마지막 1:1 묶음·신호 점의 2pt/2pt 간격·29/36 머리 높이·58/72 행 높이·16/13 굵은 머리 글씨·들여쓰기를 유지한다. 문구 변환 규칙 1번으로 방·직원 용어를 적용하고, Slack 전용 설명은 2번으로 제외했다. Q1의 사진 우선순위와 Q2의 회원별 배치 동기화는 명시적 승인 차이다. 홈의 실제 대화 조립과 단체방 생성·보관은 후속 TASK 경계를 유지한다.
 
 화면 대조용 ddots 시험 창은 SlackPanel의 slackRow·slackFolded·신호 점·카운터·slackFaces 함수 원문을 추출해 가짜 모델로 실행한다. 사진·명부·계정 서비스는 대역이다. 원본 앱을 실행하거나 원본 설정을 읽지 않는다. 원본의 이름·계정·경로·개인 자료는 이식하지 않았다. 캡처 한계와 결과는 evidence의 TASK-20 문서에 기록한다.
+
+## TASK-25 착수 전 대조 — D25-01 보류
+
+기준 계획은 `4c875301429dfdbe7d519de57c2eb4f074b19316`의 보완 23이다. 원본 저장소 HEAD는 `6ad0650b35ba4b7367050f9af80f0ef15ad4d5c1`이며 아래 다섯 파일은 기존 전체 독해 기준 `208f6e6322f593729c9ef6ac16ac903be4c3692b`와 파일 diff가 없다. 원본은 읽기만 했다. 실제 경로는 AGENTS.local.md에만 둔다.
+
+| 원본 (`<운영 저장소>/ddots/Sources/`) | 독해·이번 대조 | 유지·대체·제외 및 남은 범위 |
+|---|---|---|
+| SlackPanel.swift | TASK-20의 3574줄 전체 독해 재사용. 이번에는 삭제·분기·의견·체크리스트 callback, 카드 아래 버튼, 중지·되돌리기 줄을 다시 읽음 | AppKit 카드 조립·기존 send·MemberState로 연결할 대상. 삭제 4초·분기 6초는 명세와 일치. Slack 삭제 진행 건수·개인 업무 버튼·SwiftUI 호스트는 이식 대상 아님. 종·날짜·접힌 답 표시와 나머지 유지 의존의 TASK-25 상세 대조는 아직 미완료. |
+| SlackThreads.swift | TASK-20의 1471줄 전체 독해 재사용. 이번에는 SlackCopy 전체·SlackStack·상태 색·체크리스트 계산을 다시 읽음 | Slack 주소는 명시된 hejo 주소 체계로 대체. 네 가지 색 hex와 분기 50 기준을 확인. SlackCopy.text의 첨부 공백이 명세와 다름(D25-01). 유지할 표·상태·체크리스트 의존의 최종 이식 대조는 아직 미완료. |
+| AgentStop.swift | 21줄 전체를 새로 읽음 | 원본 !stop → /stop은 REQ-HF-27.AC-04가 명시한 전송 경로 변경. working/control 계산은 기존 작성 중 상태에 연결할 대상. undoRequest 문구 차이는 22판 변환 규칙으로 설명되지 않음(D25-01). |
+| BubbleReply.swift | 130줄 전체를 새로 읽음 | BubbleReplyInterruption의 mark/settle/clear와 캡션을 카드에 옮길 대상. 말풍선 입력·hover·초안 전체 이식은 후속 TASK-30 범위이며 지금은 가져오지 않음. Foundation 외 유지 의존 없음. |
+| DdotsConfig.swift | 231줄 전체를 새로 읽음 | branchText=/branch, longThread=50과 체크리스트 기본 문구 확인. 로컬 설정 파일·HermesLocator·개인 경로·계정·운영 설정 읽기는 복사하거나 실행하지 않음. hejo에서는 명세 상수·기존 회원 상태가 책임을 가짐. |
+
+변환 규칙 1번의 서비스 용어 치환과 2번의 Slack 전용 설명 제거는 진행 가능한 차이다. 그러나 첨부 줄의 `📎` 뒤 공백 삭제와 undoRequest의 `Notion·NAS·` 삭제는 그 규칙에 속하지 않는다. 명세 22판은 규칙 밖 차이를 보고하도록 하므로 제품 복사·구현 전에 멈췄다. 원문 formatter를 가짜 자료로 분리 실행한 근거와 선택지는 impl-report의 D25-01에 있다. 이 절은 TASK-25 전체 의존 대조·구현·수락 시험 완료 기록이 아니다.
+
+### TASK-25 보완 24 재개 — D25-01 해소·남은 의존 대조
+
+기준 `cf0a23cd0778a57b5cc69b3933e5380099b2075d`에서 첨부 공백과 되돌리기 글은 원문과 일치한다. 앞의 보류 기록은 당시 상태로 보존한다. 24판에 따라 명백한 옮김 누락·공백·부호는 원문 우선으로 기록 후 진행한다. 아래 파일은 기존 원본 기준과 diff가 없음을 확인했다.
+
+| 원본 (`<운영 저장소>/ddots/Sources/`) | 독해·의존 처리 | 확인한 이식 경계 |
+|---|---|---|
+| SlackPanel.swift | 앞 절 전체 독해 재사용, nativeConversation·slackThread·slackStack·stopControl·slackApproval·HermesReplyChecklist를 다시 대조 | 날짜가 달라지는 첫 카드 앞 날짜 줄·뒤 18pt 간격, 중복 제외 얼굴 3, 종 true/false 그림·색, 버튼 순서·체크리스트 토글. SwiftUI 호스트는 AppKit으로 대체하고 개인 업무·Slack 삭제 진행률은 제외. |
+| SlackThreads.swift | 전체 독해 재사용, SlackCopy·SlackStack·SlackNotice 상태/체크리스트·statusColors 대조 | 네 상태 색 hex와 표의 Slack 블록→Markdown 입력 경계 확인. 명시 메타 없는 hejo 글에 Slack 승인 휴리스틱을 새로 넣지 않음. 질문 rail의 원문/명세 색 차이는 D25-05로 보고. |
+| NativeThreadContent.swift | TASK-06의 311줄 전체 독해 재사용, 이번에 카드 조립·nativePost·nativeBody와 체크 토글 의존 대조 | 기존 NativeThreadCard의 bell/actions/stack/post/mark 구조 유지. NSHosting·개인 보관함·캘린더·드라이브 호출 제외. 체크박스 원문은 고치지 않고 hejo MemberState의 check:로 대체할 대상. |
+| ChecklistText.swift | 65줄 전체를 새로 읽음 | SHA256(identity+본문)과 표시 위치로 확인 상태를 구별하는 원리 확인. UserDefaults·SwiftUI·ddots-check 주소는 가져오지 않고 승인된 check: 키와 AppKit 링크 처리에 연결할 대상. Foundation/CryptoKit 외 새 유지 의존 없음. |
+| MessageFormat.swift | 219줄 전체를 읽음 | 체크 줄 변환·Markdown/서식 파싱→기존 hejo MessageFormat. SwiftUI Font/Color 변환은 제외. AppKit/Foundation·기존 ChatMetrics만 유지할 대상. |
+| SlackLayout.swift | TASK-20의 346줄 전체 독해 재사용, strip/apply/tableRow의 표 전체 경로 재대조 | 머리줄·정렬줄 숨김·NSTextTable/Block·셀별 정렬·테두리·패딩→기존 hejo TextLayout. 방 구획 계산은 TASK-20 기존 구현을 유지. |
+| SettingsSync.swift / SlackSettingsSync.swift | TASK-24의 145/173줄 전체 독해 재사용, 이번에 다시 전체 읽음 | 원본 종은 dismissed: LWW이며 syncUndismiss가 null을 명시 전송함. read 계열과 종을 구분하는 계약이 hejo의 bell: 큰 seq 우선과 다름(D25-03). relay·로컬 계정 저장은 복사하지 않음. |
+| SlackController.swift | TASK-20의 1622줄 전체 독해 재사용, onBell·publish 종 계산 대조 | 종을 다시 누르면 dismissed를 제거하고 null 동기화. 새로운 일이 오면 최신 위치와 비교해 다시 울림. markRead와 종 해제는 별도 의미임을 확인. Slack 전송/개인 설정 접근은 제외. |
+
+유지 의존은 기존 hejo NativeThreadCard·TextLayout·MessageFormat·TypingRow·ProfileAvatar와 MemberState·GateClient·LocalStore다. 유지할 UI 원본 대조와 별도로 통신/병합/공식 분기 확장점에서 D25-02~04를 재현했다. 새 저장 형식이나 Hermes 내부 우회 경로는 만들지 않았다. 보고·재개 조건은 impl-report 다음 절에 있다.
+
+### TASK-25 보완 25 — 실제 구현 전 해소
+
+`eac02ca5b6a0eee05af3e02971ab394959a7b717`에서 D25-02~05의 계약이 확정됐다. 기존 보류 기록을 보존하고 기존 delete 종류·같은 seq 치환, bell LWW, 문이 만드는 분기와 한 번의 문맥 전달, 질문 대기 빨강을 적용한다. 분기는 Hermes 세션 복제가 아니라는 차이도 승인된 계획에 따라 기록한다. 되돌리기 글과 첨부 공백은 24판 원문 그대로다.
+
+추가 유지 의존 `<운영 저장소>/ddots/Sources/WritingShimmer.swift` 67줄 전체를 읽었다. WritingSpinner의 2×3 시계 방향 위치·0.16초·네 단계 꼬리를 AppKit 작업 중 줄에 옮긴다. SwiftUI modifier/GeometryReader/마스크 호스트는 복사하지 않고 기존 hejo ShimmerLayer를 유지한다. Foundation/AppKit 외 새 런타임 의존은 없다. 원본 파일은 읽기만 했다. 중지 경계는 Hermes gateway/run_busy.py의 stop 명령 매핑·thread slot 필터를 읽기 전용으로 확인했다. 본체·세션 저장소를 고치거나 우회하지 않는다.
+
+
+### TASK-25 구현 뒤 같은 상태 대조
+
+원본 NativeThreadCard·SlackLayout과 기존 hejo 카드 렌더러에 동일한 가짜 상태를 넣어 실행했다. 유지 의존 MessageFormat/ChatStyle과 가짜 사진 공급자는 공통이며 원본 앱 전체 실행은 아니다. 질문 빨강·종·얼굴 3개·접힌 답·표·아래 버튼 5개의 배치 영역이 같고 캡처 181,272픽셀 중 차이는 186픽셀이다. 상세와 실제 ConversationView 날짜·표·제어 캡처는 evidence/HEJO-FOUNDATION/TASK-25.md에 기록했다. Slack 주소→hejo 주소는 변환 규칙 1번과 승인된 주소 계약, Slack 전용 구절 제외는 규칙 2번, 첨부 공백·Notion·NAS는 24판 원문 복구다. 새 문구 계약 충돌은 남지 않았다. 원본·유지 의존 파일을 수정하지 않았다.

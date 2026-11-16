@@ -58,7 +58,7 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     let pet=PetController(store:store,atlas:try SpriteAtlas(resourceDirectory:resourceDirectory))
     pet.reducedMotion={true}; pet.pet.installConversation(ui); pet.preferredChatSize=CGSize(width:428,height:500)
     pet.onExpansionChanged={ controller.model.setVisible($0) }; pet.showChat(); pet.pet.layoutSubtreeIfNeeded()
-    try check(ui.sidebarRows.filter { $0.kind == .section }.count == 3 && ui.sidebarRows.filter { $0.kind == .stack }.count == 1 && ui.threadTable.numberOfRows == 1,"reviewed workspace renders employee tabs and thread cards")
+    try check(ui.sidebarRows.filter { $0.kind == .section }.count == 3 && ui.sidebarRows.filter { $0.kind == .stack }.count == 1 && ui.history.contents.filter { !$0.id.hasPrefix("date:") }.count == 1,"reviewed workspace renders employee tabs and thread cards")
     try check(!pet.panel.isKeyWindow,"installing populated conversation does not take key focus")
     try check(ui.sidebarWidth == 68 && ui.employeeTable.rowHeight == 72 && ui.headerDrag.frame.height == 44,"source strip and workspace header metrics")
     var resized:CGFloat=0; ui.onSidebarWidth={resized += $0}
@@ -72,7 +72,7 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     let extra=ConversationKey(employee:"beta",thread:UUID().uuidString.lowercased())
     controller.receive(message(10,id:UUID().uuidString.lowercased(),employee:"beta",thread:extra.thread,text:"another thread"))
     ui.refresh()
-    try check(ui.history.contents.count == 2 && ui.history.contents.allSatisfy { !$0.expanded },"threads enter folded in the same list")
+    try check(ui.history.contents.filter { !$0.id.hasPrefix("date:") }.count == 2 && ui.history.contents.allSatisfy { !$0.expanded },"threads enter folded in the same list")
     ui.chooseThread(beta)
     try check(ui.history.contents.filter(\.expanded).count == 1 && ui.replyMode,"click opens one card and targets reply")
     ui.chooseThread(extra)

@@ -30,6 +30,10 @@ final class MemoryCredentials: GateCredentialStore {
                 let args = CommandLine.arguments
                 if args.contains("--lock-child") {
                     let lock = try InstanceLock(directory: URL(fileURLWithPath: args[2])); withExtendedLifetime(lock) { }
+                } else if args.count > 2 && args[1] == "--task25-capture" {
+                    try await threadToolsTests(outputDirectory:URL(fileURLWithPath:args[2]))
+                } else if args.count > 3 && args[1] == "--threads" {
+                    try await threadNetwork(args)
                 } else if args.count > 3 && args[1] == "--task17-capture" {
                     try await task17Capture(resourceDirectory: URL(fileURLWithPath: args[2]), outputDirectory: URL(fileURLWithPath: args[3]))
                 } else if args.count > 2 && args[1] == "--task24-capture" {
@@ -152,6 +156,7 @@ final class MemoryCredentials: GateCredentialStore {
         try await typingTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await task17Tests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await memberStateTests()
+        try await threadToolsTests()
         try picturesSidebarTests()
         try appIconTests()
         try await loginTests()

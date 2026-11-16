@@ -9,14 +9,17 @@ final class TypingRow: NSView {
     private let since: Date, clock: () -> Date, animationTime: () -> TimeInterval, reduceMotion: () -> Bool
     private let shimmer = ShimmerLayer()
     private var timer: Timer?
+    private let activity:String?
+    private var words:String {activity ?? Self.words}
     private(set) var elapsedText = ""
     var isShimmering: Bool { !shimmer.isHidden }
     var shimmerPosition: CGFloat { shimmer.bandX }
     override var isFlipped: Bool { true }
     private var wordsRect: CGRect {
-        CGRect(x: 43, y: 3, width: ceil((Self.words as NSString).size(withAttributes: [.font: Self.font]).width) + 1, height: 16)
+        CGRect(x: activity == nil ? 43:60, y: 3, width: min(activity == nil ? 1000:max(1,bounds.width-140),ceil((words as NSString).size(withAttributes: [.font: Self.font]).width) + 1), height: 16)
     }
-    init(since: Date, clock: @escaping () -> Date, animationTime: @escaping () -> TimeInterval, reduceMotion: @escaping () -> Bool) {
+    init(since: Date, clock: @escaping () -> Date, animationTime: @escaping () -> TimeInterval, reduceMotion: @escaping () -> Bool, activity:String?=nil) {
+        self.activity=activity
         self.since = since; self.clock = clock; self.animationTime = animationTime; self.reduceMotion = reduceMotion
         super.init(frame: .zero)
         wantsLayer = true; layer?.addSublayer(shimmer)
@@ -33,18 +36,47 @@ final class TypingRow: NSView {
     }
     override func layout() {
         super.layout()
-        shimmer.configure(text: Self.words, font: Self.font, frame: wordsRect, scale: window?.backingScaleFactor ?? 2)
+        shimmer.configure(text: words, font: Self.font, frame: wordsRect, scale: window?.backingScaleFactor ?? 2)
         tick()
     }
     func tick() {
-        let text = Self.elapsed(max(0, Int(clock().timeIntervalSince(since))))
-        if text != elapsedText { elapsedText = text; setAccessibilityLabel(Self.words + " " + text); needsDisplay = true }
+        let seconds=max(0,Int(clock().timeIntervalSince(since)))
+        let text = activity == nil ? Self.elapsed(seconds):"\(seconds)초"
+        if text != elapsedText { elapsedText = text; setAccessibilityLabel(words + " " + text); needsDisplay = true }
+        if activity != nil {needsDisplay=true}
         shimmer.update(time: animationTime(), running: !reduceMotion())
     }
     override func draw(_ dirtyRect: NSRect) {
         let words = wordsRect
-        (Self.words as NSString).draw(in: words, withAttributes: [.font: Self.font, .foregroundColor: NSColor.labelColor.withAlphaComponent(0.45)])
+        (self.words as NSString).draw(in: words, withAttributes: [.font: Self.font, .foregroundColor: NSColor.labelColor.withAlphaComponent(0.45)])
+        if activity != nil {
+            let levels=WritingSpinner.levels(at:animationTime(),reduceMotion:reduceMotion())
+            for (index,point) in WritingSpinner.positions.enumerated() where levels[index]>0 {
+                NSColor.labelColor.withAlphaComponent(levels[index]*0.6).setFill()
+                NSBezierPath(roundedRect:CGRect(x:43+CGFloat(point.0)*5,y:5+CGFloat(point.1)*5,width:2.5,height:2.5),xRadius:0.6,yRadius:0.6).fill()
+            }
+        }
         (elapsedText as NSString).draw(in: CGRect(x: words.maxX + 6, y: words.minY, width: 80, height: 16),
                                        withAttributes: [.font: Self.font, .foregroundColor: NSColor.labelColor.withAlphaComponent(0.35)])
     }
+}
+
+enum WritingSpinner {
+    static let positions=[(0,0),(1,0),(1,1),(1,2),(0,2),(0,1)]
+    static let stepDuration:TimeInterval=0.16
+    static func levels(at time:TimeInterval,reduceMotion:Bool)->[Double] {
+        let head=reduceMotion ? 0:(Int(floor(time/stepDuration))%6+6)%6
+        let tail=[1.0,0.7,0.5,0.35]
+        return positions.indices.map {let age=(head-$0+6)%6;return age<tail.count ? tail[age]:0}
+    }
+}
+final class WorkingControlRow:NSView {
+    let row:TypingRow,button=FileChip(title:"")
+    init(since:Date,activity:String,clock:@escaping()->Date,animationTime:@escaping()->TimeInterval,reduceMotion:@escaping()->Bool,stop:@escaping()->Void) {
+        row=TypingRow(since:since,clock:clock,animationTime:animationTime,reduceMotion:reduceMotion,activity:activity)
+        super.init(frame:.zero);addSubview(row);addSubview(button)
+        button.image=NSImage(systemSymbolName:"stop.fill",accessibilityDescription:"중지");button.isBordered=false;button.toolTip="중지";button.setAccessibilityLabel("중지");button.invoke=stop
+    }
+    required init?(coder:NSCoder){fatalError()}
+    override func layout(){super.layout();row.frame=CGRect(x:0,y:0,width:max(1,bounds.width-24),height:22);button.frame=CGRect(x:max(0,bounds.width-22),y:1,width:18,height:18)}
 }

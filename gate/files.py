@@ -151,6 +151,8 @@ class FileStore:
         if not EMPLOYEE.fullmatch(employee) or not ID.fullmatch(file_id):
             raise UnknownFile()
         for row in reversed(self.journal.records):
+            if self.journal.hidden(row):
+                continue
             for entry in row.get("_meta", {}).get("files", []):
                 if entry["file_id"] == file_id and entry["employee"] == employee:
                     path = self.checked(self.root / file_id / safe_name(entry["name"]))
@@ -175,6 +177,7 @@ class FileStore:
     def cleanup(self, now=None):
         cutoff = (time.time() if now is None else now) - RETENTION_SECONDS
         registered = {entry["file_id"] for row in self.journal.records
+                      if not self.journal.hidden(row)
                       for entry in row.get("_meta", {}).get("files", [])}
         for item in self.root.iterdir():
             if item.name == ".pending":

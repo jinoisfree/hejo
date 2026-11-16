@@ -36,11 +36,64 @@ struct ConversationDraft {
     private var pending: [String: (key: ConversationKey, draft: ConversationDraft)] = [:]
     var notice = "" { didSet { onChange?() } }
     var onChange: (() -> Void)?
+    var onRevealThread: ((ConversationKey)->Void)?
+    private(set) var stopped = Set<ConversationKey>()
+    private(set) var interruptions: [ConversationKey:Date] = [:]
+    private(set) var branching: [ConversationKey:Date] = [:]
+    private(set) var deleting = Set<ConversationKey>()
+    private(set) var confirmingDelete: [ConversationKey:Date] = [:]
+    private var checklistSelections:[String:(ReplyChecklist,Set<String>)]=[:]
+    func checklistSelection(_ message:ConversationMessage)->ReplyChecklist? {
+        guard model.messages[message.id] != nil,var data=message.checklist else{return nil}
+        if let stored=checklistSelections[message.id],stored.0==data {data.selected=data.items.filter{stored.1.contains($0)}}
+        return data
+    }
+    func selectChecklist(_ message:ConversationMessage,selected:Set<String>) {
+        if model.messages[message.id] != nil,let data=message.checklist {checklistSelections[message.id]=(data,selected)}
+    }
+    var clock:()->Date = Date.init
+    func working(_ key:ConversationKey)->Bool {
+        model.typing[key] != nil || model.timeline(key).contains{$0.role != "owner" && ($0.streaming || ThreadTools.thinking($0.text))}
+    }
+    func openLink(_ url:URL) {
+        guard let key=ThreadTools.destination(url),!model.timeline(key).isEmpty else { notice="그 스레드를 불러오지 못했어요";return }
+        model.select(key);onRevealThread?(key)
+    }
+    func branch(_ key:ConversationKey) async {
+        if let at=branching[key],clock().timeIntervalSince(at)<6 {return}
+        guard canSend else {transferFailed(GateFailure.notConnected);return}
+        branching[key]=clock();onChange?()
+        do { try await client.send(["v":1,"type":"thread_branch","id":UUID().uuidString.lowercased(),"room":key.employee,"thread":key.thread,"client_msg_id":UUID().uuidString.lowercased()]) }
+        catch { branching[key]=nil;transferFailed(error) }
+    }
+    func deleteThread(_ key:ConversationKey) async {
+        guard !deleting.contains(key) else{return}
+        guard let at=confirmingDelete[key],clock().timeIntervalSince(at)<4 else {confirmingDelete=[key:clock()];onChange?();return}
+        guard canSend else {transferFailed(GateFailure.notConnected);return}
+        confirmingDelete[key]=nil;deleting.insert(key);onChange?()
+        do { try await client.send(["v":1,"type":"thread_delete","id":UUID().uuidString.lowercased(),"room":key.employee,"thread":key.thread]) }
+        catch {deleting.remove(key);transferFailed(error)}
+    }
+    @discardableResult func sendText(_ text:String,key:ConversationKey) async -> Bool {
+        guard canSend else {transferFailed(GateFailure.notConnected);return false}
+        do {
+            let id=UUID().uuidString.lowercased()
+            try await client.send(["v":1,"type":"send","id":id,"employee":key.employee,"thread":key.thread,"client_msg_id":id,"text":text])
+            if text != "/stop" {stopped.remove(key)}
+            if text != "/stop",working(key) {interruptions[key]=clock()}
+        } catch {transferFailed(error);return false}
+        onChange?()
+        return true
+    }
+    func stop(_ key:ConversationKey) async {
+        guard !stopped.contains(key),canSend else{return}
+        stopped.insert(key);if !(await sendText("/stop",key:key)) {stopped.remove(key)}
+    }
     private(set) var transferFailure: IslandFailure? { didSet { onChange?() } }
     private(set) var stateFailure: IslandFailure? { didSet { onChange?() } }
     private(set) var uploads: [ConversationKey: IslandUpload] = [:] { didSet { onChange?() } }
     var islandInput: IslandModel.Input {
-        IslandModel.Input(messages:Array(model.messages.values),typing:model.typing,
+        IslandModel.Input(messages:Array(model.messages.values).map { var message=$0;if model.confirmed(message.id) {message.replyState=nil};return message },typing:model.typing,
             names:Dictionary(uniqueKeysWithValues:model.employees.map { ($0.id,$0.name) }),
             unread:model.visibleUnreadTotal,selected:model.selected,
             status:client.status,failure:transferFailure ?? stateFailure,uploads:uploads,muted:model.muted)
@@ -57,7 +110,15 @@ struct ConversationDraft {
         model.memberState.onUnpinned = { [weak self] count in self?.notice = "고정 자리 5개를 넘어 \(count)개의 고정을 풀었어요." }
         client.onFrame = { [weak self] frame in self?.receive(frame) }
         timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.model.expireTyping() }
+            Task { @MainActor in
+                guard let self else{return}
+                let old=(self.confirmingDelete.count,self.interruptions.count,self.branching.count)
+                self.model.expireTyping()
+                let now=self.clock();self.confirmingDelete=self.confirmingDelete.filter{now.timeIntervalSince($0.value)<4}
+                self.interruptions=self.interruptions.filter{key,at in self.working(key) && !self.model.timeline(key).contains{$0.role=="employee" && ThreadTools.date($0.timestamp)>at}}
+                self.branching=self.branching.filter{now.timeIntervalSince($0.value)<6}
+                if old != (self.confirmingDelete.count,self.interruptions.count,self.branching.count) {self.onChange?()}
+            }
         }
     }
     deinit { timer?.invalidate() }
@@ -73,14 +134,29 @@ struct ConversationDraft {
             for id in unconfirmed { pending[id] = nil }
         }
         if frame["type"] as? String == "welcome", replicaAddress != client.store.settings.address {
-            model.resetReplica(); drafts = [:]; pending = [:]; transferFailure=nil; uploads=[:]; replicaAddress = client.store.settings.address
+            model.resetReplica(); drafts = [:]; pending = [:]; transferFailure=nil; uploads=[:];stopped=[];interruptions=[:];branching=[:];deleting=[];confirmingDelete=[:];checklistSelections=[:];replicaAddress = client.store.settings.address
         }
         do { try model.apply(frame) } catch { notice = "대화 기록을 읽지 못했어요. 다시 연결해 주세요." }
+        if let employee=frame["employee"] as? String,let thread=frame["thread"] as? String {
+            let key=ConversationKey(employee:employee,thread:thread)
+            if (frame["branch_from"] as? [String:Any])?["thread"] is String,client.replayComplete {
+                model.select(key);onRevealThread?(key)
+            }
+            if frame["role"] as? String == "owner",frame["text"] as? String != "/stop" { stopped.remove(key) }
+            if frame["role"] as? String == "employee" { interruptions[key]=nil }
+            if !working(key) { interruptions[key]=nil }
+        }
+        if frame["scope"] as? String == "thread",let room=frame["room"] as? String,let thread=frame["thread"] as? String {
+            let key=ConversationKey(employee:room,thread:thread)
+            drafts[key]=nil;pending=pending.filter{$0.value.key != key};deleting.remove(key);stopped.remove(key);interruptions[key]=nil
+            checklistSelections=checklistSelections.filter{model.messages[$0.key] != nil}
+        }
         if let id = frame["client_msg_id"] as? String, let entry = pending.removeValue(forKey: id) {
             transferFailure=nil
             if drafts[entry.key]?.text == entry.draft.text && drafts[entry.key]?.attachments == entry.draft.attachments { drafts[entry.key] = ConversationDraft() }
         }
         if frame["type"] as? String == "error" {
+            deleting=[]
             let entry=(frame["ref"] as? String).flatMap { pending.removeValue(forKey:$0) }
             let message:String
             switch frame["code"] as? String {
@@ -125,12 +201,15 @@ struct ConversationDraft {
             guard address == client.store.settings.address, epoch == client.connectionEpoch, canSend else { throw GateFailure.notConnected }
             try await client.send(["v":1, "type":"send", "id":id, "employee":key.employee, "thread":key.thread,
                                    "text":draft.text.trimmingCharacters(in:.whitespacesAndNewlines), "client_msg_id":id, "files":uploaded.map(\.fileID)])
+            stopped.remove(key);if working(key) {interruptions[key]=clock()}
         } catch {
             pending[id] = nil; transferFailed(error,for:key)
         }
         onChange?()
     }
     func click(_ button: MessageButton, message: ConversationMessage) async {
+        if button.kind=="reply",button.label=="의견" {model.select(message.key);onRevealThread?(message.key);return}
+        if button.kind=="reply",button.label=="확인" {model.confirm(message);return}
         guard canSend else { transferFailed(GateFailure.notConnected); return }
         do { try await client.send(ConversationModel.click(message: message, button: button)); transferFailure=nil }
         catch { transferFailed(error) }

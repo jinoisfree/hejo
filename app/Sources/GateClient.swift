@@ -174,7 +174,13 @@ struct ReconnectDelay {
             if more || through > store.settings.applied { syncing = true; try await sync() }
         case "ping": try await send(["v": 1, "type": "pong"])
         case "error": if frame["code"] as? String == "too_large" { status = .tooLarge }
-        default: break
+        default:
+            if let seq=frame["seq"] as? Int {
+                guard seq>0 else { throw GateFailure.protocolError }
+                if seq<=store.settings.applied { return true }
+                if seq>store.settings.applied+1 { replayComplete=false;if !syncing { syncing=true;try await sync() };return true }
+                do { try store.append(frame) } catch { throw GateFailure.storage }
+            }
         }
         onFrame?(frame); return true
     }

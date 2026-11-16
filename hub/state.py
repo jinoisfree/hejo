@@ -12,7 +12,7 @@ from .store import Rejected
 
 MAX_BYTES = 1024 * 1024
 MAX_VALUE_BYTES = 4096
-READ_PREFIXES = ("read:", "thread:", "bell:")
+READ_PREFIXES = ("read:", "thread:")
 CAPS = {"thread:": 3000, "bell:": 1000, "confirm:": 2000, "check:": 2000}
 
 
@@ -40,7 +40,7 @@ def validate(items):
                 or not valid_time
                 or not isinstance(device, str) or not 1 <= len(device.encode()) <= 200 or "\n" in device):
             raise Rejected("bad_state")
-        if key.startswith(READ_PREFIXES) and value is not None:
+        if key.startswith(READ_PREFIXES + ("bell:",)) and value is not None:
             if not value.isascii() or not value.isdecimal() or len(value) > 16 or int(value) > 2 ** 53 - 1:
                 raise Rejected("bad_state")
 

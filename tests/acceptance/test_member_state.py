@@ -17,6 +17,15 @@ def entry(value, at=10, dev="device-a"):
     return {"v": value, "at": at, "dev": dev}
 
 
+def test_at_hf_73_bell_uses_lww_and_read_positions_still_advance(tmp_path):
+    state, member = MemberStateStore(tmp_path), str(uuid.uuid4())
+    state.patch(member, {"bell:alpha/thread": entry("100"), "thread:alpha/thread": entry("100")})
+    doc = state.patch(member, {"bell:alpha/thread": entry(None, 11), "thread:alpha/thread": entry("0", 11)})
+    assert doc["items"]["bell:alpha/thread"]["v"] is None
+    assert doc["items"]["thread:alpha/thread"]["v"] == "100"
+    assert state.patch(member, {"bell:alpha/thread": entry("100", 9)})["items"]["bell:alpha/thread"]["v"] is None
+
+
 def test_at_hf_73_lww_reads_tombstones_caps_and_atomic_failure(tmp_path):
     state = MemberStateStore(tmp_path)
     member = str(uuid.uuid4())

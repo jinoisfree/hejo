@@ -19,6 +19,11 @@ import AppKit
     private var settingsRevision = 0
     private var settingsTask: Task<Void, Never>?
     private var activityMonitor: Any?
+    private var pendingURLs:[URL]=[]
+    func application(_ application:NSApplication,open urls:[URL]) {
+        guard conversation != nil else {pendingURLs += urls;return}
+        for url in urls where url.scheme?.lowercased()=="hejo" {conversation.openLink(url);pet.showChat()}
+    }
     func applicationDidFinishLaunching(_ notification: Notification) {
         do {
             try FileManager.default.createDirectory(at: AppIdentity.support, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
@@ -69,6 +74,7 @@ import AppKit
                 if status == .wrongCode || status == .revoked { self?.connection.present() }
             }
             pet.show()
+            if !pendingURLs.isEmpty {let urls=pendingURLs;pendingURLs=[];application(NSApp,open:urls)}
             if store.settings.address.isEmpty || !store.settings.signsInAutomatically {
                 // Without automatic sign-in every launch starts at the login screen (saved id/password still fill in).
                 Task { if !store.settings.address.isEmpty { await client.signOut() }; connection.present() }

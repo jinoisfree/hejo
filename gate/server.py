@@ -244,7 +244,7 @@ class GateServer:
             conn.queue.clear()
             page = self.adapter.journal.page(since, LIMITS["sync_page"])
         for frame in page:
-            await conn.send(frame)
+            await conn.send(self.adapter.journal.replay(frame))
         through = page[-1]["seq"] if page else since
         async with conn.lock:
             head = self.adapter.journal.head
@@ -254,7 +254,7 @@ class GateServer:
             if not more:
                 for frame in conn.queue:
                     if frame["seq"] > through:
-                        await conn.send(frame)
+                        await conn.send(self.adapter.journal.replay(frame))
                 conn.replaying = False
             conn.queue.clear()
 
@@ -365,6 +365,10 @@ class GateServer:
                         await self.adapter.receive(frame, conn)
                     elif frame["type"] == "click":
                         await self.adapter.click(frame, conn)
+                    elif frame["type"] == "thread_delete":
+                        await self.adapter.thread_delete(frame, conn)
+                    elif frame["type"] == "thread_branch":
+                        await self.adapter.thread_branch(frame, conn)
                     elif frame["type"] != "pong":
                         await self.error("unexpected_frame", frame.get("id"), conn)
                 except Exception as exc:

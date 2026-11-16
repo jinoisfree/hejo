@@ -65,6 +65,8 @@ final class LocalStore {
         }
         if valid != data { try valid.write(to: cacheURL, options: .atomic) }
         settings.applied = seq
+        // Repair an older cache that committed a scope marker before it could be compacted.
+        for frame in records where frame["scope"] as? String == "thread" { try redactThread(frame) }
         try save()
     }
     func update(_ change: (inout LocalSettings) -> Void) throws {
@@ -81,12 +83,42 @@ final class LocalStore {
     }
     func append(_ frame: [String: Any]) throws {
         guard let seq = frame["seq"] as? Int, seq == settings.applied + 1 else { throw GateFailure.protocolError }
+        if frame["type"] as? String == "delete", frame["scope"] as? String == "thread" {
+            let next = records + [frame]
+            let redacted = Self.redacting(next, point: frame)
+            try rewrite(redacted)
+            settings.applied = seq; try save(); return
+        }
         var data = try JSONSerialization.data(withJSONObject: frame, options: .sortedKeys); data.append(10)
         if !FileManager.default.fileExists(atPath: cacheURL.path) { try Data().write(to: cacheURL) }
         let file = try FileHandle(forWritingTo: cacheURL); defer { try? file.close() }
         try file.seekToEnd(); try file.write(contentsOf: data); try file.synchronize()
         records.append(frame); settings.applied = seq; try save()
     }
+    private static func redacting(_ rows: [[String: Any]], point: [String: Any]) -> [[String: Any]] {
+        guard let room = point["room"] as? String, let thread = point["thread"] as? String else { return rows }
+        let ids = Set(rows.filter { ($0["room"] as? String ?? $0["employee"] as? String) == room && $0["thread"] as? String == thread && $0["type"] as? String == "message" }.compactMap { $0["msg_id"] as? String })
+        return rows.map { row in
+            guard ["message","edit","state"].contains(row["type"] as? String ?? ""),let id=row["msg_id"] as? String,ids.contains(id) else { return row }
+            return ["v":1,"type":"delete","seq":row["seq"]!,"msg_id":id]
+        }
+    }
+    private func rewrite(_ rows: [[String: Any]]) throws {
+        var bytes=Data()
+        for row in rows { bytes.append(try JSONSerialization.data(withJSONObject:row,options:.sortedKeys));bytes.append(10) }
+        let fresh=cacheURL.deletingLastPathComponent().appendingPathComponent(".frames-"+UUID().uuidString)
+        defer {try? FileManager.default.removeItem(at:fresh)}
+        guard FileManager.default.createFile(atPath:fresh.path,contents:bytes,attributes:[.posixPermissions:0o600]) else {throw GateFailure.storage}
+        let handle=try FileHandle(forWritingTo:fresh);defer {try? handle.close()};try handle.synchronize()
+        guard rename(fresh.path,cacheURL.path)==0 else {throw GateFailure.storage}
+        records=rows
+        let files=directory.appendingPathComponent("cache/files",isDirectory:true)
+        for item in (try? FileManager.default.contentsOfDirectory(at:files,includingPropertiesForKeys:nil)) ?? [] where !hasFile(item.lastPathComponent) {
+            try FileManager.default.removeItem(at:item)
+        }
+    }
+    func hasFile(_ id:String)->Bool {records.contains { row in (row["files"] as? [[String:Any]] ?? []).contains{$0["file_id"] as? String==id} }}
+    private func redactThread(_ point:[String:Any]) throws { try rewrite(Self.redacting(records,point:point)) }
     private func save(_ value: LocalSettings? = nil) throws {
         let data = try JSONEncoder().encode(value ?? settings)
         let fresh = directory.appendingPathComponent(".settings-" + UUID().uuidString)

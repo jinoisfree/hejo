@@ -56,6 +56,12 @@
     },
     {
       "$ref": "#/$defs/ping"
+    },
+    {
+      "$ref": "#/$defs/thread_delete"
+    },
+    {
+      "$ref": "#/$defs/thread_branch"
     }
   ],
   "$defs": {
@@ -75,8 +81,16 @@
             "type": "string"
           }
         },
-        "avatar_custom": { "type": "boolean" },
-        "color": { "type": ["string", "null"], "pattern": "^#[0-9A-F]{6}$" },
+        "avatar_custom": {
+          "type": "boolean"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^#[0-9A-F]{6}$"
+        },
         "avatar": {
           "type": [
             "string",
@@ -618,6 +632,21 @@
         },
         "ts": {
           "type": "string"
+        },
+        "checklist": {
+          "$ref": "#/$defs/checklist"
+        },
+        "branch_from": {
+          "type": "object",
+          "properties": {
+            "thread": {
+              "$ref": "#/$defs/thread"
+            }
+          },
+          "required": [
+            "thread"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
@@ -668,6 +697,9 @@
           "items": {
             "$ref": "#/$defs/button"
           }
+        },
+        "checklist": {
+          "$ref": "#/$defs/checklist"
         }
       },
       "required": [
@@ -700,6 +732,19 @@
         "msg_id": {
           "type": "string",
           "minLength": 1
+        },
+        "scope": {
+          "const": "thread"
+        },
+        "room": {
+          "type": "string",
+          "minLength": 1
+        },
+        "thread": {
+          "$ref": "#/$defs/thread"
+        },
+        "at": {
+          "type": "string"
         }
       },
       "required": [
@@ -927,6 +972,12 @@
         },
         {
           "$ref": "#/$defs/pong"
+        },
+        {
+          "$ref": "#/$defs/thread_delete"
+        },
+        {
+          "$ref": "#/$defs/thread_branch"
         }
       ]
     },
@@ -1005,9 +1056,102 @@
             "answered",
             "closed"
           ]
+        },
+        "hejo_checklist": {
+          "$ref": "#/$defs/checklist"
         }
       },
       "additionalProperties": true
+    },
+    "thread_delete": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "thread_delete"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "room": {
+          "type": "string",
+          "minLength": 1
+        },
+        "thread": {
+          "$ref": "#/$defs/thread"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "room",
+        "thread"
+      ],
+      "additionalProperties": false
+    },
+    "thread_branch": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "thread_branch"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "room": {
+          "type": "string",
+          "minLength": 1
+        },
+        "thread": {
+          "$ref": "#/$defs/thread"
+        },
+        "client_msg_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "room",
+        "thread",
+        "client_msg_id"
+      ],
+      "additionalProperties": false
+    },
+    "checklist": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "selected": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "can_skip": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "items",
+        "selected",
+        "can_skip"
+      ],
+      "additionalProperties": false
     }
   },
   "x-limits": {
