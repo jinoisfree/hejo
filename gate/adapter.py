@@ -372,6 +372,50 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
         frame, internal = self._pending_edits.pop(msg_id)
         await self._record(frame, internal)
 
+    async def delete_message(self, chat_id, message_id):
+        owner = getattr(self, "_owner_profile", None) or "default"
+        target = _primary if self.forwarder else self
+        if target is None or not target.is_connected:
+            return False
+        address = chat_id if chat_id.startswith("room:") else (owner if self.forwarder else chat_id)
+        async with target._edit_lock:
+            message = target.journal.message(message_id)
+            if (not message or message.get("role") != "employee" or message.get("employee") != owner
+                    or ("room:"+message["room"] if message.get("room") else message["employee"]) != address):
+                return False
+            task = target._edit_tasks.pop(message_id, None)
+            if task:
+                task.cancel()
+            target._pending_edits.pop(message_id, None)
+            try:
+                await target._record({"type":"delete", "msg_id":message_id})
+                return True
+            except (HejoJournalError, ValueError):
+                return False
+
+    async def _finish_streams(self, chat_id, employee, thread):
+        async with self._edit_lock:
+            for msg_id, key in tuple(self.journal.message_threads.items()):
+                if key != (chat_id[5:] if chat_id.startswith("room:") else chat_id, thread):
+                    continue
+                message = self.journal.message(msg_id)
+                if not message or message.get("role") != "employee" or message.get("employee") != employee:
+                    continue
+                pending = self._pending_edits.get(msg_id)
+                if pending:
+                    frame, internal = pending
+                else:
+                    frame, internal = {"type":"edit", "msg_id":msg_id, "text":message["text"], "final":message.get("final", True)}, None
+                    if message.get("room"):
+                        frame["room"] = message["room"]
+                if frame["final"]:
+                    continue
+                task = self._edit_tasks.pop(msg_id, None)
+                if task:
+                    task.cancel()
+                self._pending_edits.pop(msg_id, None)
+                await self._record({**frame, "final":True}, internal)
+
     async def _deferred_edit(self, msg_id):
         try:
             await asyncio.sleep(0.5)
@@ -538,12 +582,18 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
 
     async def stop_typing(self, chat_id, metadata=None):
         if self.forwarder:
-            return await self._forward("stop_typing", chat_id=chat_id, metadata={"hermes_profile":self._owner_profile})
+            return await self._forward("stop_typing", chat_id=chat_id, metadata=metadata or {})
         active=self._typing_threads.get(chat_id,set())
         owner=(metadata or {}).get("hermes_profile") or getattr(self,"_owner_profile","default")
-        stopping={entry for entry in active if not chat_id.startswith("room:") or entry[0]==owner}
+        selected=(metadata or {}).get("thread_id")
+        stopping={entry for entry in active if (not chat_id.startswith("room:") or entry[0]==owner)
+                  and (selected is None or entry[1]==selected)}
         self._typing_threads[chat_id]=active-stopping
         for employee, thread in sorted(stopping):
+            try:
+                await self._finish_streams(chat_id, employee, thread)
+            except (ThreadDeleted, RoomDeleted):
+                continue
             async with self._publish_lock:
                 room = chat_id[5:] if chat_id.startswith("room:") else None
                 if room in self.journal.deleted_rooms:

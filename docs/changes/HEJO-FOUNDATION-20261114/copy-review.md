@@ -367,3 +367,22 @@ team-kit 경계는 실행 파일 hermes/bin/hermes-connections와 hermes_facilit
 - 문구 차이는 변환 규칙 1번(에이전트→직원, Hermes 실행 Mac→서버)·2번(원본 앱 전용 로컬/읽기 전용 설명 제외)이다. D9의 저장됨(확인 안 함)·보상 실패 문장은 hejo 고유 승인 계약이다. 원본의 4px 제목 아래 여백·성공 안내의 초록 아이콘과 달리 hejo 안내는 중립 회색 텍스트이며, 사진 없는 얼굴은 기존 hejo 명부 색을 쓴다. 비교 캡처에 이 차이를 남겼다. 화면 증거는 `evidence/HEJO-FOUNDATION/TASK-32.md`다.
 
 추가 대조: 공식 백엔드에서 기본+보조 두 프로필의 실제 목록은 합계 1,368행·553,466바이트였다. 기존 1MiB 통신 한도를 늘리지 않고 `connections.profile`로 선택한 직원만 읽는다. 직원 목록은 기존 명부를 직접 읽고, 이미 읽은 요약은 창의 메모리에만 둔다. 새 디스크 캐시는 없다. 서버도 전체 결과가 한도를 넘으면 거절한다. 서버 명령에서 온 안내의 ‘이 Mac’·‘맥미니’는 변환 규칙 1번으로 ‘서버’로 바꾸되 id·경로·URL은 바꾸지 않으며 회귀 시험에 넣었다.
+
+
+### TASK-34 착수 대조(보완 37·추가 1~3)
+
+기준 `37fb43f06507176d6b4244a5a252c5ef339c5c51`, N32-01 시험 전용 커밋 뒤 진행한다. SlackPanel.swift·SlackThreads.swift·DraftEditor.swift·AgentStop.swift는 앞선 전체 독해 기준 `208f6e63`과 diff 0을 확인해 전체 기록을 재사용한다. SlackPanel의 slackComposer·stopControl·slackFolded·slackAddRoom·사이드바 rail/animation·toggleGroup/Stack·motion을 다시 대조했다. AgentStop 21줄도 전체 다시 읽었다. 유지 의존은 기존 ComposerFaces/TypingRow·SidebarLayout·MemberState·DraftTextView이며 다른 앱 원본은 수정하지 않는다.
+
+작성기 간격 8·Spacer 최소 4·가운데 정렬, 중지 앞 간격 6·내부 9·18px/9pt, DM 이름만 16/13pt, + 행 40px, 움직임 0.24 easeInOut·선택 0.34/0.88은 원문 수치다. DM 기본 이름은 사장 선택 ‘DM’으로 바꾸고 Slack 전용 채널 이름 변환·안내는 22판 변환 규칙 2번으로 제거한다. Hermes BasePlatformAdapter.delete_message 공식 bool 계약·run_turn 성공 차례의 post-delivery 정리 경로를 읽었다. 정리와 stop_typing 끝냄은 기존 delete/edit 종류를 쓰며 새 기록 원본을 만들지 않는다.
+
+
+추가 유지 의존: WritingShimmer.swift 전체를 끝까지 읽고 WritingSpinner의 2×3 점·0.16초·꼬리 농도와 움직임 줄이기를 대조했다. SlackLayout.swift는 앞선 전체 독해 기록을 재사용하고 SlackSectionLayout.rail의 시작 높이 18·아래 여백 10·막대 너비 2를 다시 확인했다. hejo는 표 행을 NSAnimationContext 0.24/easeInEaseOut으로 이동·페이드하고, 같은 맥락의 연속 레일 높이와 선택 표시 spring(0.34/0.88)을 기존 보기에서 그린다. ＋는 별도 고정 뷰를 제거하고 목록의 마지막 40px 행으로 바꿨다. 얼굴 묶음은 기존 ComposerFaces를 가로 스크롤 문서로 재사용했다.
+
+원본 비교는 실제 slackComposer의 첫 HStack·slackModeButton·ddotsFaces, stopControl의 활동 HStack, slackFolded와 slackAddRoom의 표시를 분리 실행했다. 명부·동작 콜백·진단 측정은 가짜이며 원본 앱 전체를 실행하지 않았다. 서비스 전용 명칭·안내는 변환 규칙 1·2번이고, 기본 DM·자유 방 이름·final/삭제 처리·설치 설정은 이번 사장 승인 계약이다. 그림의 직원 색·얼굴 padding과 원본 홈 ‘새 대화’/hejo 스위치 ‘새 글’ 차이는 원본 픽셀 일치로 주장하지 않는다.
+
+
+### 33판 보완 38 반영: TASK-34 움직임 제외
+
+검증 중 계획 커밋 `a0b3782e9fbe77608478aed5a3f3a4a167444927`가 추가됐다. 최신 handoff 보완 38·spec REQ-HF-34.AC-08의 폐기/이관·design 12절을 읽고 현재 작업과 대조했다. AC-01~07·09는 유지하고 움직임은 TASK-38로 옮긴다. 위 움직임 이식/시험 기록은 초안 당시 사실이며 이번 TASK-34 결과에 포함하지 않는다.
+
+ConversationView·ConversationChrome·ProgressLayoutTests의 움직임 부분만 `.build/task38-start.patch`로 보관하고 실제 작업 트리에서는 되돌렸다(`git apply --check` 0). 표 마지막 + 행·얼굴 스크롤·DM·작업 줄·입력·문/설치 변경은 남겼다. 이 패치는 TASK-38 출발 자료이며 33판의 정확한 움직임과 같다고 승인된 구현이 아니므로 그때 design 12절·REQ-HF-36.AC-03으로 다시 대조해야 한다. TASK-35 원본 네 파일은 읽기만 준비했고 제품 구현은 시작하지 않았다.

@@ -61,7 +61,9 @@ def primary_block(port=None):
     return block
 FORWARDER = {"enabled": True, "extra": {"role": "forwarder"}}
 HOME_KEYS = ("platforms", "hejo", "home_channel")
-CONFIG_KEYS = (("plugins", "enabled"), ("gateway", "platforms", "hejo"), HOME_KEYS)
+CLEANUP_KEYS = ("display", "platforms", "hejo", "cleanup_progress")
+OWNED_KEYS = (HOME_KEYS, CLEANUP_KEYS)
+CONFIG_KEYS = (("plugins", "enabled"), ("gateway", "platforms", "hejo"), *OWNED_KEYS)
 MISSING = object()
 YAML_WORDS = {"y", "yes", "n", "no", "true", "false", "on", "off", "null", "~"}
 
@@ -327,6 +329,14 @@ def home_target(file, document):
             "owner_may_change": True, "state": "pending"}
 
 
+def cleanup_target(file, document):
+    if lookup(document, CLEANUP_KEYS)[0]:
+        return None
+    return {"kind":"config", "path":file+"#"+".".join(CLEANUP_KEYS),
+            "file":file, "keys":list(CLEANUP_KEYS), "existed":False, "before":None,
+            "after":True, "owner_may_change":True, "state":"pending"}
+
+
 def plan(home, port=None):
     # Name-only API: no profile metadata, credentials, or gateway lifecycle calls.
     from hermes_cli.profiles import get_profile_dir, list_profile_names
@@ -374,9 +384,10 @@ def plan(home, port=None):
             receipt["targets"].append({"kind": "config", "path": file + "#" + ".".join(keys),
                 "file": file, "keys": list(keys), "existed": present,
                 "before": before, "after": after, "state": "pending"})
-        target = home_target(file, document)
-        if target:
-            receipt["targets"].append(target)
+        for factory in (home_target, cleanup_target):
+            target = factory(file, document)
+            if target:
+                receipt["targets"].append(target)
     # Ensure every before value is serializable before changing anything.
     json.dumps(receipt)
     return receipt
@@ -440,11 +451,11 @@ def restore_config(home, receipt, targets, force):
             conflicts.append(target["path"])
     if not selected:
         return conflicts
-    owned_home_remaining = any(item.get("owner_may_change") and item["file"] == file
+    owned_remaining = any(item.get("owner_may_change") and item["file"] == file
                                and item["state"] in {"applied", "removing"} for item in receipt["targets"])
     original = yaml_load(cfg["before"])
-    same_home = lookup(original, HOME_KEYS) == lookup(document, HOME_KEYS)
-    if not conflicts and not owned_home_remaining and same_home and text == cfg["written"]:
+    same_owned = all(lookup(original, keys) == lookup(document, keys) for keys in OWNED_KEYS)
+    if not conflicts and not owned_remaining and same_owned and text == cfg["written"]:
         if cfg["existed"]:
             atomic_write(path, cfg["before"], cfg["mode"])
         else:
@@ -535,14 +546,15 @@ def upgrade_home_channels(home, receipt):
         # Finish recovery before deciding which profiles need a replacement target.
         reconcile_home_channels(home, receipt, installing=True)
         for file in receipt["configs"]:
-            if any(target.get("owner_may_change") and target["file"] == file
-                   and target["state"] != "removed" for target in receipt["targets"]):
-                continue
-            _, text, _ = read_config(safe_path(home, file))
-            target = home_target(file, yaml_load(text))
-            if target:
-                receipt["targets"].append(target)
-                added.append(target)
+            for keys, factory in zip(OWNED_KEYS, (home_target, cleanup_target)):
+                if any(target.get("owner_may_change") and target["file"] == file
+                       and target["keys"] == list(keys) and target["state"] != "removed" for target in receipt["targets"]):
+                    continue
+                _, text, _ = read_config(safe_path(home, file))
+                target = factory(file, yaml_load(text))
+                if target:
+                    receipt["targets"].append(target)
+                    added.append(target)
         if added:
             save_receipt(home, receipt)
         reconcile_home_channels(home, receipt, installing=True)
@@ -630,15 +642,17 @@ def run(home, *, check=False, uninstall=False, uninstall_home_channel=False, for
         for profile in list_profile_names():
             file = (Path(get_profile_dir(profile)).resolve().relative_to(home) / "config.yaml").as_posix()
             _, text, _ = read_config(safe_path(home, file))
-            present, value = lookup(yaml_load(text), HOME_KEYS)
-            targets = [item for item in receipt["targets"]
-                       if item.get("owner_may_change") and item["file"] == file]
-            if not present and (any(item["path"] in missing for item in targets)
-                                or not any(item["state"] == "released" for item in targets)):
-                print(f"missing_target {file}#{'.'.join(HOME_KEYS)}")
-                changed.append(file + "#" + ".".join(HOME_KEYS))
-            elif not any(item["state"] == "applied" and value == item["after"] for item in targets):
-                print(f"{'owner_set' if present else 'owner_removed'} {file}#{'.'.join(HOME_KEYS)}")
+            for keys in OWNED_KEYS:
+                present, value = lookup(yaml_load(text), keys)
+                targets = [item for item in receipt["targets"]
+                           if item.get("owner_may_change") and item["file"] == file and item["keys"] == list(keys)]
+                label = file+"#"+".".join(keys)
+                if not present and (any(item["path"] in missing for item in targets)
+                                    or not any(item["state"] == "released" for item in targets)):
+                    print(f"missing_target {label}")
+                    changed.append(label)
+                elif not any(item["state"] == "applied" and value == item["after"] for item in targets):
+                    print(f"{'owner_set' if present else 'owner_removed'} {label}")
         if stat.S_IMODE((home / "hejo").stat().st_mode) != 0o700:
             changed.append("hejo")
         if admin_changed: changed.append("hejo/admin.json")
@@ -652,9 +666,9 @@ def run(home, *, check=False, uninstall=False, uninstall_home_channel=False, for
             print("not_installed")
             return 0
         failed = remove_home_channels(home, receipt, [item for item in receipt["targets"]
-                                                    if item.get("owner_may_change")])
+                                                    if item.get("owner_may_change") and item["keys"] == list(HOME_KEYS)])
         for file in receipt["configs"]:
-            targets = [item for item in receipt["targets"] if item.get("owner_may_change") and item["file"] == file]
+            targets = [item for item in receipt["targets"] if item.get("owner_may_change") and item["keys"] == list(HOME_KEYS) and item["file"] == file]
             if not targets or any(item["state"] == "released" for item in targets):
                 print(f"preserved_owner_change {file}#{'.'.join(HOME_KEYS)}")
         return 1 if failed else 0

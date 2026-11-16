@@ -37,16 +37,16 @@ final class EmployeeSidebarCell: NSTableCellView {
         if let row,row.kind == .section || row.kind == .stack {
             let attrs:[NSAttributedString.Key:Any]=[.font:NSFont.systemFont(ofSize:list ? 16 : 13,weight:.bold),.foregroundColor:row.open ? NSColor.labelColor : NSColor.labelColor.withAlphaComponent(0.75)]
             let title=name
-            let width=max(0,bounds.width-18-(list && !row.open ? CGFloat(min(4,faces.count))*14 : 0))
+            let width=max(0,bounds.width-18-(list && !row.open && row.kind != .stack ? CGFloat(min(4,faces.count))*14 : 0))
             let style=NSMutableParagraphStyle();style.lineBreakMode = .byTruncatingTail;style.alignment=list ? .left : .center
             var attributes=attrs;attributes[.paragraphStyle]=style
             let textX:CGFloat=list ? 26 : 7
             (title as NSString).draw(in:CGRect(x:textX,y:list ? 4 : 0,width:max(0,width-textX),height:21),withAttributes:attributes)
-            if !row.open {
+            if !row.open && row.kind != .stack {
                 let edge:CGFloat=list ? 16 : 13
                 for (i,face) in faces.prefix(4).enumerated() { face.1.draw(in:CGRect(x:list ? bounds.width-8-CGFloat(faces.prefix(4).count-i)*14 : 8+CGFloat(i)*13,y:list ? 6 : 17,width:edge,height:edge),name:face.0) }
             }
-            if let picture { picture.draw(in:CGRect(x:bounds.width-25,y:2,width:20,height:20),from:.zero,operation:.sourceOver,fraction:1,respectFlipped:true,hints:nil) }
+            if let picture,row.kind != .stack { picture.draw(in:CGRect(x:bounds.width-25,y:2,width:20,height:20),from:.zero,operation:.sourceOver,fraction:1,respectFlipped:true,hints:nil) }
             let colors:[String:NSColor]=["unread":list ? .systemBlue : .systemRed,"question":.systemYellow,"alert":.systemBlue]
             let dotsX=min(bounds.width-5,textX+(title as NSString).size(withAttributes:attrs).width+3),dotsHeight=CGFloat(max(0,row.signals.count*4-2))
             for (i,signal) in row.signals.enumerated() { colors[signal]?.setFill();NSBezierPath(ovalIn:CGRect(x:dotsX,y:(bounds.height-dotsHeight)/2+CGFloat(i)*4,width:2,height:2)).fill() }
@@ -212,4 +212,14 @@ final class MessageAccessory: NSView {
         let lead:CGFloat=mine ? 0 : 43, width=min(limit,max(1,bounds.width-lead))
         content.frame=CGRect(x:mine ? bounds.width-width : lead,y:0,width:width,height:bounds.height)
     }
+}
+
+/// The add menu occupies a real table row, so it participates in scrolling and row motion.
+final class SidebarAddRow:NSView {
+    let button:FileChip
+    var list=false {didSet{needsLayout=true}}
+    override var isFlipped:Bool {true}
+    init(button:FileChip){self.button=button;super.init(frame:.zero);addSubview(button)}
+    required init?(coder:NSCoder){nil}
+    override func layout(){super.layout();let inset:CGFloat=list ? 16:0;button.frame=CGRect(x:inset,y:0,width:max(0,bounds.width-inset),height:40)}
 }

@@ -90,7 +90,7 @@ import UniformTypeIdentifiers
     try check(layout.group("1").map(\.id)==["d0","g2","g0","g1"],"AT69 slots one and three filled, rest newest")
     try check(layout.stacked.map(\.id)==["d1","d2","d3","d4"],"AT69 unpinned directs roster order")
     try check(layout.rows.first?.id=="home" && layout.rows.last?.id=="d4","AT69 home first, stack last")
-    try check(layout.rows.first(where:{$0.kind == .stack})?.name=="section 4","AT69 default stack name")
+    try check(layout.rows.first(where:{$0.kind == .stack})?.name=="DM","AT85 approved default DM name")
     try check(layout.canMove("d0",to:"2") && !layout.canMove("d1",to:"2") && !layout.canMove("home",to:"2"),"AT69 move guards")
     let header=layout.rows.first(where:{$0.id=="section:1"})!
     try check(header.unread==4 && header.signals==["unread","question","alert"] && header.faces==["d0","d1"],"AT69 muted group omitted from totals and ordered signals")

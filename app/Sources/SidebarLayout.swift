@@ -41,7 +41,7 @@ struct SidebarLayout {
     var pins: [String: Int] = [:]
     var items: [Item] = []
     func name(_ section: Section) -> String { section.name.isEmpty ? "section \((sections.firstIndex(where:{$0.id==section.id}) ?? 0)+1)" : section.name }
-    var stackName: String { stack.name.isEmpty ? "section \(sections.count+1)" : stack.name }
+    var stackName: String { stack.name.isEmpty ? "DM" : stack.name }
     func zone(_ id: String) -> String { sections.first(where:{$0.id==zones[id]})?.id ?? sections.first?.id ?? "1" }
     var stacked: [Item] {
         items.filter { $0.kind == .direct && pins[$0.id] == nil }.sorted { ($0.rank,$0.name,$0.id)<($1.rank,$1.name,$1.id) }

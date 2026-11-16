@@ -15,7 +15,7 @@ final class TypingRow: NSView {
     var isShimmering: Bool { !shimmer.isHidden }
     var shimmerPosition: CGFloat { shimmer.bandX }
     override var isFlipped: Bool { true }
-    private var wordsRect: CGRect {
+    var wordsRect: CGRect {
         CGRect(x: activity == nil ? 43:60, y: 3, width: min(activity == nil ? 1000:max(1,bounds.width-140),ceil((words as NSString).size(withAttributes: [.font: Self.font]).width) + 1), height: 16)
     }
     init(since: Date, clock: @escaping () -> Date, animationTime: @escaping () -> TimeInterval, reduceMotion: @escaping () -> Bool, activity:String?=nil) {
@@ -39,10 +39,11 @@ final class TypingRow: NSView {
         shimmer.configure(text: words, font: Self.font, frame: wordsRect, scale: window?.backingScaleFactor ?? 2)
         tick()
     }
+    var elapsedRect:CGRect { CGRect(x:wordsRect.maxX+(activity == nil ? 6:9),y:wordsRect.minY,width:ceil((elapsedText as NSString).size(withAttributes:[.font:Self.font]).width),height:16) }
     func tick() {
         let seconds=max(0,Int(clock().timeIntervalSince(since)))
         let text = activity == nil ? Self.elapsed(seconds):"\(seconds)초"
-        if text != elapsedText { elapsedText = text; setAccessibilityLabel(words + " " + text); needsDisplay = true }
+        if text != elapsedText { elapsedText = text; setAccessibilityLabel(words + " " + text); needsDisplay = true; superview?.needsLayout=true }
         if activity != nil {needsDisplay=true}
         shimmer.update(time: animationTime(), running: !reduceMotion())
     }
@@ -56,7 +57,7 @@ final class TypingRow: NSView {
                 NSBezierPath(roundedRect:CGRect(x:43+CGFloat(point.0)*5,y:5+CGFloat(point.1)*5,width:2.5,height:2.5),xRadius:0.6,yRadius:0.6).fill()
             }
         }
-        (elapsedText as NSString).draw(in: CGRect(x: words.maxX + 6, y: words.minY, width: 80, height: 16),
+        (elapsedText as NSString).draw(in: elapsedRect,
                                        withAttributes: [.font: Self.font, .foregroundColor: NSColor.labelColor.withAlphaComponent(0.35)])
     }
 }
@@ -75,8 +76,8 @@ final class WorkingControlRow:NSView {
     init(since:Date,activity:String,clock:@escaping()->Date,animationTime:@escaping()->TimeInterval,reduceMotion:@escaping()->Bool,stop:@escaping()->Void) {
         row=TypingRow(since:since,clock:clock,animationTime:animationTime,reduceMotion:reduceMotion,activity:activity)
         super.init(frame:.zero);addSubview(row);addSubview(button)
-        button.image=NSImage(systemSymbolName:"stop.fill",accessibilityDescription:"중지");button.isBordered=false;button.toolTip="중지";button.setAccessibilityLabel("중지");button.invoke=stop
+        button.image=NSImage(systemSymbolName:"stop.fill",accessibilityDescription:"중지")?.withSymbolConfiguration(.init(pointSize:9,weight:.regular));button.isBordered=false;button.toolTip="중지";button.setAccessibilityLabel("중지");button.invoke=stop
     }
     required init?(coder:NSCoder){fatalError()}
-    override func layout(){super.layout();row.frame=CGRect(x:0,y:0,width:max(1,bounds.width-24),height:22);button.frame=CGRect(x:max(0,bounds.width-22),y:1,width:18,height:18)}
+    override func layout(){super.layout();row.frame=CGRect(x:0,y:0,width:max(1,bounds.width-24),height:22);button.frame=CGRect(x:row.elapsedRect.maxX+6,y:2,width:18,height:18)}
 }

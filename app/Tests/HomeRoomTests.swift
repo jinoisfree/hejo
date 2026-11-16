@@ -1,5 +1,7 @@
 import AppKit
 
+func homeDescendants<T:NSView>(_ root:NSView,_ type:T.Type)->[T] { root.subviews.flatMap{($0 as? T).map{[$0]} ?? []} + root.subviews.flatMap{homeDescendants($0,type)} }
+
 func homeRequire<T>(_ value:T?,_ message:String)throws->T {guard let value else{throw TestFailure.assertion(message)};return value}
 
 @MainActor func homeRoomTests(resourceDirectory:URL,outputDirectory:URL?=nil) async throws {
@@ -28,7 +30,7 @@ func homeRequire<T>(_ value:T?,_ message:String)throws->T {guard let value else{
     if case .refused(let reason)=model.home.destination(text:"draft",picked:"gamma"){try check(reason=="직원 C은 홈에 없어요","AT80 removed explicit face refuses instead of fallback")}else{throw TestFailure.assertion("AT80 removed face rerouted")}
     try check(model.homeThreads.map(\.key)==[b,a] && model.employees.count==3,"AT80 removing member filters view only")
     view.chooseHome();controller.pickHome("alpha");view.refresh()
-    let faces=try homeRequire(view.subviews.compactMap{$0 as? ComposerFaces}.first,"AT80 native faces")
+    let faces=try homeRequire(homeDescendants(view,ComposerFaces.self).first,"AT80 native faces")
     try check(faces.lit==0 && faces.ring,"AT80 selected face bright with ring")
     controller.pickHome("alpha");view.refresh();try check(faces.lit==nil && !faces.ring,"AT80 same face releases selection")
     controller.setText("@B text");view.refresh();try check(faces.lit==1 && !faces.ring,"AT80 mention previews without selection ring")
@@ -47,7 +49,7 @@ func homeRequire<T>(_ value:T?,_ message:String)throws->T {guard let value else{
         model.toggleHomeMember("gamma");controller.setText("@직원 B 다음 요청");view.refresh()
         let window=NSWindow(contentRect:view.frame,styleMask:[.borderless],backing:.buffered,defer:false);window.isReleasedWhenClosed=false;window.backgroundColor = .white;view.layer?.backgroundColor=NSColor.white.cgColor;window.contentView=view;window.orderFrontRegardless();view.layoutSubtreeIfNeeded();await pause(0.2)
         let rep=view.bitmapImageRepForCachingDisplay(in:view.bounds)!;view.cacheDisplay(in:view.bounds,to:rep);try rep.representation(using:.png,properties:[:])!.write(to:outputDirectory.appendingPathComponent("task27-hejo.png"))
-        let faces=try homeRequire(view.subviews.compactMap{$0 as? ComposerFaces}.first,"AT80 capture faces");let image=faces.bitmapImageRepForCachingDisplay(in:CGRect(x:0,y:0,width:102,height:32))!;faces.cacheDisplay(in:CGRect(x:0,y:0,width:102,height:32),to:image);try image.representation(using:.png,properties:[:])!.write(to:outputDirectory.appendingPathComponent("task27-hejo-faces.png"));window.orderOut(nil)
+        let faces=try homeRequire(homeDescendants(view,ComposerFaces.self).first,"AT80 capture faces");let image=faces.bitmapImageRepForCachingDisplay(in:CGRect(x:0,y:0,width:102,height:32))!;faces.cacheDisplay(in:CGRect(x:0,y:0,width:102,height:32),to:image);try image.representation(using:.png,properties:[:])!.write(to:outputDirectory.appendingPathComponent("task27-hejo-faces.png"));window.orderOut(nil)
     }
     print("AT-HF-80 PASS")
 }

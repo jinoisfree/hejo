@@ -28,7 +28,10 @@ final class MemoryCredentials: GateCredentialStore {
         Task { @MainActor in
             do {
                 let args = CommandLine.arguments
-                if args.count>2 && args[1]=="--task32-capture" {
+                if args.count>2 && args[1]=="--task34-capture" {
+                    NSApp.appearance=NSAppearance(named:.aqua)
+                    try await progressLayoutTests(outputDirectory:URL(fileURLWithPath:args[2]))
+                } else if args.count>2 && args[1]=="--task32-capture" {
                     NSApp.appearance=NSAppearance(named:.aqua)
                     try await connectionsTests(outputDirectory:URL(fileURLWithPath:args[2]))
                 } else if args.contains("--lock-child") {
@@ -186,6 +189,7 @@ final class MemoryCredentials: GateCredentialStore {
         try await workspaceTests()
         try await homeRoomTests(resourceDirectory:URL(fileURLWithPath:CommandLine.arguments.last!))
         try await connectionsTests()
+        try await progressLayoutTests()
         try await roomsTests(resourceDirectory:URL(fileURLWithPath:CommandLine.arguments.last!))
         try await bubbleReplyTests(resourceDirectory:URL(fileURLWithPath:CommandLine.arguments.last!))
         try await petNotificationTests(resourceDirectory:URL(fileURLWithPath:CommandLine.arguments.last!))

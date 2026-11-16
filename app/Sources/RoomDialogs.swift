@@ -21,14 +21,11 @@ import AppKit
         var chosen:[String] {boxes.filter{$0.1.isEnabled && $0.1.state == .on}.map(\.0)}
     }
     static func name(_ typed:String)->String {
-        var name=typed.trimmingCharacters(in:.whitespacesAndNewlines)
-        while name.hasPrefix("#") {name.removeFirst()}
-        let words=name.lowercased().components(separatedBy:.whitespacesAndNewlines).filter{!$0.isEmpty}.joined(separator:"-")
-        return String(String(String.UnicodeScalarView(words.unicodeScalars.filter{CharacterSet.alphanumerics.contains($0) || $0=="-" || $0=="_"})).prefix(80))
+        String(typed.trimmingCharacters(in:.whitespacesAndNewlines).prefix(80))
     }
     static func dialog(people:[Employee],room:Room?=nil)->(NSAlert,Picks,NSTextField,NSPopUpButton) {
         let picks=Picks(people,inside:Set(room?.members ?? [])),field=NSTextField(frame:CGRect(x:0,y:0,width:320,height:24)),lead=NSPopUpButton(frame:.zero,pullsDown:false)
-        field.placeholderString="방 이름 (예: 새-프로젝트)";field.setAccessibilityLabel("방 이름")
+        field.placeholderString="방 이름 (예: 새 프로젝트)";field.setAccessibilityLabel("방 이름")
         lead.addItems(withTitles:people.map(\.name));lead.setAccessibilityLabel("대표 직원")
         let scroll=NSScrollView(frame:CGRect(x:0,y:0,width:320,height:min(220,picks.frame.height+2)))
         scroll.documentView=picks;scroll.hasVerticalScroller=true;scroll.borderType = .bezelBorder;scroll.drawsBackground=false
@@ -39,7 +36,7 @@ import AppKit
         let stack=NSStackView(views:views);stack.orientation = .vertical;stack.alignment = .leading;stack.spacing=8;stack.frame=CGRect(x:0,y:0,width:320,height:stack.fittingSize.height)
         let alert=NSAlert();alert.accessoryView=stack
         alert.messageText=room.map{"#"+$0.title+"에 직원 추가"} ?? "새 방 만들기"
-        alert.informativeText=room == nil ? "이름은 소문자로 바뀌고 빈칸은 -가 돼요.":"이 방에 함께할 직원을 고르세요. ‘참여 중’인 직원은 이미 이 방에 있어요. 추가한 뒤 @이름으로 부를 수 있어요."
+        alert.informativeText=room == nil ? "":"이 방에 함께할 직원을 고르세요. ‘참여 중’인 직원은 이미 이 방에 있어요. 추가한 뒤 @이름으로 부를 수 있어요."
         alert.addButton(withTitle:room == nil ? "만들기":"초대");alert.addButton(withTitle:"취소");if room != nil {alert.buttons[0].isEnabled=picks.boxes.contains{$0.1.isEnabled}};alert.window.initialFirstResponder=room==nil ? field:picks
         return (alert,picks,field,lead)
     }
@@ -55,6 +52,17 @@ import AppKit
     static func invite(_ people:[Employee],room:Room)->[String]? {
         let (alert,picks,_,_)=dialog(people:people,room:room)
         return alert.runModal() == .alertFirstButtonReturn && !picks.chosen.isEmpty ? room.members+picks.chosen:nil
+    }
+    static func header(title:String,description:String)->(NSAlert,NSTextField,NSTextField) {
+        let heading=NSTextField(string:title),detail=NSTextField(string:description)
+        heading.setAccessibilityLabel("대화 제목");detail.setAccessibilityLabel("대화 설명")
+        let stack=NSStackView(views:[NSTextField(labelWithString:"제목"),heading,NSTextField(labelWithString:"설명"),detail])
+        stack.orientation = .vertical;stack.alignment = .leading;stack.spacing=6;stack.frame=CGRect(x:0,y:0,width:320,height:110)
+        for field in [heading,detail] {field.widthAnchor.constraint(equalToConstant:320).isActive=true}
+        let alert=NSAlert();alert.messageText="대화 제목과 설명";alert.informativeText="hejo에 표시할 글이에요.";alert.accessoryView=stack
+        for title in ["저장","취소","기본값 복원"] {alert.addButton(withTitle:title)}
+        alert.window.initialFirstResponder=heading
+        return (alert,heading,detail)
     }
     static func deletion(_ room:Room)->NSAlert {
         let alert=NSAlert();alert.alertStyle = .warning;alert.messageText="#"+room.title+" 방을 삭제할까요?"
@@ -82,7 +90,7 @@ extension ConversationView {
         menu.addItem(.separator())
         menu.addItem(RoomActionItem("이름 바꾸기…"){[weak self] in
             guard let self else{return};let alert=NSAlert(),field=NSTextField(string:room.title);field.frame=CGRect(x:0,y:0,width:320,height:24)
-            alert.messageText="#"+room.title+" 이름 바꾸기";alert.informativeText="이름은 소문자로 바뀌고 빈칸은 -가 돼요.";alert.accessoryView=field;alert.addButton(withTitle:"바꾸기");alert.addButton(withTitle:"취소");alert.window.initialFirstResponder=field
+            alert.messageText="#"+room.title+" 이름 바꾸기";alert.informativeText="";alert.accessoryView=field;alert.addButton(withTitle:"바꾸기");alert.addButton(withTitle:"취소");alert.window.initialFirstResponder=field
             if alert.runModal() == .alertFirstButtonReturn {Task {await self.controller.roomCommand("room_save",room:room,title:RoomDialogs.name(field.stringValue))}}
         })
         menu.addItem(RoomActionItem("사진 바꾸기…"){[weak self] in self?.chooseGroupPicture(room)})

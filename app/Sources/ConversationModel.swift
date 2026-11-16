@@ -53,6 +53,7 @@ struct ConversationMessage: Identifiable, Equatable {
     var buttons: [MessageButton]
     var replyState: String?
     var streaming = false
+    var finalized = false
     var seq: Int
     var latestSeq: Int
     var timestamp: String
@@ -280,7 +281,7 @@ struct ConversationThread: Identifiable {
             case "edit":
                 guard let id = frame["msg_id"] as? String, let text = frame["text"] as? String, let final = frame["final"] as? Bool else { throw GateFailure.protocolError }
                 if var message = messages[id] {
-                    message.text = text; message.streaming = !final; message.latestSeq = seq
+                    message.text = text; message.streaming = !final; message.finalized = final; message.latestSeq = seq
                     if let buttons = frame["buttons"] { message.buttons = try decode(buttons, as: [MessageButton].self) }
                     if let checklist = frame["checklist"] { message.checklist = try decode(checklist, as: ReplyChecklist.self) }
                     messages[id] = message

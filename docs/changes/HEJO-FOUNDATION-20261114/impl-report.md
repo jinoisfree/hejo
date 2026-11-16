@@ -1578,3 +1578,55 @@ D32-01은 29판 D9로 해소했다. 위 보류 기록은 당시 근거로 보존
 이 보고 추가 뒤 `final_checks.py`와 커밋 도우미로 개인값/훅/diff를 확인한다. 커밋 실행 결과는 `.build/task32/commit-result.json`·`commit.log`에 남긴다. 이어 `release.py`로 공용 릴리스를 갱신하고 `final_verify.py`로 RELEASE 표식·전체 릴리스 파일·앱 서명/설정·검증 소스·깨끗한 작업 트리를 대조한다. 실제 커밋과 릴리스 최종 결과는 `release-verify.json`·`final-verification.json` 및 result 인계에서 확인한다. 이 문서 작성 시점에는 커밋/릴리스 이후 결과를 미리 통과로 세지 않았다.
 
 구현 범위는 문 공식 관리 경계·설치 준비/점검/제거·승인된 연결 UI 예외와 시험/증거다. 실제 서버 키·OAuth 동의·게이트웨이 재시작·두 Mac·권한 창·launchd 활성화·운영 창 결합은 TASK-23에 남는다. 운영 홈 설치/실행·재시작·launchd 등록·실제 비밀 파일 열기·Hermes venv 설치·본체/ddots/운영 저장소 수정·외부 발송·public 갱신·push는 하지 않았다. 운영 자료 롤백은 기존 design 15판대로 shared/hejo 사본과 이전 릴리스를 함께 복원해야 하며 이번 앱/릴리스 백업이 운영 자료 사본을 대신하지 않는다. 계획 담당 검토로 인계하고 푸시 승인 대기로 진행을 멈추지 않는다.
+
+
+## N32-01 시험 보강 인계
+
+기준 `37fb43f06507176d6b4244a5a252c5ef339c5c51`. 보상 PUT/DELETE가 성공 응답을 보내지만 이전과 다른 키 존재 상태를 남기는 두 입력을 gate/tests/test_connections.py에 추가했다. `write_partial`·승인된 문장·행동 기록 partial·값 미노출을 확인한다. 제품 변경 없이 시험 한 파일만 `git commit --only`로 `e77a5f7bf150e59a237e10a6c86ea7e5ccb2bf8b`에 기록했다.
+
+- `foundation9_runner.py task34-n32 <test_connections.py>` 종료 0, 18 passed(`.build/foundation9-task34-n32.log`).
+- `mutation_n32.py` 종료 0. compensate의 is_set 비교를 제거한 사본은 pytest 종료 1로 새 두 입력에 검출됐다(`.build/task34/n32-mutation.json`, `mutation-presence.log`). 실제 소스 불변이다.
+- 개인값·HEJO_PYTHON 지정 훅·diff 각각 종료 0(`.build/task34/n32-checks.json`), 커밋 결과 `n32-commit.json`.
+
+## TASK-34 보완 37 구현·자체 검증
+
+REQ-HF-34.AC-01~09·AT-85와 보완 37 추가 1~3을 따른다. 버전 올리기는 AC-04대로 TASK-33에 남긴다. 필요/도달 증거 수준은 최종 검사 결과를 아래에 이어 적는다. 원본 전체 독해 재사용·추가 의존은 copy-review.md에 있다.
+
+- 문: 기존 edit 대기열을 그 직원/스레드 범위로 끝내고, 마지막 본문을 edit final:true로 추가한다. 반복 stop은 같은 글을 다시 닫지 않고 늦은 편집은 평소처럼 받는다. 보조 전달의 thread_id를 보존했다. delete_message는 자기 직원·대화·직원 글만 보통 delete로 지우며, 사장/남의/없는 글은 기록하지 않는다. 실제 Hermes 성공 차례 post-delivery 정리 함수와 가짜 차례를 연결했고 실패 차례 보존도 검사한다.
+- 앱: 얼굴을 스위치와 같은 세로 가운데의 오른쪽 가로 스크롤로 옮겼다. 작업 중 줄은 9pt 간격, 중지는 초 오른쪽 6pt·18px 영역/9pt 그림이다. 완료된 생각 줄도 작성 중으로 세지 않으며 늦은 final:false는 다시 작성 중이다. DM은 사장 이름을 보존하고 기본 DM·이름만 표시한다. + 고정 뷰를 없애고 표 마지막 40px 행으로 옮겼다. 방 이름 변환/Slack 안내를 없애고 제목/설명 폼 생성은 RoomDialogs로 옮겨 실제 입력기를 시험한다. 구획/DM의 행·레일은 0.24 easeInEaseOut, 선택은 0.34/0.88 spring이며 움직임 줄이기는 즉시다. 같은 내용 재갱신이 진행 중 움직임을 끊지 않는다.
+- 설치: 기존 owner_may_change 영수증·pending/applied/removing/removed 맞춤/키 단위 되돌림을 정리 설정에도 재사용한다. 값 없을 때만 display.platforms.hejo.cleanup_progress=true를 넣고, 사장 값·전역/Slack 설정을 보존한다. --check는 두 키를 따로 확인하며 --uninstall-home-channel은 홈 키만 다룬다. 운영 설치 도우미는 실행하지 않았다.
+
+기존 시험 조정은 승인된 계약 변경 범위다. PicturesSidebarTests의 기본 DM 이름 기대 한 줄을 AC-05로 바꿨다. HomeRoomTests의 얼굴 조회 두 곳은 가로 스크롤 안의 실제 같은 뷰를 재귀 조회하도록 바꿨고 단정은 유지했다. test_install.py의 home_targets는 새 정리 설정을 홈 채널로 잘못 세지 않도록 정확한 홈 키만 고른다(기존 수치/단정/입력 완화 없음). 수락 기준 Markdown·spec·design은 수정하지 않았다.
+
+집중 근거: 문·설치 57 passed(`.build/foundation9-task34-progress-final.log`, 설치만 52 passed `foundation9-task34-install.log`). AppKit 집중 시험은 컴파일/실행 0이며 얼굴 1/6/넘침·중지 간격·완료/늦은 편집·한글 marked text 5개 native field와 작성기·DM·3/20 방·중간 alpha/행 y/레일 높이·움직이는 중 선택·즉시 접기를 검사한다(`.build/task34/focused.json`). 소유자 검사와 final 닫기 제거 돌연변이는 각각 pytest 1로 검출했다(`mutations.json`). 최초 홈 명부 aliases 누락과 개발 중 파일 변경 빌드 실패는 최종 근거에서 제외했다. ＋를 임의 문서 자식으로 두던 초안은 실제 표 행으로 대체했다. 실패를 skip/xfail로 넘기거나 수락 기준을 완화하지 않았다.
+
+같은 가짜 직원 6명과 초/DM/버튼 상태의 원본 표시 조각을 분리 실행했다(`reference.json`). 원본/운영 앱 전체 비교나 실제 한국어 입력기·두 Mac 실물 확인은 아니다. 시스템 조합 입력·실제 성공/실패 차례는 TASK-23 실물에서 확인한다. 전체·10회 반복은 고정 입력 드라이버가 진행 중이며 완료 후 결과를 이어 적는다. 운영 홈·앱 사본·공용 릴리스·게이트웨이·launchd·ddots/본체/운영 저장소·원격은 변경하지 않았다. TASK-35·33은 미착수다.
+
+
+### TASK-34 진행 중 계획 변경(33판 보완 38)
+
+현재 기준은 계획 커밋 `a0b3782e9fbe77608478aed5a3f3a4a167444927`다. 실행 담당의 N32-01 커밋 위에 추가된 계획 문서 여섯 파일을 보존한다. 보완 38은 TASK-34 AC-08을 TASK-38로 옮기므로, 위 움직임 구현·중간 프레임 시험은 이번 커밋에서 제외했다. 원복 전 세 파일과 전체 변경은 `.build/task34/pre-scope38/`에, 움직임만 다시 적용하는 패치는 `.build/task38-start.patch`에 있다(적용 점검 0). 보관은 출발 자료이며 33판 움직임 완성 판정이 아니다.
+
+이 변경 전 최종 드라이버는 전체 189 passed 및 앱 7회 종료 0이었다. 마지막 회차의 inputsUnchanged는 계획 담당이 AT 문서를 갱신해 false가 됐고 드라이버가 종료 1로 멈췄다. 실행 담당 제품 소스가 임의로 바뀐 것이 아니다. 원래 기록과 로그는 pre-scope38에 보존하고 새 범위의 최종 결과로 세지 않는다. 계약과 실제 움직임 코드를 바꿨으므로 새 고정 입력으로 전체·10회를 다시 수행한다. 나머지 문/설치·돌연변이 근거는 관련 코드가 같아 재사용한다.
+
+
+현재 재개 경계: AC-08 분리 후 집중 AppKit 컴파일/실행은 0이다. 분리 뒤 diff 검사에서 끝줄 빈 줄 한 건을 발견해 정리했다. 그 짧은 초기 검증 자식만 종료했고(`format-restart.json`, 세션 종료 143), 소유 검증 외 프로세스는 건드리지 않았다. 이후 최종 개인값·훅·diff는 모두 0(`final-checks.json`)이다. 새 고정 입력은 150개, 실행은 `.build/task34/frozen.py`이며 전체/10회가 진행 중이다. 최종 소스의 전체·반복 완료를 아직 선언하지 않는다. 진행·다음 절차는 `.build/task34/checkpoint.json`과 `frozen-progress.json`에 있다. TASK-34 커밋·앱 사본/공용 릴리스/공개본 갱신은 아직 하지 않았다.
+
+
+33판 범위의 새 고정 입력 150개로 전체 검사 종료 0(189 passed·AT-HF-85 APP PASS·기존 가짜 Hermes/앱/통신 통과)을 확인했다. `.build/task34/frozen-progress.json` 첫 행은 inputsUnchanged=true이며 전용 전체 로그는 `frozen-foundation.log`다. 같은 드라이버가 앱 10회를 이어 실행 중이다. 아직 최종 반복·TASK-34 커밋·최종 캡처 결과는 미완료이며, 기존 세션을 이어 기다려야 한다. 현재 움직임 코드가 이번 제품 변경에 남지 않았고, 패치 적용 점검은 0이다.
+
+### TASK-34 최종 구현 인계 결과
+
+기존 세션 20606의 `frozen.py`가 종료 0으로 끝났다. 완료 행을 재실행하지 않았다. 전체 1행과 앱 10행 모두 `exitCode=0`, `inputsUnchanged=true`이며 입력 150개가 끝까지 같다. 이번 인계 범위는 REQ-HF-34.AC-01~07·09이며, 필요/도달 증거 수준은 **2/2**다. AC-08은 승인된 33판 보완 38에 따라 TASK-38로 옮겼다. 위 초안 움직임 구현·시험 설명은 진행 이력이고 이번 제품 변경에는 포함하지 않는다.
+
+| 최종 실행 | 실제 결과·근거 |
+| --- | --- |
+| `python3 .build/task34/frozen.py` | 종료 0. 전체 검사 189 passed·AT-HF-85 APP PASS·기존 가짜 Hermes/앱/통신 통과. `.build/task34/frozen-foundation.log`, `frozen-progress.json`, `frozen-inputs.json`. |
+| `bash app/scripts/test.sh` 10회 연속 | 같은 드라이버의 `app-task34-verified-01`~`10` 모두 종료 0·입력 불변. `.build/foundation9-app-task34-verified-01.log`~`10.log`. |
+| 최종 빌드 `app/.build/app-tests --task34-capture` | 임시 HERMES_HOME에서 종료 0·AT-HF-85 APP PASS. `capture-final.py`가 두 PNG를 evidence에 복사했고 소스 불변을 확인했다. `.build/task34/capture-final.json`, `capture-final.log`. |
+
+문/설치 집중 검사(57 passed, 설치만 52 passed)와 소유자 검사·진행 글 닫기 돌연변이 검출은 같은 문/설치 코드의 위 근거를 재사용한다. N32-01은 앞의 시험 전용 커밋 그대로다. 최종 hejo 캡처는 실제 AppKit 조립 보기이며, 원본 표시 조각과 함께 직접 확인했다. 상단 연결 끊김/재시도 숫자는 합성 시계 상태에서 나온 표시로 비교 대상이 아니다. 실제 운영 연결·원본 앱 전체·물리 한글 입력기 확인을 증명하지 않는다.
+
+이 보고 추가 뒤 `final_checks.py`로 개인값·HEJO_PYTHON 지정 훅·diff를 검사하고, 소유 파일 20개만 `git commit --only`로 기록한다. 이후 `final_verify.py`가 실제 커밋 파일·검증 입력·캡처 바이트·깨끗한 main을 대조한다. 실행 이후의 실제 전체 커밋과 결과는 `.build/task34/commit-result.json`, `final-verification.json`과 result 상태 블록에 기록한다. 이 문서에서 아직 실행하지 않은 검사를 통과로 세지 않는다.
+
+실물 성공/실패 차례와 시스템 한글 조합은 TASK-23에 남는다. TASK-35·33 제품 구현은 미착수이며 계획 담당 검토 뒤 순서대로 진행한다. 운영 홈 설치/변경·실행·재시작·launchd 등록, 앱 사본 교체, 공용 릴리스/public 갱신, ddots/본체/운영 저장소 수정과 원격 쓰기는 하지 않았다. `.build/task38-start.patch`는 새 움직임 계약의 완성본이 아니라 후속 출발 자료다.

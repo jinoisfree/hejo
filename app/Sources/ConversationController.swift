@@ -102,7 +102,7 @@ struct ConversationFailedSend: Identifiable {
     }
     var clock:()->Date = Date.init
     func working(_ key:ConversationKey)->Bool {
-        model.typing[key] != nil || model.timeline(key).contains{$0.role != "owner" && ($0.streaming || ThreadTools.thinking($0.text))}
+        model.typing[key] != nil || model.timeline(key).contains{$0.role != "owner" && ($0.streaming || (!$0.finalized && ThreadTools.thinking($0.text)))}
     }
     func openLink(_ url:URL) {
         guard let key=ThreadTools.destination(url),!model.timeline(key).isEmpty else { notice="그 스레드를 불러오지 못했어요";return }
