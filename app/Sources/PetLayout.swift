@@ -55,9 +55,6 @@ struct PetLayout {
               (360...16384).contains(width), (Double(minimumChatSize.height)...16384).contains(height) else { return expandedSize }
         return CGSize(width: width, height: height)
     }
-    static func maximumChatSize(screen: CGRect, spriteHeight: CGFloat, screenFrame: CGRect? = nil) -> CGSize {
-        CGSize(width: max(0, screen.width-24), height: max(0, maximumHeader(visibleFrame:screen,screenFrame:screenFrame ?? screen)-screen.minY-12))
-    }
     struct ResizeEdge: OptionSet {
         let rawValue: Int
         static let left = ResizeEdge(rawValue: 1), right = ResizeEdge(rawValue: 2), far = ResizeEdge(rawValue: 4), near = ResizeEdge(rawValue: 8)
@@ -87,26 +84,6 @@ struct PetLayout {
     }
     static func resizeEdge(at point: CGPoint, bubble: CGRect, below: Bool) -> ResizeEdge {
         resizeRegions(bubble: bubble, below: below).first { $0.rect.contains(point) }?.edge ?? []
-    }
-    /// The page beside the conversation is never dragged narrower than this.
-    static let defaultPaneWidth = expandedSize.width * 2
-    static let defaultPaneHeight = expandedSize.height * 2
-    static func paneHeight(base: CGFloat, open: Bool, saved: CGFloat?) -> CGFloat {
-        open ? max(base, saved ?? defaultPaneHeight) : base
-    }
-    static let minimumPaneWidth: CGFloat = 280
-    /// The least a page is worth opening at; with less room than this it goes to the browser instead.
-    static let usablePaneWidth: CGFloat = 240
-    /// How the width is shared when a page opens beside the conversation. The conversation keeps its width while the
-    /// screen has room for both. When it has not, the page takes what is left, and with less than 360pt left
-    /// the conversation gives way, down to its own least width.
-    static func paneSplit(base: CGFloat, minimumBase: CGFloat, wanted: CGFloat, available: CGFloat) -> (base: CGFloat, pane: CGFloat) {
-        let kept = min(base, available)
-        guard wanted > 0 else { return (kept, 0) }
-        let need = min(wanted, minimumChatSize.width)
-        if available - kept >= need { return (kept, min(wanted, available - kept)) }
-        let narrowed = max(min(minimumBase, kept), available - need)
-        return (narrowed, max(0, available - narrowed))
     }
     /// `trailing` is the width of the page open at the conversation's right; the size returned is the conversation's own.
     static func resized(_ placement: PetPlacement, edge: ResizeEdge, delta: CGPoint, screen: CGRect, trailing: CGFloat = 0, screenFrame: CGRect? = nil) -> CGSize {
@@ -152,20 +129,6 @@ struct PetLayout {
         if edge.contains(.near) { origin.y += (placement.bubbleBelow ? 1 : -1) * (size.height-placement.globalBubble.height) }
         return origin
     }
-    static let actionRowHeight: CGFloat = 34
-    static let maximumActions = 3
-    /// The bubble only grows downward from its text when it carries action buttons.
-    static func bubbleSize(actionCount: Int) -> CGSize {
-        actionCount > 0 ? CGSize(width: bubbleSize.width, height: bubbleSize.height + actionRowHeight) : bubbleSize
-    }
-    /// Button frames in bubble coordinates, measured from the bottom-left corner.
-    static func actionRects(count: Int) -> [CGRect] {
-        let shown = min(max(count, 0), maximumActions)
-        guard shown > 0 else { return [] }
-        let inset: CGFloat = 12, gap: CGFloat = 6
-        let width = (bubbleSize.width - inset * 2 - gap * CGFloat(shown - 1)) / CGFloat(shown)
-        return (0..<shown).map { CGRect(x: inset + CGFloat($0) * (width + gap), y: 9, width: width, height: 24) }
-    }
     let scale: CGFloat
     var spriteSize: CGSize { CGSize(width: 192 * scale, height: 208 * scale) }
     var windowSize: CGSize {
@@ -191,7 +154,6 @@ struct PetPlacement {
     let userScale: CGFloat
     let expanded: Bool
     private let placementScreen: CGRect?
-    var effectiveScale: CGFloat { globalSprite.width / 192 }
     var globalSprite: CGRect { spriteRect.offsetBy(dx: windowFrame.minX, dy: windowFrame.minY) }
     var globalBubble: CGRect { bubbleRect.offsetBy(dx: windowFrame.minX, dy: windowFrame.minY) }
     /// A cell origin at the user's scale, keeping the rendered foot in place on save and restore.
@@ -272,7 +234,6 @@ struct PetPlacement {
         self.init(globalSprite:sprite,globalBubble:bubble,placementScreen:visibleFrame,userScale:scale,expanded:expanded)
     }
 }
-
 /// Frame-rate independent easing. Keep the bubble inside the current screen even during a transition.
 /// How the conversation looks while the bubble grows into it or folds back: it clears as it opens and blurs away as it
 /// closes, staying where it is while the glass moves over it.
@@ -284,12 +245,6 @@ enum ChatMorph {
     static func genieProgress(from start: CGFloat, opening: Bool, fraction: CGFloat) -> CGFloat {
         let p = min(1, max(0, fraction))
         return opening ? start + (1 - start) * p : start * (1 - p)
-    }
-    static func perchRect(_ open: CGRect, progress: CGFloat) -> CGRect {
-        let p = min(1,max(0,progress))
-        let eased = 1-pow(1-p,3)
-        let width = max(1,open.width*eased), height = max(1,open.height*eased)
-        return CGRect(x:open.midX-width/2,y:open.maxY-height,width:width,height:height)
     }
     static let genieDuration: TimeInterval = 0.30
     static let genieStripHeight: CGFloat = 3
@@ -326,79 +281,4 @@ enum ChatMorph {
     static func progress(height: CGFloat, folded: CGFloat, open: CGFloat) -> CGFloat {
         open > folded ? max(0, min(1, (height - folded) / (open - folded))) : 1
     }
-}
-
-enum ChatWidthSlide {
-    static let duration: TimeInterval = 0.3
-    static let fadeDuration: TimeInterval = 0.06
-    static func cover(_ progress: CGFloat) -> CGFloat {
-        let p = min(1, max(0, progress / 0.2))
-        return p * p * (3 - 2 * p)
-    }
-}
-
-struct PetBubbleMotion {
-    private(set) var position: CGPoint?
-    private var target = CGPoint.zero
-    private var lastTime: TimeInterval?
-    private var bounds = CGRect.zero
-    private(set) var size = PetLayout.bubbleSize
-    private var targetSize = PetLayout.bubbleSize
-    private var widthSlide: (start: TimeInterval, origin: CGPoint, size: CGSize, duration: TimeInterval)?
-    private(set) var widthProgress: CGFloat = 1
-    mutating func slideWidth(now: TimeInterval, duration: TimeInterval = ChatWidthSlide.duration) {
-        widthSlide = (now, position ?? target, size, duration); widthProgress = 0
-    }
-    mutating func cancelWidthSlide() { widthSlide = nil; widthProgress = 1 }
-    private var glideUntil: TimeInterval = 0
-    /// Opening and folding the conversation take a little longer than following the pet, so the change can be seen.
-    mutating func glide(now: TimeInterval) { glideUntil = now + 0.8 }
-
-    mutating func retarget(_ point: CGPoint, visibleFrame: CGRect, now: TimeInterval, immediately: Bool = false,
-                           size: CGSize = PetLayout.bubbleSize, headerAtTop: Bool = false) {
-        targetSize = size
-        bounds = visibleFrame.insetBy(dx: 12, dy: 12)
-        if headerAtTop { bounds.size.height += 12 }
-        target = clamped(point, size: targetSize)
-        if position == nil || immediately { cancelWidthSlide(); self.size = targetSize; position = target; lastTime = now }
-        else if let position { self.position = clamped(position) }
-    }
-
-    mutating func step(now: TimeInterval) -> CGPoint {
-        if let slide = widthSlide {
-            widthProgress = CGFloat(min(1, max(0, (now - slide.start) / slide.duration)))
-            let eased = widthProgress * widthProgress * (3 - 2 * widthProgress)
-            size = CGSize(width: slide.size.width + (targetSize.width - slide.size.width) * eased,
-                          height: slide.size.height + (targetSize.height - slide.size.height) * eased)
-            position = CGPoint(x: slide.origin.x + (target.x - slide.origin.x) * eased,
-                               y: slide.origin.y + (target.y - slide.origin.y) * eased)
-            lastTime = now
-            if widthProgress == 1 { widthSlide = nil; size = targetSize; position = target }
-            return position!
-        }
-        let dt = min(0.1, max(0, now - (lastTime ?? now)))
-        lastTime = now
-        let previous = position ?? target
-        let fraction = 1 - exp(-dt / (now < glideUntil ? 0.105 : 0.065))
-        size = CGSize(width: size.width + (targetSize.width - size.width) * fraction,
-                      height: size.height + (targetSize.height - size.height) * fraction)
-        if abs(size.width - targetSize.width) + abs(size.height - targetSize.height) < 0.2 { size = targetSize }
-        let next = CGPoint(x: previous.x + (target.x - previous.x) * fraction,
-                           y: previous.y + (target.y - previous.y) * fraction)
-        position = hypot(next.x - target.x, next.y - target.y) < 0.2 ? target : clamped(next)
-        return position!
-    }
-
-    private func clamped(_ point: CGPoint, size requestedSize: CGSize? = nil) -> CGPoint {
-        let size = requestedSize ?? self.size
-        return CGPoint(x: min(max(point.x, bounds.minX), max(bounds.minX, bounds.maxX - size.width)),
-                y: min(max(point.y, bounds.minY), max(bounds.minY, bounds.maxY - size.height)))
-    }
-}
-
-/// One retained closing picture; every presentation input participates in its identity.
-struct GeniePictureKey: Equatable {
-    var size: CGSize
-    var dark: Bool
-    var scale: CGFloat
 }

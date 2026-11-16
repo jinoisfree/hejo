@@ -4,16 +4,10 @@ enum ChatMetrics {
     static let avatar: CGFloat = 34
     /// Corner radius of a character picture as a share of its side.
     static let avatarCorner: CGFloat = 0.24
-    static let callerAvatar: CGFloat = 24
-    static let notificationAvatar: CGFloat = 20
-    static let thumbnailPixels = 64
     static let nameFont: CGFloat = 14
     static let auxiliaryFont: CGFloat = 11
     static let bodyFont: CGFloat = 14
-    static let avatarNameGap: CGFloat = 8
     static let nameBodyGap: CGFloat = 4
-    static let speakerInset: CGFloat = 10
-    static let replyInset: CGFloat = 0
     static let horizontalInset: CGFloat = 12
     static let minimumBubbleWidth: CGFloat = 240
     static let bubbleWidthFraction: CGFloat = 0.82
@@ -31,13 +25,6 @@ struct PaletteRGB: Equatable {
     }
     static func contrast(_ a: PaletteRGB, _ b: PaletteRGB) -> Double {
         (max(a.luminance,b.luminance)+0.05)/(min(a.luminance,b.luminance)+0.05)
-    }
-    static func hsl(_ hue: Double, _ saturation: Double, _ lightness: Double) -> PaletteRGB {
-        let h = (hue.truncatingRemainder(dividingBy: 360)+360).truncatingRemainder(dividingBy: 360)/60
-        let c = (1-abs(2*lightness-1))*saturation, x = c*(1-abs(h.truncatingRemainder(dividingBy: 2)-1)), m = lightness-c/2
-        let rgb: (Double,Double,Double)
-        switch h { case ..<1: rgb=(c,x,0); case ..<2: rgb=(x,c,0); case ..<3: rgb=(0,c,x); case ..<4: rgb=(0,x,c); case ..<5: rgb=(x,0,c); default: rgb=(c,0,x) }
-        return PaletteRGB(r:rgb.0+m,g:rgb.1+m,b:rgb.2+m)
     }
 }
 

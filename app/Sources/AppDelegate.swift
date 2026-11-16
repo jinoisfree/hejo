@@ -12,26 +12,42 @@ import AppKit
     private var hideItem: NSMenuItem?
     private var pauseItem: NSMenuItem?
     private var currentAccount = ""
+    private var toolsWindow:ConnectionsWindow?
     private var petSettings: PetSettingsWindow?
-    private var seenMessageSequence = 0
-    private var replaySeen = false
+    private var bubble: BubbleReveal!
+    private var bubbleTimer: Timer?
+    private var bubbleReply:BubbleReplyCard!
     private var wasSending = false
     private var settingsRevision = 0
     private var settingsTask: Task<Void, Never>?
     private var activityMonitor: Any?
+    private var pendingURLs:[URL]=[]
+    func application(_ application:NSApplication,open urls:[URL]) {
+        guard conversation != nil else {pendingURLs += urls;return}
+        for url in urls where url.scheme?.lowercased()=="hejo" {conversation.openLink(url);pet.showChat()}
+    }
     func applicationDidFinishLaunching(_ notification: Notification) {
         do {
             try FileManager.default.createDirectory(at: AppIdentity.support, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
             instance = try InstanceLock(directory: AppIdentity.support); store = try LocalStore()
+            bubble = BubbleReveal(store:store)
             client = GateClient(store: store); pet = PetController(store: store, atlas: try SpriteAtlas())
             conversation = try ConversationController(client: client)
-            conversation.model.onPreferencesChanged = { [weak self] in self?.saveMemberSettings() }
+            bubbleReply=BubbleReplyCard(controller:conversation);pet.pet.installBubbleReply(bubbleReply)
+            pet.pet.bubbleReplyAllowed=store.settings.bubbleReplyEnabled ?? true
+            pet.pet.avatarForEmployee = { [weak self] id in self?.conversation.avatar(id) ?? ProfileAvatar(color:PictureCodec.color(name:id,hex:nil)) }
             conversationView = ConversationView(controller: conversation)
+            conversationView.onConnections={ [weak self] profile in self?.showConnections(profile) }
+            conversationView.homePetImage=pet.pet.atlas.image(row:0,frame:0)
             pet.pet.installConversation(conversationView)
             conversationView.onCollapse = { [weak self] in self?.pet.collapseChat() }
             conversationView.onOpenThreadHeight = { [weak self] height in self?.pet.fitOpenThread(height) }
+            pet.panel.onWorkspaceKey = { [weak self] event in self?.conversationView.handleWorkspaceKey(event) ?? false }
             pet.panel.onCollapse = { [weak self] in guard let self else { return }; if !self.conversationView.closeSearchIfOpen() { self.pet.collapseChat() } }
-            pet.pet.onBubbleOpen = { [weak self] key in guard let self else { return }; if let key { self.conversationView.openFromBubble(key) }; self.pet.showChat() }
+            pet.pet.onBubbleOpen = { [weak self] key in guard let self else {return};self.openBubble(key) }
+            pet.pet.onBubbleAction = { [weak self] action in self?.performBubbleAction(action) }
+            bubbleTimer=Timer(timeInterval:0.25,repeats:true){ [weak self] _ in Task { @MainActor in self?.refreshPetActivity() } }
+            RunLoop.main.add(bubbleTimer!,forMode:.common)
             let previousChange = conversation.onChange
             conversation.onChange = { [weak self] in previousChange?(); self?.refreshPetActivity() }
             conversationView.onUnread = { [weak self] count in self?.pet.pet.unreadCount = count }
@@ -51,7 +67,7 @@ import AppKit
                 header.onDoubleClick = { [weak self] in self?.pet.toggleChatWidth() }
             }
             conversationView.refresh()
-            pet.onExpansionChanged = { [weak self] expanded in self?.conversation.model.setVisible(expanded) }
+            pet.onExpansionChanged = { [weak self] expanded in self?.conversation.model.setVisible(expanded); if expanded { self?.conversation.model.memberState.activate() };self?.refreshPetActivity() }
             connection = LoginWindow(client: client)
             connection.onSignedIn = { [weak self] _, me in self?.currentAccount = me.account; self?.petSettings?.accountName.stringValue = me.account; self?.applyMemberSettings(me.settings) }
             installEditMenu()
@@ -69,6 +85,7 @@ import AppKit
                 if status == .wrongCode || status == .revoked { self?.connection.present() }
             }
             pet.show()
+            if !pendingURLs.isEmpty {let urls=pendingURLs;pendingURLs=[];application(NSApp,open:urls)}
             if store.settings.address.isEmpty || !store.settings.signsInAutomatically {
                 // Without automatic sign-in every launch starts at the login screen (saved id/password still fill in).
                 Task { if !store.settings.address.isEmpty { await client.signOut() }; connection.present() }
@@ -112,7 +129,7 @@ import AppKit
     }
     func applicationWillTerminate(_ notification: Notification) {
         if let activityMonitor { NSEvent.removeMonitor(activityMonitor) }
-        client?.stop()
+        bubbleTimer?.invalidate();client?.stop()
         // Without automatic sign-in, quitting signs this Mac out.
         if let store, !store.settings.signsInAutomatically { GateKeychain().delete(account: store.settings.credentialAccount) }
     }
@@ -122,9 +139,17 @@ import AppKit
         let size = settings["petScale"].flatMap(Double.init).map { min(200,max(25,$0)) } ?? store.settings.petScalePercent ?? 100
         let always = settings[BubbleReveal.settingsKey].map { $0 == "true" } ?? store.settings.bubbleAlwaysShown ?? false
         try? store.update { $0.petName = name; $0.petScalePercent = size; $0.bubbleAlwaysShown = always }
+        let replyEnabled=settings[BubbleReply.settingsKey].map{$0=="true"} ?? store.settings.bubbleReplyEnabled ?? true
+        try? store.update{$0.bubbleReplyEnabled=replyEnabled};pet.pet.bubbleReplyAllowed=replyEnabled;petSettings?.bubbleReplyCheck.state=replyEnabled ? .on:.off
         pet.resizePet(percent: size); pet.pet.bubbleAlwaysShown = always; pet.pet.bubbleName = name
-        conversation.model.applyMemberSettings(settings)
+        if let address = store.settings.hubAddress, let token = client.bearer, !currentAccount.isEmpty {
+            do {
+                try conversation.model.memberState.join(member: currentAccount, hub: address, legacy: settings)
+                conversation.model.memberState.configure(hub: HubClient(address: address), token: token)
+            } catch { conversation.model.memberState.onFailure?(true) }
+        }
         pet.pet.setAccessibilityLabel("hejo · \(store.settings.petName) · 대화 열기")
+        conversationView.refresh()
     }
     private func syncMemberSettings() async {
         for _ in 0..<20 where client.bearer == nil { try? await Task.sleep(nanoseconds: 500_000_000) }
@@ -146,7 +171,10 @@ import AppKit
                     settings["petName"] = self.store.settings.petName
                     settings["petScale"] = String(Int(self.store.settings.petScalePercent ?? 100))
                     settings[BubbleReveal.settingsKey] = self.store.settings.bubbleAlwaysShown == true ? "true" : "false"
-                    settings.merge(self.conversation.model.preferenceSettings) { _, updated in updated }
+                    settings[BubbleReply.settingsKey] = self.store.settings.bubbleReplyEnabled != false ? "true":"false"
+                    if self.store.settings.stateJoined?[self.conversation.model.memberState.account] == true {
+                        for key in ["pinned", "muted", "hidden"] { settings.removeValue(forKey: key) }
+                    }
                     try await hub.save(settings: settings, token: token)
                 } catch { break }
                 if revision == self.settingsRevision { break }
@@ -157,40 +185,87 @@ import AppKit
     private func refreshPetActivity() {
         guard let pet, let conversation, let client else { return }
         let model = conversation.model
-        let latest = model.messages.values.filter { $0.role == "employee" }.max { $0.seq < $1.seq }
-        let high = latest?.seq ?? 0
-        if client.replayComplete {
-            if replaySeen, let latest, high > seenMessageSequence, !model.muted.contains(latest.key.employee) {
-                pet.pet.showMessage(latest.text, from: model.name(latest.key.employee), key: latest.key)
-            }
-            replaySeen = true
+        let input=conversation.islandInput
+        let messages=Array(model.messages.values)
+        let questions=Set(model.rooms.flatMap{model.notices($0.id).filter(\.questions).flatMap(\.messages)})
+        let readIDs=Set(messages.filter{ message in
+            let key=message.key
+            return message.latestSeq<=max(model.memberState.read("read:"+key.employee),model.memberState.read("thread:"+key.employee+"/"+key.thread))
+        }.map(\.id))
+        let jumped=bubble.update(.init(messages:messages,questions:questions,typing:model.typing,names:input.names,muted:model.petMuted,readIDs:readIDs,opened:model.selected,chatOpen:pet.chatExpanded,paused:pet.pet.isPaused,ready:client.replayComplete,failure:input.failure),now:Date())
+        if jumped {pet.pet.requestReplyJump()}
+        var notice=bubble.notice
+        if bubble.persistenceFailed {notice.detail="알림을 저장하지 못했어요. 저장 공간을 확인해 주세요."}
+        if notice.key==nil,notice.kind == .failure,let key=bubbleReply.target?.key,conversation.bubbleProblems[key] != nil,!model.timeline(key).isEmpty {notice.key=key}
+        let target=notice.key.flatMap{key->BubbleReplyTarget? in
+            guard !model.timeline(key).isEmpty else{return nil}
+            return BubbleReplyTarget(key:key,speaker:model.name(key.employee),working:conversation.working(key),queued:model.employees.first{$0.id==key.employee}?.queued ?? false)
         }
-        seenMessageSequence = max(seenMessageSequence, high)
-        let asked = model.messages.values.filter { $0.role == "employee" && $0.replyState == "asked" }.count
-        let working = Set(model.typing.keys.map(\.employee)).count
+        if let target,target.working,conversation.interruptions[target.key] != nil {notice.detail=BubbleReply.interruptedSubtitle;notice.kind = .writing}
+        pet.pet.bubbleReplyConnected=conversation.canSend
+        bubbleReply.aim(target)
+        pet.pet.bubbleNotice=notice
+        if !conversation.canSend || pet.chatExpanded || pet.pet.isPaused || !pet.pet.bubbleReplyAllowed {pet.pet.updateBubbleReply(pointerOver:false)}
+        let asked = questions.filter{ id in model.messages[id].map{!model.petMuted.contains($0.key.employee)} ?? false }.count
+        let working = Set(model.typing.filter{$0.value>Date() && !model.petMuted.contains($0.key.employee)}.keys.map(\.employee)).count
         pet.pet.hasAsked = asked > 0; pet.pet.isTyping = working > 0
-        pet.pet.sendFailed = conversation.transferFailure != nil || client.status == .tooLarge
+        pet.pet.sendFailed = bubble.notice.kind == .failure
         pet.pet.bubbleStatus = "일하는 직원 \(working)명 · 사장 차례 \(asked)건"
         if conversation.sending && !wasSending { pet.pet.noteSend() }
         wasSending = conversation.sending
     }
+    private func openBubble(_ key:ConversationKey?) {
+        if let key {conversationView.openFromBubble(key)}
+        bubble.dismiss();pet.showChat();refreshPetActivity()
+    }
+    private func performBubbleAction(_ action:BubbleReveal.Action) {
+        switch action {
+        case .openChat:openBubble(pet.pet.bubbleTarget)
+        case .link(let url):
+            guard ["https","http"].contains(url.scheme?.lowercased() ?? "") else{return}
+            NSWorkspace.shared.open(url);bubble.dismiss();refreshPetActivity()
+        case .remindLater:
+            if !bubble.remindLater(now:Date()) {pet.pet.bubbleStatus="나중에 알림을 저장하지 못했어요. 저장 공간을 확인해 주세요."}
+            refreshPetActivity()
+        }
+    }
     @objc private func openChat() { pet.showChat() }
-    @objc private func signOut() { currentAccount = ""; petSettings?.accountName.stringValue = "로그인 전"; Task { await client.signOut(); petSettings?.updateConnection(client.status.text); connection.present() } }
+    @objc private func signOut() { conversation.model.memberState.disconnect(); currentAccount = ""; petSettings?.accountName.stringValue = "로그인 전"; Task { await client.signOut(); petSettings?.updateConnection(client.status.text); connection.present() } }
+    private func showConnections(_ profile:String?=nil){if toolsWindow==nil {toolsWindow=ConnectionsWindow(controller:conversation)};toolsWindow?.show(profile:profile)}
     @objc private func showOptions() {
         if petSettings == nil {
             let settings = PetSettingsWindow()
             settings.onName = { [weak self] value in self?.setPetName(value) }
             settings.onScale = { [weak self] value in self?.setPetScale(value) }
+            settings.onBubbleReply={ [weak self] enabled in
+                guard let self else{return};try? self.store.update{$0.bubbleReplyEnabled=enabled};self.pet.pet.bubbleReplyAllowed=enabled;self.refreshPetActivity();self.saveMemberSettings()
+            }
             settings.onBubble = { [weak self] value in self?.setBubbleAlwaysShown(value) }
             settings.onLogin = { [weak self] value in self?.setLoginEnabled(value) }
             settings.onResetChat = { [weak self] in self?.pet.resetChatSize() }
             settings.onResetPosition = { [weak self] in self?.pet.resetPosition() }
             settings.onOpenAccount = { [weak self] in self?.connection.present() }
             settings.onLogout = { [weak self] in self?.signOut() }
+            settings.onConnections={ [weak self] in self?.showConnections() }
+            settings.onSyncLayout = { [weak self] in self?.synchronizeLayout() }
             petSettings = settings
         }
+        petSettings?.bubbleReplyCheck.state=store.settings.bubbleReplyEnabled != false ? .on:.off
         petSettings?.present(name: store.settings.petName, percent: store.settings.petScalePercent ?? 100,
                              bubble: store.settings.bubbleAlwaysShown ?? false, account: currentAccount, status: client.status.text)
+    }
+    func applicationDidBecomeActive(_ notification: Notification) { conversation?.model.memberState.activate() }
+    private func synchronizeLayout() {
+        let state = conversation.model.memberState
+        Task {
+            // Probe the hub before showing confirmation; a cached connection is not sufficient.
+            guard let fetch = state.fetch, (try? await fetch(nil)) != nil else {
+                PetSettingsWindow.layoutConfirmation(connected: false).runModal(); return
+            }
+            guard PetSettingsWindow.layoutConfirmation(connected: true).runModal() == .alertFirstButtonReturn else { return }
+            do { try await state.makeLayoutStandard(); await state.sync() }
+            catch { state.onFailure?(true) }
+        }
     }
     @objc private func togglePet() { if pet.panel.isVisible { pet.panel.orderOut(nil) } else { pet.show() } }
     @objc private func togglePause() { pet.pet.isPaused.toggle(); pet.pet.noteActivity() }
@@ -202,6 +277,7 @@ import AppKit
         let name = PetIdentity.normalized(value)
         try? store.update { $0.petName = name }
         pet.pet.bubbleName = name
+        conversationView.refresh()
         pet.pet.setAccessibilityLabel("hejo · \(name) · 대화 열기")
         saveMemberSettings()
     }

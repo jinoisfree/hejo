@@ -254,11 +254,167 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
   - **설정 창:** AppKit 창이다. 펫 이름·크기·말풍선 항상 보이기는 허브 회원 설정에 둔다(펫 위치·창 크기는 Mac별이라 로컬).
   - **다시 실행·Esc 순서:** `AppDelegate` 편집 메뉴, `PetPanel.sendEvent`.
 
+### 사진·구획·단체방(14판, REQ-HF-23·24, 2단계에서 앞당김)
+
+- **"세션 기능"의 뜻:** 사장 지적("세션구획 세팅")으로 ddots 사이드바 구획(섹션)으로 확정했다.
+- **칸 배치(새 원본 없음)**
+  - (18판: 직원 사진은 아래 '전수 대조 반영' 절로 대체 — 프로필 `assets/avatar.png`. 여기서는 방 사진만 유효) 직원·방 사진(15판 정정): 공용 창고 칸이다(근간 3절 — `hejo/`는 금고라 사진을 두지 않는다). `<HERMES_HOME>/shared/hejo/pictures/<종류>-<id>.png`(디렉터리 0700, 파일 0600, 같은 디렉터리 임시 파일 → fsync → rename)에 둔다. 쓰기 주체는 문 하나이며 사장이 앱에서 요청할 때만 쓰고 지운다. 수명: 바꾸면 교체, 지우면 삭제, 방 삭제 확정 뒤 그 방 사진 삭제, 직원 사진은 직원이 명부에서 빠져도 남는다(사장이 따로 지움). 설치·갱신·제거는 건드리지 않는다. `PUT/DELETE/GET /v1/pictures/<종류>/<id>`는 출입증 인증을 받는다. 명부 `avatar`와 방 `picture`는 `/v1/pictures/...?v=<수정 시각>` 주소다. 기존 `/v1/avatars`는 이 경로로 바꾸고 옛 경로는 지운다. 앱은 고른 그림을 256px PNG로 줄여 올리고, 주소 단위로 메모리 캐시한다.
+  - (18판: 아래 '전수 대조 반영' 절의 회원 상태·`SidebarLayout`으로 대체) 구획: 화면 배치라 허브 회원 설정 `sections`(JSON 문자열 `[{"id","name","rooms":[id],"open"}]`)에 둔다. 소유는 `ConversationModel`이다(고정·알림·숨김과 같은 칸). ddots `SlackPanel` sections·`addSection`·`removeSection`·`move` 규칙을 옮긴다.
+  - 단체방: 대화 자료라 문 기록장이 원본이다. 기록 종류에 `room`(만들기·바꾸기 전체 상태)과 `room_delete`를 더한다. 앱 `Room{id,kind,title,members}`에 `kind=.group`·`lead`·`picture`·`description`·`archived`를 더한다.
+- **규격(v1 하위 호환)**
+  - 클라이언트 프레임 `room_save {id?, title, description?, members[], lead}`, `room_archive {id, archived}`, `room_delete {id}`
+  - 서버 `room {room}`·`room_deleted {id}` 방송. `sync`·`welcome` 재현에 방 상태를 포함한다.
+  - `send`·`message`·`typing`·`state`에 선택 필드 `room`을 더한다.
+  - 옛 클라이언트(hello에 `features`의 `rooms`가 없음)에는 room 글·room 프레임의 내용을 보내지 않는다. (27판) 다만 seq 빈칸이 생기지 않게 같은 seq의 `delete {seq, msg_id}`로 바꿔 보낸다(방 글은 그 msg_id, `room`·`room_delete` 기록은 `room:<id>`). 옛 앱은 없는 글의 삭제로 받아 넘어간다.
+- **전달:** 단체방 사장 글은 roster 이름·별명으로 @를 찾는다(방 직원 안에서만). 없으면 `lead`에게 보낸다. 받는 직원마다 Hermes에 `chat_id = "room:<방 id>"`, 같은 thread로 넘긴다. 인증 판단은 1:1과 같은 owner·dm 규칙이다(Hermes 본체 무수정). 답(`send`)·작성 중은 chat_id에서 방을 되찾아 기록에 `room`을 붙인다. 보조 프로필 직원은 기존 전달자로 간다. 직원은 자기가 받은 글만 세션에 가진다. (19판) 문은 넘길 때 그 직원이 받지 못한 같은 스레드 앞 글을 문맥 묶음으로 앞에 붙인다(REQ-HF-24.AC-02 형식·한도). 받은 기록은 기록장에서 계산한다(그 스레드에서 그 직원이 받은 사장 글의 seq와 그 직원이 쓴 글). 새 저장소는 없다. 문맥은 Hermes로 넘기는 글에만 붙고, 기록장·앱 표시는 원문이다.
+- **삭제 계약(15판, 계획 검증 R2):**
+  - **확정점은 `room_delete {room, at}` 기록 한 줄이다.** 글마다 `delete` 기록을 쓰지 않는다. 기록장은 한 줄 추가만 원자적(fsync가 확정, 실패 시 잘라 되돌림)이므로, 한 줄이 확정이면 부분 삭제 상태가 생기지 않는다. 쓰기가 실패하면 아무것도 지우지 않고 앱에 `journal_write_failed`로 거절한다(방·글·첨부 그대로).
+  - **확정 뒤 보기(27판 — 25판 D25-02와 같은 이유로 seq 빈칸 금지):** 문은 재현·sync·페이지에서 지운 방의 기록을 빼지 않고 같은 seq로 바꿔 보낸다. 확정점 앞의 그 방 `message`·`edit`·`state`는 `delete {seq, msg_id}`(본문 없음), 그 방 `room` 기록은 `room {seq, room:{id, deleted:true}}`(제목·직원·설명 없음), `room_delete` 기록 자체는 `room_deleted {seq, id}`로 보낸다. `message()` 조회는 그 방 글을 돌려주지 않는다. 앱은 `room_deleted`(seq 있음, 꺼져 있던 기기도 sync로 받음)를 받으면 방·글·캐시를 지운다(캐시는 같은 seq 치환으로 원자적 재작성, 25판 스레드 삭제와 같은 코드). 1:1 글과 다른 방 글은 그대로다. 14판의 "내보내지 않는다"는 이 문장으로 바뀐다.
+  - **늦은 응답:** 문은 재현에서 지운 방 id 묶음을 만들어 들고 있다. 확정 뒤 Hermes에서 온 답(`send`·편집·작성 중·상태)의 `chat_id`가 `room:<지운 방>`이면 기록하지 않고 방송하지 않으며 `room_deleted_drop` 경고만 남긴다(직원 첨부도 등록하지 않음). 앱의 `room_save`·`send`가 지운 방 id를 쓰면 `room_deleted`로 거절한다. 방 id는 문이 만드는 무작위 값이라 다시 쓰이지 않는다.
+  - **파일 정리(확정 뒤, 멱등):** 확정 직후 그 방 글에만 등록된 첨부와 그 방 사진을 지운다. 다른 살아 있는 기록이 등록한 첨부는 남긴다. 정리 도중 실패·재시작이 있어도 문 시작 때의 `FileStore.cleanup`(살아 있는 기록이 등록한 파일만 남김 — 지운 방 기록의 등록은 살아 있지 않은 것으로 센다)과 사진 정리가 다시 지운다.
+  - **비가역 범위:** 확정 뒤 그 방의 첨부·사진 파일은 복구할 수 없다. 기록장은 추가 전용이라 지운 방 글의 원문 바이트는 기록장 파일에 남는다(기존 1:1 `delete`와 같은 논리 삭제, 화면·동기화에서만 사라짐). 이미 Hermes 세션에 들어간 내용은 지우지 않는다(확인 창 문구로 알림).
+- **위험·롤백(15판):** TASK-20·21은 고위험이다(인증된 영구 저장·삭제, 규격·전달, 동시성). TASK-21 이전 문 코드는 모르는 기록 종류를 기록장 손상으로 보고 열기를 거부한다(`gate/journal.py` `_recover`의 `RECORD_TYPES` 검사). 따라서 단체방 기록이 한 줄이라도 생긴 뒤 문 코드만 되돌리면 hejo 문이 열리지 않는다. 운영 적용(TASK-23)은 재시작 전에 `shared/hejo/`(journal·files·pictures)를 0700 사본으로 떠 두고, 롤백은 이전 공용 릴리스 + 그 사본 복원 + 재시작이다(적용 뒤 hejo 글은 잃음, Slack 무관). 사진만 들어간 TASK-20 문은 이전 코드로 되돌려도 기록장에 영향이 없다(사진 폴더만 남음).
+
+### ddots 전수 대조 반영(18판, 2026-11-15, REQ-HF-23·26~29, 사장 선택 Q1~Q4)
+
+근거: [ddots-inventory.md](ddots-inventory.md)(계획 담당이 ddots 166개 파일을 직접 읽고 만든 대조표). 14판 '사진·구획·단체방'의 직원 사진·구획 부분은 이 절이 대신한다. 단체방(전달·삭제 계약)은 14판 그대로이고, 방 메뉴와 창은 REQ-HF-24.AC-05를 더한다.
+
+- **칸 배치(새 원본 없음, 근간 3절 18판 개정)**
+  - **직원 사진·색 — 직원 명부·성격 칸**
+    - 위치: 문이 프로필 디렉터리를 Hermes 프로필 API(`hermes_cli.profiles.get_profile_dir`, 기본 프로필은 `<HOME>`)로 찾는다. 경로는 박지 않는다.
+    - 읽기: `assets/avatar.png`, 없으면 `assets/slack-avatar.png` 순서로 읽는다. 색은 `profile.yaml`을 ruamel로 읽어 `ui_meta.hermes-bots.color`만 꺼낸다(ddots `ProfileAvatar.swift`의 읽기 규칙: 정해진 중첩 키 하나, 다른 color 키는 무시).
+    - 쓰기: `avatar.png`만 쓴다. 쓰기 주체는 '사장(앱 경유)'이다. 문은 출입증 인증을 받은 `PUT/DELETE`에서만 쓴다. `slack-avatar.png`·`profile.yaml`은 쓰지 않는다.
+    - 옛 경로: 14판의 `/v1/avatars`와 직원용 `shared/hejo/pictures/employee-*`는 만들지 않는다. 기존 `/v1/avatars` 라우트는 `/v1/pictures`로 바꾸고 지운다.
+  - **방·구획·홈 방 사진 — 공용 창고 칸:** `shared/hejo/pictures/<room|section|home>-<id>.png`, 14판 규칙(0700/0600, 원자적 쓰기, 인증 GET)을 따른다. 구획·홈 방 사진도 바이트는 여기 두고, 배치 항목에는 주소만 둔다.
+  - **회원 상태 — 허브 칸**
+    - 새 모듈: `hub/state.py`가 `<허브 자료>/state/<회원>.json`(0600)을 쓴다. 항목마다 `{v, at, dev}`, 파일에는 `rev`를 둔다.
+    - 병합: 같은 회원의 PATCH는 회원별 잠금 안에서 읽기 → 병합 → 원자적 쓰기로 처리한다.
+    - 분리: 회원 설정(`settings`, 16 KiB)과 따로 둔다. 펫 이름·크기·말풍선 설정은 `settings`에 남는다.
+  - **스레드 삭제 — 공용 창고 칸(25판):** 새 기록 종류를 더하지 않는다. 확정점은 기존 `delete` 기록에 `scope: "thread"`·`room`·`thread`를 단 한 줄이고, 이어서 나머지 글마다 보통 `delete`를 쓴다(seq 연속 유지, 옛 문으로 되돌려도 기록장이 열린다). 14판 `room_delete`와 같은 확정점·재현 제외·늦은 응답 버림·첨부 정리 규칙을 스레드 단위로 쓴다. 지운 스레드 묶음은 `(room, thread)`이다.
+- **문(`gate/`)**
+  - 명부: `roster.py`에 `avatar`·`color`를 넣는다. 사진 PUT·DELETE 뒤에는 `roster` 프레임을 모든 연결에 방송한다.
+  - 분기(25판, D25-04): Hermes `/branch`는 플러그인 플랫폼에서 `create_handoff_thread`를 부르지 않는다(본체 고정 목록, Hermes ebb026e 확인). 그래서 문이 `thread_branch`를 받아 새 UUID 스레드와 이어짐 글(`branch_from`)을 기록하고, 새 스레드 첫 사장 글에 원래 스레드 대화를 문맥으로 붙인다(REQ-HF-24 문맥 묶음과 같은 방식). TASK-21은 이 묶음 코드를 함께 쓴다.
+  - 중지·되돌리기: 앱이 보낸 `/stop`·되돌림 글은 기존 send 경로로 그 스레드 세션에 들어간다. Hermes 바쁜 세션 처리(`gateway/run_busy.py`의 `stop` 명령)를 구현 담당이 읽기 전용으로 확인하고, 가짜 게이트웨이 시험으로 고정한다.
+  - 체크리스트: Hermes 메타 `hejo_checklist {items, selected, can_skip}`를 `message`·`edit` 프레임의 선택 필드 `checklist`로 넘긴다. 규격은 v1 하위 호환이다(옛 앱은 무시).
+- **허브(`hub/`)**
+  - `server.py`에 `/v1/me/state` GET·PATCH를 더한다.
+  - 시험: 병합 규칙(LWW·큰 seq), 한도·잘라내기, 삭제 표시, 동시 PATCH, 다른 회원 거절.
+- **앱(`app/`) 소유**
+  - `MemberState`(새): 회원 상태의 이 Mac 복제다. 권위는 허브이고, 끊긴 동안 쌓은 변경은 `hejo-local.json`의 `pendingState`에 둔다. 동기화 시점은 30초 주기, 창 열기·앱 활성화, PATCH 응답이다. 처음 옮기기(REQ-HF-26.AC-03)는 이 Mac의 `stateJoined.<회원>` 표시가 없을 때 한 번 한다(허브가 비었는지와 무관, 19판). 옮길 값·표시·`readSeq` 삭제를 `pendingState`와 함께 한 번의 원자적 저장으로 쓴다. `ConversationModel`의 고정·알림·숨김·읽음은 이 모듈을 읽고 쓴다. 로컬 `readSeq`는 옮긴 뒤 지운다.
+  - `SidebarLayout`(새): ddots `SlackController` 방 목록 조립, `SlackRoomOrder.sorted`, `Ddots.stacked`, `SlackModel` sections·`addSection`·`removeSection`·`move`·`groupName`을 옮긴다. 입력은 방·최신 활동·`MemberState`, 출력은 행 목록이다. AppKit 사이드바(`ConversationView`)는 이 출력만 그린다.
+  - 카드·작업 제어(TASK-25): ddots `SlackPanel` 카드 아래 버튼·종·작업 중 줄·`AgentStop`·`BubbleReplyInterruption`·`SlackCopy`·체크리스트, `SlackThreads` 상태 색·표를 `ConversationView` 카드 부품으로 옮긴다.
+  - 알림 막대·검색·작성기(TASK-26): ddots `SlackThreads` 알림 분류, `SlackFind`·`SlackFindView`·`SlackSearch`, `ChatWorkspace` 머리줄, `SlackDrafts`·실패 목록. 검색 대상은 `cache/`의 기록장 복제이며, 서버 검색과 월 단위 기록 읽기는 없다(hejo는 캐시가 전체 기록이다).
+  - `HomeRoom`(새, TASK-27): 1:1 방들의 스레드를 모아 보여 주는 보기다. 저장소가 따로 없다. 보내기는 기존 `send(employee, thread: 새 UUID)`이다.
+- **베끼기:** 각 TASK 착수 전에 해당 ddots 파일 전체와 의존을 읽고 `copy-review.md`에 파일별로 적는다. 계획 담당의 대조표는 무엇을 옮길지의 목록이고, 줄 단위 읽기를 대신하지 않는다. ddots 파일은 읽기만 한다.
+- **가져오지 않음(이번 판):**
+  - Slack 전용 연결, 운영자 개인 업무 기능, iCloud 기록 보관(대조표 K).
+  - 말풍선 버튼(링크·일정·나중에 알려줘)·말풍선 바로 답하기·상태 점(대조표 A)은 4단계로 남긴다.
+  - "이 방은 보관하지 않기", 사람 초대(hejo에는 사람 회원 초대가 없음), 프로젝트 기록 카드는 이번 판에서 뺀다.
+- **위험·롤백(18판)**
+  - TASK-24(허브 영구 저장·인증)·TASK-20(사장 칸 파일 쓰기)·TASK-25(스레드 범위 `delete`)·TASK-21은 고위험이다.
+  - (25판) 스레드 삭제는 기존 `delete` 종류만 써서 이전 문 코드로 되돌려도 기록장이 열린다. 옛 문은 지운 스레드 글을 다시 내보내지만 바로 뒤의 `delete`로 화면에서 지워진다. TASK-23 롤백의 `shared/hejo` 사본 복원은 그대로 한다.
+  - 허브 상태 파일은 이전 허브가 읽지 않는 새 파일이라, 되돌려도 회원 설정은 안전하다.
+  - 직원 사진 롤백은 바꾸기 전 `avatar.png`를 TASK-23 사본에 함께 떠 두고 되돌린다.
+- **펫 알림·말풍선 답하기(19판, REQ-HF-30·31)**
+  - 원본: ddots `App.swift` 말풍선 우선순위·`PetAction`, `Conversation*` 새 답 말풍선(nudge)·나중에 알려줘, `PetView` 말풍선·배지·생각 풍선·상태 점, `BubbleReply.swift` 전체.
+  - 소유: `BubbleReveal`(TASK-17)을 우선순위 표로 넓힌다. 입력은 `ConversationModel`·`IslandModel`·REQ-HF-28 알림 분류다.
+  - 나중에 알려줘: 예약은 Mac별 `hejo-local.json` `reminders`에 둔다. 펫 알림은 그 Mac 화면의 일이라 회원 상태에 두지 않는다.
+  - 말풍선 답하기: 보내기는 기존 `send`다. 직원별 `busy_input_mode`는 문 명부가 그 프로필 `config.yaml` `display.busy_input_mode`를 읽기만 해서 `queued`로 보낸다(ddots `BubbleReply.isQueued`와 같은 규칙).
+- **TASK 순서(20판):** TASK-24 → TASK-31(도구 연결 탐침, 읽기 전용) → TASK-20 → TASK-25 → TASK-26 → TASK-29 → TASK-30 → TASK-27 → TASK-21 → TASK-32(도구 연결 구현, 탐침 뒤 계획 담당이 확정) → TASK-23. TASK-28(team-kit 체크리스트 메타)은 운영 저장소 쪽 별도 작업이다.
+
+### 직원별 도구 연결(20판, REQ-HF-32)
+
+- **원본 독해(계획 담당, 2026-11-15):**
+  - ddots: `AgentConnections.swift`(369), `AgentConnectionsView.swift`(491), `AgentConnectionActions.swift`(264), `AgentAppConnections.swift`(312, 구조·문구), `ConnectionInputField.swift`(39).
+  - 운영 저장소 team-kit: `hermes_facility/connections.py`(469), `connection_secrets.py`(270), `connection_checks.py`(437), `connection_guides.py`(68), `app_connect.py`(638), `app_registry.py`(250), `gateway_restart.py`·`mac_permission.py`(함수 목록).
+  - Hermes 본체(읽기만): `hermes_cli/tools_config.py` `TOOL_CATEGORIES`·`TOOLSET_ENV_REQUIREMENTS`, `hermes_cli/web_routers/{tools,mcp,oauth,config_env,profiles}.py`(대시보드 API: 프로필별 `/api/tools/toolsets`·`/api/env`·`/api/mcp/*`·`/api/providers/oauth/*`·`/api/gateway/restart`), 세션 토큰 인증 `X-Hermes-Session-Token`.
+- **ddots 구조에서 지키는 것:**
+  - 서버(공항)가 연결 목록·상태·이유 코드·버튼(`actions`)·입력 안내(`guide`·`fields`)를 정하고, 앱은 그리기만 한다.
+  - 비밀값은 표준 입력 한 번으로만 오가고, 인수·로그·기록에 남지 않는다.
+  - 확인을 통과한 값만 저장하고, 10분 동안 되돌릴 수 있다.
+  - 다시 시작은 처리 중이면 거절하고, 60분에 한 번이다.
+- **ddots와 달라지는 것(사장 선택):**
+  - ddots는 다른 Mac이 읽기만 한다. hejo는 모든 Mac이 문을 통해 같은 동작을 한다. 대신 위험 동작마다 재확인과 행동 기록을 둔다(근간 원칙 6).
+  - ddots는 운영 저장소 명령에 기대지만, hejo는 Hermes 공식 관리 경로를 기본 원본으로 쓰고 team-kit 명령은 감지해서 더한다.
+- **칸(새 원본 없음)**
+  - 연결 상태·도구 켜짐·MCP 설정은 Hermes 설정(사장 지시서 칸, 조립 결과 포함)이고, 비밀값은 사장 금고(각 홈 `.env`)다. 쓰기 주체는 '사장(앱 경유, 재확인)'이며, 문이 Hermes 공식 쓰기 경로로 쓴다.
+  - 되돌림용 이전 값은 금고 `<HOME>/hejo/undo/`(0600, 10분)에 둔다.
+  - 행동 기록은 공용 창고 `shared/hejo/actions.jsonl`(근간 3절 '행동 기록')에 둔다.
+  - 조립식 공항(owner/team.yaml이 원본)에서 team-kit 명령이 다루는 연결은 그 명령으로만 바꾼다. 조립 결과를 hejo가 직접 고치지 않는다(근간 '칸이 아닌 것').
+- **규격(v1 하위 호환):**
+  - 클라이언트 프레임: `connections {profile?}`, `connection_action {profile, connection, action, values?, reauth}`
+  - 서버 프레임: `connections_status {document}`, `connection_result {reply}`
+  - `values`는 비밀 필드만 담고, 문이 처리 뒤 메모리에서 버린다. 옛 앱은 이 프레임을 보내지 않는다.
+- **미정(TASK-31 탐침으로 정함):**
+  - 문이 Hermes 공식 관리 경로를 쓰는 방식: (a) 같은 프로세스에서 대시보드 라우터와 같은 함수를 부르기, (b) 설치 도우미가 서버에 `hermes dashboard` 백엔드를 루프백 전용 서비스로 두고 문만 세션 토큰으로 부르기, (c) `hermes` CLI 비대화 하위 명령.
+  - 본체 무수정·프로필 범위·비밀 범위가 지켜지는 길을 고른다.
+  - 다른 Mac에서 OAuth 동의를 끝내는 흐름(장치 코드, 붙여넣기, 콜백 중계)
+  - 다시 시작 뒤 문 재연결과 결과 보고
+- **TASK-31 탐침 뒤 결정(21판, 근거 [probe-connections.md](probe-connections.md), 계획 담당 원본 확인 `tools_config.py:754~781`, `pyproject.toml:137`, `subcommands/dashboard.py:1~7`)**
+  - **D1 방식 (b) 채택: 서버의 루프백 관리 백엔드를 문만 부른다.**
+    - 백엔드: Hermes 공식 화면 없는 백엔드(`hermes serve`, 화면 빌드 없음)를 127.0.0.1의 빈 포트에 띄운다. 착수 첫 단계에서 이 백엔드가 **메시징 게이트웨이를 따로 띄우지 않는지** 확인한다. 띄운다면 `hermes dashboard --no-open --skip-build`로 대신하고, 둘 다 띄운다면 멈추고 보고한다.
+    - 세션 토큰: 설치 도우미가 금고 `<HOME>/hejo/admin.json`(0600, 포트·토큰)에 만든다. launchd 사용자 에이전트는 hejo 래퍼(`install/hejo-admin`)를 실행하고, 래퍼가 그 파일을 읽어 `HERMES_DASHBOARD_SESSION_TOKEN` 환경으로 백엔드를 띄운다. 그래서 plist·인수·로그에 토큰이 없다. 백엔드 stdout/stderr는 버린다.
+    - 수명: launchd에서 늘 켜 두고 죽으면 다시 띄운다. 에이전트 plist와 금고 파일은 설치 영수증 대상이고, 제거하면 지운다. 토큰은 앱으로 보내지 않는다.
+    - 프로필 권한: 회원 출입증 → 그 회원의 문 → 그 공항의 프로필만이다. hejo가 판단한다.
+    - Hermes 의존성: 서버의 Hermes 실행 환경에 관리 백엔드 의존성(`fastapi`·`uvicorn`, Hermes 기본 의존성)이 없으면 설치 도우미는 Hermes 실행 환경에 직접 설치하지 않는다(본체 무수정). "서버의 Hermes를 업데이트해 주세요(`hermes update`)"를 출력하고, 백엔드 단계는 `skipped`로 영수증에 남긴다. 연결 창은 같은 문장과 함께 team-kit 연결만 보인다.
+    - 실패: 백엔드가 응답하지 않으면 문은 `admin_unavailable`로 답하고, 창은 "서버의 관리 기능이 꺼져 있어요"를 보인다.
+  - **D2 오류 비노출:**
+    - 문은 백엔드·team-kit 응답에서 허용 필드만 골라 이유 코드로 바꾼다. 원시 `detail`·`error`·traceback·로그 원문·토큰 미리보기는 앱·행동 기록·hejo 로그에 넣지 않는다. 시험은 가짜 비밀값 바이트가 hejo 쪽 모든 출력에 없음을 검사한다.
+    - 남는 위험: Hermes 자체 로그 파일(서버 로컬, 금고 수준)에 traceback이 남을 수 있다. 본체를 고치지 않으므로 받아들이고 위험 표에 적는다.
+  - **D3 키 상태:** 백엔드의 `configured`를 "필요 키 있음"으로 번역하지 않는다. 제공자 행의 env 이름별 **존재 여부**만 보인다. 상태는 "키 저장됨(확인 안 함)" / "키 없음" / "키 필요 없음"이다. "연결됨"은 확인 호출이 통과했을 때만 쓴다. 저장 성공은 연결 성공이 아니다.
+  - **D4 OAuth 제공자:**
+    - 장치 코드 제공자(Nous·Codex·MiniMax·xAI): 앱에서 시작하면 확인 주소와 코드를 보이고 그 Mac의 브라우저를 연다. 폴링은 서버가 한다.
+    - 외부 CLI 제공자(Qwen·Copilot·Anthropic·Claude Code): 원격 실행하지 않는다. "서버에서 `<공식 명령>`을 실행해 주세요" 안내와 상태만 보인다.
+  - **D5 MCP:** 목록·추가·시험·켜기·끄기·삭제를 지원한다. MCP OAuth의 루프백 콜백 중계는 이번 범위에서 뺀다(공급자 redirect 제한·포트 충돌 미검증). "서버에서 로그인해 주세요"로 안내한다. 나중 작업 후보다.
+  - **D6 다시 시작:**
+    - 요청은 백엔드가 실행한다. 백엔드는 게이트웨이와 별개 프로세스라 문이 끊겨도 살아 있다.
+    - 순서: 문은 재확인을 마친 요청을 작업 id와 함께 행동 기록에 **먼저** 남기고 재시작을 요청한다. 앱이 다시 붙으면 `connection_result {job}`으로 결과를 다시 요청한다.
+    - 결과 판정: 새 문은 새 게이트웨이 PID·시작 시각이 요청 뒤인지 공식 runtime 상태(`gateway/status.py`)로 확인한다. 그런 뒤 활성 프로필별 플랫폼 연결 수를 세어 `done`(N개) / `partial` / `unknown` / `timeout`(180초)을 행동 기록에 남기고 돌려준다.
+    - 처리 중 판정: Hermes runtime 상태의 진행 중 대화가 있으면 거절한다. 판정할 수 없으면 "처리 중인지 확인하지 못해 시작하지 않았어요"로 거절한다. drain 표식만으로 유휴로 보지 않는다.
+    - 60분 제한: 행동 기록 기준이다. team-kit 공항이면 team-kit `gateway restart`를 우선 쓴다.
+  - **D7 team-kit 명령 대행:**
+    - 허용 하위 명령: `status`·`check`·`secret guide|set|undo`·`permission`·`gateway restart`·`reconnect`·`apps`·`app`.
+    - 입력: 프로필은 명부 id만, stdin은 16 KiB까지다.
+    - 작업별 제한 시간은 ddots `ConnectionCommands.timeout`과 같다(check 30·all 90·secret 30·permission 130·gateway 150초).
+    - 판정은 종료 코드가 아니라 응답 `outcome`으로 한다. 동작 뒤 `status --json`을 다시 받는다.
+  - **D8 목록 범위:** 백엔드가 돌려준 행만 보인다. 제공자 플러그인 의존성 누락으로 빠진 행은 "이 서버에서 불러오지 못한 제공자 N개"로 알린다.
+  - **D9 비밀값 쓰기의 실패 처리(29판, D32-01 — Hermes ebb026e `config_env.py:328~349`·`credential_lifecycle.py:163~201` 계획 담당 확인):**
+    - 쓰기 범위: 공식 `PUT /api/env`가 같은 이전 값을 가진 `config.yaml` 거울(`model.api_key` 등)을 함께 고치는 것은 Hermes 공식 동작이라 그대로 받는다. hejo가 따로 고치는 줄은 없다. "그 이름 줄만"은 "hejo가 쓰는 것은 그 이름 하나, 나머지는 공식 경로가 같이 바꾸는 거울만"으로 읽는다.
+    - 실패 보상: 문은 쓰기 전에 이전 값의 유무와 값을 공식 경로(`POST /api/env/reveal`)로 메모리에만 받아 둔다(되돌림 금고 `hejo/undo/`에 쓰는 값과 같은 것). 공식 쓰기가 2xx가 아니거나 예외면, 같은 공식 경로로 되돌린다(이전 값이 있으면 `PUT` 이전 값, 없었으면 `DELETE /api/env`). hejo는 `.env`·`config.yaml`을 직접 쓰지 않는다.
+    - 보상 확인: 되돌린 뒤 공식 목록에서 그 이름의 존재 여부가 이전과 같은지 본다. 보상까지 실패하면 이유 코드 `write_partial`, 문장 "저장이 중간에 멈췄어요. 서버에서 이 키를 확인해 주세요"를 보이고, 행동 기록 결과를 `partial`로 남긴다(값 없음). 이 경우만 AC-04의 "기존 값 그대로"의 예외이며 숨기지 않는다.
+    - 확인 표가 없는 키: 공식 검사가 `ok=true, reachable=false`(검사 표 없음)면 저장은 허용하고 상태는 D3의 "키 저장됨(확인 안 함)"이다. "연결됨"은 쓰지 않는다. 검사가 `ok=false`면 저장하지 않는다.
+- **위험:** 고위험(비밀값 쓰기, 인증된 원격 쓰기, 게이트웨이 재시작). 인계 수준 2, 최종 수준 4(서버 실물: 실제 키 하나 넣기·되돌리기, 노트북에서 다시 시작, OAuth 하나).
+
+### hejo 홈 채널(14판, 15·16판 보강, REQ-HF-25)
+
+- **칸:** 사장 지시서(각 프로필 `config.yaml`의 최상위 `platforms.hejo.home_channel`). `/sethome`이 쓰는 자리와 같다(R `gateway/config.py` `persist_home_channel`). 설치 도우미가 쓰는 `gateway.platforms.hejo`와 키가 갈라져도, Hermes는 `gateway.platforms.*` → 최상위 `platforms.*` 순으로 키 단위 얕은 병합을 하므로(R `gateway/config_loader.py` `merge_platform_sections` 140~174) `enabled`·`extra`는 그대로이고 `home_channel`만 더해진다.
+- **영수증 대상:** `{kind: config, file, keys: [platforms, hejo, home_channel], existed: false, before: null, after: {platform: hejo, chat_id: <프로필 id>, name: <이름 또는 id>}, owner_may_change: true}`. 이미 값이 있는 프로필은 대상을 만들지 않는다(사장 값 불변). 영수증 형식은 `version: 1` 그대로이고 대상만 더한다(옛 설치 도우미도 일반 config 대상으로 되돌릴 수 있다).
+- **새 설치:** 기존 `plan()`이 프로필마다 위 대상을 함께 만든다.
+- **이미 설치된 공항(갱신 경로, R1):** 영수증이 `installed`이면 지금처럼 바로 끝내지 않고, 영수증 `configs`에 있는 프로필마다 home_channel 대상이 없고 config에도 값이 없으면 대상을 영수증 끝에 붙인다. **쓰는 순서(16판):** ① 붙일 대상을 모두 `state: pending`으로 영수증에 저장(fsync) → ② 대상마다 config 쓰기 → ③ 그 대상 `applied`로 영수증 저장. config를 바꾸기 전에 영수증이 먼저 대상을 안다. `configs[file].before`(설치 전 원문)는 바꾸지 않고 `written`만 갱신한다. 기존 대상은 건드리지 않는다. 영수증에 없는 새 프로필은 이번 범위 밖이다(기존 동작과 같음, `--check`가 알림).
+- **갱신 중 실패:** 이번에 붙인 대상 중 `applied`인 것만 **키 단위**로 되돌린다(`restore_key`; 파일 전체를 설치 전 원문으로 되돌리는 경로는 쓰지 않는다 — 기존 hejo 키까지 지워지기 때문). 되돌린 대상은 영수증에서 뺀다. 영수증은 `installed`로 남고 종료 1, `upgrade_failed <경로>`를 출력한다. 프로세스가 도중에 죽으면 다음 실행(설치·`--uninstall`·`--uninstall-home-channel`·`--check` 모두)이 먼저 **맞춤(reconcile)** 을 한다. home_channel 대상마다 현재 config 값으로 정한다(16판, R1-2):
+
+| 영수증 상태 | 현재 값 | 맞춤 결과 |
+|---|---|---|
+| `pending` | 없음 | 설치·갱신이면 적용 후 `applied`. 제거·점검이면 `released`(대상에서 빠짐, 바꾼 것 없음) |
+| `pending` | `after`와 같음 | `applied`로 확정(쓰기는 됐고 영수증 저장 전 중단된 경우) |
+| `pending` | 다른 값 | 사장 값으로 보고 손대지 않음. `released` + `preserved_owner_change` |
+| `applied` | `after`와 같음 | 그대로 |
+| `applied` | 다른 값·없음 | 사장 변경으로 보고 손대지 않음. `released` + `preserved_owner_change` |
+| `removing`(17판) | `after`와 같음 | 롤백 쓰기 전 중단. 롤백(`--uninstall`·`--uninstall-home-channel`)이면 이어서 지운 뒤 `removed`. 설치·갱신이면 롤백 포기로 보고 `applied`. 점검은 `applied`처럼 본다 |
+| `removing` | 없음 | 롤백이 지운 뒤 영수증 저장 전 중단. `removed`(사장 변경 아님) |
+| `removing` | 다른 값 | 사장 값. `released` + `preserved_owner_change` |
+
+`released` 대상은 이후 어떤 제거·롤백도 건드리지 않는다. `--check`는 맞춤 결과를 영수증에 쓰지 않고 출력만 한다.
+- **제거:** 맞춤 뒤 `applied`이고 현재 값이 `after`와 같은 home_channel 대상만 키 단위로 지운다. 사장이 바꿨으면(`/sethome` 등) 지우지 않고 `preserved_owner_change <경로>`를 출력하며 충돌로 세지 않는다(종료 코드에 영향 없음). 다른 대상은 기존 규칙 그대로다.
+- **점검(`--check`):** 영수증이 `installed`인데 home_channel 대상이 없는 프로필(값도 없음)은 `missing_target <파일>#platforms.hejo.home_channel`, 종료 1. 사장이 바꾼 home_channel은 `owner_set <경로>`만 출력하고 정상(0)으로 본다. `released`인데 값이 없으면(사장이 키를 지움) `owner_set`이 아니라 `owner_removed <경로>`를 출력하고 정상(0)으로 본다(17판, V-1: 값이 없는데 '정했다'고 알리지 않는다).
+- **롤백(16판, R5):** 손으로 키를 지우지 않는다. `install/hejo-install --uninstall-home-channel`을 쓴다. 이 명령은 맞춤 뒤 영수증의 home_channel 대상(`owner_may_change`) 중 `applied`이고 현재 값이 `after`와 같은 것만 키 단위로 지우고 `removed`로 표시한다. **지우는 순서(17판, V-1):** ① 그 대상을 `removing`으로 영수증에 저장 → ② config 키 삭제 → ③ `removed`로 저장. `--uninstall`의 home_channel 삭제도 같은 순서다. 그래서 ②와 ③ 사이에 끊겨도 맞춤이 '사장이 지움'(`released`)으로 오판하지 않고, 다시 설치하면 값이 돌아온다. 영수증 대상이 아닌 값(설치 전부터 있던 사장 값)과 `released`·사장 변경값은 지우지 않고 `preserved_owner_change <경로>`를 출력한다. 다른 hejo 대상(플러그인·문 설정)과 영수증 `status: installed`는 그대로다. 영수증은 실제 config와 맞춘 상태로 저장한다. 종료 0(지울 것 없어도 0), 영수증 읽기·쓰기 실패만 1. 그 뒤 재시작한다. 다시 넣으려면 설치를 다시 실행한다(`removed` 대상은 값이 없으면 갱신 경로가 새 대상으로 붙인다).
+
 ### SwiftUI 예외 목록
 
 | 화면 | 이유 |
 |---|---|
-| 없음 | 이번 작업의 모든 화면은 AppKit으로 만든다. 필요하면 구현 담당이 멈추고 보고한다 |
+| 도구 연결 창(20판, REQ-HF-32) | 설정 성격의 단순 화면(목록·상세·입력 창)이고, ddots 원본(`AgentConnectionsView` 등)이 SwiftUI라 원본 구조를 그대로 옮긴다. 대화 목록·카드처럼 성능이 걸린 화면이 아니다(근간 원칙 9) |
+| 그 밖 | 모든 화면은 AppKit으로 만든다. 필요하면 구현 담당이 멈추고 보고한다 |
 
 ## 7. 설치 도우미(`install/`)와 개인값 검사
 

@@ -36,7 +36,6 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
         var fold: () -> Void = {}
         var flash = false
         var openLink: (URL) -> Void
-        var reportHeight: ((CGFloat) -> Void)?
     }
     enum Piece {
         case post(Post)
@@ -70,7 +69,6 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
         var bubbleWidth: CGFloat
         var quiet: NSColor
         var expanded: Bool
-        var statusTitle: String = ""
         var replyTarget = false
     }
     /// The row at the card's top right: the bell at the end, the "답글 작성 중" and status badges to its left,
@@ -569,12 +567,6 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
     private(set) var value: Layout?
     /// Lets scrolling and checks find a message's words and the card itself, as the native probes did.
     var register: ((String, NSView) -> Void)?
-    var diagnosticButtonFrames: [String: CGRect] {
-        guard let value else { return [:] }
-        return Dictionary(zip(value.content.actions, buttons).map { ($0.0.identifier, $0.1.frame) }, uniquingKeysWith: { first, _ in first })
-    }
-    /// The words of the first post, for checks that drive selection and copying.
-    var firstText: NSTextView? { texts.first { !$0.isHidden } }
     override var isFlipped: Bool { true }
     override init(frame: NSRect) {
         super.init(frame: frame)

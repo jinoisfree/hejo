@@ -10,7 +10,12 @@ from pathlib import Path
 from aiohttp import web, WSMsgType
 from jsonschema import Draft202012Validator
 from .auth import AuthRejected
+from .connection_manager import Connections
+from .connections import ConnectionFailure
 from .files import MAX_FILE_BYTES, UnknownFile
+from .pictures import Pictures, MAX_PICTURE_BYTES, valid_png
+from .journal import HejoJournalError
+from hermes_constants import get_hermes_home
 
 log = logging.getLogger(__name__)
 SCHEMA = json.loads((Path(__file__).resolve().parent.parent / "schemas" / "hejo-wire-v1.json").read_text())
@@ -56,6 +61,7 @@ class Connection:
     overflow: bool = False
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     hub_token: str = None  # set for hub-issued sign-ins; re-checked with the hub while connected
+    features: set = field(default_factory=set)
 
     async def send(self, frame):
         if not self.ws.closed:
@@ -73,6 +79,10 @@ class GateServer:
         self.sites = []
         self.tasks = set()
         self.port = None
+        self.admin_connections = Connections(get_hermes_home(), adapter.employees)
+        runner = getattr(adapter, "_message_handler", None)
+        runner = getattr(runner, "__self__", None)
+        self.pictures = Pictures(get_hermes_home(), getattr(getattr(runner, "config", None), "multiplex_profiles", True))
 
     async def start(self, listen, port):
         if not listen or any(not allowed_address(addr) for addr in listen):
@@ -81,7 +91,9 @@ class GateServer:
         app.router.add_get("/v1/ws", self.websocket)
         app.router.add_post("/v1/files", self.upload)
         app.router.add_get("/v1/files/{employee}/{file_id}", self.download)
-        app.router.add_get("/v1/avatars/{tail:.*}", self.avatar)
+        app.router.add_route("GET", "/v1/pictures/{kind}/{identifier}", self.picture)
+        app.router.add_route("PUT", "/v1/pictures/{kind}/{identifier}", self.picture)
+        app.router.add_route("DELETE", "/v1/pictures/{kind}/{identifier}", self.picture)
         # Access logs contain no credential-bearing frame data or query strings.
         self.runner = web.AppRunner(app, access_log=None)
         await self.runner.setup()
@@ -150,8 +162,63 @@ class GateServer:
             raise web.HTTPNotFound() from None
         return web.FileResponse(path, headers={"Content-Type": mime, "X-Content-Type-Options": "nosniff"})
 
-    async def avatar(self, request):
-        raise web.HTTPNotFound()
+    async def picture(self, request):
+        await self.http_auth(request)
+        identifier = request.match_info["identifier"]
+        if request.match_info["kind"] == "room" and not identifier.startswith(("home-", "section-")) and request.method != "GET":
+            async with self.adapter.files.lock, self.adapter._publish_lock:
+                room = self.adapter.journal.rooms.get(identifier)
+                if room is None:
+                    raise web.HTTPNotFound()
+                path = self.pictures.path("room", identifier)
+                before = path.read_bytes() if path.is_file() else None
+                response = await self._picture(request)
+                picture = json.loads(response.body)["picture"]
+                try:
+                    saved = await self.adapter.journal.append({"v": 1, "type": "room", "room": {**room, "picture": picture}})
+                except HejoJournalError:
+                    if before is None:
+                        self.pictures.delete("room", identifier)
+                    else:
+                        self.pictures.put("room", identifier, before)
+                    raise web.HTTPInternalServerError(text="journal_write_failed") from None
+                await self.broadcast(saved)
+                return response
+        return await self._picture(request)
+
+    async def _picture(self, request):
+        kind, identifier = request.match_info["kind"], request.match_info["identifier"]
+        if kind == "employee" and identifier not in {e["id"] for e in self.adapter.employees()}:
+            raise web.HTTPNotFound()
+        if kind == "room" and not identifier.startswith(("home-", "section-")) and identifier not in self.adapter.journal.rooms:
+            raise web.HTTPNotFound()
+        try:
+            picture = None
+            if request.method == "GET":
+                path = self.pictures.path(kind, identifier)
+                if not path.is_file():
+                    raise KeyError("unknown_picture")
+                return web.FileResponse(path, headers={"Content-Type": "image/png", "X-Content-Type-Options": "nosniff"})
+            if request.method == "PUT":
+                data = bytearray()
+                async for chunk in request.content.iter_chunked(65536):
+                    data.extend(chunk)
+                    if len(data) > MAX_PICTURE_BYTES:
+                        raise web.HTTPRequestEntityTooLarge(max_size=MAX_PICTURE_BYTES, actual_size=len(data))
+                if not valid_png(bytes(data)):
+                    raise web.HTTPUnsupportedMediaType(text="invalid_picture")
+                path = self.pictures.put(kind, identifier, bytes(data))
+                picture = f"/v1/pictures/{kind}/{identifier}?v={path.stat().st_mtime_ns}"
+            else:
+                self.pictures.delete(kind, identifier)
+            if kind == "employee":
+                await asyncio.gather(*(c.send({"v": 1, "type": "roster", "ref": "picture", "employees": self.adapter.employees()}) for c in tuple(self.connections)))
+            return web.json_response({"ok": True, "picture": picture})
+        except KeyError:
+            raise web.HTTPNotFound() from None
+        except OSError:
+            log.error("picture_write_failed")
+            raise web.HTTPInternalServerError() from None
 
     async def maintenance(self):
         ticks = 0
@@ -176,6 +243,10 @@ class GateServer:
             for conn in self.connections - set(revoked):
                 if ticks and ticks % 60 == 0:
                     await conn.send({"v": 1, "type": "ping"})
+            try:
+                self.admin_connections.secrets.purge()
+            except (OSError,ValueError,KeyError):
+                log.error("connection_undo_cleanup_failed")
             ticks += 1
 
     async def error(self, code, ref=None, conn=None):
@@ -188,7 +259,8 @@ class GateServer:
     async def broadcast(self, frame):
         for conn in tuple(self.connections):
             if "seq" not in frame:
-                await conn.send(frame)
+                if not self.adapter.journal.room_id(frame) or "rooms" in conn.features:
+                    await conn.send(frame)
                 continue
             async with conn.lock:
                 if conn.replaying:
@@ -198,7 +270,13 @@ class GateServer:
                             conn.queue.clear()
                             conn.overflow = True
                 else:
-                    await conn.send(frame)
+                    await conn.send(self.project(frame, conn))
+
+    def project(self, frame, conn):
+        room = self.adapter.journal.room_id(frame)
+        if room and "rooms" not in conn.features:
+            return {"v": 1, "type": "delete", "seq": frame["seq"], "msg_id": frame.get("msg_id", "room:" + room)}
+        return self.adapter.journal.replay(frame)
 
     async def sync(self, conn, since, ref):
         async with conn.lock:
@@ -207,7 +285,7 @@ class GateServer:
             conn.queue.clear()
             page = self.adapter.journal.page(since, LIMITS["sync_page"])
         for frame in page:
-            await conn.send(frame)
+            await conn.send(self.project(frame, conn))
         through = page[-1]["seq"] if page else since
         async with conn.lock:
             head = self.adapter.journal.head
@@ -217,7 +295,7 @@ class GateServer:
             if not more:
                 for frame in conn.queue:
                     if frame["seq"] > through:
-                        await conn.send(frame)
+                        await conn.send(self.project(frame, conn))
                 conn.replaying = False
             conn.queue.clear()
 
@@ -292,10 +370,12 @@ class GateServer:
                 await ws.send_json({"v": 1, "type": "pair_rejected" if paired else "auth_rejected",
                                     "reason": exc.reason})
                 return ws
-            conn = Connection(ws, device_id, replaying=True, hub_token=hub_token)
+            conn = Connection(ws, device_id, replaying=True, hub_token=hub_token, features=set(hello.get("features", [])))
             welcome = {"v": 1, "type": "welcome", "device_id": device_id,
                        "gate_version": "1.0.0", "employees": self.adapter.employees(),
                        "head_seq": self.adapter.journal.head}
+            if "rooms" in conn.features:
+                welcome["rooms"] = list(self.adapter.journal.rooms.values())
             if paired:
                 welcome["token"] = token
             await conn.send(welcome)
@@ -319,6 +399,19 @@ class GateServer:
                     if frame["type"] == "roster":
                         await conn.send({"v": 1, "type": "roster", "ref": frame["id"],
                                          "employees": self.adapter.employees()})
+                    elif frame['type'] in {'connections','connection_action'}:
+                        try:
+                            if frame['type']=='connections':
+                                document=await self.admin_connections.document(frame.get('profile'))
+                                await conn.send({'v':1,'type':'connections_status','ref':frame['id'],'document':document})
+                            else:
+                                reply=await self.admin_connections.perform(conn.device_id,frame)
+                                await conn.send({'v':1,'type':'connection_result','ref':frame['id'],'reply':reply})
+                        except (ConnectionFailure,OSError,ValueError):
+                            await conn.send({'v':1,'type':'connection_result','ref':frame['id'],
+                                             'reply':{'outcome':'failed','reason':'admin_unavailable'}})
+                        finally:
+                            frame.pop('values',None)
                     elif frame["type"] == "sync":
                         if frame["since"] > self.adapter.journal.head:
                             await self.error("invalid_since", frame.get("id"), conn)
@@ -328,6 +421,12 @@ class GateServer:
                         await self.adapter.receive(frame, conn)
                     elif frame["type"] == "click":
                         await self.adapter.click(frame, conn)
+                    elif frame["type"] == "thread_delete":
+                        await self.adapter.thread_delete(frame, conn)
+                    elif frame["type"] == "thread_branch":
+                        await self.adapter.thread_branch(frame, conn)
+                    elif frame["type"] in {"room_save", "room_archive", "room_delete"}:
+                        await self.adapter.room_command(frame, conn)
                     elif frame["type"] != "pong":
                         await self.error("unexpected_frame", frame.get("id"), conn)
                 except Exception as exc:

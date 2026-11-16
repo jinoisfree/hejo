@@ -7,6 +7,7 @@ from aiohttp import web
 
 from . import google
 from .store import HubStore, Rejected
+from .state import MemberStateStore, MAX_BYTES
 
 log = logging.getLogger(__name__)
 NETWORKS = tuple(ipaddress.ip_network(net) for net in ("127.0.0.0/8", "::1/128", "100.64.0.0/10", "fd7a:115c:a1e0::/48"))
@@ -32,6 +33,7 @@ class Hub:
     def __init__(self, home):
         self.home = home
         self.store = HubStore(home)
+        self.state = MemberStateStore(home)
         self.runner = None
         self.sites = []
         self.port = None
@@ -44,6 +46,8 @@ class Hub:
         app.router.add_post("/v1/google", self.google)
         app.router.add_get("/v1/me", self.me)
         app.router.add_put("/v1/me/settings", self.settings)
+        app.router.add_get("/v1/me/state", self.member_state)
+        app.router.add_patch("/v1/me/state", self.member_state)
         app.router.add_post("/v1/link", self.link)
         app.router.add_post("/v1/gate/register", self.register)
         app.router.add_post("/v1/gate/verify", self.verify)
@@ -125,6 +129,24 @@ class Hub:
         _, member = self.store.device(self.bearer(request))
         self.store.save_settings(member, (await self.body(request))["settings"])
         return web.json_response({"ok": True})
+
+    async def member_state(self, request):
+        _, member = self.store.device(self.bearer(request))
+        try:
+            if request.method == "GET":
+                since = request.query.get("since")
+                if since is not None and (not since.isdecimal() or len(since) > 16):
+                    raise Rejected("bad_state")
+                result = self.state.get(member, int(since) if since is not None else None)
+            else:
+                request = request.clone(client_max_size=MAX_BYTES + 64 * 1024)
+                body = await self.body(request)
+                if set(body) != {"items"}:
+                    raise Rejected("bad_state")
+                result = self.state.patch(member, body["items"])
+        except (ValueError, TypeError, KeyError, web.HTTPRequestEntityTooLarge):
+            raise Rejected("bad_state") from None
+        return web.json_response(result)
 
     # Gate side: only from this Mac (each member's Hermes runs here, in that member's own Mac account).
 

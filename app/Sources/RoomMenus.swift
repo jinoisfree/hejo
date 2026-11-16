@@ -15,6 +15,8 @@ final class RoomActionItem: NSMenuItem {
 
 final class EmployeeMenuTable: NSTableView {
     var makeMenu: ((Int) -> NSMenu?)?
+    var onBlankDoubleClick:(()->Void)?
+    override func mouseDown(with event:NSEvent) {if event.clickCount==2,row(at:convert(event.locationInWindow,from:nil))<0 {onBlankDoubleClick?();return};super.mouseDown(with:event)}
     override func menu(for event: NSEvent) -> NSMenu? {
         let point = convert(event.locationInWindow, from: nil)
         return makeMenu?(row(at: point))
@@ -23,5 +25,7 @@ final class EmployeeMenuTable: NSTableView {
 
 final class EmployeeMenuScroll: NSScrollView {
     var makeBlankMenu: (() -> NSMenu?)?
+    var onBlankDoubleClick:(()->Void)?
+    override func mouseDown(with event:NSEvent) {if event.clickCount==2 {onBlankDoubleClick?();return};super.mouseDown(with:event)}
     override func menu(for event: NSEvent) -> NSMenu? { makeBlankMenu?() }
 }

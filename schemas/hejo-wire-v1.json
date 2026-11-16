@@ -56,6 +56,27 @@
     },
     {
       "$ref": "#/$defs/ping"
+    },
+    {
+      "$ref": "#/$defs/thread_delete"
+    },
+    {
+      "$ref": "#/$defs/thread_branch"
+    },
+    {
+      "$ref": "#/$defs/room_save"
+    },
+    {
+      "$ref": "#/$defs/room_archive"
+    },
+    {
+      "$ref": "#/$defs/room_delete"
+    },
+    {
+      "$ref": "#/$defs/room"
+    },
+    {
+      "$ref": "#/$defs/room_deleted"
     }
   ],
   "$defs": {
@@ -75,11 +96,24 @@
             "type": "string"
           }
         },
+        "avatar_custom": {
+          "type": "boolean"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^#[0-9A-F]{6}$"
+        },
         "avatar": {
           "type": [
             "string",
             "null"
           ]
+        },
+        "queued": {
+          "type": "boolean"
         }
       },
       "required": [
@@ -211,6 +245,13 @@
             "password"
           ],
           "additionalProperties": false
+        },
+        "features": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
         }
       },
       "required": [
@@ -313,6 +354,12 @@
         "head_seq": {
           "type": "integer",
           "minimum": 0
+        },
+        "rooms": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/room_data"
+          }
         }
       },
       "required": [
@@ -541,6 +588,9 @@
             "type": "string",
             "minLength": 1
           }
+        },
+        "room": {
+          "$ref": "#/$defs/thread"
         }
       },
       "required": [
@@ -616,6 +666,24 @@
         },
         "ts": {
           "type": "string"
+        },
+        "checklist": {
+          "$ref": "#/$defs/checklist"
+        },
+        "branch_from": {
+          "type": "object",
+          "properties": {
+            "thread": {
+              "$ref": "#/$defs/thread"
+            }
+          },
+          "required": [
+            "thread"
+          ],
+          "additionalProperties": false
+        },
+        "room": {
+          "$ref": "#/$defs/thread"
         }
       },
       "required": [
@@ -666,6 +734,12 @@
           "items": {
             "$ref": "#/$defs/button"
           }
+        },
+        "checklist": {
+          "$ref": "#/$defs/checklist"
+        },
+        "room": {
+          "$ref": "#/$defs/thread"
         }
       },
       "required": [
@@ -698,6 +772,19 @@
         "msg_id": {
           "type": "string",
           "minLength": 1
+        },
+        "scope": {
+          "const": "thread"
+        },
+        "room": {
+          "type": "string",
+          "minLength": 1
+        },
+        "thread": {
+          "$ref": "#/$defs/thread"
+        },
+        "at": {
+          "type": "string"
         }
       },
       "required": [
@@ -733,6 +820,9 @@
         },
         "ttl_seconds": {
           "const": 6
+        },
+        "room": {
+          "$ref": "#/$defs/thread"
         }
       },
       "required": [
@@ -790,6 +880,9 @@
             "answered",
             "closed"
           ]
+        },
+        "room": {
+          "$ref": "#/$defs/thread"
         }
       },
       "required": [
@@ -925,6 +1018,27 @@
         },
         {
           "$ref": "#/$defs/pong"
+        },
+        {
+          "$ref": "#/$defs/thread_delete"
+        },
+        {
+          "$ref": "#/$defs/thread_branch"
+        },
+        {
+          "$ref": "#/$defs/room_save"
+        },
+        {
+          "$ref": "#/$defs/room_archive"
+        },
+        {
+          "$ref": "#/$defs/room_delete"
+        },
+        {
+          "$ref": "#/$defs/connections"
+        },
+        {
+          "$ref": "#/$defs/connection_action"
         }
       ]
     },
@@ -965,6 +1079,18 @@
         },
         {
           "$ref": "#/$defs/ping"
+        },
+        {
+          "$ref": "#/$defs/room"
+        },
+        {
+          "$ref": "#/$defs/room_deleted"
+        },
+        {
+          "$ref": "#/$defs/connections_status"
+        },
+        {
+          "$ref": "#/$defs/connection_result"
         }
       ]
     },
@@ -1003,9 +1129,436 @@
             "answered",
             "closed"
           ]
+        },
+        "hejo_checklist": {
+          "$ref": "#/$defs/checklist"
         }
       },
       "additionalProperties": true
+    },
+    "thread_delete": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "thread_delete"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "room": {
+          "type": "string",
+          "minLength": 1
+        },
+        "thread": {
+          "$ref": "#/$defs/thread"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "room",
+        "thread"
+      ],
+      "additionalProperties": false
+    },
+    "thread_branch": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "thread_branch"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "room": {
+          "type": "string",
+          "minLength": 1
+        },
+        "thread": {
+          "$ref": "#/$defs/thread"
+        },
+        "client_msg_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "room",
+        "thread",
+        "client_msg_id"
+      ],
+      "additionalProperties": false
+    },
+    "checklist": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "selected": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "can_skip": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "items",
+        "selected",
+        "can_skip"
+      ],
+      "additionalProperties": false
+    },
+    "room_data": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/thread"
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": {
+              "type": "string"
+            },
+            "members": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "minItems": 2,
+              "uniqueItems": true
+            },
+            "lead": {
+              "type": "string",
+              "minLength": 1
+            },
+            "picture": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "archived": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "id",
+            "title",
+            "description",
+            "members",
+            "lead",
+            "picture",
+            "archived"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/thread"
+            },
+            "deleted": {
+              "const": true
+            }
+          },
+          "required": [
+            "id",
+            "deleted"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "room_save": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "room_save"
+        },
+        "id": {
+          "$ref": "#/$defs/thread"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 2,
+          "uniqueItems": true
+        },
+        "lead": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "title",
+        "members",
+        "lead"
+      ],
+      "additionalProperties": false
+    },
+    "room_archive": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "room_archive"
+        },
+        "id": {
+          "$ref": "#/$defs/thread"
+        },
+        "archived": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "id",
+        "archived"
+      ],
+      "additionalProperties": false
+    },
+    "room_delete": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "room_delete"
+        },
+        "id": {
+          "$ref": "#/$defs/thread"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "room": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "room"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "room": {
+          "$ref": "#/$defs/room_data"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "seq",
+        "room"
+      ],
+      "additionalProperties": false
+    },
+    "room_deleted": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "room_deleted"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "id": {
+          "$ref": "#/$defs/thread"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "seq",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "connections": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "connections"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "profile": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "connection_action": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "connection_action"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "profile": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "connection": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "action": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "values": {
+          "type": "object",
+          "maxProperties": 32,
+          "additionalProperties": {
+            "type": "string",
+            "maxLength": 4096
+          }
+        },
+        "reauth": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "id",
+        "profile",
+        "connection",
+        "action",
+        "reauth"
+      ],
+      "additionalProperties": false
+    },
+    "connections_status": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "connections_status"
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "document": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "ref",
+        "document"
+      ],
+      "additionalProperties": false
+    },
+    "connection_result": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "connection_result"
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "reply": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "ref",
+        "reply"
+      ],
+      "additionalProperties": false
     }
   },
   "x-limits": {

@@ -8,7 +8,6 @@ enum PetAnimation: Int, CaseIterable {
     var name: String {
         ["쉬는 중", "오른쪽 이동", "왼쪽 이동", "손 흔들기", "점프", "오류", "승인 대기 · 폰 흔들기", "작업 중", "응답 대기 · 컴퓨터"][rawValue]
     }
-    var allowsLook: Bool { self == .idle || self == .running || self == .waving }
     var repeatsWhileActive: Bool { self == .waiting || self == .replyWaiting }
 }
 
@@ -68,10 +67,6 @@ enum PetAnimationTimeline {
         return PetAnimationFrame(row: 9 + direction / 8, column: direction % 8)
     }
 
-    static func dragAnimation(horizontalDelta: CGFloat, previous: PetAnimation = .right) -> PetAnimation {
-        abs(horizontalDelta) < 0.5 ? previous : horizontalDelta < 0 ? .left : .right
-    }
-
     /// Nodding off is the idle pose with only its head changing: eyes open, one closing, then both shut while the head
     /// nods forward three times and a z rises with each, then a start awake.
     static let dozeRow = 11
@@ -89,15 +84,6 @@ enum PetAnimationTimeline {
             remaining -= step.seconds
         }
         return PetAnimationFrame(row: dozeRow, column: dozeSteps.count - 1)
-    }
-    /// The z's over a doze frame, each as the square it is written in, measured in the sprite cell from its top-left corner.
-    static func dozeZs(column: Int) -> [CGRect] {
-        guard dozeSteps.indices.contains(column) else { return [] }
-        let start = CGPoint(x: 132, y: 56)
-        return (0..<dozeSteps[column].zs).map { index in
-            let size: CGFloat = [6, 8, 10.5][index]
-            return CGRect(x: start.x + [0, 9.5, 21.5][index], y: start.y - [0, 12.5, 27.5][index], width: size, height: size)
-        }
     }
 }
 

@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 
 log = logging.getLogger(__name__)
-RECORD_TYPES = {"message", "edit", "delete", "state"}
+RECORD_TYPES = {"message", "edit", "delete", "state", "room", "room_delete"}
 
 
 class HejoJournalError(Exception):
@@ -24,6 +24,9 @@ class Journal:
         self.head = 0
         self.faulted = False
         self.fd = None
+        self.message_threads = {}
+        self.deleted_threads = {}
+        self.rooms, self.deleted_rooms = {}, {}
 
     def open(self):
         self.path.mkdir(parents=True, mode=0o700, exist_ok=True)
@@ -76,6 +79,52 @@ class Journal:
                 raise HejoJournalError("journal_seq_order")
             previous = row["seq"]
         self.records, self.head = records, previous
+        self.message_threads, self.deleted_threads = {}, {}
+        self.rooms, self.deleted_rooms = {}, {}
+        for row in records:
+            self._index(row)
+
+    def _index(self, row):
+        if row["type"] == "room":
+            self.rooms[row["room"]["id"]] = row["room"]
+        if row["type"] == "room_delete":
+            self.deleted_rooms[row["room"]] = row
+            self.rooms.pop(row["room"], None)
+        if row["type"] == "message":
+            self.message_threads[row["msg_id"]] = (row.get("room", row["employee"]), row["thread"])
+        if row["type"] == "delete" and row.get("scope") == "thread":
+            self.deleted_threads.setdefault((row["room"], row["thread"]), row)
+
+    def deleted(self, room, thread):
+        return (room, thread) in self.deleted_threads
+
+    def hidden(self, row):
+        key = self.message_threads.get(row.get("msg_id"))
+        return key in self.deleted_threads or (key is not None and key[0] in self.deleted_rooms)
+
+    def room_id(self, row):
+        if row["type"] == "room":
+            return row["room"]["id"]
+        if row["type"] in {"room_delete", "room_deleted"}:
+            return row.get("room", row.get("id"))
+        if isinstance(row.get("room"), str):
+            return row["room"] if row["room"] in self.rooms or row["room"] in self.deleted_rooms else None
+        key = self.message_threads.get(row.get("msg_id"))
+        return key[0] if key and (key[0] in self.rooms or key[0] in self.deleted_rooms) else None
+
+    def replay(self, row):
+        room = self.room_id(row)
+        if row["type"] == "room_delete":
+            return {"v": 1, "type": "room_deleted", "seq": row["seq"], "id": room}
+        if room in self.deleted_rooms:
+            if row["type"] == "room":
+                return {"v": 1, "type": "room", "seq": row["seq"], "room": {"id": room, "deleted": True}}
+            if row["type"] in {"message", "edit", "state"}:
+                return {"v": 1, "type": "delete", "seq": row["seq"], "msg_id": row["msg_id"]}
+        point = self.deleted_threads.get(self.message_threads.get(row.get("msg_id")))
+        if point and row["seq"] < point["seq"] and row["type"] in {"message", "edit", "state"}:
+            return {"v": 1, "type": "delete", "seq": row["seq"], "msg_id": row["msg_id"]}
+        return self.public(row)
 
     async def append(self, frame, internal=None):
         async with self.lock:
@@ -109,6 +158,7 @@ class Journal:
                     os.close(fd)
             self.records.append(row)
             self.head = row["seq"]
+            self._index(row)
             return self.public(row)
 
     @staticmethod
@@ -116,15 +166,19 @@ class Journal:
         return deepcopy({k: v for k, v in row.items() if k != "_meta"})
 
     def page(self, since, limit=500):
-        return [self.public(row) for row in self.records if row["seq"] > since][:limit]
+        return [self.replay(row) for row in self.records if row["seq"] > since][:limit]
 
     def message(self, msg_id):
+        if self.hidden({"msg_id": msg_id}):
+            return None
         result = None
         for row in self.records:
             if row.get("msg_id") != msg_id:
                 continue
             if row["type"] == "message":
                 result = deepcopy(row)
+            elif row["type"] == "delete":
+                result = None
             elif result is not None:
                 result.update({k: v for k, v in row.items() if k not in {"v", "type", "seq"}})
         return result

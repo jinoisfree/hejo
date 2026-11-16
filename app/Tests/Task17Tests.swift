@@ -41,13 +41,13 @@ import AppKit
     var clock = ProcessInfo.processInfo.systemUptime
     controller.pet.bubbleNow = { clock }; controller.pet.activityNow = { clock }
     let key = ConversationKey(employee: "employee-test", thread: UUID().uuidString.lowercased())
-    controller.pet.showMessage("새 글 첫 줄\n둘째 줄", from: "가짜 직원", key: key)
+    controller.pet.bubbleNotice = BubbleReveal.Notice(kind:.reply,headline:"가짜 직원 · 새 메시지",detail:"새 글 첫 줄",key:key,sender:"가짜 직원",until:Date(timeIntervalSince1970:clock+12))
     try check(!controller.pet.foldedBubble.isHidden && controller.pet.foldedBubble.detail == "새 글 첫 줄", "AT62 first line shown")
-    clock += 3.1; controller.pet.updateFoldedBubble()
-    try check(controller.pet.foldedBubble.isHidden, "AT62 three-second timeout")
+    clock += 12.1; controller.pet.updateFoldedBubble()
+    try check(controller.pet.foldedBubble.isHidden, "AT62 superseded by AT81 twelve-second timeout")
     controller.pet.bubbleStatus = "일하는 직원 1명"
     controller.pet.foldedBubble.onHover?(true)
-    try check(!controller.pet.foldedBubble.isHidden && controller.pet.foldedBubble.detail == "일하는 직원 1명", "AT62 hover shows status")
+    try check(!controller.pet.foldedBubble.isHidden && controller.pet.foldedBubble.detail == "새 글 첫 줄", "AT62 hover retains actionable notice")
     var opened: ConversationKey?
     controller.pet.onBubbleOpen = { opened = $0 }
     controller.pet.foldedBubble.onOpen?()
@@ -85,7 +85,7 @@ import AppKit
     let settings = PetSettingsWindow()
     var name = "", scale = 0.0, bubble = false
     settings.onName = { name = $0 }; settings.onScale = { scale = $0 }; settings.onBubble = { bubble = $0 }
-    try check(settings.tabs.numberOfTabViewItems == 3 && settings.tabs.tabViewItems.map(\.label) == ["일반", "화면과 펫", "계정"] &&
+    try check(settings.tabs.numberOfTabViewItems == 4 && settings.tabs.tabViewItems.map(\.label) == ["일반", "화면과 펫", "계정", "연결과 동기화"] &&
               settings.scaleSlider.minValue == 25 && settings.scaleSlider.maxValue == 200, "AT64 native settings pages and range")
     settings.nameField.stringValue = "hejo-test"
     _ = settings.nameField.sendAction(settings.nameField.action, to: settings.nameField.target)
@@ -149,7 +149,12 @@ import AppKit
     let chat = try ConversationController(client: GateClient(store: store, credentials: MemoryCredentials()))
     let view = ConversationView(controller: chat, clipboardArea: directory.appendingPathComponent("menus-clipboard"))
     let model = chat.model
-    func menu(_ employee: String) -> NSMenu { view.employeeMenu(row: model.displayRooms.firstIndex(where: { $0.id == employee })!) }
+    func menu(_ employee: String) -> NSMenu {
+        let layout=model.sidebar
+        if layout.stacked.contains(where:{$0.id==employee}) { if !layout.stack.open { model.toggleSection(nil) } }
+        else if let section=layout.sections.first(where:{$0.id==layout.zone(employee)}),!section.open { model.toggleSection(section.id) }
+        return view.employeeMenu(row:view.rowIndex(for:employee)!)
+    }
     let first = "employee-one", second = "employee-two", third = "employee-three"
     let roster: [[String: Any]] = [
         ["id": first, "name": "첫째", "aliases": []],
@@ -157,19 +162,20 @@ import AppKit
         ["id": third, "name": "셋째", "aliases": []]
     ]
     try model.apply(["v":1,"type":"roster","employees":roster])
+    model.toggleSection(nil)
     func titles(_ menu: NSMenu) -> [String] { menu.items.map { $0.isSeparatorItem ? "|" : $0.title } }
     let menuWindow = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 700, height: 620), styleMask: .borderless, backing: .buffered, defer: false)
     menuWindow.contentView = view; view.frame = menuWindow.contentView!.bounds; view.layoutSubtreeIfNeeded()
-    let rowPoint = CGPoint(x: 20, y: view.employeeTable.rect(ofRow: 1).midY)
+    let rowPoint = CGPoint(x: 20, y: view.employeeTable.rect(ofRow: view.rowIndex(for:second)!).midY)
     let menuEvent = NSEvent.mouseEvent(with: .rightMouseDown, location: view.employeeTable.convert(rowPoint, to: nil), modifierFlags: [], timestamp: 0,
                                        windowNumber: menuWindow.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!
-    try check(titles(view.employeeTable.menu(for: menuEvent)!) == titles(view.employeeMenu(row: 1)), "AT67 right click resolves employee menu")
-    try check(titles(view.employeeMenu(row: 1)) == ["대화 열기", "|", "맨 위에 고정", "모두 읽음", "알림 끄기", "|", "목록에서 빼기"], "AT67 employee menu exact order")
-    try check(!titles(view.employeeMenu(row: 0)).contains("대화 열기"), "AT67 current employee has no open command")
-    try check(titles(view.blankMenu()) == ["숨긴 대화 다시 보이기", "|", "목록 넓게"], "AT67 blank menu exact order")
-    try check(titles(view.headerMenu()) == ["알림 끄기", "모두 읽음", "|", "방 목록 숨기기", "|", "펫으로 접기"], "AT67 header menu exact order")
+    try check(titles(view.employeeTable.menu(for: menuEvent)!) == titles(menu(second)), "AT67 right click resolves employee menu")
+    try check(titles(menu(second)) == ["대화 열기", "|", "맨 위에 고정", "2번째 자리에 고정", "3번째 자리에 고정", "4번째 자리에 고정", "5번째 자리에 고정", "모두 읽음", "알림 끄기", "|", "도구 연결…", "목록에서 빼기"], "AT67 employee menu exact order")
+    try check(!titles(menu(first)).contains("대화 열기"), "AT67 current employee has no open command")
+    try check(titles(view.blankMenu()) == ["새 방 만들기…", "새 섹션 만들기", "|", "목록에서 뺀 방", "|", "목록 넓게"], "AT67 blank menu exact order")
+    try check(titles(view.headerMenu()) == ["제목과 설명 편집…", "|", "이 대화의 알림 끄기", "방 목록 보이기 / 숨기기", "방 목록 너비 전환", "전체 검색 (⌘F)", "모두 읽음", "|", "펫으로 접기"], "AT79 replaces AT67 header with original workspace menu order")
     (menu(third).items.first { $0.title == "맨 위에 고정" } as? RoomActionItem)?.trigger()
-    (menu(second).items.first { $0.title == "맨 위에 고정" } as? RoomActionItem)?.trigger()
+    (menu(second).items.first { $0.title == "2번째 자리에 고정" } as? RoomActionItem)?.trigger()
     try check(model.displayRooms.map(\.id).prefix(2) == [third, second], "AT67 pins retain insertion order")
     let threadA = UUID().uuidString.lowercased(), threadB = UUID().uuidString.lowercased()
     func message(_ seq: Int, employee: String, thread: String, state: String? = nil) -> [String: Any] {
@@ -182,14 +188,15 @@ import AppKit
     try model.apply(message(2, employee: second, thread: threadB))
     try check(model.unread(employee: second) == 2, "AT67 unread spans threads")
     (menu(second).items.first { $0.title == "모두 읽음" } as? RoomActionItem)?.trigger()
-    try check(model.unread(employee: second) == 0 && store.settings.readSeq.count == 2, "AT67 all threads marked read")
+    try check(model.unread(employee: second) == 0 && model.memberState.read("thread:" + second + "/" + threadA) == 1 && model.memberState.read("thread:" + second + "/" + threadB) == 2, "AT67 all threads marked read")
+    try check(model.memberState.read("read:" + second) == 2, "AT74 all-read advances the shared room position as well")
     (menu(second).items.first { $0.title == "알림 끄기" } as? RoomActionItem)?.trigger()
     try check(model.muted.contains(second), "AT67 mute command")
     try model.apply(message(3, employee: second, thread: threadA, state: "asked"))
     try check(model.unread(employee: second) == 1 && model.visibleUnreadTotal == 0, "AT67 muted badge retained but pet badge suppressed")
     try check(chat.islandInput.unread == 0, "AT67 muted unread excluded from island owner count")
     view.refresh()
-    let mutedCell = view.tableView(view.employeeTable, viewFor: view.employeeTable.tableColumns.first, row: model.displayRooms.firstIndex(where: { $0.id == second })!) as? EmployeeSidebarCell
+    let mutedCell = view.tableView(view.employeeTable, viewFor: view.employeeTable.tableColumns.first, row: view.rowIndex(for:second)!) as? EmployeeSidebarCell
     try check(mutedCell?.muted == true && mutedCell?.unread == 1, "AT67 muted badge gray model")
     let islandModel = IslandModel()
     islandModel.update(.init(status: .connected))
@@ -198,7 +205,7 @@ import AppKit
     try check(island.parts.first(where: { $0.kind == .owner })?.redDot == true && island.expanded != .owner, "AT67 asked counted without muted highlight")
     (menu(second).items.first { $0.title == "목록에서 빼기" } as? RoomActionItem)?.trigger()
     try check(model.hidden.contains(second) && !model.displayRooms.map(\.id).contains(second) && model.messages.count == 3, "AT67 hide preserves messages")
-    let restore = view.blankMenu().items.first!
+    let restore = view.blankMenu().items.first { $0.title == "목록에서 뺀 방" }!
     try check(restore.submenu?.items.map(\.title) == ["둘째"], "AT67 hidden submenu")
     (restore.submenu?.items.first as? RoomActionItem)?.trigger()
     try check(!model.hidden.contains(second), "AT67 restore hidden room")
@@ -206,17 +213,10 @@ import AppKit
     try model.apply(message(4, employee: second, thread: threadA))
     try check(!model.hidden.contains(second) && model.messages.count == 4, "AT67 new message reveals hidden room")
     model.hide(first)
-    let saved = model.preferenceSettings
-    try check(saved["pinned"] == third && saved["muted"] == second && saved["hidden"] == first, "AT67 member setting strings")
+    let saved = model.memberState.items
+    try check(saved["pin:" + third]?.v == "1" && saved["mute:" + second]?.v == "1" && saved["hide:" + first]?.v == "1", "AT67 member state entries")
     let reload = try ConversationModel(store: LocalStore(directory: home))
-    reload.applyMemberSettings(saved)
-    try check(reload.pinned == [third] && reload.muted == [second] && reload.hidden == [first], "AT67 local and member setting round trip")
-    StubHub.requests = []; URLProtocol.registerClass(StubHub.self); defer { URLProtocol.unregisterClass(StubHub.self) }
-    try await HubClient(address: "hub.test:47800").save(settings: saved, token: "tok")
-    let request = StubHub.requests.last
-    try check(request?.0 == "PUT" && request?.1 == "/v1/me/settings" &&
-              (request?.2["settings"] as? [String: String])?["pinned"] == third &&
-              (request?.2["settings"] as? [String: String])?["hidden"] == first, "AT67 hub setting save request")
+    try check(reload.pinned == [third] && reload.muted == [second] && reload.hidden == [first], "AT67 durable member state round trip")
     model.hide(second); model.hide(third)
     try check(model.displayRooms.isEmpty && model.selected == nil && model.messages.count == 4, "AT67 hiding last room clears selection without deleting history")
     print("AT-HF-67 PASS")
@@ -234,7 +234,7 @@ import AppKit
     }
     controller.reducedMotion = { true }
     controller.pet.bubbleAlwaysShown = true
-    controller.pet.showMessage("가짜 시험 글 첫 줄", from: "가짜 직원", key: ConversationKey(employee: "employee-test", thread: UUID().uuidString.lowercased()))
+    controller.pet.bubbleNotice = BubbleReveal.Notice(kind:.reply,headline:"가짜 직원 · 새 메시지",detail:"가짜 시험 글 첫 줄",key:ConversationKey(employee:"employee-test",thread:UUID().uuidString.lowercased()),sender:"가짜 직원",until:Date().addingTimeInterval(12))
     controller.show()
     await pause(0.5)
     func capture(_ window: NSWindow, name: String) throws {
@@ -286,7 +286,7 @@ import AppKit
         try check(FileManager.default.fileExists(atPath: outputDirectory.appendingPathComponent(name).path), "menu screencapture \(name)")
     }
     switch kind {
-    case "employee": try show(view.employeeMenu(row: 0), name: "task17-menu-employee.png", point: CGPoint(x: 40, y: 95))
+    case "employee": view.controller.model.toggleSection(nil);try show(view.employeeMenu(row:view.sidebarRows.firstIndex{$0.kind == .room}!), name: "task17-menu-employee.png", point: CGPoint(x: 40, y: 95))
     case "blank": try show(view.blankMenu(), name: "task17-menu-blank.png", point: CGPoint(x: 40, y: 245))
     case "header": try show(view.headerMenu(), name: "task17-menu-header.png", point: CGPoint(x: 360, y: 34))
     default: throw TestFailure.assertion("unknown menu capture kind")

@@ -27,6 +27,8 @@ Hermes 모듈과 ruamel.yaml을 import할 수 있는 Python으로 실행한다. 
 
 `hejo/install-receipt.json`은 최초 설정·플러그인 목록·링크를 보관한다. 재설치는 이 before를 바꾸거나 사장이 고친 값을 덮어쓰지 않는다. 실패하면 적용한 단계를 역순 복구하고 종료 1이다. 기록용 `hejo/`와 failed 영수증은 남는다. 원래 있던 금고 자료는 보존한다. 제거도 금고·기록장·첨부를 남긴다. 설치 뒤 바뀐 대상은 충돌 경로를 알리고 보존하며 종료 2다. 원래 값으로 강제 복구하기로 결정한 경우에만 `--uninstall --force`를 쓴다. `--check`는 설치 상태와 대상 값·권한을 읽기 전용으로 검사한다.
 
+설치·재설치는 각 프로필의 `platforms.hejo.home_channel`이 없을 때 그 프로필의 1:1 대화를 설정한다. 기존 설치를 갱신하다 실패하면 이번에 더한 홈 채널 키만 되돌리고 영수증은 `installed`로 남는다. 홈 채널만 되돌리려면 `--uninstall-home-channel`을 쓴다. 설치 도우미가 넣고 사장이 바꾸지 않은 값만 지우며, 사장 변경값은 `--uninstall --force`를 포함한 모든 제거에서 보존한다. `--check`의 `missing_target`은 빠진 홈 채널(종료 1), `owner_set`은 사장이 정한 값(정상)을 뜻한다.
+
 ## 개인값 검사
 
 Python 3와 ruamel.yaml이 필요하다. `python3 scripts/scan_private.py`는 Git 추적 텍스트 전체를 검사하며 운영 홈에서는 owner/team.yaml·owner/vault.yaml만 읽는다. `--home`과 `--repo`로 임시 공항·시험 저장소를 지정할 수 있다. 발견값은 출력하지 않고 종류·파일·줄·SHA-256 지문을 출력한다. 종료 0은 위반 없음, 1은 탐지, 2는 검사 오류다. 바이너리는 이름만 표시하고 생략한다.
@@ -53,3 +55,5 @@ Mac 한 대에 hejo 서버(허브) 하나를 둔다. 관리자 Mac 계정에서 
 `bash app/scripts/test.sh`는 앱 부분만 검사한다. 네트워크 시험은 루프백 임시 대역과 무작위 Keychain 시험 계정만 사용하고 마지막에 지운다. AT-HF-47의 실제 다른 앱 입력 중 포커스·동작 녹화 체크리스트는 [증거 자리](evidence/HEJO-FOUNDATION/TASK-05.md)에 있다.
 
 대화의 원본은 문의 기록장이다. 앱의 읽음 seq는 스레드별로 저장하며 캐시에서 모델을 복원한다. 첨부는 출입증 헤더로 같은 문의 HTTP 경로를 사용하고, 내려받은 조회 복제는 `hejo/cache/files/`에 둔다. 다운로드는 클릭할 때 권한을 다시 확인하며 HTTP 리디렉션은 따르지 않는다. 대화 UI의 수동 점검은 [TASK-06 체크리스트](evidence/HEJO-FOUNDATION/TASK-06.md)를 따른다.
+
+직원 사진과 색은 프로필 명부에서 읽는다. 사진을 바꾸면 앱이 중앙 정사각형의 256px PNG로 만들어 서버에 올리며, 모든 연결에 새 명부가 전달된다. 구획·고정 자리·1:1 묶음 배치는 허브 회원 상태로 맞춘다. 사진 경로와 인증·하위 호환은 [사진 HTTP 계약](schemas/pictures.md)을 따른다.

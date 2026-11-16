@@ -21,7 +21,7 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     do { try model.apply(message(3)); throw TestFailure.assertion("model accepted gap") } catch GateFailure.protocolError { }
     try check(model.applied == 1,"gap never advances projection")
     model.select(key); model.setVisible(true)
-    try check(model.unread(employee:"alpha") == 0 && store.settings.readSeq[key.readKey] == 1,"opening thread persists read seq")
+    try check(model.unread(employee:"alpha") == 0 && model.memberState.read("thread:alpha/" + threadA) == 1,"opening thread persists read seq")
     model.setVisible(false)
     try commit(["v":1,"type":"edit","seq":2,"msg_id":messageA,"text":"streaming answer","final":false,"buttons":[["id":buttonA,"label":"Continue","kind":"reply","style":"primary"]]])
     try check(model.messages[messageA]?.streaming == true && model.messages.count == 1 && model.unread(key) == 1,"streaming updates same message and unread")
@@ -58,7 +58,7 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     let pet=PetController(store:store,atlas:try SpriteAtlas(resourceDirectory:resourceDirectory))
     pet.reducedMotion={true}; pet.pet.installConversation(ui); pet.preferredChatSize=CGSize(width:428,height:500)
     pet.onExpansionChanged={ controller.model.setVisible($0) }; pet.showChat(); pet.pet.layoutSubtreeIfNeeded()
-    try check(ui.employeeTable.numberOfRows == 2 && ui.threadTable.numberOfRows == 1,"reviewed workspace renders employee tabs and thread cards")
+    try check(ui.sidebarRows.filter { $0.kind == .section }.count == 3 && ui.sidebarRows.filter { $0.kind == .stack }.count == 1 && ui.history.contents.filter { !$0.id.hasPrefix("date:") }.count == 1,"reviewed workspace renders employee tabs and thread cards")
     try check(!pet.panel.isKeyWindow,"installing populated conversation does not take key focus")
     try check(ui.sidebarWidth == 68 && ui.employeeTable.rowHeight == 72 && ui.headerDrag.frame.height == 44,"source strip and workspace header metrics")
     var resized:CGFloat=0; ui.onSidebarWidth={resized += $0}
@@ -72,7 +72,7 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     let extra=ConversationKey(employee:"beta",thread:UUID().uuidString.lowercased())
     controller.receive(message(10,id:UUID().uuidString.lowercased(),employee:"beta",thread:extra.thread,text:"another thread"))
     ui.refresh()
-    try check(ui.history.contents.count == 2 && ui.history.contents.allSatisfy { !$0.expanded },"threads enter folded in the same list")
+    try check(ui.history.contents.filter { !$0.id.hasPrefix("date:") }.count == 2 && ui.history.contents.allSatisfy { !$0.expanded },"threads enter folded in the same list")
     ui.chooseThread(beta)
     try check(ui.history.contents.filter(\.expanded).count == 1 && ui.replyMode,"click opens one card and targets reply")
     ui.chooseThread(extra)
@@ -86,7 +86,7 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     try check(folded.replies?.contains { if case .stack = $0 { return true }; return false } == true,"long thread shows source folded reply stack")
     controller.receive(message(11,id:UUID().uuidString.lowercased(),employee:"alpha",thread:threadA,text:"unread while elsewhere"))
     ui.onUnread={pet.pet.unreadCount=$0}; ui.refresh(); pet.collapseChat()
-    try check(pet.pet.unreadCount>0 && !pet.pet.unreadBadge.isHidden,"closed pet shows unread blue badge")
+    try check(pet.pet.unreadCount>0 && (pet.pet.foldedBubble.isHidden ? !pet.pet.unreadBadge.isHidden:pet.pet.foldedBubble.unread>0),"closed pet shows unread blue badge")
     pet.showChat(); try check(pet.pet.unreadBadge.isHidden,"expanded pet hides separate unread badge")
     ui.onSidebarWidth=nil; ui.chooseEmployee("beta"); ui.chooseThread(beta); ui.layoutSubtreeIfNeeded()
     await pause(0.25); ui.layoutSubtreeIfNeeded(); ui.history.layoutSubtreeIfNeeded()
@@ -141,7 +141,8 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     controller.addAttachments([original]); controller.setText("reject attachment"); print("CONVERSATION_STAGE unknown_file"); fflush(stdout)
     await controller.sendCurrent()
     try await waitFor { controller.transferFailure?.message.contains("첨부를 찾지") == true }
-    try check(controller.draft.text == "reject attachment" && controller.draft.attachments == [original],"unknown_file keeps original draft and attachment")
+    try check(controller.draft.isEmpty && controller.failures.last?.draft.text == "reject attachment" && controller.failures.last?.draft.attachments == [original],"AT79 unknown_file keeps original words/files in failure list")
+    controller.restoreFailure(controller.failures.last!.id)
     controller.setText("normal request"); print("CONVERSATION_STAGE send"); fflush(stdout)
     let sending=Task { await controller.sendCurrent(for:key) }
     await pause(0.05); controller.model.select(employee:"beta")
@@ -168,7 +169,7 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     try check(controller.transferFailure?.message.contains("너무 큼") == true,"composer blocks 64KiB text before socket send")
     controller.setText("too large reply"); print("CONVERSATION_STAGE too_large"); fflush(stdout); await controller.sendCurrent()
     try await waitFor { controller.transferFailure?.message.contains("너무 큼") == true && !controller.sending }
-    try check(controller.draft.text == "too large reply","too_large keeps draft")
+    try check(controller.draft.isEmpty && controller.failures.last?.draft.text == "too large reply","AT79 too_large keeps failed message without automatic resend")
     try check(client.isConnected,"recoverable too_large keeps live transport")
     controller.setText("normal request again"); await controller.sendCurrent()
     try await waitFor { controller.draft.text.isEmpty && !controller.sending }
@@ -177,7 +178,7 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     try check(opened == nil,"HTTP redirects cannot carry credentials or open unverified files")
     controller.setText("disconnect unacknowledged"); await controller.sendCurrent()
     try await waitFor { controller.canSend && controller.transferFailure?.message.contains("전송 확인") == true }
-    try check(!controller.sending && controller.draft.text == "disconnect unacknowledged","unconfirmed send survives reconnect without automatic resend")
+    try check(!controller.sending && controller.failures.last?.draft.text == "disconnect unacknowledged","AT79 unconfirmed send survives in failure list without automatic resend")
     try check(controller.transferFailure?.retryKey == key,"AT55 reconnect retains original retry destination")
     controller.setText("normal retry",for:key)
     controller.model.select(employee:"beta")

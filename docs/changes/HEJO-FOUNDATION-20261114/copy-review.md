@@ -113,3 +113,257 @@ NativeThreadList/Card·SlackLayout·ChatStyle·DraftEditor·DraftFormat·Attachm
 ### 보완 12-2 우클릭 메뉴
 
 `<운영 저장소>/ddots/Sources/SlackPanel.swift`의 전체 파일 배치와 1987~2045 메뉴, 2096 `slackPinMenu`, 1247 `hide`/`restore`, 1351 `toggleMute`, 684~693 사이드바 너비 동작 및 관련 상태·의존을 읽었다. `ChatWorkspace.swift`는 전체 56줄을 읽고 머리줄 메뉴를 확인했다. 두 원본은 SwiftUI와 SlackModel에 의존하므로 코드를 직접 복사하지 않고 메뉴 순서와 고정·숨김·알림·너비 상태 전이만 AppKit `ConversationView`/`ConversationModel`로 옮긴다. Slack API, 그룹·채널, iMessage, 보관·삭제, 방 생성 및 전체 검색은 이 단계에 들이지 않는다. 허브 회원 설정은 기존 `HubClient.save`로 보내며 로컬 값은 오프라인 화면용 복제다.
+
+## TASK-22 홈 채널 설치
+
+앱·UI와 ddots 코드의 복사 대상은 없다. 기존 hejo 설치 도우미·시험을 직접 읽고 같은 책임 자리에서 변경했다. 따라서 새 ddots 원본 검토·앱 캡처는 해당하지 않는다. TASK-20·21의 사진·구획·단체방은 해당 ddots 원본 전체를 읽고 별도로 기록한다. ddots는 읽기만 허용하고 수정하지 않는다는 사용자 확인을 받았다.
+
+## TASK-24 회원 상태 동기화 (19판)
+
+원본 커밋 `208f6e6322f593729c9ef6ac16ac903be4c3692b`. 아래 파일을 첫 줄부터 끝까지 읽었다. 해당 파일의 원본 작업 트리 변경은 없다. 실제 경로는 AGENTS.local.md만 사용한다.
+
+| 원본 | 전체 줄 | 유지·대체·제거와 hejo 대상 |
+|---|---:|---|
+| `<운영 저장소>/ddots/Sources/SettingsSync.swift` | 145 | 항목 LWW·읽음 큰 값·삭제 표시·배치 덮어쓰기·잘라내기 원리를 hub/state.py와 MemberState.swift로 옮김. SettingsStore의 Slack 계정 파일·relay 분할은 허브 회원별 파일·HTTP로 대체. Foundation/Darwin 외 유지 의존 없음. |
+| `<운영 저장소>/ddots/Sources/SlackSettingsSync.swift` | 173 | 최초 계정별 이전·시각 1·오프라인 변경·명시적 배치 덮어쓰기 흐름 유지. SlackController/SlackModel은 ConversationModel·MemberState로, UserDefaults는 LocalStore의 원자적 저장으로, relay는 HubClient로 대체. 개인 보관·Slack 삭제·inline 사진 바이트 동기화는 제외. 사진 주소·향후 구획 상태는 승인된 회원 상태 키에 둠. |
+| `<운영 저장소>/ddots/Sources/App.swift` | 2575 | makeSyncStandard 확인 창 구조·설정 연결을 PetSettingsWindow/AppDelegate로 옮김. 창 열기·활성화 갱신은 새 MemberState 동기화로 연결. 그 밖의 Slack/iMessage·relay·개인 업무·웹·클립보드·SwiftUI 화면·운영 연결·비밀 접근은 이식하지 않음. |
+| `<운영 저장소>/ddots/Sources/SettingsPages.swift` | 229 | AppKit 탭/설정 페이지 배치와 동작 연결만 참고. 기존 hejo AppKit 탭에 연결과 동기화를 추가. NSHostingView·SwiftUI 미리보기 및 테마 편집 의존은 제외. |
+
+보완 18로 D24-01 문구와 D24-02 이전 조건이 해소됐다. 서비스 용어만 hejo로 바꾸고, 이 Mac의 회원별 이전 표시·대기열·readSeq 삭제를 같은 파일 원자적 저장으로 묶는다. 원본 이름·계정·고정 경로·토큰은 가져오지 않는다. 원본의 caps·전송 주기를 그대로 복사하지 않고 REQ-HF-26의 hejo용 한도·30초 계약을 적용한다. 다른 앱 파일을 수정하거나 import하지 않는다.
+
+## TASK-20 착수 전 대조 — D20-01 보류(2026-11-16)
+
+기준 계획 `40c137f4b3c67384972bda64829eec950f28d10b`, ddots 원본 `208f6e6322f593729c9ef6ac16ac903be4c3692b`. 아래 두 원본 파일의 HEAD 대비 변경은 없다. 실제 경로는 AGENTS.local.md만 사용한다. **이 절은 TASK-20 전체 독해 완료나 복사 완료 기록이 아니다.**
+
+| 원본 | 이번에 확인한 범위 | 판정·남은 독해 |
+|---|---|---|
+| `<운영 저장소>/ddots/Sources/ProfileAvatar.swift` | 115줄 전체 | 사진 썸네일·가운데 자르기·첫 글자/대비색·중첩 색 키·hex/hsl 파싱을 확인. 원본 49행은 slack-avatar.png 우선이지만 hejo는 사장 선택 Q1과 REQ-HF-23.AC-01에 따라 avatar.png 우선으로 바꾸는 승인된 차이다. ImageIO/AppKit 의존을 포함한 hejo 이식은 아직 하지 않았다. |
+| `<운영 저장소>/ddots/Sources/SlackController.swift` | 앞부분과 구획 삭제 callback, 특히 324~333행 | 삭제 문구가 spec·AT의 원문 일치 조건과 달라 보완 17에 따라 멈춤. 파일 전체·나머지 의존 독해는 미완료이며 이 부분 대조를 전체 독해로 재사용하면 안 된다. |
+
+구체적인 원문·명세 차이와 계획 담당 결정 요청은 impl-report.md의 **TASK-20 D20-01**에 기록했다. SlackPanel·SlackThreads의 관련 부분도 살폈으나 전체 파일과 유지 의존의 독해는 아직 끝나지 않았다. 문구 기준을 확정해 재인계하면 지정된 전체 원본·의존의 남은 독해와 파일별 유지/대체/제외 기록부터 이어간다. 제품 코드·시험·앱 화면은 변경하지 않았다.
+
+### TASK-20 재개 — 보완 21, 22판 대조 완료
+
+원본 커밋은 위와 같고 아래 파일의 원본 작업 트리 변경은 없다. 앞의 보류 기록은 당시 상태로 보존한다. D20-01은 계획 커밋 `817a8e743ccd08f91558f667c22ac7b5f59a3e2a`의 삭제 본문과 문구 변환 규칙으로 해소됐다. 이번에는 아래 파일을 끝까지 읽은 뒤 구현에 착수한다.
+
+| 원본 (`<운영 저장소>/ddots/Sources/`) | 전체 줄 | 유지·대체·제외 및 의존 |
+|---|---:|---|
+| ProfileAvatar.swift | 115 | 앞 절의 전체 독해 재사용. 중앙 자르기·ImageIO·첫 글자·중첩 색 파싱 유지. 사진 순서는 Q1 승인대로 avatar.png 우선. AppKit 사진 캐시는 인증된 주소별 메모리 복제로 대체. |
+| SlackController.swift | 1622 | 방 목록 조립·구획 callback·사진 선택·삭제 확인 흐름 유지. SlackRoomOrder/Ddots/SlackModel을 SidebarLayout·ConversationModel로, 기존 설정 쓰기를 MemberState로 대체. Slack 전송·토큰·개인 기록·검색·정리 작업 제외. 삭제 문구는 변환 규칙 1번, Slack 전용 설명은 2번 적용. |
+| SlackThreads.swift | 1471 | SlackRoomOrder.sorted의 5자리·빈 자리 메움·누락 방 보존, Ddots.stacked의 고정 제외·명부 순서 유지. Slack 상태·전송·휴리스틱 대신 문 명부와 기록 메타 사용. 저장소/계정/개인 예시는 제외. |
+| SlackPanel.swift | 3574 | sections/addSection/removeSection/move/groupName, 머리·신호 점·레일·끌기·고정·＋ 메뉴 순서와 수치 유지. SwiftUI는 AppKit으로 옮기고 관찰 모델은 MemberState로 대체. 용어는 변환 규칙 1번. Slack 전용 설명은 2번으로 제외. 로컬 배치 저장은 Q2 승인에 따라 회원 상태로 대체. 새 방/보관 등 TASK-21 기능은 이번 범위에서 제외. |
+| SlackRoomDialogs.swift | 282 | SlackRoomPictures의 중앙 정사각 자르기·256 PNG, 이름 30자·빈 이름 기본값 유지. 로컬 사진 저장은 명시된 인증 API와 공용 창고로 대체. 로컬에만 저장한다는 설명은 Q2의 회원 상태 동기화로 대체되는 원본 동작에 속한다. Slack API·방 생성 호출 제외. |
+| ChatPresentation.swift | 468 | 직원 색과 얼굴을 화면에 전달하는 의존 확인. 색 원본은 프로필 읽기, 없으면 이름 기반 고정 해시로 대체. Slack/iMessage·검색·달력 상태 제외. |
+| ChatStyle.swift | 293 | 얼굴 크기·모서리·HSL·팔레트·이름 순서 의존 확인. 개인 설정과 Slack 호출 제외. 색 값 없는 직원의 이름 해시는 모든 Mac에서 같은 계산 사용. |
+| SlackLayout.swift | 346 | SlackZones와 SlackSectionLayout의 구획 간격·레일 배치 유지. TextKit 의존은 기존 hejo TextLayout을 사용하고 Slack 모델·SwiftUI 연결 제외. |
+
+Foundation·AppKit·ImageIO 외 유지하는 제품 의존은 기존 hejo MemberState·GateHTTP·ProfileAvatar·NativeThreadCard·IslandView이다. 구획 머리 얼굴·구획 사진 메뉴와 직원 사진 서버 쓰기는 원본의 얼굴/사진 도우미에 명세의 명시적 기능을 결합한다. 원본의 Slack 연결·로컬 전용 사진/설정 원본은 복사하지 않는다. 문구의 나머지 구조·수치·버튼·문장부호는 변환 규칙 3번으로 유지한다. ddots 실행·파일 변경·앱 간 동기화는 하지 않는다.
+
+독해 후 사진 API 초안을 작성하다 D20-02(사진 지우기 표시 조건의 전달 계약 누락)를 확인했다. 초안은 미추적 빌드 폴더에 보관하고 제품 파일은 이번 작업 시작의 HEAD로 되돌렸다. 전체 독해 완료와 구현 완료는 구분한다. 구현·통합 시험 완료 기록이 아니며 D20-02 근거·재개 조건은 impl-report에 있다.
+
+### TASK-20 보완 22 — D20-02 해소와 실제 이식
+
+23판 `b79727a`·`8703b88`의 avatar_custom 선택 필드와 옛 문 메뉴 숨김 계약을 적용했다. 위 전체 독해 기록은 재사용하며 앞선 두 보류 절은 당시 상태로 남긴다. 초안의 상대 import를 기존 시험의 `gate.tests.support` 방식으로 고쳐 같은 pytest 경로에서 수집한다.
+
+실제 앱 이식은 AppKit이다. ProfileAvatar는 인증 캐시에서 받은 이미지를 그린다. SlackRoomPictures의 중앙 자르기·256 PNG는 ImageIO로, 순서·구획 계산은 SidebarLayout으로, 편집은 ConversationModel과 MemberState로 옮겼다. 사진 서버 쓰기는 gate/pictures.py 하나가 맡으며 프로필 색은 design대로 ruamel로 읽는다. 고정 슬롯·기본 세 구획·명부 순서·마지막 1:1 묶음·신호 점의 2pt/2pt 간격·29/36 머리 높이·58/72 행 높이·16/13 굵은 머리 글씨·들여쓰기를 유지한다. 문구 변환 규칙 1번으로 방·직원 용어를 적용하고, Slack 전용 설명은 2번으로 제외했다. Q1의 사진 우선순위와 Q2의 회원별 배치 동기화는 명시적 승인 차이다. 홈의 실제 대화 조립과 단체방 생성·보관은 후속 TASK 경계를 유지한다.
+
+화면 대조용 ddots 시험 창은 SlackPanel의 slackRow·slackFolded·신호 점·카운터·slackFaces 함수 원문을 추출해 가짜 모델로 실행한다. 사진·명부·계정 서비스는 대역이다. 원본 앱을 실행하거나 원본 설정을 읽지 않는다. 원본의 이름·계정·경로·개인 자료는 이식하지 않았다. 캡처 한계와 결과는 evidence의 TASK-20 문서에 기록한다.
+
+## TASK-25 착수 전 대조 — D25-01 보류
+
+기준 계획은 `4c875301429dfdbe7d519de57c2eb4f074b19316`의 보완 23이다. 원본 저장소 HEAD는 `6ad0650b35ba4b7367050f9af80f0ef15ad4d5c1`이며 아래 다섯 파일은 기존 전체 독해 기준 `208f6e6322f593729c9ef6ac16ac903be4c3692b`와 파일 diff가 없다. 원본은 읽기만 했다. 실제 경로는 AGENTS.local.md에만 둔다.
+
+| 원본 (`<운영 저장소>/ddots/Sources/`) | 독해·이번 대조 | 유지·대체·제외 및 남은 범위 |
+|---|---|---|
+| SlackPanel.swift | TASK-20의 3574줄 전체 독해 재사용. 이번에는 삭제·분기·의견·체크리스트 callback, 카드 아래 버튼, 중지·되돌리기 줄을 다시 읽음 | AppKit 카드 조립·기존 send·MemberState로 연결할 대상. 삭제 4초·분기 6초는 명세와 일치. Slack 삭제 진행 건수·개인 업무 버튼·SwiftUI 호스트는 이식 대상 아님. 종·날짜·접힌 답 표시와 나머지 유지 의존의 TASK-25 상세 대조는 아직 미완료. |
+| SlackThreads.swift | TASK-20의 1471줄 전체 독해 재사용. 이번에는 SlackCopy 전체·SlackStack·상태 색·체크리스트 계산을 다시 읽음 | Slack 주소는 명시된 hejo 주소 체계로 대체. 네 가지 색 hex와 분기 50 기준을 확인. SlackCopy.text의 첨부 공백이 명세와 다름(D25-01). 유지할 표·상태·체크리스트 의존의 최종 이식 대조는 아직 미완료. |
+| AgentStop.swift | 21줄 전체를 새로 읽음 | 원본 !stop → /stop은 REQ-HF-27.AC-04가 명시한 전송 경로 변경. working/control 계산은 기존 작성 중 상태에 연결할 대상. undoRequest 문구 차이는 22판 변환 규칙으로 설명되지 않음(D25-01). |
+| BubbleReply.swift | 130줄 전체를 새로 읽음 | BubbleReplyInterruption의 mark/settle/clear와 캡션을 카드에 옮길 대상. 말풍선 입력·hover·초안 전체 이식은 후속 TASK-30 범위이며 지금은 가져오지 않음. Foundation 외 유지 의존 없음. |
+| DdotsConfig.swift | 231줄 전체를 새로 읽음 | branchText=/branch, longThread=50과 체크리스트 기본 문구 확인. 로컬 설정 파일·HermesLocator·개인 경로·계정·운영 설정 읽기는 복사하거나 실행하지 않음. hejo에서는 명세 상수·기존 회원 상태가 책임을 가짐. |
+
+변환 규칙 1번의 서비스 용어 치환과 2번의 Slack 전용 설명 제거는 진행 가능한 차이다. 그러나 첨부 줄의 `📎` 뒤 공백 삭제와 undoRequest의 `Notion·NAS·` 삭제는 그 규칙에 속하지 않는다. 명세 22판은 규칙 밖 차이를 보고하도록 하므로 제품 복사·구현 전에 멈췄다. 원문 formatter를 가짜 자료로 분리 실행한 근거와 선택지는 impl-report의 D25-01에 있다. 이 절은 TASK-25 전체 의존 대조·구현·수락 시험 완료 기록이 아니다.
+
+### TASK-25 보완 24 재개 — D25-01 해소·남은 의존 대조
+
+기준 `cf0a23cd0778a57b5cc69b3933e5380099b2075d`에서 첨부 공백과 되돌리기 글은 원문과 일치한다. 앞의 보류 기록은 당시 상태로 보존한다. 24판에 따라 명백한 옮김 누락·공백·부호는 원문 우선으로 기록 후 진행한다. 아래 파일은 기존 원본 기준과 diff가 없음을 확인했다.
+
+| 원본 (`<운영 저장소>/ddots/Sources/`) | 독해·의존 처리 | 확인한 이식 경계 |
+|---|---|---|
+| SlackPanel.swift | 앞 절 전체 독해 재사용, nativeConversation·slackThread·slackStack·stopControl·slackApproval·HermesReplyChecklist를 다시 대조 | 날짜가 달라지는 첫 카드 앞 날짜 줄·뒤 18pt 간격, 중복 제외 얼굴 3, 종 true/false 그림·색, 버튼 순서·체크리스트 토글. SwiftUI 호스트는 AppKit으로 대체하고 개인 업무·Slack 삭제 진행률은 제외. |
+| SlackThreads.swift | 전체 독해 재사용, SlackCopy·SlackStack·SlackNotice 상태/체크리스트·statusColors 대조 | 네 상태 색 hex와 표의 Slack 블록→Markdown 입력 경계 확인. 명시 메타 없는 hejo 글에 Slack 승인 휴리스틱을 새로 넣지 않음. 질문 rail의 원문/명세 색 차이는 D25-05로 보고. |
+| NativeThreadContent.swift | TASK-06의 311줄 전체 독해 재사용, 이번에 카드 조립·nativePost·nativeBody와 체크 토글 의존 대조 | 기존 NativeThreadCard의 bell/actions/stack/post/mark 구조 유지. NSHosting·개인 보관함·캘린더·드라이브 호출 제외. 체크박스 원문은 고치지 않고 hejo MemberState의 check:로 대체할 대상. |
+| ChecklistText.swift | 65줄 전체를 새로 읽음 | SHA256(identity+본문)과 표시 위치로 확인 상태를 구별하는 원리 확인. UserDefaults·SwiftUI·ddots-check 주소는 가져오지 않고 승인된 check: 키와 AppKit 링크 처리에 연결할 대상. Foundation/CryptoKit 외 새 유지 의존 없음. |
+| MessageFormat.swift | 219줄 전체를 읽음 | 체크 줄 변환·Markdown/서식 파싱→기존 hejo MessageFormat. SwiftUI Font/Color 변환은 제외. AppKit/Foundation·기존 ChatMetrics만 유지할 대상. |
+| SlackLayout.swift | TASK-20의 346줄 전체 독해 재사용, strip/apply/tableRow의 표 전체 경로 재대조 | 머리줄·정렬줄 숨김·NSTextTable/Block·셀별 정렬·테두리·패딩→기존 hejo TextLayout. 방 구획 계산은 TASK-20 기존 구현을 유지. |
+| SettingsSync.swift / SlackSettingsSync.swift | TASK-24의 145/173줄 전체 독해 재사용, 이번에 다시 전체 읽음 | 원본 종은 dismissed: LWW이며 syncUndismiss가 null을 명시 전송함. read 계열과 종을 구분하는 계약이 hejo의 bell: 큰 seq 우선과 다름(D25-03). relay·로컬 계정 저장은 복사하지 않음. |
+| SlackController.swift | TASK-20의 1622줄 전체 독해 재사용, onBell·publish 종 계산 대조 | 종을 다시 누르면 dismissed를 제거하고 null 동기화. 새로운 일이 오면 최신 위치와 비교해 다시 울림. markRead와 종 해제는 별도 의미임을 확인. Slack 전송/개인 설정 접근은 제외. |
+
+유지 의존은 기존 hejo NativeThreadCard·TextLayout·MessageFormat·TypingRow·ProfileAvatar와 MemberState·GateClient·LocalStore다. 유지할 UI 원본 대조와 별도로 통신/병합/공식 분기 확장점에서 D25-02~04를 재현했다. 새 저장 형식이나 Hermes 내부 우회 경로는 만들지 않았다. 보고·재개 조건은 impl-report 다음 절에 있다.
+
+### TASK-25 보완 25 — 실제 구현 전 해소
+
+`eac02ca5b6a0eee05af3e02971ab394959a7b717`에서 D25-02~05의 계약이 확정됐다. 기존 보류 기록을 보존하고 기존 delete 종류·같은 seq 치환, bell LWW, 문이 만드는 분기와 한 번의 문맥 전달, 질문 대기 빨강을 적용한다. 분기는 Hermes 세션 복제가 아니라는 차이도 승인된 계획에 따라 기록한다. 되돌리기 글과 첨부 공백은 24판 원문 그대로다.
+
+추가 유지 의존 `<운영 저장소>/ddots/Sources/WritingShimmer.swift` 67줄 전체를 읽었다. WritingSpinner의 2×3 시계 방향 위치·0.16초·네 단계 꼬리를 AppKit 작업 중 줄에 옮긴다. SwiftUI modifier/GeometryReader/마스크 호스트는 복사하지 않고 기존 hejo ShimmerLayer를 유지한다. Foundation/AppKit 외 새 런타임 의존은 없다. 원본 파일은 읽기만 했다. 중지 경계는 Hermes gateway/run_busy.py의 stop 명령 매핑·thread slot 필터를 읽기 전용으로 확인했다. 본체·세션 저장소를 고치거나 우회하지 않는다.
+
+
+### TASK-25 구현 뒤 같은 상태 대조
+
+원본 NativeThreadCard·SlackLayout과 기존 hejo 카드 렌더러에 동일한 가짜 상태를 넣어 실행했다. 유지 의존 MessageFormat/ChatStyle과 가짜 사진 공급자는 공통이며 원본 앱 전체 실행은 아니다. 질문 빨강·종·얼굴 3개·접힌 답·표·아래 버튼 5개의 배치 영역이 같고 캡처 181,272픽셀 중 차이는 186픽셀이다. 상세와 실제 ConversationView 날짜·표·제어 캡처는 evidence/HEJO-FOUNDATION/TASK-25.md에 기록했다. Slack 주소→hejo 주소는 변환 규칙 1번과 승인된 주소 계약, Slack 전용 구절 제외는 규칙 2번, 첨부 공백·Notion·NAS는 24판 원문 복구다. 새 문구 계약 충돌은 남지 않았다. 원본·유지 의존 파일을 수정하지 않았다.
+
+
+## TASK-26 착수 대조 — D26-01 검색 상한·선택 순서
+
+기준 `880b1aedd5258c0472f23f6eb379e58390734c08`의 보완 26에 따라 시작했다. N25-01은 앞선 시험 전용 커밋으로 분리했다. 실제 원본 경로는 AGENTS.local.md를 따르며 원본 파일은 읽기만 했다.
+
+| 원본 (`<운영 저장소>/ddots/Sources/`) | 이번 독해 | 확인한 경계 |
+|---|---|---|
+| SlackFind.swift | 225줄 전체 | 0.25초 입력 대기·세대 무효화·검색 중 키·선택/이동·1.6초 반짝. 월 기록 읽기·원격 Slack 검색은 설계가 명시적으로 제외한다. hejo 캐시 검색 작업자와 AppKit 입력 처리는 아직 구현하지 않았다. |
+| SlackSearch.swift | 121줄 전체 | 정규화·단어/구절·겹친 하이라이트 병합·메타 미리보기·groups. 원격 API·기록장 변환은 제외 대상이다. 72~82줄의 최신 글 상한→묶음→구절 우선 정렬이 REQ-HF-28.AC-02와 다르다(D26-01). |
+| SlackFindView.swift | 107줄 전체 | 검색 결과의 방/날짜/첫 글·일치 3개·+N·선택 강조·노랑/검정 하이라이트. SwiftUI 호스트는 AppKit 대체 대상이다. 상태 문구 변환은 SlackNotice.displayStatus 의존이며 최종 유지 의존 대조는 미완료다. |
+| SlackDrafts.swift | 92줄 전체 | 자리별 글/첨부/고른 얼굴, 메모리 수명, 실패 원래 자리 복구·중복 첨부 제거·10개 제한·실패 후 자동 전송 없음. DdotsFaceLight의 라우팅 의존은 후속 홈 방 범위와 구별해야 하며 아직 이식하지 않았다. |
+| ChatWorkspace.swift | 56줄 전체 | 머리줄 메뉴 순서·검색 입력창 확인. 서비스 이름은 변환 규칙 1번, SwiftUI는 AppKit 대체 대상이다. |
+| SlackPanel.swift | 이전 전체 독해 기록은 보존. 이번에는 1200~1515줄의 머리줄/초안/실패/자동 답글 대상을 다시 대조 | 나머지 알림 막대·작성기 얼굴·실패 목록 화면과 유지 의존의 TASK-26 대조는 아직 미완료다. SlackThreads·SlackController의 TASK-26 대상 재대조도 남는다. |
+
+**D26-01.** 명세는 '구절이 일치하는 것을 먼저, 그다음 최신 순으로 최대 200묶음'이라고 하지만 원본 groups는 먼저 최신 일치 **글** 200개만 남기고 그 안에서 묶음과 구절 우선 순서를 만든다. 원본의 해당 함수와 불활성 자료형만 분리 컴파일해 두 입력을 재현했다. (1) 한 스레드의 일치 글 500개 → 묶음 1개·일치 글 200개. (2) 새 단어 분산 일치 200개와 오래된 정확 구절 일치 1개 → 오래된 정확 일치가 제외된다. 문구 치환·공백 복구와 달리 검색에 포함되는 글과 +N건이 달라지므로 구현자가 상한 단위·선택 순서를 정하지 않는다. 근거·선택지는 impl-report에 기록했다. 제품 복사 전 대조 중이며 전체 의존 독해 완료 기록이 아니다.
+
+
+### TASK-26 보완 27 재개 — D26-01 해소와 유지 의존
+
+기준 `7e71fc501b937287b341d306ae33a0fc626923ab`의 26판으로 D26-01이 해소됐다. 앞 기록은 당시 상태로 보존한다. 최신 일치 글 200개를 먼저 고른 뒤 묶고 구절 일치 묶음·최신 순으로 그린다. ddots 동작은 26판 규칙에 따라 코드 우선이다.
+
+SlackPanel(3574)·SlackThreads(1471)·SlackController(1622)·DraftEditor(231)·DraftFormat(128)은 기존 전체 독해 기준 `208f6e63`과 파일 차이 없음을 확인하고 전체 독해 기록을 재사용했다. 이번에는 SlackThreads의 SlackNotice items/item/grouped와 SlackMention 전체, SlackPanel의 notices/bells/jump/go·머리줄/초안/실패 복구·자동 답글·mentionFaces·slackFailures·slackNoticeBar, SlackController의 머리줄 편집 callback을 끝까지 재대조했다. 질문·알림은 기존 hejo asked/confirmed/bell·기록장 투영을 사용하고 Slack의 본문 승인 휴리스틱·사용자 DM·기타 상태 추측은 가져오지 않는다. 단체방 멤버 명부는 TASK-21 전까지 기존 Room.members 소비 경계다.
+
+추가 SlackRoomDialogs.swift는 전체를 읽었다. editHeader의 AppKit 제목/설명/세 버튼만 유지하며 Slack 방 생성·초대·사진 파일 저장은 제외한다. Foundation/AppKit·UniformTypeIdentifiers는 기존 의존이다. SlackFind(225)·SlackSearch(121)·SlackFindView(107)·SlackDrafts(92)·ChatWorkspace(56)의 앞선 전체 독해를 재사용한다. 메시지·서식·표·그림은 기존 hejo NativeThreadCard/MessageFormat/TextLayout/ProfileAvatar/ComposerFaces에 연결한다. 새 런타임 의존은 없다.
+
+문구는 변환 규칙 1번(Slack/ddots→hejo, 채널→방, 에이전트→직원)·2번(Slack만의 사실 제거)을 따른다. 머리줄 원문의 ‘이 Mac’ 한정은 사장 선택 Q2(모든 Mac 맞춤)가 대신하며 title: 회원 상태를 사용한다. 검색 월 읽기·원격 Slack API는 설계가 제외했으므로 복사하지 않는다. 영구 원본을 추가하지 않는다.
+
+
+### TASK-26 원문 실행 비교와 최종 구현 차이
+
+알림 막대 원문 함수는 질문 2·알림 3, SlackFindView와 SlackSearch의 미리보기/하이라이트 원문은 needle·plain body·needle.txt 한 글 상태로 별도 실행했다. 원본 계정/콜백/라우팅은 불활성 대역이며 원본 앱 전체 실행이 아니다. 같은 상태의 실제 AppKit 화면과 나란히 비교하고 evidence/HEJO-FOUNDATION/TASK-26.md에 남겼다. 원문의 알림 버튼은 ‘모두 읽음’이며 n건은 도움말에 있다. 메뉴의 ‘방 목록 보이기 / 숨기기’·‘전체 검색 (⌘F)’ 띄어쓰기도 그대로 유지했다(24판 원문 우선). 알림 #36C5F0·질문 #ECB22E, 결과 안쪽 여백·선택 테두리·날짜 오른쪽 정렬·첫 글 14pt·파일 하이라이트를 적용했다. 원본의 스레드 첫 글 날짜 순, 확인/완료 뒤 알림 제외, 스레드 방문 때 일반 알림 종 읽음도 같은 계산에 반영했다. hejo의 기록된 스트리밍 글은 아직 보내지 않은 pending 글과 다르므로 검색 대상에 남긴다. 월 기록·Slack API·개인 업무 기능을 가져오지 않았으며 hejo 고유 계약이나 사장 선택을 바꾸지 않았다.
+
+
+## TASK-29 착수 대조(보완 28)
+
+기준 005d3c1. App.swift(2575)·PetView.swift(1664)·Conversation.swift(448)·BubbleReply.swift(130)는 기존 전체 독해 기준 208f6e63과 파일 차이 0을 확인했다. App/PetView의 기존 전체 독해 기록을 재사용하고 updatePet·perform·nudgeMessages·saveReminders, BubbleTextView·updateBubbleShown·updatePetBadge·layoutThoughtDots·reply playback 호출을 다시 끝까지 대조했다. Conversation.swift 전체를 다시 읽어 PetAction·NudgeEngine·UnreadReplies·ChatReplyActivity의 의존까지 확인했고 BubbleReply 전체와 BubbleReveal 전체를 읽었다. SlackPanel의 기존 전체 독해를 재사용해 computePetApproval의 confirmed·settled 경계와 질문 대상 선택을 대조했다.
+
+| 원본 파일 | 유지·교체·제외 |
+| --- | --- |
+| `<운영 저장소>/ddots/Sources/App.swift` | 승인 > 실패/대기 > 작성 중 > 새 답 순서를 BubbleReveal로 옮김. Slack/iMessage·캘린더·연결 제안·파일 놓기·작업 모니터는 제외. 웹 링크는 승인된 브라우저 열기, 스레드는 hejo ConversationKey. |
+| `<운영 저장소>/ddots/Sources/Conversation.swift` | 새 답 12초·나중에 1800초·읽음/대화 열림 취소·9+·버튼 순서 유지. 날짜 원본은 journal timestamp, 최초 replay는 기준으로만 삼음. 본문은 기존 투영을 조회하고 예약은 메시지 id/시각만 저장. |
+| `<운영 저장소>/ddots/Sources/PetView.swift` | AppKit 텍스트·상태 점(0.8초 opacity)·배지·생각 점 7/11/16·답 뛰기 유지. 기존 hejo 배치·atlas·ShimmerLayer·PetChatPlayback 재사용. SlackModel·SwiftUI·클립보드/파일 호스트 제외. |
+| `<운영 저장소>/ddots/Sources/BubbleReveal.swift` | 3초 일반 알림은 REQ-HF-30의 12초 새 답으로 대체. hover/항상 보이기 설정은 유지. |
+| `<운영 저장소>/ddots/Sources/BubbleReply.swift` | 대상·끼어들기 유지 의존만 확인, 입력은 TASK-30에 남김. |
+| `<운영 저장소>/ddots/Sources/SlackPanel.swift` | 승인 질문의 confirmed/settled 제외 개념을 기존 hejo notices로 연결. Slack 승인 휴리스틱/프로젝트는 제외. |
+
+26판 동작 원문 우선: PetView.layoutThoughtDots는 말풍선이 보이고 간격이 26pt 이상일 때 점을 그린다. 숨겨진 말풍선 때 점을 그린다는 명세 문장 대신 이 원본 동작을 유지한다. 배지는 숨긴 동안만 머리 옆에 보이며 말풍선 안에는 수가 남는다. 문구 변환 규칙 1번은 ddots→hejo/펫 이름·에이전트→직원, 2번으로 Slack/iMessage/캘린더 사실만 제외한다. 원본의 ‘새 메시지’·‘다시 알림’·‘답변을 생각하고 있어요’와 버튼 순서를 유지한다. 서버 통신·허브·기록장 계약과 사장 선택 변경은 없다.
+
+유지 의존 추가 대조: PetAnimation.swift(167)·WritingShimmer.swift(67) 전체를 읽었다. jump 0.84초 한 번·작업/승인 우선순위는 기존 PetChatPlayback으로 연결한다. ProfileAvatar(115)·PetLayout(404)의 앞선 전체 독해를 재사용하며 actionRects·bubbleSize와 배지/점 배치를 대조했다. ChatStyle.swift는 ChatMetrics(이름 14pt·보조 11pt·얼굴 20px·간격 8)와 나머지 테마/팔레트/ThreadAppearance 의존을 끝까지 읽었다. SwiftUI modifier 자체는 제외하고 기존 AppKit ShimmerLayer를 사용한다.
+
+
+## TASK-30 착수 대조(보완 29)
+
+기준 6b1e27b3fb7143ffa1c09a74af21c9220706b154. BubbleReply.swift(130) 전체를 다시 읽었고 BubbleReplyCard.swift(103)·BubbleReplyIntegration.swift(34)·BubbleReplySmoke.swift(116) 전체를 읽었다. PetView(1664)·SlackController(1622)·DraftEditor(231)의 기존 전체 독해 기록은 208f6e63과 파일 차이 0을 확인해 재사용하고, 입력 hover/키 창/Esc/배치·workingTarget/replyTarget/sendReply/비동기 실패 callback을 다시 끝까지 대조했다.
+
+| 원본 파일 | 이식·유지 의존과 제외 |
+| --- | --- |
+| `<운영 저장소>/ddots/Sources/BubbleReply.swift` | 0.3초/0.6초·3줄 표시·안내 3종·조건·Esc·접기 예약을 AppKit BubbleReply로 이식. 중단 상태는 TASK-25의 ConversationController.interruptions를 재사용. |
+| `<운영 저장소>/ddots/Sources/BubbleReplyCard.swift` | ObservableObject/SwiftUI 대신 기본 NSView·기존 DraftScrollView/DraftTextView. 텍스트·포커스 유지, 실패 이유·복원, 28px 보내기 버튼, 입력 padding 12/7·바깥 10/7을 유지. |
+| `<운영 저장소>/ddots/Sources/BubbleReplyIntegration.swift` | 같은 send 경로·비동기 거절 복원을 기존 pending client_msg_id 상관관계에 연결. Slack callback·별도 전송 경로는 제외. |
+| `<운영 저장소>/ddots/Sources/PetView.swift` | hover·키 입력 클릭 시에만 key·Esc 입력 먼저·아래쪽 입력 배치를 PetView/PetPanel에 연결. NSHosting/클립보드·파일 놓기 제외. |
+| `<운영 저장소>/ddots/Sources/SlackController.swift` | 작성 중 가운데 사장이 마지막으로 쓴 스레드 선택은 기존 BubbleReveal 키 선택을 유지. queued 읽기·답 보내기·실패/끼어들기를 hejo 명부/기존 제어기로 연결. |
+| `<운영 저장소>/ddots/Sources/DraftEditor.swift` | 기존 hejo DraftScrollView를 재사용해 Return/Shift Return·입력 높이 최대 3줄(넘는 글은 스크롤)을 유지. 서식/붙여넣기 파서는 기존 책임을 유지. |
+| `<운영 저장소>/ddots/Sources/BubbleReplySmoke.swift` | 실제 포인터·키/실패/hold 시나리오를 가짜 문 수락 시험으로 대응. 운영 Slack·원본 앱 자체는 실행하지 않음. |
+
+문구 변환 1번은 기본 대상 ‘에이전트’→‘직원’, 2번으로 Slack 전용 사실만 제외한다. 원본 초안 retarget는 한 칸을 비우지만 hejo는 REQ-HF-31/AT-82의 스레드별 복원과 기존 ConversationController.drafts를 유지한다. 새 초안 원본을 만들지 않고 동일 스레드 입력을 재사용하며, 말풍선 보내기는 텍스트만 보내고 기존 첨부는 남긴다. 설정은 기존 펫 설정의 허브 원본·로컬 오프라인 사본 경로를 사용한다.
+
+명부 queued는 승인된 design의 읽기 전용 값이다. 기존 employee 스키마가 추가 필드를 막으므로 이 승인된 선택 boolean 필드를 규격·앱 Employee에 함께 반영한다(새 의미 추가 아님). 옛 명부의 필드 없음은 false로 읽고 옛 앱의 Codable은 추가 필드를 무시한다. config.yaml 읽기는 원본 isQueued의 display 블록·queue 판정과 같은 규칙을 쓰며 설정·본체에 쓰지 않는다. hejo 전송·저장·허브 계약이나 사장 선택을 바꾸지 않는다.
+
+최종 원문 비교: BubbleReplyView·NativeDraft 원본 전체를 분리 실행해 같은 평문 상태의 입력 줄을 비교했다. 서식·테마·붙여넣기 변환은 불활성 대역이며 원본 앱 전체가 아니다. AppKit 외곽 capsule의 안쪽 폭·줄바꿈을 맞췄다. IME 조합 중 같은 초안의 재발행은 편집기를 덮어쓰지 않고, 대상 변경·보낸 글 비우기는 undo 범위를 함께 비운다. 원본의 3줄은 표시 높이 한도이며 네 번째 줄을 버리지 않는 동작을 유지한다(26판); 화면 자료는 evidence/HEJO-FOUNDATION/TASK-30.md다.
+
+
+## TASK-27 착수 대조(보완 30)
+
+기준 cfe7e920e44891b40f6062b9a64431dadfa0fe59. SlackPanel(3574)·SlackThreads(1471)·SlackController(1622)·App(2575)·DdotsConfig(231)·DraftEditor(231)는 기존 전체 독해 기준 208f6e63과 diff 0을 확인해 전체 기록을 재사용한다. 이번에는 Ddots 전체(구성·소속·합침·활동 순서·대표 얼굴·홈 고정 채널 경계), SlackPanel의 홈 선택/대상/얼굴/초안/메뉴/알림 합계를 끝까지 다시 대조했다. DdotsRoute(28)와 SlackDrafts(92) 전체도 읽었다.
+
+| 원본 파일 | 유지 의존·교체·제외 |
+| --- | --- |
+| `<운영 저장소>/ddots/Sources/SlackThreads.swift` | Ddots.members/rooms/merged/byActivity·SlackMention 전체를 확인. 홈은 실제 방이 아닌 보기이며 최근 활동을 아래에 둠. Slack user id·원격 이력·공용 채널은 제외하고 hejo 기록장 투영·직원 명부를 사용. |
+| `<운영 저장소>/ddots/Sources/SlackPanel.swift` | 홈 postProfile/recipient/aim·ddotsFaces·draftPlace/moveDraft·unreadTotal·홈 우클릭을 재대조. 얼굴 다시 누르기 해제, 빈 새 글은 얼굴을 밝히지 않음, 명시 선택/답글만 링. AppKit ComposerFaces와 기존 초안·스레드 카드로 옮김. |
+| `<운영 저장소>/ddots/Sources/SlackController.swift` | shownRooms/shownThreads·publish의 membership/latest/threads·muted 홈 합집합을 재대조. 원본의 활동 오름차순(최근 스레드가 아래)·기록 창을 유지하며 hejo ThreadWindow·MemberState로 연결. Slack 캐시/월 읽기/개인 수신 제외는 복사하지 않음. |
+| `<운영 저장소>/ddots/Sources/SlackDrafts.swift` | 전체 읽음. 기존 hejo ConversationController.drafts·picks·실패 글과 선택 상태를 재사용. DdotsFaceLight 빈 글/수동 선택/답글 밝힘과 링 규칙을 유지. 별도 초안 원본 없음. |
+| `<운영 저장소>/ddots/Sources/DdotsRoute.swift` | 전체 읽음. @이름·별칭 경계를 유지하고 hejo 명부에 해석. HermesRouting의 업무별 자동 라우팅·Slack cross_owner·개인 계약은 제외. 받는 직원 한 명·명시 얼굴 우선·두 명/제외 직원 거절은 승인 REQ-HF-29 계약. |
+| `<운영 저장소>/ddots/Sources/DdotsConfig.swift` | 기존 전체 독해 재사용. 로컬 recipient/excluded/appearance 원본 대신 승인 Q2에 따른 `layout:home` 허브 회원 상태를 사용. 새 영구 원본 없음. |
+| `<운영 저장소>/ddots/Sources/App.swift`·`DraftEditor.swift` | 기존 전체 독해 재사용. 홈 설정의 앱 연결·입력 유지 경계를 대조. 기존 펫 이름/그림과 AppKit 편집기·사진 클라이언트를 사용. |
+
+26판 원문 우선: byActivity는 오름차순으로 최신 활동을 목록 아래에 둔다. hejo도 카드 순서에 이를 유지한다. 문구 변환 1번은 채널→방·에이전트→직원·홈 이름은 펫 이름, 2번은 Slack 전용 사실 제거다. 홈 사진·보일 직원·기본 받을 직원·한 명 제한·`layout:home`은 REQ-HF-29/Q2·Q3 승인 차이다. 고정 채널 메뉴는 명시된 TASK-21 뒤로 남긴다. 사진 바이트는 TASK-20의 room API 안 home- 접두 경로(shared/hejo/pictures)를 재사용한다. 홈의 임시 작성 위치는 기존 메모리 초안 칸이며 기록장에 가상 직원/방을 쓰지 않는다.
+
+추가 유지 의존: ChatPanel.swift(591)의 앞선 전체 독해를 208f6e63과 diff 0으로 재사용하고 face/avatarBadge를 다시 읽었다. 24px 얼굴·3/1pt 패딩·2pt 간격·30px 부드러운 사각 링을 ComposerFaces 홈 모드에 반영한다. 원본과 같은 가짜 직원 3명·@직원 B 상태를 원본 ddotsFaces/그리기와 비교한다. 선택 버튼 콜백·개인 아바타 로드는 대역이며 원본 앱 전체 실행이 아니다. 홈 표시명이 즉시 바뀌도록 기존 펫 이름 적용 뒤 보기도 갱신한다. 기존 화면의 서버 연결 문구 두 곳도 사용자 용어 규칙에 맞췄다.
+
+화면 대조 완료: 같은 가짜 이름·색·@직원 B/얼굴 선택 상태에서 원본 ddotsFaces와 실제 ComposerFaces의 24px 얼굴·밝기·30px 링·간격을 비교했다. 원본 byActivity도 분리 실행했다. 원본 앱 전체·운영 앱 전체 실행은 아니며 evidence/HEJO-FOUNDATION/TASK-27.md에 한계를 함께 남겼다. 사진 삭제 실패는 기존 주소를 유지하고, 이미 고른 직원이 홈에서 빠졌을 때에는 다른 직원으로 조용히 바꾸지 않고 같은 제외 안내로 거절한다.
+
+빈 Return은 작성 위치·명시 얼굴을 바꾸지 않고, 연속 새 글은 원본 newPost/draftPlace처럼 화면의 새 글/답글 의도를 기존 제어기에 전달해 새 UUID와 원래 답글을 구별한다. 이 의도는 UI 메모리 상태이며 새 저장소·통신 필드가 아니다.
+
+## TASK-21 착수: 단체방(보완 31, 27판)
+
+기준 `df7709dc4543f0ba6492a5f2fd53aa527c42f38f`. TASK-27 검토 통과와 깨끗한 작업 트리를 확인했다. 앞선 전체 독해 파일은 원본 기준 `208f6e63`과 diff 0을 확인해 재사용했다.
+
+| 원본 파일 | 전체 독해·유지 의존 | 이식·제외 |
+| --- | --- | --- |
+| SlackRoomDialogs.swift (282줄) | TASK-20·26 전체 독해 재사용, create/Picks/invite/rename/confirm/editHeader/pictures 전체 재대조 | 320px·22px 체크 행·220px 스크롤·8px 간격·참여 중 흐림·초대 버튼을 AppKit으로 유지. 사장 선택대로 직원만, 2명 이상·대표 추가. 공개/비공개와 Slack API는 서비스 전용이므로 제외(변환 규칙 2번). |
+| SlackController.swift (1622줄) | TASK-20·27 전체 독해 재사용, callback 및 create/invite/archive/unarchive/rename/deleteRoom/사진 흐름 재대조 | 방 변경 요청은 기록장 한 줄과 방송으로 대체. 보관·해제 선택 흐름 유지. Slack에서 여는 삭제는 hejo 고유 삭제 확정·경고 계약으로 대체. |
+| SlackPanel.swift (3574줄) | TASK-20·25·26·27 전체 독해 재사용, 방 메뉴·홈 고정 채널·＋/보관 목록·멘션·작성 위치 재대조 | 메뉴 구조·고정 자리·참여 직원 표시 유지. 용어는 변환 규칙 1번, Slack 전용 구절은 2번. 회원 상태는 승인된 Q2, 단체방 전달은 REQ-HF-24. |
+| SlackThreads.swift (1471줄) | TASK-20·25·27 전체 독해 재사용 | 방·직원·스레드의 중립 모델·활동 순서/얼굴은 기존 hejo 투영 확장. Slack 계정·전송은 제외. |
+| SlackLayout.swift (346줄), ChatPanel.swift (591줄), DraftEditor.swift (231줄), SlackDrafts.swift (92줄) | 앞선 전체 독해와 원본 diff 0 재사용 | 기존 SidebarLayout·NativeThreadCard·NativeComposer·초안을 재사용. 새 복제본·저장소 없음. |
+
+추적하지 않는 원본 경로는 AGENTS.local.md를 따른다. SlackBridge의 외부 서비스 방 생성·초대·보관 호출과 그 API·토큰 의존은 유지하지 않는다. 그 호출부의 흐름은 읽기만 확인했다. 단체방 영구 원본은 문 Journal, 앱은 조회 캐시, 배치는 MemberState, 사진은 기존 Pictures다. 새 방은 AC-05대로 첫 구획에 둔다. 원본 고정 채널은 선택 채널만 보여주는 동작이며 26판 코드 우선 규칙을 적용한다. 홈의 기본 상태는 기존 1:1 합친 보기로 되돌린다. 삭제는 원본 Slack 제한 대신 명시된 hejo 계약(한 줄 확정·seq 치환·늦은 출력 버림·전용 파일 정리)을 따른다.
+
+### D21-01: 고정 채널에서 홈 수신자와 단체방 호출 규칙 충돌(보류)
+
+원본 SlackPanel.swift:534~538의 hubPost는 고정 채널로 쓸 때 Ddots.post를 쓴다. SlackThreads.swift:768~784의 실제 코드는 이미 명시 호출이 있으면 선택 얼굴 호출을 덧붙이지 않는다(`SlackText.mentions(sent).isEmpty`일 때만 추가). 따라서 A 얼굴+본문 @B의 실제 전송은 B 호출이다. 이는 Q3로 승인된 REQ-HF-29.AC-01(누른 얼굴 우선, 한 명)과 같지 않다. 단순 원문 옮김 실수가 아니라 hejo 전달 계약의 선택 차이라 26판 코드 우선으로 덮지 않았다.
+
+REQ-HF-24.AC-02는 본문 @직원만(없으면 대표)을 부르며, AC-05는 홈 고정 채널 메뉴를 요구한다. 고정 채널 선택 뒤에도 홈의 단일 수신자 규칙을 유지할지, 일반 단체방 작성기로 바꿀지, 합친 보기에만 방을 넣고 쓰기는 1:1로 유지할지가 정해져 있지 않다. 전달 대상 재정의나 선택 필드 추가는 구현자가 채택하지 않는다. 재현·선택지는 impl-report.md TASK-21 D21-01에 있다.
+
+### D21-01 해소·TASK-21 재개(28판, 보완 32)
+
+기준 `0c5a3bd573172c2dfdcdbb196c82c743295163c0`. 앞 보류 기록은 보존한다. 고정 채널 홈 새 글은 본문 호출 우선, 없을 때만 선택 얼굴 호출 앞붙임, 둘 다 없으면 대표, 별명 시작은 이름으로 변환한다. 채널 없을 때만 기존 홈 1:1 규칙이다. 새 규격 필드 없이 승인된 room을 쓴다. 앞선 원본 전체 독해·diff 확인을 재사용한다. 초안의 임의 얼굴 우선 앞붙임은 제거하고 이 결정을 적용한다.
+
+추가 유지 의존 SlackBridge.swift(1652줄)는 이번에 파일 전체를 끝까지 읽었다. 이 중 `channelName`의 앞 # 제거·소문자·빈칸 -·문자/숫자/-/_·80자 규칙만 RoomDialogs.name으로 옮겼다. 나머지 SlackAPI·토큰·요청 제한·회복/캐시·읽음 API·메시지별 삭제·외부 파일 전송·계정/사람 검색 의존은 전부 제외했다. 직원 명부는 기존 Hermes 프로필 API, 방 기록/수신·삭제는 hejo 승인 계약, 사진은 Pictures를 쓴다. 원본 초대 Picks의 22px 행·머리·스크롤·참여 중 흐림·가능한 직원이 없을 때 초대 버튼 비활성화를 유지했다. 명칭은 변환 규칙 1번, Slack 공개/비공개·관리자 제한 안내는 2번으로 제외했다. 기존 AC-03 메뉴 순서를 유지하며 REQ-HF-24의 직원 빼기는 작성기 얼굴의 우클릭에서 요청한다(2명 미만·대표 제거는 비활성). 이는 hejo의 방 관리 연결이며 새 통신 계약이 아니다.
+
+
+## TASK-32 착수·공식 쓰기 계약 대조(보완 33)
+
+기준 `b19e03720dda05525db92de472fdbf2004c8ac72`. TASK-21 검토 결과와 실제 깨끗한 트리를 확인했다. 이번은 제품 이식 전 책임·보안 계약 대조이며 제품 코드를 옮기지 않았다.
+
+| 원본 | 읽은 범위·유지 의존 | 현재 처분 |
+| --- | --- | --- |
+| `<운영 저장소>/ddots/Sources/AgentConnections.swift`(369줄) | 전체. 문서·버튼·이유 코드·명령 제한·캐시·시각 처리 | 문이 준 버튼만 표시·stdin 비밀값·작업별 제한을 확인. 다른 Mac 읽기 전용 제한은 승인된 서버 대행으로 교체할 대상이다. 아직 이식하지 않았다. |
+| `AgentConnectionActions.swift`(264줄) | 전체. SecretInput·입력/지우기·ConnectionInputField·Guide·AgentConnectionsModel 의존 | 전체 창·모델 의존 독해는 미완료다. 비밀값 안내와 검증 후 저장·되돌림 흐름을 확인했으나 이식하지 않았다. |
+
+읽기 전용 원본 현재 HEAD는 `6ad0650b35ba4b7367050f9af80f0ef15ad4d5c1`이며 위 두 파일은 기존 독해 기준 `208f6e63` 대비 diff 0이다. 나머지 지정 UI·앱 연결·입력·team-kit 유지 의존 전체 독해는 미완료다. 일부 독해를 전체 이식 준비 완료로 세지 않는다.
+
+공식 관리 경로는 Hermes `ebb026eef8e800e1b7471ed147b7287e878f8aa4`의 subcommands/dashboard.py 전체, main.py의 cmd_dashboard/prepare_runtime, web_server.py의 lifespan/start_server·세션 검사, credential_lifecycle.py 전체, config_env.py의 env 저장/삭제·제공자 검증, config.py의 save_env_value/remove_env_value를 대조했다. D1에서 실제 serve를 임시 홈 기본+보조 두 프로필로 기동해 목록 HTTP 200을 받았다. 모든 자식 실행은 감사 훅으로 차단·기록했고 관측된 시도는 Git 버전 조회뿐이며 메시징 게이트웨이 실행 시도는 없었다. 관측은 기동·도구 목록 조회 구간이며 모든 관리 동작의 실물 검증은 아니다. 기존 task31의 추적하지 않는 web 의존성만 탐침 경로로 재사용했고 Hermes venv에 설치하지 않았다.
+
+D32-01: 공식 env 저장은 config.yaml의 같은 이전 값까지 갱신하고, 그 후속 쓰기 실패 뒤 .env 새 값이 남는다. REQ-HF-32.AC-03·04의 단일 키 쓰기/실패 불변과 충돌해 제품 구현을 보류했다. 검증 불가능한 키의 공식 validate가 ok=true/reachable=false인 경계도 확인했다. 이는 ddots 문구·동작 옮김 차이가 아니라 hejo 보안·Hermes 연동 계약이므로 26판 코드 우선으로 덮지 않았다. 상세와 선택지는 impl-report.md TASK-32 절, 재현은 `.build/task32/`다.
+
+
+### TASK-32 재개·29판 해소와 남은 원본 독해
+
+기준 `4fe20c13bca8a558bf1a0ad1681d8c3d81d0e8d0`. D32-01 기록은 보존하고 design D9로 해소했다. hejo는 공식 PUT/DELETE로만 쓰고 보상 실패를 partial로 드러낸다. D1 실제 serve 기동 근거는 재사용한다.
+
+이번에 전체를 끝까지 읽은 원본: ddots AgentConnectionsView.swift(491), AgentAppConnections.swift(312), ConnectionInputField.swift(39), InstalledApps.swift(152), InstalledAppsView.swift(137). 앞선 AgentConnections.swift(369)·AgentConnectionActions.swift(264) 독해와 합쳐 모델·연결 UI·앱 진행·입력·안내·캐시·시각·아이콘 의존을 확인했다. SwiftUI는 연결 창 예외 범위에서 유지한다. 원본의 다른 Mac 읽기 전용·로컬 HermesLocator/RemoteHermes·로컬 권한 조회·클립보드 감시는 가져오지 않고 기존 문 연결·서버 명령·앱의 화면 기록 제외로 대체할 대상이다. 문구는 변환 규칙 1번(직원·서버), 서비스 전용 제외는 2번이다. 상태에서 버튼을 추론하지 않는 구조·200px 직원 목록·22px 내용 여백·760x500 최소 크기·시각 표시는 유지할 대상이다.
+
+team-kit 경계는 실행 파일 hermes/bin/hermes-connections와 hermes_facility/connections.py(469), connection_secrets.py(270), connection_checks.py(437), connection_guides.py(68), app_connect.py(638), app_registry.py(250), gateway_restart.py(149), mac_permission.py(364)를 전체 독해했다. 이 코드를 hejo에 복사하지 않는다. 문은 고정 허용 명령·스키마·outcome·stdout 한도·stdin 비밀값·작업별 제한의 프로세스 경계만 유지한다. 명령 내부의 app_setup·config_assembly·plugin_store·mac_apps catalog/discovery·서비스별 HTTP·권한 worker는 외부 명령의 구현이며 hejo가 직접 호출하거나 소유하지 않는다. 그 구현을 우회·복제하지 않는다. 따라서 외부 조립/권한 전체 코드를 hejo 유지 의존으로 옮기는 것으로 기록하지 않는다. 프로필·권한 범위·재확인·행동 기록은 hejo 문에서 검사한다.
+
+### TASK-32 실제 옮김 대응
+
+- `AgentConnections.swift` → `app/Sources/ConnectionModels.swift`: 문서·행·상태·이유 문장·시각 계산을 가져왔다. 원본 로컬 CLI 실행기와 디스크 상태 캐시는 제외하고 기존 출입증 문 연결을 쓴다. 원시 오류를 덧붙이는 문장은 D2에 따라 고정 안내로 바꿨다.
+- `AgentConnectionsView.swift`·`AgentConnectionActions.swift` → `ConnectionsWindow.swift`: 직원 목록 200px, 내용 여백 22px, 최소 크기 760×500, 상태 알약·서비스 타일·상세·동작 줄·단계 안내를 재사용했다. 기본 창은 860×590이다. 원문 `summary`처럼 0개인 알약은 숨긴다(26판 코드 우선). 재확인은 hejo 고유 LocalAuthentication 계약이며, 취소는 전송 전에 끝난다.
+- `ConnectionInputField.swift`는 입력기 힌트·secure/plain 분기를 그대로 가져왔다. 입력 중 부모 창과 시트의 화면 공유를 제외하고, 닫기/성공 때 입력 사전을 지운다. 클립보드 기록 기능 자체는 hejo에 없으므로 원본 클립보드 감시 중지 연결을 추가하지 않았다.
+- `AgentAppConnections.swift`·`InstalledApps.swift`·`InstalledAppsView.swift`의 명령이 준 단계·선택지·입력·기본 계정·권한·다시 시작 흐름은 문이 받은 `next`로 그린다. Mac 앱 정보와 동작은 `gate/connection_manager.py`·`connection_runtime.py`의 고정 team-kit 명령 경계에 있다. 다른 Mac의 폴더 선택기를 서버 경로로 오인해 보내지 않는다. 로컬 앱 목록/로컬 권한 전용 쪽지 화면은 가져오지 않고 서버 직원의 연결 목록에 합친다(REQ-HF-32.AC-02).
+- team-kit의 `secret set`은 stdin JSON을 그대로 받으며 `--values-stdin` 인수가 없다. 이 인수는 `app connect`에만 붙인다. 원본 parser와 대조하고 실제 가짜 실행 파일 시험으로 고정했다. `reconnect`의 `state`, 다른 동작의 `outcome`을 구분하며, 0이 아닌 종료 코드에 유효한 `outcome`이 있으면 그 결과를 따른다. 다시 시작 명령의 거절도 pending으로 숨기지 않는다.
+- Hermes 공식 도구 묶음/config·env 존재·MCP 목록/카탈로그·OAuth 행만 읽는다. `configured`를 키 충족으로 쓰지 않는다. 비밀값은 `gate/connections.py`의 공식 validate/reveal/PUT/DELETE와 승인된 10분 금고를 통한다. 재시작 작업 정보는 기존 승인된 행동 기록에 남고 별도 영구 상태 원본을 만들지 않는다.
+- 문구 차이는 변환 규칙 1번(에이전트→직원, Hermes 실행 Mac→서버)·2번(원본 앱 전용 로컬/읽기 전용 설명 제외)이다. D9의 저장됨(확인 안 함)·보상 실패 문장은 hejo 고유 승인 계약이다. 원본의 4px 제목 아래 여백·성공 안내의 초록 아이콘과 달리 hejo 안내는 중립 회색 텍스트이며, 사진 없는 얼굴은 기존 hejo 명부 색을 쓴다. 비교 캡처에 이 차이를 남겼다. 화면 증거는 `evidence/HEJO-FOUNDATION/TASK-32.md`다.
+
+추가 대조: 공식 백엔드에서 기본+보조 두 프로필의 실제 목록은 합계 1,368행·553,466바이트였다. 기존 1MiB 통신 한도를 늘리지 않고 `connections.profile`로 선택한 직원만 읽는다. 직원 목록은 기존 명부를 직접 읽고, 이미 읽은 요약은 창의 메모리에만 둔다. 새 디스크 캐시는 없다. 서버도 전체 결과가 한도를 넘으면 거절한다. 서버 명령에서 온 안내의 ‘이 Mac’·‘맥미니’는 변환 규칙 1번으로 ‘서버’로 바꾸되 id·경로·URL은 바꾸지 않으며 회귀 시험에 넣었다.

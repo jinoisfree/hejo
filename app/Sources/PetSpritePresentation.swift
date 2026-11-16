@@ -53,11 +53,6 @@ struct PetSpritePresentation {
                       width: cell.width * scale, height: cell.height * scale)
     }
 
-    func contentBounds(_ source: CGRect) -> CGRect {
-        CGRect(x: offset.x + source.minX * scale, y: offset.y + source.minY * scale,
-               width: source.width * scale, height: source.height * scale)
-    }
-
     static func interactionRect(for reference: CGRect, in cell: CGRect) -> CGRect {
         CGRect(x: cell.minX + reference.minX * cell.width / cellSize.width,
                y: cell.minY + (cellSize.height - reference.maxY) * cell.height / cellSize.height,

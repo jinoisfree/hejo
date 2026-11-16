@@ -14,6 +14,9 @@ import sys
 import tempfile
 import uuid
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import admin_support
+
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap
 
@@ -57,7 +60,8 @@ def primary_block(port=None):
         block["extra"]["listen"].append(address)
     return block
 FORWARDER = {"enabled": True, "extra": {"role": "forwarder"}}
-CONFIG_KEYS = (("plugins", "enabled"), ("gateway", "platforms", "hejo"))
+HOME_KEYS = ("platforms", "hejo", "home_channel")
+CONFIG_KEYS = (("plugins", "enabled"), ("gateway", "platforms", "hejo"), HOME_KEYS)
 MISSING = object()
 YAML_WORDS = {"y", "yes", "n", "no", "true", "false", "on", "off", "null", "~"}
 
@@ -313,6 +317,16 @@ def load_receipt(home):
     return receipt
 
 
+def home_target(file, document):
+    if lookup(document, HOME_KEYS)[0]:
+        return None
+    profile = "default" if file == "config.yaml" else Path(file).parent.name
+    return {"kind": "config", "path": file + "#" + ".".join(HOME_KEYS),
+            "file": file, "keys": list(HOME_KEYS), "existed": False, "before": None,
+            "after": {"platform": "hejo", "chat_id": profile, "name": profile},
+            "owner_may_change": True, "state": "pending"}
+
+
 def plan(home, port=None):
     # Name-only API: no profile metadata, credentials, or gateway lifecycle calls.
     from hermes_cli.profiles import get_profile_dir, list_profile_names
@@ -360,6 +374,9 @@ def plan(home, port=None):
             receipt["targets"].append({"kind": "config", "path": file + "#" + ".".join(keys),
                 "file": file, "keys": list(keys), "existed": present,
                 "before": before, "after": after, "state": "pending"})
+        target = home_target(file, document)
+        if target:
+            receipt["targets"].append(target)
     # Ensure every before value is serializable before changing anything.
     json.dumps(receipt)
     return receipt
@@ -423,13 +440,16 @@ def restore_config(home, receipt, targets, force):
             conflicts.append(target["path"])
     if not selected:
         return conflicts
-    if not conflicts and text == cfg["written"]:
+    owned_home_remaining = any(item.get("owner_may_change") and item["file"] == file
+                               and item["state"] in {"applied", "removing"} for item in receipt["targets"])
+    original = yaml_load(cfg["before"])
+    same_home = lookup(original, HOME_KEYS) == lookup(document, HOME_KEYS)
+    if not conflicts and not owned_home_remaining and same_home and text == cfg["written"]:
         if cfg["existed"]:
             atomic_write(path, cfg["before"], cfg["mode"])
         else:
             path.unlink(missing_ok=True)
     else:
-        original = yaml_load(cfg["before"])
         for target in selected:
             restore_key(document, original, target["keys"])
         write_config(path, document, mode)
@@ -438,10 +458,123 @@ def restore_config(home, receipt, targets, force):
     return conflicts
 
 
-def restore(home, receipt, *, uninstall=False, force=False):
-    conflicts, handled = [], set()
-    for target in reversed(receipt["targets"]):
+def reconcile_home_channels(home, receipt, *, installing=False, check=False):
+    """Recover the config/receipt boundary; owner changes release installer ownership."""
+    missing = set()
+    for target in receipt["targets"]:
+        if not target.get("owner_may_change") or target["state"] not in {"pending", "applied", "removing"}:
+            continue
+        _, text, _ = read_config(safe_path(home, target["file"]))
+        present, value = lookup(yaml_load(text), target["keys"])
+        previous = target["state"]
+        if present and value == target["after"]:
+            target["state"] = "applied"
+        elif not present and previous == "removing":
+            target["state"] = "removed"
+        elif not present and previous == "pending":
+            missing.add(target["path"])
+            if installing:
+                apply(home, receipt, target)
+                target["state"] = "applied"
+            else:
+                target["state"] = "released"
+        else:
+            target["state"] = "released"
+            print(f"preserved_owner_change {target['path']}")
+        if previous != target["state"] and not check:
+            save_receipt(home, receipt)
+    return missing
+
+
+def remove_home_channels(home, receipt, targets):
+    """Undo only owned keys, even with --force; never restore a complete config."""
+    failed = []
+    for target in targets:
         if target["state"] != "applied":
+            continue
+        try:
+            path = safe_path(home, target["file"])
+            _, text, mode = read_config(path)
+            document = yaml_load(text)
+            present, value = lookup(document, target["keys"])
+            if present and value == target["after"]:
+                original = yaml_load(receipt["configs"][target["file"]]["before"])
+                # A legacy snapshot may contain an owner value that was removed before this upgrade.
+                if lookup(original, target["keys"])[0]:
+                    parent = original
+                    for key in target["keys"][:-1]:
+                        parent = parent[key]
+                    del parent[target["keys"][-1]]
+                restore_key(document, original, target["keys"])
+                target["state"] = "removing"
+                save_receipt(home, receipt)
+                try:
+                    written = write_config(path, document, mode)
+                except Exception:
+                    target["state"] = "applied"
+                    save_receipt(home, receipt)
+                    raise
+                config = receipt["configs"][target["file"]]
+                if text == config["written"]:
+                    config["written"] = written
+                target["state"] = "removed"
+            else:
+                target["state"] = "released"
+                print(f"preserved_owner_change {target['path']}")
+            save_receipt(home, receipt)
+        except Exception as exc:
+            failed.append(target["path"])
+            print(f"restore_failed {target['path']} {type(exc).__name__}")
+    return failed
+
+
+def upgrade_home_channels(home, receipt):
+    added = [target for target in receipt["targets"]
+             if target.get("owner_may_change") and target["state"] == "pending"]
+    try:
+        # Finish recovery before deciding which profiles need a replacement target.
+        reconcile_home_channels(home, receipt, installing=True)
+        for file in receipt["configs"]:
+            if any(target.get("owner_may_change") and target["file"] == file
+                   and target["state"] != "removed" for target in receipt["targets"]):
+                continue
+            _, text, _ = read_config(safe_path(home, file))
+            target = home_target(file, yaml_load(text))
+            if target:
+                receipt["targets"].append(target)
+                added.append(target)
+        if added:
+            save_receipt(home, receipt)
+        reconcile_home_channels(home, receipt, installing=True)
+    except Exception as exc:
+        # A config write may have succeeded before saving its applied state failed.
+        reconcile_home_channels(home, receipt)
+        failed = remove_home_channels(home, receipt, added)
+        receipt["targets"] = [target for target in receipt["targets"]
+                              if target not in added or target["path"] in failed]
+        save_receipt(home, receipt)
+        for item in added:
+            print(f"upgrade_failed {item['path']} {type(exc).__name__}")
+        if not added:
+            print(f"upgrade_failed home_channel {type(exc).__name__}")
+        return 1
+    for target in receipt["targets"]:
+        if not target.get("owner_may_change") and not matches(home, target):
+            print(f"preserved_owner_change {target['path']}")
+    print("Already installed; gateway was not restarted.")
+    return 0
+
+
+def restore(home, receipt, *, uninstall=False, force=False):
+    conflicts = remove_home_channels(home, receipt, [target for target in receipt["targets"]
+                                                   if target.get("owner_may_change")])
+    if not uninstall:
+        for target in receipt["targets"]:
+            if target.get("owner_may_change") and target["state"] in {"removed", "released"}:
+                target["state"] = "pending"
+    handled = set()
+    for target in reversed(receipt["targets"]):
+        if target.get("owner_may_change") or target["state"] != "applied":
             continue
         try:
             if target["kind"] == "config":
@@ -450,7 +583,8 @@ def restore(home, receipt, *, uninstall=False, force=False):
                     continue
                 handled.add(file)
                 group = [item for item in reversed(receipt["targets"])
-                         if item["kind"] == "config" and item["file"] == file and item["state"] == "applied"]
+                         if item["kind"] == "config" and item["file"] == file
+                         and item["state"] == "applied" and not item.get("owner_may_change")]
                 conflicts.extend(restore_config(home, receipt, group, force))
             elif target["kind"] == "link":
                 if force or matches(home, target):
@@ -478,25 +612,59 @@ def restore(home, receipt, *, uninstall=False, force=False):
     return conflicts
 
 
-def run(home, *, check=False, uninstall=False, force=False, port=None):
+def run(home, *, check=False, uninstall=False, uninstall_home_channel=False, force=False, port=None):
     receipt = load_receipt(home)
+    missing = set()
+    if receipt and not (receipt["status"] == "installed" and not (check or uninstall or uninstall_home_channel)):
+        missing = reconcile_home_channels(home, receipt,
+                                          installing=receipt["status"] == "installing" and not (check or uninstall or uninstall_home_channel),
+                                          check=check)
     if check:
         if not receipt or receipt["status"] != "installed":
             print("not_installed")
             return 1
-        changed = [item["path"] for item in receipt["targets"] if not matches(home, item)]
+        admin_changed = not admin_support.check(home, receipt)
+        changed = [item["path"] for item in receipt["targets"]
+                   if not item.get("owner_may_change") and not matches(home, item)]
+        from hermes_cli.profiles import get_profile_dir, list_profile_names
+        for profile in list_profile_names():
+            file = (Path(get_profile_dir(profile)).resolve().relative_to(home) / "config.yaml").as_posix()
+            _, text, _ = read_config(safe_path(home, file))
+            present, value = lookup(yaml_load(text), HOME_KEYS)
+            targets = [item for item in receipt["targets"]
+                       if item.get("owner_may_change") and item["file"] == file]
+            if not present and (any(item["path"] in missing for item in targets)
+                                or not any(item["state"] == "released" for item in targets)):
+                print(f"missing_target {file}#{'.'.join(HOME_KEYS)}")
+                changed.append(file + "#" + ".".join(HOME_KEYS))
+            elif not any(item["state"] == "applied" and value == item["after"] for item in targets):
+                print(f"{'owner_set' if present else 'owner_removed'} {file}#{'.'.join(HOME_KEYS)}")
         if stat.S_IMODE((home / "hejo").stat().st_mode) != 0o700:
             changed.append("hejo")
+        if admin_changed: changed.append("hejo/admin.json")
         if stat.S_IMODE((home / "hejo/install-receipt.json").stat().st_mode) != 0o600:
             changed.append("hejo/install-receipt.json")
         for path in changed:
             print(f"changed {path}")
         return 1 if changed else 0
+    if uninstall_home_channel:
+        if not receipt:
+            print("not_installed")
+            return 0
+        failed = remove_home_channels(home, receipt, [item for item in receipt["targets"]
+                                                    if item.get("owner_may_change")])
+        for file in receipt["configs"]:
+            targets = [item for item in receipt["targets"] if item.get("owner_may_change") and item["file"] == file]
+            if not targets or any(item["state"] == "released" for item in targets):
+                print(f"preserved_owner_change {file}#{'.'.join(HOME_KEYS)}")
+        return 1 if failed else 0
     if uninstall:
         if not receipt:
             print("not_installed")
             return 0
+        admin_removed = admin_support.remove(home, receipt, save_receipt)
         conflicts = restore(home, receipt, uninstall=True, force=force)
+        if not admin_removed: conflicts.append("hejo/admin.json")
         receipt["status"] = "uninstalled"
         save_receipt(home, receipt)
         for path in conflicts:
@@ -504,11 +672,9 @@ def run(home, *, check=False, uninstall=False, force=False, port=None):
         print("Gateway was not restarted; review changes before restarting it.")
         return 2 if conflicts else 0
     if receipt and receipt["status"] == "installed":
-        for target in receipt["targets"]:
-            if not matches(home, target):
-                print(f"preserved_owner_change {target['path']}")
-        print("Already installed; gateway was not restarted.")
-        return 0
+        result = upgrade_home_channels(home, receipt)
+        if result == 0 and not admin_support.prepare(home, receipt, save_receipt): return 1
+        return result
     if receipt and any(item["state"] == "applied" for item in receipt["targets"]):
         print("unresolved_receipt; finish uninstall before installing again")
         return 1
@@ -522,9 +688,12 @@ def run(home, *, check=False, uninstall=False, force=False, port=None):
             apply(home, receipt, target)
             target["state"] = "applied"
             save_receipt(home, receipt)
+        admin_support.prepare(home, receipt, save_receipt)
         receipt["status"] = "installed"
         save_receipt(home, receipt)
     except Exception as exc:
+        reconcile_home_channels(home, receipt)
+        admin_support.remove(home, receipt, save_receipt)
         conflicts = restore(home, receipt)
         receipt["status"] = "failed"
         save_receipt(home, receipt)
@@ -574,6 +743,7 @@ def main(argv=None):
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--check", action="store_true")
     mode.add_argument("--uninstall", action="store_true")
+    mode.add_argument("--uninstall-home-channel", action="store_true")
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--port", type=int, help="keep this gate port instead of the first free one")
     parser.add_argument("--hub", help="hejo hub URL to join as a member (e.g. http://127.0.0.1:47800)")
@@ -587,8 +757,9 @@ def main(argv=None):
         from hermes_constants import get_default_hermes_root
         home = get_default_hermes_root().resolve()
         os.environ["HERMES_HOME"] = str(home)
-        result = run(home, check=args.check, uninstall=args.uninstall, force=args.force, port=args.port)
-        if result == 0 and args.hub and not (args.check or args.uninstall):
+        result = run(home, check=args.check, uninstall=args.uninstall,
+                     uninstall_home_channel=args.uninstall_home_channel, force=args.force, port=args.port)
+        if result == 0 and args.hub and not (args.check or args.uninstall or args.uninstall_home_channel):
             return link_hub(home, args.hub, *read_credentials())
         return result
     except Exception as exc:

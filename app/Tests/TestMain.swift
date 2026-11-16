@@ -28,12 +28,46 @@ final class MemoryCredentials: GateCredentialStore {
         Task { @MainActor in
             do {
                 let args = CommandLine.arguments
-                if args.contains("--lock-child") {
+                if args.count>2 && args[1]=="--task32-capture" {
+                    NSApp.appearance=NSAppearance(named:.aqua)
+                    try await connectionsTests(outputDirectory:URL(fileURLWithPath:args[2]))
+                } else if args.contains("--lock-child") {
                     let lock = try InstanceLock(directory: URL(fileURLWithPath: args[2])); withExtendedLifetime(lock) { }
+                } else if args.count > 4 && args[1] == "--rooms-network" {
+                    try await roomsNetwork(args)
+                } else if args.count > 3 && args[1] == "--task21-capture" {
+                    NSApp.appearance=NSAppearance(named:.aqua)
+                    try await roomsTests(resourceDirectory:URL(fileURLWithPath:args[2]),outputDirectory:URL(fileURLWithPath:args[3]))
+                } else if args.count > 3 && args[1] == "--task27-capture" {
+                    NSApp.appearance=NSAppearance(named:.aqua)
+                    try await homeRoomTests(resourceDirectory:URL(fileURLWithPath:args[2]),outputDirectory:URL(fileURLWithPath:args[3]))
+                } else if args.count > 3 && args[1] == "--home-network" {
+                    try await homeRoomNetwork(args)
+                } else if args.count > 3 && args[1] == "--task30-capture" {
+                    NSApp.appearance=NSAppearance(named:.aqua)
+                    try await bubbleReplyTests(resourceDirectory:URL(fileURLWithPath:args[2]),outputDirectory:URL(fileURLWithPath:args[3]))
+                } else if args.count > 3 && args[1] == "--bubble-network" {
+                    try await bubbleReplyNetwork(args)
+                } else if args.count > 3 && args[1] == "--task29-capture" {
+                    NSApp.appearance=NSAppearance(named:.aqua)
+                    try await petNotificationTests(resourceDirectory:URL(fileURLWithPath:args[2]),outputDirectory:URL(fileURLWithPath:args[3]))
+                } else if args.count > 3 && args[1] == "--workspace-network" {
+                    try await workspaceNetwork(args)
+                } else if args.count > 2 && args[1] == "--task26-capture" {
+                    NSApp.appearance=NSAppearance(named:.aqua)
+                    try await workspaceTests(outputDirectory:URL(fileURLWithPath:args[2]))
+                } else if args.count > 2 && args[1] == "--task25-capture" {
+                    try await threadToolsTests(outputDirectory:URL(fileURLWithPath:args[2]))
+                } else if args.count > 3 && args[1] == "--threads" {
+                    try await threadNetwork(args)
                 } else if args.count > 3 && args[1] == "--task17-capture" {
                     try await task17Capture(resourceDirectory: URL(fileURLWithPath: args[2]), outputDirectory: URL(fileURLWithPath: args[3]))
+                } else if args.count > 2 && args[1] == "--task24-capture" {
+                    try await memberStateCapture(outputDirectory: URL(fileURLWithPath: args[2]))
                 } else if args.count > 3 && args[1] == "--task17-menu-capture" {
                     try await task17MenuCapture(outputDirectory: URL(fileURLWithPath: args[2]), kind: args[3])
+                } else if args.count > 1 && args[1] == "--pictures" {
+                    try await pictureNetwork(args)
                 } else if args.count > 1 && args[1] == "--conversation" {
                     try await conversationNetwork(args)
                 } else if args.count > 1 && args[1].hasPrefix("--network-") {
@@ -147,6 +181,15 @@ final class MemoryCredentials: GateCredentialStore {
         try await islandTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await typingTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await task17Tests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
+        try await memberStateTests()
+        try await threadToolsTests()
+        try await workspaceTests()
+        try await homeRoomTests(resourceDirectory:URL(fileURLWithPath:CommandLine.arguments.last!))
+        try await connectionsTests()
+        try await roomsTests(resourceDirectory:URL(fileURLWithPath:CommandLine.arguments.last!))
+        try await bubbleReplyTests(resourceDirectory:URL(fileURLWithPath:CommandLine.arguments.last!))
+        try await petNotificationTests(resourceDirectory:URL(fileURLWithPath:CommandLine.arguments.last!))
+        try picturesSidebarTests()
         try appIconTests()
         try await loginTests()
         try composerTests()

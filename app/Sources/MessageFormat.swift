@@ -3,24 +3,13 @@ import AppKit
 /// Text-only formatting shared by the composer and received messages. No HTML/WebKit is executed.
 /// Markdown remains readable outside ddots; optional span/u tags carry size, colour and underline.
 enum MessageFormat {
-    static func uniformSize(_ text: NSMutableAttributedString, size: CGFloat, codeSize: CGFloat? = nil) {
-        text.enumerateAttribute(.font, in: NSRange(location: 0, length: text.length)) { value, range, _ in
-            // A zero-width layout sentinel is not visible text.
-            if text.attributedSubstring(from: range).string == "\u{200B}" { return }
-            let font = value as? NSFont ?? .systemFont(ofSize: size)
-            let target = NSFontManager.shared.traits(of: font).contains(.fixedPitchFontMask) ? (codeSize ?? size) : size
-            text.addAttribute(.font, value: NSFontManager.shared.convert(font, toSize: target), range: range)
-        }
-    }
     static let baseSize: CGFloat = 13
-    static let sizes: [CGFloat] = [11, 13, 16, 20, 24, 28]
     static let colors: [(String, String)] = [("빨강", "#E05252"), ("주황", "#CC7A29"), ("초록", "#309968"), ("파랑", "#4285E8"), ("보라", "#A16BDD")]
     static let explicitSizeKey = NSAttributedString.Key("hejo.explicitSize")
     private static let explicitColor = NSAttributedString.Key("hejo.explicitColor")
     private static let tag = try! NSRegularExpression(pattern: #"`[^`\n]*`|</?(?:b|strong|i|em|u|s|del|span)(?:\s+[^<>]*)?>"#, options: .caseInsensitive)
     private static let heading = try! NSRegularExpression(pattern: #"^(#{1,3})\s+(.+)$"#)
     private static let check = try! NSRegularExpression(pattern: #"^([ \t]*)(?:[-*] )?\[([ xX])\] +"#)
-    private static let extended = try! NSRegularExpression(pattern: #"(?m)^(?:#{1,3}[ \t]+|[ \t]*(?:[-*] )?\[[ xX]\][ \t]+|[ \t]*```)|</?(?:b|strong|i|em|u|s|del|span)(?:\s|>)"#, options: .caseInsensitive)
     private static func normalized(_ text: String) -> String {
         text.replacingOccurrences(of: #"(?<!\*)\*{3}([^*\n]+)\*{2}(?!\*)"#, with: "**$1**", options: .regularExpression)
             .replacingOccurrences(of: #"(?<![~\\])~(?!~)"#, with: #"\\~"#, options: .regularExpression)

@@ -28,7 +28,7 @@ python -m pytest gate/tests tests/acceptance/test_gate_foundation.py \
 기본 문이 없으면 `hejo_primary_unavailable` 실패와 로그로 끝난다.
 전달자의 직원 신원은 `_owner_profile`로 고정되어 호출자의 chat_id·메타로 바뀌지 않는다.
 
-예약 기본 대상은 각 프로필의 `gateway.platforms.hejo.home_channel`에
+예약 기본 대상은 각 프로필의 `platforms.hejo.home_channel`에
 `{platform: hejo, chat_id: <그 직원 id>}`로 둔다. 스레드 값은 넣지 않는다.
 그래서 예약 보고마다 문이 새 UUID 스레드를 만든다. 대상 문법은 `hejo:<직원 id>`이며
 `parse_target_ref_fn`·`validate_target_ref_fn`으로 경로 구분자 없는 프로필 id 문법을 검사한다.
@@ -64,3 +64,10 @@ Hermes 게이트웨이 의존성 및 소켓 관측용 psutil이 필요하고 자
 ```sh
 HERMES_DISABLE_LAZY_INSTALLS=1 python -m gate.tests.gateway_delivery
 ```
+
+스레드 제어는 인증된 같은 WS 연결의 `thread_delete`·`thread_branch`로 요청한다.
+삭제는 기존 delete 기록의 scope로 확정하고, 재전송은 같은 seq의 delete로 치환한다.
+분기는 문이 새 스레드를 만들며 첫 사장 글에만 이전 대화 문맥을 붙인다.
+Hermes `/branch`나 세션 DB를 우회하지 않으므로 도구 호출 기록·`/resume` 계보는 복제하지 않는다.
+`metadata.hejo_checklist`는 message/edit의 선택 checklist 필드로 전달한다.
+정확한 필드와 한도는 [통신 규격](../schemas/hejo-wire-v1.json)을 따른다.

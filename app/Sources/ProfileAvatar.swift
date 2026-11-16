@@ -2,8 +2,8 @@ import AppKit
 
 /// Immutable, decoded thumbnail passed from the monitor queue to the UI. No UI-time file reads.
 struct ProfileAvatar: Equatable {
-    var hasProfileColor = false
     var color: NSColor = .systemGray
+    var image: NSImage?
     static func initial(_ name: String) -> String { String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(1)) }
     var foreground: NSColor {
         guard let rgb = color.usingColorSpace(.sRGB) else { return .white }
@@ -18,6 +18,13 @@ struct ProfileAvatar: Equatable {
             NSBezierPath(roundedRect: rect, xRadius: corner, yRadius: corner).addClip()
         }
             color.setFill(); rect.fill()
+            if let image {
+                let scale=max(rect.width/image.size.width,rect.height/image.size.height)
+                let size=CGSize(width:image.size.width*scale,height:image.size.height*scale)
+                let destination=CGRect(x:rect.midX-size.width/2,y:rect.midY-size.height/2,width:size.width,height:size.height)
+                image.draw(in:destination,from:.zero,operation:.sourceOver,fraction:1,respectFlipped:true,hints:[.interpolation:NSImageInterpolation.high])
+                NSGraphicsContext.restoreGraphicsState();return
+            }
             let attributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: rect.height * 0.6, weight: .medium), .foregroundColor: foreground]
             let text = Self.initial(name) as NSString, size = text.size(withAttributes: attributes)
             text.draw(at: NSPoint(x: rect.midX-size.width/2, y: rect.midY-size.height/2), withAttributes: attributes)
