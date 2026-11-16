@@ -489,6 +489,7 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
   - 설치 완료는 macOS 알림 센터가 아니라 펫 말풍선으로 알린다(사장 선택).
   - 메뉴: 설정… / 흐린 버전 줄 / 업데이트 확인… / 구분선 / 종료.
   - 일반 탭에 "업데이트 알림 받기"를 둔다.
+  - (31판) 수동 업데이트: 메뉴와 일반 탭 버튼이 ddots `checkNow`(수동 확인 = `check(manual: true)`) 하나를 부른다. 자동 확인이 찾은 릴리스는 이 Mac 메모리에 들고 있다가, 메뉴 제목과 일반 탭의 "업데이트" 버튼을 바꾸는 데만 쓴다(새 영구 원본 없음). 그 버튼은 `begin(release, manual: true, consented: true)`(ddots 알림 창의 "업데이트"와 같은 경로)다.
 - **빌드:**
   - `app/scripts/build.sh`가 고정 지문의 Sparkle을 `.build`에 받아 검증한다(ddots `fetch_sparkle.sh`).
   - `-F … -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks`로 링크한다. `Contents/Frameworks`에 넣고, Sparkle 안의 XPC·Autoupdate·Updater를 같은 인증서로 서명한 뒤 앱을 서명한다.
