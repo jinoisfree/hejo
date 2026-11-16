@@ -1374,3 +1374,36 @@ AppKit `AppIcon.render(pixels:)`가 투명 1024px 캔버스의 흰 둥근 사각
 **증거·한계.** 화면은 evidence/HEJO-FOUNDATION/TASK-26.md다. ddots 알림 막대 원문을 불활성 모델로 분리 실행한 참조와 실제 hejo 가짜 계정 화면을 비교했다. 원본 앱 전체·실제 두 Mac·운영 Hermes 연동을 실행한 것은 아니다. 멘션 얼굴은 현재 1:1 명부와 기존 Room.members 경계를 소비하며, 둘 이상의 실제 단체방 명부는 TASK-21에 남는다. 네이티브 편집 창은 대역 계정에서 실제 UI를 실행한 수준 2이며 사장의 수동 실물 확인을 대신하지 않는다. 기존 Swift 6 경고·비동기 pytest 경고는 유지하며 새 지적은 숨기지 않았다.
 
 **검토·롤백.** 이 절과 기존 보류 기록을 포함하는 TASK-26 별도 커밋을 검토한다. 앱 두 사본은 기존 번들 설정을 보존해 교체했으며 운영 앱은 재실행하지 않는다. 공용 릴리스는 단독 커밋 직후 갱신해 RELEASE·파일 대조 결과를 미추적 .build/task26/release*.json/log에 둔다. 공용 릴리스·앱 사본의 교체 전 백업도 .build/task26/ 아래에 있다. 되돌릴 때는 이 사본을 사용하며 회원 title:/bell:/thread: 값은 기존 허브 상태로 남는다. 운영 홈 설치·재시작/reload·비밀 파일·ddots/본체/운영 저장소 수정·실제 발송·public·push는 하지 않았다. TASK-29 이후는 미착수다.
+
+## 구현 인계: TASK-29 펫 알림(보완 28)
+
+**받은 설계·판단.** 기준 `005d3c15a47ddbc8b9e60c06679aeff0ee49d25a`, handoff 보완 28과 17·21·24·27, REQ-HF-30, AT-HF-81이다. 일반 위험·필요 증거 수준 2, 임시 홈/가짜 명부만 사용했다. 구현자 판단은 구현·자체 검증 완료이며 최종 판정은 계획 담당에게 넘긴다. TASK-26 이하 기존 기록은 보존했다.
+
+**책임과 자료 흐름.** 기존 BubbleReveal을 승인 요청 > 실패 > 작성 중 > 새 답 > 평소의 한 가지 말풍선 선택기로 확장했다. AppDelegate는 기존 ConversationModel/IslandModel 입력과 notices·회원 읽음 위치를 전달한다. 새 답 감지는 replay를 기준으로 잡은 후 새 직원 글의 seq만 쓰며 기존 원문을 조회한다. 본문·명부·읽음 원본을 추가하지 않는다. 이 Mac의 LocalSettings.reminders에는 메시지 id와 시각만 원자적으로 저장한다. 새 통신·허브·기록장·Hermes 계약 변경은 없다.
+
+- 승인 요청은 기존 질문 분류/확인/답글을 따르고 스레드를 열면 이 Mac의 표시를 해제한다. 알림 끈 방은 말풍선·펫 전화/작성·답 뛰기에서 빠지며 아일랜드는 기존 분류를 유지한다.
+- 새 답은 12초, 버튼은 웹 링크가 있으면 링크 열기 → 대화 열기 → 나중에 알려줘다. 대화 창 열림·앱 시작 전/replay 글·알림 끈 방·쉬기는 새 답을 띄우지 않는다. 나중에 알림은 1800초 뒤 재표시하고 재시작 때 복원하며 읽음/대화 열기/삭제로 취소한다. 저장 실패는 예약을 완료한 것으로 처리하지 않고 기존 말풍선을 남겨 재시도를 허용한다.
+- FoldedBubbleView에 기본 AppKit 버튼과 상태 점·반짝임을 연결했다. 작업 중 점은 0.8초 opacity, 부제는 원본 1.8초 주기다. 숨긴 말풍선 대신 머리 옆 파랑/흰 테 9+ 배지를 보이며, 보이는 말풍선에는 안 읽음 수가 남는다. 배치 크기는 버튼 유무에 따라 231×56/90이고 머리·말풍선 사이 점은 7/11/16pt다.
+- PetView는 기존 PetChatPlayback으로 포인터·답 도착의 한 번 뛰기를 합친다. 동작 줄이기·쉬기·화면 정지와 승인 전화 우선순위를 지킨다. 기존 AppKit 창·atlas·ShimmerLayer·프로필 얼굴/색·대화 열기 경로를 재사용하며 macOS 알림 센터 API를 쓰지 않는다. TASK-30 입력은 남겼다.
+
+**교체·설계 차이.** AppDelegate의 예전 latest-message/seen-seq 말풍선 경로와 PetView의 별도 3초 타이머·showMessage 경로를 제거했다. 기존 TASK-17 시험의 3초 기대와 마우스 올림 때 대상 글을 상태 문구로 덮던 기대는 REQ-HF-21.AC-02의 19판 대체 명시/REQ-HF-30에 따라 12초·대상 글 유지로 변경했다. 기존 닫힌 펫 unread 시험은 말풍선이 보이면 내부 수, 숨기면 머리 배지로 확인한다. 기존 동작 보존 리팩토링이 아니라 승인된 알림 의미 변경이다. 26판 원문 우선으로 생각 점은 숨긴 동안이 아닌 말풍선이 보일 때만 그린다. 문구 변환·원문 대조는 copy-review TASK-29에 기록했고 hejo 고유 계약·사장 선택은 바꾸지 않았다. 임시 제품 경로나 새 실행 우회는 없다.
+
+**보호 시험.** PetNotificationTests는 시작/replay 기준·우선순위·승인 유지/스레드 열기·12초 경계·버튼 집합/순서/비웹 거절·30분/재시작/읽음 취소·알림 끈 방·쉬기·다른 방 예약의 진행·원자적 저장 실패/회복·기본 버튼 클릭/펫 hit-test·배지/생각 점·반짝임 줄이기·머리에서 버튼으로의 hover 유지·실제 PetView 한 번 뛰기를 보호한다. 승인 선택을 지운 돌연변이는 `AT81 approval wins all priorities`에 실패해 검출했다. 전체 로그는 추적하지 않는 `.build/task29/`에 둔다.
+
+**최종 검사.** 제품 소스를 고정해 검사했다. 10회 반복 뒤 새 시험의 합성 이메일을 개인값 검사가 금지해 주소 입력 한 줄만 바꿨고(단정·제품 코드 불변), 집중 시험과 앱 전체 시험을 추가로 한 번 실행했다. 전후 해시는 fixture-fix.json·commit-snapshot-hashes.json에 남겼다.
+
+| 검사 | 실제 결과·근거 |
+| --- | --- |
+| 전체 `python3 .build/foundation9_runner.py hejo` | 종료 0, 156 passed 및 AT-81·기존 앱/가짜 Hermes/통신 통과. `.build/task29/frozen-foundation.json`, `frozen-foundation.log` |
+| 앱 `bash app/scripts/test.sh` 10회 연속 | 10회 모두 종료 0, 그동안 입력 80개 파일 해시 불변. 이후 합성 주소 입력 한 줄 정리 뒤 집중 시험·앱 전체 추가 1회도 0, 제품 소스 불변. `.build/task29/fixture-fix.json`, `.build/foundation9-app-task29-fixture-clean.json`; `.build/task29/frozen-app-results.json`, `frozen-progress.log`, `.build/foundation9-app-task29-frozen-01.log`~`10.log` |
+| AT-81 집중·캡처 | 컴파일·실행 각각 0, `.build/task29/focused-check.json`, `capture-final.log` |
+| 승인 우선순위 돌연변이 | 컴파일 0·시험 종료 1(검출), 원본 불변. `.build/task29/mutation.json`, `mutation-priority.log` |
+| 원문 참조 캡처 | 컴파일·실행 0, `.build/task29/reference.json` |
+| 개인값·훅·diff·SwiftUI | Hermes venv 개인값 검사·HEJO_PYTHON 지정 훅·diff 각각 종료 0, SwiftUI/알림 센터 API 0건. `.build/task29/final-checks.json`, `static.json` |
+| 앱 두 사본·공용 릴리스 | 앱 두 사본 서명 2개·기존 번들 설정 보존·후보 해시와 일치·임시 사본의 서명 제거 뒤 코드 해시가 빌드와 일치. `.build/task29/deploy.json`, `binary-verification.json`; 공용 릴리스는 아래 절차대로 커밋 직후 실행하고 `release-verify.json`에 기록 |
+
+**중간 실패 처분.** 집중 시험 초안의 ConversationMessage 인자 순서 오류를 고쳤다. 돌연변이 실행 파일 이름이 대소문자를 구분하지 않는 Mac에서 Tests 폴더와 충돌해 링크 실패한 것은 출력 이름 변경으로 해결했다. 첫 전체 실행은 시험은 통과했지만 실행 중 알림 끈 방 전화 동작 필터를 보강해 소스 해시 불변 검사가 실패했으므로 최종 근거에서 제외했다. 머리/말풍선 hover 연결·알림 끈 방의 지난 예약 제거·화면 정지의 점 애니메이션도 보강했다. 이전 반복 중 그 파일을 수정해 Swift가 ‘input file modified during build’로 거절한 실행은 개발 중 실행으로 제외했다. 최종 전체 검사·반복은 이 경계 시험까지 통과한 소스로 고정했다. 최종 stage 개인값 검사에서 새 시험의 합성 이메일 1건을 검출했다. 사전 검사는 아직 추적하지 않던 새 시험을 포함하지 못했으므로 최종 검사로 쓰지 않는다. 이메일 없는 비웹 URI로 시험 입력만 바꾸고 다시 확인했다. 시험 단정·수락 기준을 완화하거나 실패를 숨기지 않았다.
+
+**증거·미검증·검토점.** 필요/도달 수준 2다. 화면은 evidence/HEJO-FOUNDATION/TASK-29.md에 있고 같은 가짜 상태의 원본 AppKit 그리기와 hejo 제어·펫 조립 시험이다. 운영 앱 전체·두 Mac·실제 Hermes 답 도착·실제 브라우저 외부 열기를 시험하지 않았다. 링크 시험은 NSWorkspace 실행 대신 콜백 대상/허용 체계까지 확인하며 실제 열기는 TASK-23에 남는다. 기존 Swift 6 경고와 pytest 경고는 유지한다. 별도 에이전트는 쓰지 않았다. 검토자는 replay→새 답 경계·예약의 읽음/삭제 취소·알림 끈 방의 펫 동작과 26판 생각 점 차이를 특히 확인해 주면 된다. 범위 밖 새 부채는 발견하지 않았다.
+
+**검토 대상·적용·롤백.** 이 절·copy-review·캡처·앱 변경을 포함하는 TASK-29 단독 커밋이다. 앱 두 사본은 기존 번들 설정을 보존해 교체하고 재실행하지 않는다. 공용 릴리스는 커밋 직후 갱신해 RELEASE와 파일을 대조한다. 교체 전 백업은 `.build/task29/deploy-backup`·`release-backup`이다. 앱 코드 롤백 때 이 사본을 사용하며 reminders는 선택 필드이므로 옛 앱이 무시한다. 운영 홈 설치·재시작/reload·비밀 파일 열기·ddots/본체/운영 저장소 수정·외부 발송·public 갱신·push는 하지 않았다. TASK-30 이후는 미착수다.

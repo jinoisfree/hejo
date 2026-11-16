@@ -41,13 +41,13 @@ import AppKit
     var clock = ProcessInfo.processInfo.systemUptime
     controller.pet.bubbleNow = { clock }; controller.pet.activityNow = { clock }
     let key = ConversationKey(employee: "employee-test", thread: UUID().uuidString.lowercased())
-    controller.pet.showMessage("새 글 첫 줄\n둘째 줄", from: "가짜 직원", key: key)
+    controller.pet.bubbleNotice = BubbleReveal.Notice(kind:.reply,headline:"가짜 직원 · 새 메시지",detail:"새 글 첫 줄",key:key,sender:"가짜 직원",until:Date(timeIntervalSince1970:clock+12))
     try check(!controller.pet.foldedBubble.isHidden && controller.pet.foldedBubble.detail == "새 글 첫 줄", "AT62 first line shown")
-    clock += 3.1; controller.pet.updateFoldedBubble()
-    try check(controller.pet.foldedBubble.isHidden, "AT62 three-second timeout")
+    clock += 12.1; controller.pet.updateFoldedBubble()
+    try check(controller.pet.foldedBubble.isHidden, "AT62 superseded by AT81 twelve-second timeout")
     controller.pet.bubbleStatus = "일하는 직원 1명"
     controller.pet.foldedBubble.onHover?(true)
-    try check(!controller.pet.foldedBubble.isHidden && controller.pet.foldedBubble.detail == "일하는 직원 1명", "AT62 hover shows status")
+    try check(!controller.pet.foldedBubble.isHidden && controller.pet.foldedBubble.detail == "새 글 첫 줄", "AT62 hover retains actionable notice")
     var opened: ConversationKey?
     controller.pet.onBubbleOpen = { opened = $0 }
     controller.pet.foldedBubble.onOpen?()
@@ -234,7 +234,7 @@ import AppKit
     }
     controller.reducedMotion = { true }
     controller.pet.bubbleAlwaysShown = true
-    controller.pet.showMessage("가짜 시험 글 첫 줄", from: "가짜 직원", key: ConversationKey(employee: "employee-test", thread: UUID().uuidString.lowercased()))
+    controller.pet.bubbleNotice = BubbleReveal.Notice(kind:.reply,headline:"가짜 직원 · 새 메시지",detail:"가짜 시험 글 첫 줄",key:ConversationKey(employee:"employee-test",thread:UUID().uuidString.lowercased()),sender:"가짜 직원",until:Date().addingTimeInterval(12))
     controller.show()
     await pause(0.5)
     func capture(_ window: NSWindow, name: String) throws {

@@ -86,7 +86,7 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     try check(folded.replies?.contains { if case .stack = $0 { return true }; return false } == true,"long thread shows source folded reply stack")
     controller.receive(message(11,id:UUID().uuidString.lowercased(),employee:"alpha",thread:threadA,text:"unread while elsewhere"))
     ui.onUnread={pet.pet.unreadCount=$0}; ui.refresh(); pet.collapseChat()
-    try check(pet.pet.unreadCount>0 && !pet.pet.unreadBadge.isHidden,"closed pet shows unread blue badge")
+    try check(pet.pet.unreadCount>0 && (pet.pet.foldedBubble.isHidden ? !pet.pet.unreadBadge.isHidden:pet.pet.foldedBubble.unread>0),"closed pet shows unread blue badge")
     pet.showChat(); try check(pet.pet.unreadBadge.isHidden,"expanded pet hides separate unread badge")
     ui.onSidebarWidth=nil; ui.chooseEmployee("beta"); ui.chooseThread(beta); ui.layoutSubtreeIfNeeded()
     await pause(0.25); ui.layoutSubtreeIfNeeded(); ui.history.layoutSubtreeIfNeeded()

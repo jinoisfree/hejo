@@ -13,8 +13,8 @@ import AppKit
     private var pauseItem: NSMenuItem?
     private var currentAccount = ""
     private var petSettings: PetSettingsWindow?
-    private var seenMessageSequence = 0
-    private var replaySeen = false
+    private var bubble: BubbleReveal!
+    private var bubbleTimer: Timer?
     private var wasSending = false
     private var settingsRevision = 0
     private var settingsTask: Task<Void, Never>?
@@ -28,6 +28,7 @@ import AppKit
         do {
             try FileManager.default.createDirectory(at: AppIdentity.support, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
             instance = try InstanceLock(directory: AppIdentity.support); store = try LocalStore()
+            bubble = BubbleReveal(store:store)
             client = GateClient(store: store); pet = PetController(store: store, atlas: try SpriteAtlas())
             conversation = try ConversationController(client: client)
             pet.pet.avatarForEmployee = { [weak self] id in self?.conversation.avatar(id) ?? ProfileAvatar(color:PictureCodec.color(name:id,hex:nil)) }
@@ -37,7 +38,10 @@ import AppKit
             conversationView.onOpenThreadHeight = { [weak self] height in self?.pet.fitOpenThread(height) }
             pet.panel.onWorkspaceKey = { [weak self] event in self?.conversationView.handleWorkspaceKey(event) ?? false }
             pet.panel.onCollapse = { [weak self] in guard let self else { return }; if !self.conversationView.closeSearchIfOpen() { self.pet.collapseChat() } }
-            pet.pet.onBubbleOpen = { [weak self] key in guard let self else { return }; if let key { self.conversationView.openFromBubble(key) }; self.pet.showChat() }
+            pet.pet.onBubbleOpen = { [weak self] key in guard let self else {return};self.openBubble(key) }
+            pet.pet.onBubbleAction = { [weak self] action in self?.performBubbleAction(action) }
+            bubbleTimer=Timer(timeInterval:0.25,repeats:true){ [weak self] _ in Task { @MainActor in self?.refreshPetActivity() } }
+            RunLoop.main.add(bubbleTimer!,forMode:.common)
             let previousChange = conversation.onChange
             conversation.onChange = { [weak self] in previousChange?(); self?.refreshPetActivity() }
             conversationView.onUnread = { [weak self] count in self?.pet.pet.unreadCount = count }
@@ -57,7 +61,7 @@ import AppKit
                 header.onDoubleClick = { [weak self] in self?.pet.toggleChatWidth() }
             }
             conversationView.refresh()
-            pet.onExpansionChanged = { [weak self] expanded in self?.conversation.model.setVisible(expanded); if expanded { self?.conversation.model.memberState.activate() } }
+            pet.onExpansionChanged = { [weak self] expanded in self?.conversation.model.setVisible(expanded); if expanded { self?.conversation.model.memberState.activate() };self?.refreshPetActivity() }
             connection = LoginWindow(client: client)
             connection.onSignedIn = { [weak self] _, me in self?.currentAccount = me.account; self?.petSettings?.accountName.stringValue = me.account; self?.applyMemberSettings(me.settings) }
             installEditMenu()
@@ -119,7 +123,7 @@ import AppKit
     }
     func applicationWillTerminate(_ notification: Notification) {
         if let activityMonitor { NSEvent.removeMonitor(activityMonitor) }
-        client?.stop()
+        bubbleTimer?.invalidate();client?.stop()
         // Without automatic sign-in, quitting signs this Mac out.
         if let store, !store.settings.signsInAutomatically { GateKeychain().delete(account: store.settings.credentialAccount) }
     }
@@ -171,22 +175,40 @@ import AppKit
     private func refreshPetActivity() {
         guard let pet, let conversation, let client else { return }
         let model = conversation.model
-        let latest = model.messages.values.filter { $0.role == "employee" }.max { $0.seq < $1.seq }
-        let high = latest?.seq ?? 0
-        if client.replayComplete {
-            if replaySeen, let latest, high > seenMessageSequence, !model.muted.contains(latest.key.employee) {
-                pet.pet.showMessage(latest.text, from: model.name(latest.key.employee), key: latest.key)
-            }
-            replaySeen = true
-        }
-        seenMessageSequence = max(seenMessageSequence, high)
-        let asked = model.messages.values.filter { $0.role == "employee" && $0.replyState == "asked" }.count
-        let working = Set(model.typing.keys.map(\.employee)).count
+        let input=conversation.islandInput
+        let messages=Array(model.messages.values)
+        let questions=Set(model.employees.flatMap{model.notices($0.id).filter(\.questions).flatMap(\.messages)})
+        let readIDs=Set(messages.filter{ message in
+            let key=message.key
+            return message.latestSeq<=max(model.memberState.read("read:"+key.employee),model.memberState.read("thread:"+key.employee+"/"+key.thread))
+        }.map(\.id))
+        let jumped=bubble.update(.init(messages:messages,questions:questions,typing:model.typing,names:input.names,muted:model.muted,readIDs:readIDs,opened:model.selected,chatOpen:pet.chatExpanded,paused:pet.pet.isPaused,ready:client.replayComplete,failure:input.failure),now:Date())
+        if jumped {pet.pet.requestReplyJump()}
+        var notice=bubble.notice
+        if bubble.persistenceFailed {notice.detail="알림을 저장하지 못했어요. 저장 공간을 확인해 주세요."}
+        pet.pet.bubbleNotice=notice
+        let asked = questions.filter{ id in model.messages[id].map{!model.muted.contains($0.key.employee)} ?? false }.count
+        let working = Set(model.typing.filter{$0.value>Date() && !model.muted.contains($0.key.employee)}.keys.map(\.employee)).count
         pet.pet.hasAsked = asked > 0; pet.pet.isTyping = working > 0
-        pet.pet.sendFailed = conversation.transferFailure != nil || client.status == .tooLarge
+        pet.pet.sendFailed = bubble.notice.kind == .failure
         pet.pet.bubbleStatus = "일하는 직원 \(working)명 · 사장 차례 \(asked)건"
         if conversation.sending && !wasSending { pet.pet.noteSend() }
         wasSending = conversation.sending
+    }
+    private func openBubble(_ key:ConversationKey?) {
+        if let key {conversationView.openFromBubble(key)}
+        bubble.dismiss();pet.showChat();refreshPetActivity()
+    }
+    private func performBubbleAction(_ action:BubbleReveal.Action) {
+        switch action {
+        case .openChat:openBubble(pet.pet.bubbleTarget)
+        case .link(let url):
+            guard ["https","http"].contains(url.scheme?.lowercased() ?? "") else{return}
+            NSWorkspace.shared.open(url);bubble.dismiss();refreshPetActivity()
+        case .remindLater:
+            if !bubble.remindLater(now:Date()) {pet.pet.bubbleStatus="나중에 알림을 저장하지 못했어요. 저장 공간을 확인해 주세요."}
+            refreshPetActivity()
+        }
     }
     @objc private func openChat() { pet.showChat() }
     @objc private func signOut() { conversation.model.memberState.disconnect(); currentAccount = ""; petSettings?.accountName.stringValue = "로그인 전"; Task { await client.signOut(); petSettings?.updateConnection(client.status.text); connection.present() } }

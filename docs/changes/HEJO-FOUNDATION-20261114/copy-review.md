@@ -242,3 +242,21 @@ SlackPanel(3574)·SlackThreads(1471)·SlackController(1622)·DraftEditor(231)·D
 ### TASK-26 원문 실행 비교와 최종 구현 차이
 
 알림 막대 원문 함수는 질문 2·알림 3, SlackFindView와 SlackSearch의 미리보기/하이라이트 원문은 needle·plain body·needle.txt 한 글 상태로 별도 실행했다. 원본 계정/콜백/라우팅은 불활성 대역이며 원본 앱 전체 실행이 아니다. 같은 상태의 실제 AppKit 화면과 나란히 비교하고 evidence/HEJO-FOUNDATION/TASK-26.md에 남겼다. 원문의 알림 버튼은 ‘모두 읽음’이며 n건은 도움말에 있다. 메뉴의 ‘방 목록 보이기 / 숨기기’·‘전체 검색 (⌘F)’ 띄어쓰기도 그대로 유지했다(24판 원문 우선). 알림 #36C5F0·질문 #ECB22E, 결과 안쪽 여백·선택 테두리·날짜 오른쪽 정렬·첫 글 14pt·파일 하이라이트를 적용했다. 원본의 스레드 첫 글 날짜 순, 확인/완료 뒤 알림 제외, 스레드 방문 때 일반 알림 종 읽음도 같은 계산에 반영했다. hejo의 기록된 스트리밍 글은 아직 보내지 않은 pending 글과 다르므로 검색 대상에 남긴다. 월 기록·Slack API·개인 업무 기능을 가져오지 않았으며 hejo 고유 계약이나 사장 선택을 바꾸지 않았다.
+
+
+## TASK-29 착수 대조(보완 28)
+
+기준 005d3c1. App.swift(2575)·PetView.swift(1664)·Conversation.swift(448)·BubbleReply.swift(130)는 기존 전체 독해 기준 208f6e63과 파일 차이 0을 확인했다. App/PetView의 기존 전체 독해 기록을 재사용하고 updatePet·perform·nudgeMessages·saveReminders, BubbleTextView·updateBubbleShown·updatePetBadge·layoutThoughtDots·reply playback 호출을 다시 끝까지 대조했다. Conversation.swift 전체를 다시 읽어 PetAction·NudgeEngine·UnreadReplies·ChatReplyActivity의 의존까지 확인했고 BubbleReply 전체와 BubbleReveal 전체를 읽었다. SlackPanel의 기존 전체 독해를 재사용해 computePetApproval의 confirmed·settled 경계와 질문 대상 선택을 대조했다.
+
+| 원본 파일 | 유지·교체·제외 |
+| --- | --- |
+| `<운영 저장소>/ddots/Sources/App.swift` | 승인 > 실패/대기 > 작성 중 > 새 답 순서를 BubbleReveal로 옮김. Slack/iMessage·캘린더·연결 제안·파일 놓기·작업 모니터는 제외. 웹 링크는 승인된 브라우저 열기, 스레드는 hejo ConversationKey. |
+| `<운영 저장소>/ddots/Sources/Conversation.swift` | 새 답 12초·나중에 1800초·읽음/대화 열림 취소·9+·버튼 순서 유지. 날짜 원본은 journal timestamp, 최초 replay는 기준으로만 삼음. 본문은 기존 투영을 조회하고 예약은 메시지 id/시각만 저장. |
+| `<운영 저장소>/ddots/Sources/PetView.swift` | AppKit 텍스트·상태 점(0.8초 opacity)·배지·생각 점 7/11/16·답 뛰기 유지. 기존 hejo 배치·atlas·ShimmerLayer·PetChatPlayback 재사용. SlackModel·SwiftUI·클립보드/파일 호스트 제외. |
+| `<운영 저장소>/ddots/Sources/BubbleReveal.swift` | 3초 일반 알림은 REQ-HF-30의 12초 새 답으로 대체. hover/항상 보이기 설정은 유지. |
+| `<운영 저장소>/ddots/Sources/BubbleReply.swift` | 대상·끼어들기 유지 의존만 확인, 입력은 TASK-30에 남김. |
+| `<운영 저장소>/ddots/Sources/SlackPanel.swift` | 승인 질문의 confirmed/settled 제외 개념을 기존 hejo notices로 연결. Slack 승인 휴리스틱/프로젝트는 제외. |
+
+26판 동작 원문 우선: PetView.layoutThoughtDots는 말풍선이 보이고 간격이 26pt 이상일 때 점을 그린다. 숨겨진 말풍선 때 점을 그린다는 명세 문장 대신 이 원본 동작을 유지한다. 배지는 숨긴 동안만 머리 옆에 보이며 말풍선 안에는 수가 남는다. 문구 변환 규칙 1번은 ddots→hejo/펫 이름·에이전트→직원, 2번으로 Slack/iMessage/캘린더 사실만 제외한다. 원본의 ‘새 메시지’·‘다시 알림’·‘답변을 생각하고 있어요’와 버튼 순서를 유지한다. 서버 통신·허브·기록장 계약과 사장 선택 변경은 없다.
+
+유지 의존 추가 대조: PetAnimation.swift(167)·WritingShimmer.swift(67) 전체를 읽었다. jump 0.84초 한 번·작업/승인 우선순위는 기존 PetChatPlayback으로 연결한다. ProfileAvatar(115)·PetLayout(404)의 앞선 전체 독해를 재사용하며 actionRects·bubbleSize와 배지/점 배치를 대조했다. ChatStyle.swift는 ChatMetrics(이름 14pt·보조 11pt·얼굴 20px·간격 8)와 나머지 테마/팔레트/ThreadAppearance 의존을 끝까지 읽었다. SwiftUI modifier 자체는 제외하고 기존 AppKit ShimmerLayer를 사용한다.

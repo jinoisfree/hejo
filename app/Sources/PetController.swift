@@ -53,6 +53,7 @@ final class PetController: NSObject {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         panel.becomesKeyOnlyIfNeeded = true
         panel.contentView = pet; panel.onCollapse = { [weak self] in self?.collapseChat() }
+        pet.onBubbleSize = { [weak self] in guard let self,let origin=self.placementTarget?.anchorOrigin else{return};self.placePet(at:origin) }
         pet.onClick = { [weak self] in self?.toggle() }
         pet.onDragMove = { [weak self] in self?.movePet(to: $0) }
         pet.onDragEnded = { [weak self] in self?.endPetDrag() }
@@ -112,7 +113,7 @@ final class PetController: NSObject {
         var size = preferredChatSize
         if chatExpanded, let fittedThreadHeight { size.height = max(size.height, fittedThreadHeight) }
         let target = PetPlacement(spriteOrigin: origin, scale: pet.petScale, visibleFrame: screen.visible, screenFrame: screen.frame,
-                                  expanded: chatExpanded, preferredSize: size, below: resizedBelow)
+                                  bubbleSize: pet.foldedSize, expanded: chatExpanded, preferredSize: size, below: resizedBelow)
         placementTarget = target; apply(target)
     }
     private func apply(_ p: PetPlacement) {

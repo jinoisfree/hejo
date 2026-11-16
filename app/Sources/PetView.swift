@@ -46,50 +46,65 @@ final class PetView: NSView {
     let atlas: SpriteAtlas
     let conversation = NSView()
     let foldedBubble = FoldedBubbleView(frame: .zero)
-    let statusLabel = NSTextField(labelWithString: "공항 연결 전")
+    let statusLabel = NSTextField(labelWithString: "서버 연결 전")
     let collapseButton = NSButton(title: "펫으로 접기", target: nil, action: nil)
     private var conversationContent: NSView?
     private var glass: NSView!
     private let tint = NSView()
     let unreadBadge = PetBadgeView()
-    var unreadCount = 0 { didSet { updateUnreadBadge() } }
-    var bubbleNow: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+    var unreadCount = 0 { didSet { updateFoldedBubble() } }
+    var bubbleNow: () -> TimeInterval = { Date().timeIntervalSince1970 }
     var bubbleAlwaysShown = false { didSet { updateFoldedBubble() } }
     var bubbleName = "hejo" { didSet { updateFoldedBubble() } }
-    private var bubbleSender = ""
     var avatarForEmployee:((String)->ProfileAvatar)?
     var bubbleStatus = "" { didSet { updateFoldedBubble() } }
-    private(set) var bubbleTarget: ConversationKey?
-    private var bubbleLine = ""
-    private var bubbleHover = false
-    private var bubbleViewHover = false
-    private var bubbleReveal = BubbleReveal()
-    var onBubbleOpen: ((ConversationKey?) -> Void)?
-    var activityNow: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
-    private var activity = PetActivity(now: ProcessInfo.processInfo.systemUptime)
-    var hasAsked = false, isTyping = false, sendFailed = false, isPaused = false
-    var animationsAllowed = true { didSet { updateAnimationVisibility() } }
-    private(set) var activityPose: PetActivity.Pose = .idle
-    func showMessage(_ line: String, from employee: String, key: ConversationKey) {
-        bubbleTarget = key; bubbleLine = String(line.split(whereSeparator: \.isNewline).first ?? "")
-        bubbleSender = employee; bubbleReveal.alert(now: bubbleNow()); noteActivity(); updateFoldedBubble()
+    private(set) var bubbleTarget:ConversationKey?
+    var bubbleNotice=BubbleReveal.Notice(kind:.idle,headline:"",detail:"",key:nil) {
+        didSet {bubbleTarget=bubbleNotice.key;updateFoldedBubble();if bubbleNotice.actions.count != oldValue.actions.count {onBubbleSize?()}}
     }
-    func noteActivity() { activity.touch(now: activityNow()) }
-    func noteSend() { activity.sent(now: activityNow()) }
-    func updateFoldedBubble() {
-        let shown = placement?.expanded != true && (bubbleTarget != nil || bubbleHover) && bubbleReveal.visible(now: bubbleNow(), held: bubbleHover || bubbleAlwaysShown)
+    var foldedSize:CGSize {CGSize(width:231,height:bubbleNotice.actions.isEmpty ? 56:90)}
+    var onBubbleSize:(()->Void)?
+    private var bubbleHover=false,bubbleViewHover=false
+    var onBubbleOpen:((ConversationKey?)->Void)?
+    var onBubbleAction:((BubbleReveal.Action)->Void)?
+    var activityNow:()->TimeInterval={ProcessInfo.processInfo.systemUptime}
+    private var activity=PetActivity(now:ProcessInfo.processInfo.systemUptime)
+    private var replyJump=false,playback=PetChatPlayback()
+    private(set) var jumpElapsed:TimeInterval?
+    let thoughtDots=(0..<3).map{_ in PetThoughtView()}
+    var hasAsked=false,isTyping=false,sendFailed=false,isPaused=false
+    var animationsAllowed=true {didSet{updateAnimationVisibility()}}
+    private(set) var activityPose:PetActivity.Pose = .idle
+    func noteActivity(){activity.touch(now:activityNow())}
+    func noteSend(){activity.sent(now:activityNow())}
+    func requestReplyJump(){replyJump=true;noteActivity()}
+    func updateFoldedBubble(){
+        let notice=bubbleNotice
+        let alive=notice.until.map{Date(timeIntervalSince1970:bubbleNow())<$0} ?? false
+        let shown=placement?.expanded != true && (notice.held || alive || bubbleHover || bubbleAlwaysShown)
         foldedBubble.isHidden = !shown
-        foldedBubble.headline = bubbleHover ? bubbleName + " · 지금 상태" : bubbleName + " · " + bubbleSender
-        foldedBubble.detail = bubbleHover ? bubbleStatus : bubbleLine
-        foldedBubble.sender=bubbleSender;foldedBubble.avatar=bubbleHover ? nil : bubbleTarget.flatMap { avatarForEmployee?($0.employee) }
-        foldedBubble.setAccessibilityLabel(foldedBubble.headline + " · " + foldedBubble.detail + " · 대화 열기")
+        foldedBubble.headline=notice.headline.isEmpty ? bubbleName:notice.headline
+        foldedBubble.detail=notice.kind == .idle ? bubbleStatus:notice.detail
+        foldedBubble.sender=notice.sender;foldedBubble.avatar=notice.sender.isEmpty ? nil:notice.key.flatMap{avatarForEmployee?($0.employee)}
+        foldedBubble.kind=notice.kind;foldedBubble.unread=unreadCount;foldedBubble.actions=notice.actions
+        foldedBubble.tick(at:activityNow(),paused:isPaused || !animationsAllowed)
+        foldedBubble.setAccessibilityLabel(foldedBubble.headline+" · "+foldedBubble.detail+" · 대화 열기")
+        updateUnreadBadge();layoutThoughtDots()
+    }
+    private func layoutThoughtDots(){
+        guard let p=placement else{return}
+        let head=atlas.interactionRect(in:spriteRect),bubble=p.bubbleRect
+        let start=p.bubbleBelow ? head.minY:head.maxY,end=p.bubbleBelow ? bubble.maxY:bubble.minY
+        let room=abs(end-start)>=26 && !foldedBubble.isHidden && !p.expanded
+        let lean=max(-18,min(18,(bubble.midX-head.midX)*0.25+12))
+        for (i,dot) in thoughtDots.enumerated(){dot.isHidden = !room;let along=[0.14,0.44,0.78][i],size:CGFloat=[7,11,16][i];dot.frame=CGRect(x:(head.midX+lean*along-size/2).rounded(),y:(start+(end-start)*along-size/2).rounded(),width:size,height:size)}
     }
     private func updateUnreadBadge() {
-        let text = unreadCount > 99 ? "99+" : unreadCount > 0 ? String(unreadCount) : ""
+        let text = unreadCount > 9 ? "9+" : unreadCount > 0 ? String(unreadCount) : ""
         unreadBadge.text = text
         let head = atlas.interactionRect(in: spriteRect), size = PetBadgeView.size(text)
         unreadBadge.frame = CGRect(origin: CGPoint(x: floor(min(head.maxX-size.width/2,spriteRect.maxX-size.width)), y: floor(min(head.maxY-size.height/2,spriteRect.maxY-size.height))), size: size)
-        unreadBadge.isHidden = unreadCount <= 0 || placement?.expanded == true
+        unreadBadge.isHidden = unreadCount <= 0 || placement?.expanded == true || !foldedBubble.isHidden || isPaused
         unreadBadge.setAccessibilityLabel("안 읽은 답 \(unreadCount)개")
     }
     func installConversation(_ view: NSView) {
@@ -130,9 +145,11 @@ final class PetView: NSView {
         conversation.layer?.masksToBounds = true
         statusLabel.font = .systemFont(ofSize: 13); statusLabel.textColor = .secondaryLabelColor
         conversation.addSubview(statusLabel); conversation.addSubview(collapseButton)
-        addSubview(conversation); addSubview(foldedBubble); addSubview(genie); addSubview(sprite); addSubview(unreadBadge); unreadBadge.isHidden = true
+        addSubview(conversation); thoughtDots.forEach{addSubview($0);$0.isHidden=true}; addSubview(foldedBubble); addSubview(genie); addSubview(sprite); addSubview(unreadBadge); unreadBadge.isHidden = true
         foldedBubble.isHidden = true
-        foldedBubble.onHover = { [weak self] hovering in self?.bubbleViewHover = hovering; self?.bubbleHover = hovering; self?.updateFoldedBubble(); if hovering { self?.noteActivity() } }
+        foldedBubble.onHover = { [weak self] hovering in self?.bubbleViewHover = hovering; if hovering {self?.bubbleHover=true}; self?.updateFoldedBubble(); if hovering { self?.noteActivity() } }
+        foldedBubble.reduceMotion = { [weak self] in self?.reduceMotion() ?? true }
+        foldedBubble.onAction = { [weak self] in self?.onBubbleAction?($0) }
         foldedBubble.onOpen = { [weak self] in guard let self else { return }; self.noteActivity(); self.onBubbleOpen?(self.bubbleTarget) }
         genie.wantsLayer = true
         sprite.onDraw = { [weak self] cell in
@@ -155,15 +172,21 @@ final class PetView: NSView {
         let t = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] _ in self?.animate() }
         RunLoop.main.add(t, forMode: .common); timer = t
     }
-    private func animate() {
+    func animate() {
         guard window?.isVisible == true, animationsAllowed, placement != nil else { updateAnimationVisibility(); return }
         let now = activityNow()
         updateActivityPresentation(at: now)
-        if isPaused { sprite.needsDisplay = true; return }
+        if isPaused {replyJump=false;jumpElapsed=playback.update(now:now,reply:false,pointerElapsed:nil,enabled:false);sprite.needsDisplay = true;return}
         let pointer = pointerLocation(), origin = window!.convertPoint(toScreen: .zero)
         let global = PetLayout.visibleSprite(in: spriteRect).offsetBy(dx: origin.x, dy: origin.y)
-        bubbleHover = bubbleViewHover || global.contains(pointer)
+        let bridge=global.union(placement!.bubbleRect.offsetBy(dx:origin.x,dy:origin.y))
+        bubbleHover = bubbleViewHover || global.contains(pointer) || (bubbleHover && !foldedBubble.isHidden && bridge.contains(pointer))
         updateFoldedBubble()
+        let phase=self.pointer.update(pointer:pointer,sprite:global,display:window!.screen?.frame ?? global,now:now,reducedMotion:reduceMotion())
+        let pointerElapsed:TimeInterval?;if case .jumping(let elapsed)=phase {pointerElapsed=elapsed} else {pointerElapsed=nil}
+        jumpElapsed=playback.update(now:now,reply:replyJump,pointerElapsed:pointerElapsed,enabled:!isPaused && !hasAsked && !sendFailed && !reduceMotion())
+        replyJump=false
+        if let elapsed=jumpElapsed {pose=PetAnimationTimeline.frame(for:.jumping,elapsed:elapsed)} else {
         switch activityPose {
         case .phone: pose = PetAnimationTimeline.frame(for: .waiting, elapsed: now, reducedMotion: reduceMotion())
         case .laptop: pose = PetAnimationTimeline.frame(for: .replyWaiting, elapsed: now, reducedMotion: reduceMotion())
@@ -171,12 +194,12 @@ final class PetView: NSView {
         case .failure: pose = PetAnimationTimeline.frame(for: .failed, elapsed: now, reducedMotion: reduceMotion())
         case .doze: pose = PetAnimationTimeline.dozeFrame(elapsed: now - activity.lastActivity - PetActivity.idleDelay, reducedMotion: reduceMotion())
         case .idle:
-            let phase = self.pointer.update(pointer: pointer, sprite: global, display: window!.screen?.frame ?? global, now: now, reducedMotion: reduceMotion())
             switch phase {
-            case .jumping(let elapsed): pose = PetAnimationTimeline.frame(for: .jumping, elapsed: elapsed, reducedMotion: reduceMotion())
+            case .jumping: pose=PetAnimationTimeline.frame(for:.idle,elapsed:now,reducedMotion:reduceMotion())
             case .looking: pose = reduceMotion() ? PetAnimationTimeline.frame(for: .idle, elapsed: now, reducedMotion: true) : PetAnimationTimeline.lookFrame(from: CGPoint(x: global.midX, y: global.midY), toward: pointer, previous: pose) ?? pose
             case .inactive: pose = PetAnimationTimeline.frame(for: .idle, elapsed: now, reducedMotion: reduceMotion())
             }
+        }
         }
         sprite.needsDisplay = true
     }
@@ -202,7 +225,7 @@ final class PetView: NSView {
         guard let p = placement else { return nil }
         if spriteContains(point) { return self }
         if p.expanded, !genie.isHidden { return self }
-        if !p.expanded, !foldedBubble.isHidden, p.bubbleRect.contains(point) { return foldedBubble }
+        if !p.expanded, !foldedBubble.isHidden, p.bubbleRect.contains(point) { return foldedBubble.hitTest(point) }
         if p.expanded, p.bubbleRect.contains(point) {
             if !PetLayout.resizeEdge(at: point, bubble: p.bubbleRect, below: p.bubbleBelow).isEmpty { return self }
             return conversation.hitTest(point)
