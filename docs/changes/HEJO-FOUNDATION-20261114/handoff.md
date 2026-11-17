@@ -1431,3 +1431,29 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
     4. 답 끝에 사용량 꼬리말이 없다.
   - 문제가 생기면 백업으로 되돌리고 게이트웨이를 재시작한다.
 - **다음 순서:** TASK-36 → 37 → … → 47(보완 38; ddots-inventory.md §0-4 2.1판 정정을 함께 읽는다; TASK-42에는 N35-01을 포함한다).
+
+## 보완 지시 50 (TASK-36 D36-01 결정, 35판, 2026-11-17)
+
+- **D36-01:** A07에서 버튼 답과 직접 쓴 답을 구분하려면, 사장 글 기록에 어느 요청에 답했는지가 남아야 한다. 지금은 그 정보가 Hermes 원시 이벤트에만 있다.
+- **결정:** 규격 v1 `message`에 선택 필드 `answer_to`(문자열 msg_id)를 더한다. spec REQ-HF-36.AC-01 [35판 D36-01]이다.
+  - `schemas/hejo-wire-v1.json`
+    - `message.properties.answer_to = {type: string, minLength: 1}`. 필수 필드가 아니다.
+    - 앱이 보내는 `send`에는 넣지 않는다. 앱은 계속 `click`을 보낸다.
+  - 문 `gate/adapter.py`
+    - `click`의 reply 갈래가 `receive`를 부를 때 `answer_to = click["msg_id"]`를 넘긴다.
+    - `receive`는 그 사장 `message` 기록에 `answer_to`를 남긴다. 기록장과 sync page로 그대로 나간다.
+    - 손으로 보낸 `send`는 `answer_to`를 받지 않는다. 받으면 지금처럼 스키마가 거절한다.
+  - 앱
+    - 모델은 `answer_to`를 읽는다.
+    - A07 `answers`·`pendingPosts`를 ddots 원문(`SlackThreads.swift`, `SlackPanel.answerHermes`·`onClickSend`, `SlackBridge.post(clickedPost:)`)대로 계산한다. 필드가 있으면 그 요청만, 없으면 그 글보다 앞의 요청을 모두 답한 것으로 본다.
+  - 시험
+    - AT-87에 경우를 더한다. A가 working이고 B가 asking일 때 A 대상 버튼 "승인"을 누르면 B는 계속 대기다. 같은 말을 직접 쓰면 B도 답해진다.
+    - 재접속(sync page)에서 같은 결과가 나와야 한다.
+    - 옛 문(aeaa652) + 새 앱에서는 버튼 답이 직접 쓴 글처럼 계산되고, 오류가 없어야 한다.
+    - 옛 앱 경로에서는 새 필드가 있어도 디코딩이 실패하지 않아야 한다.
+  - 돌연변이: `answer_to` 기록을 빼면 AT-87의 대상 구분 단언이 실패해야 한다.
+- **재개**
+  - `.build/task36/draft/` 초안 14개를 `draft-files.json` 지문과 대조해 다시 적용한다. 앱 전체 시험의 옛 단정 두 개(편집 시 unread 증가, 첫 직원 기본 선택)는 26판 코드 우선에 따라 바꾼 근거를 copy-review에 남긴다.
+  - 그 뒤 남은 검증을 한다: foundation9_runner hejo 0, test_install, 앱 반복, 돌연변이, 같은 상태 캡처 비교, 개인값 0.
+  - 작업 트리의 보고 두 파일은 TASK-36 커밋에 함께 넣는다.
+- **public:** 0.2.0 후보 f716bdf는 바꾸지 않는다. 이 규격 추가는 다음 공개본에 들어간다.
