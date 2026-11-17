@@ -477,3 +477,15 @@ Hermes 공식 ko 낱말표의 `platform.telegram.approval.resolved_*` 네 종류
 `[[체크: 일정 | 제출: lv1 | lv2 | 확인]]`의 원본은 일정 선택 여부와 제출 단추를 독립적으로 받는다. 일정 선택 시 lv1은 `선택: lv1, 일정`, lv2는 `선택: lv2, 일정`, 확인은 `선택: 일정`이다. 아무 체크 없이 확인하면 `건너뛰기`다. 반면 승인된 hejo_checklist의 items=[일정]에는 제출 단추 선택을 담을 자리가 없어 같은 체크가 모두 `선택: 일정`이 된다. 임의 submits 필드는 gate의 invalid_checklist와 규격 additionalProperties=false에 막힌다.
 
 제출 선택을 items에 섞는 대안도 그대로 원문 의미라고 볼 수 없다. 앱의 전체 특례는 제출 항목까지 선택돼 있어도 답을 `선택: 전체`로 줄이고, 일반 항목으로 둔 lv1·lv2는 동시에 선택·전달할 수 있다. 재현은 실제 rb 함수·제품 ThreadTools.answer 함수 분리 컴파일·실행이며 결과는 `.build/task49/checklist-contract.json`·`checklist-probe.log`다. 제품 API 수락 시험은 아니다. 문구의 옮김 실수나 시간·정렬 차이가 아니므로 계약을 임의 확장하지 않고 계획 판단으로 인계한다.
+
+
+### TASK-49 D49-01 해소·최종 이식(보완 48·35판)
+
+기준 `afc019d56724621784d72a0137e0f92a4486becd`의 결정대로 맞춤 제출은 체크 항목만 보내고 can_skip=false, 제출 낱말은 보내지 않는다. 앞의 Slack 제출 의미 보존 제안은 채택되지 않은 기록으로 남긴다. 시작 직전 보완 47 범위를 다시 대조해 차이 0을 확인했다. 범위 밖 cctv 세 파일은 그대로 유지했다.
+
+- J01: 이미 전체 독해한 Slack post_pieces 결과 집계 함수를 공통화해 hejo도 사용한다. 부분 실패 뒤에도 나머지 조각을 시도하고, 성공 id만 같은 순서로 모으며 partial_overflow를 유지한다. hejo의 interim·편집 예정·추적 중인 열린 흐름은 나누지 않고 구분 줄만 지운다. 조각별 prepare가 각자의 질문·단추·체크리스트를 만든다. 스레드 없는 첫 보냄에도 하나의 새 UUID를 붙여 원래 문처럼 대화를 만들고 답 추적에 사용한다. Slack 전용 slash 비공개 전송 경계는 hejo에 없어 이식하지 않는다.
+- J02: report_status의 Slack 함수는 유지하고 hejo 출처만 분기했다. install_hejo의 현재 턴 ContextVar가 공식 background task·executor로 복사되는 경로를 본체 run_turn의 copy_context와 함께 읽었다. 도구는 공식 session_context의 플랫폼·소유자·프로필·방·스레드·세션을 대조하고 현재 어댑터의 공개 메서드만 사용한다. 문 내부 import·기록장 접근은 없다. 헤더/강조 문법은 보존하며 첫 직원 글의 표식을 바꾸고, 부분 상태에서는 기존 단추 id를 보존한다. 상태 줄·note·시각은 본문에 붙이지 않는다.
+- J03: ddots SlackThreads의 체크리스트 파서·checklistAnswer 전체, SlackPanel의 HermesReplyChecklist 전체를 직접 다시 읽었다. 일반 목록에는 skip 동작이 있고, 맞춤 submits는 파서가 토글만 읽으므로 skip이 없다. 앱 계약 확장은 만들지 않았다. 같은 입력의 실제 hejo 프레임과 원본 ddots 파서/답 함수를 분리 컴파일해 결과가 같음을 확인했다(`.build/task49/parity-comparison.json`). 이는 같은 상태의 자료·답 생성 비교이며 새 GUI 스크린샷이나 운영 앱 전체 비교가 아니다. 기존 AppKit 체크리스트 보기 자체는 변경하지 않았다.
+- 사용량: 기존 usage_ledger의 Slack·photon 등록만 유지하고 hejo 제외를 시험했다. hejo 실제 체크리스트 프레임에 제출 낱말·사용량 꼬리말이 없음을 단언한다.
+
+추가한 문 공개 메서드 `first_thread_message(chat_id, thread_id, *, metadata=None)`는 해당 직원의 첫 살아 있는 직원 글 id와 최신 본문 사본만 돌려준다. 사장 글·다른 직원·다른 대화·삭제된 스레드/방은 제외하고, 전달자는 자기 프로필을 강제한다. 자료의 원본은 기존 Journal 투영이며 별도 저장소는 없다. 호환성 계약이 맞지 않으면 기존 _install_plain 경로로 남는 동작도 기존 시험에서 유지했다.

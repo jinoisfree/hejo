@@ -498,6 +498,28 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             if self._edit_tasks.get(msg_id) is asyncio.current_task():
                 self._edit_tasks.pop(msg_id, None)
 
+    async def first_thread_message(self, chat_id, thread_id, *, metadata=None):
+        """Return the first live message this employee wrote, never another speaker's.
+
+        Report integrations use a projected copy, not the journal or transport cache.
+        """
+        if self.forwarder:
+            return await self._forward("first_thread_message", thread_id,
+                                       chat_id=chat_id, metadata=metadata)
+        employee = (metadata or {}).get("hermes_profile") or chat_id
+        room = chat_id[5:] if chat_id.startswith("room:") else None
+        if room and (room not in self.journal.rooms or room in self.journal.deleted_rooms):
+            return None
+        for row in self.journal.records:
+            if (row["type"] != "message" or row.get("role") != "employee"
+                    or row.get("employee") != employee or row.get("thread") != thread_id
+                    or row.get("room") != room):
+                continue
+            message = self.journal.message(row["msg_id"])
+            if message:
+                return {"msg_id": message["msg_id"], "text": message["text"]}
+        return None
+
     async def set_reply_state(self, msg_id, state):
         if self.forwarder:
             target = _primary
