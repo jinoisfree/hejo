@@ -29,3 +29,5 @@ printf '%s\n' 'AT-HF-23 PASS'
 "${HEJO_PYTHON:-python3}" Tests/rooms_fixture.py .build/app-tests
 
 "${HEJO_PYTHON:-python3}" Tests/composer_target_fixture.py .build/app-tests
+
+"${HEJO_PYTHON:-python3}" Tests/downloads_fixture.py .build/app-tests

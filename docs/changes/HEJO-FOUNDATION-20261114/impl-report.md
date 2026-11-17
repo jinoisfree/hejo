@@ -1979,3 +1979,20 @@ python3 .build/task38/post_checks.py 종료 0. 최종 빌드의 실제 가짜 �
 11. 미검증: 운영 허브/서버, 두 Mac, 실제 시스템 접근성 전환·로그인 항목 등록, 물리 입력기와 VoiceOver. 필요/도달 증거 수준 2/2, 실물은 운영 수락에 남는다. TASK-44 이후는 미착수다.
 12. 검토 요청: LocalStore 한 원본과 허브 분리, 한글 조합/기본 크기 직렬화, 모양 revision 높이 무효화, Future 경합/정리 경계를 봐 달라. public f716bdf는 고정했고 운영 홈·앱 사본·공용 릴리스·운영 저장소·본체/ddots·원격 변경과 GitHub 조회·실제 발송·비밀 파일 열기는 없었다.
 13. 최종 정적 검사·커밋: 개인값 검사·HEJO_PYTHON 지정 훅·diff는 각각 종료 0이다. 소유 파일 27개만 git commit --only 대상으로 정했다. 실제 전체 커밋과 커밋된 입력/그림 바이트 일치·깨끗한 main·고정 public은 .build/task43/final-checks.json·commit-result.json·final-verification.json을 따른다.
+
+
+## 구현 인계: TASK-44 다운로드 폴더 저장
+
+1. 받은 설계: handoff 보완 38 및 대조표 H02/H02+, REQ-HF-37·AT-95와 이번 직접 지시. 기준 7f23b69bb370eb63c492928ada5494ed53d46008. 일반 위험, 필요 증거 수준 2, 임시 홈·명시적 임시 다운로드 위치·루프백만 사용했다.
+2. 구현자 판단: 구현·자체 검증 완료, 계획 담당 검토 대기. tasks 판정은 검토자가 갱신한다.
+3. 책임 배치: 기존 GateHTTP 안의 DownloadFileStore가 사용자 사본의 이름·충돌·저장을, 기존 ConversationController가 사장 열기와 client_msg_id 송신 확인 뒤 보관을 맡는다. 파일 ID·이름·날짜·직원 범위는 기존 조회 복제본에서 읽는다. 새 영구 색인·LocalStore 필드·원본·허브/wire/문/기록장 변경은 없다.
+4. 추가/제거: 받은 파일은 현지 시각 yyyy-MM-dd HHmm와 원본 named의 ID/확장자 규칙으로 저장 후 연다. 같은 파일 진행 중 누름은 한 번만 받고, 저장된 사본의 재열기는 받지 않는다. 보낸 파일은 송신 확인 뒤 ID 없는 이름으로 보관하며 같은 내용 재사용·다른 내용 2~99 번호·이미 다운로드 안인 원본 보존을 적용한다. 사본 보관 큐는 직렬이다. 그림 미리보기의 download는 기존 캐시만 쓴다.
+5. 설계 차이: 원본 받은 파일 저장 실패는 안내만 표시하지만 이번 직접 지시대로 캐시로 열기를 더했다. 원본 `파일을 저장하지 못했어요. …` 문구를 그대로 사용하고 다음 열기 시 이전 안내를 지운다. 원본의 Slack 200MB·보관하지 않기·별도 ddots 기록장은 제외했다. hejo 50MiB·변경된 업로드·출입증/리디렉션/크기 검사는 유지했다.
+6. 사용 형태: 다운로드 위치 주입은 실제 사용자 폴더에 쓰지 않는 시험 격리다. 사본은 사용자 소유 산출물이며 파일 공급자의 두 번째 원본으로 쓰지 않는다. 서버 조회용 cache/files는 그대로다. 하위 에이전트·새 SwiftUI·시험 전용 제품 분기는 없다.
+7. 변경 성격: 승인된 의미 변경이다. 기존 열기 요청이 사용자 사본을 남기며 확인된 전송도 이 Mac에 사본을 남긴다. 업로드 성공만으로는 저장하지 않고 거절된 전송 사본은 남기지 않는다. 보낸 사본 실패가 성공한 전송을 실패로 뒤집지 않는 원문 동작은 유지했다.
+8. 시험: DownloadsTests는 현지 날짜/ID/한글 UTF-8/확장자·위험 이름·같은 내용 재사용/번호/폴더 안 파일·한도를 단언한다. downloads_fixture.py는 실제 GateClient/Controller/HTTP와 가짜 문에서 동시 누름·재열기 각 한 번 받기, 다른 ID, 직원 범위, 불가 폴더 안내+캐시 열기, 확인된 전송/거절된 전송을 보호한다. 기존 실제 파일 송수신 시험들도 다운로드 위치를 임시 홈에 명시했다. 통과한 시험의 단언은 완화하지 않았다.
+9. 실행 검증: frozen.py 종료 0. foundation9_runner hejo 245 passed(test_install·허브 포함), 앱 전체·기존 통신·새 AT-95 루프백 통과. 파일 함수+실제 AT-95 루프백 반복 3회 모두 0·inputsUnchanged=true, 입력 186개 불변. frozen-progress.json·final-foundation.log·app-focused-01~03.log. reference.py 종료 0: 읽기 전용 ddots 원본과 실제 제품 파일 함수를 각각 컴파일·실행한 이름/파일 본문 결과가 같다. mutation.py 종료 0: 파일 ID를 빼는 사본 compile/run 0, 원본 비교 단언은 정상 0·변형 1로 검출했다. 원본과 실제 제품은 변형하지 않았다. post_checks.py 종료 0: 같은 입력·원본 불변·산출물 지문·codesign deep/strict 통과. 로그는 .build/task44에 있다.
+10. 미검증: 실제 사용자 다운로드 폴더·운영 서버·두 Mac 실물. 필요/도달 수준 2/2다. 새 제품 화면이 없는 I/O 변경이므로 화면 사진 대신 원본/제품의 같은 파일 이름·본문 비교를 evidence/HEJO-FOUNDATION/TASK-44.md·task44-files.json에 남겼다. 운영 앱 전체 비교를 주장하지 않는다.
+11. 중간 근거: 첫 단위 시험의 임시 루트 생성 누락과 새 가짜 welcome의 avatar 필드 누락을 고쳤다. 실제 제품 오류가 아닌 시험 초기 상태였고 원문/통신 계약은 바꾸지 않았다. 저장 실패 안내 초기화를 더하기 전 전체 검사는 소유 실행만 중단하고 intermediate-before-notice-clear에 보존했다. 선택한 글 날짜를 직접 전달하도록 호출자를 맞추기 전 실행은 intermediate-before-message-date에 보존했다. 이후 최종 입력으로 재검증했다. 기존 Swift 5 actor/SDK 경고는 원 로그에 남겼다. 범위 밖 부채는 새로 발견하지 않았다.
+12. 검토 요청: 사용자 사본과 조회 캐시 구분, 재열기의 직원/삭제 범위, 기존 소수 초 날짜 파서, 송신 확인 경계·직렬 사본 큐, 오류 안내/캐시 fallback을 봐 달라. public f716bdf는 고정했고 운영 홈·앱 사본·공용 릴리스·운영 허브·운영 저장소·본체/ddots·원격 변경, GitHub 조회·실제 발송·비밀 파일 열기는 없다. TASK-45 이후 미착수다.
+13. 최종 정적 검사·커밋: 보고 추가 뒤 개인값·HEJO_PYTHON 지정 훅·diff 검사를 하고 소유 파일만 git commit --only로 기록한다. 실제 전체 커밋·소유 파일·입력/산출물 지문 일치·깨끗한 main·고정 public은 .build/task44/final-checks.json·commit-result.json·final-verification.json을 따른다.

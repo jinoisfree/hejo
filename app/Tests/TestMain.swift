@@ -28,7 +28,11 @@ final class MemoryCredentials: GateCredentialStore {
         Task { @MainActor in
             do {
                 let args = CommandLine.arguments
-                if args.contains("--task43") {
+                if args.count>3 && args[1]=="--task44-network" {
+                    try await downloadsNetwork(args)
+                } else if args.contains("--task44") {
+                    try downloadsTests()
+                } else if args.contains("--task43") {
                     try await appearanceTests()
                 } else if args.contains("--task42") {
                     try await settingsTests()
@@ -122,6 +126,7 @@ final class MemoryCredentials: GateCredentialStore {
         }
     }
     func unit() async throws {
+        try downloadsTests()
         try await appearanceTests()
         try await settingsTests()
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

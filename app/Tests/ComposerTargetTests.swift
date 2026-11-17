@@ -4,7 +4,7 @@ import AppKit
 @MainActor func composerTargetTests() async throws {
     let home=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer{try? FileManager.default.removeItem(at:home)}
-    let store=try LocalStore(directory:home),client=GateClient(store:store,credentials:MemoryCredentials()),controller=try ConversationController(client:client),model=controller.model
+    let store=try LocalStore(directory:home),client=GateClient(store:store,credentials:MemoryCredentials()),controller=try ConversationController(client:client,downloads:client.store.directory.appendingPathComponent("Downloads")),model=controller.model
     let roster:[[String:Any]]=[["id":"alpha","name":"직원 A","aliases":[]],["id":"beta","name":"직원 B","aliases":[],"queued":true]]
     controller.receive(["type":"welcome","employees":roster,"head_seq":0]);controller.receive(["type":"sync_done","through":0,"more":false])
     var seq=0;let instant=Date(timeIntervalSince1970:1795000000)
@@ -86,7 +86,7 @@ import AppKit
 
 /// The socket and confirmation boundary remain real; the server controls delayed acknowledgements.
 @MainActor func composerTargetNetwork(_ args:[String]) async throws {
-    let home=URL(fileURLWithPath:args[2]),client=GateClient(store:try LocalStore(directory:home),credentials:MemoryCredentials()),controller=try ConversationController(client:client)
+    let home=URL(fileURLWithPath:args[2]),client=GateClient(store:try LocalStore(directory:home),credentials:MemoryCredentials()),controller=try ConversationController(client:client,downloads:client.store.directory.appendingPathComponent("Downloads"))
     defer{client.stop()}
     try client.pair(address:args[3],code:"test_code-12",device:"fake composer")
     try await waitFor{controller.canSend && controller.model.messages.count==1}

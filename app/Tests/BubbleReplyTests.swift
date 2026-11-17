@@ -60,7 +60,7 @@ import AppKit
 }
 
 @MainActor func bubbleReplyNetwork(_ args:[String]) async throws {
-    let home=URL(fileURLWithPath:args[2]),store=try LocalStore(directory:home),client=GateClient(store:store,credentials:MemoryCredentials()),controller=try ConversationController(client:client)
+    let home=URL(fileURLWithPath:args[2]),store=try LocalStore(directory:home),client=GateClient(store:store,credentials:MemoryCredentials()),controller=try ConversationController(client:client,downloads:client.store.directory.appendingPathComponent("Downloads"))
     try client.pair(address:args[3],code:"test_code-12",device:"fake bubble")
     try await waitFor{controller.canSend && !controller.model.typing.isEmpty}
     let key=ConversationKey(employee:"alpha",thread:"11111111-1111-4111-8111-111111111111")

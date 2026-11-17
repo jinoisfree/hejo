@@ -1,0 +1,60 @@
+{
+  "checks": [
+    {
+      "command": "ddots reference compile",
+      "exitCode": 0
+    },
+    {
+      "command": "ddots reference run",
+      "exitCode": 0
+    },
+    {
+      "command": "hejo reference compile",
+      "exitCode": 0
+    },
+    {
+      "command": "hejo reference run",
+      "exitCode": 0
+    }
+  ],
+  "equal": true,
+  "inputsUnchanged": true,
+  "results": {
+    "ddots": {
+      "files": {
+        "2026-01-02 0304 note (abc12).txt": "cmVjZWl2ZWQ=",
+        "2026-01-02 0304 note (abc13).txt": "YW5vdGhlcg==",
+        "2026-01-02 0304 sent 2.txt": "c2Vjb25k",
+        "2026-01-02 0304 sent.txt": "Zmlyc3Q="
+      },
+      "insideUnchanged": true,
+      "named": {
+        "": "이름 없음 (abc12)",
+        " /:hidden\n.txt ": "__hidden_ (abc12).txt",
+        ".hidden": "_hidden (abc12)",
+        "note.txt": "note (abc12).txt",
+        "한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한.pdf": "한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한 (abc12).pdf"
+      },
+      "numbered": "2026-01-02 0304 sent 2.txt",
+      "sameReused": true
+    },
+    "hejo": {
+      "files": {
+        "2026-01-02 0304 note (abc12).txt": "cmVjZWl2ZWQ=",
+        "2026-01-02 0304 note (abc13).txt": "YW5vdGhlcg==",
+        "2026-01-02 0304 sent 2.txt": "c2Vjb25k",
+        "2026-01-02 0304 sent.txt": "Zmlyc3Q="
+      },
+      "insideUnchanged": true,
+      "named": {
+        "": "이름 없음 (abc12)",
+        " /:hidden\n.txt ": "__hidden_ (abc12).txt",
+        ".hidden": "_hidden (abc12)",
+        "note.txt": "note (abc12).txt",
+        "한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한.pdf": "한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한한 (abc12).pdf"
+      },
+      "numbered": "2026-01-02 0304 sent 2.txt",
+      "sameReused": true
+    }
+  }
+}

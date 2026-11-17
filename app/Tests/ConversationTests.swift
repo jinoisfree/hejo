@@ -119,7 +119,7 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
 }
 @MainActor func conversationNetwork(_ args:[String]) async throws {
     let directory=URL(fileURLWithPath:args[2]), store=try LocalStore(directory:directory), client=GateClient(store:store)
-    let controller=try ConversationController(client:client)
+    let controller=try ConversationController(client:client,downloads:client.store.directory.appendingPathComponent("Downloads"))
     try client.pair(address:args[3],code:"test_code-12",device:"test-device")
     print("CONVERSATION_STAGE replay"); fflush(stdout)
     try await waitFor { controller.canSend && controller.model.applied == 3 }
@@ -162,9 +162,9 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     print("CONVERSATION_AUTOMATIC_CAPTURE_OK"); fflush(stdout)
     var opened:URL?
     controller.onOpenFile={opened=$0}
-    await controller.open(file,employee:"alpha")
+    await controller.open(file,employee:"alpha",date:ThreadTools.date(sent.timestamp))
     try check(opened != nil && (try Data(contentsOf:opened!)) == Data("fixture attachment".utf8),"download passes original bytes to open callback")
-    opened=nil; await controller.open(file,employee:"beta")
+    opened=nil; await controller.open(file,employee:"beta",date:ThreadTools.date(sent.timestamp))
     try check(opened == nil && controller.transferFailure != nil,"foreign employee download never opens a file")
     controller.setText(String(repeating:"한",count:30_000)); await controller.sendCurrent()
     try check(controller.transferFailure?.message.contains("너무 큼") == true,"composer blocks 64KiB text before socket send")
@@ -175,7 +175,7 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     controller.setText("normal request again"); await controller.sendCurrent()
     try await waitFor { controller.draft.text.isEmpty && !controller.sending }
     let redirect=MessageFile(fileID:"77777777-7777-4777-8777-777777777777",name:"redirect.txt",mime:"text/plain",size:0)
-    opened=nil; await controller.open(redirect,employee:"alpha")
+    opened=nil; await controller.open(redirect,employee:"alpha",date:ThreadTools.date(sent.timestamp))
     try check(opened == nil,"HTTP redirects cannot carry credentials or open unverified files")
     controller.setText("disconnect unacknowledged"); await controller.sendCurrent()
     try await waitFor { controller.canSend && controller.transferFailure?.message.contains("전송 확인") == true }

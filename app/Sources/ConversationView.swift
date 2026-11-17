@@ -943,7 +943,7 @@ import UniformTypeIdentifiers
             pieces.append(.accessory(id:file.id,height:size.height,view:{ [weak self] in
                 let tile=FileTile(file:file);tile.picture=picture;tile.failed=self?.failedThumbnails.contains(file.id)==true;tile.busy=self?.busyFiles.contains(file.id)==true
                 tile.invoke={ [weak self] in guard let self else{return};self.busyFiles.insert(file.id);self.refresh();Task {
-                    if await self.controller.open(file,employee:message.speaker) {self.failedThumbnails.remove(file.id)}else{self.failedThumbnails.insert(file.id)}
+                    if await self.controller.open(file,employee:message.speaker,date:ThreadTools.date(message.timestamp)) {self.failedThumbnails.remove(file.id)}else{self.failedThumbnails.insert(file.id)}
                     self.busyFiles.remove(file.id);self.refresh()
                 }}
                 return MessageAccessory(tile,mine:mine,limit:size.width)

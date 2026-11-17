@@ -206,8 +206,8 @@ struct ConversationFailedSend: Identifiable {
     }
     private var replicaAddress: String
     private var timer: Timer?
-    init(client: GateClient) throws {
-        self.client = client; replicaAddress = client.store.settings.address;draftAddress=replicaAddress; model = try ConversationModel(store: client.store); files = GateHTTP(client: client)
+    init(client: GateClient, downloads:URL?=nil) throws {
+        self.client = client; replicaAddress = client.store.settings.address;draftAddress=replicaAddress; model = try ConversationModel(store: client.store); files = GateHTTP(client: client,downloads:downloads)
         model.noticeClock={ [weak self] in self?.clock() ?? Date() }
         model.onChange = { [weak self] in
             guard let self else{return}
@@ -285,7 +285,7 @@ struct ConversationFailedSend: Identifiable {
             if newPostIDs.remove(id) != nil,entry.revision==composeRevision {followup=entry.key}
             model.markThreadRead(entry.key)
             transferFailure=nil;notice=""
-
+            if !entry.draft.attachments.isEmpty {Task {await files.keepSent(entry.draft.attachments,date:entry.at)}}
         }
         if frame["type"] as? String == "error" {
             deleting=[];makingRoom=false
@@ -449,8 +449,17 @@ struct ConversationFailedSend: Identifiable {
         do { try await client.send(ConversationModel.click(message: message, button: button)); transferFailure=nil }
         catch { transferFailed(error) }
     }
-    @discardableResult func open(_ file: MessageFile, employee: String) async ->Bool {
-        do {let url=try await files.download(file,employee:employee);onOpenFile(url);transferFailure=nil;return true}
+    private var openingFiles=Set<String>()
+    @discardableResult func open(_ file: MessageFile, employee: String, date:Date) async ->Bool {
+        guard openingFiles.insert(file.fileID).inserted else{return true}
+        defer {openingFiles.remove(file.fileID)}
+        notice=""
+        do {
+            let result=try await files.openedFile(file,employee:employee,date:date)
+            onOpenFile(result.url);transferFailure=nil
+            if let problem=result.problem {notice=problem;onChange?()}
+            return true
+        }
         catch {transferFailed(error);return false}
     }
     private func transferMessage(_ error:Error)->String {
