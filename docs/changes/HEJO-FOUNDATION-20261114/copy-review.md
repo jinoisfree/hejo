@@ -629,3 +629,31 @@ D11의 “삭제된 사진/파일”은 원본 SlackThreads의 파일 파서가 
 N38-01 최종 화소 비교에서 그림의 quiet가 불투명 검정으로 남는 것을 발견했다. 반투명 색을 원본 검정 glyph 위에 sourceAtop으로 합성하면 원래 불투명 alpha가 남기 때문이다. sourceIn으로 glyph 모양과 지정 색 alpha를 함께 보존한다. 답 그림과 파일 보조 그림도 기본 primary alpha×opacity를 보존해 원문 Color.primary.opacity와 맞춘다. AT-89는 흰 배경에서 quiet 핀의 실제 가장 어두운 화소가 원문의 회색 범위인지 검사한다. 크기·간격만 맞은 수정 전 그림/실행은 intermediate-before-symbol-alpha에 보존한다.
 
 남은 원본 getter/표시 경계도 대조했다. ChatFile.isPDF는 MIME뿐 아니라 대소문자와 무관한 .pdf 확장자를 본다. NativeThreadContent.nativePost는 직원 글의 가장자리 개행만 지우고 내 글은 보존한다. MessageFormat.uniformSize는 보이지 않는 U+200B layout sentinel의 작은 글씨를 유지한다. 이 경계를 제품·시험에 반영했다. StreamReveal은 원본 frame처럼 모든 수신 표시 상태를 시계마다 전진시키되, 따라 읽은 답으로 표시하는 대상은 현재 방/홈의 스레드로 제한했다. 다른 방 스트림이 멋대로 펼쳐지지 않는 단언을 추가했다. 날짜도 실제 Date를 비교하고 확인 전 메모리 글을 포함하는 기존 Controller.timeline을 사용해 새 글이 먼 과거로 표시되지 않도록 했다. 변경 전 통과 기록은 intermediate-before-render-boundaries에 보존한다.
+
+
+## TASK-40 원본 독해·대응 (보완 55·38)
+
+- E01~05·E14~15: NativeThreadList.swift 전체(Coordinator update/layout/geometry/performScroll/input monitoring), SlackPanel의 receiveStreams→applyStreamFrame→glide/glideStep→refreshThreadRenderMemos, Place/place/keep, requestScroll/entryViewport 전체·choose/select/toggle/keepOpen·resize place/restore를 읽었다. SlackController.whenStill·arrive의 자리 보존 호출까지 대조했다. 가운데는 frame.midY−viewport/2, 끝은 frame.maxY−viewport, 0/0.15/0.45 재관찰이다. glide는 프레임 보정 min6·max1, 성장만 20%·최소2·최대36×frames, 축소는 즉시, 마지막 1.2초다. keep는 바닥 거리로 0/0.06/0.2/0.4초 복원하며 손 입력·새 요청이 이긴다. 이 상태는 기존 NativeThreadList가 소유한다. 기록/통신은 바꾸지 않는다.
+- E06~07/V15: NativeThreadContent의 style와 NativeThreadCard post.flash, SlackFind의 reveal/arrive/findTerm/openFind 및 SlackPanel open.didSet을 읽었다. flash accent 2·본문0.18·둥근8·1.6초(아일랜드1.5), 검색어는 같은 스레드의 모든 글에 접을 때까지 남는다.
+- E08/E17/A17: slackNoticeBar 전체·SlackModel.jump/go·alertCount와 기존 hejo notices를 대조했다. 원본 알약 수는 threads.count이며 hejo는 이미 스레드당 요청/알림 하나씩 뽑는다. 툴팁·접근성·가로 스크롤·위쪽 opacity/move 0.24·quiet chevron을 적용한다.
+- E09~11/V07: ChatWorkspace.swift·SlackFindView.swift 전체, SlackPanel.headerTitle/headerDescription, ChatDragView 전체를 읽었다. 오른쪽 머리줄 단추는 없애고 기존 메뉴·⌘F 경로를 쓴다. 2.1판 홈 제목 순서를 적용한다. 검색 결과 이름은 글의 실제 speaker이며 방은 @/#/홈 이름이다. 검색 서식은 원문의 노랑·검정과 14 medium 첫 글, 12 본문이다.
+- E12: SlackModel.animated·ddotsFaces·slackAttachments·작성기 모드 전환과 기존 ComposerFaces를 읽었다. 기존 얼굴0.24는 재사용하고 모드/칩은 같은 0.24 easeInOut으로 연결한다.
+- E13/E16: App.layoutChatSize/slackFitHeight/slackChromeHeight/fitSlackThread, ChatPresentation measureReply/releaseReplyHeight/toggleReply, ChatPanel.replyHeight, PetLayout retarget/step 전체 의존을 읽었다. 창 높이는 기존 PetController 위치/크기 한 곳에서 τ0.065(최대dt0.1·오차0.2)로 추종하며, 더 보기의 확장 전 실측 높이 기준으로 접으면 되돌린다. 수동 크기 조절은 기준을 받아들이고 해제한다.
+- N39-01: HermesReplyChecklist 전체(choices/ViewThatFits/grid/body) 재독. 항목 .bordered·12pt, 간격8·fixedSize, 작성/건너뛰기도12pt 기본 bordered다. 기존 hejo의 +20 고정 폭·48/80 폭 대신 원본 실측에 맞춘 native 제어를 쓰고 AT-90 측정을 추가한다.
+
+N39-01 실측: 원본 .font(.system(size:12)) 환경의 .bordered 기본 제어는 일정 61×24·선택된 일정70×24·작성47×24·건너뛰기69×24다. 동일한 AppKit regular rounded는 font12에서59/66/45/66, font13에서61/70/47/69로 원본과 일치한다. 이 macOS 기본 제어의 실제 치수를 따라 font13·intrinsicContentSize로 옮긴다(원문 선언을 임의 수치로 고친 것이 아닌 실제 네이티브 제어 표시 대조). 원본 `.fixedSize()`대로 격자에서도 단추를 열 전체 폭으로 늘리지 않는다. 선택 후 글자/폭도 다시 잰다. 근거는 로컬 checklist-measure.log·native13.log이며 AT-90에 실제 프레임 치수를 더했다.
+
+TASK-40 연결: NativeThreadList의 갱신 때 무조건 마지막 행으로 뛰는 옛 경로를 제거하고 가운데/끝 요청·glide·keep·readerInput·0.25/2초 갱신 보류로 교체했다. 입력 모니터는 목록 안 포인터 또는 목록 자손 키보드에만 반응한다. 크기 조절은 같은 목록의 행 id/offset 또는 바닥을 보존한다. AppDelegate는 기존 PetController와 목록의 조절 시작/끝을 연결한다. PetController의 fitOpenThread는 목표만 바꾸고 하나의 placement 계산으로 높이를 τ0.065 추종한다. 긴 글은 펼치기 전 실제 글 높이와 그때 창 높이를 잠시 보유하며, 합산 증가분만 요청하고 접기·수동 조절 때 해제한다. 새 영구 원본은 없다.
+검색 강조는 시간 제한 flash와 분리해 해당 스레드 전체에 유지한다. 검색 다시 열기·접기·방 이동으로 해제한다. 기본 머리줄은 2.1판 순서와 단체방 설명, 오른쪽 두 단추 제거·기존 메뉴/단축키를 쓴다. 모드·칩·알림 막대는 기존 SidebarMotion과 같은 easeInOut 0.24다. 얼굴은 기존 ComposerFaces의 같은 전환을 재사용한다. 알약 수는 기존 notices가 스레드당 하나씩 만든 대표 글 수라 추가 원본/카운터 없이 보존한다.
+
+전체 앱 시험의 AT56 옛 단언은 아일랜드 카드 강조를 2.5pt로 기대했다. §0-3 V15가 원문의 accent 테두리2·본문0.18로 검색/알림 막대뿐 아니라 아일랜드 이동도 대체한다고 명시하므로, IslandTests의 그 한 단언을 2pt와 accent 색의 결합 검사로 교체했다. 1.5초·질문 순서·선택·펼침 단언은 유지한다. 이는 26판과 보완 38의 명시적 대체이며 원래 수락 범위를 완화하지 않는다. 실패 실행은 intermediate-old-island-assertion에 따로 보존한다.
+
+원본 비교 캡처는 원문 ChatWorkspace.workspaceHeader·slackNoticeBar·SlackFindView를 분리 실행하고 같은 합성 명부/글 상태를 준다. ImageRenderer의 ScrollView viewport와 TextField는 각각 같은 내용의 정적 틀·글자로 대체한다(원본 파일은 수정하지 않음). 실제 입력/스크롤 상호작용은 제품 native 경로로 검증한다. 처음 색 전환 비교에서 labelColor의 이미 계산한 CGColor가 남는 것을 찾아 검색 상자 appearance/layout에서 다시 계산하게 했다. 원본 막대의 정적 틀은 leading 정렬을 유지한다. 전체 앱 비교나 픽셀 동일 판정은 아니다.
+
+AT-90의 “따라 읽은 스트림이 완료 후에도 펼침” fixture는 여러 스레드를 고른 뒤 새 글을 쌓으면 갱신마다 자동으로 바닥으로 뛰던 옛 NativeThreadList를 암묵적으로 전제했다. TASK-40의 120pt·자리 보존 규칙에서는 읽던 자리가 남는 게 맞으므로, 그 시험의 스트림 시작 전에 실제 native 바닥으로 이동하고 followsAnswer를 단언한다. uniform size·완료 후 펼침 유지·다른 방 스트림 미펼침 기대값은 그대로다. 발견 실행은 intermediate-follow-fixture-position에 보존했다.
+
+검색 강조 접기의 순서도 실제 model.select의 동기 onChange까지 따라 확인했다. 카드 클릭으로 접을 때 강조를 model.select 뒤에 지우면 이미 직전 강조로 refresh한 그림이 남는다. chooseThread에서 강조를 먼저 해제한 뒤 원래 select/refresh를 타도록 했고 AT-91도 추가 refresh 없이 카드 선택 경로로 접어 바로 관찰한다. 별도 전체 검사 중 수정이라 앞 실행은 최종 근거에서 제외했다.
+
+최종 시험 보완: 전체 앱 단위 AT-90·91은 통과했으나 뒤의 rooms 루프백에서 timeout이 발생해 단독 조사했다. 별도 --task40 정상본은 Swift #filePath의 상대 경로가 컴파일/실행 폴더에 따라 달라 펫 자원을 못 찾았다. 시험은 실행 파일 옆 빌드 앱을 먼저 찾고 집중 바이너리의 저장소 루트 실행만 상대 빌드 앱을 쓰게 해 제품 경로를 고치지 않았다. 실패 로그는 intermediate-room-timeout-and-resource-path에 보존한다.
+
+단체방 timeout은 단독 원본 시험으로 세 번 재현했고 단계 로그상 2→19글까지 송수신은 맞으나 글 수와 함께 0.04→5.4초로 증가했다. 실제 프로세스 sample은 notices 정렬·bell·새 활동 비교에서 ThreadTools.date가 ISO formatter/ICU 자료를 매 호출 생성하는 비용을 보여 줬다. 날짜 해석은 fractional 우선→whole→distantPast 그대로 두고 기존 ThreadTools 자리에서 두 parser 자원만 NSLock 아래 재사용한다. 글/날짜 값 캐시나 두 번째 원본은 만들지 않는다. 새 경로의 추가 날짜 비교가 늘린 비용을 원래 계산 자리에서 줄이며, AT-91은 기존 파서 참조와 fractional/whole/offset/실패 결과를 100개 동시 호출로 대조한다. 8초/90초 기준은 바꾸지 않는다. sample·단독 단계 로그는 로컬 task40에 보존했다.

@@ -196,6 +196,7 @@ final class SidebarHandle: NSView {
 final class ConversationHeaderDrag: NSView {
     var excluded:((CGPoint)->Bool)?
     var onMenu: (() -> NSMenu?)?
+    var menuHelp:String? {didSet{setAccessibilityHelp(menuHelp)}}
     override func menu(for event: NSEvent) -> NSMenu? { onMenu?() }
     override func hitTest(_ point:NSPoint)->NSView? { if excluded?(point) == true { return nil };return super.hitTest(point) }
     var onBegan: ((CGPoint) -> Void)?, onChanged: ((CGPoint) -> Void)?, onEnded: (() -> Void)?, onDoubleClick: (() -> Void)?
@@ -257,6 +258,7 @@ final class PassiveLabel: NSTextField { override func hitTest(_ point:NSPoint) -
 /// SwiftUI's capsule/circle controls translated into native drawing, including its hit area.
 final class ComposerButton: NSButton {
     var invoke:(() -> Void)?, chosen=false,mode=false
+    var selection:CGFloat?
     var symbol:String?, point:CGFloat=11, circle=false
     init(title:String="",symbol:String?=nil,point:CGFloat=11,circle:Bool=false) {
         self.symbol=symbol; self.point=point; self.circle=circle
@@ -266,10 +268,12 @@ final class ComposerButton: NSButton {
     @objc private func pressed() { invoke?() }
     override func acceptsFirstMouse(for event:NSEvent?) -> Bool { true }
     override func draw(_ dirtyRect:NSRect) {
-        let fill: NSColor = chosen ? (mode ? .controlAccentColor:.systemBlue) : circle ? NSColor.labelColor.withAlphaComponent(0.07) : .clear
+        let amount=selection ?? (chosen ? 1:0)
+        let fill: NSColor = mode ? NSColor.controlAccentColor.withAlphaComponent(amount) : chosen ? (mode ? .controlAccentColor:.systemBlue) : circle ? NSColor.labelColor.withAlphaComponent(0.07) : .clear
         fill.withAlphaComponent(chosen && !isEnabled && !mode ? 0.4 : fill.alphaComponent).setFill()
         NSBezierPath(roundedRect:bounds,xRadius:bounds.height/2,yRadius:bounds.height/2).fill()
-        let color: NSColor = chosen ? .white : mode && isEnabled ? .labelColor:.labelColor.withAlphaComponent(isEnabled ? 0.7 : 0.42)
+        let ordinary:NSColor=mode && isEnabled ? .labelColor:.labelColor.withAlphaComponent(isEnabled ? 0.7:0.42)
+        let color:NSColor=mode ? ordinary.blended(withFraction:amount,of:.white) ?? .white:chosen ? .white:ordinary
         if let symbol,let image=NSImage(systemSymbolName:symbol,accessibilityDescription:title)?.withSymbolConfiguration(.init(pointSize:point,weight:chosen ? .bold : .regular)) {
             let tinted=image.copy() as! NSImage; tinted.lockFocus(); color.set(); CGRect(origin:.zero,size:image.size).fill(using:.sourceAtop); tinted.unlockFocus()
             tinted.draw(in:CGRect(x:(bounds.width-image.size.width)/2,y:(bounds.height-image.size.height)/2,width:image.size.width,height:image.size.height))

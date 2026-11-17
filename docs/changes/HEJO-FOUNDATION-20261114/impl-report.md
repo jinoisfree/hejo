@@ -1905,3 +1905,24 @@ python3 .build/task38/post_checks.py 종료 0. 최종 빌드의 실제 가짜 �
 - 첫 appearance 중복 컴파일, 이전 시간/실패 줄 단정 실패, 사진 비율 마지막 보정 이전 실행은 `intermediate-*`에 보존하고 최종 통과와 구분했다. 삭제 표식 계약 경계 재현은 기존 기록을 재사용했다.
 
 필요/도달 인계 증거 수준은 2/2다. 캡처는 가짜 연결 상태의 실제 AppKit 조립과 원본 함수 분리 비교이며 원본/운영 앱 전체·픽셀 동일 비교가 아니다. 실제 서버·두 Mac·물리 입력기·VoiceOver·운영 수락은 남는다. 최종 보고 추가 뒤 개인값·HEJO_PYTHON 지정 훅·diff 검사를 하고 소유 파일만 별도 git commit --only로 기록한다. 실제 커밋·입력·그림 바이트 대조와 깨끗한 main 확인은 `.build/task39/final-verification.json`에 둔다. public 후보 `f716bdff38af3d8c2cb2cdf4502e080ecbecb2bc`는 유지한다. 운영 홈·앱 사본·공용 릴리스·운영 저장소·본체·ddots·원격 변경, GitHub 조회·push·실제 발송·비밀 파일 열기는 하지 않았다.
+
+
+## TASK-40 최종 구현·자체 검증
+
+- 받은 기준: 보완 38·55와 대조표 §E·V07·V15, 2.1판 E09·E14~17. 부모는 `2ab15395d537a074804f29237a34dcfaecf1b24c`. 일반 작업, 필요 증거 수준 2, 자체 구현·시험이며 최종 판정은 계획 담당에게 맡긴다. 하위 에이전트는 쓰지 않았다.
+- 기존 NativeThreadList의 무조건 마지막 행 이동을 가운데/끝 요청·120pt 바닥 따라가기·glide·keep·입력 취소로 교체했다. 0/0.15/0.45 요청과 0/0.06/0.2/0.4 보존 재관찰은 입력/요청 세대가 바뀌면 폐기한다. 휠 중 최신 표시 갱신은 0.25초, 연속 입력은 최대 2초까지 미룬다. 방 재진입은 가장 최근 활동으로 가고 크기 변경은 행 id/offset 또는 바닥을 보존한다. 기록·통신·읽음 원본은 그대로다.
+- flash는 accent 2·본문 0.18·둥근 8, 원래 1.6초/아일랜드 1.5초다. 검색어는 이 타이머와 분리해 해당 스레드를 접을 때까지 남긴다. 알림 막대 가로 스크롤·툴팁/접근성·quiet 화살표·위쪽 이동/opacity 0.24를 연결했다. A17 개수는 스레드당 하나인 기존 notices의 대표 글 수를 재사용한다.
+- 머리줄 오른쪽 단추 두 개를 없애고 기존 메뉴·⌘F로 연결했다. 홈 제목 2.1판 순서·단체방 기본 설명·끌기/문맥 메뉴 도움말, 평평한 검색 줄·닫기·첫 글 14 medium·실제 speaker·@/#/홈 이름·파일 노트 paperclip을 적용했다. 테마가 바뀌면 보조 글자/그림과 검색 상자 색도 다시 계산한다.
+- 모드 선택 색·바탕과 칩·알림은 같은 easeInOut 0.24, 홈 얼굴은 기존 ComposerFaces의 0.24를 재사용했다. 기존 PetController가 창 높이를 τ0.065로 추종한다. 더 보기 전 실측 높이·창 높이를 잠시 보유하고 늘어난 높이만 합산하며 접거나 수동 크기 조절하면 해제한다. 새 영구 원본·wire·문·기록장 변경은 없다. 날짜 비교는 기존 ThreadTools의 두 ISO 파서 자원만 잠금 아래 재사용하고, 표시 갱신 안의 알림 조회 결과는 한 번만 계산한다. 기존 fractional/whole/실패 결과를 동시 호출로 대조했으며 날짜 값 캐시는 없다.
+- N39-01은 원본 bordered 실제 크기와 비교해 native regular 버튼의 글꼴·intrinsic 폭·fixedSize를 적용했다. 원문 12pt 환경이 macOS bordered 기본 제어에서 실제 13pt/61×24·47×24·69×24가 되는 실측 근거와 차이는 copy-review에 있다. AT-90에 실제 항목·작성·건너뛰기 치수 단언을 추가했다.
+- 추가 시험은 ScrollTests.swift(AT-91)에 실제 native clip 좌표·중간 프레임·취소·지연·따라가기·자리 보존·요청 수·검색 강조/테마·모드/칩·긴 글/창 높이를 관찰한다. 수락 문서를 바꾸지 않았다. IslandTests의 옛 2.5pt 강조 단언은 명시적 V15 대체에 따라 2pt와 accent 결합 검사로 교체했으며 그 밖 단언은 유지했다.
+
+검증 결과(최종 고정 입력):
+- `python3 .build/task40/frozen.py` 종료 0. 내부 `foundation9_runner.py hejo` 종료 0, 236 passed(test_install 포함), 앱 전체·통신 시험 통과. AT-91 집중 3회 모두 0·inputsUnchanged=true. 검증 입력 169개 불변. `.build/task40/frozen-progress.json`, `final-foundation.log`, `app-focused-01.log`~`03.log`.
+- `mutation.py compile`·`verify` 종료 0. 가운데 이동을 바닥 이동으로 되돌린 사본은 컴파일 0·시험 1로 “AT91 jump centers the thread”에 검출, 정상 사본 0·제품 입력 불변. `.build/task40/mutation.json`.
+- `post_checks.py` 종료 0. 실제 가짜 루프백 연결의 최종 빌드 캡처·원본 함수 분리 실행·원본 glideStep/native 좌표 대조·PNG 10개 유효성·codesign deep strict 각각 0. `.build/task40/post-checks.json`, `scroll-comparison.json`, `image-validation.log`, `static.json`. 원본 불변·추가 SwiftUI import 0·gate/schema 변경 0. 그림은 라이트/다크로 직접 비교했다.
+- `event_probe.py` 종료 0. 같은 제품 소스의 실제 AppKit Space/화살표/Home/End/Page 키 9종·클릭·휠 진입 경로가 예약된 먼 이동을 취소했다. 휠의 실제 10pt 이동(30→20)은 유지됐다. `.build/task40/event-results.json`, `event-run.log`.
+- 단독 단체방 루프백의 지연은 단계 로그·프로세스 sample로 날짜 파서 반복 생성에 좁혔고, 수정 뒤 기존 8초/90초 기준으로 13개 전송 경우가 통과했다. `.build/task40/room-probe-result.json`, `room-probe-run.log`.
+- 앞선 집중 시도의 시험 초기 상태 오류·중간 렌더·테마 색 수정 전 중단 전체는 최종 근거가 아니다. 마지막 고정 소스의 위 결과만 인계한다. 운영 앱 전체·픽셀 동일 비교는 아니다. 원본 ScrollView는 ImageRenderer에 빈 화면이 나와 정적 같은 내용 틀로 바꾸고 TextField만 정적 글자로 대체했다. hejo 왼쪽 목록/아일랜드/작성기와 원본의 비교 대상 범위 차이, native 제어의 기준선·높이 차이는 evidence/HEJO-FOUNDATION/TASK-40.md에 명시했다.
+
+필요/도달 인계 증거 수준은 2/2다. 실제 서버·두 Mac·손 트랙패드/물리 한글 입력·VoiceOver와 운영 결합은 TASK-23에 남는다. TASK-41 이후는 미착수다. 최종 보고 추가 뒤 개인값·HEJO_PYTHON 훅·diff 검사, 소유 파일 git commit --only, 커밋 입력·그림 바이트 대조를 수행하고 실제 커밋은 `.build/task40/final-verification.json`에 둔다. public `f716bdff38af3d8c2cb2cdf4502e080ecbecb2bc`는 불변이다. 운영 홈·앱 사본·공용 릴리스·운영 저장소·Hermes 본체·ddots·원격 변경, GitHub 조회·push·실제 발송·비밀 파일 접근은 없다.

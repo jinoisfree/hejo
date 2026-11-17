@@ -98,8 +98,12 @@ struct RoomNotice: Equatable {
     }
     func readAllNotices(_ employee:String,now:Date=Date()) { for id in notices(employee,now:now).filter({!$0.questions}).flatMap(\.messages) {if let message=messages[id] {markNoticeRead(message.key)}} }
     func header(_ employee:String)->(title:String,description:String) {
-        if let room=groups[employee] {return (room.title,room.description ?? "")}
-        if employee==HomeRoom.id,let channel=homeChannel {return ("#"+channel.title,channel.description ?? "")}
+        if employee==HomeRoom.id {
+            if let channel=homeChannel {return (channel.title,"#"+channel.title)}
+            let value=memberState.value("title:"+HomeRoom.id).flatMap{$0.data(using:.utf8)}.flatMap{try? JSONDecoder().decode([String:String].self,from:$0)}
+            return (value?["title"].flatMap{$0.isEmpty ? nil:$0} ?? "hejo",value?["description"] ?? "조직원들의 소식과 대화")
+        }
+        if let room=groups[employee] {return (room.title,room.description.flatMap{$0.isEmpty ? nil:$0} ?? "조직원들의 소식과 대화")}
         if let text=memberState.value("title:"+employee),let data=text.data(using:.utf8),let value=try? JSONDecoder().decode([String:String].self,from:data),let title=value["title"],!title.isEmpty {return (title,value["description"] ?? "")}
         return (room(for:employee)?.title ?? name(employee),"함께 나누는 대화")
     }

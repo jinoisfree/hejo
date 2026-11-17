@@ -111,7 +111,7 @@ private func islandMessage(_ seq:Int,_ key:ConversationKey = islandA,asked:Bool=
     ui.island.hover(at:nil)
     ui.island.activate(at:CGPoint(x:owner.midX,y:owner.midY));ui.layoutSubtreeIfNeeded()
     try check(controller.model.selected == islandA && ui.history.contents.first(where:{$0.id == islandA.thread})?.expanded == true && ui.highlightedMessageID == islandMessage(1).id,"AT56 oldest asked selects its room and opens/highlights card")
-    try check(ui.history.contents.first(where:{$0.id == islandA.thread})?.style.lineWidth == 2.5,"AT56 visible card highlight")
+    try check(ui.history.contents.first(where:{$0.id == islandA.thread})?.style.lineWidth == 2 && ui.history.contents.first(where:{$0.id == islandA.thread})?.style.stroke == .controlAccentColor,"AT56 V15 visible accent 2pt card highlight")
     time.addTimeInterval(1.6);ui.tickIsland();try check(ui.highlightedMessageID == nil,"AT56 highlight expires at 1.5 seconds")
     try controller.model.apply(["v":1,"type":"typing","employee":"beta","thread":islandB.thread,"on":true,"ttl_seconds":6],now:time)
     ui.refresh();ui.layoutSubtreeIfNeeded()

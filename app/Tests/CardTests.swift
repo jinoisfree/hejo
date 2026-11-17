@@ -70,6 +70,7 @@ import AppKit
     checklist.frame=CGRect(x:0,y:0,width:500,height:90);checklist.layoutSubtreeIfNeeded();let options=homeDescendants(checklist,FileChip.self).filter{$0.title.hasPrefix("☐")}
     try check(Set(options.map{$0.frame.minY}).count==1,"AT90 wide checklist is a single row")
     checklist.frame.size.width=150;checklist.layoutSubtreeIfNeeded();try check(Set(options.map{$0.frame.minY}).count==2,"AT90 narrow checklist has two columns")
+    try check(options.allSatisfy{$0.frame.size==CGSize(width:61,height:24)} && homeDescendants(checklist,FileChip.self).first{$0.title=="건너뛰기"}?.frame.size==CGSize(width:69,height:24) && homeDescendants(checklist,FileChip.self).first{$0.title=="작성"}?.frame.size==CGSize(width:47,height:24),"AT90 source bordered checklist dimensions and padding")
     options.first?.invoke?();try check(options.first?.contentTintColor == .controlAccentColor,"AT90 selected checklist accent")
     let text=CardText.linkifiedNative(MessageFormat.renderNative("https://example.invalid/doc). obsidian://open?vault=demo",bodySize:14))
     var links:[URL]=[];text.enumerateAttribute(.link,in:NSRange(location:0,length:text.length)){value,_,_ in if let url=value as? URL{links.append(url)}}
@@ -97,7 +98,8 @@ import AppKit
         for _ in 0..<50 {try post("답",thread:long.key.thread)}
     };ui.refresh()
     try check(actions(long).first{$0.title=="분기"}?.color == .systemOrange,"AT90 fifty replies branch orange")
-    let flowing=try post("첫 글")
+    let flowing=try post("첫 글");ui.history.enter(nil)
+    try check(ui.history.followsAnswer,"AT90 followed-stream fixture starts at bottom")
     let longBody="# 흘러오는 제목\n"+String(repeating:"긴 답글을 이어서 읽습니다. ",count:45)
     seq+=1;let partial:[String:Any]=["v":1,"type":"edit","seq":seq,"msg_id":flowing.id,"text":longBody,"final":false];try store.append(partial);controller.receive(partial);ui.refresh()
     let during=content(flowing)

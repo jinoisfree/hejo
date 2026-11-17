@@ -44,6 +44,7 @@ import AppKit
             conversationView.homePetImage=pet.pet.atlas.image(row:0,frame:0)
             pet.pet.installConversation(conversationView)
             conversationView.onCollapse = { [weak self] in self?.pet.collapseChat() }
+            pet.onReadingResizeBegan={ [weak conversationView] in conversationView?.beginReadingResize() };pet.onReadingResizeEnded={ [weak conversationView] in conversationView?.endReadingResize() }
             conversationView.onOpenThreadHeight = { [weak self] height in self?.pet.fitOpenThread(height) }
             pet.panel.onWorkspaceKey = { [weak self] event in self?.conversationView.handleWorkspaceKey(event) ?? false }
             pet.panel.onCollapse = { [weak self] in guard let self else { return }; if !self.conversationView.pickingFiles && !self.conversationView.closeSearchIfOpen() { self.pet.collapseChat() } }

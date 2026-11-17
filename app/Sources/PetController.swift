@@ -33,7 +33,12 @@ final class PetController: NSObject {
         let session = CGSessionCopyCurrentDictionary() as? [String: Any]
         return !(session?["CGSSessionScreenIsLocked"] as? Bool ?? false) && CGDisplayIsAsleep(CGMainDisplayID()) == 0
     }
-    private var timer: Timer?
+    private var timer: Timer?,heightTimer:Timer?
+    var clock:()->Double={ProcessInfo.processInfo.systemUptime}
+    var onReadingResizeBegan:(()->Void)?,onReadingResizeEnded:(()->Void)?
+    private(set) var shownChatHeight:CGFloat?
+    private var heightAt:Double?
+
     private var petDragBottom: CGFloat?
     private var resizedBelow: Bool?
     private var resizeStart: PetPlacement?
@@ -73,7 +78,7 @@ final class PetController: NSObject {
         let screen = displays().first ?? PetDisplay.nearest(to: .zero, in: [])
         placePet(at: CGPoint(x: store.settings.petX ?? Double(screen.visible.midX), y: store.settings.petY ?? Double(screen.visible.midY)))
     }
-    deinit { timer?.invalidate(); NotificationCenter.default.removeObserver(self); NSWorkspace.shared.notificationCenter.removeObserver(self); DistributedNotificationCenter.default().removeObserver(self) }
+    deinit { timer?.invalidate();heightTimer?.invalidate(); NotificationCenter.default.removeObserver(self); NSWorkspace.shared.notificationCenter.removeObserver(self); DistributedNotificationCenter.default().removeObserver(self) }
     func show() { panel.orderFrontRegardless(); pet.updateAnimationVisibility() }
     @objc func toggle() { if chatExpanded { collapseChat() } else { showChat() } }
     func threeFingerTapped() {
@@ -117,7 +122,7 @@ final class PetController: NSObject {
         let foot = PetLayout.visibleSprite(in: sprite)
         let screen = PetDisplay.nearest(to: CGPoint(x: foot.midX, y: foot.minY), in: displays())
         var size = preferredChatSize
-        if chatExpanded, let fittedThreadHeight { size.height = max(size.height, fittedThreadHeight) }
+        if chatExpanded {size.height=shownChatHeight ?? max(size.height,fittedThreadHeight ?? 0)}
         let target = PetPlacement(spriteOrigin: origin, scale: pet.petScale, visibleFrame: screen.visible, screenFrame: screen.frame,
                                   bubbleSize: pet.foldedSize, expanded: chatExpanded, preferredSize: size, below: resizedBelow)
         placementTarget = target; apply(target)
@@ -140,13 +145,14 @@ final class PetController: NSObject {
         placePet(at: origin)
     }
     func endPetDrag() {
+        if resizeStart != nil {onReadingResizeEnded?()}
         petDragBottom = nil; resizeStart = nil
         guard let p = placementTarget else { return }
         try? store.update { $0.petX = Double(p.anchorOrigin.x); $0.petY = Double(p.anchorOrigin.y) }
         saveChatSize()
     }
     private func resize(edge: PetLayout.ResizeEdge, delta: CGPoint) {
-        if resizeStart == nil { resizeStart = placementTarget }
+        if resizeStart == nil {resizeStart=placementTarget;onReadingResizeBegan?();heightTimer?.invalidate();heightTimer=nil;shownChatHeight=nil}
         guard let start = resizeStart else { return }
         let screen = PetDisplay.nearest(to: CGPoint(x: start.globalSprite.midX, y: start.globalSprite.midY), in: displays())
         preferredChatSize = PetLayout.resized(start, edge: edge, delta: delta, screen: screen.visible, screenFrame: screen.frame)
@@ -175,10 +181,23 @@ final class PetController: NSObject {
         if let origin = placementTarget?.anchorOrigin { placePet(at: origin) }
     }
     func fitOpenThread(_ height: CGFloat?) {
-        let next = height.map { max(preferredChatSize.height, $0) }
-        guard next != fittedThreadHeight else { return }
-        fittedThreadHeight = next
-        if chatExpanded, let origin = placementTarget?.anchorOrigin { placePet(at: origin) }
+        let next=height.map{max(preferredChatSize.height,$0)}
+        guard next != fittedThreadHeight else{return}
+        fittedThreadHeight=next
+        guard chatExpanded,resizeStart==nil,let origin=placementTarget?.anchorOrigin else{return}
+        if reducedMotion(){heightTimer?.invalidate();heightTimer=nil;shownChatHeight=nil;placePet(at:origin);return}
+        if shownChatHeight==nil {shownChatHeight=placementTarget?.globalBubble.height ?? preferredChatSize.height}
+        if heightTimer==nil {heightAt=clock();let timer=Timer(timeInterval:1.0/60,repeats:true){[weak self] _ in self?.stepChatHeight()};heightTimer=timer;RunLoop.main.add(timer,forMode:.common)}
+    }
+    /// PetLayout's size follower; glass and content share the one placement calculation.
+    func stepChatHeight(){
+        guard chatExpanded,let origin=placementTarget?.anchorOrigin,let previous=shownChatHeight else{heightTimer?.invalidate();heightTimer=nil;return}
+        let now=clock(),dt=min(0.1,max(0,now-(heightAt ?? now)));heightAt=now
+        let target=max(preferredChatSize.height,fittedThreadHeight ?? 0)
+        let next=previous+(target-previous)*CGFloat(1-exp(-dt/0.065))
+        if reducedMotion() || abs(next-target)<0.2 {shownChatHeight=nil;heightTimer?.invalidate();heightTimer=nil}
+        else {shownChatHeight=next}
+        placePet(at:origin)
     }
     func resetPosition() {
         let screen = displays().first ?? PetDisplay.nearest(to: .zero, in: [])

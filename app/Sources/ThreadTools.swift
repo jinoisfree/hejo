@@ -5,9 +5,13 @@ enum ThreadTools {
     static func thinking(_ text:String)->Bool {
         String(text.split(separator:"\n",omittingEmptySubsequences:false).first ?? "").range(of:#"^[◐◓◑◒🤔\s]*생각\s*중\s*(\.{2,}|…)?\s*$"#,options:.regularExpression) != nil
     }
+    private static let dateLock=NSLock()
+    private static let fractionalDate:ISO8601DateFormatter = {let value=ISO8601DateFormatter();value.formatOptions=[.withInternetDateTime,.withFractionalSeconds];return value}()
+    private static let wholeDate=ISO8601DateFormatter()
     static func date(_ value:String)->Date {
-        let iso=ISO8601DateFormatter();iso.formatOptions=[.withInternetDateTime,.withFractionalSeconds]
-        return iso.date(from:value) ?? ISO8601DateFormatter().date(from:value) ?? .distantPast
+        // Only parser resources are shared. No journal value or parsed-date cache lives here.
+        dateLock.lock();defer{dateLock.unlock()}
+        return fractionalDate.date(from:value) ?? wholeDate.date(from:value) ?? .distantPast
     }
     static func link(_ key:ConversationKey)->URL {
         var parts=URLComponents();parts.scheme="hejo";parts.host="thread"
@@ -190,15 +194,18 @@ enum ReplyButtonPolicy {
         skip.isHidden = !checklist.canSkip;refresh()
     }
     required init?(coder:NSCoder){fatalError()}
-    private static func width(_ label:String)->CGFloat {ceil((("✅ "+label) as NSString).size(withAttributes:[.font:NSFont.systemFont(ofSize:12)]).width)+20}
-    static func columns(_ labels:[String],width:CGFloat)->Int {labels.reduce(CGFloat(0)){$0+Self.width($1)}+CGFloat(max(0,labels.count-1))*8<=width ? max(1,labels.count):2}
-    static func height(_ labels:[String],width:CGFloat)->CGFloat {CGFloat((labels.count+columns(labels,width:width)-1)/columns(labels,width:width)+1)*32-8}
-    override var fittingSize:CGSize {CGSize(width:checklist.items.reduce(CGFloat(0)){$0+Self.width($1)}+CGFloat(max(0,checklist.items.count-1))*8,height:56)}
-    private func refresh(){for (i,button) in choices.enumerated() {let label=checklist.items[i];button.title=(selected.contains(label) ? "✅ ":"☐ ")+label;button.contentTintColor=selected.contains(label) ? .controlAccentColor:.secondaryLabelColor;button.attributedTitle=NSAttributedString(string:button.title,attributes:[.font:NSFont.systemFont(ofSize:12),.foregroundColor:selected.contains(label) ? NSColor.controlAccentColor:.secondaryLabelColor])};submit.isEnabled = !selected.isEmpty;needsLayout=true}
-    override func layout(){super.layout();let columns=Self.columns(checklist.items,width:bounds.width),single=columns==checklist.items.count
+    // SwiftUI bordered's regular macOS bezel uses the native 13pt control font even with its
+    // surrounding 12pt environment. Measured source buttons: ☐ 일정 61×24, 작성 47×24, 건너뛰기 69×24.
+    static func buttonSize(_ title:String)->CGSize {let button=NSButton(title:title,target:nil,action:nil);button.bezelStyle = .rounded;button.font = .systemFont(ofSize:13);return button.intrinsicContentSize}
+    private static func width(_ label:String,selected:Bool=false)->CGFloat {buttonSize((selected ? "✅ ":"☐ ")+label).width}
+    static func columns(_ labels:[String],width:CGFloat,selected:Set<String>=[])->Int {labels.reduce(CGFloat(0)){$0+Self.width($1,selected:selected.contains($1))}+CGFloat(max(0,labels.count-1))*8<=width ? max(1,labels.count):2}
+    static func height(_ labels:[String],width:CGFloat,selected:Set<String>=[])->CGFloat {CGFloat((labels.count+columns(labels,width:width,selected:selected)-1)/columns(labels,width:width,selected:selected)+1)*32-8}
+    override var fittingSize:CGSize {CGSize(width:checklist.items.reduce(CGFloat(0)){$0+Self.width($1,selected:selected.contains($1))}+CGFloat(max(0,checklist.items.count-1))*8,height:56)}
+    private func refresh(){for (i,button) in choices.enumerated() {let label=checklist.items[i];button.font = .systemFont(ofSize:13);button.title=(selected.contains(label) ? "✅ ":"☐ ")+label;button.contentTintColor=selected.contains(label) ? .controlAccentColor:.secondaryLabelColor;button.attributedTitle=NSAttributedString(string:button.title,attributes:[.font:NSFont.systemFont(ofSize:13),.foregroundColor:selected.contains(label) ? NSColor.controlAccentColor:.secondaryLabelColor])};for b in [submit,skip]{b.font = .systemFont(ofSize:13)};submit.isEnabled = !selected.isEmpty;needsLayout=true}
+    override func layout(){super.layout();let columns=Self.columns(checklist.items,width:bounds.width,selected:selected),single=columns==checklist.items.count
         var x:CGFloat=0
-        for (index,button) in choices.enumerated(){let col=index%columns,row=index/columns,width=single ? Self.width(checklist.items[index]):max(1,(bounds.width-8)/2);if col==0{x=0};button.frame=CGRect(x:x,y:CGFloat(row)*32,width:width,height:24);x+=width+8}
-        let y=CGFloat((choices.count+columns-1)/columns)*32;submit.frame=CGRect(x:0,y:y,width:48,height:24);skip.frame=CGRect(x:56,y:y,width:80,height:24)
+        for (index,button) in choices.enumerated(){let col=index%columns,row=index/columns,width=Self.width(checklist.items[index],selected:selected.contains(checklist.items[index]));if col==0{x=0};if !single{x=CGFloat(col)*(bounds.width+8)/2};button.frame=CGRect(x:x,y:CGFloat(row)*32,width:width,height:24);x+=width+8}
+        let y=CGFloat((choices.count+columns-1)/columns)*32;submit.frame=CGRect(origin:CGPoint(x:0,y:y),size:Self.buttonSize("작성"));skip.frame=CGRect(origin:CGPoint(x:submit.frame.maxX+8,y:y),size:Self.buttonSize("건너뛰기"))
     }
     override func mouseDown(with event:NSEvent){}
 }
