@@ -1,3 +1,19 @@
+## 검증 판정: N48-01·02 (2026-11-17)
+
+1. **판정:** 완료(`f0367ecc990dc38a3f64a830223d7f2163de852f`, 파일 5개). 차단 결함은 없다. 지적도 없다.
+2. **검증 조건:** 교차 모델이다. 구현은 codex gpt-6.1-sol, 검토는 Claude Opus 5.5다.
+3. **설계 적합성(4.2):** 보완 46과 같다.
+   - 승인·확인 결과는 `platform.telegram.{approval|slash_confirm}.resolved_{응답}`의 이름 없는 공식 낱말이다. 승인은 once·session·always·deny, 확인은 once·always·cancel이며, 모두 ko.yaml에 있다.
+   - clarify 결과는 Slack 낱말과 `user="나"`를 그대로 쓴다.
+   - `send_video`는 `**kwargs`를 받아 `send_document`로 넘긴다.
+   - 새 문구는 없다.
+4. **직접 확인한 것**
+   - 깨끗한 worktree(f0367ec)에서 `test_delivery_parity.py`를 다시 실행했다. 종료 0, 24 passed.
+   - `.build/n48/foundation.log`: 232 passed.
+5. **작업 56917a17 전체:** 부분 완료. 다음은 TASK-49다.
+
+---
+
 ## 검증 판정: TASK-48 문 Slack 경로 동등 (2026-11-17)
 
 1. **판정:** TASK-48 완료(`d4677990806f9428d7070b25f4c81a99962a3740`, 파일 10개). 증거 수준은 2/2다. 차단 결함은 없다. 비차단 지적 N48-01(문구)과 N48-02(호환)가 있다.
