@@ -1372,3 +1372,21 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
   - 수정: `send_video(..., metadata=None, **kwargs)`로 맞춘다. 시험에 추가 키워드 인자로 불러도 첨부가 되는 경우를 하나 더한다.
 - **검증:** `test_delivery_parity.py`, `foundation9_runner hejo` 0, 개인값 0. 별도 git commit --only.
 - **순서:** N48-01·02 → TASK-49 → TASK-36 → … → 47.
+
+## 보완 지시 47 (TASK-49 시작 조건 정정, 2026-11-17)
+
+- **확인한 사실**
+  - 실행 담당이 시작 대조에서 차이 3건을 찾고 멈췄다. 차이는 `lib/hermes_packs/cctv/now.py`·`watch.py`, 운영 원본에만 있는 `cctv/tests/test_channel_messages.py`다.
+  - 이 셋은 운영 원본이 오늘 21:51에 바뀌었고, 아직 `./sync`로 모으지 않은 것이다. 운영 저장소 규칙상 원본은 `~/.hermes`이고, 매일 04:30 `./sync --commit`이 모은다.
+  - 다른 운영 작업의 정상적인 미동기 상태이며, TASK-49와 겹치지 않는다.
+  - 계획 담당이 다시 확인했다(읽기만). `lib/hermes_reply/`, `lib/hermes_team_services/report_status.py`, `tests/`는 사본과 운영 원본이 같다(`.pytest_cache`만 다름).
+- **결정:** 시작 일치 조건을 TASK-49가 바꾸는 범위로 좁힌다.
+  - 대조 대상: `lib/hermes_reply/**`, `lib/hermes_team_services/**`, `tests/**`(캐시 제외), 그리고 실제로 고치거나 import하는 파일.
+  - 이 범위가 같으면 진행한다. 범위 밖 차이는 보고서에 목록으로만 남긴다.
+  - 범위 안에 차이가 있으면 지금처럼 멈춘다.
+- **패치 기준**
+  - 패치는 운영 원본에 그대로 적용될 수 있어야 한다.
+  - 마지막에 `.build/task49/team-kit.patch`를 운영 원본의 임시 복사본(예: `cp -R ~/.hermes/plugin-store/team-kit <임시>`)에 `git apply --check` 또는 `patch --dry-run`으로 적용해 본다. 운영 원본에는 적용하지 않는다.
+  - 시험이 cctv를 함께 돌려 범위 밖 차이 때문에 결과가 달라지면, 그 사실과 해당 시험을 따로 적는다.
+- **나머지는 보완 41과 같다.** 지금 작업 트리에 있는 `copy-review.md`·`impl-report.md`의 보류 기록은 지우지 말고 이어서 적는다. hejo 쪽에 커밋할 것이 생기면 그 커밋에 함께 넣고, 없으면 그 두 파일만 따로 커밋한다.
+- **운영 주의(계획 담당·사장):** TASK-49 운영 반영 때 운영 원본에 패치를 적용한 뒤 `./sync`를 하면, cctv 변경도 함께 모인다. 커밋 전에 `git status`로 cctv 변경이 다른 작업의 것인지 확인한다.
