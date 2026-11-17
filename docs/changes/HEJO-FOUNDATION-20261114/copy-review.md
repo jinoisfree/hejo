@@ -588,3 +588,44 @@ AppKit 실제 탐침(.build/task38/TableProbe.swift)은 effectFade만 쓰면 들
 정적 캡처는 원본 SwiftUI 그리기 함수를 분리한 보기다. 화면 밖 렌더러가 직접 그릴 수 없는 TextField만 같은 자리의 ‘검색’ 정적 글자로 대체하고, 원본 ScrollView의 현재 보이는 내용은 같은 크기의 잘린 VStack에 둔다. 원본 메뉴·대화상자 전체 운영 실행이나 픽셀 동일성을 주장하지 않는다. 실제 hejo 캡처는 가짜 루프백에 연결된 실제 ConversationView이며, AppKit의 투명 PNG는 원본과 같은 밝음/어두움 바탕에 sourceOver로 합성한다.
 
 최종 그리기 대조에서 primary의 알파를 확인했다. macOS 기본 글자색은 자체 알파가 있으므로 SwiftUI `.opacity(p)`는 그 알파에 p를 곱한다. SidebarTone은 같은 곱셈으로 구획/레일/검색 배경/quiet 색을 옮긴다. 탭의 안 읽은 글은 이름색만 primary이며 굵기는 선택 때만 바뀐다. 목록의 이름↔핀/종도 HStack 원문 간격 12를 쓴다. 글 검색 행은 본문 한 줄/두 줄 높이에 맞춘다. 고정 홈 사진은 원본 displayRoom/picture(for:)대로 선택한 방 자원이고, 기본 홈의 사진/펫 그림으로 대체하지 않는다. 문이나 사진 API의 원본은 늘리지 않는다.
+
+
+## TASK-39 카드·글·파일 원본 대조
+
+칸은 기존 손 보기(ConversationView·NativeThreadCard·TextLayout·첨부 보기)다. 기록장·회원 상태·통신 원본은 늘리지 않는다. §D와 2.1판 D04·D25~D30, 보완 52·53을 함께 적용한다. NativeThreadContent 전체, StreamPreview 전체, ReplyActionIcon 전체, SlackFiles 전체, WritingShimmer 전체, LinkPointer 전체와 ChatStyle의 팔레트·ProfileAvatar의 그리기를 읽었다. 이전 전체 독해의 SlackPanel·SlackThreads·ChatPanel은 이번에 카드 조립·날짜·삭제·버튼·첨부·작성기·작업 줄·더미·사이드바 표시 함수와 호출 의존을 다시 대조했다. 기존 NativeThreadCard·TextLayout 엔진은 유지하며 이번 차이는 내용 조립과 hosted 조각에 둔다. 원본 파일 지문은 로컬 reference-inputs.json에 보존한다.
+
+- D01~05: ReplyActionIcon, NativeThreadContent.pieces/extras/actions, SlackThreads.ReplyButtonPolicy.split. 실제 카드 아래 단추에는 툴팁 없음(접근성 이름만). quiet는 기본 글자색 alpha×0.7, 누른 복사·분기는 accent, 긴 분기 orange, 삭제 확인 red. 전송 전 임시 글에는 분기·삭제 없음.
+- D06~10·D23·D25: SlackModel.place, ChatView.day, CharacterPalette.make, ChatText.linkifiedNative/mayOpen, SlackLayout.apply, SlackBlockText.fittedRules. 홈 날짜는 최신 활동, 나머지는 첫 글 위치(hejo에 broadcast 원본은 없음). 인용 바깥 막대는 스레드 주인 색, 안쪽은 회색.
+- D11~17·D26·D29~30: fileView/slackAttachments/slackFailures/HermesReplyChecklist/threadControls/AttachmentDropModifier. 파일 크기는 1024 단위·공백 없음, 사진 최대 220×180 비율 유지. 파일 내려받기·보안 경계는 기존 FileTransfer를 유지한다.
+- D18~22·D27~28: typingBubble(compact:true), stopControl, WritingShimmer, StreamReveal, NativeThreadList.eased, refreshThreadRenderMemos의 onWritten. streaming은 표시용 메모리 상태이고 기록 본문은 바꾸지 않는다. 기본 글자 '작성 중'의 기존 1.6초는 사장 선택대로 보존한다.
+- N38-01: SlackPanel.slackPinMark/slackMuteMark는 font 8의 intrinsic SF 그림, quiet. 고정 8×8로 축소하지 않는다. 방 추가 Label은 원본 기본 Label 간격을 측정해 native에 적용한다.
+
+### D39-01: 삭제된 첨부 표시의 계약 공백 — 보류
+
+D11의 “삭제된 사진/파일”은 원본 SlackThreads의 파일 파서가 `mode == tombstone` 또는 `is_deleted == true`를 읽고, SlackPanel.fileView가 그 명시 표식을 표시하는 경로다. hejo의 wire v1 file은 file_id/name/mime/size만 허용하며 additionalProperties=false다. 기록장에 첨부가 남아 있어도 실제 파일이 없어졌다면 FileStore.registered는 UnknownFile을 낸다. 문 download는 이를 미등록·접근 범위 밖 파일과 같은 HTTP 404로 보낸다. 앱 GateHTTP도 unavailable로만 받는다. 404를 삭제로 간주하거나 앱에 삭제 원본을 만들지 않았다. 방·스레드 삭제는 기존 계약대로 글 전체를 같은 seq delete로 치환하므로 삭제된 파일 타일을 남기지 않는다.
+
+실제 문·루프백·가짜 홈 재현에서 미등록 첨부와 등록 뒤 파일 유실은 HTTP 상태와 본문이 같았고, 후자의 sync/page 원본은 변하지 않았다. is_deleted를 추가한 프레임은 현재 스키마가 거절했다. 삭제 표식 적용 범위를 제한할지, 별도의 승인된 파일 계약을 정할지 계획 담당 판단이 필요하다. 새 wire·기록장 종류는 만들지 않았다. 작업 중 팔레트·링크/스트림 표시·얼굴 바탕·본문 분할 초안 4개는 로컬 draft/에 지문과 함께 보존했고 추적 제품 파일을 착수 HEAD로 복구했다. 이 초안은 컴파일·수락 검증을 마친 구현이 아니다.
+
+### D39-01 해소·보완 54 재개
+
+35판 결정대로 삭제된 사진/파일 표시는 제외한다. 404·유실은 실패 표시이며 wire·문·기록장을 바꾸지 않는다. 초안 4개는 저장 지문과 일치하고 두 기준 사이 제품 변경이 없음을 확인해 복원했다. 이전 보류·재현 기록은 보존한다.
+
+### TASK-39 구현 대조 결과
+
+- N37-01/D03~05: 네 단추의 평소 quiet는 원본 nativeQuiet(기본 글자색의 alpha×0.7)이며 복사·분기 요청 후 accent, 답 50개 이상 분기 orange, 삭제 확인 red다. 전송 전 임시 글은 분기·삭제 없음. 분기는 직원 글이 있을 때만, 삭제는 답이 없으면 내 글·답이 있으면 고른 스레드만이다. 카드 아래 접근성 이름은 원문, 툴팁은 없다. 카드 아래 줄과 답 단추 줄의 빈틈·비활성 단추는 threadControls처럼 누름을 소비한다.
+- D02/D23: 기존 내용 조립에서 글 머리→단추→자세한 내용으로 나누고 자세한 내용은 continuation으로 둔다. 기존 TextLayout을 재사용하며 바깥 인용은 스레드 주인 색, 안쪽은 회색이다. 파일 글에서만 체크 도움말을 붙이고 일반 native 직원 글에는 붙이지 않는다(2.1판 D17).
+- D06~10/D25: 복사 머리의 단체방 #·1:1 @, medium 상대 날짜(홈 최신 활동·그 밖 첫 글), 팔레트의 명도·4.5 대비 계산, 링크 하늘색·밑줄, 원문 bare-link 마침표 처리·obsidian 허용을 옮겼다. 긴 가로줄은 표시만 15자로 줄이고 기록·복사 본문은 유지한다.
+- D11~17/D26/D30: 사진은 비율 유지·최대 220×180, 준비 전 160×110, 실패 원문·처리 중 돌림표다. 35판 제외에 따라 삭제 문구·삭제 표식을 만들지 않는다. PDF와 파일 크기(1024 단위·공백 없음), 내려받기 그림·손 커서, 별도 빼기 단추인 첨부 캡슐, 오른쪽 칸 전체의 끌기 강조, Divider·info 안내, 작성기 안 실패 줄·되살리기 도움말·별도 보러 가기, 넓으면 한 줄·좁으면 두 열 체크리스트를 적용했다. 파일 경로·인증·50 MiB·삭제 중 내려받기 차단은 기존 hejo 계약을 유지한다. 이전 글 보기·빈 방 줄은 목록 안에 두며 준비 상태에 따라 불러오는 중 문구와 비활성을 쓴다.
+- D18~22/D27~28: compact typingBubble은 얼굴 34·이름만 보이며 활동 문구는 접근성에 남는다. 생각 중 글도 같은 자리다. 작업 줄은 두 줄·quiet·고정폭 초·원문 6pt 옆 18×18 중지·되돌리기 도움말이고 연결 상태에 따라 흐려진다. 활동 shimmer는 1.8초·폭 28%·primary 0.5, 기존 작성 중 1.6초는 사장 선택대로 유지한다. NativeThreadList의 6pt 양보를 스트림을 따라 읽는 행에만 연결했다. StreamPreview/SlackStreamPreview.applying 전체 의존을 추가로 읽고, 최종 기록이 도착해도 진행 중인 bounded reveal은 그 최종 본문을 대상으로 마치도록 했다(새 글이나 영구 원본 없음). uniformSize·커서는 유지하고 따라 읽던 긴 답의 펼침은 완료 후에도 남긴다. 답글 더미는 보기만 여닫고 대상·초안을 옮기지 않는다. 사진 얼굴에는 프로필 색을 깔지 않는다.
+- N38-01: 같은 macOS에서 원본 SwiftUI와 AppKit symbol을 직접 측정했다. font 8의 pin.fill=11×12, bell.slash.fill=9×11이다. 기존 8×8 강제 축소를 없애고 intrinsic 크기·quiet·45도 회전을 쓴다. 원본 Label의 medium plus.circle=15×15, icon x=0·text x=23으로 사이 간격 8pt다. AT-89에 측정 단언을 추가했다.
+- 기존 체크리스트 시험의 중첩 NSStackView 탐색은 대체된 보기 구조라 제거하고 실제 자손 단추 탐색으로 바꿨다. 선택·전체·작성·건너뛰기 단언은 그대로다. 공식 AT-90 문서의 D04·404 경우는 보완 54에서 승인한 정정만 반영했다.
+
+추가 의존 확인: ChatPresentation.updatePalettes·ChatCharacter.ordered를 읽었다. 명시 프로필 색이 없는 이름은 원문처럼 기본 흑/백이고, 있는 색의 중복 hue는 +40도·25도 최소 간격 계산을 적용한다. ddots의 비공개 preferred 배열을 베끼지 않고 명부의 기본 이름/id 순서를 쓴다(새 설정·영구 원본 없음). 전체 검사에서 기존 TypingTests의 고정 2026 시각과 1970 가짜 시계가 D19의 '마지막 사장 글부터 초'와 맞지 않아, 같은 가짜 시각을 쓰도록 했다. activity shimmer 기대는 1.8초로 교체하고 별도 작성 중 1.6초 단언은 보존했다. 스트림 본문·커서 검사는 D27의 bounded reveal이 끝나는 주입 시각 뒤에 동일하게 검사한다. 첫 통합 컴파일의 appearance override 중복과 이 시험 실패는 로컬 intermediate 기록으로 남기고 최종 통과 근거로 쓰지 않는다.
+
+기존 AT-79의 다른 방 실패 줄 단정은 합쳐진 FileChip 하나를 찾았다. D16 원문의 별도 Text + 테두리 없는 “보러 가기” 단추로 대체했으므로, 같은 정보와 단추를 각각 관찰하도록 바꿨다. 전체 검사에서 이 옛 보기 구조 단정이 검출된 기록은 intermediate-failure-row-contract에 보존한다.
+
+사진의 세로·작은 크기 의존도 원본 SwiftUI layout preference로 실측했다. 110×360은 220×180 틀 안의 x=82.5·55×180 그림이며 32×64는 같은 틀 안의 x=65·90×180이다. loaded 사진에 min(1) 확대 제한을 없애고, 220pt 틀의 가운데에 비율 유지로 그린다. 준비 전 자리는 원문 160×110이다. 사진 실측 이전에 통과한 실행은 intermediate-before-portrait-fit에 따로 보존하고 최종 변경본 검증과 구분한다. 긴 스레드 50답 fixture는 실제 기록·모델에 쌓되 중간 보기 갱신을 묶고 최종 내용·주황 분기를 그대로 검사한다.
+
+N38-01 최종 화소 비교에서 그림의 quiet가 불투명 검정으로 남는 것을 발견했다. 반투명 색을 원본 검정 glyph 위에 sourceAtop으로 합성하면 원래 불투명 alpha가 남기 때문이다. sourceIn으로 glyph 모양과 지정 색 alpha를 함께 보존한다. 답 그림과 파일 보조 그림도 기본 primary alpha×opacity를 보존해 원문 Color.primary.opacity와 맞춘다. AT-89는 흰 배경에서 quiet 핀의 실제 가장 어두운 화소가 원문의 회색 범위인지 검사한다. 크기·간격만 맞은 수정 전 그림/실행은 intermediate-before-symbol-alpha에 보존한다.
+
+남은 원본 getter/표시 경계도 대조했다. ChatFile.isPDF는 MIME뿐 아니라 대소문자와 무관한 .pdf 확장자를 본다. NativeThreadContent.nativePost는 직원 글의 가장자리 개행만 지우고 내 글은 보존한다. MessageFormat.uniformSize는 보이지 않는 U+200B layout sentinel의 작은 글씨를 유지한다. 이 경계를 제품·시험에 반영했다. StreamReveal은 원본 frame처럼 모든 수신 표시 상태를 시계마다 전진시키되, 따라 읽은 답으로 표시하는 대상은 현재 방/홈의 스레드로 제한했다. 다른 방 스트림이 멋대로 펼쳐지지 않는 단언을 추가했다. 날짜도 실제 Date를 비교하고 확인 전 메모리 글을 포함하는 기존 Controller.timeline을 사용해 새 글이 먼 과거로 표시되지 않도록 했다. 변경 전 통과 기록은 intermediate-before-render-boundaries에 보존한다.

@@ -25,6 +25,12 @@ struct ConversationFailedSend: Identifiable {
         let person=model.person(matching:employee)
         return ProfileAvatar(color:PictureCodec.color(name:person?.name ?? employee,hex:person?.color),image:pictures.image(person?.avatar))
     }
+    func palette(_ employee:String,dark:Bool)->CharacterPalette {
+        let colors=model.employees.sorted{$0.name==$1.name ? $0.id<$1.id:$0.name<$1.name}.compactMap { person -> (id:String,color:NSColor)? in
+            guard let hex=person.color,let color=MessageFormat.color(hex) else{return nil};return (person.id,color)
+        }
+        return CharacterPalette.make(hue:CharacterPalette.hues(colors:colors)[employee],dark:dark)
+    }
     func changePicture(kind:String,id:String,url:URL?) async -> String? {
         let address=client.store.settings.address,epoch=client.connectionEpoch,token=client.bearer
         do {
@@ -434,9 +440,9 @@ struct ConversationFailedSend: Identifiable {
         do { try await client.send(ConversationModel.click(message: message, button: button)); transferFailure=nil }
         catch { transferFailed(error) }
     }
-    func open(_ file: MessageFile, employee: String) async {
-        do { let url = try await files.download(file, employee: employee); onOpenFile(url); transferFailure=nil }
-        catch { transferFailed(error) }
+    @discardableResult func open(_ file: MessageFile, employee: String) async ->Bool {
+        do {let url=try await files.download(file,employee:employee);onOpenFile(url);transferFailure=nil;return true}
+        catch {transferFailed(error);return false}
     }
     private func transferMessage(_ error:Error)->String {
         if let error=error as? OutgoingFileProblem {return error.message}

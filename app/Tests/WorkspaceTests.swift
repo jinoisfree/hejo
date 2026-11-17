@@ -77,7 +77,7 @@ private final class WorkspaceCanvas:NSView {
     controller.discardFailure(tooMany.id)
     try check(controller.transferFailure==nil && controller.notice.isEmpty,"AT79 discarding last failed send clears its failure guidance")
     controller.model.select(employee:"beta");controller.setText("다른 방 실패");await controller.sendCurrent();ui.chooseEmployee("alpha");ui.refresh()
-    try check(ui.failureBar.arrangedSubviews.contains{($0 as? FileChip)?.title=="다른 방에서 보내지 못한 글 1개 · 보러 가기"},"AT79 elsewhere failure link")
+    try check(homeDescendants(ui.failureBar,NSTextField.self).contains{$0.stringValue=="다른 방에서 보내지 못한 글 1개"} && homeDescendants(ui.failureBar,FileChip.self).contains{$0.title=="보러 가기" && !$0.isBordered},"AT79 elsewhere failure link")
     let names=["alpha":"직원 A","beta":"직원 B"]
     let redraw=controller.onChange;controller.onChange=nil
     let one=UUID().uuidString.lowercased()

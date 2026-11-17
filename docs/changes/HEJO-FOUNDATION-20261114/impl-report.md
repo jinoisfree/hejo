@@ -1876,3 +1876,32 @@ python3 .build/task38/mutation.py compile/verify 각각 종료 0. 같은 소스�
 python3 .build/task38/post_checks.py 종료 0. 최종 빌드의 실제 가짜 루프백 연결 캡처·원본 분리 그리기·PNG 유효성/전체 픽셀 불투명/내용 검사·codesign --verify --deep --strict 모두 0이다. 화면은 evidence/HEJO-FOUNDATION/TASK-38.md와 8개 PNG다. 필요한/도달 증거 수준은 2/2다. 원본과 정적 행/얼굴/표식/선택/레일/띠 배치를 직접 비교했으며 네이티브 글꼴 획과 강조색의 최종 합성 농도 차이는 남는다. 픽셀 동일성·운영 앱 전체 비교를 주장하지 않는다. 원본 검색 TextField의 정적 대체 범위는 화면 문서와 copy-review에 명시했다. 물리 입력기·VoiceOver 실사용·실제 서버·두 Mac 결합은 운영 수락에 남는다.
 
 이 결과 뒤 개인값 검사·pre-commit·diff와 소유 파일만의 git commit --only, 커밋/검증 입력/PNG 지문·깨끗한 main·고정 public 대조를 진행하며 실제 커밋은 .build/task38/commit-result.json과 final-verification.json에 남긴다. 앱 사본/공용 릴리스/public/운영 홈/운영 저장소/본체/ddots 변경, 실제 발송, 비밀 파일 열기, GitHub 조회/쓰기와 push는 하지 않았다. TASK-39 이후는 미착수다.
+
+
+## TASK-39 1차: D39-01로 보류
+
+- 목표: 보완 38·52·53의 카드·글·파일 이식(REQ-HF-36.AC-04, AT-90), N37-01·N38-01 포함. 기존 카드 엔진·기록장·회원 상태를 재사용하고 새 영구 원본을 두지 않는 범위다.
+- 발견: 대조표 D11의 삭제된 사진/파일은 ddots가 Slack의 명시 tombstone/is_deleted를 읽어서 표시한다. hejo wire file에는 해당 정보가 없고 추가 필드는 스키마에 거절된다. 미등록 첨부와 기록 뒤 파일 유실은 같은 404이며, 후자는 기존 message 파일 정보가 page에 그대로 남는다. 스레드 삭제는 글 전체를 delete로 치환한다. 추정으로 삭제 상태를 만들면 파일 소실·권한 문제를 삭제로 오인할 수 있다.
+- 판단 요청: (권고) D11의 명시 삭제 표식은 현재 hejo에 생산자가 없음을 기록하고 적용 범위를 정한다. 또는 계획 담당이 파일 삭제 표식의 생산·재현·보안 계약을 따로 승인한다. 실행 담당은 wire·문·기록장을 바꾸지 않았다.
+- 실제 변경: 제품 초안 4개를 로컬 `.build/task39/draft/`에 보존(팔레트·링크/스트림 표시·얼굴 바탕·본문 분할)하고 제품은 착수 HEAD로 복구했다. 추적 변경은 이 보고와 copy-review뿐이다. N37-01·N38-01 포함 나머지 구현은 미완료다.
+- 검증: 임시 HERMES_HOME의 실제 문·HTTP·기록장·스키마 경계 시험 1건 통과. 삭제 표식 거절·404 동일·유실 뒤 page 불변·스레드 삭제 시 글 전체 치환을 확인했다. 전체 foundation/test_install·앱 반복·돌연변이·유효한 원본/제품 캡처 비교·제품 커밋은 미실행이다. 필요 증거 수준 2, 전체 도달 수준 1. 이번 경계 재현이 AT-90 완료 근거는 아니다. 로그는 로컬 `.build/foundation9-task39-file-boundary.log`, `.build/task39/file-boundary.json`.
+- 미수행: 운영 홈·앱 사본·공용 릴리스·본체·ddots·운영 저장소·원격 변경, GitHub 조회, push, 실제 발송, 비밀 파일 열기. public 후보는 그대로다. 계획 담당이 D39-01을 정한 뒤 같은 TASK를 재개한다.
+
+
+## TASK-39 최종 구현·자체 검증
+
+- 기준은 보완 54·53·52·38과 대조표 §D·2.1판 정정이다. 부모는 `d7d12f9f5490b35748dcab0ff81b86f08efe337e`. D39-01 보류 기록을 보존하고 승인된 제외를 적용했다. wire·문·기록장·새 영구 원본 변경은 없다. 기존 Model/Controller·NativeThreadCard·TextLayout·MemberState를 재사용했다.
+- 카드 내용 조립을 글 머리→답 단추→자세한 내용으로 맞추고 분기·삭제 조건, quiet/accent/orange/red, 복사 머리 #/@·접근성 이름·단추 줄 누름 차단, 날짜·빈 방·불러오는 중 줄, 인용 색·자동 링크·obsidian·대비 계산을 연결했다.
+- 파일 타일·실제 404 실패·비율 유지 확대/중앙 정렬·크기/PDF·처리 중/손 커서, 별도 빼기 단추인 첨부 칩, 오른쪽 칸 전체 끌기 강조·Divider·info 안내·작성기 안 실패/보러 가기, 넓음/좁음 체크리스트를 native 보기로 옮겼다. AppKit 제어의 미세한 베젤·기준선 차이는 화면 문서에 명시했다.
+- 작업 중 얼굴 34·이름/접근성·생각 중, 두 줄 활동/quiet/1.8초 shimmer·중지/되돌리기, 표시 전용 StreamReveal·uniformSize·최종 본문의 bounded reveal·따라 읽던 답 펼침 유지·6pt 행 높이 양보를 연결했다. 별도 작성 중 1.6초와 커서는 보존했다. 사진 얼굴 바탕 색을 제거했다.
+- N37-01 카드 단추와 N38-01 그림 intrinsic 크기·quiet·방 추가 8pt 간격을 같은 변경에 포함했다. 기존 시험의 대체된 보기 구조·시간/스트림 가정만 copy-review의 원문 근거대로 갱신하고 전송·초안·커서·체크리스트 단언은 유지했다. AT-90 문서는 승인된 D04·404 정정만 반영했다.
+- 변경 자리는 app/Sources의 기존 보기·Controller와 표시 계산용 CardRendering.swift, 앱 회귀/수락 시험, 공식 AT-90 정정, copy-review/이 보고, evidence/HEJO-FOUNDATION/TASK-39.md와 PNG다. TASK-40 이후는 미착수이며 tasks.md 판정은 계획 담당이 갱신한다.
+
+검증 결과(최종 고정 입력):
+
+- `python3 .build/task39/frozen.py` 종료 0. 내부 `foundation9_runner.py hejo` 종료 0, 236 passed(test_install 포함)·앱 전체·통신 시나리오 통과. AT-90 앱 집중 3회 모두 종료 0·inputsUnchanged=true, 검증 입력 168개 불변. `.build/task39/frozen-progress.json`, `final-foundation.log`, `app-focused-01.log`~`03.log`.
+- `mutation.py compile`·`verify` 종료 0. 삭제 대상 조건을 제거한 사본은 컴파일 0·시험 1로 “AT90 no replies deletes only my post”에 검출, 정상 사본 0·제품 입력 불변. `.build/task39/mutation.json`.
+- `post_checks.py` 종료 0. 최종 빌드의 실제 가짜 루프백 연결 캡처·404 실패·원본 분리 실행·사이드바 보완 비교·PNG 8개 유효성·`codesign --verify --deep --strict` 각각 0. `.build/task39/post-checks.json`, `image-validation.log`, `static.json`. 원본 파일 불변·새 SwiftUI import 0·gate/schema 변경 0. 그림은 직접 표시해 비교했다.
+- 첫 appearance 중복 컴파일, 이전 시간/실패 줄 단정 실패, 사진 비율 마지막 보정 이전 실행은 `intermediate-*`에 보존하고 최종 통과와 구분했다. 삭제 표식 계약 경계 재현은 기존 기록을 재사용했다.
+
+필요/도달 인계 증거 수준은 2/2다. 캡처는 가짜 연결 상태의 실제 AppKit 조립과 원본 함수 분리 비교이며 원본/운영 앱 전체·픽셀 동일 비교가 아니다. 실제 서버·두 Mac·물리 입력기·VoiceOver·운영 수락은 남는다. 최종 보고 추가 뒤 개인값·HEJO_PYTHON 지정 훅·diff 검사를 하고 소유 파일만 별도 git commit --only로 기록한다. 실제 커밋·입력·그림 바이트 대조와 깨끗한 main 확인은 `.build/task39/final-verification.json`에 둔다. public 후보 `f716bdff38af3d8c2cb2cdf4502e080ecbecb2bc`는 유지한다. 운영 홈·앱 사본·공용 릴리스·운영 저장소·본체·ddots·원격 변경, GitHub 조회·push·실제 발송·비밀 파일 열기는 하지 않았다.

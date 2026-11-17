@@ -35,6 +35,7 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
         var foldTitle: String?
         var fold: () -> Void = {}
         var flash = false
+        var textHelp:String? = nil
         var openLink: (URL) -> Void
     }
     enum Piece {
@@ -602,7 +603,7 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
         textLinks.removeAll(keepingCapacity: true)
         func setText(_ string: NSAttributedString, streaming: Bool = false, link: @escaping (URL) -> Void) {
             let view = textView(textIndex); textIndex += 1
-            view.isHidden = false
+            view.isHidden = false;view.toolTip=nil
             let selection = view.selectedRange()
             let previous = sameThread ? view.string : ""
             if let storage = view.textStorage, !storage.isEqual(to: string) {
@@ -626,6 +627,7 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
             switch item.piece {
             case .post(let post):
                 setText(post.text, streaming: post.streaming, link: post.openLink)
+                texts[textIndex-1].toolTip=post.textHelp
                 register?("message:" + post.id, texts[textIndex - 1])
                 for mark in post.marks { setText(mark.text, link: post.openLink) }
             case .note(let mark, _):
@@ -807,6 +809,7 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
     override func mouseDown(with event: NSEvent) {
         guard let value else { return }
         let point = convert(event.locationInWindow, from: nil).applying(.init(translationX: -ChatMetrics.horizontalInset, y: 0))
+        if !value.content.actions.isEmpty,value.foot.insetBy(dx:0,dy:-4).contains(point) {return}
         // The "더 보기"/"접기" words under a long post are drawn, not views.
         for item in value.placed {
             if case .post(let post) = item.piece, post.foldTitle != nil, item.fold.insetBy(dx: -2, dy: -2).contains(point) { post.fold(); return }

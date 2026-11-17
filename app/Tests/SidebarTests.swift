@@ -57,6 +57,21 @@ import QuartzCore
     try check(oldOpacity>0 && oldOpacity<1 && newOpacity>0 && newOpacity<1,"AT89 old and new selection have intermediate opacity")
     await pause(0.5);ui.reduceMotion={true};ui.chooseHome();await settle()
     try check((try cell(HomeRoom.id)).selection.frame.minX==10 && first.selection.frame.minX==26 && first.faceRect.minX==36,"AT89 home and other list insets")
+    model.pin(a,slot:3);model.toggleMute(a);await settle()
+    let marked=try cell(a),marks=homeDescendants(marked,SidebarAXMark.self)
+    let pin=try homeRequire(marks.first{$0.accessibilityLabel()=="고정됨"},"AT89 pin"),mute=try homeRequire(marks.first{$0.accessibilityLabel()=="알림 꺼짐"},"AT89 mute")
+    try check(pin.frame.size==CGSize(width:11,height:12) && mute.frame.size==CGSize(width:9,height:11),"AT89 8pt SF symbols retain intrinsic 11x12 and 9x11 sizes")
+    let swatch=NSImage(size:CGSize(width:16,height:16))
+    NSAppearance(named:.aqua)!.performAsCurrentDrawingAppearance {
+        swatch.lockFocus();NSColor.white.setFill();CGRect(x:0,y:0,width:16,height:16).fill()
+        FileTile.symbol("pin.fill",point:8,at:CGPoint(x:8,y:8),color:SidebarTone.primary(0.7));swatch.unlockFocus()
+    }
+    let pixels=try homeRequire(NSBitmapImageRep(data:swatch.tiffRepresentation!),"AT89 quiet symbol bitmap")
+    let darkest=(0..<16).flatMap{y in (0..<16).compactMap{x in pixels.colorAt(x:x,y:y)?.usingColorSpace(.sRGB)?.redComponent}}.min() ?? 1
+    try check(darkest>0.35 && darkest<0.6,"AT89 quiet 8pt glyph retains primary alpha on white instead of opaque black")
+    let plus=try homeRequire(homeDescendants(ui,FileChip.self).first{$0.accessibilityLabel()=="방 추가"},"AT89 add label")
+    try check(plus.nativeLabelGap==8 && plus.image?.size==CGSize(width:15,height:15),"AT89 source Label has 15pt medium symbol and eight point text gap")
+    model.pin(a,slot:nil);model.toggleMute(a);await settle()
     let sectionMenu=ui.sectionMenu(ui.sidebarRows[try index("section:2")]);try check(sectionMenu.items.map{$0.isSeparatorItem ? "|":$0.title} == ["접기","|","이름 바꾸기…","|","섹션 삭제…"],"AT89 section menu literal order and no photo")
     model.toggleSection("1");await settle()
     let directMenu=ui.employeeMenu(row:try index("alpha"));try check(!directMenu.items.contains{$0.title=="모두 읽음" || $0.title=="도구 연결…"},"AT89 direct menu excludes unrelated actions")

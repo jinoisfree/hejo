@@ -13,9 +13,9 @@ private func descendants<T:NSView>(_ root:NSView,_ type:T.Type)->[T] {
     var time=Date(timeIntervalSince1970:1000), motion:TimeInterval=0, blink:TimeInterval=0, reduced=false
     let directory=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString);defer { try? FileManager.default.removeItem(at:directory) }
     let client=GateClient(store:try LocalStore(directory:directory),credentials:MemoryCredentials())
-    let controller=try ConversationController(client:client)
+    let controller=try ConversationController(client:client);controller.clock={time}
     try await client.receive(["v":1,"type":"welcome","employees":[["id":"alpha","name":"Alpha","aliases":[],"avatar":NSNull()]]])
-    controller.receive(["v":1,"type":"message","seq":1,"msg_id":typingRoot,"employee":"alpha","thread":typingKey.thread,"role":"owner","text":"Please check","files":[],"buttons":[],"ts":"2026-01-01T00:00:00Z"])
+    controller.receive(["v":1,"type":"message","seq":1,"msg_id":typingRoot,"employee":"alpha","thread":typingKey.thread,"role":"owner","text":"Please check","files":[],"buttons":[],"ts":ISO8601DateFormatter().string(from:time)])
     controller.model.select(typingKey)
 
     let model=controller.model
@@ -51,7 +51,8 @@ private func descendants<T:NSView>(_ root:NSView,_ type:T.Type)->[T] {
     motion=0;row.tick();let start=row.shimmerPosition
     try check(row.isShimmering,"AT57 waiting words shimmer")
     motion=0.8;row.tick();try check(row.shimmerPosition>start,"AT57 light band moves between 0s and 0.8s")
-    motion=1.6;row.tick();try check(abs(row.shimmerPosition-start)<0.01,"AT57 shimmer repeats every 1.6s")
+    motion=1.8;row.tick();try check(abs(row.shimmerPosition-start)<0.01,"AT90 activity shimmer repeats every 1.8s")
+    let plain=TypingRow(since:time,clock:{time},animationTime:{motion},reduceMotion:{false});plain.frame=CGRect(x:0,y:0,width:500,height:22);plain.layoutSubtreeIfNeeded();motion=0;plain.tick();let plainStart=plain.shimmerPosition;motion=1.6;plain.tick();try check(abs(plain.shimmerPosition-plainStart)<0.01,"AT57 separate writing label retains 1.6s owner choice")
     motion=0.5;time.addTimeInterval(-53);row.tick();try capture("task12-waiting-automatic.png")
     reduced=true;row.tick();try check(!row.isShimmering,"AT57 reduced motion stops shimmer")
     reduced=false
@@ -62,7 +63,7 @@ private func descendants<T:NSView>(_ root:NSView,_ type:T.Type)->[T] {
     controller.receive(["v":1,"type":"message","seq":2,"msg_id":typingAnswer,"employee":"alpha","thread":typingKey.thread,"role":"employee","text":"Hello","files":[],"buttons":[],"ts":"2026-01-01T00:00:01Z"])
     controller.receive(["v":1,"type":"edit","seq":3,"msg_id":typingAnswer,"text":"Hello world, streaming","final":false])
     try check(model.messages[typingAnswer]?.streaming == true,"AT57 fixture message is streaming")
-    ui.refresh();ui.layoutSubtreeIfNeeded()
+    motion+=3.1;ui.refresh();ui.layoutSubtreeIfNeeded()
     try check(descendants(ui,TypingRow.self).count == 1 && descendants(ui,WorkingControlRow.self).count == 1,"AT76 streaming keeps one work-control row without duplicating the post")
     let streaming=descendants(ui,NativeThreadCard.Text.self).filter { $0.showsCaret && !$0.isHidden }
     try check(streaming.count == 1 && streaming[0].string == "Hello world, streaming","AT57 caret only on streaming post; string unchanged")

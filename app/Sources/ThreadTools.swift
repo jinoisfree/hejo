@@ -32,10 +32,10 @@ enum ThreadTools {
         var seen=Set<String>()
         return Array(messages.dropLast().filter{$0.role=="employee" && seen.insert($0.speaker).inserted}.prefix(3)).map{$0.speaker}
     }
-    static func copy(_ messages:[ConversationMessage],key:ConversationKey,name:(String)->String,zone:TimeZone = .current)->String {
+    static func copy(_ messages:[ConversationMessage],key:ConversationKey,name:(String)->String,group:Bool=false,zone:TimeZone = .current)->String {
         let stamp=DateFormatter();stamp.locale=Locale(identifier:"en_US_POSIX");stamp.timeZone=zone;stamp.dateFormat="yyyy-MM-dd HH:mm"
         let lines=messages.filter{$0.role=="owner" || !thinking($0.text)}
-        var sections=["@"+name(key.employee)+" 스레드 · 글 \(lines.count)개\n"+link(key).absoluteString]
+        var sections=[(group ? "#":"@")+name(key.employee)+" 스레드 · 글 \(lines.count)개\n"+link(key).absoluteString]
         sections += lines.map { message in
             let body=message.text.replacingOccurrences(of:#"<((?:https?://|mailto:)[^<>\s]+)>"#,with:"$1",options:.regularExpression)
             var parts=["["+stamp.string(from:date(message.timestamp))+"] "+(message.role=="owner" ? "나":name(message.speaker))]
@@ -154,30 +154,51 @@ enum ReplyButtonPolicy {
     static func pressable(_ labels: [String], message: ConversationMessage) -> Bool {
         allowed(labels, body: message.text) || script(labels)
     }
+    static func split(_ body: String) -> (head: String, detail: String)? {
+        let lines = body.components(separatedBy: "\n")
+        func heading(_ line: String) -> String? {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard trimmed.range(of: #"^\*{1,2}[^*\n]+\*{1,2}$"#, options: .regularExpression) != nil else { return nil }
+            return trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "*")).trimmingCharacters(in: .whitespaces)
+        }
+        guard let action = lines.firstIndex(where: { line in
+            heading(line).map { $0.range(of: #"^(?:소유자가\s*)?(?:할\s*일|검토할\s*일|결정\s*필요)"#, options: .regularExpression) != nil } ?? false
+        }), let next = lines.indices.dropFirst(action + 1).first(where: { heading(lines[$0]) != nil }) else { return nil }
+        let head = lines[..<next].joined(separator: "\n").trimmingCharacters(in: .newlines)
+        let detail = lines[next...].joined(separator: "\n").trimmingCharacters(in: .newlines)
+        return head.isEmpty || detail.isEmpty ? nil : (head, detail)
+    }
 }
 
-@MainActor final class ReplyChecklistView:NSStackView {
-    private let checklist:ReplyChecklist,send:(String)->Void
-    private let changed:(Set<String>)->Void
+@MainActor final class ReplyChecklistView:NSView {
+    private let checklist:ReplyChecklist,send:(String)->Void,changed:(Set<String>)->Void
     private(set) var selected:Set<String>
+    private var choices:[FileChip]=[]
+    private let submit=FileChip(title:"작성"),skip=FileChip(title:"건너뛰기")
+    override var isFlipped:Bool{true}
     init(_ checklist:ReplyChecklist,changed:@escaping(Set<String>)->Void={_ in},send:@escaping(String)->Void) {
-        self.checklist=checklist;self.send=send;selected=Set(checklist.selected).intersection(checklist.items)
-        self.changed=changed
-        super.init(frame:.zero);orientation = .vertical;alignment = .leading;spacing=8;refresh()
+        self.checklist=checklist;self.send=send;self.changed=changed;selected=Set(checklist.selected).intersection(checklist.items)
+        super.init(frame:.zero)
+        for label in checklist.items {
+            let button=FileChip(title:"");button.font = .systemFont(ofSize:12);button.invoke={ [weak self] in
+                guard let self else{return};self.selected=ThreadTools.toggle(self.checklist.items,selected:self.selected,label:label);self.changed(self.selected);self.refresh()
+            };choices.append(button);addSubview(button)
+        }
+        submit.invoke={ [weak self] in guard let self,let text=ThreadTools.answer(self.checklist.items,selected:self.selected) else{return};self.send(text) }
+        skip.invoke={ [weak self] in self?.send("건너뛰기") }
+        for button in [submit,skip] {button.font = .systemFont(ofSize:12);addSubview(button)}
+        skip.isHidden = !checklist.canSkip;refresh()
     }
     required init?(coder:NSCoder){fatalError()}
-    private func refresh() {
-        for child in arrangedSubviews { removeArrangedSubview(child);child.removeFromSuperview() }
-        for start in stride(from:0,to:checklist.items.count,by:2) {
-            let row=NSStackView();row.spacing=8
-            for label in checklist.items[start..<min(start+2,checklist.items.count)] {
-                let button=FileChip(title:(selected.contains(label) ? "✅ ":"☐ ")+label)
-                button.font = .systemFont(ofSize:12);button.invoke={ [weak self] in guard let self else{return};self.selected=ThreadTools.toggle(self.checklist.items,selected:self.selected,label:label);self.changed(self.selected);self.refresh() };row.addArrangedSubview(button)
-            };addArrangedSubview(row)
-        }
-        let row=NSStackView();row.spacing=8
-        let submit=FileChip(title:"작성");submit.isEnabled = !selected.isEmpty
-        submit.invoke={ [weak self] in guard let self,let text=ThreadTools.answer(self.checklist.items,selected:self.selected) else{return};self.send(text) };row.addArrangedSubview(submit)
-        if checklist.canSkip { let skip=FileChip(title:"건너뛰기");skip.invoke={ [weak self] in self?.send("건너뛰기") };row.addArrangedSubview(skip) };addArrangedSubview(row)
+    private static func width(_ label:String)->CGFloat {ceil((("✅ "+label) as NSString).size(withAttributes:[.font:NSFont.systemFont(ofSize:12)]).width)+20}
+    static func columns(_ labels:[String],width:CGFloat)->Int {labels.reduce(CGFloat(0)){$0+Self.width($1)}+CGFloat(max(0,labels.count-1))*8<=width ? max(1,labels.count):2}
+    static func height(_ labels:[String],width:CGFloat)->CGFloat {CGFloat((labels.count+columns(labels,width:width)-1)/columns(labels,width:width)+1)*32-8}
+    override var fittingSize:CGSize {CGSize(width:checklist.items.reduce(CGFloat(0)){$0+Self.width($1)}+CGFloat(max(0,checklist.items.count-1))*8,height:56)}
+    private func refresh(){for (i,button) in choices.enumerated() {let label=checklist.items[i];button.title=(selected.contains(label) ? "✅ ":"☐ ")+label;button.contentTintColor=selected.contains(label) ? .controlAccentColor:.secondaryLabelColor;button.attributedTitle=NSAttributedString(string:button.title,attributes:[.font:NSFont.systemFont(ofSize:12),.foregroundColor:selected.contains(label) ? NSColor.controlAccentColor:.secondaryLabelColor])};submit.isEnabled = !selected.isEmpty;needsLayout=true}
+    override func layout(){super.layout();let columns=Self.columns(checklist.items,width:bounds.width),single=columns==checklist.items.count
+        var x:CGFloat=0
+        for (index,button) in choices.enumerated(){let col=index%columns,row=index/columns,width=single ? Self.width(checklist.items[index]):max(1,(bounds.width-8)/2);if col==0{x=0};button.frame=CGRect(x:x,y:CGFloat(row)*32,width:width,height:24);x+=width+8}
+        let y=CGFloat((choices.count+columns-1)/columns)*32;submit.frame=CGRect(x:0,y:y,width:48,height:24);skip.frame=CGRect(x:56,y:y,width:80,height:24)
     }
+    override func mouseDown(with event:NSEvent){}
 }

@@ -33,9 +33,9 @@ func controlFrame(_ seq:Int,thread:String=controlThread,text:String="✅ 보고�
     try check(ThreadTools.answeredFaces(faces)==["fake-0","fake-1","fake-2"],"AT76 answered faces cap three")
     var answer:String?
     let checklist=ReplyChecklistView(.init(items:["전체","하나","둘"],selected:[],canSkip:true)){answer=$0}
-    let chips=checklist.arrangedSubviews.compactMap{$0 as? NSStackView}.flatMap(\.arrangedSubviews).compactMap{$0 as? FileChip}
+    let chips=homeDescendants(checklist,FileChip.self)
     chips.first{$0.title=="☐ 전체"}?.invoke?()
-    let selectedChips=checklist.arrangedSubviews.compactMap{$0 as? NSStackView}.flatMap(\.arrangedSubviews).compactMap{$0 as? FileChip}
+    let selectedChips=homeDescendants(checklist,FileChip.self)
     selectedChips.first{$0.title=="작성"}?.invoke?()
     try check(answer=="선택: 전체","AT76 checklist all answer")
     selectedChips.first{$0.title=="건너뛰기"}?.invoke?();try check(answer=="건너뛰기","AT76 checklist skip")

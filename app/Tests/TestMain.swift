@@ -28,7 +28,11 @@ final class MemoryCredentials: GateCredentialStore {
         Task { @MainActor in
             do {
                 let args = CommandLine.arguments
-                if args.contains("--task38") {
+                if args.contains("--task39") {
+                    try await cardTests()
+                } else if args.count>2 && args[1]=="--task39-capture" {
+                    try await cardTests(outputDirectory:URL(fileURLWithPath:args[2]))
+                } else if args.contains("--task38") {
                     try await sidebarTests()
                 } else if args.count>2 && args[1]=="--task38-capture" {
                     try await sidebarTests(outputDirectory:URL(fileURLWithPath:args[2]))
@@ -36,7 +40,7 @@ final class MemoryCredentials: GateCredentialStore {
                     try await composerTargetNetwork(args)
                 } else if args.contains("--task37") {
                     try await sidebarTests()
-        try await composerTargetTests()
+                    try await composerTargetTests()
                 } else if args.count>5 && args[1]=="--read-notice-network" {
                     try await readNoticeNetwork(args)
                 } else if args.count>2 && args[1]=="--task36-capture" {
@@ -211,6 +215,7 @@ final class MemoryCredentials: GateCredentialStore {
         try await updateTests()
         try await memberStateTests()
         try await sidebarTests()
+        try await cardTests()
         try await composerTargetTests()
         try await readNoticeTests()
         try await threadToolsTests()

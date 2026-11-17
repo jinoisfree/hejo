@@ -67,6 +67,7 @@ final class EmployeeSidebarCell:NSTableCellView {
     }
     override func viewDidChangeEffectiveAppearance(){super.viewDidChangeEffectiveAppearance();effectiveAppearance.performAsCurrentDrawingAppearance{refreshChrome()}}
     var faceRect:CGRect {let box:CGFloat=34;return CGRect(x:list ? (row?.kind == .home ? 20:36):(bounds.width-box)/2,y:list ? (bounds.height-box)/2:10,width:box,height:box)}
+    static func markSize(_ name:String)->CGSize {NSImage(systemSymbolName:name,accessibilityDescription:nil)!.withSymbolConfiguration(.init(pointSize:8,weight:.regular))!.size}
     override func layout(){super.layout();guard let row else{return};let header=row.kind == .section || row.kind == .stack,box=faceRect
         CATransaction.begin();CATransaction.setDisableActions(true)
         selection.frame=list ? CGRect(x:row.kind == .home ? 10:26,y:3,width:max(0,bounds.width-(row.kind == .home ? 20:36)),height:max(0,bounds.height-6)):bounds.insetBy(dx:8,dy:3)
@@ -80,10 +81,11 @@ final class EmployeeSidebarCell:NSTableCellView {
             dots[i].frame=CGRect(x:titleStart+min(size.width,available)+3,y:(bounds.height-signalsHeight)/2+CGFloat(n)*4,width:2,height:2);dots[i].cornerRadius=1
         }
         let nameFont=NSFont.systemFont(ofSize:14,weight:chosen || unread>0 ? .semibold:.medium),nameWidth=(name as NSString).size(withAttributes:[.font:nameFont]).width
-        let roomForName=max(0,bounds.width-box.maxX-32-(pinned ? 20:0)-(muted ? 20:0))
+        let roomForName=max(0,bounds.width-box.maxX-32-(pinned ? Self.markSize("pin.fill").width+12:0)-(muted ? Self.markSize("bell.slash.fill").width+12:0))
         let markX=list ? box.maxX+12+min(nameWidth,roomForName)+12:box.minX-8
-        marks[3].frame=CGRect(x:markX,y:list ? bounds.midY-4:box.minY-4,width:8,height:8)
-        marks[4].frame=CGRect(x:list ? markX+(pinned ? 20:0):box.minX-8,y:list ? bounds.midY-4:box.maxY-5,width:8,height:8)
+        let pin=Self.markSize("pin.fill"),mute=Self.markSize("bell.slash.fill")
+        marks[3].frame=CGRect(x:markX,y:list ? bounds.midY-pin.height/2:box.minY-4,width:pin.width,height:pin.height)
+        marks[4].frame=CGRect(x:list ? markX+(pinned ? pin.width+12:0):box.minX-8,y:list ? bounds.midY-mute.height/2:box.maxY-mute.height+3,width:mute.width,height:mute.height)
         CATransaction.commit();if !header {heading.isHidden=true}
     }
     override func draw(_ dirtyRect:NSRect){guard let row else{return};let dark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua
@@ -97,12 +99,12 @@ final class EmployeeSidebarCell:NSTableCellView {
         let weight:NSFont.Weight=chosen || (list && unread>0) ? .semibold:.medium
         var font=NSFont.systemFont(ofSize:list ? 14:10,weight:weight)
         if !list {let measured=(name as NSString).size(withAttributes:[.font:font]).width;if measured>54 {font=NSFont.systemFont(ofSize:max(8.5,10*54/measured),weight:weight)}}
-        let box=faceRect,area=list ? CGRect(x:box.maxX+12,y:bounds.midY-9,width:max(0,bounds.width-box.maxX-32-(pinned ? 20:0)-(muted ? 20:0)),height:20):CGRect(x:(bounds.width-54)/2,y:49,width:54,height:15)
+        let box=faceRect,area=list ? CGRect(x:box.maxX+12,y:bounds.midY-9,width:max(0,bounds.width-box.maxX-32-(pinned ? Self.markSize("pin.fill").width+12:0)-(muted ? Self.markSize("bell.slash.fill").width+12:0)),height:20):CGRect(x:(bounds.width-54)/2,y:49,width:54,height:15)
         (name as NSString).draw(in:area,withAttributes:[.font:font,.foregroundColor:SidebarTone.primary(list || chosen || unread>0 ? 1:0.7),.paragraphStyle:paragraph])
         for (i,symbol) in [(3,"pin.fill"),(4,"bell.slash.fill")] where !marks[i].isHidden {
             let rect=marks[i].frame;NSGraphicsContext.saveGraphicsState()
             if i==3 {let transform=NSAffineTransform();transform.translateX(by:rect.midX,yBy:rect.midY);transform.rotate(byDegrees:45);transform.translateX(by:-rect.midX,yBy:-rect.midY);transform.concat()}
-            NSImage(systemSymbolName:symbol,accessibilityDescription:nil)?.withSymbolConfiguration(.init(pointSize:8,weight:.regular))?.withSymbolConfiguration(.init(paletteColors:[SidebarTone.primary(0.7)]))?.draw(in:rect);NSGraphicsContext.restoreGraphicsState()
+            FileTile.symbol(symbol,point:8,at:CGPoint(x:rect.midX,y:rect.midY),color:SidebarTone.primary(0.7));NSGraphicsContext.restoreGraphicsState()
         }
     }
 }
@@ -212,14 +214,21 @@ final class ConversationHeaderDrag: NSView {
 final class FileChip: NSButton {
     var invoke: (() -> Void)?
     /// ReplyActionLabel's native equivalent; other chips retain their usual AppKit bezel.
+    var nativeLabelGap:CGFloat?
     var replyWord:String? {didSet{invalidateIntrinsicContentSize();needsDisplay=true}}
     override var intrinsicContentSize:NSSize {
         guard let word=replyWord else{return super.intrinsicContentSize}
         return NSSize(width:ReplyButtonPolicy.symbol(word) != nil ? 36:max(36,(word as NSString).size(withAttributes:[.font:NSFont.systemFont(ofSize:12,weight:.semibold)]).width+20),height:30)
     }
+    private func colorAlpha(_ opacity:CGFloat)->CGFloat {SidebarTone.primary(1).alphaComponent*opacity}
     override func draw(_ dirtyRect:NSRect) {
+        if let gap=nativeLabelGap,let image,imagePosition == .imageLeading {
+            let attributes:[NSAttributedString.Key:Any]=[.font:font ?? NSFont.systemFont(ofSize:12,weight:.medium),.foregroundColor:SidebarTone.primary(0.7)]
+            FileTile.symbol("plus.circle",point:12,at:CGPoint(x:image.size.width/2,y:bounds.midY),color:SidebarTone.primary(0.7),weight:.medium)
+            let size=(title as NSString).size(withAttributes:attributes);(title as NSString).draw(at:CGPoint(x:image.size.width+gap,y:bounds.midY-size.height/2),withAttributes:attributes);return
+        }
         guard let word=replyWord else{super.draw(dirtyRect);return}
-        let color=NSColor.labelColor,alpha:CGFloat=isEnabled ? 1:0.4
+        let color=SidebarTone.primary(1),alpha:CGFloat=colorAlpha(isEnabled ? 1:0.4)
         let box=NSBezierPath(roundedRect:bounds.insetBy(dx:0.5,dy:0.5),xRadius:8,yRadius:8)
         color.withAlphaComponent(0.07*alpha).setFill();box.fill();color.withAlphaComponent(0.18*alpha).setStroke();box.lineWidth=1;box.stroke()
         let rect=CGRect(x:bounds.midX-8,y:bounds.midY-8,width:16,height:16),path=NSBezierPath()
@@ -231,7 +240,7 @@ final class FileChip: NSButton {
         case "확인":path.move(to:point(4,12));path.line(to:point(10,18));path.line(to:point(20,6))
         default:
             if let symbol=ReplyButtonPolicy.symbol(word),let image=NSImage(systemSymbolName:symbol,accessibilityDescription:word)?.withSymbolConfiguration(.init(pointSize:14,weight:.regular)) {
-                image.draw(in:rect,from:.zero,operation:.sourceOver,fraction:alpha)
+                FileTile.symbol(symbol,point:14,at:CGPoint(x:rect.midX,y:rect.midY),color:color.withAlphaComponent(alpha))
             } else {
                 let attributes:[NSAttributedString.Key:Any]=[.font:NSFont.systemFont(ofSize:12,weight:.semibold),.foregroundColor:color.withAlphaComponent(alpha)]
                 let size=(word as NSString).size(withAttributes:attributes);(word as NSString).draw(at:CGPoint(x:bounds.midX-size.width/2,y:bounds.midY-size.height/2),withAttributes:attributes)
@@ -272,25 +281,84 @@ final class ComposerButton: NSButton {
     }
 }
 final class FileTile: NSButton {
-    override var isFlipped: Bool { false }
+    override var isFlipped:Bool{false}
     let file:MessageFile
-    var invoke:(()->Void)?, picture:NSImage?
-    init(file:MessageFile) { self.file=file; super.init(frame:.zero); isBordered=false; target=self; action = #selector(openFile); setAccessibilityLabel(file.name+" 저장하고 열기"); toolTip="눌러서 저장하고 열기" }
-    required init?(coder:NSCoder) { fatalError() }
-    @objc private func openFile() { invoke?() }
-    override func acceptsFirstMouse(for event:NSEvent?)->Bool { true }
-    override func draw(_ dirtyRect:NSRect) {
-        let image=file.mime.hasPrefix("image/"), rect=CGRect(x:0,y:0,width:min(bounds.width,image ? 160 : 240),height:bounds.height)
-        NSColor.black.withAlphaComponent(0.18).setFill(); NSBezierPath(roundedRect:rect,xRadius:10,yRadius:10).fill()
-        if image,let picture { picture.draw(in:rect.insetBy(dx:3,dy:3),from:.zero,operation:.sourceOver,fraction:1,respectFlipped:true,hints:nil); return }
-        let symbol=image ? "photo" : file.mime == "application/pdf" ? "doc.richtext.fill" : "doc.fill"
-        NSImage(systemSymbolName:symbol,accessibilityDescription:nil)?.draw(in:CGRect(x:10,y:rect.midY-10,width:20,height:20))
-        if !image {
-            let style=NSMutableParagraphStyle(); style.lineBreakMode = .byTruncatingMiddle
-            (file.name as NSString).draw(in:CGRect(x:38,y:rect.midY,width:max(1,rect.width-60),height:16),withAttributes:[.font:NSFont.systemFont(ofSize:12,weight:.medium),.foregroundColor:NSColor.labelColor,.paragraphStyle:style])
-            (ByteCountFormatter.string(fromByteCount:Int64(file.size),countStyle:.file) as NSString).draw(in:CGRect(x:38,y:rect.midY-13,width:max(1,rect.width-60),height:14),withAttributes:[.font:NSFont.systemFont(ofSize:10),.foregroundColor:NSColor.labelColor.withAlphaComponent(0.75)])
-        }
+    var invoke:(()->Void)?,picture:NSImage?,failed=false,busy=false
+    private let spinner=NSProgressIndicator()
+    var imageFile:Bool {file.mime.hasPrefix("image/")}
+    var pdf:Bool {file.mime=="application/pdf" || file.name.lowercased().hasSuffix(".pdf")}
+    static func imageSize(_ picture:NSImage?)->CGSize {
+        guard let picture,picture.size.width>0,picture.size.height>0 else{return CGSize(width:160,height:110)}
+        let scale=min(220/picture.size.width,180/picture.size.height)
+        return CGSize(width:picture.size.width*scale,height:picture.size.height*scale)
     }
+    /// Two source text lines, spacing 1, vertical padding 7. Measured native counterpart.
+    static let documentHeight:CGFloat=43
+    static func frameSize(_ picture:NSImage?)->CGSize {guard let picture else{return CGSize(width:160,height:110)};return CGSize(width:220,height:imageSize(picture).height)}
+    var tileSize:CGSize {imageFile ? Self.frameSize(picture):CGSize(width:240,height:Self.documentHeight)}
+    var detail:String {[CardText.sizeText(file.size),pdf ? "PDF":""].filter{!$0.isEmpty}.joined(separator:" · ")}
+    init(file:MessageFile) {
+        self.file=file;super.init(frame:.zero);isBordered=false;target=self;action=#selector(openFile)
+        setAccessibilityLabel(file.name+" 저장하고 열기");toolTip="눌러서 저장하고 열기"
+        spinner.style = .spinning;spinner.controlSize = .small;spinner.isDisplayedWhenStopped=false;addSubview(spinner)
+    }
+    required init?(coder:NSCoder){fatalError()}
+    @objc private func openFile(){invoke?()}
+    override func acceptsFirstMouse(for event:NSEvent?)->Bool{true}
+    override func resetCursorRects(){addCursorRect(bounds,cursor:.pointingHand)}
+    override func layout(){super.layout();spinner.frame=CGRect(x:imageFile ? bounds.midX-8:bounds.maxX-26,y:bounds.midY-8,width:16,height:16);if busy {spinner.startAnimation(nil)}else{spinner.stopAnimation(nil)}}
+    override func draw(_ rect:NSRect){
+        let area=CGRect(origin:.zero,size:CGSize(width:min(bounds.width,tileSize.width),height:bounds.height))
+        NSGraphicsContext.saveGraphicsState();NSBezierPath(roundedRect:area,xRadius:10,yRadius:10).addClip()
+        if imageFile,let picture {
+            let scale=min(area.width/picture.size.width,area.height/picture.size.height),size=CGSize(width:picture.size.width*scale,height:picture.size.height*scale)
+            picture.draw(in:CGRect(x:area.midX-size.width/2,y:area.midY-size.height/2,width:size.width,height:size.height),from:.zero,operation:.sourceOver,fraction:1,respectFlipped:true,hints:nil)
+        }
+        else {
+            NSColor.black.withAlphaComponent(0.18).setFill();area.fill()
+            if imageFile {
+                if failed {
+                    let a:[NSAttributedString.Key:Any]=[.font:NSFont.systemFont(ofSize:11),.foregroundColor:NSColor.labelColor],text="사진을 불러오지 못했어요" as NSString,size=text.size(withAttributes:a)
+                    text.draw(at:CGPoint(x:area.midX-size.width/2,y:area.midY-size.height/2),withAttributes:a)
+                } else {Self.symbol("photo",point:20,at:CGPoint(x:area.midX,y:area.midY),color:SidebarTone.primary(0.7))}
+            } else {
+                Self.symbol(pdf ? "doc.richtext.fill":"doc.fill",point:18,at:CGPoint(x:20,y:area.midY),color:.labelColor)
+                let paragraph=NSMutableParagraphStyle();paragraph.lineBreakMode = .byTruncatingMiddle
+                (file.name as NSString).draw(in:CGRect(x:38,y:area.midY,width:max(1,area.width-76),height:16),withAttributes:[.font:NSFont.systemFont(ofSize:12,weight:.medium),.foregroundColor:NSColor.labelColor,.paragraphStyle:paragraph])
+                ((failed ? "사진을 불러오지 못했어요":detail) as NSString).draw(in:CGRect(x:38,y:area.midY-13,width:max(1,area.width-76),height:14),withAttributes:[.font:NSFont.systemFont(ofSize:10),.foregroundColor:SidebarTone.primary(0.75)])
+                if !busy {Self.symbol("arrow.down.circle",point:14,at:CGPoint(x:area.maxX-17,y:area.midY),color:SidebarTone.primary(0.8))}
+            }
+        };NSGraphicsContext.restoreGraphicsState()
+    }
+    static func symbol(_ name:String,point:CGFloat,at center:CGPoint,color:NSColor,weight:NSFont.Weight = .regular){
+        guard let image=NSImage(systemSymbolName:name,accessibilityDescription:nil)?.withSymbolConfiguration(.init(pointSize:point,weight:weight)) else{return}
+        let tinted=image.copy() as! NSImage;tinted.lockFocus();color.setFill();CGRect(origin:.zero,size:image.size).fill(using:.sourceIn);tinted.unlockFocus()
+        tinted.draw(in:CGRect(x:center.x-image.size.width/2,y:center.y-image.size.height/2,width:image.size.width,height:image.size.height),from:.zero,operation:.sourceOver,fraction:1,respectFlipped:true,hints:nil)
+    }
+}
+
+/// Native equivalent of the file capsule; only the trailing x removes it.
+final class AttachmentChip:NSView {
+    let remove=FileChip(title:""),name:String
+    init(name:String,remove action:@escaping()->Void){self.name=name;super.init(frame:.zero);addSubview(remove)
+        remove.isBordered=false;remove.image=NSImage(systemSymbolName:"xmark.circle.fill",accessibilityDescription:nil)?.withSymbolConfiguration(.init(pointSize:11,weight:.regular));remove.contentTintColor=SidebarTone.primary(0.7);remove.setAccessibilityLabel(name+" 빼기");remove.invoke=action
+    }
+    required init?(coder:NSCoder){fatalError()}
+    override var intrinsicContentSize:CGSize{CGSize(width:min(150,(name as NSString).size(withAttributes:[.font:NSFont.systemFont(ofSize:11)]).width)+16+12+4+4+14,height:25)}
+    override func layout(){super.layout();remove.frame=CGRect(x:bounds.width-23,y:3,width:15,height:19)}
+    override func draw(_ rect:NSRect){
+        SidebarTone.primary(0.1).setFill();NSBezierPath(roundedRect:bounds,xRadius:bounds.height/2,yRadius:bounds.height/2).fill()
+        FileTile.symbol("paperclip",point:10,at:CGPoint(x:14,y:bounds.midY),color:.labelColor)
+        let p=NSMutableParagraphStyle();p.lineBreakMode = .byTruncatingMiddle
+        (name as NSString).draw(in:CGRect(x:24,y:bounds.midY-7,width:bounds.width-50,height:16),withAttributes:[.font:NSFont.systemFont(ofSize:11),.foregroundColor:NSColor.labelColor,.paragraphStyle:p])
+    }
+    override func mouseDown(with event:NSEvent){}
+}
+
+/// Captures gaps and disabled controls, so they never bubble into the card's fold action.
+final class ThreadControls:NSView {
+    override var isFlipped:Bool{true}
+    override func mouseDown(with event:NSEvent){}
 }
 
 final class MessageAccessory: NSView {
@@ -301,6 +369,7 @@ final class MessageAccessory: NSView {
     override var isFlipped: Bool { true }
     init(_ content: NSView, mine: Bool = false, limit: CGFloat = 240, top:CGFloat=0) { self.content=content; self.mine=mine; self.limit=limit;self.top=top; super.init(frame:.zero); addSubview(content) }
     required init?(coder:NSCoder) { fatalError() }
+    override func mouseDown(with event:NSEvent){}
     override func layout() {
         super.layout()
         let lead:CGFloat=mine ? 0 : 43, width=min(limit,max(1,bounds.width-lead))

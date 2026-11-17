@@ -9,7 +9,10 @@ import UniformTypeIdentifiers
     /// Animation clock and reduced-motion switch for in-chat typing shimmer; checks inject both.
     var motionTime: () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
     var reduceMotion: () -> Bool = { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
-    private var islandTimer:Timer?
+    private var islandTimer:Timer?,streamTimer:Timer?
+    private var streamReveal=StreamReveal()
+    private var thumbnails:[String:NSImage]=[:],failedThumbnails=Set<String>(),fetchingThumbnails=Set<String>(),busyFiles=Set<String>()
+    var clipboardBoard=NSPasteboard.general
     private var copiedID:String?
     private(set) var highlightedMessageID:String?
     private var highlightUntil:Date?
@@ -40,11 +43,11 @@ import UniformTypeIdentifiers
     private var composerMembers:[String]=[]
     let brand=PassiveLabel(labelWithString:"HEJO."), version=PassiveLabel(labelWithString:""), heading=PassiveLabel(labelWithString:""), subtitle=PassiveLabel(labelWithString:"함께 나누는 대화")
     private let handle=SidebarHandle(), sidebarToggle=ComposerButton(title:"직원 목록",symbol:"sidebar.left",point:12), searchToggle=ComposerButton(title:"검색",symbol:"magnifyingglass",point:12)
-    let notice=NSTextField(wrappingLabelWithString:"")
+    let notice=NSTextField(wrappingLabelWithString:""),noticeIcon=NSImageView()
     private let attachments=NSStackView(), attachmentScroll=NSScrollView()
     private let replyButton=ComposerButton(title:"답글"), newButton=ComposerButton(title:"새 글"), attachButton=ComposerButton(title:"첨부",symbol:"plus",point:20,circle:true)
     private let sendButton=ComposerButton(title:"보내기",symbol:"arrow.up",point:21,circle:true), modeBackground=NSView(), inputBackground=NSView()
-    private let draftHint=PassiveLabel(labelWithString:""), older=NSButton(title:"이전 글 보기",target:nil,action:nil)
+    private let draftHint=PassiveLabel(labelWithString:"")
     private let formatting=DraftFormatController(), drop=AttachmentDropView(frame:.zero)
     private let clipboard: ClipboardAttachments
     private var rooms:[Room]=[], threads:[ConversationThread]=[]
@@ -86,8 +89,8 @@ import UniformTypeIdentifiers
         employeeScroll.onBlankDoubleClick={ [weak self] in self?.cycleSidebarWidth() }
         employeeScroll.makeBlankMenu = { [weak self] in self?.blankMenu() }
         employeeScroll.automaticallyAdjustsContentInsets=false;employeeScroll.contentInsets=NSEdgeInsets(top:4,left:0,bottom:0,right:0);employeeScroll.documentView=employeeTable; employeeScroll.drawsBackground=false; employeeScroll.hasVerticalScroller=true; employeeScroll.autohidesScrollers=true; employeeScroll.scrollerStyle = .overlay
-        for view in [headerDrag,brandDrag,island,employeeScroll,brand,version,heading,subtitle,search,history,sidebarToggle,searchToggle,notice,modeBackground,replyButton,newButton,inputBackground,editor,draftHint,attachButton,sendButton,attachmentScroll,older,handle,drop,composerFaceScroll,searchResults,sidebarBlank,noticeBar,failureBar] { addSubview(view) }
-        addRoom.isBordered=false;addRoom.font = .systemFont(ofSize:12,weight:.medium)
+        for view in [headerDrag,brandDrag,island,employeeScroll,brand,version,heading,subtitle,search,history,sidebarToggle,searchToggle,notice,modeBackground,replyButton,newButton,inputBackground,editor,draftHint,attachButton,sendButton,attachmentScroll,handle,drop,composerFaceScroll,searchResults,sidebarBlank,noticeBar,failureBar,noticeIcon] { addSubview(view) }
+        addRoom.nativeLabelGap=8;addRoom.isBordered=false;addRoom.font = .systemFont(ofSize:12,weight:.medium)
         composerFaces.reduceMotion={ [weak self] in self?.reduceMotion() ?? true }
         composerFaceScroll.documentView=composerFaces;composerFaceScroll.drawsBackground=false
         composerFaceScroll.hasHorizontalScroller=true;composerFaceScroll.autohidesScrollers=true;composerFaceScroll.scrollerStyle = .overlay
@@ -110,7 +113,7 @@ import UniformTypeIdentifiers
         sidebarToggle.invoke={ [weak self] in self?.toggleSidebar() }; searchToggle.invoke={ [weak self] in self?.toggleSearch() }
         handle.width={ [weak self] in self?.sidebarWidth ?? 0 }; handle.onWidth={ [weak self] in self?.setSidebarWidth($0) }
         handle.onEnd={ [weak self] in if let self,self.sidebarWidth>0 { self.shownSidebarWidth=self.sidebarWidth } }
-        notice.font = .systemFont(ofSize:11); notice.textColor = .systemRed
+        noticeIcon.image=NSImage(systemSymbolName:"info.circle",accessibilityDescription:nil);noticeIcon.contentTintColor = .labelColor;notice.font = .systemFont(ofSize:11); notice.textColor = .labelColor;attachButton.toolTip="사진·파일 첨부";attachButton.setAccessibilityLabel("사진·파일 첨부")
         attachments.orientation = .horizontal; attachments.spacing=6
         attachmentScroll.documentView=attachments; attachmentScroll.drawsBackground=false; attachmentScroll.hasHorizontalScroller=true; attachmentScroll.autohidesScrollers=true
         replyButton.mode=true;newButton.mode=true
@@ -122,13 +125,13 @@ import UniformTypeIdentifiers
         editor.editor.onSubmit={ [weak self] in self?.send() }; editor.editor.onPaste={ [weak self] in self?.paste(.general) ?? false }
         editor.onHeight={ [weak self] height in guard let self,abs(self.editorHeight-height)>0.5 else { return }; self.editorHeight=height; self.needsLayout=true }
         draftHint.font = .systemFont(ofSize:14); draftHint.textColor = .secondaryLabelColor
-        older.target=self; older.action = #selector(loadOlder); older.isBordered=false; older.font = .systemFont(ofSize:11)
         drop.canAttach={ [weak self] in self?.controller.model.selected != nil }
-        drop.onPaste={ [weak self] board in self?.paste(board) ?? false }; drop.onTarget={ [weak self] target in self?.layer?.borderWidth=target ? 2 : 0 }
+        drop.onPaste={ [weak self] board in self?.paste(board) ?? false }; drop.onTarget={ [weak self] _ in self?.drop.needsDisplay=true }
         layer?.borderColor=NSColor.controlAccentColor.cgColor
         headerDrag.onMenu = { [weak self] in self?.headerMenu() }
         brandDrag.onMenu = { [weak self] in let menu=NSMenu();menu.addItem(RoomActionItem("펫으로 접기"){self?.onCollapse?()});return menu }
         clipboard.recoverLeftovers()
+        history.reduceMotion={ [weak self] in self?.reduceMotion() ?? true }
         history.onBlank={ [weak self] in self?.foldAll() }
         history.onMeasured={ [weak self] in self?.reportOpenHeight() }
         island.onAction={ [weak self] action in self?.activateIsland(action) }
@@ -145,7 +148,7 @@ import UniformTypeIdentifiers
         controller.onShowFailure={ [weak self] failure in self?.chooseEmployee(failure.shown) };controller.onChange={ [weak self] in self?.refresh() }; controller.onRevealThread={ [weak self] key in self?.openFromBubble(key) }; refresh()
     }
     required init?(coder:NSCoder) { fatalError() }
-    deinit { islandTimer?.invalidate() }
+    deinit { islandTimer?.invalidate();streamTimer?.invalidate() }
     func tickIsland() {
         island.show(islandModel.snapshot())
         let second=Int(controller.clock().timeIntervalSince1970)
@@ -417,16 +420,21 @@ import UniformTypeIdentifiers
         let shownFailures=controller.shownFailures
         for failure in shownFailures {
             let row=NSStackView();row.spacing=6;row.toolTip=failure.reason
+            let warning=NSImageView();warning.image=NSImage(systemSymbolName:"exclamationmark.circle.fill",accessibilityDescription:nil);warning.contentTintColor = .systemRed;row.addArrangedSubview(warning)
             let place=failure.newPost ? (model.isHome ? "새 대화":"새 글"):model.timeline(failure.key).first.map{"답글 · "+String(MessageFormat.plain($0.text).prefix(16))} ?? "답글"
             let words=failure.draft.text.trimmingCharacters(in:.whitespacesAndNewlines)
             let what=words.isEmpty ? "파일 \(failure.draft.attachments.count)개":String(words.prefix(40))+(failure.draft.attachments.isEmpty ? "":" · 파일 \(failure.draft.attachments.count)개")
             let title=NSTextField(labelWithString:"보내지 못함 · "+place+" · "+what);title.font = .systemFont(ofSize:11);title.lineBreakMode = .byTruncatingTail;row.addArrangedSubview(title)
-            let restore=FileChip(title:"되살리기");restore.invoke={ [weak controller] in controller?.restoreFailure(failure.id) };row.addArrangedSubview(restore)
-            let discard=FileChip(title:"지우기");discard.invoke={ [weak controller] in controller?.discardFailure(failure.id) };row.addArrangedSubview(discard);failureBar.addArrangedSubview(row)
+            let restore=FileChip(title:"되살리기");restore.isBordered=false;restore.font = .systemFont(ofSize:11);restore.toolTip="보내지 못한 글을 원래 보내려던 곳의 입력창으로 되돌려요. 다시 보내기 전에는 보내지 않아요.";restore.invoke={ [weak controller] in controller?.restoreFailure(failure.id) };row.addArrangedSubview(restore)
+            let discard=FileChip(title:"지우기");discard.isBordered=false;discard.font = .systemFont(ofSize:11);discard.invoke={ [weak controller] in controller?.discardFailure(failure.id) };row.addArrangedSubview(discard);failureBar.addArrangedSubview(row)
         }
+        failureBar.wantsLayer=true;failureBar.layer?.cornerRadius=8;failureBar.layer?.backgroundColor=NSColor.systemRed.withAlphaComponent(0.08).cgColor
         let elsewhere=controller.elsewhereFailures
         if let first=elsewhere.first {
-            let button=FileChip(title:"다른 방에서 보내지 못한 글 \(elsewhere.count)개 · 보러 가기");button.invoke={ [weak self] in self?.chooseEmployee(first.shown) };failureBar.addArrangedSubview(button)
+            let row=NSStackView();row.spacing=6
+            let warning=NSImageView();warning.image=NSImage(systemSymbolName:"exclamationmark.circle",accessibilityDescription:nil);warning.contentTintColor = .systemRed;row.addArrangedSubview(warning)
+            let label=NSTextField(labelWithString:"다른 방에서 보내지 못한 글 \(elsewhere.count)개");label.font = .systemFont(ofSize:11);row.addArrangedSubview(label)
+            let button=FileChip(title:"보러 가기");button.isBordered=false;button.font = .systemFont(ofSize:11);button.invoke={ [weak self] in self?.chooseEmployee(first.shown) };row.addArrangedSubview(button);failureBar.addArrangedSubview(row)
         }
     }
     private func reportOpenHeight() {
@@ -477,6 +485,10 @@ import UniformTypeIdentifiers
     func refresh() {
         guard !rendering else { return }; rendering=true; defer { rendering=false }
         let model=controller.model
+        streamReveal.receive(Array(model.messages.values),now:motionTime());streamReveal.advance(now:motionTime(),immediately:reduceMotion())
+        if streamReveal.pending && streamTimer==nil {streamTimer=Timer.scheduledTimer(withTimeInterval:1.0/30,repeats:true){[weak self] _ in
+            Task {@MainActor in guard let self else{return};if self.streamReveal.pending {self.refresh()}else{self.streamTimer?.invalidate();self.streamTimer=nil}}
+        }}
         if composerAddress != controller.client.store.settings.address || identity != model.selectionIdentity,let old=writingKey,!controller.savedDraft(old,address:composerAddress).isEmpty {lastPlaces[writingPlace]=old}
         controller.prepareDraftAddress()
         if composerAddress != controller.client.store.settings.address {composerAddress=controller.client.store.settings.address;automatic=true;controller.composeKey=nil;identity=""}
@@ -523,16 +535,19 @@ import UniformTypeIdentifiers
             threads=controller.includingPending(threads,scope:model.isHome ? model.homeScope:[current])
             let shown=Set(windowed.visibleIDs(threads.map(\.id),revealing:openThread?.thread))
             var cards:[NativeThreadCard.Content]=[], previous:Date?
+            if shown.count<threads.count {cards.append(lineContent(id:"older",title:controller.client.replayComplete ? "이전 글 보기":"불러오는 중…",older:true))}
+            if threads.isEmpty {cards.append(lineContent(id:"empty",title:controller.client.replayComplete ? "아직 표시할 글이 없어요.":"불러오는 중…",top:40))}
+            if history.followsAnswer {let visibleRooms=Set(threads.map{ $0.key.employee });for line in model.messages.values where visibleRooms.contains(line.key.employee) && line.streaming && line.role != "owner" {expandedMessages.insert(line.id)}}
             for thread in threads where shown.contains(thread.id) {
-                let date=ThreadTools.date(model.timeline(thread.key).first?.timestamp ?? "")
+                let timeline=controller.timeline(thread.key)
+                let date=model.isHome ? timeline.map{ThreadTools.date($0.timestamp)}.max() ?? .distantPast:ThreadTools.date(timeline.first?.timestamp ?? "")
                 if previous==nil || !Calendar.current.isDate(previous!,inSameDayAs:date) { cards.append(dayContent(date,id:thread.id)) }
                 cards.append(threadContent(thread));previous=date
             }
             history.show(cards,identity:current)
-            older.isHidden=shown.count >= threads.count
             if !automatic,model.timeline(selected).isEmpty,controller.timeline(selected).isEmpty {replyMode=false}
 
-        } else { threads=[]; history.show([],identity:""); heading.stringValue="HEJO."; older.isHidden=true }
+        } else { threads=[]; history.show([],identity:""); heading.stringValue="HEJO." }
         let draft=controller.draft
         if writingKey != controller.composeKey || (!editor.editor.hasMarkedText() && MessageFormat.serialize(editor.editor.attributedString(),baseSize:ChatMetrics.bodyFont) != draft.text) {
             editor.editor.breakUndoCoalescing(); editor.editor.undoManager?.removeAllActions()
@@ -543,7 +558,7 @@ import UniformTypeIdentifiers
         draftHint.stringValue=composerPrompt
         draftHint.isHidden = !editor.editor.string.isEmpty; editor.editor.setAccessibilityLabel(draftHint.stringValue+" · Enter 보내기, Shift Enter 줄바꿈")
         for view in attachments.arrangedSubviews { attachments.removeArrangedSubview(view); view.removeFromSuperview() }
-        for file in draft.attachments { let chip=FileChip(title:"📎 "+file.lastPathComponent+" ×"); chip.font = .systemFont(ofSize:11); chip.invoke={ [weak self] in self?.controller.removeAttachment(file) }; attachments.addArrangedSubview(chip) }
+        for file in draft.attachments { let chip=AttachmentChip(name:file.lastPathComponent){ [weak self] in self?.controller.removeAttachment(file) };attachments.addArrangedSubview(chip) }
         editor.editor.isEditable=selected != nil
         sendButton.isEnabled=selected != nil && controller.canSend && (!draft.text.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty || !draft.attachments.isEmpty)
         attachButton.isEnabled=selected != nil
@@ -580,16 +595,15 @@ import UniformTypeIdentifiers
         addRoom.imagePosition=list ? .imageLeading:.imageOnly;addRoom.alignment=list ? .left:.center
         var y:CGFloat=44
         search.isHidden = !searchOpen; search.frame=CGRect(x:x+12,y:y+8,width:right-24,height:28); if searchOpen { y+=44 }
-        older.frame=CGRect(x:x+12,y:y,width:right-24,height:older.isHidden ? 0 : 24); if !older.isHidden { y+=24 }
         let noticeHeight:CGFloat=notice.stringValue.isEmpty ? 0 : 38, attachmentsHeight:CGFloat=controller.draft.attachments.isEmpty ? 0 : 30
         let inputHeight=max(42,editorHeight+22), composerHeight=10+32+6+attachmentsHeight+inputHeight+10
         let failureHeight=CGFloat(failureBar.arrangedSubviews.count)*28
         noticeBar.isHidden=noticeBar.arrangedSubviews.isEmpty || searchOpen;noticeBar.frame=CGRect(x:x+12,y:y+7,width:right-24,height:23)
         if !noticeBar.isHidden {y+=38}
         let bottom=max(y,h-composerHeight-noticeHeight-failureHeight)
-        history.frame=CGRect(x:x,y:y,width:right,height:max(1,bottom-y)); notice.frame=CGRect(x:x+10,y:bottom+7,width:right-20,height:max(0,noticeHeight-10))
-        failureBar.frame=CGRect(x:x+8,y:bottom+noticeHeight,width:right-16,height:failureHeight)
-        let top=bottom+noticeHeight+failureHeight+10
+        history.frame=CGRect(x:x,y:y,width:right,height:max(1,bottom-y)); notice.frame=CGRect(x:x+28,y:bottom+7,width:right-38,height:max(0,noticeHeight-10));noticeIcon.isHidden=noticeHeight==0;noticeIcon.frame=CGRect(x:x+10,y:bottom+9,width:13,height:13)
+        failureBar.frame=CGRect(x:x+10,y:bottom+noticeHeight+10+38,width:right-20,height:failureHeight)
+        let top=bottom+noticeHeight+10
         let faceHeight:CGFloat=32,rowHeight:CGFloat=32
         let replyWidth=(replyButton.title as NSString).size(withAttributes:[.font:NSFont.systemFont(ofSize:11,weight:replyMode ? .semibold:.regular)]).width+20
         let newWidth=(newButton.title as NSString).size(withAttributes:[.font:NSFont.systemFont(ofSize:11,weight:replyMode ? .regular:.semibold)]).width+20
@@ -600,8 +614,8 @@ import UniformTypeIdentifiers
         let natural=CGFloat(composerMembers.count)*34,faceWidth=min(natural,max(0,right-20-modeWidth-8-4))
         composerFaceScroll.frame=CGRect(x:w-10-faceWidth,y:top+(rowHeight-faceHeight)/2,width:faceWidth,height:faceHeight)
         composerFaces.frame=CGRect(x:0,y:0,width:natural,height:faceHeight)
-        attachmentScroll.frame=CGRect(x:x+10,y:top+38,width:right-20,height:attachmentsHeight); attachments.frame=CGRect(x:0,y:0,width:max(right-20,attachments.fittingSize.width),height:attachmentsHeight)
-        let line=top+38+attachmentsHeight
+        attachmentScroll.frame=CGRect(x:x+10,y:top+38+failureHeight,width:right-20,height:attachmentsHeight); attachments.frame=CGRect(x:0,y:0,width:max(right-20,attachments.fittingSize.width),height:attachmentsHeight)
+        let line=top+38+failureHeight+attachmentsHeight
         attachButton.frame=CGRect(x:x+10,y:line+inputHeight-38,width:38,height:38)
         inputBackground.frame=CGRect(x:x+56,y:line,width:max(1,right-118),height:inputHeight); inputBackground.layer?.cornerRadius=inputHeight/2
         editor.frame=CGRect(x:x+70,y:line+11,width:max(1,right-146),height:max(17,inputHeight-22))
@@ -610,7 +624,7 @@ import UniformTypeIdentifiers
         history.isHidden=searchOpen;searchResults.isHidden = !searchOpen
         searchResults.frame=history.frame
         layoutSidebarRails()
-        drop.frame=CGRect(x:x,y:top,width:right,height:max(1,h-top))
+        drop.frame=CGRect(x:x,y:0,width:right,height:h)
         modeBackground.layer?.backgroundColor=NSColor.labelColor.withAlphaComponent(0.1).cgColor
         inputBackground.layer?.backgroundColor=NSColor.labelColor.withAlphaComponent(0.04).cgColor; inputBackground.layer?.borderColor=NSColor.labelColor.withAlphaComponent(0.18).cgColor
     }
@@ -620,6 +634,9 @@ import UniformTypeIdentifiers
         NSColor.labelColor.withAlphaComponent(0.035).setFill(); CGRect(x:sidebarWidth,y:0,width:max(0,bounds.width-sidebarWidth),height:44).fill()
         SidebarTone.primary(dark ? 0.035:0.025).setFill();CGRect(x:0,y:44,width:sidebarWidth,height:max(0,bounds.height-72)).fill()
         if !noticeBar.isHidden {NSColor.labelColor.withAlphaComponent(0.04).setFill();CGRect(x:sidebarWidth,y:44,width:max(0,bounds.width-sidebarWidth),height:38).fill();NSColor.labelColor.withAlphaComponent(0.1).setFill();CGRect(x:sidebarWidth,y:81,width:max(0,bounds.width-sidebarWidth),height:1).fill()}
+        let divideY=modeBackground.frame.minY-10
+        SidebarTone.primary(0.1).setFill();CGRect(x:sidebarWidth,y:divideY,width:max(0,bounds.width-sidebarWidth),height:1).fill()
+        if !notice.stringValue.isEmpty {SidebarTone.primary(0.06).setFill();CGRect(x:sidebarWidth,y:notice.frame.minY-7,width:bounds.width-sidebarWidth,height:notice.frame.height+10).fill()}
         SidebarTone.primary(0.1).setFill(); CGRect(x:sidebarWidth-1,y:0,width:1,height:bounds.height).fill(); CGRect(x:0,y:43,width:bounds.width,height:1).fill()
     }
     func numberOfRows(in tableView:NSTableView)->Int { renderedSidebarIDs.count }
@@ -668,7 +685,7 @@ import UniformTypeIdentifiers
         if let index=rowIndex(for:controller.model.selectionIdentity) {employeeTable.selectRowIndexes(IndexSet(integer:index),byExtendingSelection:false)}else{employeeTable.deselectAll(nil)}
         layoutSidebarRails()
     }
-    override func viewDidChangeEffectiveAppearance(){super.viewDidChangeEffectiveAppearance();needsLayout=true;needsDisplay=true;effectiveAppearance.performAsCurrentDrawingAppearance{layoutSidebarRails()}}
+    override func viewDidChangeEffectiveAppearance(){super.viewDidChangeEffectiveAppearance();needsLayout=true;needsDisplay=true;effectiveAppearance.performAsCurrentDrawingAppearance{if window != nil {refresh()};layoutSidebarRails()}}
     private func layoutSidebarRails(){
         let headers=sidebarRows.indices.filter{sidebarRows[$0].kind == .section || sidebarRows[$0].kind == .stack},ids=Set(headers.map{sidebarRows[$0].stableID})
         for id in Set(sidebarRails.keys).subtracting(ids) {
@@ -753,7 +770,7 @@ import UniformTypeIdentifiers
         guard let result=clipboard.read(board,available:max(0,10-controller.draft.attachments.count)) else { return false }
         controller.addAttachments(result.files); if let notice=result.notice { controller.notice=notice }; return true
     }
-    private func threadContent(_ thread:ConversationThread)->NativeThreadCard.Content {
+    func threadContent(_ thread:ConversationThread)->NativeThreadCard.Content {
         let model=controller.model,messages=controller.timeline(thread.key),expanded=openThread==thread.key
         guard let root=messages.first else {preconditionFailure("Empty thread projection")}
         let replies=Array(messages.dropFirst()),foldable=replies.count>2
@@ -761,17 +778,19 @@ import UniformTypeIdentifiers
         let shown=expanded || !foldable ? replies:replies.filter{$0.id==replies.last?.id || state.buttons.contains($0.id)}
         let hidden=replies.count-shown.count,dark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua
         let pick:()->Void={ [weak self] in self?.chooseThread(thread.key) }
-        var top=postPieces(root,conversational:false)
+        let owner=model.groups[thread.key.employee]==nil ? thread.key.employee:messages.first{$0.role=="employee"}?.speaker
+        let edge=owner.map{controller.avatar($0).color}
+        var top=postPieces(root,conversational:false,edge:edge)
         if model.isHome,model.homeChannel==nil,root.role=="owner" {top.insert(.accessory(id:"home-owner:"+thread.key.readKey,height:28,view:{ [weak controller] in HomeOwnerView(name:model.name(root.speaker),avatar:controller?.avatar(root.speaker) ?? ProfileAvatar()) }),at:0)}
         var answer:[NativeThreadCard.Piece]=[]
         if hidden>0 {
             let faces=ThreadTools.answeredFaces(replies).map{(model.name($0),controller.avatar($0))}
-            answer.append(.stack(faces:faces,title:"이전 답글 \(hidden)개",toggle:pick,identifier:"stack-"+thread.id))
+            answer.append(.stack(faces:faces,title:"이전 답글 \(hidden)개",toggle:{ [weak self] in self?.togglePile(thread.key) },identifier:"stack-"+thread.id))
         }
-        for message in shown {answer += postPieces(message,conversational:true)}
+        for message in shown {answer += postPieces(message,conversational:true,edge:edge)}
         if controller.interruptions[thread.key] != nil {
             answer.append(.accessory(id:thread.id+":interruption",height:16,view:{
-                let label=NSTextField(labelWithString:"끼어들었어요");label.font = .systemFont(ofSize:ChatMetrics.auxiliaryFont);label.textColor = .secondaryLabelColor
+                let label=NSTextField(labelWithString:"끼어들었어요");label.font = .systemFont(ofSize:ChatMetrics.auxiliaryFont);label.textColor = CardText.quiet(dark:dark)
                 return label
             }))
         }
@@ -779,16 +798,20 @@ import UniformTypeIdentifiers
             if controller.stopped.contains(thread.key) {
                 answer.append(.accessory(id:thread.id+":undo",height:24,view:{ [weak self] in
                     let row=NSStackView();row.spacing=6
-                    let label=NSTextField(labelWithString:"중지를 요청했어요");label.font = .systemFont(ofSize:ChatMetrics.auxiliaryFont);row.addArrangedSubview(label)
-                    let undo=FileChip(title:"되돌리기");undo.invoke={ [weak self] in Task {await self?.controller.sendText(ThreadTools.undo,key:thread.key)} };row.addArrangedSubview(undo)
+                    let label=NSTextField(labelWithString:"중지를 요청했어요");label.font = .systemFont(ofSize:ChatMetrics.auxiliaryFont);label.textColor=CardText.quiet(dark:dark);row.addArrangedSubview(label)
+                    let undo=FileChip(title:"되돌리기");undo.controlSize = .small;undo.toolTip="이미 바꾼 것을 먼저 목록으로 보여 달라고 하고, 확인한 뒤 원래대로 되돌리게 해요";undo.isEnabled=self?.controller.canSend==true;undo.invoke={ [weak self] in Task {await self?.controller.sendText(ThreadTools.undo,key:thread.key)} };row.addArrangedSubview(undo)
                     return MessageAccessory(row,limit:row.fittingSize.width)
                 }))
             } else {
-                let since=model.typingSince[thread.key] ?? messages.last(where:{$0.role=="owner"}).map{ThreadTools.date($0.timestamp)} ?? Date()
-                if model.groups[thread.key.employee] != nil {for person in (model.typingPeople[thread.key] ?? [:]).keys.sorted() {answer.append(.accessory(id:thread.id+":typing:"+person,height:26,view:{[weak controller] in HomeOwnerView(name:model.name(person)+" 작성 중…",avatar:controller?.avatar(person) ?? ProfileAvatar())}))}}
+                let since=messages.last(where:{$0.role=="owner"}).map{ThreadTools.date($0.timestamp)} ?? ThreadTools.date(root.timestamp)
+                let thinkers=Set(messages.filter{$0.role != "owner" && (ThreadTools.thinking($0.text) || $0.streaming)}.map(\.speaker))
+                let people=(model.typingPeople[thread.key] ?? [:]).keys.sorted()
+                for person in people where !thinkers.contains(person) {
+                    answer.append(.accessory(id:thread.id+":typing:"+person,height:34,view:{[weak controller] in TypingBubbleView(name:model.name(person),avatar:controller?.avatar(person) ?? ProfileAvatar(),nameColor:controller?.palette(person,dark:dark).name.nsColor,activity:"답변을 준비하고 있습니다")}))
+                }
                 let activity=messages.last(where:{$0.role != "owner" && ThreadTools.thinking($0.text)})?.text.components(separatedBy:"\n").dropFirst().first ?? (messages.contains(where:{$0.streaming}) ? "답변을 작성하고 있습니다":"답변을 준비하고 있습니다")
-                answer.append(.accessory(id:thread.id+":work",height:22,view:{ [weak self] in
-                    WorkingControlRow(since:since,activity:activity,clock:{self?.islandModel.now ?? Date()},animationTime:{self?.motionTime() ?? 0},reduceMotion:{self?.reduceMotion() ?? true},stop:{ [weak self] in Task {await self?.controller.stop(thread.key)} })
+                answer.append(.accessory(id:thread.id+":work",height:WorkingControlRow.height(activity,width:max(1,bounds.width-sidebarWidth-36),seconds:max(0,Int(controller.clock().timeIntervalSince(since)))),view:{ [weak self] in
+                    let control=WorkingControlRow(since:since,activity:activity,clock:{self?.islandModel.now ?? Date()},animationTime:{self?.motionTime() ?? 0},reduceMotion:{self?.reduceMotion() ?? true},stop:{ [weak self] in Task {await self?.controller.stop(thread.key)} });control.button.isEnabled=self?.controller.canSend==true;control.alphaValue=self?.controller.canSend==true ? 1:0.4;return control
                 }))
             }
         }
@@ -798,24 +821,28 @@ import UniformTypeIdentifiers
         let now=controller.clock(),copiedLink=copiedID=="link:"+thread.id,copiedText=copiedID=="text:"+thread.id
         let branchAsked=controller.branching[thread.key].map{now.timeIntervalSince($0)<6} ?? false
         let sure=controller.confirmingDelete[thread.key].map{now.timeIntervalSince($0)<4} ?? false
+        let quiet=CardText.quiet(dark:dark),accent=NSColor.controlAccentColor
         var actions:[NativeThreadCard.Action]=[
-            .init(title:copiedLink ? "복사됨":"링크",symbol:copiedLink ? "checkmark":"link",label:"스레드 링크 복사",identifier:"copy-link-"+thread.id,invoke:{ [weak self] in self?.copyText(ThreadTools.link(thread.key).absoluteString,id:"link:"+thread.id) }),
-            .init(title:copiedText ? "복사됨":"복사",symbol:copiedText ? "checkmark":"doc.on.doc",label:"스레드 전체 복사",identifier:"copy-"+thread.id,invoke:{ [weak self] in guard let self else{return};self.copyText(ThreadTools.copy(messages,key:thread.key,name:self.controller.model.name),id:"text:"+thread.id) })]
-        if messages.contains(where:{$0.role=="employee"}) {actions.append(.init(title:"분기",symbol:branchAsked ? "checkmark":"arrow.triangle.branch",label:"새 스레드로 이어가기",identifier:"branch-"+thread.id,enabled:controller.canSend && !branchAsked,color:replies.count>=50 ? .systemOrange:.secondaryLabelColor,invoke:{ [weak self] in Task {await self?.controller.branch(thread.key)} }))}
-        if !controller.deleting.contains(thread.key) {actions.append(.init(title:sure ? "정말 삭제":"삭제",symbol:"trash",label:sure ? "스레드 삭제 확인 · 되돌릴 수 없어요":"스레드 삭제",identifier:"delete-"+thread.id,enabled:controller.canSend,color:sure ? .systemRed:.secondaryLabelColor,alwaysLabel:sure,invoke:{ [weak self] in Task {await self?.controller.deleteThread(thread.key)} }))}
-        if foldable && expanded {actions.append(.init(title:"접기",symbol:"chevron.up",label:"접기",identifier:"fold-"+thread.id,alwaysLabel:true,invoke:pick))}
+            .init(title:copiedLink ? "복사됨":"링크",symbol:copiedLink ? "checkmark":"link",label:"스레드 링크 복사",identifier:"copy-link-"+thread.id,color:copiedLink ? accent:quiet,invoke:{ [weak self] in self?.copyText(ThreadTools.link(thread.key).absoluteString,id:"link:"+thread.id) }),
+            .init(title:copiedText ? "복사됨":"복사",symbol:copiedText ? "checkmark":"doc.on.doc",label:"스레드 전체 복사",identifier:"copy-"+thread.id,color:copiedText ? accent:quiet,invoke:{ [weak self] in guard let self else{return};self.copyText(ThreadTools.copy(messages,key:thread.key,name:self.controller.model.name,group:self.controller.model.groups[thread.key.employee] != nil),id:"text:"+thread.id) })]
+        if !root.pending,messages.contains(where:{$0.role=="employee"}) {actions.append(.init(title:"분기",symbol:branchAsked ? "checkmark":"arrow.triangle.branch",label:"새 스레드로 이어가기",identifier:"branch-"+thread.id,enabled:controller.canSend && !branchAsked,color:branchAsked ? accent:replies.count>=50 ? .systemOrange:quiet,invoke:{ [weak self] in Task {await self?.controller.branch(thread.key)} }))}
+        if !root.pending,!controller.deleting.contains(thread.key),(replies.isEmpty ? root.role=="owner":model.selected==thread.key) {actions.append(.init(title:sure ? "정말 삭제":"삭제",symbol:"trash",label:sure ? "스레드 삭제 확인":"스레드 삭제",identifier:"delete-"+thread.id,enabled:controller.canSend,color:sure ? .systemRed:quiet,alwaysLabel:sure,invoke:{ [weak self] in Task {await self?.controller.deleteThread(thread.key)} }))}
+        if foldable && expanded {actions.append(.init(title:"접기",symbol:"chevron.up",label:"접기",identifier:"fold-"+thread.id,color:quiet,alwaysLabel:true,invoke:{ [weak self] in self?.togglePile(thread.key) }))}
         return .init(id:thread.id,top:top,replies:answer.isEmpty ? nil:answer,rail:nil,actions:actions,deleting:controller.deleting.contains(thread.key) ? "삭제 중…":nil,
             style:.init(inset:ThreadAppearance.inset,fill:0,stroke:highlighted ? .systemOrange:target ? .controlAccentColor:NSColor.labelColor.withAlphaComponent(dark ? 0.16:0.12),lineWidth:highlighted ? 2.5:target ? 1.5:1,background:ThreadAppearance.surface(dark:dark),status:tone,replyBackground:ThreadAppearance.replySurface(dark:dark)),
             bell:model.bell(thread.key),onBell:{ [weak self] in self?.controller.model.toggleBell(thread.key) },clickCard:pick,textClick:!expanded && foldable ? pick:nil,
-            bubbleWidth:max(ChatMetrics.minimumBubbleWidth,(bounds.width-sidebarWidth)*ChatMetrics.bubbleWidthFraction),quiet:NSColor.labelColor.withAlphaComponent(0.7),expanded:expanded,replyTarget:target)
+            bubbleWidth:max(ChatMetrics.minimumBubbleWidth,(bounds.width-sidebarWidth)*ChatMetrics.bubbleWidthFraction),quiet:quiet,expanded:expanded,replyTarget:target)
     }
     static let unavailableReply="정해진 버튼이 아니라 누를 수 없어요. 이 스레드에 글로 답해 주세요."
-    private func postPieces(_ message:ConversationMessage,conversational:Bool)->[NativeThreadCard.Piece] {
+    private func postPieces(_ message:ConversationMessage,conversational:Bool,edge:NSColor?,extras:Bool=true)->[NativeThreadCard.Piece] {
         let dark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua, mine=message.role == "owner"
-        if !mine,ThreadTools.thinking(message.text) {return []}
-        let foldable = !mine && !message.streaming && LongReply.needsFolding(message.text), folded=foldable && !expandedMessages.contains(message.id)
-        let body=folded ? LongReply.preview(message.text) : message.text, stripped=TextLayout.strip(body)
-        let text=NSMutableAttributedString(attributedString:MessageFormat.renderNative(mine ? body : stripped.source,bodySize:ChatMetrics.bodyFont))
+        if !mine,ThreadTools.thinking(message.text) {return [.accessory(id:message.id+":thinking",height:34,view:{[weak controller] in TypingBubbleView(name:controller?.model.name(message.speaker) ?? "",avatar:controller?.avatar(message.speaker) ?? ProfileAvatar(),nameColor:controller?.palette(message.speaker,dark:dark).name.nsColor,activity:message.text.components(separatedBy:"\n").dropFirst().first ?? "답변을 준비하고 있습니다")} )]}
+        let received=streamReveal.frame(message.id,now:motionTime(),immediately:reduceMotion()) ?? message.text
+        let streaming=message.streaming || streamReveal.revealing(message.id)
+        let foldable = !mine && !streaming && LongReply.needsFolding(message.text), folded=foldable && !expandedMessages.contains(message.id)
+        let shown=folded ? LongReply.preview(received):received,body=CardText.fittedRules(mine ? shown:shown.trimmingCharacters(in:.newlines)),stripped=TextLayout.strip(body)
+        let palette=controller.palette(message.speaker,dark:dark)
+        let text=NSMutableAttributedString(attributedString:CardText.linkifiedNative(MessageFormat.renderNative(mine ? body : stripped.source,bodySize:ChatMetrics.bodyFont)))
         let all=NSRange(location:0,length:text.length), paragraph=NSMutableParagraphStyle(); paragraph.lineSpacing=mine ? 0 : 2
         text.addAttribute(.paragraphStyle,value:paragraph,range:all)
         if mine {
@@ -823,16 +850,17 @@ import UniformTypeIdentifiers
                 if attributes[NSAttributedString.Key("hejo.explicitColor")]==nil {text.addAttribute(.foregroundColor,value:UserBubblePalette(dark:dark,pending:message.pending).foreground.nsColor,range:range)}
             }
         }
-        else { TextLayout.apply(to:text,lines:stripped.lines,bar:controller.avatar(message.speaker).color,lineSpacing:2) }
+        else { TextLayout.apply(to:text,lines:stripped.lines,bar:edge,lineSpacing:2) }
         text.enumerateAttributes(in:NSRange(location:0,length:text.length)) { attributes,range,_ in
             if !mine,let font=attributes[.font] as? NSFont,NSFontManager.shared.traits(of:font).contains(.fixedPitchFontMask) {
                 text.addAttributes([.font:NSFont.monospacedSystemFont(ofSize:13,weight:.regular),.foregroundColor:dark ? NSColor(srgbRed:0.96,green:0.68,blue:0.36,alpha:1) : NSColor(srgbRed:0.76,green:0.32,blue:0.09,alpha:1),.backgroundColor:NSColor.labelColor.withAlphaComponent(0.1)],range:range)
             }
-            if attributes[.link] != nil { text.addAttributes([.underlineStyle:NSUnderlineStyle.single.rawValue,.foregroundColor:mine ? UserBubblePalette(dark:dark,pending:message.pending).link.nsColor : NSColor.systemBlue],range:range) }
+            if attributes[.link] != nil { text.addAttributes([.underlineStyle:NSUnderlineStyle.single.rawValue,.foregroundColor:mine ? UserBubblePalette(dark:dark,pending:message.pending).link.nsColor : palette.link.nsColor],range:range) }
         }
+        if streaming {CardText.uniformSize(text)}
         if let query=searchHighlight,message.id==highlightedMessageID {for range in WorkspaceSearch.highlights(text.string,query:query) {text.addAttributes([.backgroundColor:NSColor.yellow,.foregroundColor:NSColor.black],range:NSRange(range,in:text.string))}}
         var checks:[Int:(line:Int,original:Bool)]=[:]
-        if !message.streaming && !message.pending {
+        if !streaming && !message.pending {
             var offset=0,index=0
             for character in text.string {
                 let length=String(character).utf16.count
@@ -844,33 +872,34 @@ import UniformTypeIdentifiers
                 index+=1;offset+=length
             }
         }
-        let post=NativeThreadCard.Post(id:message.id,mine:mine,text:text,speaker:mine ? "나" : controller.model.name(message.speaker),time:message.pending ? "보내는 중":displayTime(message.timestamp),avatar:controller.avatar(message.speaker),nameColor:mine ? .labelColor : controller.avatar(message.speaker).color,
-            conversational:conversational && !mine && !message.streaming && message.files.isEmpty && ThreadAppearance.isConversational(message.text),pending:message.pending,streaming:message.streaming,
-            marks:[],foldTitle:foldable ? (folded ? "더 보기" : "접기") : nil,fold:{ [weak self] in guard let self else { return }; if self.expandedMessages.contains(message.id) { self.expandedMessages.remove(message.id) } else { self.expandedMessages.insert(message.id) }; self.refresh() },openLink:{ [weak self] url in
+        let post=NativeThreadCard.Post(id:message.id,mine:mine,text:text,speaker:mine ? "나" : controller.model.name(message.speaker),time:message.pending ? "보내는 중":displayTime(message.timestamp),avatar:controller.avatar(message.speaker),nameColor:mine ? .labelColor:palette.name.nsColor,
+            conversational:conversational && !mine && !streaming && message.files.isEmpty && ThreadAppearance.isConversational(message.text),pending:message.pending,streaming:streaming,
+            marks:[],foldTitle:foldable ? (folded ? "더 보기" : "접기") : nil,fold:{ [weak self] in guard let self else { return }; if self.expandedMessages.contains(message.id) { self.expandedMessages.remove(message.id) } else { self.expandedMessages.insert(message.id) }; self.refresh() },textHelp:!message.files.isEmpty && text.string.contains(where:{$0=="☐" || $0=="☑"}) ? "체크박스를 누르면 내 확인 상태를 저장합니다.":nil,openLink:{ [weak self] url in
                 guard let self else{return}
                 if url.scheme=="hejo-check",let offset=Int(url.lastPathComponent),let check=checks[offset] {self.controller.model.toggleCheck(message.id,line:check.line,original:check.original,body:message.text)}
                 else if url.scheme=="hejo" {self.controller.openLink(url)}
-                else if ["http","https","mailto"].contains(url.scheme?.lowercased() ?? "") {NSWorkspace.shared.open(url)}
+                else if CardText.mayOpen(url) {NSWorkspace.shared.open(url)}
             })
         var pieces:[NativeThreadCard.Piece]=[.post(post)]
+        if !extras {return pieces}
         for file in message.files {
             if message.pending {pieces.append(.accessory(id:file.id,height:28,view:{MessageAccessory(NSTextField(labelWithString:file.name),mine:mine,limit:240)}));continue}
-            pieces.append(.accessory(id:file.id,height:file.mime.hasPrefix("image/") ? 110 : 46,view:{ [weak self] in
-                let tile=FileTile(file:file)
-                let container=MessageAccessory(tile,mine:mine,limit:file.mime.hasPrefix("image/") ? 160 : 240)
-                tile.frame=CGRect(x:mine ? 0 : 43,y:0,width:240,height:file.mime.hasPrefix("image/") ? 110 : 46); tile.autoresizingMask = [.width]
-                tile.invoke={ [weak self] in guard let self else { return }; Task { await self.controller.open(file,employee:message.speaker) } }
-                if file.mime.hasPrefix("image/"),let self { Task { [weak tile,weak self] in
-                    guard let self else { return }; if let url=try? await self.controller.files.download(file,employee:message.speaker) { tile?.picture=NSImage(contentsOf:url); tile?.needsDisplay=true }
-                } }
-                return container
+            if file.mime.hasPrefix("image/") {requestThumbnail(file,employee:message.speaker)}
+            let picture=thumbnails[file.id],size=file.mime.hasPrefix("image/") ? FileTile.frameSize(picture):CGSize(width:240,height:FileTile.documentHeight)
+            pieces.append(.accessory(id:file.id,height:size.height,view:{ [weak self] in
+                let tile=FileTile(file:file);tile.picture=picture;tile.failed=self?.failedThumbnails.contains(file.id)==true;tile.busy=self?.busyFiles.contains(file.id)==true
+                tile.invoke={ [weak self] in guard let self else{return};self.busyFiles.insert(file.id);self.refresh();Task {
+                    if await self.controller.open(file,employee:message.speaker) {self.failedThumbnails.remove(file.id)}else{self.failedThumbnails.insert(file.id)}
+                    self.busyFiles.remove(file.id);self.refresh()
+                }}
+                return MessageAccessory(tile,mine:mine,limit:size.width)
             }))
         }
         let pending=controller.model.assessment(message.key).buttons.contains(message.id)
         if let checklist=controller.checklistSelection(message),pending {
-            pieces.append(.accessory(id:message.id+":checklist",height:CGFloat((checklist.items.count+1)/2+1)*32,view:{ [weak self] in
+            pieces.append(.accessory(id:message.id+":checklist",height:ReplyChecklistView.height(checklist.items,width:max(1,bounds.width-sidebarWidth-36-43)),view:{ [weak self] in
                 let choices=ReplyChecklistView(checklist,changed:{ [weak self] selected in self?.controller.selectChecklist(message,selected:selected) }) { [weak self] text in Task {await self?.controller.sendText(text,key:message.key)} }
-                return MessageAccessory(choices,limit:choices.fittingSize.width)
+                return MessageAccessory(choices,limit:10000)
             }))
         }
         if pending,message.checklist==nil {
@@ -896,19 +925,49 @@ import UniformTypeIdentifiers
                     stack.addArrangedSubview(button)
                 }
                 column.addArrangedSubview(stack)
-                return MessageAccessory(column,limit:column.fittingSize.width,top:2)
+                let scroll=NSScrollView();scroll.drawsBackground=false;scroll.hasHorizontalScroller=true;scroll.autohidesScrollers=true;scroll.scrollerStyle = .overlay
+                let content=ThreadControls();content.addSubview(column);column.frame=CGRect(origin:.zero,size:column.fittingSize);content.frame=column.frame;scroll.documentView=content
+                let control=ThreadControls();control.addSubview(scroll);scroll.frame=CGRect(x:0,y:0,width:message.buttons.isEmpty ? column.fittingSize.width:320,height:32);scroll.autoresizingMask=[.width,.height]
+                return MessageAccessory(control,limit:message.buttons.isEmpty ? column.fittingSize.width:320,top:2)
             }))
+        }
+        if pending,!mine,message.files.isEmpty,let parts=ReplyButtonPolicy.split(message.text) {
+            var head=message,detail=message;head.text=parts.head;detail.text=parts.detail;detail.id += ":detail"
+            let first=postPieces(head,conversational:false,edge:edge,extras:false)
+            let rest=postPieces(detail,conversational:false,edge:edge,extras:false).map { piece -> NativeThreadCard.Piece in
+                if case .post(var post)=piece {post.continuation=true;return .post(post)};return piece
+            }
+            return first+Array(pieces.dropFirst())+rest
         }
         return pieces
     }
+    private func togglePile(_ key:ConversationKey) {openThread=openThread==key ? nil:key;refresh();if openThread==key {history.scrollTo(key.thread)}}
+    private func requestThumbnail(_ file:MessageFile,employee:String) {
+        guard thumbnails[file.id]==nil,!failedThumbnails.contains(file.id),!fetchingThumbnails.contains(file.id) else{return}
+        fetchingThumbnails.insert(file.id)
+        Task { [weak self] in
+            guard let self else{return}
+            do {let url=try await self.controller.files.download(file,employee:employee);guard let image=NSImage(contentsOf:url) else{throw FileTransferFailure.invalidFile};if self.thumbnails.count>256 {self.thumbnails.removeAll()};self.thumbnails[file.id]=image}
+            catch {self.failedThumbnails.insert(file.id)}
+            self.fetchingThumbnails.remove(file.id);self.refresh()
+        }
+    }
     private func copyText(_ text:String,id:String) {
-        NSPasteboard.general.clearContents();NSPasteboard.general.setString(text,forType:.string)
+        clipboardBoard.clearContents();clipboardBoard.setString(text,forType:.string)
         copiedID=id;refresh();DispatchQueue.main.asyncAfter(deadline:.now()+1.6) { [weak self] in if self?.copiedID==id {self?.copiedID=nil;self?.refresh()} }
     }
     private func dayContent(_ date:Date,id:String)->NativeThreadCard.Content {
-        let formatter=DateFormatter();formatter.dateFormat="yyyy년 M월 d일 EEEE"
+        let title=CardText.day(date)
         return .init(id:"date:"+id,top:[.accessory(id:"date-label:"+id,height:14,view:{
-            let label=NSTextField(labelWithString:formatter.string(from:date));label.font = .systemFont(ofSize:ChatMetrics.auxiliaryFont);label.textColor = .secondaryLabelColor;label.alignment = .center;return label
+            let label=NSTextField(labelWithString:title);label.font = .systemFont(ofSize:ChatMetrics.auxiliaryFont);label.textColor = CardText.quiet(dark:self.effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua);label.alignment = .center;return label
+        })],replies:nil,rail:nil,actions:[],deleting:nil,style:.init(inset:0,fill:0,stroke:nil,lineWidth:0,background:.clear),bell:nil,onBell:{},clickCard:{},textClick:nil,bubbleWidth:500,quiet:.secondaryLabelColor,expanded:false)
+    }
+    private func lineContent(id:String,title:String,top:CGFloat=0,older:Bool=false)->NativeThreadCard.Content {
+        .init(id:"line:"+id,top:[.accessory(id:id,height:top+(older ? 16:14),view:{[weak self] in
+            let controls=ThreadControls()
+            if older {let button=FileChip(title:title);button.isBordered=false;button.font = .systemFont(ofSize:11);button.isEnabled=self?.controller.client.replayComplete==true;button.invoke={self?.loadOlder()};controls.addSubview(button);button.frame=CGRect(x:0,y:top,width:500,height:18);button.autoresizingMask = [.width]}
+            else {let label=NSTextField(labelWithString:title);label.alignment = .center;label.font = .systemFont(ofSize:11);label.textColor=CardText.quiet(dark:self?.effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua);controls.addSubview(label);label.frame=CGRect(x:0,y:top,width:500,height:18);label.autoresizingMask = [.width]}
+            return controls
         })],replies:nil,rail:nil,actions:[],deleting:nil,style:.init(inset:0,fill:0,stroke:nil,lineWidth:0,background:.clear),bell:nil,onBell:{},clickCard:{},textClick:nil,bubbleWidth:500,quiet:.secondaryLabelColor,expanded:false)
     }
     private func displayTime(_ value:String)->String {
