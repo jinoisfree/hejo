@@ -1630,3 +1630,39 @@ REQ-HF-34.AC-01~09·AT-85와 보완 37 추가 1~3을 따른다. 버전 올리기
 이 보고 추가 뒤 `final_checks.py`로 개인값·HEJO_PYTHON 지정 훅·diff를 검사하고, 소유 파일 20개만 `git commit --only`로 기록한다. 이후 `final_verify.py`가 실제 커밋 파일·검증 입력·캡처 바이트·깨끗한 main을 대조한다. 실행 이후의 실제 전체 커밋과 결과는 `.build/task34/commit-result.json`, `final-verification.json`과 result 상태 블록에 기록한다. 이 문서에서 아직 실행하지 않은 검사를 통과로 세지 않는다.
 
 실물 성공/실패 차례와 시스템 한글 조합은 TASK-23에 남는다. TASK-35·33 제품 구현은 미착수이며 계획 담당 검토 뒤 순서대로 진행한다. 운영 홈 설치/변경·실행·재시작·launchd 등록, 앱 사본 교체, 공용 릴리스/public 갱신, ddots/본체/운영 저장소 수정과 원격 쓰기는 하지 않았다. `.build/task38-start.patch`는 새 움직임 계약의 완성본이 아니라 후속 출발 자료다.
+
+## N34-01 시험 보강 결과
+
+시험 전용 커밋 `e94ee2f6d03fd2e1914d2604a6d9b7cac5b8f5f7`는 gate/tests/test_progress.py 한 파일만 바꿨고 계획 담당이 `10ce6701e09c0f2dc5b62ed4649332a969646007`에서 검토를 마쳤다. 두 스레드 모두 진행 편집 중일 때 A 중지 두 번이 A의 final:true 한 번만 남기며 B 편집 0·작성 중 유지를 기본/전달자 경로로 확인했다. 집중 검사 7 passed와 필터 제거/metadata 되돌림 돌연변이 검출 근거는 `.build/n34-01/`에 있다. 이 검사를 TASK-35에서 반복하지 않는다.
+
+## TASK-35 구현·자체 검증
+
+받은 설계는 보완 37·38·40·41의 TASK-35, REQ-HF-35.AC-01·AT-HF-86이며 기준은 `10ce6701e09c0f2dc5b62ed4649332a969646007`다. 일반 위험·필요 인계 증거 수준 2다. 구현은 작업 트리에 있고 최종 전체·반복·커밋 결과는 아래에 이어 기록한다. 하위 에이전트를 쓰지 않았다.
+
+- 원래 책임: ThreeTapGesture·Frames·DeviceIdentity가 접촉을 판정하고, ThreeTapReader가 private ABI/기기 수명·콜백을 소유한다. dlopen/dlsym만 쓰며 프레임워크를 링크하지 않는다. ThreeTapController가 설정·OS 점검·알림·복사를 맡고 AppDelegate가 시작/종료·설정 창에 연결한다. 유효 탭은 PetController의 기존 펫 클릭 경로로 보내며 숨김/쉬는 중이면 무시한다.
+- 저장: UserDefaults 저장 경로를 가져오지 않고 기존 LocalSettings의 Mac별 hejo-local.json에 켬·마지막 OS·실패 키·OS 변경 대기·찾아보기 안내 표시만 둔다. 새 파일·허브 상태·기록장 원본은 없다. 저장 실패는 안내하고 켬/끔 값을 바꾸지 않는다.
+- 유지/제외: 원본 0.3초·0.04·정확히 3개·0.4초, 30연속 검사, 10초 기기 목록 확인, 잠자기 깨기, 실패 창 대기열과 복사를 유지했다. ThreeTapCommand·Sender·Slack/원격 보고와 원격 보고 전용 필드는 제외했다. 새 기능의 꺼짐은 기존 클릭을 바꾸지 않는다. 버전 변경은 TASK-33이다.
+- 원본과 차이: 트랙패드 없음은 명세의 '흐리게' 대신 원본 App.refreshThreeTapSettings대로 체크 조작을 허용하고 도움말을 보인다(26판 코드 우선). 실패 상태만 비활성이다. 설정 창의 기존 배치는 유지하면서 새 체크 한 줄을 추가하고 초기화 버튼 두 개를 아래로 옮겼다. 원본 전체 독해·의존 기록은 copy-review.md에 있다.
+- 시험 경계: ThreeTapReading·시각/라이브러리 기호/시스템 설정 조회 주입은 하드웨어·시스템 설정을 대역으로 격리하는 경계다. 제품의 탭/프레임 판정과 실제 설정 창·실패 창·펫 클릭을 그대로 실행한다. 새 시험을 TestMain에 연결했다. 기존 수락 기준·기존 시험 기대값은 바꾸지 않았다.
+
+초기 앱 빌드는 시험 파일 수정과 겹쳐 입력 변경을 감지해 종료 1이었다(`foundation9-app-task35-first.log`); 통과 근거로 세지 않는다. 수정이 끝난 집중 컴파일/실행은 각각 0·AT-HF-86 APP PASS다(`focused.json`). 처음 캡처의 투명 배경 때문에 읽기 어려운 글자는 보기의 흰 배경으로 보강했고, 이후 최종 캡처를 사용한다. 원본 분리 컴파일/실행은 각각 0(`reference.json`), 운영 앱 전체 비교가 아니다.
+
+탭 허용 시간을 0.5초로 늘린 사본과 실패 한도를 31로 바꾼 사본은 실제 ThreeTapTests의 순수 판정 단정을 추출한 집중 실행에서 각각 종료 1로 검출했다. 같은 단정의 무변경 사본은 0이고 제품 원본은 불변이다(`.build/task35/mutations.json`). 이 결과는 전체 앱·하드웨어 검증을 대신하지 않는다.
+
+남은 실물은 실제 트랙패드 탭과 잠자기 깨기/기기 교체에서 private ABI가 맞는지 확인하는 것이다. 인계 도달 수준 2를 실물 수준 4로 주장하지 않는다. 운영 홈·앱 사본·공용 릴리스/public·원격·Hermes 본체/ddots는 수정하지 않았다. 후속 TASK-33·48·49·36~47은 착수하지 않는다. 임시 대조/검증 도우미는 `.build/task35/`의 비추적 자료이며 제품 진입 경로가 아니다.
+
+### TASK-35 최종 결과
+
+고정 입력 154개로 `frozen.py`가 종료 0으로 끝났다. 전체 1행과 앱 10행 모두 `exitCode=0`·`inputsUnchanged=true`다. 필요/도달 인계 증거 수준은 **2/2**, 구현자 판단은 구현·자체 검증 완료이며 최종 판정은 계획 담당에게 넘긴다.
+
+| 실행 | 실제 결과·근거 |
+| --- | --- |
+| `python3 .build/task35/frozen.py` | 종료 0. 내부 foundation9_runner hejo는 191 passed·AT-HF-86 APP PASS·기존 가짜 Hermes/앱/통신 통과. test_install도 이 전체 실행에 포함했다. `.build/task35/frozen-foundation.log`, `frozen-progress.json`, `frozen-inputs.json`. |
+| `bash app/scripts/test.sh` 10회 연속 | 같은 드라이버에서 모두 종료 0·고정 입력 불변. `.build/foundation9-app-task35-verified-01.log`~`10.log`. 완료 행을 다시 실행하지 않았다. |
+| `python3 .build/task35/capture_final.py` | 종료 0. 최종 빌드 app-tests의 AT-86 캡처와 별도 native 설정 내용 캡처를 임시 HERMES_HOME에서 실행하고 원본 조각을 포함한 PNG 4개를 evidence에 복사했다. `capture-final.json`, `capture-final.log`, `settings-final.log`. |
+
+최종 캡처를 직접 대조했다. 실패 창의 문장·복사/닫기 순서·요청문 구조가 같고 서비스 이름만 바뀐다. 설정은 원본 체크 조각과 실제 hejo 펫 설정 내용이다. NSTabView 전체를 바로 캐시하면 일부 배경이 투명하게 나오는 한계가 있어, 실제 선택된 내용 뷰를 흰 바탕으로 옮겨 그렸고 탭 머리는 제외했다. 그림 후처리나 다른 UI 재구현이 아니다. 전체 원본 앱·운영 앱 비교나 실제 트랙패드 실행을 주장하지 않는다.
+
+집중 돌연변이와 원본 분리 실행은 위의 같은 소스 근거를 재사용한다. 이번 변경에서 새 컴파일 경고는 없으며 기존 AirportFinder Sendable·Task17Tests NSMenu·TypingTests 미변경 변수 경고는 범위 밖으로 남겼다. 실패를 skip/xfail로 넘기거나 기대값을 바꾸지 않았다. 구현자가 특히 검토를 요청하는 곳은 private ABI 수명/세대 차단, Mac별 설정 연결과 원본 우선으로 처리한 트랙패드 없음 표시다.
+
+이 최종 보고 추가 뒤 `final_checks.py`로 개인값·HEJO_PYTHON 지정 훅·diff, MultitouchSupport 직접 링크 없음·외부 보고 코드 없음·읽기 전용 원본 해시를 확인한다. 이어 소유 파일 16개만 `git commit --only`로 기록하고 `final_verify.py`가 실제 커밋 파일·고정 입력·PNG·깨끗한 main을 대조한다. 실행 이후의 실제 전체 커밋·최종 결과는 `.build/task35/commit-result.json`, `final-verification.json`과 result 상태 블록에 남긴다. 아직 실행하지 않은 검사를 여기서 통과로 세지 않는다. 앱 사본·공용 릴리스·public 갱신·원격 쓰기는 하지 않는다.

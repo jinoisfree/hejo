@@ -9,6 +9,8 @@ import AppKit
     let scaleValue = NSTextField(labelWithString: "100%")
     let bubbleCheck = NSButton(checkboxWithTitle: "말풍선 항상 보이기", target: nil, action: nil)
     let bubbleReplyCheck=NSButton(checkboxWithTitle:"말풍선에서 바로 답하기",target:nil,action:nil)
+    let threeTapCheck = NSButton(checkboxWithTitle: ThreeTapController.title, target: nil, action: nil)
+    var onThreeTap: (() -> Void)?
     var onBubbleReply:((Bool)->Void)?
     let loginCheck = NSButton(checkboxWithTitle: "로그인 시 실행", target: nil, action: nil)
     let loginStatus = NSTextField(wrappingLabelWithString: "")
@@ -58,10 +60,13 @@ import AppKit
         bubbleCheck.target = self; bubbleCheck.action = #selector(changeBubble)
         petView.addSubview(bubbleCheck)
         bubbleReplyCheck.frame=CGRect(x:24,y:72,width:300,height:25);bubbleReplyCheck.target=self;bubbleReplyCheck.action=#selector(changeBubbleReply);petView.addSubview(bubbleReplyCheck)
+        threeTapCheck.frame = CGRect(x: 24, y: 47, width: 380, height: 25)
+        threeTapCheck.target = self; threeTapCheck.action = #selector(changeThreeTap)
+        petView.addSubview(threeTapCheck)
         let resetChat = NSButton(title: "대화창 크기 초기화", target: self, action: #selector(resetChatSize))
-        resetChat.frame = CGRect(x: 24, y: 30, width: 160, height: 30)
+        resetChat.frame = CGRect(x: 24, y: 10, width: 160, height: 30)
         let resetPet = NSButton(title: "펫 위치 초기화", target: self, action: #selector(resetPetPosition))
-        resetPet.frame = CGRect(x: 195, y: 30, width: 130, height: 30)
+        resetPet.frame = CGRect(x: 195, y: 10, width: 130, height: 30)
         petView.addSubview(resetChat); petView.addSubview(resetPet)
         pet.view = petView; tabs.addTabViewItem(pet)
 
@@ -103,6 +108,13 @@ import AppKit
     @objc private func changeName() { onName?(nameField.stringValue) }
     @objc private func changeScale() { scaleValue.stringValue = "\(Int(scaleSlider.doubleValue))%"; onScale?(scaleSlider.doubleValue) }
     @objc private func changeBubbleReply(){onBubbleReply?(bubbleReplyCheck.state == .on)}
+    @objc private func changeThreeTap() { onThreeTap?() }
+    func updateThreeTap(_ controller: ThreeTapController) {
+        threeTapCheck.state = controller.enabled && controller.health.failure == nil ? .on : .off
+        threeTapCheck.isEnabled = controller.health.failure == nil
+        threeTapCheck.toolTip = controller.health.failure.map { "작동을 멈췄어요: " + $0 }
+            ?? (controller.health == .absent ? "트랙패드가 연결되면 사용할 수 있어요." : "")
+    }
     @objc private func changeBubble() { onBubble?(bubbleCheck.state == .on) }
     @objc private func changeLogin() { onLogin?(loginCheck.state == .on) }
     @objc private func openLoginSettings() { LoginLaunch.openSettings() }

@@ -14,6 +14,7 @@ import AppKit
     private var currentAccount = ""
     private var toolsWindow:ConnectionsWindow?
     private var petSettings: PetSettingsWindow?
+    private var threeTap: ThreeTapController!
     private var bubble: BubbleReveal!
     private var bubbleTimer: Timer?
     private var bubbleReply:BubbleReplyCard!
@@ -84,6 +85,15 @@ import AppKit
                 self?.refreshPetActivity()
                 if status == .wrongCode || status == .revoked { self?.connection.present() }
             }
+            threeTap = try ThreeTapController(store: store, live: true)
+            threeTap.onTap = { [weak self] in self?.pet.threeFingerTapped() }
+            threeTap.onChange = { [weak self] in
+                guard let self else { return }; self.petSettings?.updateThreeTap(self.threeTap)
+            }
+            threeTap.onNotice = { [weak self] text, failure in
+                DispatchQueue.main.async { [weak self] in self?.threeTap.showNotice(text, failure: failure) }
+            }
+            threeTap.start()
             pet.show()
             if !pendingURLs.isEmpty {let urls=pendingURLs;pendingURLs=[];application(NSApp,open:urls)}
             if store.settings.address.isEmpty || !store.settings.signsInAutomatically {
@@ -128,6 +138,7 @@ import AppKit
         pauseItem?.title = pet?.pet.isPaused == true ? "다시 움직이기" : "잠시 쉬기"
     }
     func applicationWillTerminate(_ notification: Notification) {
+        threeTap?.stop()
         if let activityMonitor { NSEvent.removeMonitor(activityMonitor) }
         bubbleTimer?.invalidate();client?.stop()
         // Without automatic sign-in, quitting signs this Mac out.
@@ -241,6 +252,7 @@ import AppKit
                 guard let self else{return};try? self.store.update{$0.bubbleReplyEnabled=enabled};self.pet.pet.bubbleReplyAllowed=enabled;self.refreshPetActivity();self.saveMemberSettings()
             }
             settings.onBubble = { [weak self] value in self?.setBubbleAlwaysShown(value) }
+            settings.onThreeTap = { [weak self] in self?.threeTap.toggle() }
             settings.onLogin = { [weak self] value in self?.setLoginEnabled(value) }
             settings.onResetChat = { [weak self] in self?.pet.resetChatSize() }
             settings.onResetPosition = { [weak self] in self?.pet.resetPosition() }
@@ -251,6 +263,7 @@ import AppKit
             petSettings = settings
         }
         petSettings?.bubbleReplyCheck.state=store.settings.bubbleReplyEnabled != false ? .on:.off
+        petSettings?.updateThreeTap(threeTap)
         petSettings?.present(name: store.settings.petName, percent: store.settings.petScalePercent ?? 100,
                              bubble: store.settings.bubbleAlwaysShown ?? false, account: currentAccount, status: client.status.text)
     }

@@ -75,6 +75,10 @@ final class PetController: NSObject {
     deinit { timer?.invalidate(); NotificationCenter.default.removeObserver(self); NSWorkspace.shared.notificationCenter.removeObserver(self); DistributedNotificationCenter.default().removeObserver(self) }
     func show() { panel.orderFrontRegardless(); pet.updateAnimationVisibility() }
     @objc func toggle() { if chatExpanded { collapseChat() } else { showChat() } }
+    func threeFingerTapped() {
+        guard panel.isVisible, !pet.isPaused else { return }
+        pet.onClick?()
+    }
     @objc func showChat() { setExpanded(true) }
     @objc func collapseChat() { setExpanded(false) }
     private func setExpanded(_ expanded: Bool) {

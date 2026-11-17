@@ -31,6 +31,12 @@ struct LocalSettings: Codable {
     var bubbleAlwaysShown: Bool?
     var bubbleReplyEnabled: Bool?
     var reminders: [String:Double]?
+    /// Trackpad hardware and maintenance notices belong to this Mac.
+    var threeTapEnabled: Bool?
+    var threeTapCheckedOS: String?
+    var threeTapFailures: [String]?
+    var threeTapPendingUpdate: Bool?
+    var threeTapLookupExplained: Bool?
     /// Offline mirrors of the member's room-list preferences.
     var pinnedEmployees: [String]?
     var mutedEmployees: [String]?

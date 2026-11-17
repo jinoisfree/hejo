@@ -386,3 +386,17 @@ team-kit 경계는 실행 파일 hermes/bin/hermes-connections와 hermes_facilit
 검증 중 계획 커밋 `a0b3782e9fbe77608478aed5a3f3a4a167444927`가 추가됐다. 최신 handoff 보완 38·spec REQ-HF-34.AC-08의 폐기/이관·design 12절을 읽고 현재 작업과 대조했다. AC-01~07·09는 유지하고 움직임은 TASK-38로 옮긴다. 위 움직임 이식/시험 기록은 초안 당시 사실이며 이번 TASK-34 결과에 포함하지 않는다.
 
 ConversationView·ConversationChrome·ProgressLayoutTests의 움직임 부분만 `.build/task38-start.patch`로 보관하고 실제 작업 트리에서는 되돌렸다(`git apply --check` 0). 표 마지막 + 행·얼굴 스크롤·DM·작업 줄·입력·문/설치 변경은 남겼다. 이 패치는 TASK-38 출발 자료이며 33판의 정확한 움직임과 같다고 승인된 구현이 아니므로 그때 design 12절·REQ-HF-36.AC-03으로 다시 대조해야 한다. TASK-35 원본 네 파일은 읽기만 준비했고 제품 구현은 시작하지 않았다.
+
+## TASK-35 착수 독해·대응
+
+기준 `10ce6701e09c0f2dc5b62ed4649332a969646007`. 앞서 전체 독해한 원본 다섯 파일의 해시가 `.build/task35/read-notes.json`과 모두 같음을 확인했다. ThreeTap.swift(132줄)·ThreeTapReader.swift(150줄)·ThreeTapController.swift(139줄)·ThreeTapNotice.swift(66줄)를 구현 전에 다시 끝까지 대조했고, App.swift(2,575줄)는 기존 전체 독해를 재사용하되 생성/시작/종료·설정 연결을 다시 읽었다. 원본 시험의 탭·프레임·OS 변경·알림 중복 억제 입력도 확인했다. 운영 원본은 수정하지 않는다.
+
+| 원본 파일 | 옮길 책임·유지 의존 |
+| --- | --- |
+| ThreeTap.swift | 손가락마다 착지점, 정확히 3개·0.3초·0.04·0.4초, 프레임 상태/좌표/시간/ID 검증, 30연속 실패, 기기 식별·OS 변경/실패 중복 억제. Foundation만 의존한다. |
+| ThreeTapReader.swift | 96바이트 접촉 ABI와 16/20/32/36 오프셋, 기호 확인, Touch Bar 제외(행 10 이상·열 양수), 기기 목록 10초 확인·세대별 늦은 콜백 차단·라이브러리 상주. Darwin dlopen/dlsym만 쓰고 프레임워크를 링크하지 않는다. |
+| ThreeTapController.swift | 잠자기 깨기 재연결, 탭 쿨다운, 설정·건강 상태·알림 대기열·요청문 복사. 저장은 원본 UserDefaults 대신 기존 LocalStore의 Mac별 hejo-local.json에 연결한다(새 원본 없음). 테스트에서는 기기/시각/시스템 설정을 대역으로 준다. |
+| ThreeTapNotice.swift | 전체 독해했으나 ThreeTapCommand·ThreeTapSender·Slack/원격 보고 경로는 REQ-HF-35에 따라 가져오지 않는다. 원격 보고 전용 slackText·입력 검증도 소비자가 없어 제외한다. |
+| App.swift | 펫 표시·쉬는 중 검사를 거쳐 기존 펫 클릭 경로로 보내고 앱 시작/종료와 설정 '화면과 펫'에 연결한다. 읽은 범위 밖의 기능은 가져오지 않는다. |
+
+문구 변환 규칙 1번으로 요청문의 ddots를 hejo로 바꾼다. 실패 안내·버튼·시스템 찾아보기 안내는 원문을 유지한다. 트랙패드 없음은 원본 `refreshThreeTapSettings`대로 체크를 조작할 수 있고 도움말로 연결 조건을 안내한다. 명세의 '흐리게'와 달리 원본은 비활성/색 변경을 하지 않으므로 원본대로 구현한다(26판 코드 우선). 실패 상태만 체크를 끄고 비활성으로 보이며, 실패 지점과 요청문 복사를 제공한다. 물리 트랙패드 탭은 후속 실물 확인으로 남긴다.
