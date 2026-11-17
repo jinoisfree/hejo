@@ -49,6 +49,7 @@ import AppKit
             pet.panel.onWorkspaceKey = { [weak self] event in self?.conversationView.handleWorkspaceKey(event) ?? false }
             pet.panel.onCollapse = { [weak self] in guard let self else { return }; if !self.conversationView.pickingFiles && !self.conversationView.closeSearchIfOpen() { self.pet.collapseChat() } }
             pet.pet.onBubbleOpen = { [weak self] key in guard let self else {return};self.openBubble(key) }
+            pet.pet.onClick={ [weak self] in guard let self else{return};if self.pet.chatExpanded {self.pet.collapseChat()} else {self.openBubble(self.pet.pet.bubbleTarget)} }
             pet.pet.onBubbleAction = { [weak self] action in self?.performBubbleAction(action) }
             bubbleTimer=Timer(timeInterval:0.25,repeats:true){ [weak self] _ in Task { @MainActor in self?.refreshPetActivity() } }
             RunLoop.main.add(bubbleTimer!,forMode:.common)
@@ -60,16 +61,13 @@ import AppKit
                 self.pet.preferredChatSize.width += delta; self.pet.placePet(at: current.anchorOrigin)
                 self.pet.saveChatSize()
             }
-            var headerDragOrigin: CGPoint?
-            var headerDragPointer: CGPoint?
-            for header in [conversationView.headerDrag, conversationView.brandDrag] {
-                header.onBegan = { [weak self] point in headerDragPointer = point; headerDragOrigin = self?.pet.placementTarget?.anchorOrigin }
-                header.onChanged = { [weak self] point in
-                    if let start = headerDragPointer, let origin = headerDragOrigin { self?.pet.movePet(to: CGPoint(x: origin.x + point.x-start.x, y: origin.y+point.y-start.y)) }
-                }
-                header.onEnded = { [weak self] in self?.pet.endPetDrag(); headerDragOrigin = nil; headerDragPointer = nil }
-                header.onDoubleClick = { [weak self] in self?.pet.toggleChatWidth() }
+            for header in [conversationView.headerDrag,conversationView.brandDrag] {
+                header.onBegan={ [weak self] point in self?.pet.beginChatDrag(at:point) }
+                header.onChanged={ [weak self] point in self?.pet.moveChatDrag(to:point) }
+                header.onEnded={ [weak self] in self?.pet.endChatDrag() }
+                header.onDoubleClick={ [weak self] in self?.pet.toggleChatWidth() }
             }
+            pet.onFocus={ [weak self] in guard let self else{return};self.pet.panel.makeFirstResponder(self.conversationView.editor.editor) }
             conversationView.refresh()
             pet.canCollapse={ [weak self] in self?.conversationView.pickingFiles != true }
             pet.onExpansionChanged = { [weak self] expanded in if !expanded {self?.conversationView.folded()};self?.conversation.model.setVisible(expanded); if expanded { self?.conversation.model.memberState.activate() };self?.refreshPetActivity() }
@@ -110,17 +108,17 @@ import AppKit
             NSApp.terminate(nil)
         } catch { let alert = NSAlert(); alert.messageText = "hejo를 시작하지 못했어요"; alert.informativeText = "앱 파일과 저장 공간을 확인해 주세요."; alert.runModal(); NSApp.terminate(nil) }
     }
-    func installEditMenu() {
+    func installEditMenu() {NSApp.mainMenu=makeEditMenu()}
+    func makeEditMenu()->NSMenu {
         let main = NSMenu(), app = NSMenu(), edit = NSMenu(title: "편집")
         let appItem = NSMenuItem(); appItem.submenu = app; main.addItem(appItem)
         app.addItem(withTitle: "hejo 종료", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         let editItem = NSMenuItem(); editItem.submenu = edit; main.addItem(editItem)
-        for (title, selector, key) in [("실행 취소", "undo:", "z"), ("오려두기", "cut:", "x"), ("복사", "copy:", "c"), ("붙여넣기", "paste:", "v"), ("모두 선택", "selectAll:", "a")] {
-            edit.addItem(withTitle: title, action: Selector(selector), keyEquivalent: key)
-        }
-        let redo = edit.addItem(withTitle: "다시 실행", action: Selector(("redo:")), keyEquivalent: "z")
-        redo.keyEquivalentModifierMask = [.command, .shift]
-        NSApp.mainMenu = main
+        edit.addItem(withTitle:"실행 취소",action:Selector(("undo:")),keyEquivalent:"z")
+        let redo=edit.addItem(withTitle:"실행 복귀",action:Selector(("redo:")),keyEquivalent:"z");redo.keyEquivalentModifierMask=[.command,.shift]
+        edit.addItem(.separator())
+        for (title,selector,key) in [("오려두기","cut:","x"),("복사하기","copy:","c"),("붙여넣기","paste:","v"),("전체 선택","selectAll:","a")] {edit.addItem(withTitle:title,action:Selector(selector),keyEquivalent:key)}
+        return main
     }
     func makeStatusMenu() -> NSMenu {
         let menu = NSMenu(); menu.delegate = self; menu.autoenablesItems = false
@@ -216,7 +214,8 @@ import AppKit
         if jumped {pet.pet.requestReplyJump()}
         var notice=bubble.notice
         if bubble.persistenceFailed {notice.detail="알림을 저장하지 못했어요. 저장 공간을 확인해 주세요."}
-        if notice.key==nil,notice.kind == .failure,let key=bubbleReply.target?.key,conversation.bubbleProblems[key] != nil,!model.timeline(key).isEmpty {notice.key=key}
+        // A failed inline reply keeps its existing draft target; it does not become an alert bubble.
+        if notice.key==nil,let old=bubbleReply.target,conversation.bubbleProblems[old.key] != nil,!model.petMuted.contains(old.key.employee),!model.timeline(old.key).isEmpty {notice.key=old.key}
         let target=notice.key.flatMap{key->BubbleReplyTarget? in
             guard !model.timeline(key).isEmpty else{return nil}
             return BubbleReplyTarget(key:key,speaker:model.name(key.employee),working:conversation.working(key),queued:model.employees.first{$0.id==key.employee}?.queued ?? false)
@@ -229,8 +228,10 @@ import AppKit
         let asked = questions.filter{ id in model.messages[id].map{!model.petMuted.contains($0.key.employee)} ?? false }.count
         let working = Set(model.typing.filter{$0.value>Date() && !model.petMuted.contains($0.key.employee)}.keys.map(\.employee)).count
         pet.pet.hasAsked = asked > 0; pet.pet.isTyping = working > 0
-        pet.pet.sendFailed = bubble.notice.kind == .failure
-        pet.pet.bubbleStatus = "일하는 직원 \(working)명 · 사장 차례 \(asked)건"
+        pet.pet.sendFailed=false;pet.pet.homeConversation=model.isHome
+        pet.pet.subtitleInterrupted=target.map{conversation.interruptions[$0.key] != nil && $0.working} ?? false
+        pet.pet.bubbleStatus=""
+        item?.button?.toolTip="hejo · \(store.settings.petName) · 작업 중 \(working)개 · 안 읽은 답 \(model.visibleUnreadTotal)개"
         if conversation.sending && !wasSending { pet.pet.noteSend() }
         wasSending = conversation.sending
     }

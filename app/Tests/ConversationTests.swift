@@ -59,7 +59,7 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     pet.reducedMotion={true}; pet.pet.installConversation(ui); pet.preferredChatSize=CGSize(width:428,height:500)
     pet.onExpansionChanged={ controller.model.setVisible($0) }; pet.showChat(); pet.pet.layoutSubtreeIfNeeded()
     try check(ui.sidebarRows.filter { $0.kind == .section }.count == 3 && ui.sidebarRows.filter { $0.kind == .stack }.count == 1 && ui.history.contents.filter { !$0.id.hasPrefix("date:") }.count == 1,"reviewed workspace renders employee tabs and thread cards")
-    try check(!pet.panel.isKeyWindow,"installing populated conversation does not take key focus")
+    try check(pet.panel.isKeyWindow,"AT92 populated conversation opens with key focus (V08)")
     try check(ui.sidebarWidth == 68 && ui.employeeTable.rowHeight == 72 && ui.headerDrag.frame.height == 44,"source strip and workspace header metrics")
     var resized:CGFloat=0; ui.onSidebarWidth={resized += $0}
     ui.setSidebarWidth(210); ui.layoutSubtreeIfNeeded()

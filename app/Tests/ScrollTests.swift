@@ -2,6 +2,8 @@ import AppKit
 
 /// AT91 compares native viewport coordinates and input cancellation against source formulas.
 @MainActor func scrollTests(outputDirectory:URL?=nil) async throws {
+    let highlighted=WorkspaceSearch.attributed("찾을 글",query:"찾을")
+    try check((highlighted.attribute(.backgroundColor,at:0,effectiveRange:nil) as? NSColor)==NSColor.systemYellow,"AT91 search uses system yellow")
     for value in ["2026-11-01T12:34:56.123456Z","2026-11-01T12:34:56Z","2026-11-01T21:34:56+09:00","invalid","1234567"] {
         let fractional=ISO8601DateFormatter();fractional.formatOptions=[.withInternetDateTime,.withFractionalSeconds]
         let expected=fractional.date(from:value) ?? ISO8601DateFormatter().date(from:value) ?? .distantPast
@@ -158,16 +160,16 @@ import AppKit
     let resources=FileManager.default.fileExists(atPath:sibling.path) ? sibling:URL(fileURLWithPath:"app/.build/hejo.app/Contents/Resources/Pet")
     let pet=PetController(store:try LocalStore(directory:home),atlas:try SpriteAtlas(resourceDirectory:resources))
     pet.displays={[PetDisplay(frame:CGRect(x:0,y:0,width:2400,height:2200),visible:CGRect(x:0,y:40,width:2400,height:2100))]}
-    pet.reducedMotion={true};pet.placePet(at:CGPoint(x:900,y:1800));pet.showChat()
-    let base=pet.placementTarget!.globalBubble.height
-    var now=1.0;pet.clock={now};pet.reducedMotion={false};pet.fitOpenThread(base+100)
-    try check(abs(pet.placementTarget!.globalBubble.height-base)<0.01,"AT91 height retarget starts at current glass")
+    var now=1.0;pet.clock={now};pet.reducedMotion={true};pet.placePet(at:CGPoint(x:900,y:1800));pet.showChat()
+    let base=pet.pet.placement!.globalBubble.height
+    now=2;pet.reducedMotion={false};pet.stepPlacement();pet.fitOpenThread(base+100)
+    try check(abs(pet.pet.placement!.globalBubble.height-base)<0.01,"AT91 height retarget starts at current glass")
     now+=0.065;pet.stepChatHeight()
     try check(abs((pet.shownChatHeight ?? 0)-(base+63.2120558829))<0.01,"AT91 actual panel height follows tau 0.065")
     for _ in 0..<20 {now+=0.065;pet.stepChatHeight()}
-    try check(abs(pet.placementTarget!.globalBubble.height-base-100)<0.2,"AT91 fitted panel height settles")
-    pet.fitOpenThread(nil);now+=0.065;pet.stepChatHeight();try check(pet.placementTarget!.globalBubble.height<base+100 && pet.placementTarget!.globalBubble.height>base,"AT91 folding returns through an intermediate height")
-    pet.reducedMotion={true};pet.stepChatHeight();try check(abs(pet.placementTarget!.globalBubble.height-base)<0.2,"AT91 reduced motion height is immediate")
+    try check(abs(pet.pet.placement!.globalBubble.height-base-100)<0.2,"AT91 fitted panel height settles")
+    pet.fitOpenThread(nil);now+=0.065;pet.stepChatHeight();try check(pet.pet.placement!.globalBubble.height<base+100 && pet.pet.placement!.globalBubble.height>base,"AT91 folding returns through an intermediate height")
+    pet.reducedMotion={true};pet.stepChatHeight();try check(abs(pet.pet.placement!.globalBubble.height-base)<0.2,"AT91 reduced motion height is immediate")
     pet.collapseChat();pet.panel.orderOut(nil)
 }
 

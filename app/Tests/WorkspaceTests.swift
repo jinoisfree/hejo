@@ -102,7 +102,7 @@ private final class WorkspaceCanvas:NSView {
     try check(ranges.count==1 && String("banana"[ranges[0]])=="anana","AT78 overlapping highlights merge")
     let unicode="e\u{301}clair 안녕";try check(!WorkspaceSearch.highlights(unicode,query:"éclair").isEmpty,"AT78 original Unicode range")
     let field=WorkspaceSearch.attributed("needle",query:"needle")
-    try check(field.attribute(.backgroundColor,at:0,effectiveRange:nil) as? NSColor == .yellow && field.attribute(.foregroundColor,at:0,effectiveRange:nil) as? NSColor == .black,"AT78 yellow black highlight")
+    try check(field.attribute(.backgroundColor,at:0,effectiveRange:nil) as? NSColor == .systemYellow && field.attribute(.foregroundColor,at:0,effectiveRange:nil) as? NSColor == .black,"AT78 yellow black highlight")
     controller.onChange=redraw;ui.refresh()
     let restored=try ConversationModel(store:try LocalStore(directory:home));try check(restored.messages.count==model.messages.count,"AT78 local cache projection search source survives reload")
     ui.openSearch();ui.search.stringValue="search words";ui.scheduleSearch();await pause(0.1)

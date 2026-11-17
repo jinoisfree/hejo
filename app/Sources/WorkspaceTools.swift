@@ -31,7 +31,7 @@ enum WorkspaceSearch {
     }
     static func attributed(_ text:String,query:String)->NSAttributedString {
         let result=NSMutableAttributedString(string:text,attributes:[.font:NSFont.systemFont(ofSize:12),.foregroundColor:NSColor.labelColor])
-        for range in highlights(text,query:query) {result.addAttributes([.backgroundColor:NSColor.yellow,.foregroundColor:NSColor.black],range:NSRange(range,in:text))};return result
+        for range in highlights(text,query:query) {result.addAttributes([.backgroundColor:NSColor.systemYellow,.foregroundColor:NSColor.black],range:NSRange(range,in:text))};return result
     }
     static func words(_ line:ConversationMessage,names:[String:String])->String {
         ([line.text]+line.files.map(\.name)+[line.role=="owner" ? "나":names[line.speaker] ?? line.speaker,line.replyState.map{ThreadTools.stateLabel($0)+" "+$0} ?? ""]).joined(separator:"\n")

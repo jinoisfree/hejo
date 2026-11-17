@@ -15,8 +15,8 @@ import AppKit
         var id: String?
         var body = ""
         var until: Date? = nil
-        var held: Bool { kind == .approval || kind == .failure }
-        var actions: [Action] { kind == .reply ? Self.buttons(body) : key == nil ? [] : [.openChat] }
+        var held: Bool { kind == .approval }
+        var actions: [Action] { kind == .reply ? Self.buttons(body) : [] }
         private static let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
         static func buttons(_ text: String) -> [Action] {
             let url = detector?.matches(in:text,range:NSRange(text.startIndex...,in:text)).compactMap(\.url).first { ["http","https"].contains($0.scheme?.lowercased() ?? "") }
@@ -91,15 +91,11 @@ import AppKit
         if let installedNotice, installedNotice.until! <= now { self.installedNotice = nil }
         if input.paused {notice=Notice(kind:.idle,headline:"쉬고 있어요",detail:"메뉴에서 다시 시작할 수 있어요",key:nil)}
         else if let question=liveQuestions.first(where:{!openedQuestions.contains($0.id)}) {
-            notice=Notice(kind:.approval,headline:(input.names[question.speaker] ?? "직원")+" · 답변이 필요해요",detail:Self.preview(question.text),key:question.key,sender:input.names[question.speaker] ?? "직원",id:question.id)
+            notice=Notice(kind:.approval,headline:(input.names[question.speaker] ?? "직원")+" · 답변이 필요해요",detail:Self.preview(question.text).isEmpty ? "확인할 요청이 있어요 · 눌러서 스레드 보기":Self.preview(question.text),key:question.key,sender:input.names[question.speaker] ?? "직원",id:question.id)
         } else if let installedNotice { notice = installedNotice }
-        else if let failure=input.failure,failure.retryKey.map({!input.muted.contains($0.employee)}) ?? true {
-            notice=Notice(kind:.failure,headline:"보내지 못했어요",detail:failure.message,key:failure.retryKey)
-        } else if let key=input.typing.filter({$0.value>now && !input.muted.contains($0.key.employee)}).keys.sorted(by:{ a,b in
-            let x=sorted.last(where:{$0.role=="owner" && $0.key==a})?.seq ?? 0,y=sorted.last(where:{$0.role=="owner" && $0.key==b})?.seq ?? 0
-            return x==y ? a.readKey<b.readKey:x>y
-        }).first {
-            notice=Notice(kind:.writing,headline:"답변을 생각하고 있어요",detail:(input.names[key.employee] ?? "직원")+" 작성 중…",key:key)
+        else if let key=input.typing.filter({$0.value>now && !input.muted.contains($0.key.employee)}).keys.sorted(by:{$0.readKey<$1.readKey}).first {
+            let names=input.typing.filter{$0.value>now && !input.muted.contains($0.key.employee)}.keys.sorted{$0.readKey<$1.readKey}.map{input.names[$0.employee] ?? "직원"}
+            notice=Notice(kind:.writing,headline:"답변을 생각하고 있어요",detail:Array(NSOrderedSet(array:names)) .compactMap{$0 as? String}.joined(separator:", ")+" 작성 중…",key:key)
         } else if let current {notice=current}
         else {notice=Notice(kind:.idle,headline:"",detail:"",key:nil)}
         return !fresh.isEmpty && !input.paused
@@ -120,33 +116,36 @@ final class FoldedBubbleView: NSView {
     var onOpen: (() -> Void)?
     var onHover: ((Bool) -> Void)?
     var onAction: ((BubbleReveal.Action) -> Void)?
-    var headline = "" { didSet { needsDisplay = true } }
-    var detail = "" { didSet { needsDisplay = true;needsLayout=true } }
-    var avatar:ProfileAvatar? { didSet { needsDisplay=true } }
+    var headline = "" { didSet { needsDisplay = true;textSurface.needsDisplay=true } }
+    var detail = "" { didSet { needsDisplay = true;textSurface.needsDisplay=true;needsLayout=true } }
+    var avatar:ProfileAvatar? { didSet { needsDisplay=true;textSurface.needsDisplay=true } }
     var sender=""
-    var unread=0 {didSet{needsDisplay=true}}
-    var kind:BubbleReveal.Kind = .idle {didSet{needsDisplay=true}}
+    var unread=0 {didSet{needsDisplay=true;textSurface.needsDisplay=true}}
+    var kind:BubbleReveal.Kind = .idle {didSet{needsDisplay=true;textSurface.needsDisplay=true}}
     var actions:[BubbleReveal.Action]=[] {didSet {if actions != oldValue {installButtons()}}}
     var reduceMotion:()->Bool={NSWorkspace.shared.accessibilityDisplayShouldReduceMotion}
     private let shimmer=ShimmerLayer(),dot=CALayer()
-    private(set) var buttons:[FileChip]=[]
+    var interrupted=false
+    private let glass=BubbleGlassSurface(radius:20)
+    private let textSurface=FoldedTextSurface()
+    private(set) var buttons:[BubbleActionButton]=[]
     private var tracking: NSTrackingArea?
     var statusDotVisible:Bool { !dot.isHidden }
     var isShimmering:Bool { !shimmer.isHidden }
     override var isFlipped: Bool { true }
-    override init(frame:NSRect) {super.init(frame:frame);wantsLayer=true;layer?.addSublayer(shimmer);dot.cornerRadius=3;layer?.addSublayer(dot)}
+    override init(frame:NSRect) {super.init(frame:frame);wantsLayer=true;addSubview(glass);textSurface.wantsLayer=true;textSurface.onDraw={ [weak self] in self?.drawText() };addSubview(textSurface);textSurface.layer?.addSublayer(shimmer);dot.cornerRadius=3;textSurface.layer?.addSublayer(dot)}
     required init?(coder:NSCoder){fatalError()}
     private func installButtons() {
         buttons.forEach{$0.removeFromSuperview()}
-        buttons=actions.map{action in let button=FileChip(title:action.title);button.isBordered=false;button.wantsLayer=true;button.layer?.backgroundColor=NSColor.labelColor.withAlphaComponent(0.1).cgColor;button.layer?.cornerRadius=11;button.font = .systemFont(ofSize:11,weight:.medium);button.setAccessibilityLabel(action.title);button.invoke={ [weak self] in self?.onAction?(action) };addSubview(button);return button}
+        buttons=actions.map{action in let button=BubbleActionButton(title:action.title);button.font = .systemFont(ofSize:11,weight:.medium);button.setAccessibilityLabel(action.title);button.invoke={ [weak self] in self?.onAction?(action) };addSubview(button);return button}
         needsLayout=true
     }
-    override func layout(){super.layout();let width=(bounds.width-24-CGFloat(max(0,buttons.count-1))*6)/CGFloat(max(1,buttons.count));for (i,b) in buttons.enumerated(){b.frame=CGRect(x:12+CGFloat(i)*(width+6),y:57,width:width,height:24)}
+    override func layout(){super.layout();glass.frame=bounds;textSurface.frame=bounds;glass.updateTint();let width=(bounds.width-24-CGFloat(max(0,buttons.count-1))*6)/CGFloat(max(1,buttons.count));for (i,b) in buttons.enumerated(){b.frame=CGRect(x:12+CGFloat(i)*(width+6),y:57,width:width,height:24)}
         shimmer.configure(text:detail,font:.systemFont(ofSize:11),frame:CGRect(x:16,y:30,width:max(0,bounds.width-32),height:16),scale:window?.backingScaleFactor ?? 2)
         dot.frame=CGRect(x:16,y:16,width:6,height:6)
     }
     func tick(at time:TimeInterval,paused:Bool){
-        shimmer.update(time:time * (ShimmerLayer.period / 1.8),running:kind == .writing && !reduceMotion() && !paused)
+        shimmer.update(time:floor(time*24)/24,running:interrupted && !reduceMotion() && !paused)
         CATransaction.begin();CATransaction.setDisableActions(true)
         dot.backgroundColor=(kind == .approval ? NSColor.systemOrange:kind == .failure ? .systemRed:kind == .writing ? .systemGreen:.systemTeal).cgColor
         dot.isHidden=avatar != nil || unread>0;dot.opacity=1;CATransaction.commit()
@@ -162,19 +161,69 @@ final class FoldedBubbleView: NSView {
     override func mouseExited(with event:NSEvent){onHover?(false)}
     override func mouseDown(with event:NSEvent){onOpen?()}
     override func acceptsFirstMouse(for event:NSEvent?)->Bool{true}
-    override func draw(_ dirtyRect:NSRect){
-        let path=NSBezierPath(roundedRect:bounds.insetBy(dx:1,dy:1),xRadius:14,yRadius:14);NSColor.windowBackgroundColor.withAlphaComponent(0.94).setFill();path.fill();NSColor.labelColor.withAlphaComponent(0.14).setStroke();path.lineWidth=1;path.stroke()
+    private func drawText(){
         var x:CGFloat=30
         if unread>0 {let rect=CGRect(x:16,y:8,width:22,height:22);NSColor.systemBlue.setFill();NSBezierPath(ovalIn:rect).fill();let text=(unread>9 ? "9+":String(unread)) as NSString;let attrs:[NSAttributedString.Key:Any]=[.font:NSFont.boldSystemFont(ofSize:11),.foregroundColor:NSColor.white];let size=text.size(withAttributes:attrs);text.draw(at:CGPoint(x:rect.midX-size.width/2,y:rect.midY-size.height/2),withAttributes:attrs);x=46}
-        if let avatar {avatar.draw(in:CGRect(x:x==30 ? 16:x,y:9,width:20,height:20),name:sender);x=(x==30 ? 16:x)+26}
+        if let avatar {avatar.draw(in:CGRect(x:x==30 ? 16:x,y:9,width:20,height:20),name:sender);x=(x==30 ? 16:x)+28}
         let paragraph=NSMutableParagraphStyle();paragraph.lineBreakMode = .byTruncatingTail
-        (headline as NSString).draw(in:CGRect(x:x,y:9,width:max(0,bounds.width-x-16),height:19),withAttributes:[.font:NSFont.systemFont(ofSize:14,weight:.semibold),.foregroundColor:avatar?.color ?? NSColor.labelColor,.paragraphStyle:paragraph])
-        (detail as NSString).draw(in:CGRect(x:16,y:30,width:max(0,bounds.width-32),height:16),withAttributes:[.font:NSFont.systemFont(ofSize:11),.foregroundColor:kind == .writing ? NSColor.labelColor.withAlphaComponent(0.45):.secondaryLabelColor,.paragraphStyle:paragraph])
+        (headline as NSString).draw(in:CGRect(x:x,y:9,width:max(0,bounds.width-x-16),height:19),withAttributes:[.font:NSFont.systemFont(ofSize:14,weight:.semibold),.foregroundColor:NSColor.labelColor,.paragraphStyle:paragraph])
+        (detail as NSString).draw(in:CGRect(x:16,y:30,width:max(0,bounds.width-32),height:16),withAttributes:[.font:NSFont.systemFont(ofSize:11),.foregroundColor:NSColor.secondaryLabelColor,.paragraphStyle:paragraph])
     }
 }
 
 /// Non-interactive native thought-balloon trail. The hidden bubble leaves only the badge beside the head.
 final class PetThoughtView:NSView {
+    private let glass=BubbleGlassSurface(radius:8,tint:0.5)
+    override init(frame:NSRect){super.init(frame:frame);addSubview(glass)}
+    required init?(coder:NSCoder){fatalError()}
+    override func layout(){super.layout();glass.frame=bounds;glass.radius=bounds.width/2;glass.updateTint()}
     override func hitTest(_ point:NSPoint)->NSView?{nil}
-    override func draw(_ dirtyRect:NSRect){let path=NSBezierPath(ovalIn:bounds.insetBy(dx:0.5,dy:0.5));NSColor.windowBackgroundColor.withAlphaComponent(0.94).setFill();path.fill();NSColor.labelColor.withAlphaComponent(0.14).setStroke();path.lineWidth=1;path.stroke()}
+}
+
+/// Same native glass as the conversation; the folded surface keeps the original 0.35 scrim.
+final class BubbleGlassSurface:NSView {
+    private let surface:NSView
+    private let scrim=NSView()
+    var radius:CGFloat
+    let tint:CGFloat
+    init(radius:CGFloat,tint:CGFloat=0.35){
+        self.radius=radius;self.tint=tint
+        if #available(macOS 26.0,*){let glass=PetGlassView();glass.style = .clear;glass.cornerRadius=radius;glass.contentView=scrim;surface=glass}
+        else {let glass=PetVibrancyView();glass.material = .popover;glass.blendingMode = .behindWindow;glass.state = .active;glass.wantsLayer=true;glass.layer?.masksToBounds=true;glass.addSubview(scrim);surface=glass}
+        super.init(frame:.zero);scrim.wantsLayer=true;addSubview(surface)
+    }
+    required init?(coder:NSCoder){fatalError()}
+    override func hitTest(_ point:NSPoint)->NSView?{nil}
+    override func layout(){super.layout();surface.frame=bounds;scrim.frame=bounds;updateTint()}
+    override func viewDidChangeEffectiveAppearance(){super.viewDidChangeEffectiveAppearance();updateTint()}
+    func updateTint(){
+        let dark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua
+        scrim.layer?.backgroundColor=(dark ? NSColor.black:.white).withAlphaComponent(NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency ? 1:tint).cgColor
+        scrim.layer?.cornerRadius=radius;scrim.layer?.masksToBounds=true
+        scrim.layer?.borderWidth=tint>0.35 ? 0.5:0
+        scrim.layer?.borderColor=(dark ? NSColor.white:.black).withAlphaComponent(0.18).cgColor
+        if #available(macOS 26.0,*),let glass=surface as? PetGlassView {glass.cornerRadius=radius}
+        else {surface.layer?.cornerRadius=radius}
+    }
+}
+
+private final class FoldedTextSurface:NSView {
+    var onDraw:(()->Void)?
+    override var isFlipped:Bool {true}
+    override func hitTest(_ point:NSPoint)->NSView?{nil}
+    override func draw(_ rect:NSRect){onDraw?()}
+}
+
+/// Native button event/AX handling with the original folded bubble's drawing and truncation.
+final class BubbleActionButton:NSButton {
+    var invoke:(()->Void)?
+    init(title:String){super.init(frame:.zero);self.title=title;isBordered=false;target=self;action=#selector(pressed)}
+    required init?(coder:NSCoder){fatalError()}
+    @objc private func pressed(){invoke?()}
+    override func acceptsFirstMouse(for event:NSEvent?)->Bool {true}
+    override func draw(_ rect:NSRect){
+        NSColor.labelColor.withAlphaComponent(0.12).setFill();NSBezierPath(roundedRect:bounds,xRadius:12,yRadius:12).fill()
+        let paragraph=NSMutableParagraphStyle();paragraph.alignment = .center;paragraph.lineBreakMode = .byTruncatingTail
+        (title as NSString).draw(in:bounds.insetBy(dx:6,dy:5),withAttributes:[.font:NSFont.systemFont(ofSize:11,weight:.medium),.foregroundColor:NSColor.labelColor,.paragraphStyle:paragraph])
+    }
 }

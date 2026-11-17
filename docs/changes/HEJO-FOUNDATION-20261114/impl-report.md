@@ -1926,3 +1926,19 @@ python3 .build/task38/post_checks.py 종료 0. 최종 빌드의 실제 가짜 �
 - 앞선 집중 시도의 시험 초기 상태 오류·중간 렌더·테마 색 수정 전 중단 전체는 최종 근거가 아니다. 마지막 고정 소스의 위 결과만 인계한다. 운영 앱 전체·픽셀 동일 비교는 아니다. 원본 ScrollView는 ImageRenderer에 빈 화면이 나와 정적 같은 내용 틀로 바꾸고 TextField만 정적 글자로 대체했다. hejo 왼쪽 목록/아일랜드/작성기와 원본의 비교 대상 범위 차이, native 제어의 기준선·높이 차이는 evidence/HEJO-FOUNDATION/TASK-40.md에 명시했다.
 
 필요/도달 인계 증거 수준은 2/2다. 실제 서버·두 Mac·손 트랙패드/물리 한글 입력·VoiceOver와 운영 결합은 TASK-23에 남는다. TASK-41 이후는 미착수다. 최종 보고 추가 뒤 개인값·HEJO_PYTHON 훅·diff 검사, 소유 파일 git commit --only, 커밋 입력·그림 바이트 대조를 수행하고 실제 커밋은 `.build/task40/final-verification.json`에 둔다. public `f716bdff38af3d8c2cb2cdf4502e080ecbecb2bc`는 불변이다. 운영 홈·앱 사본·공용 릴리스·운영 저장소·Hermes 본체·ddots·원격 변경, GitHub 조회·push·실제 발송·비밀 파일 접근은 없다.
+
+
+## TASK-41 최종 구현·자체 검증
+
+보완 38·56의 §F·V08·V10·V14 및 F05·F06·F20~25, N40-01을 기존 AppKit 책임 자리에서 구현했다. PetController의 단일 배치에 원본 PetBubbleMotion을 연결하고 높이 추종도 합쳤다. 머리줄 끌기는 dragged(by:)와 재배치 보류로 높이를 유지하며 펫 끌기와 구별한다. 지니 흐림/바탕 합성·현재 진행도 반전·0.3 폭/0.06 덮개·0.8 추종, 커서·초기화·층·위치와 화면 변경을 연결했다.
+
+유리 말풍선·3초 표면/12초 내용·0.18 페이드·hoverArmed·승인 유지·버튼/문구·홈 행동·걷기·Zzz·졸기, 키 창/작성기·말풍선 대상·접기 정리·한글 키코드/조합 Esc·편집 메뉴·접근성을 연결했다. 실패 알림은 제거하고 인라인 답 실패의 기존 대상/초안/문제 줄은 보존했다. 검색 공용 강조는 systemYellow다. 새 영구 원본·wire·문·기록장·SwiftUI import는 없다. 대체된 옛 단정의 원문 근거는 copy-review에 적었다.
+
+최종 검증(입력 170개):
+
+- `python3 .build/task41/frozen.py` 종료 0. foundation9_runner hejo 236 passed(test_install 포함), 앱 전체/통신 통과. AT-92 세 번 모두 종료 0·inputsUnchanged=true. 로그 frozen-progress.json·final-foundation.log·app-focused-01~03.log.
+- `mutation.py compile`·`verify` 각각 종료 0. 반전 때 현재 진행도를 버리는 사본은 compile 0·시험 1, 정상 사본 0으로 검출했다. 원본 입력 불변. mutation.json.
+- `post_checks.py` 종료 0. 최종 고정 제품 입력의 native 보기 조립 캡처·원본 조각 실행·4개 PNG 유효성·독립 수치 대조·codesign deep/strict 통과, 원본 지문 불변·gate/schema 변경 0. 원시 캡처의 외관 범위 오류를 별도 조립으로 보완했고 제품 입력은 불변이다. 그림을 직접 표시해 비교했다. post-checks.json·image-check.json·motion-comparison.json.
+- 첫 전체 실행은 AT-92까지 통과 후 N40-01로 바뀐 공용 색을 옛 AT-78이 기대해 실패했다. 원문상 명시된 색 단정과 머리줄 재배치 보류를 더한 뒤 새 입력으로 검증했다. 숨김 억제 뒤 창을 다시 보이는 초기 프레임의 AT-82 실패도 확인해 창 수명 경계에서 갱신했고, 그 hover/포커스 단언은 보존했다. 마지막 배지 숨김의 가짜 시계도 3초 기한 이후로 옮겼다. 이전 행/지문/로그는 intermediate-before-color-guard·intermediate-before-bubble-show·intermediate-before-pop-clock에 보존했다.
+
+필요/도달 증거 수준은 2/2다. 화면은 동일 합성 상태의 원본 함수/실제 AppKit 조립 비교이며 운영 앱 전체·실제 두 Mac 검증이 아니다. 보완 조립은 `python3 .build/task41/native_capture.py` compile/run 0(`native-capture.json`), 단추 바탕 라이트/다크 표본은 원본과 같음(`capsule-colors.json`)을 확인했다. 실제 서버·입력기·VoiceOver·다중 화면 실물은 운영 수락에 남는다. evidence/HEJO-FOUNDATION/TASK-41.md와 PNG에 범위를 명시했다. 최종 보고 뒤 개인값·HEJO_PYTHON 훅·diff 검사와 소유 파일 git commit --only 및 커밋/입력/그림 바이트 검증을 한다. 그 실제 커밋과 결과는 .build/task41/final-verification.json에 둔다. tasks.md 판정은 계획 담당이 갱신하며 TASK-42 이후는 미착수다. public f716bdf는 고정했다. 운영 홈·앱 사본·공용 릴리스·운영 저장소·본체·ddots·원격 변경, GitHub 조회·push·실제 발송·비밀 파일 열기는 하지 않았다.

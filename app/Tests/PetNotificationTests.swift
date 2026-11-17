@@ -26,7 +26,7 @@ private final class NotificationCanvas:NSView {
     now=now.addingTimeInterval(20);_=engine.update(input,now:now)
     try check(engine.notice.kind == .approval,"AT81 approval stays beyond twelve seconds")
     input.chatOpen=true;input.opened=key;_=engine.update(input,now:now)
-    try check(engine.notice.kind == .failure,"AT81 opening dismisses approval then failure wins")
+    try check(engine.notice.kind == .writing,"AT92 opening dismisses approval; no failure bubble")
     input.chatOpen=false;input.failure=nil;_=engine.update(input,now:now)
     try check(engine.notice.kind == .writing && engine.notice.detail=="직원 A 작성 중…","AT81 typing above reply")
     input.typing=[:];_=engine.update(input,now:now)
@@ -66,6 +66,7 @@ private final class NotificationCanvas:NSView {
     try check(failed.remindLater(now:now) && !failed.persistenceFailed,"AT81 reminder save recovers")
     let controls=PetController(store:store,atlas:try SpriteAtlas(resourceDirectory:resourceDirectory))
     controls.reducedMotion={true};controls.pet.pointerLocation={CGPoint(x:-5000,y:-5000)};controls.pet.bubbleNow={now.timeIntervalSince1970}
+    controls.show()
     controls.pet.bubbleNotice=BubbleReveal.Notice(kind:.reply,headline:"직원 A · 새 메시지",detail:"새 답 첫 줄",key:key,sender:"직원 A",id:next.id,body:"https://example.com/answer",until:now.addingTimeInterval(12))
     controls.pet.avatarForEmployee={_ in ProfileAvatar(color:.systemPurple)}
     controls.pet.unreadCount=12;controls.pet.updateFoldedBubble();controls.pet.foldedBubble.layoutSubtreeIfNeeded()
@@ -78,6 +79,7 @@ private final class NotificationCanvas:NSView {
     try check(controls.pet.hitTest(point)===button,"AT81 pet hit routing reaches native action")
     controls.pet.bubbleNotice=BubbleReveal.Notice(kind:.writing,headline:"답변을 생각하고 있어요",detail:"직원 A 작성 중…",key:key)
     controls.pet.foldedBubble.reduceMotion={false};controls.pet.bubbleAlwaysShown=true;controls.pet.foldedBubble.layoutSubtreeIfNeeded();controls.pet.foldedBubble.tick(at:1,paused:false)
+    controls.pet.foldedBubble.interrupted=true;controls.pet.foldedBubble.tick(at:1,paused:false)
     try check(controls.pet.foldedBubble.isShimmering && !controls.pet.foldedBubble.statusDotVisible,"AT81 writing shimmer and badge replace dot")
     try check(controls.pet.thoughtDots.allSatisfy{!$0.isHidden},"AT81 visible bubble thought trail")
     controls.pet.unreadCount=0;controls.pet.updateFoldedBubble();try check(controls.pet.foldedBubble.statusDotVisible,"AT81 writing status dot")
@@ -99,6 +101,7 @@ private final class NotificationCanvas:NSView {
     try check(!controls.pet.foldedBubble.isHidden,"AT81 hover bridge keeps bubble reachable from head")
     controls.pet.pointerLocation={CGPoint(x:-5000,y:-5000)};controls.pet.animate()
     controls.pet.reduceMotion={true};controls.pet.requestReplyJump();controls.pet.animate();try check(controls.pet.jumpElapsed==nil,"AT81 actual pet reduced motion")
+    controls.pet.bubbleNow={now.addingTimeInterval(3.01).timeIntervalSince1970}
     controls.pet.bubbleAlwaysShown=false;controls.pet.bubbleNotice=BubbleReveal.Notice(kind:.idle,headline:"",detail:"",key:nil);controls.pet.unreadCount=12;controls.pet.updateFoldedBubble()
     try check(controls.pet.unreadBadge.text=="9+" && !controls.pet.unreadBadge.isHidden && controls.pet.thoughtDots.allSatisfy(\.isHidden),"AT81 hidden bubble leaves 9+ badge and no thought trail (source)")
     if let outputDirectory {

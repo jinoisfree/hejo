@@ -497,8 +497,8 @@ import UniformTypeIdentifiers
         controller.moveDraft(from:controller.composeKey,to:key,carry:controller.model.selected==key);automatic=false;controller.cancelFollowup();replyMode=true;openThread=key
         controller.model.select(key,inHome:controller.model.isHome);history.scrollTo(key.thread)
     }
-    func foldAll() {searchHighlight=nil;searchHighlightThread=nil;openThread=nil;createThread()}
-    func folded() {controller.folded()}
+    func foldAll() {searchHighlight=nil;searchHighlightThread=nil;expandedMessages.removeAll();longReplyBases.removeAll();longReplyWindowBase=nil;openThread=nil;createThread()}
+    func folded() {_=closeSearchIfOpen();foldAll();controller.folded()}
     var interruptible:ConversationKey? {
         guard let openThread,controller.model.typing[openThread] != nil else{return nil};return openThread
     }

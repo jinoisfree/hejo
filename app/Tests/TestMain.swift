@@ -28,7 +28,11 @@ final class MemoryCredentials: GateCredentialStore {
         Task { @MainActor in
             do {
                 let args = CommandLine.arguments
-                if args.contains("--task40") {
+                if args.contains("--task41") {
+                    try await petWindowTests()
+                } else if args.count>2 && args[1]=="--task41-capture" {
+                    try await petWindowTests(outputDirectory:URL(fileURLWithPath:args[2]))
+                } else if args.contains("--task40") {
                     try await scrollTests()
                 } else if args.count>2 && args[1]=="--task40-capture" {
                     try await scrollTests(outputDirectory:URL(fileURLWithPath:args[2]))
@@ -166,7 +170,7 @@ final class MemoryCredentials: GateCredentialStore {
         try check(controller.transitionProgress == 0, "AT47 opening starts folded")
         await waitForTransition(controller, progress: 1)
         try check(controller.transitionProgress == 1 && controller.transitionSteps > 0, "AT47 0.30s completes")
-        try check(!controller.panel.isKeyWindow, "opening does not make key")
+        try check(controller.panel.isKeyWindow, "AT92 opening takes key focus (V08 replaces old AT47)")
         try check(front == NSWorkspace.shared.frontmostApplication?.processIdentifier, "opening keeps foreground app")
         controller.pet.onClick?(); try check(!controller.chatExpanded, "AT47 pet re-click folds")
         await waitForTransition(controller, progress: 0); try check(controller.transitionProgress == 0, "AT47 closing ends folded")
@@ -221,6 +225,7 @@ final class MemoryCredentials: GateCredentialStore {
         try await sidebarTests()
         try await cardTests()
         try await scrollTests()
+        try await petWindowTests()
         try await composerTargetTests()
         try await readNoticeTests()
         try await threadToolsTests()

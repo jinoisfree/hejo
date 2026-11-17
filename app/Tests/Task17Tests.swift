@@ -41,7 +41,7 @@ import AppKit
     var clock = ProcessInfo.processInfo.systemUptime
     controller.pet.bubbleNow = { clock }; controller.pet.activityNow = { clock }
     let key = ConversationKey(employee: "employee-test", thread: UUID().uuidString.lowercased())
-    controller.pet.bubbleNotice = BubbleReveal.Notice(kind:.reply,headline:"가짜 직원 · 새 메시지",detail:"새 글 첫 줄",key:key,sender:"가짜 직원",until:Date(timeIntervalSince1970:clock+12))
+    controller.pet.bubbleNotice = BubbleReveal.Notice(kind:.reply,headline:"가짜 직원 · 새 메시지",detail:"새 글 첫 줄",key:key,sender:"가짜 직원",id:"fake-reply",until:Date(timeIntervalSince1970:clock+12))
     try check(!controller.pet.foldedBubble.isHidden && controller.pet.foldedBubble.detail == "새 글 첫 줄", "AT62 first line shown")
     clock += 12.1; controller.pet.updateFoldedBubble()
     try check(controller.pet.foldedBubble.isHidden, "AT62 superseded by AT81 twelve-second timeout")
@@ -61,7 +61,7 @@ import AppKit
     try check(controller.pet.activityPose == .phone, "AT63 asked phone")
     controller.pet.hasAsked = false; controller.pet.isTyping = true; controller.pet.updateActivityPresentation(at: clock)
     try check(controller.pet.activityPose == .laptop, "AT63 typing laptop")
-    controller.pet.isTyping = false; controller.pet.noteSend(); controller.pet.updateActivityPresentation(at: clock)
+    controller.pet.isTyping = false; controller.pet.homeConversation=true;controller.pet.noteSend(); controller.pet.updateActivityPresentation(at: clock)
     try check(controller.pet.activityPose == .wave, "AT63 send wave")
     clock += PetActivity.waveDuration + 0.01
     controller.pet.sendFailed = true; controller.pet.updateActivityPresentation(at: clock)
@@ -127,7 +127,7 @@ import AppKit
     try check(folded, "AT65 second Escape folds chat")
     let originalMenu = NSApp.mainMenu
     AppDelegate().installEditMenu()
-    let redo = NSApp.mainMenu?.items.flatMap { $0.submenu?.items ?? [] }.first { $0.title == "다시 실행" }
+    let redo = NSApp.mainMenu?.items.flatMap { $0.submenu?.items ?? [] }.first { $0.title == "실행 복귀" }
     try check(redo?.action == Selector(("redo:")) && redo?.keyEquivalent == "z" &&
               redo?.keyEquivalentModifierMask == [.command, .shift], "AT65 menu binds Cmd-Shift-Z to redo")
     NSApp.mainMenu = originalMenu

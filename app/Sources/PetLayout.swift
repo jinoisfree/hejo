@@ -282,3 +282,71 @@ enum ChatMorph {
         open > folded ? max(0, min(1, (height - folded) / (open - folded))) : 1
     }
 }
+
+enum ChatWidthSlide {
+    static let duration: TimeInterval = 0.3
+    static let fadeDuration: TimeInterval = 0.06
+    static func cover(_ progress: CGFloat) -> CGFloat {
+        let p = min(1, max(0, progress / 0.2))
+        return p * p * (3 - 2 * p)
+    }
+}
+
+struct PetBubbleMotion {
+    private(set) var position: CGPoint?
+    private var target = CGPoint.zero
+    private var lastTime: TimeInterval?
+    private var bounds = CGRect.zero
+    private(set) var size = PetLayout.bubbleSize
+    private var targetSize = PetLayout.bubbleSize
+    private var widthSlide: (start: TimeInterval, origin: CGPoint, size: CGSize, duration: TimeInterval)?
+    private(set) var widthProgress: CGFloat = 1
+    mutating func slideWidth(now: TimeInterval, duration: TimeInterval = ChatWidthSlide.duration) {
+        widthSlide = (now, position ?? target, size, duration); widthProgress = 0
+    }
+    mutating func cancelWidthSlide() { widthSlide = nil; widthProgress = 1 }
+    private var glideUntil: TimeInterval = 0
+    /// Opening and folding the conversation take a little longer than following the pet, so the change can be seen.
+    mutating func glide(now: TimeInterval) { glideUntil = now + 0.8 }
+
+    mutating func retarget(_ point: CGPoint, visibleFrame: CGRect, now: TimeInterval, immediately: Bool = false,
+                           size: CGSize = PetLayout.bubbleSize, headerAtTop: Bool = false) {
+        targetSize = size
+        bounds = visibleFrame.insetBy(dx: 12, dy: 12)
+        if headerAtTop { bounds.size.height += 12 }
+        target = clamped(point, size: targetSize)
+        if position == nil || immediately { cancelWidthSlide(); self.size = targetSize; position = target; lastTime = now }
+        else if let position { self.position = clamped(position) }
+    }
+
+    mutating func step(now: TimeInterval) -> CGPoint {
+        if let slide = widthSlide {
+            widthProgress = CGFloat(min(1, max(0, (now - slide.start) / slide.duration)))
+            let eased = widthProgress * widthProgress * (3 - 2 * widthProgress)
+            size = CGSize(width: slide.size.width + (targetSize.width - slide.size.width) * eased,
+                          height: slide.size.height + (targetSize.height - slide.size.height) * eased)
+            position = CGPoint(x: slide.origin.x + (target.x - slide.origin.x) * eased,
+                               y: slide.origin.y + (target.y - slide.origin.y) * eased)
+            lastTime = now
+            if widthProgress == 1 { widthSlide = nil; size = targetSize; position = target }
+            return position!
+        }
+        let dt = min(0.1, max(0, now - (lastTime ?? now)))
+        lastTime = now
+        let previous = position ?? target
+        let fraction = 1 - exp(-dt / (now < glideUntil ? 0.105 : 0.065))
+        size = CGSize(width: size.width + (targetSize.width - size.width) * fraction,
+                      height: size.height + (targetSize.height - size.height) * fraction)
+        if abs(size.width - targetSize.width) + abs(size.height - targetSize.height) < 0.2 { size = targetSize }
+        let next = CGPoint(x: previous.x + (target.x - previous.x) * fraction,
+                           y: previous.y + (target.y - previous.y) * fraction)
+        position = hypot(next.x - target.x, next.y - target.y) < 0.2 ? target : clamped(next)
+        return position!
+    }
+
+    private func clamped(_ point: CGPoint, size requestedSize: CGSize? = nil) -> CGPoint {
+        let size = requestedSize ?? self.size
+        return CGPoint(x: min(max(point.x, bounds.minX), max(bounds.minX, bounds.maxX - size.width)),
+                y: min(max(point.y, bounds.minY), max(bounds.minY, bounds.maxY - size.height)))
+    }
+}
