@@ -1247,3 +1247,31 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
   - J01 `[[글 나누기]]`, J02 `report_status` hejo 갈래, J03 체크리스트 메타(TASK-28). 모두 운영 저장소 team-kit 일이다.
   - Slack 답에 붙던 사용량 꼬리말(⏱·📥·📤)을 hejo에서도 보일지.
 - **공통·금지:** 보완 38·39와 같다.
+
+## 보완 지시 41: 사장 결정 — 사용량 꼬리말 안 넣음, team-kit hejo 경로 진행(TASK-49) (2026-11-17)
+
+- **사장 결정:** "사용량은 이제 넣지 말자", "2번도 진행하자"(team-kit J01~J03), "연합개발로 시작".
+- **사용량 꼬리말:**
+  - hejo에는 붙지 않는다. team-kit `usage_ledger`는 slack·photon 어댑터에만 붙인다(`usage_ledger.py` 614줄).
+  - TASK-49에서 hejo 글에 꼬리말이 0임을 시험으로 고정한다.
+  - 대조표 2.1판 D25("─" 줄 줄이기)는 그대로 둔다. ddots 동작이고, 다른 출처의 긴 가로줄에도 적용된다.
+- **TASK-49(REQ-HF-43, AT-HF-100, TASK-28 대체):**
+  - 순서: TASK-48 다음, TASK-36 앞.
+  - 대상: 운영 저장소 team-kit의 `lib/hermes_reply/plugin.py` `install_hejo`와 `lib/hermes_team_services/report_status.py`.
+  - 원본 독해: Slack 경로의 `send`·`post_pieces`·`splittable`·체크리스트 처리와 `report_status.handle`·`repaint`를 끝까지 읽는다. 대응은 `copy-review.md`에 적는다.
+  - 개발 위치(운영 원본 보호)
+    - 운영 원본 `~/.hermes/plugin-store/team-kit`은 바꾸지 않는다.
+    - 운영 저장소에 임시 worktree를 만들고, 그 안의 `hermes/plugin-store/team-kit` 사본에서 개발·시험한다. 이 사본은 `./sync`가 운영 원본으로 덮어쓰는 사본이다. 그러니 시작할 때 운영 원본과 같은지 먼저 확인하고, 다르면 멈추고 보고한다.
+    - 결과는 패치 `.build/task49/team-kit.patch`(hejo 저장소 .build, 추적 안 함)와 시험 로그로 낸다.
+    - 운영 저장소에 커밋·푸시하지 않는다.
+    - 시험은 운영 저장소 규칙대로 team-kit `tests`와 `./airport-check`를 그 worktree에서 실행한다. `--rebaseline`은 금지다.
+  - 문 쪽
+    - report_status에 스레드 첫 글 조회가 필요하면 문에 공개 메서드 하나를 더한다(hejo 저장소, 규격 변경 없음). 따로 커밋한다.
+    - team-kit은 문 내부를 import하지 않는다. `install_hejo`에 넘어온 어댑터의 공개 메서드만 쓴다.
+  - 상태 대응
+    - pending·failed → asked, partial → answered, done·declined → closed.
+    - 제목 표식 🔴🟡🟢를 바꾼다. done·declined면 단추를 비운다.
+    - 상태 줄 글자는 보이지 않는다(ddots가 숨기는 표식).
+  - 운영 반영: 운영 원본 교체, `./sync`, 운영 저장소 커밋, 게이트웨이 재시작은 0.2.x 운영 반영 때 계획 담당과 사장이 한다.
+- **순서(갱신):** N34-01 → TASK-35 → TASK-33(0.2.0) → TASK-48 → **TASK-49** → TASK-36 → … → 47.
+- **공통·금지:** 보완 38·39와 같다. 운영 `~/.hermes`(team-kit 운영 원본 포함) 변경은 금지한다.
