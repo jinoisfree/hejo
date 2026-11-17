@@ -2,9 +2,11 @@
 import asyncio
 from datetime import datetime, timezone
 from dataclasses import replace
+import mimetypes
 import logging
 import json
 import uuid
+from agent.i18n import t
 from hermes_constants import get_hermes_home
 from gateway.config import Platform
 from gateway.platforms.base import BasePlatformAdapter, SendResult
@@ -16,7 +18,7 @@ from . import roster
 from . import buttons as native_buttons
 from .files import FileStore, UnknownFile, RETENTION_SECONDS
 from .server import GateServer, LIMITS
-from .context import conversation_lines, thinking, with_context
+from .context import conversation_lines, thinking, with_context, split_text
 from .rooms import RoomCommands, recipients
 
 log = logging.getLogger(__name__)
@@ -36,6 +38,7 @@ class RoomDeleted(ValueError):
 
 class HejoAdapter(RoomCommands, BasePlatformAdapter):
     MAX_MESSAGE_LENGTH = 65536
+    splits_long_messages = True
     supports_code_blocks = True
 
     def __init__(self, config):
@@ -53,6 +56,8 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
         self._edit_tasks = {}
         self._typing_threads = {}
         self._click_handlers = {}
+        self._native_click_lock = asyncio.Lock()
+        self._stream_parts = {}
 
     def employees(self):
         runner = self.gateway_runner
@@ -151,6 +156,7 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
         self._edit_tasks.clear()
         self._pending_edits.clear()
         self._typing_threads.clear()
+        self._stream_parts.clear()
         if self.server:
             await self.server.stop()
         if self.journal:
@@ -297,8 +303,7 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             return SendResult(success=False, error="room_not_found")
         if not metadata.get("hejo_buttons"):
             content = native_buttons.plain_labels(content)
-        if len(content.encode()) > LIMITS["text_bytes"]:
-            return SendResult(success=False, error="too_large", error_kind="too_long")
+        chunks = split_text(content, LIMITS["text_bytes"])
         employee = metadata.get("hermes_profile") or (self.journal.rooms.get(chat_id[5:], {}).get("lead", "default") if chat_id.startswith("room:") else chat_id)
         thread = metadata.get("thread_id")
         if not thread and reply_to:
@@ -306,6 +311,23 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             key = self.journal.message_threads.get(reply_to)
             thread = previous.get("thread") if previous else (key[1] if key else None)
         thread = thread or str(uuid.uuid4())
+        if len(chunks) > 1:
+            sent = []
+            for index, chunk in enumerate(chunks):
+                last = index == len(chunks) - 1
+                piece = dict(metadata, thread_id=thread)
+                if not last:
+                    for field in ("hejo_buttons", "_hejo_native_buttons", "hejo_checklist", "hejo_reply_state",
+                                  "_hejo_files", "_hejo_file_registration"):
+                        piece.pop(field, None)
+                result = await self.send(chat_id, chunk, reply_to, piece)
+                if not result.success:
+                    return result
+                sent.append(result.message_id)
+            if metadata.get("expect_edits"):
+                self._stream_parts[sent[0]] = sent
+                return SendResult(success=True, message_id=sent[0])
+            return result
         msg_id = str(uuid.uuid4())
         context = dict(msg_id=msg_id, employee=employee, thread=thread, message_text=content, **({"room":room} if room else {}))
         try:
@@ -331,14 +353,15 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             return SendResult(success=False, error="room_deleted_drop")
         if not (metadata or {}).get("hejo_buttons"):
             content = native_buttons.plain_labels(content)
-        if len(content.encode()) > LIMITS["text_bytes"]:
-            return SendResult(success=False, error="too_large", error_kind="too_long")
         previous = self.journal.message(message_id)
         if self.journal.message_threads.get(message_id) in self.journal.deleted_threads:
             log.warning("thread_deleted_drop")
             return SendResult(success=False, error="thread_deleted_drop")
         if not previous or ("room:" + previous["room"] if previous.get("room") else previous.get("employee")) != chat_id:
             return SendResult(success=False, error="message_not_found", error_kind="not_found")
+        chunks = split_text(content, LIMITS["text_bytes"])
+        if len(chunks) > 1 or message_id in self._stream_parts:
+            return await self._edit_split(chat_id, message_id, previous, chunks, finalize, metadata or {})
         frame = {"type": "edit", "msg_id": message_id, "text": content, "final": finalize}
         if previous.get("room"):
             frame["room"] = previous["room"]
@@ -367,6 +390,49 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             elif message_id not in self._edit_tasks:
                 self._edit_tasks[message_id] = asyncio.create_task(self._deferred_edit(message_id))
         return SendResult(success=True, message_id=message_id)
+
+    async def _edit_split(self, chat_id, message_id, previous, chunks, finalize, metadata):
+        async with self._edit_lock:
+            task = self._edit_tasks.pop(message_id, None)
+            if task:
+                task.cancel()
+            self._pending_edits.pop(message_id, None)
+            parts = self._stream_parts.setdefault(message_id, [message_id])
+            last_message = self.journal.message(parts[-1]) or previous
+            try:
+                for index, chunk in enumerate(chunks):
+                    last = index == len(chunks) - 1
+                    piece = dict(metadata, thread_id=previous["thread"], hermes_profile=previous["employee"])
+                    if not last:
+                        for field in ("hejo_buttons", "_hejo_native_buttons", "hejo_checklist", "hejo_reply_state"):
+                            piece.pop(field, None)
+                    if index >= len(parts):
+                        result = await self.send(chat_id, chunk, metadata=piece)
+                        if not result.success:
+                            return result
+                        parts.append(result.message_id)
+                    frame = {"type":"edit", "msg_id":parts[index], "text":chunk,
+                             "final":finalize or not last, "buttons":[], **self._checklist(piece)}
+                    internal = None
+                    if last and ("hejo_buttons" in piece or "_hejo_native_buttons" in piece):
+                        frame["buttons"], internal = self._buttons(piece, dict(msg_id=parts[index],
+                            employee=previous["employee"], thread=previous["thread"], message_text=chunk,
+                            **({"room":previous["room"]} if previous.get("room") else {})))
+                    elif last:
+                        frame["buttons"] = last_message.get("buttons", [])
+                        mappings = last_message.get("_meta", {}).get("buttons", {})
+                        if mappings:
+                            internal = {"buttons":{key:{**value, "msg_id":parts[index], "message_text":chunk}
+                                                   for key, value in mappings.items()}}
+                    if previous.get("room"):
+                        frame["room"] = previous["room"]
+                    await self._record(frame, internal)
+                for extra in parts[len(chunks):]:
+                    await self._record({"type":"delete", "msg_id":extra})
+                del parts[len(chunks):]
+                return SendResult(success=True, message_id=message_id)
+            except (HejoJournalError, ValueError) as exc:
+                return SendResult(success=False, error=str(exc))
 
     async def _flush_edit(self, msg_id):
         frame, internal = self._pending_edits.pop(msg_id)
@@ -472,15 +538,25 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
     async def click(self, frame, conn):
         message = self.journal.message(frame["msg_id"])
         button = (message or {}).get("_meta", {}).get("buttons", {}).get(frame["button_id"])
+        if button and button["kind"] != "reply":
+            async with self._native_click_lock:
+                message = self.journal.message(frame["msg_id"])
+                if not message or not any(b["id"] == frame["button_id"] for b in message.get("buttons", [])):
+                    return
+                if self._is_sender_authorized("owner", "dm", "room:"+message["room"] if message.get("room") else message["employee"], thread_id=message["thread"]) is False:
+                    await self.server.error("unauthorized", frame.get("id"), conn)
+                    return
+                if not await native_buttons.resolve(button):
+                    await self.server.error("button_expired", frame.get("id"), conn)
+                    return
+                result = await self.edit_message("room:"+message["room"] if message.get("room") else message["employee"],
+                    message["msg_id"], message["text"] + "\n\n" + native_buttons.decision(button),
+                    finalize=True, metadata={"hejo_buttons":[]})
+                if not result.success:
+                    await self.server.error("journal_write_failed", frame.get("id"), conn)
+            return
         if not button or not any(b["id"] == frame["button_id"] for b in message.get("buttons", [])):
             await self.server.error("button_expired", frame.get("id"), conn)
-            return
-        if button["kind"] != "reply":
-            if self._is_sender_authorized("owner", "dm", "room:"+message["room"] if message.get("room") else message["employee"], thread_id=message["thread"]) is False:
-                await self.server.error("unauthorized", frame.get("id"), conn)
-                return
-            if not await native_buttons.resolve(button):
-                await self.server.error("button_expired", frame.get("id"), conn)
             return
         click = {key: button[key] for key in
                  ("msg_id", "button_id", "label", "employee", "thread", "message_text")}
@@ -528,6 +604,8 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             previous = [row for row in self.journal.records if row["type"] == "message"
                         and self.journal.message_threads.get(row["msg_id"]) == (scope, thread)]
             branch = next((row.get("_meta", {}).get("branch_context", "") for row in previous), "") if not any(row.get("role") == "owner" for row in previous) else ""
+            history = [self.journal.message(row["msg_id"]) for row in previous] if not room and not branch else []
+            history = [row for row in history if row]
             try:
                 attachments, moved = self.files.promote(employee, frame.get("files", []))
             except (UnknownFile, OSError):
@@ -549,7 +627,17 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             source.profile = target
             text = with_context(contexts.get(target, ""), frame["text"], "방 대화 — 받기 전 글") if room else frame["text"]
             text = with_context(branch, text, "이전 스레드 대화")
+            restored = None
+            if history:
+                store = getattr(self, "_session_store", None)
+                entry = store.lookup_by_session_key(self._source_session_key(source)) if store else None
+                if entry is None or entry.suspended:
+                    names = {item["id"]:item["name"] for item in self.employees()}
+                    context = conversation_lines(history, names, limit=50, characters=16000, line_characters=2000)
+                    if context:
+                        restored = "[이전 스레드 대화]\n" + context
             await self.handle_message(MessageEvent(text=text, source=source, user_id="owner", message_id=msg_id,
+                channel_context=restored,
                 raw_message=raw or frame, media_urls=[entry["path"] for entry in registrations],
                 media_types=[entry["mime"] for entry in registrations]))
         await asyncio.gather(*(deliver(target) for target in targets))
@@ -655,6 +743,49 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
         return await self.send_document(chat_id, image_path, caption=caption,
                                         reply_to=reply_to, metadata=metadata, **kwargs)
 
+    async def send_image(self, chat_id, image_url, caption=None, reply_to=None, metadata=None):
+        if self.forwarder:
+            return await self._forward("send_image", image_url, chat_id=chat_id, caption=caption,
+                                       reply_to=reply_to, metadata=metadata)
+        from tools.url_safety import create_ssrf_safe_async_client, is_safe_url, redirect_target_from_response
+        import httpx
+        async def guard(response):
+            target = redirect_target_from_response(response)
+            if target and not is_safe_url(target):
+                raise ValueError("unsafe_image")
+        try:
+            if not is_safe_url(image_url):
+                raise ValueError("unsafe_image")
+            async with asyncio.timeout(30), create_ssrf_safe_async_client(
+                    timeout=30, follow_redirects=True, event_hooks={"response":[guard]}) as client:
+                async with client.stream("GET", image_url) as response:
+                    response.raise_for_status()
+                    mime = response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+                    if not mime.startswith("image/"):
+                        raise ValueError("invalid_image")
+                    extension = mimetypes.guess_extension(mime)
+                    if not extension:
+                        raise ValueError("invalid_image")
+                    employee = (metadata or {}).get("hermes_profile") or (self.journal.rooms.get(chat_id[5:], {}).get("lead", "default") if chat_id.startswith("room:") else chat_id)
+                    info = await self.files.stage(employee, "image"+extension, response.aiter_bytes())
+            async with self.files.lock:
+                descriptors, moved = self.files.promote(employee, [info["file_id"]])
+                registrations = self.files.registration(employee, "employee", descriptors)
+                result = await self.send(chat_id, caption or "", reply_to, {
+                    **(metadata or {}), "_hejo_files":descriptors, "_hejo_file_registration":registrations})
+                if not result.success:
+                    self.files.rollback(moved)
+                return result
+        except (OSError, ValueError, TimeoutError, httpx.HTTPError):
+            return await self.send(chat_id, (caption+"\n" if caption else "") + t("platform.shared.media.image_failed"),
+                                   reply_to, metadata)
+
+    async def send_voice(self, chat_id, audio_path, caption=None, reply_to=None, metadata=None, **kwargs):
+        return await self.send_document(chat_id, audio_path, caption=caption, reply_to=reply_to, metadata=metadata)
+
+    async def send_video(self, chat_id, video_path, caption=None, reply_to=None, metadata=None):
+        return await self.send_document(chat_id, video_path, caption=caption, reply_to=reply_to, metadata=metadata)
+
     async def _send_exec_approval_prompt(self, prompt):
         if self.forwarder:
             target = _primary
@@ -676,7 +807,7 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             return await self.send(chat_id, question, metadata=metadata)
         native = native_buttons.native_metadata("clarify", session_key,
             [(str(choice), str(choice), "default") for choice in choices], clarify_id=clarify_id)
-        native += native_buttons.native_metadata("clarify", session_key, [("Other", "", "default")],
+        native += native_buttons.native_metadata("clarify", session_key, [(t("platform.slack.clarify.other"), "", "default")],
                                            clarify_id=clarify_id, other=True)
         return await self.send(chat_id, question, metadata={**(metadata or {}), "_hejo_native_buttons": native})
 
@@ -685,5 +816,6 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             return await self._forward("send_slash_confirm", title, message, session_key, confirm_id, chat_id=chat_id, metadata=metadata)
         return await self.send(chat_id, title + "\n\n" + message, metadata={**(metadata or {}),
             "_hejo_native_buttons": native_buttons.native_metadata("slash", session_key,
-                [("Approve once", "once", "primary"), ("Always", "always", "default"),
-                 ("Cancel", "cancel", "danger")], confirm_id=confirm_id)})
+                [(t("platform.slack.confirm.approve_once"), "once", "primary"),
+                 (t("platform.slack.confirm.always_approve"), "always", "default"),
+                 (t("platform.slack.confirm.cancel"), "cancel", "danger")], confirm_id=confirm_id)})

@@ -426,3 +426,15 @@ REQ-HF-33.AC-03·handoff 보완 36의 실제 옛 문+새 앱 시험에서, TASK-
 ### D33-01 해소: 보완 43·35판
 
 계획 커밋 `3d7e1c07b30e924fd16b4e75aed501b4619a3d07`의 변경은 명세·AT·handoff·판정 문서뿐이었다. 제품 충돌 없이 초안 19개를 지문 대조해 복원했다. 최소 지원 문은 TASK-21 이후이며 옛 문 시험은 운영 적용본 `aeaa652a4119bef949c61f192029d2b0b3f5a026`을 쓴다. features 없는 연결·통신 계약 변경은 만들지 않는다. 새 임시 소스에서 실제 짝맺기·송신·수신과 rooms welcome의 가짜 단체방 수신을 확인했다. Hermes 턴만 대역이며 운영 홈·서비스는 쓰지 않는다. 이전 a4a80d5 실패 기록은 잘못 지정된 기준의 재현으로 보존한다.
+
+## TASK-48 착수 대조: 보완 45·40 / I01~I06
+
+기준은 `763c839b359842e50ac2503db68198ddd74728ef`다. 앱 원본 전체 독해는 기존 TASK-20~35 기록을 재사용하며 이번에 앱을 바꾸지 않는다. 원본 화면이 아니라 Hermes Slack 경로가 맡던 동작이 대상이다. Hermes 본체는 읽기만 했다.
+
+- Slack adapter의 유지 대상 `_hydrate_thread_context`, `_has_active_session_for_thread`, `_build_thread_session_key`, `_thread_session_source`, `_post_text_chunks`, `edit_message`·스트리밍 마무리, `send_image`·`send_voice`·`send_video`, `send_slash_confirm`·`send_clarify`·기본 단추 응답/종료 경로를 대조했다. Slack 전용 Socket Mode·채널/워크스페이스·Block Kit·API 호출과 토큰 연결은 가져오지 않는다. 7천 줄 Slack 파일 전체 독해를 주장하지 않으며 유지할 메서드와 호출 의존을 읽은 기록이다.
+- 세션 없는 복원은 공식 `set_session_store`로 받은 저장소의 `lookup_by_session_key` 및 suspended를 읽을 수 있다. SessionStore의 공개 exact-key 조회는 잠금을 지키며 세션을 만들지 않는다. Base의 어댑터 세션 키 경로와 build_source/profile 라우팅을 함께 대조했다. 별도 세션 표는 만들지 않는다. Slack 수신은 복원 문맥을 `MessageEvent.channel_context`에 두어 slash 명령을 본문 맨 앞에 보존한다. hejo 1:1 복원도 이 공식 필드를 사용한다. 기존 방·분기 계약은 그대로 유지한다.
+- delivery의 `_cap_oversized_output` 전체를 읽었다. `splits_long_messages`면 잘림 꼬리를 붙이지 않고 원문을 돌려준다. hejo는 명시된 65,536바이트·줄 우선/문자 경계·마지막 조각 버튼 계약을 적용한다. Slack의 글자 수 한도·mrkdwn 변환·Block Kit 한도는 hejo 통신 한도와 다른 승인 차이다.
+- 공식 지역 낱말표 `agent.i18n.t`와 ko의 Slack confirm/approval/clarify 낱말·결과 줄을 대조했다. 공식 resolver를 유지한다. 사용자 표기는 가짜 계정이나 운영자 이름 대신 기존 사장 표시 ‘나’를 사용한다.
+- Slack 링크 사진의 SSRF-safe client·redirect 검사·30초와 Base 미디어 공개 메서드를 대조했다. 기존 FileStore 등록/롤백/크기 한도와 안전 경로를 재사용한다. 운영 파일·실제 링크를 읽거나 요청하지 않는다.
+
+서비스 이름 변환은 기존 22판 규칙을 따르며 새 UI 문구는 만들지 않는다. 새 영구 원본·앱 변경·public 후보 변경은 없다. 최종 비교는 같은 가짜 입력에 대한 원본 함수/공식 게이트웨이와 문 기록·프레임을 사용하고 실제 Slack 발송은 하지 않는다.

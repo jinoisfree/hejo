@@ -138,6 +138,18 @@ async def exercise(runner, secondary):
         assert [{k: r[k] for k in ("employee", "thread", "text")} for r in disk] == [
             {k: r[k] for k in ("employee", "thread", "text")} for r in rows]
         assert all(p.is_connected and not p.sent for p in peers)
+        # AT99: the real official cron/tool delivery paths must bypass truncation.
+        for text, scheduled in (("report " + "가"*5000, True), ("한"*30000, False)):
+            await deliver(text, scheduled)
+            pieces=[]
+            while len("".join(piece["text"] for piece in pieces)) < len(text):
+                pieces.append(await ws.receive_json(timeout=5))
+            assert "".join(piece["text"] for piece in pieces)==text
+            assert all(len(piece["text"].encode())<=65536 for piece in pieces)
+            assert len({piece["thread"] for piece in pieces})==1
+        assert [row["seq"] for row in primary.journal.page(0)]==list(range(1,primary.journal.head+1))
+        assert all(p.is_connected and not p.sent for p in peers)
+        print("AT99_OFFICIAL_DELIVERY_PASS", flush=True)
         await ws.close()
     return {"acceptance": "AT-HF-22", "tcp_listeners": len(listeners), "delivered": 4,
             "new_threads": 4, "offline_replayed": 2, "employee": "beta", "other_platform_sends": 0}
