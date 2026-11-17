@@ -254,7 +254,7 @@ ddots 화면에 보이던 것 일부는 앱이 아니라 Hermes 본체의 Slack 
 | D08 | 빈 방 "아직 표시할 글이 없어요."(위 40pt), "이전 글 보기"는 목록 안 가운데 | D:SlackPanel.swift:2401-2416 | 없음, 목록 위 고정 | ddots |
 | D09 | 이름 색 대비 보정(명도 0.20/0.84, 대비 4.5), 링크 색 hsl(200,0.9,0.32/0.78) 대비 4.5 | D:ChatStyle.swift:243-266 | 원색, systemBlue | ddots |
 | D10 | 맨 주소(http·https·obsidian) 자동 링크, 열 수 있는 링크에 obsidian | D:Conversation.swift:239-276 | 없음 | ddots |
-| D11 | 사진 썸네일 비율 유지 최대 220×180 둥근 10, 불러오기 전 160×110, 실패 "사진을 불러오지 못했어요", 처리 중 돌림표, "삭제된 사진"/"삭제된 파일" | D:SlackPanel.swift:3143-3167 | 160×110에 늘림, 상태 없음 | ddots |
+| D11 | 사진 썸네일 비율 유지 최대 220×180 둥근 10, 불러오기 전 160×110, 실패 "사진을 불러오지 못했어요", 처리 중 돌림표, "삭제된 사진"/"삭제된 파일" | D:SlackPanel.swift:3143-3167 | 160×110에 늘림, 상태 없음 | ddots. 단 "삭제된 사진"/"삭제된 파일"은 제외(35판 D39-01: hejo는 글 단위로 지우고, 보이는 글이 가리키는 등록 파일은 지우지 않아 표시할 상황이 없다. 등록 파일 유실·404는 "사진을 불러오지 못했어요" 실패 표시) |
 | D12 | 파일 타일: 그림 18pt, 이름 12 가운데 생략, "크기 · PDF", ↓ arrow.down.circle 14pt, 폭 240, 손 커서 | D:SlackPanel.swift:3169-3180, D:LinkPointer.swift:66-72 | PDF·↓·커서 없음, 그림 20 | ddots |
 | D13 | 끌어놓기: 오른쪽 칸 전체, 둥근 16 accent 2pt 안쪽 5pt + "여기에 놓아 첨부"(paperclip) | D:SlackPanel.swift:1918-1932, D:AttachmentDrop.swift:60-78 | 작성기 줄만, 창 전체 네모 | ddots |
 | D14 | 첨부 칩: 캡슐 0.1, paperclip 10pt, 이름 11pt 최대 150 가운데 생략, 따로 xmark.circle.fill 빼기 단추(접근성 "<파일> 빼기"), 첨부 단추 툴팁 "사진·파일 첨부" | D:SlackPanel.swift:3183-3197, 3515 | "📎 이름 ×" 단추 전체가 빼기 | ddots |
