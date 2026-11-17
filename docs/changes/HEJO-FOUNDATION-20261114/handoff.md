@@ -1518,3 +1518,11 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
     - hejo 항목 단추(☐ 일정·가격·문의)는 글자가 ddots보다 작고, 단추 폭과 안쪽 여백이 더 크다.
     - "건너뛰기" 단추도 ddots보다 넓다.
   - ddots `HermesReplyChecklist`(SlackPanel.swift:3540-3575)의 `.buttonStyle(.bordered)`와 `.font(.system(size: 12))` 기준 크기·여백에 맞추고, AT-90 측정 단언을 더한다.
+
+## 보완 지시 56 (TASK-40 검토 뒤, 2026-11-18)
+
+- TASK-40은 통과했다(0e3f4c0). N39-01도 반영됐다.
+- **N40-01(비차단, 검색 강조 색, TASK-41 커밋에 함께 넣는다)**
+  - ddots 검색 강조색은 SwiftUI `Color.yellow`다(`SlackFindView.swift:89`). 이 색은 시스템 노랑(밝은 화면에서 주황빛 노랑)이다.
+  - hejo는 `NSColor.yellow`(순수 #FFFF00)를 쓴다(`WorkspaceTools.swift:34`). 캡처에서도 색이 다르다.
+  - 수정: `NSColor.systemYellow`로 바꾸고, AT-91에 색 값 단언을 하나 더한다. 같은 함수를 쓰는 다른 강조(작업 공간 검색 등)도 함께 바꾼다.
