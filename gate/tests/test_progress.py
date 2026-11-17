@@ -7,6 +7,47 @@ from gate.adapter import HejoAdapter
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('forwarded', [False, True], ids=['primary', 'forwarder'])
+async def test_stop_typing_keeps_other_active_thread_running(gate, forwarded):
+    """N34-01: stopping A leaves concurrent B untouched through either adapter."""
+    sender = gate
+    chat = 'alpha'
+    employee = 'alpha'
+    if forwarded:
+        sender = HejoAdapter(gate.config)
+        sender.set_owner_profile('beta')
+        assert await sender.connect()
+        chat, employee = 'ignored', 'beta'
+    thread_a, thread_b = str(uuid.uuid4()), str(uuid.uuid4())
+    try:
+        messages = []
+        for thread, text in ((thread_a, 'progress A'), (thread_b, 'progress B')):
+            await sender.send_typing(chat, {'thread_id': thread})
+            sent = await sender.send(chat, text, metadata={'thread_id': thread})
+            assert sent.success
+            assert (await sender.edit_message(chat, sent.message_id, text, finalize=False)).success
+            messages.append(sent.message_id)
+
+        async def both_streaming():
+            while not all(gate.journal.message(mid).get('final') is False for mid in messages):
+                await asyncio.sleep(0.01)
+
+        await asyncio.wait_for(both_streaming(), 2)
+        head = gate.journal.head
+        await sender.stop_typing(chat, {'thread_id': thread_a})
+        await sender.stop_typing(chat, {'thread_id': thread_a})
+
+        edits = [row for row in gate.journal.records if row['seq'] > head and row['type'] == 'edit']
+        assert [(row['msg_id'], row['final']) for row in edits] == [(messages[0], True)]
+        assert gate.journal.message(messages[0])['text'] == 'progress A'
+        assert gate.journal.message(messages[1])['final'] is False
+        assert gate._typing_threads[employee] == {(employee, thread_b)}
+    finally:
+        if forwarded:
+            await sender.disconnect()
+
+
+@pytest.mark.asyncio
 async def test_stop_closes_only_employee_thread_once_and_accepts_late_edit(gate,client):
     ws,welcome=await client.pair();old,_=await client.open(token=welcome['token'])
     thread=str(uuid.uuid4());other=str(uuid.uuid4())
