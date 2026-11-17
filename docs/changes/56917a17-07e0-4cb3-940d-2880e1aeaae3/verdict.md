@@ -1,3 +1,23 @@
+## 검증 판정: N34-01 스레드 범위 중지 시험 (2026-11-17)
+
+1. **판정:** N34-01 완료. 시험만 보강했다(`e94ee2f6d03fd2e1914d2604a6d9b7cac5b8f5f7`, `gate/tests/test_progress.py` +41). 제품 코드는 바뀌지 않았다. 차단 결함은 없다.
+2. **검증 조건:** 교차 모델이다. 구현은 codex gpt-6.1-sol, 검토는 Claude Opus 5.5다. 깨끗한 임시 worktree에 시험 의존만 복사해 검토했다.
+3. **설계 적합성(4.2):** 보완 39의 기대를 그대로 시험한다.
+   - 같은 대화에서 A·B 두 스레드가 `final:false`로 흐르는 중에 A의 `thread_id`로 stop을 두 번 보낸다.
+   - 새 edit는 A `final:true` 한 번뿐이다. A의 본문은 그대로 남는다.
+   - B는 `final:false`이고 작성 중 등록도 남는다.
+   - 기본 문과 보조 프로필 전달자 경로를 매개변수로 둘 다 시험한다.
+4. **직접 확인한 것**
+   - `foundation9_runner.py`(test_progress.py, e94ee2f): 종료 0, 7 passed.
+   - 검토자 돌연변이(직접 실행, 원복 확인)
+     - `stop_typing`의 `selected` 필터 제거 → primary·forwarder 2 failed, 검출.
+     - 전달자 `_forward("stop_typing")` metadata를 `{}`로 되돌림 → forwarder 1 failed, 검출.
+   - 실행 담당 돌연변이 기록 `.build/n34-01/mutations.json`과 일치한다.
+5. **지적:** 없음.
+6. **작업 56917a17 전체:** 부분 완료. 남은 것은 TASK-35, TASK-33(0.2.0), TASK-48, TASK-49, TASK-36~47, TASK-23 실물, 비설계자 검토, 푸시 승인이다.
+
+---
+
 ## 검증 판정: 56917a17 / HEJO-FOUNDATION TASK-34 실물 지적 수정 (+ 작업 전체 현황)
 
 1. **판정**
