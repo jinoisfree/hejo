@@ -99,37 +99,112 @@ def test_at84_owner_approval_and_existing_tag_before_writes(ship, tmp_path, monk
         ship['publish'](path,'c'*40)
     assert not calls
     monkeypatch.setitem(ship,'git',lambda *args:'a'*40+'\trefs/heads/main\n'+'b'*40+'\trefs/tags/v0.2.1')
+    monkeypatch.setitem(ship,'run',lambda args: calls.append(args) or '[[]]')
     with pytest.raises(ship['ShipError'],match='태그'):
         ship['publish'](path,'a'*40)
-    assert not calls
+    assert calls == [['gh', 'api', 'repos/sample/hejo/releases', '--paginate', '--slurp']]
+
+
+class ReleaseAPI:
+    """GitHub boundary: tag lookup omits drafts; paginated lists include them."""
+
+    def __init__(self, ship, value):
+        self.ship = ship
+        self.value = value
+        self.calls = []
+        self.drafts = []
+        self.list_reads = 0
+        self.change_on_read = {}
+        self.corrupt_asset = None
+
+    def __call__(self, args):
+        args = list(map(str, args))
+        self.calls.append(args)
+        if args[:2] == ['gh', 'api']:
+            endpoint = args[2]
+            if endpoint.startswith('repos/sample/hejo/releases/tags/'):
+                raise self.ship['ShipError']('gh 실행 실패: 404')
+            assert endpoint == 'repos/sample/hejo/releases'
+            assert args[3:] == ['--paginate', '--slurp']
+            self.list_reads += 1
+            drafts = deepcopy(self.drafts)
+            if self.list_reads in self.change_on_read:
+                drafts = self.change_on_read[self.list_reads](drafts)
+            # The selected draft is on the next page, among unrelated/published releases.
+            return json.dumps([[{'tag_name': 'v9.0.0', 'draft': True},
+                                {'tag_name': 'v0.2.1', 'draft': False}], drafts])
+        if args[:3] == ['gh', 'release', 'create']:
+            assert not self.drafts
+            self.drafts = [{'tag_name': 'v0.2.1', 'draft': True, 'assets': []}]
+        elif args[:3] == ['gh', 'release', 'upload']:
+            asset = Path(args[4])
+            entry = {'name': asset.name, 'state': 'uploaded', 'size': asset.stat().st_size,
+                     'digest': 'sha256:' + self.ship['digest'](asset)}
+            if asset.name == self.corrupt_asset:
+                entry['digest'] = 'sha256:wrong'
+            self.drafts[0]['assets'].append(entry)
+        return ''
 
 
 def test_at84_publish_draft_upload_verify_signed_feed_latest(ship, tmp_path, monkeypatch):
-    path,value=publish_fixture(ship,tmp_path,monkeypatch)
-    calls=[]
-    metadata={'draft':True,'assets':[{'name':value['archive'],'state':'uploaded','size':7,'digest':'sha256:'+value['sha256']}]}
-    def run(args):
-        calls.append(list(map(str,args)))
-        if args[:2]==['gh','api']:
-            result=deepcopy(metadata)
-            feed=tmp_path/'appcast.xml'
-            if feed.exists():
-                result['assets'].append({'name':'appcast.xml','state':'uploaded','size':feed.stat().st_size,'digest':'sha256:'+ship['digest'](feed)})
-            return json.dumps(result)
-        return ''
-    monkeypatch.setitem(ship,'run',run)
-    ship['publish'](path,'a'*40)
-    gh=[c for c in calls if c[0]=='gh']
-    assert gh[0][:3]==['gh','release','create'] and '--draft' in gh[0]
-    assert gh[1][:3]==['gh','release','upload']
-    assert gh[-1][:3]==['gh','release','edit'] and '--latest' in gh[-1]
-    assert any('--verify' in c and c[-1].endswith('appcast.xml') for c in calls)
-    assert all('delete' not in c and '--clobber' not in c for c in calls)
-    # A corrupt uploaded asset must leave the draft and never publish it.
-    calls.clear();metadata['assets'][0]['digest']='sha256:wrong'
-    with pytest.raises(ship['ShipError'],match='초안'):
-        ship['publish'](path,'a'*40)
-    assert not any(c[:3]==['gh','release','edit'] for c in calls)
+    path, value = publish_fixture(ship, tmp_path, monkeypatch)
+    api = ReleaseAPI(ship, value)
+    monkeypatch.setitem(ship, 'run', api)
+    ship['publish'](path, 'a'*40)
+    gh = [c for c in api.calls if c[0] == 'gh']
+    assert gh[0][:2] == ['gh', 'api']  # Existing drafts checked before any remote write.
+    writes = [c for c in gh if c[1] == 'release']
+    assert [c[2] for c in writes] == ['create', 'upload', 'upload', 'edit']
+    assert '--draft' in writes[0] and '--latest' in writes[-1]
+    assert api.list_reads == 3  # Before creation, after archive, after signed feed.
+    assert any('--verify' in c and c[-1].endswith('appcast.xml') for c in api.calls)
+    assert all('delete' not in c and '--clobber' not in c for c in api.calls)
+
+
+@pytest.mark.parametrize('asset', ['hejo-0.2.1-arm64.zip', 'appcast.xml'])
+def test_at84_publish_corrupt_upload_leaves_draft(ship, tmp_path, monkeypatch, asset):
+    path, value = publish_fixture(ship, tmp_path, monkeypatch)
+    api = ReleaseAPI(ship, value)
+    api.corrupt_asset = asset
+    monkeypatch.setitem(ship, 'run', api)
+    with pytest.raises(ship['ShipError'], match='초안|피드'):
+        ship['publish'](path, 'a'*40)
+    assert api.drafts[0]['draft'] is True
+    assert not any(c[:3] == ['gh', 'release', 'edit'] for c in api.calls)
+    assert all('delete' not in c and '--clobber' not in c for c in api.calls)
+
+
+@pytest.mark.parametrize('read', [2, 3])
+@pytest.mark.parametrize('count', [0, 2])
+def test_at84_publish_requires_exactly_one_draft_after_each_upload(
+        ship, tmp_path, monkeypatch, read, count):
+    path, value = publish_fixture(ship, tmp_path, monkeypatch)
+    api = ReleaseAPI(ship, value)
+    api.change_on_read[read] = lambda drafts: drafts * count
+    monkeypatch.setitem(ship, 'run', api)
+    with pytest.raises(ship['ShipError'], match='하나로 확인하지 못했어요'):
+        ship['publish'](path, 'a'*40)
+    assert api.drafts[0]['draft'] is True
+    writes = [c[2] for c in api.calls if c[:2] == ['gh', 'release']]
+    assert writes == ['create'] + ['upload'] * (read - 1)
+    assert all('delete' not in c and '--clobber' not in c for c in api.calls)
+
+
+@pytest.mark.parametrize('count', [1, 2])
+@pytest.mark.parametrize('existing_tag', [False, True])
+def test_at84_publish_existing_draft_is_preserved(ship, tmp_path, monkeypatch, count, existing_tag):
+    path, value = publish_fixture(ship, tmp_path, monkeypatch)
+    if existing_tag:
+        monkeypatch.setitem(ship, 'git', lambda *args: 'a'*40+'\trefs/heads/main\n'+'b'*40+'\trefs/tags/v0.2.1')
+    api = ReleaseAPI(ship, value)
+    api.drafts = [{'tag_name': 'v0.2.1', 'draft': True, 'assets': [{'name': 'existing'}]}] * count
+    before = deepcopy(api.drafts)
+    monkeypatch.setitem(ship, 'run', api)
+    with pytest.raises(ship['ShipError']) as error:
+        ship['publish'](path, 'a'*40)
+    assert str(error.value) == '같은 태그의 초안이 남아 있어요. GitHub에서 확인한 뒤 지우고 다시 실행해 주세요.'
+    assert api.drafts == before
+    assert not any(c[:2] == ['gh', 'release'] for c in api.calls)
 
 
 def test_at84_fixed_sdk_pin_and_install_same_tag():

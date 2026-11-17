@@ -176,6 +176,22 @@ def appcast(value):
     return ET.tostring(rss, encoding='utf-8', xml_declaration=True)
 
 
+def draft_releases(repo, tag):
+    # Tag lookup excludes drafts. Slurp keeps paginated JSON arrays parseable.
+    pages = json.loads(run(['gh', 'api', f'repos/{repo}/releases', '--paginate', '--slurp']))
+    if not isinstance(pages, list) or any(not isinstance(page, list) for page in pages):
+        raise ShipError('초안 목록을 확인하지 못했어요. 초안을 남겨 두었어요.')
+    return [release for page in pages for release in page
+            if release.get('tag_name') == tag and release.get('draft') is True]
+
+
+def draft_release(repo, tag):
+    matches = draft_releases(repo, tag)
+    if len(matches) != 1:
+        raise ShipError('같은 태그의 초안을 하나로 확인하지 못했어요. 초안을 남겨 두었어요.')
+    return matches[0]
+
+
 def publish(path, approved):
     # This function is only invoked by the owner's explicit publish command.
     value, archive = load_prepared(path)
@@ -186,18 +202,20 @@ def publish(path, approved):
     rows = [line.split() for line in refs.splitlines()]
     if [value['commit'], 'refs/heads/main'] not in rows:
         raise ShipError('공개 커밋이 원격 main과 같지 않아요.')
+    tag = 'v' + value['version']
+    if draft_releases(repo, tag):
+        raise ShipError('같은 태그의 초안이 남아 있어요. GitHub에서 확인한 뒤 지우고 다시 실행해 주세요.')
     if any(row[1] == 'refs/tags/v' + value['version'] for row in rows):
         raise ShipError('같은 태그가 이미 있어요. 기존 릴리스는 바꾸지 않아요.')
     bin_dir = tools()
     if public_key(bin_dir) != value['publicKey']:
         raise ShipError('공개 키가 달라요.')
     run([bin_dir / 'sign_update', '--account', ACCOUNT, '--verify', archive, value['signature']])
-    tag = 'v' + value['version']
     gh = ['gh', 'release']
     run([*gh, 'create', tag, '--repo', repo, '--target', value['commit'], '--draft', '--title', 'hejo ' + value['version'], '--notes', 'hejo ' + value['version']])
     # Failures from here deliberately leave the draft intact; never clobber an asset/tag.
     run([*gh, 'upload', tag, archive, '--repo', repo])
-    metadata = json.loads(run(['gh', 'api', f'repos/{repo}/releases/tags/{tag}']))
+    metadata = draft_release(repo, tag)
     assets = [asset for asset in metadata['assets'] if asset['name'] == value['archive']]
     if (not metadata['draft'] or len(assets) != 1 or assets[0]['state'] != 'uploaded'
             or assets[0]['size'] != value['size'] or assets[0].get('digest') != 'sha256:' + value['sha256']):
@@ -207,7 +225,7 @@ def publish(path, approved):
     run([bin_dir / 'sign_update', '--account', ACCOUNT, feed])
     run([bin_dir / 'sign_update', '--account', ACCOUNT, '--verify', feed])
     run([*gh, 'upload', tag, feed, '--repo', repo])
-    uploaded = json.loads(run(['gh', 'api', f'repos/{repo}/releases/tags/{tag}']))
+    uploaded = draft_release(repo, tag)
     feeds = [asset for asset in uploaded['assets'] if asset['name'] == 'appcast.xml']
     if (not uploaded['draft'] or len(feeds) != 1 or feeds[0]['state'] != 'uploaded'
             or feeds[0]['size'] != feed.stat().st_size or feeds[0].get('digest') != 'sha256:' + digest(feed)):
