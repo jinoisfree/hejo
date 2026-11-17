@@ -1,3 +1,46 @@
+## 검증 판정: TASK-49 team-kit hejo 경로 (2026-11-17)
+
+1. **판정:** 부분 완료. 필요한 증거 수준은 3(운영 반영·실물)이고, 이번에 도달한 수준은 2(대역 통합)다. 구현에서 차단 결함은 찾지 못했다. 운영 반영과 실물 확인은 0.2.x 때 계획 담당과 사장이 한다(보완 49).
+   - hejo 커밋 `85f1e23c2273a35b993e34ffff3d642a5a7e2f74`: 공개 조회 `first_thread_message`와 시험.
+   - team-kit 패치 `.build/task49/team-kit.patch`(sha256 `7d7cb693…`, 4개 파일).
+2. **검증 조건:** 교차 모델이다. 구현은 codex gpt-6.1-sol, 검토는 Claude Opus 5.5다. Hermes 본체와 운영 원본은 읽기만 했다.
+3. **설계 적합성(4.2):** REQ-HF-43.AC-01과 35판 D49-01을 충족한다.
+   - 문 조회
+     - 그 직원의 살아 있는 첫 직원 글만 돌려준다. 사장 글, 다른 직원 글, 삭제된 방은 빼고, 보조 프로필 전달자로도 넘긴다.
+     - 규격은 바뀌지 않았다.
+     - team-kit은 문 내부를 import하지 않는다.
+   - J01 글 나누기
+     - Slack `post_pieces`를 공용 `_post_pieces`로 뺐다(Slack 경로 동작은 그대로).
+     - hejo `send`는 조각이 2개 이상이고 중간 보냄·편집 예정·열린 흐름이 아닐 때 같은 스레드에 조각별로 보낸다. 조각마다 `prepare`를 따로 적용한다.
+     - 나눌 수 없으면 나누기 줄만 뺀다.
+   - J02 상태 보고
+     - `report_status`는 플랫폼이 hejo일 때 hejo 갈래로 간다.
+     - 소유자 차례, 스레드 안, 같은 세션 환경을 확인한다. 도구 인자로 대상을 정하지 않는다.
+     - 첫 직원 글의 제목 표식을 바꾸고, `pending·failed→asked`, `partial→answered`, `done·declined→closed`로 바꾼다. 끝난 상태면 단추를 비운다.
+     - 다시 그리는 `edit`가 답한 스레드를 닫아 버리지 않게 `_hermes_report_status` 표식을 쓴다.
+     - Hermes `handle_message`는 결합을 설정한 문맥 안에서 백그라운드 작업을 만들고, 도구 스레드는 `copy_context`로 문맥을 넘긴다. 따라서 이 결합 방식은 Hermes 구조와 맞다. 실제 차례로 실물 확인은 남았다.
+   - J03 체크리스트
+     - 일반 체크리스트는 `can_skip: true`다(team-kit `checklist_blocks`에 늘 건너뛰기가 있음).
+     - 맞춤 제출 변형은 `items`가 체크 항목뿐이고 `can_skip: false`다. 제출 낱말은 프레임 어디에도 없다(시험 382줄에서 확인).
+     - 사장 답이 `선택: …`·`전체`·`건너뛰기`이고 그 체크리스트에 맞으면 answered로 바꾼다.
+   - 사용량 꼬리말은 hejo에 등록하지 않는다(`test_usage_registration_excludes_hejo`).
+4. **직접 확인한 것**
+   - 깨끗한 worktree(85f1e23)에서 `test_report_query.py`를 다시 실행했다. 종료 0, 3 passed.
+   - 실행 기록
+     - `team-final-run.log`: 4878 passed, 3 skipped.
+     - `airport-final-run.log`: PASS.
+     - `frozen-progress.json`: 세 행 모두 종료 0이고 입력은 바뀌지 않았다.
+   - `patch-dry-run.json`: 운영 원본 임시 복사본에 dry-run이 종료 0이었다. `appliedToLive`와 `liveModified`는 둘 다 false다.
+   - `mutations.json`: 직원 소유 필터와 맞춤 `can_skip`을 바꾼 돌연변이가 각각 검출됐다.
+   - `parity-comparison.json`: 같은 입력에서 ddots 파서·답 함수의 결과와 hejo 프레임이 같다.
+5. **지적:** 없음.
+6. **남은 위험(보완 49)**
+   - 실제 Hermes 백그라운드 차례와 대기열 차례에서 `current_hejo_turn` 결합이 유지되는지 확인해야 한다.
+   - 운영 원본 교체와 `./sync` 때 cctv의 다른 작업 변경이 섞이는지 확인해야 한다.
+7. **작업 56917a17 전체:** 부분 완료. 다음은 TASK-36이다.
+
+---
+
 ## 검증 판정: TASK-49 2차(D49-01 보류) (2026-11-17)
 
 1. **판정:** TASK-49 미완료.
