@@ -693,3 +693,12 @@ AT-90의 “따라 읽은 스트림이 완료 후에도 펼침” fixture는 여
 - G07 원본 PetView: 방향 보기 열은 0.25초마다 8칸을 순회한다. 동작 아홉 개는 각 2초, 졸기만 dozeCycle이며 시선 보기 15초다. 기존 PetController/PetView에 일시적 미리보기 상태만 추가했다.
 - G09: 헤더 X-Hejo-State-Wait=1로 새 허브 지원을 확인한다. 옛 허브는 wait 쿼리를 무시해 기존 전체 상태를 돌려주므로 이를 한 번 받아들이고 30초 받기로 남는다. 새로운 영구 설정·상태 키는 없다. 대기 응답과 PATCH 순서가 뒤집혀도 더 낮은 rev를 적용하지 않는다.
 - G12: 문 인증·핑·기록 캐시 경로는 계속 돌고 ConversationController의 화면 전달만 일시 큐로 멈춘다. 쉬는 동안 작업/타이핑 만료 소비도 멈추며 재개 때 원래 receive 경로로 차례대로 전달한다. 운영 재시작을 실행하는 기능이 아니다.
+
+## TASK-43 원본 독해·배치
+
+- 기준: 보완 38·57, 대조표 H01 및 2.1판 H01 정정, REQ-HF-38·AT-94. ddots SettingsPages의 AppearancePreview·AppearanceSwatch·AppearanceSection·ChatAppearanceControls 전체, ChatStyle의 ChatTheme/ChatAppearance·UserBubbleColor/Palette·ChatMetrics, BubbleOpacity 전체와 App의 changeChatTheme/changeChatOpacity·showOptions 연결을 읽었다. NativeThreadInputsCache의 appearanceRevision, PetView.updateScrim 소비와 hejo NativeThreadList.remeasure·ConversationView의 실제 본문/작성기 생성도 대조했다.
+- 모양 값의 원본은 기존 LocalStore의 hejo-local.json이다. 원본의 전역 UserDefaults 투영은 hejo의 단일 LocalStore 읽기로 연결하고 허브 회원 설정/상태에는 보내지 않는다. 원본 색·단계·클램프 계산은 유지한다. 설정 조립의 SwiftUI 미리보기만 AppKit으로 옮긴다. H01 정정대로 쓰이지 않는 불투명도 양 끝 문구는 넣지 않는다.
+- N42-01은 기존 허브 member_state의 Event를 요청별 Future 집합으로 대체한다. 읽기 전 등록, PATCH 전체 깨우기, 취소/완료 정리와 기존 HTTP 계약을 유지한다.
+- 원본 위치: `SettingsPages.swift:132-254`의 묶음·원·두 줄 배치·미리보기 확장과 `ChatStyle.swift:4-137`의 테마/7단계/14색, `BubbleOpacity`의 55~100·기본 65·접힘 0.35 계산을 대조했다. 색 대비 계산은 기존 ChatStyle의 같은 원본을 재사용했다. 설정 창 자체는 macOS 모양을 따르고 선택한 테마는 미리보기·펫 패널·연결 창에 적용한다.
+- `ConversationView`는 마지막으로 그린 기본 글씨 크기를 기억해 초안을 직렬화한다. 기본 크기를 바꾼 뒤 예전 크기를 명시적 서식으로 저장하는 것을 막고, 조합 중에는 표시 글을 바꾸지 않는다. `NativeThreadList`는 모양 revision 때 보류된 내용을 폐기하고 기존 카드 높이를 다시 계산한다. 창 소유자가 모양 변경 알림을 구독하고 해제한다. 영구 원본이나 별도 복제 설정은 없다.
+- N42-01 회귀는 앞 대기를 await 직전 붙잡고 PATCH·뒤 대기 등록을 겹친다. 옛 Event 구현을 임시 사본에 되돌리면 1초 단언이 실패하고, 요청별 Future 구현은 새 rev를 즉시 받는다. 운영 허브나 회원 자료는 사용하지 않는다.

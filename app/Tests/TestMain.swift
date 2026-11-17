@@ -28,7 +28,9 @@ final class MemoryCredentials: GateCredentialStore {
         Task { @MainActor in
             do {
                 let args = CommandLine.arguments
-                if args.contains("--task42") {
+                if args.contains("--task43") {
+                    try await appearanceTests()
+                } else if args.contains("--task42") {
                     try await settingsTests()
                 } else if args.contains("--task41") {
                     try await petWindowTests()
@@ -120,6 +122,7 @@ final class MemoryCredentials: GateCredentialStore {
         }
     }
     func unit() async throws {
+        try await appearanceTests()
         try await settingsTests()
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: dir) }

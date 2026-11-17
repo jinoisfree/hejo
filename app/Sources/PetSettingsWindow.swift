@@ -34,9 +34,11 @@ import AppKit
     var onOpenAccount: (() -> Void)?, onLogout: (() -> Void)?
     var onPreview: (() -> Void)?, onPointer: (() -> Void)?, onHome: ((String) -> Void)?
     var requestPasteboard: NSPasteboard = .general
+    private(set) var appearanceControls: ChatAppearanceControls!
     private var tapFailure: ThreeTapFailure?
 
-    override init() {
+    override convenience init() {self.init(previewName:"hejo",palette:{CharacterPalette.make(hue:nil,dark:$0)})}
+    init(previewName:String,palette:@escaping(Bool)->CharacterPalette) {
         window = NSWindow(contentRect: tabs.frame, styleMask: [.titled, .closable], backing: .buffered, defer: false)
         super.init()
         window.title = "hejo 설정"; window.isReleasedWhenClosed = false
@@ -90,7 +92,14 @@ import AppKit
         sizeHint.font = .systemFont(ofSize: 11); sizeHint.frame = CGRect(x: 24, y: 26, width: 216, height: 17)
         let reset = button(NSButton(title: "기본 크기", target: nil, action: nil), #selector(resetPetSize))
         reset.frame = CGRect(x: 247, y: 19, width: 94, height: 32)
-        page("화면과 펫", [[button(NSButton(title: "대화창 크기 초기화", target: nil, action: nil), #selector(resetChatSize))],
+        let theme=NSSegmentedControl(labels:["시스템 설정","라이트","다크"],trackingMode:.selectOne,target:nil,action:nil)
+        theme.setAccessibilityLabel("대화창 테마")
+        let opacity=NSSlider(value:65,minValue:55,maxValue:100,target:nil,action:nil)
+        let opacityValue=NSTextField(labelWithString:"65%")
+        opacityValue.font = .monospacedDigitSystemFont(ofSize:13,weight:.medium)
+        let resetSize=button(NSButton(title:"대화창 크기 초기화",target:nil,action:nil),#selector(resetChatSize))
+        appearanceControls=ChatAppearanceControls(theme:theme,opacity:opacity,opacityValue:opacityValue,resetSize:resetSize,name:previewName,palette:palette)
+        page("화면과 펫", [[appearanceControls],
             [title("펫 이름", y: 241), nameField, save, nameHint],
             [title("펫 크기", y: 125), scaleValue, scaleSlider, sizeHint, reset] + endpoints,
             [check(bubbleCheck, #selector(changeBubble))], [check(bubbleReplyCheck, #selector(changeBubbleReply))],
@@ -113,6 +122,7 @@ import AppKit
     func present(name: String, percent: Double, bubble: Bool, account: String = "", status: String = "서버 연결 전") {
         nameField.stringValue = name; nameHint.stringValue = "1~20자 · 저장하면 모든 화면에 적용됩니다."; nameHint.textColor = .secondaryLabelColor
         scaleSlider.doubleValue = percent; scaleValue.stringValue = "\(Int(percent))%"; bubbleCheck.state = bubble ? .on : .off
+        appearanceControls.refresh()
         refreshLogin(); accountName.stringValue = account.isEmpty ? "로그인 전" : account; connectionStatus.stringValue = status
         if let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) ?? window.screen ?? NSScreen.main { fit(to: screen.visibleFrame) }
         window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)

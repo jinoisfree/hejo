@@ -22,6 +22,7 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
     private var layingOut = false
     private var measuredWidth: CGFloat = 0
     private var identity = ""
+    private var appearanceRevision=ChatAppearance.revision
     private var scrollRevision = 0
     private var userScrolls = 0
     var clock:()->Double={ProcessInfo.processInfo.systemUptime}
@@ -77,6 +78,10 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
     }
     override func scrollWheel(with event:NSEvent){readerInput(wheel:true);super.scrollWheel(with:event)}
     func show(_ contents:[NativeThreadCard.Content],identity:String,entry:String?=nil){
+        if appearanceRevision != ChatAppearance.revision {
+            appearanceRevision=ChatAppearance.revision;deferredWork?.cancel();deferredWork=nil;deferred=nil
+            apply(contents,identity:identity,entry:entry);return
+        }
         if identity==self.identity,clock()-wheelAt<0.25 {
             let start=deferred?.3 ?? clock()
             if clock()-start<2 {

@@ -168,10 +168,11 @@ import UniformTypeIdentifiers
             if newPost {self.newKeys[self.placeNamespace]=key;self.controller.registerNewPlace(key)};self.controller.composeKey=key
             if !newPost {self.history.scrollTo(key.thread)}
         }
+        appearanceObserver=NotificationCenter.default.addObserver(forName:ChatAppearance.didChange,object:nil,queue:.main){[weak self] _ in MainActor.assumeIsolated {self?.applyChatAppearance()} }
         controller.onShowFailure={ [weak self] failure in self?.chooseEmployee(failure.shown) };controller.onChange={ [weak self] in self?.refresh() }; controller.onRevealThread={ [weak self] key in self?.openFromBubble(key) }; refresh()
     }
     required init?(coder:NSCoder) { fatalError() }
-    deinit { islandTimer?.invalidate();streamTimer?.invalidate();workspaceTimer?.invalidate() }
+    deinit { if let appearanceObserver {NotificationCenter.default.removeObserver(appearanceObserver)};islandTimer?.invalidate();streamTimer?.invalidate();workspaceTimer?.invalidate() }
     func tickIsland() {
         island.show(islandModel.snapshot())
         let second=Int(controller.clock().timeIntervalSince1970)
@@ -586,10 +587,10 @@ import UniformTypeIdentifiers
 
         } else { threads=[]; history.show([],identity:""); heading.stringValue="HEJO." }
         let draft=controller.draft
-        if writingKey != controller.composeKey || (!editor.editor.hasMarkedText() && MessageFormat.serialize(editor.editor.attributedString(),baseSize:ChatMetrics.bodyFont) != draft.text) {
+        if !editor.editor.hasMarkedText() && (writingKey != controller.composeKey || editorFontSize != ChatMetrics.bodyFont || MessageFormat.serialize(editor.editor.attributedString(),baseSize:editorFontSize) != draft.text) {
             editor.editor.breakUndoCoalescing(); editor.editor.undoManager?.removeAllActions()
             editor.editor.textStorage?.setAttributedString(MessageFormat.editor(draft.text,bodySize:ChatMetrics.bodyFont))
-            editor.editor.typingAttributes=MessageFormat.Style(size:ChatMetrics.bodyFont).attributes; editor.measure()
+            editor.editor.typingAttributes=MessageFormat.Style(size:ChatMetrics.bodyFont).attributes;editorFontSize=ChatMetrics.bodyFont;editor.measure()
         }
         displayedKey=selected;writingKey=controller.composeKey;writingPlace=placeNamespace
         draftHint.stringValue=composerPrompt
@@ -791,8 +792,11 @@ import UniformTypeIdentifiers
         if selector == #selector(NSResponder.cancelOperation(_:)) {return closeSearchIfOpen()}
         return false
     }
+    private var appearanceObserver: NSObjectProtocol?
+    private var editorFontSize=ChatMetrics.bodyFont
+    func applyChatAppearance(){refresh();needsLayout=true;needsDisplay=true}
     func textDidChange(_ notification:Notification) {
-        if let key=displayedKey { controller.setText(MessageFormat.serialize(editor.editor.attributedString(),baseSize:ChatMetrics.bodyFont),for:controller.composeKey ?? key) }
+        if let key=displayedKey { controller.setText(MessageFormat.serialize(editor.editor.attributedString(),baseSize:editorFontSize),for:controller.composeKey ?? key) }
         draftHint.isHidden = !editor.editor.string.isEmpty; formatting.refresh(); editor.measure()
         if controller.model.isHome {refresh()}
         sendButton.isEnabled=controller.canSend && (!editor.editor.string.isEmpty || !controller.draft.attachments.isEmpty); sendButton.needsDisplay=true

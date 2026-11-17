@@ -33,7 +33,7 @@ import AppKit
     func applicationDidFinishLaunching(_ notification: Notification) {
         do {
             try FileManager.default.createDirectory(at: AppIdentity.support, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-            instance = try InstanceLock(directory: AppIdentity.support); store = try LocalStore()
+            instance = try InstanceLock(directory: AppIdentity.support); store = try LocalStore();ChatAppearance.bind(store)
             bubble = BubbleReveal(store:store)
             client = GateClient(store: store); pet = PetController(store: store, atlas: try SpriteAtlas())
             conversation = try ConversationController(client: client)
@@ -269,7 +269,8 @@ import AppKit
     func applicationDidResignActive(_ notification:Notification) { updateConnectionsLevel() }
     @objc private func showOptions() {
         if petSettings == nil {
-            let settings = PetSettingsWindow()
+            let profile=conversation.model.employees.first
+            let settings = PetSettingsWindow(previewName:profile?.name ?? "hejo",palette:{[weak conversation] dark in conversation?.palette(profile?.id ?? "",dark:dark) ?? CharacterPalette.make(hue:nil,dark:dark)})
             settings.onName = { [weak self] value in self?.setPetName(value) }
             settings.onScale = { [weak self] value in self?.setPetScale(value) }
             settings.onBubbleReply={ [weak self] enabled in

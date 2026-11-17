@@ -26,6 +26,10 @@ struct LocalSettings: Codable {
     /// Mac-specific window geometry; a nil value uses the current native default.
     var chatWidth: Double?
     var chatHeight: Double?
+    var chatTheme: String?
+    var chatOpacity: Double?
+    var chatBodyFontSize: Double?
+    var chatUserBubbleColor: String?
     var lastRoom: String?
     /// Offline presentation copies of the member's hub settings.
     var petScalePercent: Double?

@@ -50,3 +50,37 @@ async def test_at93_wait_rejects_bad_revisions_and_auth(hub, http, query):
     token = await signup(http, hub, "member-a")
     assert (await call(http, hub, "GET", "/v1/me/state?" + query, token=token))[1] == {"error": "bad_state"}
     assert (await call(http, hub, "GET", "/v1/me/state?wait=0"))[0] == 401
+
+
+async def test_at93_patch_then_new_wait_cannot_erase_earlier_notification(hub, http):
+    """N42-01: hold A before its await starts, PATCH, register B, then let A await."""
+    from unittest.mock import patch
+    token = await signup(http, hub, "member-a")
+    real_wait_for = asyncio.wait_for
+    crossed = False
+    later = None
+
+    async def overlap(awaitable, timeout):
+        nonlocal crossed, later
+        if timeout == 25 and not crossed:
+            crossed = True
+            status, saved = await call(http, hub, "PATCH", "/v1/me/state", {"items": {"pin:alpha": entry("1")}}, token=token)
+            assert status == 200 and saved["rev"] == 1
+            later = asyncio.create_task(call(http, hub, "GET", "/v1/me/state?wait=1", token=token))
+            await asyncio.sleep(0.03)
+            assert not later.done()
+        return await real_wait_for(awaitable, timeout)
+
+    try:
+        with patch("hub.server.asyncio.wait_for", side_effect=overlap):
+            earlier = asyncio.create_task(call(http, hub, "GET", "/v1/me/state?wait=0", token=token))
+            status, response = await real_wait_for(earlier, 1)
+            assert crossed and status == 200 and response["rev"] == 1
+            assert response["items"] == {"pin:alpha": entry("1")}
+    finally:
+        if later:
+            later.cancel()
+            await asyncio.gather(later, return_exceptions=True)
+    await hub.shutdown(None)
+    await asyncio.sleep(0.02)
+    assert not hub.state_waiters

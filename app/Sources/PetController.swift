@@ -47,6 +47,7 @@ final class PetController: NSObject {
         previewTimer = Timer.scheduledTimer(withTimeInterval: 15, repeats: false) { [weak self] _ in self?.finishPreview() }
     }
     func finishPreview() { previewTimer?.invalidate(); previewTimer = nil; pet.previewRow = nil; pet.previewLook = false; pet.updateFoldedBubble() }
+    private var appearanceObserver: NSObjectProtocol?
     private var timer: Timer?,motionTimer:Timer?
     private var bubbleMotion=PetBubbleMotion()
     private var widthFadeStart:Double?
@@ -97,8 +98,11 @@ final class PetController: NSObject {
         pet.animationsAllowed = screenAwake()
         let screen = displays().first ?? PetDisplay.nearest(to: .zero, in: [])
         placePet(at: CGPoint(x: store.settings.petX ?? Double(screen.visible.maxX-PetLayout(scale:pet.petScale).spriteSize.width-30), y: store.settings.petY ?? Double(screen.visible.minY+25)))
+        appearanceObserver=NotificationCenter.default.addObserver(forName:ChatAppearance.didChange,object:nil,queue:.main){[weak self] _ in MainActor.assumeIsolated {self?.applyChatAppearance()} }
+        applyChatAppearance()
     }
-    deinit { previewTimer?.invalidate(); if let outsideMonitor {NSEvent.removeMonitor(outsideMonitor)};motionTimer?.invalidate();timer?.invalidate(); NotificationCenter.default.removeObserver(self); NSWorkspace.shared.notificationCenter.removeObserver(self); DistributedNotificationCenter.default().removeObserver(self) }
+    func applyChatAppearance(){panel.appearance=ChatAppearance.theme.appearance;pet.chatOpacityPercent=ChatAppearance.opacity;MainActor.assumeIsolated {pet.bubbleReply?.applyChatAppearance()}}
+    deinit { if let appearanceObserver {NotificationCenter.default.removeObserver(appearanceObserver)};previewTimer?.invalidate(); if let outsideMonitor {NSEvent.removeMonitor(outsideMonitor)};motionTimer?.invalidate();timer?.invalidate(); NotificationCenter.default.removeObserver(self); NSWorkspace.shared.notificationCenter.removeObserver(self); DistributedNotificationCenter.default().removeObserver(self) }
     func show() { panel.orderFrontRegardless() }
     @objc func toggle() { if chatExpanded { collapseChat() } else { showChat() } }
     func threeFingerTapped() {
@@ -244,7 +248,7 @@ final class PetController: NSObject {
         foldedPerchAnchor=nil;resizedBelow=nil;chatDrag=nil
         if let p = placementTarget { placePet(at: p.anchorOrigin) }
     }
-    @objc private func motionChanged() { if reducedMotion() { screensChanged() } }
+    @objc private func motionChanged() {pet.updateScrim(); if reducedMotion() { screensChanged() } }
     @objc private func powerChanged() { pet.animationsAllowed = screenAwake() }
     func saveChatSize() {
         let size = preferredChatSize

@@ -87,8 +87,10 @@ class Hub:
 
     async def shutdown(self, app):
         self.stopping = True
-        for event in self.state_waiters.values():
-            event.set()
+        for waiters in self.state_waiters.values():
+            for future in waiters:
+                if not future.done():
+                    future.set_result(None)
 
     async def stop(self):
         if self.runner:
@@ -156,24 +158,32 @@ class Hub:
                     result = self.state.get(member, revision)
                 else:
                     # Register before inspecting the revision: PATCH cannot be missed between read and wait.
-                    event = self.state_waiters.setdefault(member, asyncio.Event())
-                    event.clear()
-                    result = self.state.get(member, revision)
-                    if result["rev"] == revision and not self.stopping:
-                        try:
-                            await asyncio.wait_for(event.wait(), self.state_wait_seconds)
-                        except asyncio.TimeoutError:
-                            pass
-                        self.store.device(self.bearer(request))  # A device revoked while waiting no longer has access.
+                    future = asyncio.get_running_loop().create_future()
+                    waiters = self.state_waiters.setdefault(member, set())
+                    waiters.add(future)
+                    try:
                         result = self.state.get(member, revision)
+                        if result["rev"] == revision and not self.stopping:
+                            try:
+                                await asyncio.wait_for(future, self.state_wait_seconds)
+                            except asyncio.TimeoutError:
+                                pass
+                            self.store.device(self.bearer(request))  # Revalidate after a device may have been revoked.
+                            result = self.state.get(member, revision)
+                    finally:
+                        waiters.discard(future)
+                        future.cancel()
+                        if not waiters:
+                            self.state_waiters.pop(member, None)
             else:
                 request = request.clone(client_max_size=MAX_BYTES + 64 * 1024)
                 body = await self.body(request)
                 if set(body) != {"items"}:
                     raise Rejected("bad_state")
                 result = self.state.patch(member, body["items"])
-                if member in self.state_waiters:
-                    self.state_waiters[member].set()
+                for future in self.state_waiters.get(member, ()):
+                    if not future.done():
+                        future.set_result(None)
         except (ValueError, TypeError, KeyError, web.HTTPRequestEntityTooLarge):
             raise Rejected("bad_state") from None
         return web.json_response(result, headers={"X-Hejo-State-Wait": "1"})

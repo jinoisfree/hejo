@@ -1962,3 +1962,20 @@ python3 .build/task38/post_checks.py 종료 0. 최종 빌드의 실제 가짜 �
 ### TASK-42 최종 정적 검사
 
 개인값 검사·HEJO_PYTHON 지정 pre-commit·diff는 각각 종료 0이다. 최종 owned 목록은 29개이며 commit-only 대상 목록을 `.build/task42/owned-files.json`에 남겼다. 서명 검증·PNG 직접 비교·검증 입력 불변은 post-checks.json에서 확인했다. 커밋 뒤 verify가 기록한 실제 전체 커밋을 계획 담당에게 인계한다.
+
+
+## 구현 인계: TASK-43 대화창 모양·N42-01 대기 경합
+
+1. 받은 설계: 보완 38·57, 대조표 H01과 2.1판 정정, REQ-HF-38·AT-94. 기준 e7cfa7ae219d3a9ab6be7247b93bf54f19c00caa. 일반 위험, 필요 증거 수준 2, 임시 홈·가짜 명부·루프백만 썼다.
+2. 구현자 판단: 구현·자체 검증 완료, 계획 담당 검토 대기. tasks의 판정은 검토자가 갱신한다.
+3. 책임 배치: LocalStore의 기존 hejo-local.json에 선택 필드 네 개만 더했다. ChatAppearance는 그 원본의 읽기·원자적 쓰기 투영이며 별도 복제 저장소가 아니다. PetSettingsWindow의 기존 화면과 펫 탭에 AppKit 모양 묶음을 넣었다. PetController·ConversationView·ConnectionsWindow가 자기 창/내용을 갱신하며 NativeThreadList의 기존 높이 계산을 재사용한다.
+4. 화면: 시스템 설정/라이트/다크, 55~100 불투명도(기본 65), 글씨 12·13·14·15·16·18·20(기본 14), 내 말풍선 14색·대비 글자·미리보기·기본값으로를 연결했다. 대화창 크기 초기화는 모양 묶음으로 옮겼다. 투명도 줄이기면 불투명이다. 설정 창 자체는 시스템 모양을 유지한다. 원본의 사용되지 않는 양 끝 불투명도 문구는 넣지 않았다.
+5. 변경 성격: 승인된 의미 변경이다. 모양은 허브 회원 상태/outbox에 보내지 않는다. 작성기는 마지막 표시 기본 크기로 초안을 직렬화하고 한글 조합 중 내용 교체를 보류한다. 카드의 기존 내용도 글씨 변경 즉시 다시 측정한다. 새 SwiftUI import·문·wire·기록장 변경은 없다. 대체한 고정 14pt·65% 소비는 지웠으며 범위 밖 부채를 새로 발견하지 않았다. 기존 연결 창의 승인된 SwiftUI는 유지한다.
+6. N42-01: 회원별 공유 Event를 요청별 Future 집합으로 바꿨다. 읽기 전 등록, PATCH 때 등록된 대기 모두 깨우기, 취소/종료 때 정리를 구현했다. GET/PATCH·지원 헤더·옛 앱/허브 계약은 그대로다. 운영 허브에는 적용하지 않았다. AppKit 미리보기는 승인된 네이티브 이식이며 새 SwiftUI 예외가 아니다. 투명도 정책 주입은 실제 시스템 설정을 바꾸지 않고 같은 유리 계산을 검사하는 격리 목적이다. 하위 에이전트는 쓰지 않았다.
+7. 자동 시험: 실제 native controls를 눌러 테마 창 반영·세 불투명도·접근성 투명도 정책·7단계 글씨/기존 카드 높이·14색 실제 본문 대비·다시 읽은 로컬 파일·회원 상태 불변·기본값·한글 조합을 단언했다. N42-01은 PATCH와 뒤 대기가 앞 대기의 알림을 지우는 순서를 실제 임시 허브 HTTP에서 만든 뒤 1초 안 새 rev를 받는지 검사한다.
+8. 최종 검증: python3 .build/task43/frozen.py 종료 0, foundation9_runner hejo 245 passed(test_install·허브 시험 포함), 앱 전체·기존 통신 시험 통과. AT-94 집중 3회 모두 0·inputsUnchanged=true, 입력 184개 불변. frozen-progress.json·final-foundation.log·app-focused-01~03.log. mutation.py 종료 0: 정상 0, 옛 공유 Event 사본은 1초 경합 단언으로 종료 1, 원본 불변. mutation.json.
+9. 화면·서명: capture.py·post_checks.py 종료 0. 원본 SettingsPages/ChatStyle/BubbleOpacity 분리와 제품 AppKit 모양 묶음의 세 테마 PNG 여섯 개를 직접 확인했다. 미리보기 536×184, 14pt 글자 두 사각형은 원본/제품 일치다. 범위·그림 차이는 evidence/HEJO-FOUNDATION/TASK-43.md에 적었다. codesign --verify --deep --strict 종료 0. capture.json·post-checks.json·image-check.json. 운영 앱 전체·픽셀 동일 비교를 주장하지 않는다.
+10. 중간 근거: 새 메서드의 메인 액터 호출을 명시한 뒤 집중 컴파일을 통과했다. 회원 상태 비교 기준은 방 선택/읽음 변경이 끝난 뒤로 옮겼다. 첫 전체 결과는 원본 불투명도 숫자 글꼴을 맞추기 전이며 intermediate-before-value-font에 보존했다. 그 뒤 최종 고정 입력으로 검사했다. 숨은 탭의 부품을 캡처한 초기 그림은 최종 증거로 쓰지 않고, 보이는 탭·창 수명·같은 비활성 창 상태를 맞춘 그림만 사용했다.
+11. 미검증: 운영 허브/서버, 두 Mac, 실제 시스템 접근성 전환·로그인 항목 등록, 물리 입력기와 VoiceOver. 필요/도달 증거 수준 2/2, 실물은 운영 수락에 남는다. TASK-44 이후는 미착수다.
+12. 검토 요청: LocalStore 한 원본과 허브 분리, 한글 조합/기본 크기 직렬화, 모양 revision 높이 무효화, Future 경합/정리 경계를 봐 달라. public f716bdf는 고정했고 운영 홈·앱 사본·공용 릴리스·운영 저장소·본체/ddots·원격 변경과 GitHub 조회·실제 발송·비밀 파일 열기는 없었다.
+13. 최종 정적 검사·커밋: 개인값 검사·HEJO_PYTHON 지정 훅·diff는 각각 종료 0이다. 소유 파일 27개만 git commit --only 대상으로 정했다. 실제 전체 커밋과 커밋된 입력/그림 바이트 일치·깨끗한 main·고정 public은 .build/task43/final-checks.json·commit-result.json·final-verification.json을 따른다.

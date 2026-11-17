@@ -1,9 +1,12 @@
 import AppKit
 
 /// Retains the existing controls and actions while laying out each settings category independently.
-private final class SettingsDocument: NSView {
+final class SettingsDocument: NSView {
     override var isFlipped: Bool { true }
-
+    func resized(_ child: NSView, by delta: CGFloat) {
+        for view in subviews where view !== child && view.frame.minY > child.frame.minY { view.frame.origin.y += delta }
+        frame.size.height += delta
+    }
 }
 
 enum SettingsPages {

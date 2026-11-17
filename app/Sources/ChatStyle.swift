@@ -1,12 +1,52 @@
 import AppKit
 
+/// A local preference; nil appearance follows macOS automatically.
+enum ChatTheme: String, CaseIterable {
+    case system, light, dark
+    var title: String {
+        switch self { case .system: return "시스템 설정"; case .light: return "라이트 모드"; case .dark: return "다크 모드" }
+    }
+    var appearance: NSAppearance? {
+        switch self { case .system: return nil; case .light: return NSAppearance(named: .aqua); case .dark: return NSAppearance(named: .darkAqua) }
+    }
+}
+
+/// The process reads one Mac's existing LocalStore; no copied settings or shared member keys.
+enum ChatAppearance {
+    static weak var store: LocalStore?
+    static let didChange = Notification.Name("hejo.chatAppearanceChanged")
+    private(set) static var revision: UInt64 = 0
+    static let fontSizes: [CGFloat] = [12, 13, 14, 15, 16, 18, 20]
+    static var theme: ChatTheme { ChatTheme(rawValue: store?.settings.chatTheme ?? "") ?? .system }
+    static var opacity: Double { BubbleOpacity.clamped(store?.settings.chatOpacity ?? BubbleOpacity.defaultPercent) }
+    static func fontSize() -> CGFloat {
+        let value = CGFloat(store?.settings.chatBodyFontSize ?? 14)
+        return fontSizes.contains(value) ? value : 14
+    }
+    static func color() -> UserBubbleColor { UserBubbleColor(rawValue: store?.settings.chatUserBubbleColor ?? "") ?? .blue }
+    static func bind(_ store: LocalStore?) { self.store = store }
+    static func change(theme: ChatTheme? = nil, opacity: Double? = nil, fontSize: CGFloat? = nil, color: UserBubbleColor? = nil) throws {
+        guard let store else { throw GateFailure.storage }
+        try store.update {
+            if let theme { $0.chatTheme = theme.rawValue }
+            if let opacity { $0.chatOpacity = BubbleOpacity.clamped(opacity) }
+            if let fontSize { $0.chatBodyFontSize = fontSizes.contains(fontSize) ? Double(fontSize) : 14 }
+            if let color { $0.chatUserBubbleColor = color.rawValue }
+        }
+        revision &+= 1
+        NotificationCenter.default.post(name: didChange, object: store)
+    }
+    static func reset() throws { try change(theme: .system, opacity: 65, fontSize: 14, color: .blue) }
+}
+
+
 enum ChatMetrics {
     static let avatar: CGFloat = 34
     /// Corner radius of a character picture as a share of its side.
     static let avatarCorner: CGFloat = 0.24
     static let nameFont: CGFloat = 14
     static let auxiliaryFont: CGFloat = 11
-    static let bodyFont: CGFloat = 14
+    static var bodyFont: CGFloat { ChatAppearance.fontSize() }
     static let nameBodyGap: CGFloat = 4
     static let horizontalInset: CGFloat = 12
     static let minimumBubbleWidth: CGFloat = 240
@@ -89,7 +129,7 @@ struct UserBubblePalette {
     let compositedBackground: PaletteRGB
     var link: PaletteRGB { foreground } // Links also carry an underline.
     var contrast: Double { PaletteRGB.contrast(compositedBackground, foreground) }
-    init(color: UserBubbleColor = .blue, dark: Bool, pending: Bool = false) {
+    init(color: UserBubbleColor = ChatAppearance.color(), dark: Bool, pending: Bool = false) {
         background = color.resolved(dark: dark)
         alpha = pending ? 0.6 : 1
         // Conversation surface reference used by the pending contrast contract.

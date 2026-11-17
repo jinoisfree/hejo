@@ -208,6 +208,17 @@ final class PetView: NSView {
     private var timer: Timer?
     private var pointer = PetPointerInteraction()
     private var pose = PetAnimationFrame(row: 0, column: 0)
+    var chatOpacityPercent = BubbleOpacity.defaultPercent {didSet {updateScrim()}}
+    var reduceTransparency: () -> Bool = {NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency}
+    var chatTintAlpha: CGFloat {tint.layer?.backgroundColor?.alpha ?? 0}
+    func updateScrim() {
+        let dark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua
+        let alpha=BubbleOpacity.alpha(progress:placement?.expanded==true ? 1:0,percent:chatOpacityPercent,reduceTransparency:reduceTransparency())
+        let color=(dark ? NSColor.black:.white).withAlphaComponent(alpha).cgColor
+        guard tint.layer?.backgroundColor != color else{return}
+        CATransaction.begin();CATransaction.setDisableActions(true);tint.layer?.backgroundColor=color;CATransaction.commit()
+    }
+    override func viewDidChangeEffectiveAppearance(){super.viewDidChangeEffectiveAppearance();updateScrim();needsDisplay=true}
     var reduceMotion: () -> Bool = { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
     init(atlas: SpriteAtlas) {
         self.atlas = atlas; super.init(frame: .zero)
@@ -311,8 +322,7 @@ final class PetView: NSView {
         statusLabel.frame = CGRect(x: 20, y: max(20, p.bubbleRect.height - 80), width: max(0, p.bubbleRect.width - 40), height: 36)
         collapseButton.frame = CGRect(x: 16, y: max(0, p.bubbleRect.height - 38), width: 120, height: 28)
         glass.frame = conversation.bounds; tint.frame = conversation.bounds
-        let dark = effectiveAppearance.bestMatch(from: [.darkAqua,.aqua]) == .darkAqua
-        tint.layer?.backgroundColor = (dark ? NSColor.black : .white).withAlphaComponent(NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency ? 1 : 0.65).cgColor
+        updateScrim()
         conversationContent?.frame = CGRect(origin: .zero, size: p.bubbleRect.size)
         updateUnreadBadge()
         updateFoldedBubble()
