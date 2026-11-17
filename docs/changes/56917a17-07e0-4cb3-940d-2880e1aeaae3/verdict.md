@@ -23,7 +23,7 @@
 6. **사장 차례(0.2.x 운영 반영 때)**
    - `aeaa652` 기준 새 롤백 백업을 만든다.
    - public `f716bdf`를 github main에 푸시한다(플러그인 승인).
-   - `install/hejo-ship publish --approve-commit f716bdff38af3d8c2cb2cdf4502e080ecbecb2bc .build/n33-01/prepared/prepared.json`을 실행한다.
+   - `install/hejo-ship publish --approve-commit f716bdff38af3d8c2cb2cdf4502e080ecbecb2bc --prepared .build/n33-01/prepared/prepared.json`을 실행한다.
    - 두 Mac에 손으로 설치한다.
 7. **작업 56917a17 전체:** 부분 완료.
 

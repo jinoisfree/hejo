@@ -1351,7 +1351,7 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
 - 앞 후보 09157e9는 `archive/task33-before-n33-01`에 보존돼 있다. 쓰지 않는다.
 - 0.2.0 공개는 0.2.x 운영 반영 때 사장이 한다. 순서는 다음과 같다.
   1. public 가지를 github main에 푸시한다(플러그인 승인).
-  2. `install/hejo-ship publish --approve-commit f716bdff38af3d8c2cb2cdf4502e080ecbecb2bc .build/n33-01/prepared/prepared.json`을 실행한다.
+  2. `install/hejo-ship publish --approve-commit f716bdff38af3d8c2cb2cdf4502e080ecbecb2bc --prepared .build/n33-01/prepared/prepared.json`을 실행한다.
   3. 두 Mac에 손으로 설치한다.
   - 그 전에 `aeaa652` 기준으로 새 롤백 백업을 만든다(35판).
 - **다음 순서:** TASK-48 → TASK-49 → TASK-36 → … → 47.
