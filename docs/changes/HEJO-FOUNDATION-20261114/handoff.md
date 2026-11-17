@@ -1390,3 +1390,25 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
   - 시험이 cctv를 함께 돌려 범위 밖 차이 때문에 결과가 달라지면, 그 사실과 해당 시험을 따로 적는다.
 - **나머지는 보완 41과 같다.** 지금 작업 트리에 있는 `copy-review.md`·`impl-report.md`의 보류 기록은 지우지 말고 이어서 적는다. hejo 쪽에 커밋할 것이 생기면 그 커밋에 함께 넣고, 없으면 그 두 파일만 따로 커밋한다.
 - **운영 주의(계획 담당·사장):** TASK-49 운영 반영 때 운영 원본에 패치를 적용한 뒤 `./sync`를 하면, cctv 변경도 함께 모인다. 커밋 전에 `git status`로 cctv 변경이 다른 작업의 것인지 확인한다.
+
+## 보완 지시 48 (TASK-49 D49-01 결정, 35판, 2026-11-17)
+
+- **D49-01:** 체크리스트의 맞춤 제출(`| 제출: lv1 | lv2 | 확인`)을 hejo 체크리스트 계약(`items`·`selected`·`can_skip`)으로는 표현하지 못한다.
+- **결정: ddots와 같게 한다(33판 "사장이 고른 것 외에는 ddots").** 실행 담당이 권고한 A안(규격에 submits 추가)과 B안(글자 대체)은 채택하지 않는다.
+  - 근거: ddots는 맞춤 제출 단추를 그리지 않는다.
+    - `ddots/Sources/SlackThreads.swift:74-88`은 체크리스트 블록에서 토글 단추와 `hermes_reply_checklist_skip`만 읽는다.
+    - `SlackPanel.swift:3540-3575` `HermesReplyChecklist`는 "작성"과 (있으면) 건너뛰기만 보인다.
+    - 답은 `checklistAnswer`(605-609)의 `선택: …`이다.
+    - 따라서 사장이 ddots에서 받던 답은 지금 hejo 앱이 만드는 답과 같다.
+  - J03 처리
+    - `submits`가 있는 체크리스트도 `hejo_checklist {items: 체크 항목, selected: [], can_skip: false}`로 보낸다.
+    - 맞춤 변형에는 Slack 건너뛰기 단추가 없으므로 `can_skip`은 false다.
+    - 제출 낱말은 보내지 않는다. 본문에도 덧붙이지 않는다.
+    - 문·앱·통신 규격은 바꾸지 않는다.
+  - 시험(AT-100에 더함)
+    - 맞춤 제출 체크리스트를 hejo로 보내면 `items`가 체크 항목뿐이고, `can_skip`이 false이며, 제출 낱말이 프레임 어디에도 없다.
+    - 일반 체크리스트(건너뛰기 있음)는 `can_skip`이 true다.
+- **나머지는 보완 47·41과 같다.** 재개해서 J01·J02·J03을 구현하고 시험한다.
+  - `.build/task49/team-kit.patch`를 만들고, 운영 원본 임시 복사본에 dry-run으로 적용해 본다.
+  - team-kit tests와 `./airport-check`를 실행한다.
+  - 보고 두 파일에 이어서 적는다.

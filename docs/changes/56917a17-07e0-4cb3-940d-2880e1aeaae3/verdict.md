@@ -1,3 +1,27 @@
+## 검증 판정: TASK-49 2차(D49-01 보류) (2026-11-17)
+
+1. **판정:** TASK-49 미완료.
+   - 시작 대조는 해소됐다. 변경 범위 373개가 운영 원본과 같다(`scoped-comparison.json`).
+   - 실행 담당은 D49-01(맞춤 제출 계약)을 재현하고 멈췄다. 커밋은 보고 두 파일뿐이다(`ccc199f`).
+2. **검증 조건:** 교차 모델이다. 구현은 codex gpt-6.1-sol, 검토는 Claude Opus 5.5다.
+3. **설계 적합성(4.2):** 구현이 없어 해당하지 않는다.
+4. **직접 확인한 것**(읽기만 했다)
+   - team-kit `reply_buttons.py:150-215`의 `ChecklistLabels.submits`, `checklist_blocks`.
+   - `checklist-contract.json`: Slack 답 6종이고, 지금 hejo 답은 `선택: 일정`이며, 새 필드는 `invalid_checklist`로 거절된다.
+   - ddots
+     - `SlackThreads.swift:74-88`: 토글·건너뛰기만 읽는다.
+     - `SlackPanel.swift:3540-3575`: 작성·건너뛰기만 있다.
+     - `checklistAnswer` 605-609: `선택: …`.
+   - 따라서 ddots에서도 맞춤 제출 단추는 보이지 않았다.
+5. **원인 분류:** 명세 공백이다. 계획 담당이 REQ-HF-43 J03에 "submits는 Slack과 같은 의미로 정하고 기록"이라고만 적고, ddots 동작을 확인하지 않았다. 구현 결함이 아니다.
+6. **결정·보완:** 35판 보완 48.
+   - submits 변형은 ddots와 같게 `items` = 체크 항목, `can_skip: false`로 보낸다. 제출 낱말은 보내지 않는다.
+   - 규격은 바꾸지 않는다.
+   - spec J03을 갱신했다.
+7. **작업 56917a17 전체:** 부분 완료.
+
+---
+
 ## 검증 판정: TASK-49 1차(시작 조건 보류) (2026-11-17)
 
 1. **판정:** TASK-49 미완료(아직 착수 전).

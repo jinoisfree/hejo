@@ -511,7 +511,7 @@
     - 제목 표식(🔴🟡🟢)을 바꾼다.
     - done·declined면 단추를 비운다.
     - 찾는 데 필요하면 문에 공개 메서드(스레드 첫 글 id 조회) 하나를 더한다(hejo 저장소, 규격 변경 없음). team-kit은 문 내부를 import하지 않는다(기존 `install_hejo` 원칙).
-  - J03 체크리스트: `rb.controls`가 체크리스트라고 하면 `hejo_buttons` 대신 `hejo_checklist {items, selected: [], can_skip}`을 보낸다. `can_skip`은 Slack 체크리스트의 "건너뛰기" 유무를 따른다. `submits`가 있는 변형은 Slack과 같은 의미가 되게 정하고 기록한다.
+  - J03 체크리스트: `rb.controls`가 체크리스트라고 하면 `hejo_buttons` 대신 `hejo_checklist {items, selected: [], can_skip}`을 보낸다. `can_skip`은 Slack 체크리스트의 "건너뛰기" 유무를 따른다. `submits`가 있는 변형은 [35판 D49-01 결정] ddots와 같게 한다. ddots는 맞춤 제출 단추를 그리지 않는다(`SlackThreads.swift:74-88`은 토글과 `hermes_reply_checklist_skip`만 읽는다). 대신 체크 항목과 "작성"으로 `선택: …` 답을 만든다(`checklistAnswer` 605-609). 그래서 hejo도 `items` = 체크 항목, `can_skip: false`(맞춤 변형에는 건너뛰기 단추가 없음)로 보내고, 제출 낱말은 보내지 않는다. 문·앱 규격은 바꾸지 않는다.
     - 앱이 보내는 "선택: …"·"전체"·"건너뛰기" 답이 Slack 체크리스트 답과 같은 처리(asked → answered → closed)를 탄다.
   - 사용량 꼬리말: hejo로 가는 글에는 `usage_ledger` 꼬리말이 붙지 않는다(시험으로 고정).
   - 실패: 문 계약이 바뀌었으면 지금처럼 글자로 대신한다(`_install_plain`). report_status는 hejo에서 대상을 못 찾으면 Slack처럼 `ok:false`와 이유를 돌려준다.
