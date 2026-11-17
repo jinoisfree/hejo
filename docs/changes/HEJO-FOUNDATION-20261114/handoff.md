@@ -1526,3 +1526,20 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
   - ddots 검색 강조색은 SwiftUI `Color.yellow`다(`SlackFindView.swift:89`). 이 색은 시스템 노랑(밝은 화면에서 주황빛 노랑)이다.
   - hejo는 `NSColor.yellow`(순수 #FFFF00)를 쓴다(`WorkspaceTools.swift:34`). 캡처에서도 색이 다르다.
   - 수정: `NSColor.systemYellow`로 바꾸고, AT-91에 색 값 단언을 하나 더한다. 같은 함수를 쓰는 다른 강조(작업 공간 검색 등)도 함께 바꾼다.
+
+## 보완 지시 57 (TASK-42 검토 뒤, 2026-11-18)
+
+- TASK-42는 통과했다(631ef5a). N35-01도 반영됐다.
+- **N42-01(비차단, 허브 대기 깨우기 경합, TASK-43 커밋에 함께 넣는다)**
+  - 위치: `hub/server.py` `member_state`. 회원마다 `asyncio.Event` 하나를 같이 쓰고, 새 대기 요청이 들어올 때마다 `event.clear()`를 한다.
+  - 경합이 생기는 순서
+    1. 대기 A가 `clear`하고 상태를 읽는다.
+    2. A의 `wait_for(event.wait())`가 실제로 기다리기 시작하기 전에 PATCH가 `set()`을 한다.
+    3. 그 사이 대기 B가 다시 `clear()`를 한다.
+    4. 그러면 A는 25초 뒤 시간 초과로만 새 값을 받는다.
+  - 값이 사라지지는 않고, 늦을 뿐이다.
+  - 수정
+    - 대기마다 자기 Future를 회원별 집합에 등록하고, PATCH가 등록된 Future를 모두 끝낸다. `asyncio.Condition`을 써도 된다.
+    - "읽기 전 등록" 순서는 그대로 지킨다.
+    - 시험: PATCH와 새 대기가 겹친 경우에도 앞선 대기가 1초 안에 새 rev를 받는다는 단언을 `tests/acceptance/test_state_wait.py`에 더한다.
+- **참고:** ddots "연결과 동기화" 페이지의 "승인 알림 연결 안내"(showHooksHelp)는 Codex·Claude 훅 연결이라 TASK-47(작업 목록·HookBridge)에서 넣는다.
