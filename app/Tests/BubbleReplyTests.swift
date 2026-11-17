@@ -69,7 +69,7 @@ import AppKit
     try check(controller.model.unread(key)==1,"AT87 folded bubble target has a new unread post before send")
     let accepted=await controller.sendBubbleReply(key);try check(accepted,"AT82 text-only send accepted")
     try check(controller.model.unread(key)==0 && controller.model.memberState.read("thread:alpha/"+key.thread)>=1,"AT87 bubble send marks exact thread read while folded")
-    try check(controller.draft(for:key).text.isEmpty && controller.draft(for:key).attachments==[file] && controller.interruptions[key] != nil,"AT82 sends only text and marks interruption")
+    try check(controller.draft(for:key).text.isEmpty && controller.draft(for:key).attachments==[file] && controller.interruptions[key] == nil,"AT88 queue bubble sends text without interruption marker")
     try await waitFor{controller.model.timeline(key).count==4 && !controller.working(key)}
     try check(controller.interruptions[key]==nil,"AT82 employee reply settles interruption")
     let card=BubbleReplyCard(controller:controller);card.aim(.init(key:key,speaker:"직원 A",working:false,queued:true));card.update(.init(),pointerOver:false);card.openNow();card.input.editor.string="reject";card.textDidChange(Notification(name:NSText.didChangeNotification));card.submit()

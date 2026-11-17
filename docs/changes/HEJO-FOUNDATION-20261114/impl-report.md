@@ -1835,3 +1835,26 @@ A07의 원본은 한 스레드에 여러 요청이 있을 때 어느 요청에 �
 - **화면·서명:** 최종 빌드 `--task36-capture`와 원본 NativeThreadCard·ReplyActionIcon·ConversationRules·slackApproval 분리 실행은 각각 종료 0이다. 같은 가짜 상태·14pt/파랑·밝은 화면의 PNG 두 개를 evidence로 보존했다. 유효한 620×560 PNG와 빨강/노랑/초록 막대를 확인하고 직접 표시를 대조했다. 실제 hejo Content 조립 대 원본 조각 비교이며 운영 앱 전체·픽셀 동일 비교는 아니다. 세부 범위는 `evidence/HEJO-FOUNDATION/TASK-36.md`, 지문/실행은 `.build/task36/post-checks.json`, `image-check.json`. `codesign --verify --deep --strict app/.build/hejo.app`도 종료 0이다.
 - **수준·인계:** 필요한/도달 증거 수준은 2/2다. 실제 서버·두 Mac·실물 입력 결합과 최종 제품 판정은 별도 운영/검토 단계에 남는다. 최종 보고 뒤 개인값·HEJO_PYTHON 지정 훅·diff 검사를 실행하고 소유 파일만 git commit --only로 기록한다. 실제 종료 코드·전체 커밋·입력/캡처 바이트·깨끗한 main은 `.build/task36/final-checks.json`, `commit-result.json`, `final-verification.json`에서 확인한다.
 - **변경 금지 보존:** public 후보 f716bdf 고정, 앱 사본·공용 릴리스·운영 홈·본체·ddots·운영 저장소·원격을 바꾸지 않았다. 재시작·운영 설치·sync·실제 발송·GitHub 조회/쓰기·비밀 파일 열기·키 출력은 없다. TASK-37 이후는 아직 시작하지 않았으며 계획 담당 검토 뒤 이어간다.
+
+
+## TASK-37 진행 기록 — 작성기·전송 경계(보완 51·38)
+
+기준은 f1dbde2이며 TASK-36 판정은 유지한다. 작성기 값은 기존 Controller의 초안/실패/전송 메모리, 확정 글은 기존 기록장·복제본, 읽음은 기존 회원 상태다. 새 영구 원본·통신 필드는 없다. 원본 독해와 B05/N36-01의 코드 대조 사실은 copy-review에 이어 적었다.
+
+초안 자리는 auto/new/thread로 유지하고, 새 글의 실제 전송 UUID와 구분한다. 확인 전 글·첨부는 pending 메모리에서 기존 Post.pending으로 보이며, 확인되면 기록장 글로 바뀐다. 이후 입력을 늦은 확인이 지우지 않고, 실패 글은 원래 연결·보던 방·초안 자리와 함께 남는다. 자동 답글 대상의 선택은 읽음 처리와 분리한다. 날짜 이름의 옛 범례 상수는 제거하되 무조건 적용되던 allowed 본문 맥락은 결과 불변 지시대로 보존한다.
+
+아직 최종 완료 근거가 아니다. 초기 전체 검사의 gate/수락 236개는 통과했으나 앱의 연결 전 아일랜드 오류 표시 누락과 마지막 방 숨김 뒤 선택 재생성 회귀를 발견해 수정했다. 그 실행은 최종 통과로 쓰지 않는다. 새 기본 진입 시험에는 앞 경우에서 남긴 초안이 있어 자동 기본값보다 복원이 우선됐으며, 빈 자리를 남기는 준비로 바로잡았다. 기대값은 바꾸지 않았다. 현재 소스의 최종 전체·반복·돌연변이·같은 상태 캡처·개인값 검사는 계속 진행한다. 실제 명령/종료와 미완료는 추적하지 않는 .build/task37/checkpoint.json 및 로그에서 대조한다. 운영 자료·앱 사본·공용 릴리스·public·원격은 변경하지 않았다.
+
+
+## TASK-37 최종 구현·자체 시험 — 보완 51·38
+
+- **기준·책임 자리:** 부모는 f1dbde24efa1b136212864b11f9a712989b0b105다. 기존 독해/진행 기록을 보존했다. 대상·초안·실패·확인 전 글은 기존 ConversationController 메모리, 확정 글은 기존 기록장 복제본, 읽음은 MemberState다. 새 영구 원본·규격·문·Hermes 본체 변경은 없다.
+- **B01~06:** 홈을 제외한 기본 답글은 최근 활동 스레드의 직원 첫 글로 정한다. 명시적 답글도 최근 활동을 기준으로 고르며, 새 글 모드라도 열린 작업 스레드로 보낸다. auto/new/thread 초안 자리는 연결별 메모리에 남기고 실제 새 글 UUID와 구분한다. 사라진 대상의 초안은 방의 현재 자리로 옮긴다. 자동 대상 변경은 종이 울린 요청을 읽음 처리하지 않고 명시적 누름만 읽는다.
+- **전송·실패:** pending을 실제 카드에 0.6 흐림·“보내는 중”으로 먼저 보이며 작성기를 즉시 비운다. 확인은 그 글만 교체하고 후속 입력을 지우지 않는다. 실패는 원래 주소·방·자리·글·파일·얼굴을 보존한다. 되살리기는 원래 방 확인 후 정확한 자리에 합친다. 새 글/홈 글의 늦은 거절, 다른 방에서의 명시적 재전송, 재접속 뒤 확인 없는 글 보존을 실제 루프백으로 검증했다. 자동 재전송은 없다. 전송 중 표시는 현재 연결의 실제 pending으로 계산해 새 글 UUID·다른 방 보기에도 맞춘다.
+- **B07~18:** queue 직원의 끼어들기 표시는 생략한다. 표시는 답들 뒤·작업 줄 앞의 왼쪽이다. 홈 “새 대화”·빈칸 안내·실패 문구, 원본 모드 선택/접근성, 얼굴 24pt+각4pt·2pt 간격·가로 스크롤, 홈의 개별 단추·30pt 고리·0.5 흐림·0.24초 전환(동작 줄이기는 즉시)을 연결했다. 파일은 모두 크기를 확인한 뒤 하나씩 읽고 이름 있는 오류를 보인다. 고르기 창 문구/첨부 버튼/modalPanel/기본 저장 폴더와 고르는 동안 대화 접힘 방지를 연결했다. 첨부 50MiB·통신 64KiB·고정 채널/대표 직원 계약은 유지한다.
+- **원본 대조 판단:** B05의 replyInterrupted 생산자는 별도 Hermes 기록 보기의 SQL이고 Slack 방 경로는 기본 false다. 기존 그리기는 보존하고 새 wire 이벤트나 추정을 만들지 않았다. N36-01은 날짜 분기·상수를 지우되 실제로 날짜와 무관한 allowed 범례 본문을 유지한다. 원본/제품 분리 실행 compile/run 각각 0, valid-date 범례 판정 true/true다(`policy-probe.json`, `policy-comparison.json`). 자세한 근거는 copy-review에 이어 적었다.
+- **최종 전체·반복:** `python3 .build/task37/frozen.py` 종료 0. foundation9_runner hejo는 236 passed(test_install 포함), 앱 전체 단위 시험·기존 통신 시나리오·AT-88 실제 루프백을 통과했다. 이어 같은 빌드의 TASK-37 앱 집중 시험과 다섯 전송 경우(delay/reject/unconfirmed/new-reject/home-reject)를 세 차례 반복해 모두 종료 0이다. 앱 전체를 세 번 반복했다고 세지 않는다. 전체 1행+집중3행 모두 inputsUnchanged=true, 입력 164개 불변. `frozen-progress.json`, `final-foundation.log`, `app-focused-01.log`~`03.log`.
+- **실패 후 처리:** 초기 아일랜드 연결 전 오류·마지막 방 숨김·다른 방 재전송 표시 회귀를 제품 책임 자리에서 수정했다. 기존 AT55 재전송 단정은 유지했다. queue 표시 단정만 B07 원문대로 바꾸고, WorkspaceTests는 고정 초안 UUID 대신 실제 확인 글의 UUID를 얻도록 준비를 바꿨다. 캡처 연결이 빈 방 읽음을 먼저 seed하던 준비 문제는 최초 빈 명부로 연결한 뒤 합성 이력을 넣도록 고쳤으며, 그 최종 시험 파일까지 포함해 전체/반복을 다시 완료했다. 옛 실패·이전 통과 로그는 first-full/second-full/third-full-failure/pre-capture-fixture-final에 보존하며 최종 통과와 구분한다.
+- **돌연변이:** 새 글에 고정 초안 UUID를 그대로 보내도록 바꾼 임시 소스는 compile 0·시험 1로 `AT88 new-post draft place stays fixed while wire gets a separate UUID`에 걸렸다. 정상 경로는 최종 전체/반복 0이고 원본 소스는 불변이다. `mutation.json`, `mutation-new-place.log`.
+- **화면·N36-02·서명:** `post_checks.py` 종료 0. 최종 빌드의 TASK-36 PNG는 실제 연결(canSend=true)로 교체했다. TASK-37은 같은 가짜 상태의 원본 조각과 실제 AppKit 카드/작성기 줄을 비교한다. 유효한 620×560 한 개·620×240 두 개·592×36 두 개를 직접 표시 확인했다. 제품 줄의 투명 배경은 흰 캔버스로 source-over 내보냈으며 내용/기하 보정은 없다. 선택 캡슐의 SwiftUI 비활성 농도와 끝 여백 2pt 차이를 TASK-37.md에 명시했다. 운영 앱 전체·픽셀 동일 비교가 아니다. codesign --verify --deep --strict도 0이다. `post-checks.json`, `capture-product.json`, `reference.json`, `image-check.json`.
+- **수준·금지 보존·인계:** 필요/도달 수준은 2/2다. 물리 입력기·실제 서버·두 Mac 결합은 운영 수락에 남는다. public f716bdf·운영 홈·앱 사본·공용 릴리스·본체·ddots·운영 저장소·원격을 바꾸지 않았고 GitHub 조회·push·실제 발송·비밀 파일 열기/키 출력은 없다. 최종 보고 뒤 개인값/훅/diff 검사와 소유 파일만 git commit --only를 수행한다. 실제 전체 커밋·파일 범위·입력/캡처 일치·깨끗한 main은 `final-checks.json`, `commit-result.json`, `final-verification.json`에 기록한다. TASK-38 이후는 계획 담당 검토 뒤 진행한다.

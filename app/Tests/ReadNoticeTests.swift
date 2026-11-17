@@ -4,6 +4,12 @@ import AppKit
     let home=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer {try? FileManager.default.removeItem(at:home)}
     let store=try LocalStore(directory:home),controller=try ConversationController(client:GateClient(store:store,credentials:MemoryCredentials())),model=controller.model
+    if outputDirectory != nil {
+        let address=try homeRequire(ProcessInfo.processInfo.environment["HEJO_CAPTURE_ADDRESS"],"N36 capture requires live fake socket")
+        try controller.client.pair(address:address,code:"test_code-12",device:"fake capture")
+        try await waitFor{controller.canSend}
+    }
+    defer{controller.client.stop()}
     let now=Date(timeIntervalSince1970:1794000000);controller.clock={now}
     let roster:[[String:Any]]=[["id":"alpha","name":"직원 A","aliases":["First Staff"],"color":"#007AFF"],["id":"beta","name":"직원 B","aliases":[]]]
     controller.receive(["type":"welcome","employees":roster,"head_seq":0])
@@ -110,8 +116,7 @@ import AppKit
     try check(!model.memberState.items.keys.contains{$0.contains("@home")},"AT87 virtual home selection does not persist a fake receipt")
     if let outputDirectory {
         try FileManager.default.createDirectory(at:outputDirectory,withIntermediateDirectories:true)
-        _=try await controller.client.receive(["v":1,"type":"welcome","employees":roster,"head_seq":seq,"device_id":UUID().uuidString.lowercased(),"gate_version":"test"])
-        _=try await controller.client.receive(["v":1,"type":"sync_done","ref":"fixture","through":seq,"head_seq":seq,"more":false])
+        try check(controller.canSend,"N36 capture is genuinely connected")
         // Capture the product's real card construction with the same pending/working/closed states as the reference.
         view.chooseEmployee("alpha");view.setSidebarWidth(212);view.refresh();view.layoutSubtreeIfNeeded()
         let canvas=NSView(frame:CGRect(x:0,y:0,width:620,height:560));canvas.wantsLayer=true;canvas.layer?.backgroundColor=NSColor.white.cgColor

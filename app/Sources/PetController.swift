@@ -19,6 +19,7 @@ final class PetController: NSObject {
     let store: LocalStore
     var displays: () -> [PetDisplay] = { PetDisplay.current }
     var reducedMotion: () -> Bool = { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
+    var canCollapse:()->Bool = {true}
     var onExpansionChanged: ((Bool) -> Void)?
     private(set) var chatExpanded = false
     private(set) var placementTarget: PetPlacement?
@@ -82,6 +83,7 @@ final class PetController: NSObject {
     @objc func showChat() { setExpanded(true) }
     @objc func collapseChat() { setExpanded(false) }
     private func setExpanded(_ expanded: Bool) {
+        guard expanded || canCollapse() else{return}
         guard expanded != chatExpanded, let old = placementTarget else { return }
         timer?.invalidate(); timer = nil; pet.endGenie(expanded: chatExpanded)
         chatExpanded = expanded; panel.chatExpanded = expanded; onExpansionChanged?(expanded)

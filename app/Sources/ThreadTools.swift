@@ -113,16 +113,14 @@ enum ReplyButtonPolicy {
     static let standard = ["승인", "거절", "의견", "확인"]
     static let mail = ["메모", "메모+노션", "확인"]
     static let mailLegend = "메모 = 개인(Obsidian 메모), 메모+노션 = 공용(노션+Obsidian 메모), 확인 = 만들지 않음"
-    static let mailLegendBefore20261031 = "메모 = 개인(Obsidian 메모→미리알림), 메모+노션 = 공용(노션+Obsidian 메모→미리알림), 확인 = 만들지 않음"
     static let contexts: [(words: [String], legend: String)] = [
         (["확인", "되돌리기"], "앱 쓰기 결과"),
         (mail, mailLegend),
-        (mail, mailLegendBefore20261031),
+        (mail, "메모 = 개인(Obsidian 메모→미리알림), 메모+노션 = 공용(노션+Obsidian 메모→미리알림), 확인 = 만들지 않음"),
         (["제작해", "수정", "취소"], "제작해 = 이 제작안대로 만들기, 수정 = 고칠 점 말하기, 취소 = 만들지 않기"),
         (["다운", "수정", "종결"], "다운 = 받은 파일 저장, 수정 = 고칠 점 말하기, 종결 = 이 작업 끝내기"),
     ]
-    static let since: TimeInterval = 1793376226
-    static let retired: Set<String> = [":hp-check: 확인", ":hp-memo: 메모", ":hp-notion: 메모+노션", "건너뛰기", "공개", "그만", "나중에", "다운", "답할게", "롤백", "만들 곳 고르기", "모두 거부", "모두 거절", "모두 보류", "모두 승인", "못했어", "반영해", "발송 승인", "비공개", "새 업무로 만들기", "수정", "수정 요청", "수정할게", "완료했어", "이 업무에 반영", "이런 질문 그만", "이번엔 넘어가", "이어 진행", "제작해", "종결", "취소", "확인했어", "오늘 계속 고쳐", "이것만 고쳐", "내일로"]
+
     static func word(_ label: String) -> String {
         guard label.hasPrefix(":"), let end = label.dropFirst().firstIndex(of: ":") else { return label }
         return label[label.index(after: end)...].trimmingCharacters(in: .whitespaces)
@@ -149,21 +147,12 @@ enum ReplyButtonPolicy {
     static let scriptPending = [
         #"확인 \| 되돌리기"#, #"\d+(?: \| \d+)* \| 거절 \| 의견 \| 확인"#,
     ]
-    static let scriptSince: TimeInterval = 1793417083
-    static let legacyScript = [
-        #"확인 \| 롤백"#, #"오늘 계속 고쳐 \| 이것만 고쳐 \| 내일로"#, #"완료했어 \| 못했어 \| 수정할게 \| 확인했어"#, #"공개 \| 비공개 \| 나중에"#,
-        #"(?:노션|메모|일정) 기준(?: \| (?:노션|메모|일정) 기준)* \| 그대로 두기"#, #"\d+번 연결(?: \| \d+번 연결)* \| 연결 안 함"#,
-        #"연결 \| 연결 안 함"#, #"확실한 \d+건 모두 연결 \| 하나씩 볼게"#,
-    ]
     static func script(_ labels: [String], sets: [String] = scriptPending) -> Bool {
         let joined = labels.joined(separator: " | ")
         return sets.contains { joined.range(of: "^(?:" + $0 + ")$", options: .regularExpression) != nil }
     }
     static func pressable(_ labels: [String], message: ConversationMessage) -> Bool {
-        if allowed(labels, body: message.text) || script(labels) { return true }
-        if ThreadTools.date(message.timestamp).timeIntervalSince1970 < scriptSince && script(labels, sets: legacyScript) { return true }
-        return ThreadTools.date(message.timestamp).timeIntervalSince1970 < since && !labels.isEmpty && Set(labels).count == labels.count
-            && labels.allSatisfy { standard.contains($0) || retired.contains($0) }
+        allowed(labels, body: message.text) || script(labels)
     }
 }
 

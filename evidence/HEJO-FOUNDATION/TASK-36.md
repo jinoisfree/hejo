@@ -10,6 +10,7 @@
 |---|---|
 | ![원본의 승인 요청·처리 중·종결](task36-ddots.png) | ![hejo의 승인 요청·처리 중·종결](task36-hejo.png) |
 
+- N36-02(보완 51): TASK-37에서 가짜 루프백에 실제 연결하고 `canSend == true`를 확인한 최종 빌드로 hejo PNG를 다시 찍었다.
 - 아래부터 승인 요청(빨강 `#E01E5A`·종·기본 네 단추), 처리 중(노랑 `#ECB22E`·종 없음), 종결(초록 `#2EB67D`·종 없음)이다. 생성된 “처리 완료” 글자 줄이 없다. 본문에 사장이 쓴 글은 지우지 않는다.
 - 원본은 `NativeThreadCard.swift`·`ReplyActionIcon.swift`·`ConversationRules`와 `SlackPanel.slackApproval`을 분리 실행한다. 원본 바깥 controls의 왼쪽 43pt·위 2pt를 포함한다. 네트워크 callback·측정 hook은 대역이고, 체크리스트 경로는 이 화면에서 쓰지 않는다. 공통 표시 조건은 글씨 14pt·가짜 직원 색 파랑·밝은 화면이다.
 - hejo는 실제 `ConversationView`가 만든 Content를 실제 AppKit 카드로 조립한다. 임시 저장소와 연결 완료 대역을 쓰며, 사진·운영 설정은 읽지 않는다. AppKit 답 단추의 경로·16pt 기호·36×30 영역·간격 8·모서리 8은 원본 기하를 옮겼다. 원본은 SwiftUI 호스팅이고 제품은 AppKit이다. 화면 전체의 픽셀 동일성을 주장하지 않는다.

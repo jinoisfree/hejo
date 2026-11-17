@@ -46,7 +46,7 @@ import AppKit
             conversationView.onCollapse = { [weak self] in self?.pet.collapseChat() }
             conversationView.onOpenThreadHeight = { [weak self] height in self?.pet.fitOpenThread(height) }
             pet.panel.onWorkspaceKey = { [weak self] event in self?.conversationView.handleWorkspaceKey(event) ?? false }
-            pet.panel.onCollapse = { [weak self] in guard let self else { return }; if !self.conversationView.closeSearchIfOpen() { self.pet.collapseChat() } }
+            pet.panel.onCollapse = { [weak self] in guard let self else { return }; if !self.conversationView.pickingFiles && !self.conversationView.closeSearchIfOpen() { self.pet.collapseChat() } }
             pet.pet.onBubbleOpen = { [weak self] key in guard let self else {return};self.openBubble(key) }
             pet.pet.onBubbleAction = { [weak self] action in self?.performBubbleAction(action) }
             bubbleTimer=Timer(timeInterval:0.25,repeats:true){ [weak self] _ in Task { @MainActor in self?.refreshPetActivity() } }
@@ -70,7 +70,8 @@ import AppKit
                 header.onDoubleClick = { [weak self] in self?.pet.toggleChatWidth() }
             }
             conversationView.refresh()
-            pet.onExpansionChanged = { [weak self] expanded in self?.conversation.model.setVisible(expanded); if expanded { self?.conversation.model.memberState.activate() };self?.refreshPetActivity() }
+            pet.canCollapse={ [weak self] in self?.conversationView.pickingFiles != true }
+            pet.onExpansionChanged = { [weak self] expanded in if !expanded {self?.conversationView.folded()};self?.conversation.model.setVisible(expanded); if expanded { self?.conversation.model.memberState.activate() };self?.refreshPetActivity() }
             connection = LoginWindow(client: client)
             connection.onSignedIn = { [weak self] _, me in self?.currentAccount = me.account; self?.petSettings?.accountName.stringValue = me.account; self?.applyMemberSettings(me.settings) }
             installEditMenu()

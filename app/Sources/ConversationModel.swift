@@ -63,6 +63,7 @@ struct ConversationMessage: Identifiable, Equatable {
     var branchFrom: String? = nil
     var employee:String? = nil
     var answerTo:String? = nil
+    var pending = false
     var speaker:String {employee ?? key.employee}
 }
 struct ReplyChecklist: Codable, Equatable {
@@ -221,7 +222,7 @@ struct ConversationThread: Identifiable {
             if self.isHome {
                 if let key=self.selected,key.employee != HomeRoom.id,!self.homeScope.contains(key.employee) {self.selectHome(notify:false)}
             } else if let current = self.selected?.employee, self.hidden.contains(current) {
-                if let next = self.displayRooms.first { self.select(employee: next.id, notify: false) }
+                if let next = self.displayRooms.first { self.select(employee: next.id, notify: false,markRead:false) }
                 else { self.selected = nil }
             }
             self.onChange?()
@@ -319,7 +320,7 @@ struct ConversationThread: Identifiable {
         }
         if !loadingRecords && !replaying && ["roster","room"].contains(type) {seedUnseenRooms()}
         if selected == nil, !employees.isEmpty {
-            if let last=store.settings.lastRoom, last != HomeRoom.id, rooms.contains(where:{$0.id==last && !hidden.contains(last) && $0.archived != true}) {select(employee:last,notify:false)}
+            if let last=store.settings.lastRoom, last != HomeRoom.id, rooms.contains(where:{$0.id==last && !hidden.contains(last) && $0.archived != true}) {select(employee:last,notify:false,markRead:false)}
             else {selectHome(notify:false)}
         }
         if type=="sync_done",frame["more"] as? Bool==false {seedUnseenRooms();replaying=false}
@@ -407,14 +408,15 @@ struct ConversationThread: Identifiable {
     }
     func unread(employee: String) -> Int { Set(messages.values.filter { $0.key.employee == employee }.map(\.key)).reduce(0) { $0 + unread($1) } }
     func name(_ employee: String) -> String { if employee==HomeRoom.id {return store.settings.petName};return groups[employee]?.title ?? person(matching:employee)?.name ?? employee }
-    func select(employee: String, notify: Bool = true) {
+    func select(employee: String, notify: Bool = true,markRead:Bool=true) {
         guard rooms.contains(where: { $0.id == employee }) else { return }
-        select(threads(employee: employee).first?.key ?? ConversationKey(employee: employee, thread: UUID().uuidString.lowercased()), notify: notify)
+        select(threads(employee: employee).first?.key ?? ConversationKey(employee: employee, thread: UUID().uuidString.lowercased()), notify: notify,markRead:markRead)
     }
-    func select(_ key: ConversationKey, notify: Bool = true,inHome:Bool=false) {
+    func select(_ key: ConversationKey, notify: Bool = true,inHome:Bool=false,markRead:Bool=true) {
+        let changed=selected != key || isHome != inHome
         isHome=inHome;selected = key
-        if !loadingRecords {try? store.update{$0.lastRoom=selectionIdentity}}
-        if visible {markThreadRead(key)}
+        if changed && !loadingRecords {try? store.update{$0.lastRoom=selectionIdentity}}
+        if visible && markRead {markThreadRead(key)}
         if notify {onChange?()}
     }
     func newThread() { if let selected { select(ConversationKey(employee: selected.employee, thread: UUID().uuidString.lowercased())) } }

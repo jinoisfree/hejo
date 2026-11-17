@@ -31,6 +31,11 @@ import UniformTypeIdentifiers
     private var searchWork:DispatchWorkItem?
     private var searchHighlight:String?
     private var noticeCursor:[String:Int]=[:]
+    private var automatic=false
+    private var autoKeys:[String:ConversationKey]=[:]
+    private var composerAddress=""
+    private var writingKey:ConversationKey?
+    private var writingPlace=""
     private var lastPlaces:[String:ConversationKey]=[:]
     private var composerMembers:[String]=[]
     let brand=PassiveLabel(labelWithString:"HEJO."), version=PassiveLabel(labelWithString:""), heading=PassiveLabel(labelWithString:""), subtitle=PassiveLabel(labelWithString:"함께 나누는 대화")
@@ -52,6 +57,8 @@ import UniformTypeIdentifiers
     private var openThread:ConversationKey?, newKeys:[String:ConversationKey]=[:], expandedMessages=Set<String>()
     private(set) var sidebarWidth=ConversationSidebar.width
     private(set) var replyMode=true
+    private(set) var pickingFiles=false
+    var chooseFiles:(NSOpenPanel,@escaping(NSApplication.ModalResponse)->Void)->Void = {panel,then in panel.begin(completionHandler:then)}
     private var shownSidebarWidth=ConversationSidebar.width, searchOpen=false, editorHeight:CGFloat=17
     var onCollapse:(()->Void)?
     var onOpenThreadHeight: ((CGFloat?) -> Void)?
@@ -76,6 +83,7 @@ import UniformTypeIdentifiers
         employeeScroll.documentView=employeeTable; employeeScroll.drawsBackground=false; employeeScroll.hasVerticalScroller=true; employeeScroll.autohidesScrollers=true; employeeScroll.scrollerStyle = .overlay
         for view in [headerDrag,brandDrag,island,employeeScroll,brand,version,heading,subtitle,employeeSearch,search,history,sidebarToggle,searchToggle,notice,modeBackground,replyButton,newButton,inputBackground,editor,draftHint,attachButton,sendButton,attachmentScroll,older,handle,drop,composerFaceScroll,searchResults,sidebarHits,noticeBar,failureBar] { addSubview(view) }
         addRoom.isBordered=false;addRoom.font = .systemFont(ofSize:12,weight:.medium)
+        composerFaces.reduceMotion={ [weak self] in self?.reduceMotion() ?? true }
         composerFaceScroll.documentView=composerFaces;composerFaceScroll.drawsBackground=false
         composerFaceScroll.hasHorizontalScroller=true;composerFaceScroll.autohidesScrollers=true;composerFaceScroll.scrollerStyle = .overlay
         addRoom.invoke={ [weak self] in guard let self else { return };self.addMenu().popUp(positioning:nil,at:CGPoint(x:0,y:addRoom.bounds.height),in:addRoom) }
@@ -99,6 +107,7 @@ import UniformTypeIdentifiers
         notice.font = .systemFont(ofSize:11); notice.textColor = .systemRed
         attachments.orientation = .horizontal; attachments.spacing=6
         attachmentScroll.documentView=attachments; attachmentScroll.drawsBackground=false; attachmentScroll.hasHorizontalScroller=true; attachmentScroll.autohidesScrollers=true
+        replyButton.mode=true;newButton.mode=true
         replyButton.invoke={ [weak self] in self?.writeReply() }; newButton.invoke={ [weak self] in self?.createThread() }
         attachButton.invoke={ [weak self] in self?.attach() }; sendButton.invoke={ [weak self] in self?.send() }; sendButton.chosen=true
         modeBackground.wantsLayer=true; modeBackground.layer?.cornerRadius=12
@@ -108,7 +117,7 @@ import UniformTypeIdentifiers
         editor.onHeight={ [weak self] height in guard let self,abs(self.editorHeight-height)>0.5 else { return }; self.editorHeight=height; self.needsLayout=true }
         draftHint.font = .systemFont(ofSize:14); draftHint.textColor = .secondaryLabelColor
         older.target=self; older.action = #selector(loadOlder); older.isBordered=false; older.font = .systemFont(ofSize:11)
-        drop.canAttach={ [weak self] in self?.controller.model.selected != nil && self?.controller.sending == false }
+        drop.canAttach={ [weak self] in self?.controller.model.selected != nil }
         drop.onPaste={ [weak self] board in self?.paste(board) ?? false }; drop.onTarget={ [weak self] target in self?.layer?.borderWidth=target ? 2 : 0 }
         layer?.borderColor=NSColor.controlAccentColor.cgColor
         headerDrag.onMenu = { [weak self] in self?.headerMenu() }
@@ -122,7 +131,12 @@ import UniformTypeIdentifiers
         islandTimer=Timer.scheduledTimer(withTimeInterval:0.1,repeats:true) { [weak self] _ in
             Task { @MainActor in self?.tickIsland() }
         }
-        controller.onChange={ [weak self] in self?.refresh() }; controller.onRevealThread={ [weak self] key in self?.openFromBubble(key) }; refresh()
+        controller.onRestoreDraft={ [weak self] key,newPost,inHome in
+            guard let self else{return};self.automatic=false;self.replyMode = !newPost;self.openThread=newPost ? nil:key
+            if newPost {self.newKeys[self.placeNamespace]=key;self.controller.registerNewPlace(key)};self.controller.composeKey=key
+            if !newPost {self.history.scrollTo(key.thread)}
+        }
+        controller.onShowFailure={ [weak self] failure in self?.chooseEmployee(failure.shown) };controller.onChange={ [weak self] in self?.refresh() }; controller.onRevealThread={ [weak self] key in self?.openFromBubble(key) }; refresh()
     }
     required init?(coder:NSCoder) { fatalError() }
     deinit { islandTimer?.invalidate() }
@@ -144,9 +158,11 @@ import UniformTypeIdentifiers
         }
     }
     private func reveal(_ key:ConversationKey,inHome:Bool=false) {
+        rememberPlace()
         let place=inHome ? HomeRoom.id:key.employee
         if identity != place { identity=place;windowed.reset() }
-        searchOpen=false;searchGeneration=UUID();searchWork?.cancel();search.stringValue="";openThread=key;replyMode=true
+        writingPlace=controller.client.store.settings.address+"\u{1}"+place+(inHome ? controller.model.homeChannel.map{"/"+$0.id} ?? "":"")
+        searchOpen=false;searchGeneration=UUID();searchWork?.cancel();search.stringValue="";openThread=key;replyMode=true;automatic=false;controller.composeKey=key
         controller.model.select(key,notify:false,inHome:inHome);controller.model.markAlertSeen(key)
     }
     func setSidebarWidth(_ value:CGFloat) {
@@ -202,15 +218,8 @@ import UniformTypeIdentifiers
         item.submenu=channels;menu.addItem(item)
         return menu
     }
-    private var homePlaceIdentity:String {HomeRoom.id+(controller.model.homeChannel.map{"/"+$0.id} ?? "")}
-    private var draftPlaceIdentity:String {controller.model.isHome ? homePlaceIdentity:controller.model.selectionIdentity}
     func changeHomeChannel(_ id:String?){
-        controller.cancelFollowup()
-        if let key=controller.model.selected,!controller.draft.isEmpty {lastPlaces[draftPlaceIdentity]=key}
-        openThread=nil;replyMode=false;controller.model.selectHome(ConversationKey(employee:HomeRoom.id,thread:UUID().uuidString.lowercased()),notify:false);controller.model.configureHome{$0.channel=id}
-        let place=homePlaceIdentity
-        if let saved=lastPlaces[place],controller.drafts[saved]?.isEmpty==false {openThread=controller.model.timeline(saved).isEmpty ? nil:saved;replyMode=openThread != nil;controller.model.selectHome(saved)}
-        else {controller.model.selectHome(newKeys[place])}
+        rememberPlace();controller.cancelFollowup();controller.model.configureHome{$0.channel=id};chooseHome()
     }
     func clearHomePicture() async {
         do {try await controller.files.setPicture(kind:"room",id:HomeRoom.pictureID,data:nil);controller.model.configureHome{$0.picture=nil}}
@@ -291,27 +300,60 @@ import UniformTypeIdentifiers
         default:break
         }
     }
+    private var placeNamespace:String {controller.client.store.settings.address+"\u{1}"+controller.model.selectionIdentity+(controller.model.isHome ? controller.model.homeChannel.map{"/"+$0.id} ?? "":"")}
+    private func rememberPlace() {
+        if let key=controller.composeKey ?? controller.model.selected,!controller.draft.isEmpty {lastPlaces[placeNamespace]=key}
+        else {lastPlaces[placeNamespace]=nil}
+    }
+    private func entry(_ employee:String,home:Bool) {
+        rememberPlace();controller.cancelFollowup();openThread=nil
+        let namespace=controller.client.store.settings.address+"\u{1}"+employee+(home ? controller.model.homeChannel.map{"/"+$0.id} ?? "":"")
+        writingPlace=namespace;identity=employee;windowed.reset()
+        if let saved=lastPlaces[namespace],!controller.draft(for:saved).isEmpty {
+            automatic=autoKeys[namespace]==saved
+            if automatic {controller.composeKey=saved;selectAutomatic(employee,home:home)}
+            else if controller.model.timeline(saved).isEmpty,newKeys[namespace] != saved {
+                automatic=true;let next=autoKey(namespace,employee:employee)
+                controller.moveDraft(from:saved,to:next,carry:true);selectAutomatic(employee,home:home)
+            } else {replyMode = !controller.model.timeline(saved).isEmpty;openThread=replyMode ? saved:nil;controller.composeKey=saved;controller.model.select(saved,inHome:home,markRead:false)}
+            return
+        }
+        automatic=true;controller.composeKey=autoKey(namespace,employee:employee);selectAutomatic(employee,home:home)
+    }
+    private func autoKey(_ place:String,employee:String)->ConversationKey {
+        if let key=autoKeys[place] {return key}
+        let key=ConversationKey(employee:employee,thread:UUID().uuidString.lowercased());autoKeys[place]=key;return key
+    }
+    private func newest(_ employee:String)->ConversationKey? {
+        let model=controller.model
+        let rows=employee==HomeRoom.id ? model.homeThreads:model.threads(employee:employee)
+        return rows.max {a,b in
+            let x=model.timeline(a.key).map{ThreadTools.date($0.timestamp)}.max() ?? .distantPast
+            let y=model.timeline(b.key).map{ThreadTools.date($0.timestamp)}.max() ?? .distantPast
+            return x==y ? (model.timeline(a.key).first?.seq ?? 0)<(model.timeline(b.key).first?.seq ?? 0):x<y
+        }?.key
+    }
+    private func selectAutomatic(_ employee:String,home:Bool) {
+        let model=controller.model,namespace=controller.client.store.settings.address+"\u{1}"+employee+(home ? controller.model.homeChannel.map{"/"+$0.id} ?? "":"")
+        let latest=home ? nil:newest(employee)
+        let target=latest.flatMap{model.timeline($0).first?.role=="employee" ? $0:nil}
+        replyMode=target != nil
+        let key=target ?? autoKey(namespace,employee:employee)
+        if target==nil {controller.registerNewPlace(key)}
+        model.select(key,notify:false,inHome:home,markRead:false)
+    }
     func chooseEmployee(_ employee:String) {
         if employee==HomeRoom.id {chooseHome();return}
         if controller.model.visible {controller.model.enterRoom(employee)}
-        controller.cancelFollowup()
-        if let key=controller.model.selected,!controller.draft.isEmpty {lastPlaces[draftPlaceIdentity]=key}
-        if let saved=lastPlaces[employee],controller.drafts[saved]?.isEmpty==false {openThread=controller.model.timeline(saved).isEmpty ? nil:saved;replyMode=openThread != nil;controller.model.select(saved);return}
-        openThread=nil; replyMode=false
-        if let key=newKeys[employee] { controller.model.select(key) }
-        else { let key=ConversationKey(employee:employee,thread:UUID().uuidString.lowercased()); newKeys[employee]=key; controller.model.select(key) }
+        entry(employee,home:false);refresh()
     }
     func chooseHome() {
         if controller.model.visible {controller.model.enterRoom(HomeRoom.id)}
-        controller.cancelFollowup()
-        if let key=controller.model.selected,!controller.draft.isEmpty {lastPlaces[draftPlaceIdentity]=key}
-        if let saved=lastPlaces[homePlaceIdentity],controller.drafts[saved]?.isEmpty==false {openThread=controller.model.timeline(saved).isEmpty ? nil:saved;replyMode=openThread != nil;controller.model.selectHome(saved);return}
-        openThread=nil;replyMode=false
-        controller.model.selectHome(newKeys[homePlaceIdentity])
+        entry(HomeRoom.id,home:true);refresh()
     }
     func chooseThread(_ key:ConversationKey) {
         controller.cancelFollowup()
-        replyMode=true; openThread=openThread == key ? nil : key; controller.model.select(key,inHome:controller.model.isHome);controller.model.markAlertSeen(key)
+        controller.moveDraft(from:controller.composeKey,to:key,carry:controller.model.selected==key);automatic=false;replyMode=true; openThread=openThread == key ? nil : key; controller.model.select(key,inHome:controller.model.isHome);controller.model.markAlertSeen(key)
         history.scrollTo(key.thread)
     }
     func openFromBubble(_ key: ConversationKey) {
@@ -380,19 +422,19 @@ import UniformTypeIdentifiers
         }
         let alerts=model.notices(employee).filter{!$0.questions}.flatMap(\.messages).count
         if alerts>0 {let button=FileChip(title:"모두 읽음");button.isBordered=false;button.font = .systemFont(ofSize:11,weight:.medium);button.image=NSImage(systemSymbolName:"checkmark.circle",accessibilityDescription:nil);button.imagePosition = .imageLeading;button.contentTintColor = .secondaryLabelColor;button.toolTip="이 방의 알림 \(alerts)건을 모두 읽음으로";button.invoke={model.readAllNotices(employee)};noticeBar.addArrangedSubview(button)}
-        let shownFailures=controller.failures.filter{failure in failure.key.employee==employee || (model.isHome && model.home.members.contains{$0.id==failure.key.employee})}
+        let shownFailures=controller.shownFailures
         for failure in shownFailures {
-            let row=NSStackView();row.spacing=6
-            let place=failure.newPost ? "새 글":model.timeline(failure.key).first.map{"답글 · "+String(MessageFormat.plain($0.text).prefix(16))} ?? "답글"
+            let row=NSStackView();row.spacing=6;row.toolTip=failure.reason
+            let place=failure.newPost ? (model.isHome ? "새 대화":"새 글"):model.timeline(failure.key).first.map{"답글 · "+String(MessageFormat.plain($0.text).prefix(16))} ?? "답글"
             let words=failure.draft.text.trimmingCharacters(in:.whitespacesAndNewlines)
             let what=words.isEmpty ? "파일 \(failure.draft.attachments.count)개":String(words.prefix(40))+(failure.draft.attachments.isEmpty ? "":" · 파일 \(failure.draft.attachments.count)개")
             let title=NSTextField(labelWithString:"보내지 못함 · "+place+" · "+what);title.font = .systemFont(ofSize:11);title.lineBreakMode = .byTruncatingTail;row.addArrangedSubview(title)
             let restore=FileChip(title:"되살리기");restore.invoke={ [weak controller] in controller?.restoreFailure(failure.id) };row.addArrangedSubview(restore)
             let discard=FileChip(title:"지우기");discard.invoke={ [weak controller] in controller?.discardFailure(failure.id) };row.addArrangedSubview(discard);failureBar.addArrangedSubview(row)
         }
-        let elsewhere=controller.failures.filter{failure in !shownFailures.contains{$0.id==failure.id}}
+        let elsewhere=controller.elsewhereFailures
         if let first=elsewhere.first {
-            let button=FileChip(title:"다른 방에서 보내지 못한 글 \(elsewhere.count)개 · 보러 가기");button.invoke={ [weak self] in self?.chooseEmployee(first.key.employee) };failureBar.addArrangedSubview(button)
+            let button=FileChip(title:"다른 방에서 보내지 못한 글 \(elsewhere.count)개 · 보러 가기");button.invoke={ [weak self] in self?.chooseEmployee(first.shown) };failureBar.addArrangedSubview(button)
         }
     }
     private func reportOpenHeight() {
@@ -405,28 +447,70 @@ import UniformTypeIdentifiers
         reportedOpenHeight = needed; onOpenThreadHeight?(needed)
     }
     func createThread() {
-        guard controller.model.selected != nil else { return };let employee=controller.model.selectionIdentity
-        controller.cancelFollowup();replyMode=false
-        if controller.model.isHome {openThread=nil;controller.model.selectHome(newKeys[homePlaceIdentity].flatMap{$0.employee==HomeRoom.id ? $0:nil});return}
-        if let key=newKeys[employee] { controller.model.select(key) }
-        else { let key=ConversationKey(employee:employee,thread:UUID().uuidString.lowercased()); newKeys[employee]=key; controller.model.select(key) }
+        guard controller.model.selected != nil else{return}
+        controller.cancelFollowup();automatic=false;replyMode=false
+        let place=placeNamespace,employee=controller.model.isHome ? HomeRoom.id:controller.model.selectionIdentity
+        let key:ConversationKey
+        if controller.model.isHome {key=autoKey(place,employee:employee)}
+        else if let old=newKeys[place] {key=old}
+        else {key=ConversationKey(employee:employee,thread:UUID().uuidString.lowercased());newKeys[place]=key}
+        // A blank selection can keep an open working thread in sight; it remains the interruption target.
+        controller.registerNewPlace(key);controller.composeKey=key;controller.model.select(key,inHome:controller.model.isHome)
     }
     func writeReply() {
-        guard let selected=controller.model.selected,let key=openThread ?? (controller.model.timeline(selected).isEmpty ? threads.last?.key : selected) else { return }
-        replyMode=true; openThread=key; controller.model.select(key,inHome:controller.model.isHome); history.scrollTo(key.thread)
+        guard let key=(replyMode ? controller.model.selected:nil) ?? newest(controller.model.selectionIdentity) else{return}
+        controller.moveDraft(from:controller.composeKey,to:key,carry:controller.model.selected==key);automatic=false;controller.cancelFollowup();replyMode=true;openThread=key
+        controller.model.select(key,inHome:controller.model.isHome);history.scrollTo(key.thread)
     }
-    func foldAll() { openThread=nil; createThread() }
+    func foldAll() {openThread=nil;createThread()}
+    func folded() {controller.folded()}
+    var interruptible:ConversationKey? {
+        guard let openThread,controller.model.typing[openThread] != nil else{return nil};return openThread
+    }
+    var sendTarget:ConversationKey? {replyMode ? controller.model.selected:interruptible ?? controller.model.selected}
+    var composerPrompt:String {
+        let model=controller.model
+        if !replyMode,let writing=interruptible {
+            let speaker=model.typingPeople[writing]?.keys.sorted().first ?? writing.employee
+            return model.name(speaker)+"에게 끼어들기…"
+        }
+        if model.isHome {
+            if replyMode,let key=model.selected,let first=model.timeline(key).first {return String(MessageFormat.plain(first.text).prefix(36))+" · 이어서 말하기"}
+            if controller.draft.picks.isEmpty,let channel=model.homeChannel {return channel.title+"에 새 요청"}
+            let who=controller.draft.picks.first ?? model.home.defaultRecipient ?? ""
+            return model.name(who)+"에게 새 글"
+        }
+        return replyMode ? "스레드에 답글":model.selected.map{(model.groups[$0.employee] != nil ? "#":"@")+model.name($0.employee)+"에 새 글"} ?? "hejo에 새 글"
+    }
     func refresh() {
         guard !rendering else { return }; rendering=true; defer { rendering=false }
-        let model=controller.model, selected=model.selected
+        let model=controller.model
+        if composerAddress != controller.client.store.settings.address || identity != model.selectionIdentity,let old=writingKey,!controller.savedDraft(old,address:composerAddress).isEmpty {lastPlaces[writingPlace]=old}
+        controller.prepareDraftAddress()
+        if composerAddress != controller.client.store.settings.address {composerAddress=controller.client.store.settings.address;automatic=true;controller.composeKey=nil;identity=""}
+        if model.selected==nil {identity="";automatic=false;replyMode=false;controller.composeKey=nil;openThread=nil}
+        else {
+        if identity != model.selectionIdentity || writingPlace != placeNamespace {
+            identity=model.selectionIdentity;windowed.reset();openThread=nil;automatic=true
+            if let saved=lastPlaces[placeNamespace],!controller.draft(for:saved).isEmpty,autoKeys[placeNamespace] != saved {
+                automatic=false;replyMode=newKeys[placeNamespace] != saved;openThread=replyMode ? saved:nil;controller.composeKey=saved;model.select(saved,notify:false,inHome:model.isHome)
+            } else {controller.composeKey=autoKey(placeNamespace,employee:model.isHome ? HomeRoom.id:identity);selectAutomatic(identity,home:model.isHome)}
+        } else if automatic {selectAutomatic(identity,home:model.isHome)}
+        else if replyMode,let old=controller.composeKey,model.timeline(old).isEmpty,controller.timeline(old).isEmpty {
+            automatic=true;openThread=nil;let destination=autoKey(placeNamespace,employee:model.isHome ? HomeRoom.id:identity)
+            controller.moveDraft(from:controller.composeKey ?? old,to:destination,carry:true);selectAutomatic(identity,home:model.isHome)
+        }
+        }
+        let selected=model.selected
         rooms=model.displayRooms.filter { employeeSearch.stringValue.isEmpty || $0.title.localizedCaseInsensitiveContains(employeeSearch.stringValue) }
         let layout=model.sidebar
         sidebarRows=employeeSearch.stringValue.isEmpty ? layout.rows : layout.items.filter { $0.name.localizedCaseInsensitiveContains(employeeSearch.stringValue) }.map { .init(kind:$0.kind == .home ? .home:.room,id:$0.id,name:$0.name,zone:layout.zone($0.id),items:[$0]) }
         composerMembers=model.isHome ? (model.homeChannel?.members ?? model.home.members.map(\.id)):selected.flatMap { model.room(for:$0.employee)?.members } ?? []
+        if !model.isHome && composerMembers.count<2 {composerMembers=[]}
         composerFaces.faces=composerMembers.map { (model.name($0),controller.avatar($0)) }
         composerFaces.homeStyle=model.isHome
         let light=model.homeRecipients.light(text:controller.draft.text,picked:controller.draft.picks.first,replying:replyMode ? selected?.employee:nil)
-        composerFaces.lit=model.isHome ? light.id.flatMap{composerMembers.firstIndex(of:$0)}:nil;composerFaces.ring=model.isHome && light.ring
+        composerFaces.lit=model.isHome ? light.id.flatMap{composerMembers.firstIndex(of:$0)}:nil;composerFaces.ring=model.isHome && light.ring;composerFaces.explicitlyPicked = !replyMode && !controller.draft.picks.isEmpty
         editor.editor.mentions=(model.isHome ? model.homeRecipients.members:model.people(selected?.employee ?? "")).map(\.name)
         addRoom.toolTip="방 추가 (\(model.hidden.count+model.groups.values.filter{$0.archived==true}.count))";addRoom.setAccessibilityLabel(addRoom.toolTip!)
         employeeTable.rowHeight=ConversationSidebar.isList(sidebarWidth) ? ConversationSidebar.rowHeight : ConversationSidebar.tabHeight
@@ -437,6 +521,7 @@ import UniformTypeIdentifiers
             threads=model.isHome ? model.homeThreads:(model.room(for:current).map { model.threads(room:$0,query:"") } ?? []).sorted { (model.timeline($0.key).first?.seq ?? 0) < (model.timeline($1.key).first?.seq ?? 0) }
             heading.stringValue=model.header(current).title; subtitle.stringValue=model.header(current).description
             if identity != current { windowed.reset(); identity=current; openThread=nil }
+            threads=controller.includingPending(threads,scope:model.isHome ? model.homeScope:[current])
             let shown=Set(windowed.visibleIDs(threads.map(\.id),revealing:openThread?.thread))
             var cards:[NativeThreadCard.Content]=[], previous:Date?
             for thread in threads where shown.contains(thread.id) {
@@ -446,25 +531,27 @@ import UniformTypeIdentifiers
             }
             history.show(cards,identity:current)
             older.isHidden=shown.count >= threads.count
-            if model.timeline(selected).isEmpty { newKeys[model.isHome ? homePlaceIdentity:current]=selected; replyMode=false }
-            // A confirmed first post finishes that new-post draft; another explicit new post gets another UUID.
-            if let key=newKeys[model.isHome ? homePlaceIdentity:current], !model.timeline(key).isEmpty, controller.drafts[key]?.text.isEmpty == true { newKeys[model.isHome ? homePlaceIdentity:current]=nil }
+            if !automatic,model.timeline(selected).isEmpty,controller.timeline(selected).isEmpty {replyMode=false}
+
         } else { threads=[]; history.show([],identity:""); heading.stringValue="HEJO."; older.isHidden=true }
         let draft=controller.draft
-        if displayedKey != selected || (!editor.editor.hasMarkedText() && MessageFormat.serialize(editor.editor.attributedString(),baseSize:ChatMetrics.bodyFont) != draft.text) {
+        if writingKey != controller.composeKey || (!editor.editor.hasMarkedText() && MessageFormat.serialize(editor.editor.attributedString(),baseSize:ChatMetrics.bodyFont) != draft.text) {
             editor.editor.breakUndoCoalescing(); editor.editor.undoManager?.removeAllActions()
             editor.editor.textStorage?.setAttributedString(MessageFormat.editor(draft.text,bodySize:ChatMetrics.bodyFont))
             editor.editor.typingAttributes=MessageFormat.Style(size:ChatMetrics.bodyFont).attributes; editor.measure()
         }
-        displayedKey=selected
-        draftHint.stringValue=model.isHome && !replyMode ? "새 대화":replyMode ? "스레드에 답글" : selected.map { model.groups[$0.employee].map{"#"+$0.title+"에 새 글"} ?? "@"+model.name($0.employee)+"에게 새 글" } ?? "직원을 선택하세요"
+        displayedKey=selected;writingKey=controller.composeKey;writingPlace=placeNamespace
+        draftHint.stringValue=composerPrompt
         draftHint.isHidden = !editor.editor.string.isEmpty; editor.editor.setAccessibilityLabel(draftHint.stringValue+" · Enter 보내기, Shift Enter 줄바꿈")
         for view in attachments.arrangedSubviews { attachments.removeArrangedSubview(view); view.removeFromSuperview() }
         for file in draft.attachments { let chip=FileChip(title:"📎 "+file.lastPathComponent+" ×"); chip.font = .systemFont(ofSize:11); chip.invoke={ [weak self] in self?.controller.removeAttachment(file) }; attachments.addArrangedSubview(chip) }
-        editor.editor.isEditable=selected != nil && (!controller.sending || !controller.client.isConnected)
-        sendButton.isEnabled=selected != nil && !controller.sending && controller.canSend && (!draft.text.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty || !draft.attachments.isEmpty)
-        attachButton.isEnabled=selected != nil && !controller.sending
-        replyButton.isEnabled = !threads.isEmpty; replyButton.chosen=replyMode; newButton.chosen = !replyMode
+        editor.editor.isEditable=selected != nil
+        sendButton.isEnabled=selected != nil && controller.canSend && (!draft.text.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty || !draft.attachments.isEmpty)
+        attachButton.isEnabled=selected != nil
+        replyButton.isEnabled = !model.homeThreads.isEmpty && model.isHome || !model.isHome && newest(model.selectionIdentity) != nil
+        replyButton.isEnabled = replyButton.isEnabled && !replyMode;newButton.isEnabled=replyMode
+        replyButton.chosen=replyMode;newButton.chosen = !replyMode;newButton.title=model.isHome ? "새 대화":"새 글"
+        replyButton.setAccessibilityLabel("답글"+(replyMode ? ", 선택됨":""));newButton.setAccessibilityLabel(newButton.title+(!replyMode ? ", 선택됨":""))
         for button in [replyButton,newButton,sendButton] { button.needsDisplay=true }
         notice.stringValue=controller.notice
         refreshWorkspaceBars();scheduleSearch()
@@ -498,7 +585,7 @@ import UniformTypeIdentifiers
         search.isHidden = !searchOpen; search.frame=CGRect(x:x+12,y:y+8,width:right-24,height:28); if searchOpen { y+=44 }
         older.frame=CGRect(x:x+12,y:y,width:right-24,height:older.isHidden ? 0 : 24); if !older.isHidden { y+=24 }
         let noticeHeight:CGFloat=notice.stringValue.isEmpty ? 0 : 38, attachmentsHeight:CGFloat=controller.draft.attachments.isEmpty ? 0 : 30
-        let inputHeight=max(42,editorHeight+22), composerHeight=10+(controller.model.isHome ? 32:22)+6+attachmentsHeight+inputHeight+10
+        let inputHeight=max(42,editorHeight+22), composerHeight=10+32+6+attachmentsHeight+inputHeight+10
         let failureHeight=CGFloat(failureBar.arrangedSubviews.count)*28
         noticeBar.isHidden=noticeBar.arrangedSubviews.isEmpty || searchOpen;noticeBar.frame=CGRect(x:x+12,y:y+7,width:right-24,height:23)
         if !noticeBar.isHidden {y+=38}
@@ -506,13 +593,18 @@ import UniformTypeIdentifiers
         history.frame=CGRect(x:x,y:y,width:right,height:max(1,bottom-y)); notice.frame=CGRect(x:x+10,y:bottom+7,width:right-20,height:max(0,noticeHeight-10))
         failureBar.frame=CGRect(x:x+8,y:bottom+noticeHeight,width:right-16,height:failureHeight)
         let top=bottom+noticeHeight+failureHeight+10
-        let faceHeight:CGFloat=controller.model.isHome ? 32:22, rowHeight=max(22,faceHeight), modeY=top+(rowHeight-22)/2
-        modeBackground.frame=CGRect(x:x+10,y:modeY,width:108,height:22); replyButton.frame=CGRect(x:x+12,y:modeY+2,width:50,height:18); newButton.frame=CGRect(x:x+62,y:modeY+2,width:54,height:18)
-        let natural=CGFloat(composerMembers.count)*(controller.model.isHome ? 34:24), faceWidth=min(natural,max(0,right-20-108-8-4))
+        let faceHeight:CGFloat=32,rowHeight:CGFloat=32
+        let replyWidth=(replyButton.title as NSString).size(withAttributes:[.font:NSFont.systemFont(ofSize:11,weight:replyMode ? .semibold:.regular)]).width+20
+        let newWidth=(newButton.title as NSString).size(withAttributes:[.font:NSFont.systemFont(ofSize:11,weight:replyMode ? .regular:.semibold)]).width+20
+        let buttonHeight=(replyButton.title as NSString).size(withAttributes:[.font:NSFont.systemFont(ofSize:11)]).height+6
+        let modeHeight=buttonHeight+4,modeWidth=replyWidth+newWidth+4,modeY=top+(rowHeight-modeHeight)/2
+        modeBackground.frame=CGRect(x:x+10,y:modeY,width:modeWidth,height:modeHeight)
+        replyButton.frame=CGRect(x:x+12,y:modeY+2,width:replyWidth,height:buttonHeight);newButton.frame=CGRect(x:x+12+replyWidth,y:modeY+2,width:newWidth,height:buttonHeight)
+        let natural=CGFloat(composerMembers.count)*34,faceWidth=min(natural,max(0,right-20-modeWidth-8-4))
         composerFaceScroll.frame=CGRect(x:w-10-faceWidth,y:top+(rowHeight-faceHeight)/2,width:faceWidth,height:faceHeight)
         composerFaces.frame=CGRect(x:0,y:0,width:natural,height:faceHeight)
-        attachmentScroll.frame=CGRect(x:x+10,y:top+(controller.model.isHome ? 38:28),width:right-20,height:attachmentsHeight); attachments.frame=CGRect(x:0,y:0,width:max(right-20,attachments.fittingSize.width),height:attachmentsHeight)
-        let line=top+(controller.model.isHome ? 38:28)+attachmentsHeight
+        attachmentScroll.frame=CGRect(x:x+10,y:top+38,width:right-20,height:attachmentsHeight); attachments.frame=CGRect(x:0,y:0,width:max(right-20,attachments.fittingSize.width),height:attachmentsHeight)
+        let line=top+38+attachmentsHeight
         attachButton.frame=CGRect(x:x+10,y:line+inputHeight-38,width:38,height:38)
         inputBackground.frame=CGRect(x:x+56,y:line,width:max(1,right-118),height:inputHeight); inputBackground.layer?.cornerRadius=inputHeight/2
         editor.frame=CGRect(x:x+70,y:line+11,width:max(1,right-146),height:max(17,inputHeight-22))
@@ -582,22 +674,35 @@ import UniformTypeIdentifiers
         return false
     }
     func textDidChange(_ notification:Notification) {
-        if let key=displayedKey { controller.setText(MessageFormat.serialize(editor.editor.attributedString(),baseSize:ChatMetrics.bodyFont),for:key) }
+        if let key=displayedKey { controller.setText(MessageFormat.serialize(editor.editor.attributedString(),baseSize:ChatMetrics.bodyFont),for:controller.composeKey ?? key) }
         draftHint.isHidden = !editor.editor.string.isEmpty; formatting.refresh(); editor.measure()
         if controller.model.isHome {refresh()}
-        sendButton.isEnabled=controller.canSend && !controller.sending && (!editor.editor.string.isEmpty || !controller.draft.attachments.isEmpty); sendButton.needsDisplay=true
+        sendButton.isEnabled=controller.canSend && (!editor.editor.string.isEmpty || !controller.draft.attachments.isEmpty); sendButton.needsDisplay=true
         if !editor.editor.hasMarkedText(),editor.editor.rangeForUserCompletion.location != NSNotFound {editor.editor.complete(nil)}
     }
     func textViewDidChangeSelection(_ notification:Notification) { formatting.refresh() }
-    private func send() { let key=displayedKey,homeNew=controller.model.isHome && !replyMode; Task { await controller.sendCurrent(for:key,homeNew:homeNew) } }
+    func send() {
+        let key=sendTarget,source=controller.composeKey ?? displayedKey,homeNew=controller.model.isHome && !replyMode && interruptible==nil
+        if key != displayedKey {openThread=key}
+        Task {await controller.sendCurrent(for:key,homeNew:homeNew,draftFrom:source)}
+    }
     @objc private func loadOlder() { _=windowed.older(loadedCount:threads.count,hasEarlier:false); refresh() }
-    private func attach() { let picker=NSOpenPanel(); picker.canChooseDirectories=false; picker.allowsMultipleSelection=true; picker.begin { [weak self] response in if response == .OK { self?.controller.addAttachments(picker.urls) } } }
+    func attachmentPicker()->NSOpenPanel {
+        let panel=NSOpenPanel();panel.level = .modalPanel;panel.canChooseDirectories=false;panel.allowsMultipleSelection=true
+        panel.message="보낼 사진이나 파일을 고르세요.";panel.prompt="첨부"
+        if let folder=FileManager.default.urls(for:.downloadsDirectory,in:.userDomainMask).first,FileManager.default.fileExists(atPath:folder.path) {panel.directoryURL=folder}
+        return panel
+    }
+    private func attach() {
+        let picker=attachmentPicker();pickingFiles=true;NSApp.activate(ignoringOtherApps:true)
+        chooseFiles(picker) { [weak self] response in self?.pickingFiles=false;if response == .OK {self?.controller.addAttachments(picker.urls)} }
+    }
     private func paste(_ board:NSPasteboard)->Bool {
         guard let result=clipboard.read(board,available:max(0,10-controller.draft.attachments.count)) else { return false }
         controller.addAttachments(result.files); if let notice=result.notice { controller.notice=notice }; return true
     }
     private func threadContent(_ thread:ConversationThread)->NativeThreadCard.Content {
-        let model=controller.model,messages=model.timeline(thread.key),expanded=openThread==thread.key
+        let model=controller.model,messages=controller.timeline(thread.key),expanded=openThread==thread.key
         guard let root=messages.first else {preconditionFailure("Empty thread projection")}
         let replies=Array(messages.dropFirst()),foldable=replies.count>2
         let state=model.assessment(thread.key)
@@ -612,6 +717,12 @@ import UniformTypeIdentifiers
             answer.append(.stack(faces:faces,title:"이전 답글 \(hidden)개",toggle:pick,identifier:"stack-"+thread.id))
         }
         for message in shown {answer += postPieces(message,conversational:true)}
+        if controller.interruptions[thread.key] != nil {
+            answer.append(.accessory(id:thread.id+":interruption",height:16,view:{
+                let label=NSTextField(labelWithString:"끼어들었어요");label.font = .systemFont(ofSize:ChatMetrics.auxiliaryFont);label.textColor = .secondaryLabelColor
+                return label
+            }))
+        }
         if controller.working(thread.key) || controller.stopped.contains(thread.key) {
             if controller.stopped.contains(thread.key) {
                 answer.append(.accessory(id:thread.id+":undo",height:24,view:{ [weak self] in
@@ -657,7 +768,7 @@ import UniformTypeIdentifiers
         text.addAttribute(.paragraphStyle,value:paragraph,range:all)
         if mine {
             text.enumerateAttributes(in:all) { attributes,range,_ in
-                if attributes[NSAttributedString.Key("hejo.explicitColor")]==nil {text.addAttribute(.foregroundColor,value:UserBubblePalette(dark:dark).foreground.nsColor,range:range)}
+                if attributes[NSAttributedString.Key("hejo.explicitColor")]==nil {text.addAttribute(.foregroundColor,value:UserBubblePalette(dark:dark,pending:message.pending).foreground.nsColor,range:range)}
             }
         }
         else { TextLayout.apply(to:text,lines:stripped.lines,bar:controller.avatar(message.speaker).color,lineSpacing:2) }
@@ -665,11 +776,11 @@ import UniformTypeIdentifiers
             if !mine,let font=attributes[.font] as? NSFont,NSFontManager.shared.traits(of:font).contains(.fixedPitchFontMask) {
                 text.addAttributes([.font:NSFont.monospacedSystemFont(ofSize:13,weight:.regular),.foregroundColor:dark ? NSColor(srgbRed:0.96,green:0.68,blue:0.36,alpha:1) : NSColor(srgbRed:0.76,green:0.32,blue:0.09,alpha:1),.backgroundColor:NSColor.labelColor.withAlphaComponent(0.1)],range:range)
             }
-            if attributes[.link] != nil { text.addAttributes([.underlineStyle:NSUnderlineStyle.single.rawValue,.foregroundColor:mine ? UserBubblePalette(dark:dark).link.nsColor : NSColor.systemBlue],range:range) }
+            if attributes[.link] != nil { text.addAttributes([.underlineStyle:NSUnderlineStyle.single.rawValue,.foregroundColor:mine ? UserBubblePalette(dark:dark,pending:message.pending).link.nsColor : NSColor.systemBlue],range:range) }
         }
         if let query=searchHighlight,message.id==highlightedMessageID {for range in WorkspaceSearch.highlights(text.string,query:query) {text.addAttributes([.backgroundColor:NSColor.yellow,.foregroundColor:NSColor.black],range:NSRange(range,in:text.string))}}
         var checks:[Int:(line:Int,original:Bool)]=[:]
-        if !message.streaming {
+        if !message.streaming && !message.pending {
             var offset=0,index=0
             for character in text.string {
                 let length=String(character).utf16.count
@@ -681,8 +792,8 @@ import UniformTypeIdentifiers
                 index+=1;offset+=length
             }
         }
-        let post=NativeThreadCard.Post(id:message.id,mine:mine,text:text,speaker:mine ? "나" : controller.model.name(message.speaker),time:displayTime(message.timestamp),avatar:controller.avatar(message.speaker),nameColor:mine ? .labelColor : controller.avatar(message.speaker).color,
-            conversational:conversational && !mine && !message.streaming && message.files.isEmpty && ThreadAppearance.isConversational(message.text),streaming:message.streaming,
+        let post=NativeThreadCard.Post(id:message.id,mine:mine,text:text,speaker:mine ? "나" : controller.model.name(message.speaker),time:message.pending ? "보내는 중":displayTime(message.timestamp),avatar:controller.avatar(message.speaker),nameColor:mine ? .labelColor : controller.avatar(message.speaker).color,
+            conversational:conversational && !mine && !message.streaming && message.files.isEmpty && ThreadAppearance.isConversational(message.text),pending:message.pending,streaming:message.streaming,
             marks:[],foldTitle:foldable ? (folded ? "더 보기" : "접기") : nil,fold:{ [weak self] in guard let self else { return }; if self.expandedMessages.contains(message.id) { self.expandedMessages.remove(message.id) } else { self.expandedMessages.insert(message.id) }; self.refresh() },openLink:{ [weak self] url in
                 guard let self else{return}
                 if url.scheme=="hejo-check",let offset=Int(url.lastPathComponent),let check=checks[offset] {self.controller.model.toggleCheck(message.id,line:check.line,original:check.original,body:message.text)}
@@ -690,13 +801,8 @@ import UniformTypeIdentifiers
                 else if ["http","https","mailto"].contains(url.scheme?.lowercased() ?? "") {NSWorkspace.shared.open(url)}
             })
         var pieces:[NativeThreadCard.Piece]=[.post(post)]
-        if mine,controller.interruptions[message.key] != nil,message.id==controller.model.timeline(message.key).last(where:{$0.role=="owner"})?.id {
-            pieces.append(.accessory(id:message.id+":interruption",height:16,view:{
-                let label=NSTextField(labelWithString:"끼어들었어요");label.font = .systemFont(ofSize:ChatMetrics.auxiliaryFont);label.textColor = .secondaryLabelColor
-                return MessageAccessory(label,mine:true,limit:130)
-            }))
-        }
         for file in message.files {
+            if message.pending {pieces.append(.accessory(id:file.id,height:28,view:{MessageAccessory(NSTextField(labelWithString:file.name),mine:mine,limit:240)}));continue}
             pieces.append(.accessory(id:file.id,height:file.mime.hasPrefix("image/") ? 110 : 46,view:{ [weak self] in
                 let tile=FileTile(file:file)
                 let container=MessageAccessory(tile,mine:mine,limit:file.mime.hasPrefix("image/") ? 160 : 240)

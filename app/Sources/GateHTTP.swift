@@ -7,6 +7,15 @@ private final class GateRedirectPolicy: NSObject, URLSessionTaskDelegate {
                     newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) { completionHandler(nil) }
 }
 enum FileTransferFailure: Error { case tooLarge, invalidFile, unauthorized, unavailable, changed }
+enum OutgoingFileProblem:Error,Equatable {
+    case missing(String),tooLarge(String),unreadable(String),changed(String)
+    var message:String {switch self {
+    case .missing(let name):return "파일을 찾지 못했어요: \(name)"
+    case .tooLarge(let name):return "50MiB보다 큰 파일은 보낼 수 없어요: \(name)"
+    case .unreadable(let name):return "파일을 읽지 못했어요: \(name)"
+    case .changed(let name):return "보내는 사이 파일이 바뀌었어요. 다시 보내 주세요: \(name)"
+    }}
+}
 @MainActor final class GateHTTP {
     nonisolated static let maxFileBytes = 50 * 1024 * 1024
     let client: GateClient
@@ -39,14 +48,21 @@ enum FileTransferFailure: Error { case tooLarge, invalidFile, unauthorized, unav
         let (result,response)=try await session.data(for:request);try check(response)
         return (try JSONSerialization.jsonObject(with:result) as? [String:Any])?["picture"] as? String
     }
-    func upload(_ url: URL, employee: String) async throws -> MessageFile {
+    nonisolated static func prepareUploads(_ urls:[URL]) throws ->[Int] {
+        try urls.map {url in
+            guard let values=try? url.resourceValues(forKeys:[.isRegularFileKey,.fileSizeKey]),values.isRegularFile==true,let size=values.fileSize else {throw OutgoingFileProblem.missing(url.lastPathComponent)}
+            guard size<=maxFileBytes else {throw OutgoingFileProblem.tooLarge(url.lastPathComponent)}
+            return size
+        }
+    }
+    func upload(_ url: URL, employee: String, expectedSize:Int?=nil) async throws -> MessageFile {
+        let size=try expectedSize ?? Self.prepareUploads([url])[0]
         let data = try await Task.detached { () throws -> Data in
-            let values = try url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
-            guard values.isRegularFile == true, let size = values.fileSize else { throw FileTransferFailure.invalidFile }
-            guard size <= Self.maxFileBytes else { throw FileTransferFailure.tooLarge }
-            let handle = try FileHandle(forReadingFrom: url); defer { try? handle.close() }
-            let data = try handle.read(upToCount: Self.maxFileBytes + 1) ?? Data()
-            guard data.count == size else { throw FileTransferFailure.changed }; return data
+            let data:Data
+            do {let handle=try FileHandle(forReadingFrom:url);defer{try? handle.close()};data=try handle.read(upToCount:Self.maxFileBytes+1) ?? Data()}
+            catch {throw OutgoingFileProblem.unreadable(url.lastPathComponent)}
+            guard data.count==size else {throw OutgoingFileProblem.changed(url.lastPathComponent)}
+            return data
         }.value
         let name = url.lastPathComponent
         guard (1...255).contains(name.count), !name.contains(where: { "\"\\\r\n".contains($0) }) else { throw FileTransferFailure.invalidFile }
@@ -61,7 +77,7 @@ enum FileTransferFailure: Error { case tooLarge, invalidFile, unauthorized, unav
         let (responseData, response) = try await session.upload(for: request, from: body)
         try check(response)
         let file = try JSONDecoder().decode(MessageFile.self, from: responseData); try Self.validate(file)
-        guard file.size == data.count else { throw FileTransferFailure.changed }; return file
+        guard file.size == data.count else { throw OutgoingFileProblem.changed(name) }; return file
     }
     func download(_ file: MessageFile, employee: String) async throws -> URL {
         try Self.validate(file)

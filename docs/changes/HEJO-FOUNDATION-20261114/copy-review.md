@@ -531,3 +531,33 @@ hejo `gate/adapter.py`의 click은 그 대상을 Hermes `raw_message._hermes_but
 루프백 전송 시험의 A01 단정은 수신 전에 다른 방으로 이동하면 성립하지 않는다. 전체 시험에서 이 준비 순서 문제를 확인해, 전송 완료 뒤 선택이 유지됨을 먼저 확인하고 **그 방에 머문 채 새 글 수신·읽음 0을 확인한 다음** 원래 스레드로 이동하도록 순서를 고정했다. 다른 방 도착 글의 unread를 임의로 0으로 간주하지 않는다. 빈 방을 처음 본 뒤 새로 온 글은 이후 sync로 지워지지 않도록 처음의 read:0도 기존 회원 상태에 남기고 회귀 시험을 넣었다.
 
 최종 체크 의존도 대조했다. NativeThreadContent가 만든 본문의 revision과 문자 위치를 클릭 콜백에 함께 묶어, 화면 교체 전의 행동이 새 본문 체크를 바꾸지 않게 한다. 기존 check: 키를 재사용하며 새 저장소는 없다. 원본/제품 화면의 유효성·같은 상태 비교 범위는 evidence/HEJO-FOUNDATION/TASK-36.md에 기록했다.
+
+
+## TASK-37 — 작성기 대상·보내기 독해(보완 51·38)
+
+기준 f1dbde2, 대조표 2판 §B와 §0-4 2.1판 B04/B13/B15~18 정정을 함께 읽었다. 이전 전체 독해 기록(SlackPanel·SlackController·SlackThreads·BubbleReply·NativeThreadContent)을 재사용하고 아래 함수·호출자를 다시 끝까지 읽었다. 원본은 읽기만 한다.
+
+| 행 | 원본 함수·유지 의존 | 책임 자리 |
+|---|---|---|
+| B01·02 | SlackPanel defaultReply/target/replyCandidate/newestThread/writeReply/enter/choose·reply, threads didSet 호출 | 기존 ConversationView 선택·최근 활동 투영. 기본 auto 자리와 명시적 선택 구분 |
+| B03 | SlackPanel interruptible/sendTarget/send 전체, SlackController.markInterruption | 열린 작성 중 스레드로 보내되 단체방 수신자는 기존 대표/@ 계약 유지 |
+| B04·05 | SlackController.send/sendFiles Echo 전체·didPublishEcho, NativeThreadContent.nativePost, NativeThreadCard pending/interrupted 그리기, ChatStyle.UserBubblePalette | Controller pending 메모리와 기존 카드.Post pending/interrupted. 시간은 2.1판 정정의 ‘보내는 중’ |
+| B06 | SlackDrafts.swift 전체, SlackPanel draftPlace/moveDraft/release/changeConnection/adoptWorkspace/settleWriting, SlackController.chatOpen | 기존 초안 메모리·선택 경로. 주소별 초안, auto 자리, 삭제된 대상 carry. 영구 저장 안 함 |
+| B07·08 | SlackController.isQueued/markInterruption, BubbleReplyInterruption 전체, nativeContent replies/interruptedCaption | 명부 queued 읽기와 기존 interruptions. 표시 위치 답 줄 왼쪽·답들 뒤·작업 줄 앞 |
+| B09·10 | slackComposer/slackFailureLabel/slackPrompt 전체·BubbleReply.placeholder | 홈 새 대화·스레드 첫 글 36자·고정 방 이름·받는 직원 안내. Slack 단어는 22판대로 변환 |
+| B11·12·15·16 | slackModeButton/mentionFaces/ddotsFaces·aim·recipient/litRecipientProfile, ChatMetrics.callerAvatar | 기존 AppKit ComposerButton·ComposerFaces. 24pt·각 얼굴 단추·고리/흐림/접근성·가로 스크롤 |
+| B13·17·18 | SlackDrafts.restore, SlackPanel.restoreFailure 전체, SlackController.failed/pickFiles/sendFiles, SlackFiles.swift 전체(OutgoingFile/Problem 포함) | 기존 실패 목록·GateHTTP 업로드와 고르기 창. 50MiB 사장 한도 유지·이름 있는 오류·고르는 동안 접힘 방지 |
+
+B14는 제외한다. hejo의 출입증/연결 완료 전 송신 거절·단체방 대표 직원·첨부 50MiB는 유지한다. 원본의 파일 200MB 문구만 유지 한도로 바꾼다. 원본의 ddots 전용 자동 내용 분류 대신 기존 홈 기본 받을 직원·명시적 얼굴/@ 계약을 쓴다. 새 영구 원본·문 규격·Hermes 본체 변경은 없다.
+
+N36-01은 기록 시작 이후에 도달할 수 없는 since/scriptSince와 retired/legacyScript/옛 mailLegend를 제거하고 allowed/scriptPending는 유지한다. N36-02는 실제 가짜 루프백에 연결한 canSend=true 상태로 원본과 같은 장면을 다시 캡처하며 연결 가드를 제품에서 우회하지 않는다.
+
+B05 호출 경로 추가 확인: NativeThreadContent.nativePost는 message.replyInterrupted를 Post.interrupted에 넘긴다. 실제 생산자는 HermesBridge.markInterruptions(SQL에서 user→빈 assistant→다음 user)이며 HermesRelay.Message로 보존되는 별도 Hermes 기록 보기다. SlackBridge의 ChatMessage 생성과 DdotsLine.message/threads 경로는 그 값을 설정하지 않아 기본 false다. 현재 TASK의 Slack 방과 같은 상태에서는 표시가 없다. 26판 코드 우선에 따라 이 죽은 표시를 새 추정으로 켜거나 wire 필드를 추가하지 않는다. 원본 NativeThreadCard의 기존 interrupted 그리기 자체는 보존한다.
+
+N36-01 추가 대조: 날짜 이름의 옛 mailLegend는 실제로 contexts에서 allowed에 무조건 등록돼 있다. 날짜 이후 글도 해당 본문이면 true다(원본 분리 실행 확인). allowed 유지·결과 불변 지시에 따라 그 본문 맥락은 기존 contexts에 그대로 두고, 날짜 이름 상수와 실제 날짜 조건(since/scriptSince·retired/legacyScript)은 제거한다. 옛 이모지 운영자 낱말은 남기지 않는다. 이는 새 허용 규칙이 아니라 기존 allowed의 보존이다.
+
+B06·전송 의존 추가 확인: auto/new/thread는 작성기 초안 자리이고, 새 글의 실제 전송 스레드는 매번 새 UUID다. 기존 자리 UUID를 그대로 보내면 첫 확인 뒤 다음 새 글이 답글로 섞인다. Controller의 기존 전송 책임에서 실제 주소를 정하고, 실패에는 원래 초안 자리를 보존한다. WorkspaceTests의 기존 확인/후속 답 조건은 유지하면서 실제 확인된 글에서 전송 스레드를 얻도록 준비만 바꿨다. 새 글·홈 글의 늦은 거절도 같은 자리에 되살린다.
+
+자동 대상 선택은 사용자의 명시적 누름과 구분한다. A02의 종/읽음 계약을 보존하도록 자동 진입은 읽음 표시를 하지 않고, 직접 고른 경우에만 기존 읽음 경로를 쓴다. B07의 원본 isQueued에 따라 기존 말풍선 queue 시험의 끼어들기 표시 단정은 표시 없음으로 대체했다. 텍스트만 보냄·첨부 보존·정확한 스레드 읽음 단정은 그대로다.
+
+전송 상태 소비자도 함께 확인했다. 초안은 즉시 비워지고 새 글 대상은 별도 UUID이므로, AppDelegate의 펫 보내기 반응과 기존 재전송 확인이 쓰는 sending은 선택된 초안 자리가 아니라 현재 연결의 실제 pending을 가리켜야 한다. 다른 방을 보는 동안의 원래 방 재전송 시험이 이 경계를 검출했고, 기대값을 유지한 채 기존 Controller 계산을 고쳤다.

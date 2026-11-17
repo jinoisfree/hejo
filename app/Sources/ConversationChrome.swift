@@ -98,22 +98,57 @@ enum FaceGroup {
         }
     }
 }
-final class ComposerFaces: NSView {
-    var makeMenu:((Int)->NSMenu?)?
-    override func menu(for event:NSEvent)->NSMenu? {let index=Int(convert(event.locationInWindow,from:nil).x/(homeStyle ? 34:24));return faces.indices.contains(index) ? makeMenu?(index):nil}
-    var faces:[(String,ProfileAvatar)] = [] { didSet { needsDisplay=true } }
-    override var isFlipped:Bool { true }
-    var homeStyle=false,ring=false
-    var lit:Int? {didSet{needsDisplay=true}}
-    var onPick:((Int)->Void)?
-    override func mouseDown(with event:NSEvent) {let index=Int(convert(event.locationInWindow,from:nil).x/(homeStyle ? 34:24));if faces.indices.contains(index) {onPick?(index)}}
-    override func hitTest(_ point:NSPoint)->NSView? {onPick == nil ? nil:super.hitTest(point)}
-    override func draw(_ dirtyRect:NSRect) { for (i,face) in faces.enumerated() {
-        let x=CGFloat(i)*(homeStyle ? 34:24)
-        NSGraphicsContext.saveGraphicsState();NSGraphicsContext.current?.cgContext.setAlpha(homeStyle && lit != i ? 0.5:1)
-        face.1.draw(in:CGRect(x:x+(homeStyle ? 4:0),y:homeStyle ? 4:0,width:homeStyle ? 24:20,height:homeStyle ? 24:20),name:face.0);NSGraphicsContext.restoreGraphicsState()
-        if homeStyle,ring,lit==i {NSColor.controlAccentColor.setStroke();let path=NSBezierPath(roundedRect:CGRect(x:x+1,y:1,width:30,height:30),xRadius:30*ChatMetrics.avatarCorner,yRadius:30*ChatMetrics.avatarCorner);path.lineWidth=2;path.stroke()}
-    } }
+final class ComposerFaceImage:NSView {
+    var avatar=ProfileAvatar(),name=""
+    override func hitTest(_ point:NSPoint)->NSView?{nil}
+    override func draw(_ rect:NSRect){avatar.draw(in:bounds,name:name)}
+}
+final class ComposerFaceRing:NSView {
+    override func hitTest(_ point:NSPoint)->NSView?{nil}
+    override func draw(_ rect:NSRect){NSColor.controlAccentColor.setStroke();let path=NSBezierPath(roundedRect:bounds.insetBy(dx:1,dy:1),xRadius:30*ChatMetrics.avatarCorner,yRadius:30*ChatMetrics.avatarCorner);path.lineWidth=2;path.stroke()}
+}
+final class ComposerFaceButton:NSButton {
+    var avatar=ProfileAvatar(),name="",homeStyle=false,lit=false,ring=false
+    var invoke:(()->Void)?,makeMenu:(()->NSMenu?)?
+    var reduceMotion:()->Bool = {NSWorkspace.shared.accessibilityDisplayShouldReduceMotion}
+    let imageView=ComposerFaceImage(),ringView=ComposerFaceRing()
+    override var isFlipped:Bool {true}
+    init(){super.init(frame:.zero);isBordered=false;target=self;action=#selector(pressed);addSubview(imageView);addSubview(ringView);imageView.wantsLayer=true;ringView.wantsLayer=true;ringView.alphaValue=0}
+    required init?(coder:NSCoder){fatalError()}
+    @objc private func pressed(){invoke?()}
+    override func acceptsFirstMouse(for event:NSEvent?)->Bool {true}
+    override func menu(for event:NSEvent)->NSMenu? {makeMenu?()}
+    func updateAppearance(){
+        imageView.avatar=avatar;imageView.name=name;imageView.needsDisplay=true;ringView.needsDisplay=true
+        let face:CGFloat=homeStyle && !lit ? 0.5:1,outline:CGFloat=homeStyle && lit && ring ? 1:0
+        guard imageView.alphaValue != face || ringView.alphaValue != outline else{return}
+        if reduceMotion(){imageView.alphaValue=face;ringView.alphaValue=outline}
+        else {NSAnimationContext.runAnimationGroup {context in context.duration=0.24;context.timingFunction=CAMediaTimingFunction(name:.easeInEaseOut);imageView.animator().alphaValue=face;ringView.animator().alphaValue=outline}}
+    }
+    override func layout(){super.layout();imageView.frame=CGRect(x:4,y:4,width:24,height:24);ringView.frame=CGRect(x:0,y:0,width:32,height:32)}
+    override func draw(_ rect:NSRect){}
+}
+final class ComposerFaces:NSView {
+    var reduceMotion:()->Bool = {NSWorkspace.shared.accessibilityDisplayShouldReduceMotion}
+    var makeMenu:((Int)->NSMenu?)? {didSet{refresh()}}
+    var faces:[(String,ProfileAvatar)]=[] {didSet{refresh()}}
+    var homeStyle=false {didSet{refresh()}}
+    var ring=false {didSet{refresh()}}
+    var lit:Int? {didSet{refresh()}}
+    var explicitlyPicked=false {didSet{refresh()}}
+    var onPick:((Int)->Void)? {didSet{refresh()}}
+    private(set) var buttons:[ComposerFaceButton]=[]
+    override var isFlipped:Bool {true}
+    private func refresh(){
+        while buttons.count>faces.count {buttons.removeLast().removeFromSuperview()}
+        while buttons.count<faces.count {let button=ComposerFaceButton();buttons.append(button);addSubview(button)}
+        for (i,face) in faces.enumerated(){let button=buttons[i];button.name=face.0;button.avatar=face.1;button.homeStyle=homeStyle;button.lit=lit==i;button.ring=ring;button.reduceMotion=reduceMotion
+            button.toolTip=homeStyle ? (lit==i && explicitlyPicked ? "다시 누르면 글 내용에 따라 받는 캐릭터를 정해요":face.0+"에게 새 글"):"@"+face.0
+            button.setAccessibilityLabel(homeStyle ? face.0+(lit==i ? ", 받는 캐릭터":"에게 새 글"):face.0+" 멘션")
+            button.invoke={ [weak self] in self?.onPick?(i) };button.makeMenu={ [weak self] in self?.makeMenu?(i) };button.updateAppearance();button.needsDisplay=true
+        };needsLayout=true
+    }
+    override func layout(){super.layout();for (i,button) in buttons.enumerated(){button.frame=CGRect(x:CGFloat(i)*34,y:0,width:32,height:32)}}
 }
 final class SidebarHandle: NSView {
     var onWidth: ((CGFloat) -> Void)?, onEnd: (() -> Void)?
@@ -182,7 +217,7 @@ final class FileChip: NSButton {
 final class PassiveLabel: NSTextField { override func hitTest(_ point:NSPoint) -> NSView? { nil } }
 /// SwiftUI's capsule/circle controls translated into native drawing, including its hit area.
 final class ComposerButton: NSButton {
-    var invoke:(() -> Void)?, chosen=false
+    var invoke:(() -> Void)?, chosen=false,mode=false
     var symbol:String?, point:CGFloat=11, circle=false
     init(title:String="",symbol:String?=nil,point:CGFloat=11,circle:Bool=false) {
         self.symbol=symbol; self.point=point; self.circle=circle
@@ -192,10 +227,10 @@ final class ComposerButton: NSButton {
     @objc private func pressed() { invoke?() }
     override func acceptsFirstMouse(for event:NSEvent?) -> Bool { true }
     override func draw(_ dirtyRect:NSRect) {
-        let fill: NSColor = chosen ? .systemBlue : circle ? NSColor.labelColor.withAlphaComponent(0.07) : .clear
-        fill.withAlphaComponent(chosen && !isEnabled ? 0.4 : fill.alphaComponent).setFill()
+        let fill: NSColor = chosen ? (mode ? .controlAccentColor:.systemBlue) : circle ? NSColor.labelColor.withAlphaComponent(0.07) : .clear
+        fill.withAlphaComponent(chosen && !isEnabled && !mode ? 0.4 : fill.alphaComponent).setFill()
         NSBezierPath(roundedRect:bounds,xRadius:bounds.height/2,yRadius:bounds.height/2).fill()
-        let color: NSColor = chosen ? .white : .labelColor.withAlphaComponent(isEnabled ? 0.7 : 0.42)
+        let color: NSColor = chosen ? .white : mode && isEnabled ? .labelColor:.labelColor.withAlphaComponent(isEnabled ? 0.7 : 0.42)
         if let symbol,let image=NSImage(systemSymbolName:symbol,accessibilityDescription:title)?.withSymbolConfiguration(.init(pointSize:point,weight:chosen ? .bold : .regular)) {
             let tinted=image.copy() as! NSImage; tinted.lockFocus(); color.set(); CGRect(origin:.zero,size:image.size).fill(using:.sourceAtop); tinted.unlockFocus()
             tinted.draw(in:CGRect(x:(bounds.width-image.size.width)/2,y:(bounds.height-image.size.height)/2,width:image.size.width,height:image.size.height))

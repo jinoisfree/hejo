@@ -134,11 +134,15 @@ private final class WorkspaceCanvas:NSView {
     let ui=ConversationView(controller:controller,clipboardArea:home.appendingPathComponent("clipboard"))
     try client.pair(address:args[3],code:"test_code-12",device:"fake workspace")
     try await waitFor{controller.canSend};ui.chooseEmployee("alpha");ui.createThread()
-    let first=controller.model.selected!;controller.setText("follow-empty");await controller.sendCurrent()
+    controller.setText("follow-empty");await controller.sendCurrent()
+    try await waitFor{controller.model.messages.values.contains{$0.role=="owner" && $0.text=="follow-empty"}}
+    let first=controller.model.messages.values.first{$0.role=="owner" && $0.text=="follow-empty"}!.key
     try await waitFor{controller.model.timeline(first).count==2}
     try check(ui.replyMode && controller.model.selected==first,"AT79 employee reply automatically targets empty new-post composer")
-    ui.createThread();let second=controller.model.selected!;controller.setText("follow-typed");await controller.sendCurrent()
-    try await waitFor{!controller.sending};controller.setText("another draft")
+    ui.createThread();controller.setText("follow-typed");await controller.sendCurrent()
+    controller.setText("another draft")
+    try await waitFor{controller.model.messages.values.contains{$0.role=="owner" && $0.text=="follow-typed"}}
+    let second=controller.model.messages.values.first{$0.role=="owner" && $0.text=="follow-typed"}!.key
     try await waitFor{controller.model.timeline(second).count==2}
     try check(!ui.replyMode && controller.draft.text=="another draft","AT79 employee reply never redirects nonempty draft")
     controller.setText("fail");await controller.sendCurrent();try await waitFor{controller.failures.count==1}
