@@ -1551,7 +1551,7 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
   - 문제: `ConversationController(client:downloads:)`의 `downloads` 기본값은 실제 사용자 다운로드 폴더(`DownloadFileStore.standard()`)다.
     - `HomeRoomTests`, `AppearanceTests`, `ProgressLayoutTests`, `PicturesSidebarTests` 같은 여러 앱 시험이 `downloads:` 없이 Controller를 만든다.
     - 지금은 이 시험들이 파일을 열거나 보내지 않아서 실제 다운로드 폴더에 쓰지 않았다(계획 담당이 확인: 11-17 20시 이후 새 파일 없음).
-    - 하지만 앞으로 시험이 파일을 열거나 보내면 실제 폴더에 쓰게 된다. "실제 ~/Downloads에 쓰지 않는다" 제약을 시험 구조로 보장해야 한다.
+    - 하지만 앞으로 시험이 파일을 열거나 보내면 실제 폴더에 쓰게 된다. "실제 다운로드 폴더에 쓰지 않는다" 제약을 시험 구조로 보장해야 한다.
   - 수정
     - 시험 진입점(`TestMain`)에서 기본 다운로드 폴더를 임시 폴더로 바꾸는 시험 전용 주입을 둔다. 또는 모든 시험 Controller 생성에 임시 `downloads:`를 넘긴다.
     - 앱 전체 시험이 끝난 뒤 실제 다운로드 폴더의 항목 목록이 시작 때와 같은지 단언하는 검사를 하나 더한다. 이름 목록만 비교하고 내용은 읽지 않는다.
