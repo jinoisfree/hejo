@@ -1315,3 +1315,32 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
   - 기존 롤백 자료 `task23-20261116-200307`은 `a4a80d5`로 되돌린다. 이 자료는 TASK-21 이후 앱과 맞지 않는다.
   - 0.2.x 운영 반영 때는 그 직전 상태(`aeaa652`)로 새 백업을 만들어 롤백 기준으로 삼는다.
 - **순서:** TASK-33 재개 → TASK-48 → TASK-49 → TASK-36 → … → 47.
+
+## 보완 지시 44 (TASK-33 검토 뒤, 2026-11-17)
+
+- TASK-33 앱 쪽은 통과했다(1675529, 공개본 09157e9). 남은 차단 결함은 배포 도구 N33-01 하나다.
+- **N33-01(결함, 사장의 publish를 막음)**
+  - 위치: `install/hejo-ship` `publish`(200·210줄)는 초안 상태 확인에 `gh api repos/{repo}/releases/tags/{tag}`를 쓴다.
+  - 문제: GitHub REST "Get a release by tag name"은 **공개된 릴리스만** 돌려준다. 초안이면 404다.
+  - 결과: `create --draft`와 `upload` 뒤 이 조회가 실패한다. 사장이 publish를 실행하면 늘 초안만 남고 공개되지 않는다.
+  - 시험 `test_at84_publish_draft_upload_verify_signed_feed_latest`는 `gh api` 대역이 어떤 경로든 초안을 돌려준다. 그래서 이 문제가 드러나지 않았다.
+- **수정**
+  1. 초안 조회를 초안도 돌려주는 경로로 바꾼다. 예: `gh api repos/{repo}/releases --paginate`에서 `tag_name == tag`이고 `draft == true`인 항목을 정확히 하나 고른다.
+     - 0개거나 2개 이상이면 `ShipError`로 멈추고, 초안을 남긴다.
+     - 이후 검사는 지금처럼 자산 하나, `uploaded`, 크기, `digest`를 본다.
+     - 피드를 올린 뒤의 재조회도 같은 방식으로 한다.
+  2. 시험 대역을 실제 GitHub 의미에 맞춘다.
+     - `releases/tags/<tag>`는 초안이면 404(명령 실패)를 돌려준다.
+     - 목록 경로는 초안을 돌려준다.
+     - 돌연변이: 조회를 다시 `releases/tags`로 되돌리면 시험이 실패하는지 확인한다.
+  3. 같은 태그 초안이 이미 있을 때(앞선 실패 뒤 재실행)의 동작을 정해 시험한다.
+     - 기존 초안을 지우거나 덮어쓰지 않는다.
+     - "같은 태그의 초안이 남아 있어요. GitHub에서 확인한 뒤 지우고 다시 실행해 주세요."로 멈춘다.
+  4. 앱 소스는 바꾸지 않는다.
+     - 공개본(`install/hejo-publish`)과 `prepare` 결과물을 다시 만든다. 트리가 바뀌므로 publish 승인 커밋도 바뀐다.
+     - 별도 커밋으로 남기고, 사장용 publish 명령 한 줄을 다시 적는다.
+  5. 검증
+     - `tests/acceptance/test_ship.py` 전체, `foundation9_runner hejo` 0, 개인값 0.
+     - `prepare` 재실행과 서명 검증, 원격 쓰기 0.
+  6. 실제 `gh`·GitHub에 쓰지 않는다. 읽기 조회도 하지 않는다.
+- **순서:** N33-01 → TASK-48 → TASK-49 → TASK-36 → … → 47.
