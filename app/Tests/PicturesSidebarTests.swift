@@ -98,7 +98,8 @@ import UniformTypeIdentifiers
     let cell=EmployeeSidebarCell(frame:CGRect(x:0,y:0,width:212,height:58))
     var signaled=SidebarLayout.Item(id:"fixture",name:"Test",kind:.group);signaled.questions=2;signaled.alerts=3
     cell.list=true;cell.row = .init(kind:.room,id:"fixture",name:"Test",items:[signaled])
-    let surface=NSImage(size:cell.bounds.size);surface.lockFocus();cell.draw(cell.bounds);surface.unlockFocus()
+    cell.refreshChrome();cell.layoutSubtreeIfNeeded()
+    let surface=NSImage(size:cell.bounds.size);surface.lockFocus();cell.layer?.render(in:NSGraphicsContext.current!.cgContext);surface.unlockFocus()
     let bitmap=NSBitmapImageRep(data:surface.tiffRepresentation!)!
     var yellow=false,blue=false
     for y in 0..<bitmap.pixelsHigh { for x in 0..<bitmap.pixelsWide {
@@ -131,7 +132,7 @@ import UniformTypeIdentifiers
     try check(model.sidebar.zone("alpha")=="1" && model.sidebar.sections.count==2,"AT69 removal moves to first remaining")
     model.addSection();try check(model.sidebar.sections.count==3 && model.sidebar.sections.last?.id=="5","AT69 empty section after existing sections")
     model.editSection("5",name:String(repeating:"a",count:40));try check(model.sidebar.sections.last?.name.count==30,"AT69 section name length")
-    try check(view.addMenu().items.map(\.title)==["새 방 만들기…","새 섹션 만들기","","목록에서 뺀 방"],"AT69 room addition plus menu")
+    try check(view.addMenu().items.map(\.title)==["새 방 만들기…","새 섹션 만들기","","목록에서 뺀 방","뺀 방이 없어요"],"AT69 room addition plus menu")
     let replica=try ConversationModel(store:LocalStore(directory:directory))
     try check(replica.sidebar.sections==model.sidebar.sections && replica.sidebar.pins==model.sidebar.pins,"AT69 reopen uses MemberState")
     print("AT-HF-68 automatic PASS; AT-HF-69 automatic PASS")

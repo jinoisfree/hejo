@@ -561,3 +561,30 @@ B06·전송 의존 추가 확인: auto/new/thread는 작성기 초안 자리이�
 자동 대상 선택은 사용자의 명시적 누름과 구분한다. A02의 종/읽음 계약을 보존하도록 자동 진입은 읽음 표시를 하지 않고, 직접 고른 경우에만 기존 읽음 경로를 쓴다. B07의 원본 isQueued에 따라 기존 말풍선 queue 시험의 끼어들기 표시 단정은 표시 없음으로 대체했다. 텍스트만 보냄·첨부 보존·정확한 스레드 읽음 단정은 그대로다.
 
 전송 상태 소비자도 함께 확인했다. 초안은 즉시 비워지고 새 글 대상은 별도 UUID이므로, AppDelegate의 펫 보내기 반응과 기존 재전송 확인이 쓰는 sending은 선택된 초안 자리가 아니라 현재 연결의 실제 pending을 가리켜야 한다. 다른 방을 보는 동안의 원래 방 재전송 시험이 이 경계를 검출했고, 기대값을 유지한 채 기존 Controller 계산을 고쳤다.
+
+
+## TASK-38 — 사이드바 원본·유지 의존 대조(보완 38·52)
+
+기준은 7c8e953, 대조표 2판 §0-2·§C와 2.1판 정정/C22~27, design §12다. 기존 SlackPanel·SlackController·SlackThreads 전체 독해 기록을 재사용하고 아래 함수와 호출자를 끝까지 다시 읽었다. SlackRoomDialogs 전체·ChatWorkspace 전체·SlackZones/SlackSectionLayout·slackSidebar/Tab/Row/Folded/Signals/Counters/Faces/PinMenu/AddRoom/SearchField/Hits/Handle와 제어기 publish의 hub/hidden/muted/section 조립을 대조했다. .build/task38-start.patch는 읽기만 했으며 reloadData·slideUp/Down·선택 상자 이동이 남은 32판 초안이라 그대로 적용하지 않는다.
+
+| 행 | 원본·의존 | 이식 책임 자리 |
+|---|---|---|
+| C01~04 | SlackPanel.slackTab/slackRow/slackSidebar, SlackSidebar·SlackZones.gap | ConversationChrome 셀·SidebarLayout 행과 기하. 홈 inset20·구획 앞 틈4, 목록 이름 primary, 탭 이름10/54/최소0.85 |
+| C05~09·V03 | slackFaces/PinMark/MuteMark/Folded/SectionSignals/RoomCounters, ProfileAvatar·ChatMetrics.avatarCorner | 셀 얼굴·표식·배지/신호 층. 접힌 구획은 제목+점뿐, 구획 사진 메뉴/그리기 제거, DM 기본 이름과 얼굴 줄 없음 유지 |
+| C10~13·20·21 | SlackSectionLayout.rail 전체, slackSidebar의 overlay·animation·blank/divider, SlackModel.motion | NSTableView 안정 id 행 차이·effectFade·0.24 easeInEaseOut, 구획별 CAShapeLayer, 선택 opacity spring. 바닥28·막·경계·끌기 강조 |
+| C14·15·22~24 | slackSearchField/Hits/AddRoom, SlackSearch.hits/snippet/highlighted 전체 | 같은 표 스크롤 안 검색/방/글 결과/추가 행. 구절 전체 포함·생각 중 포함·최신30, 말한 이는 실제 speaker. 전체 검색 규칙은 별개로 유지 |
+| C16·17·V04~06·V13 | slackSidebar.contextMenu/PinMenu/AddRoom, ChatWorkspace.workspaceBrand, SlackController 홈 선택 | ConversationView/RoomDialogs/RoomMenus. 메뉴 순서·구분선, 뺀 방 바로 나열, 보관 있을 때만 하위 메뉴, 로고 접기 하나. 1:1 사진·대표 직원·직원 빼기·기본 받을 직원은 사장 계약 유지 |
+| C18·19 | SlackRoomDialogs create/rename/renameGroup/confirm/invite 전체와 Controller 호출 | 기존 네이티브 대화상자. 폭320·바꾸기·포커스·30자, 빈 이름 재질문. Slack 소문자/빈칸 변환·공개여부/사람 초대는 제외, 한글 조합 유지 |
+| C25~27 | slackSidebarHandle/slackRoomLabel, Controller.publish의 선택 hub 제외·숨김/알림 해제 | 손잡이 전체 높이·숨김, 접근성 자식 표식, 기존 MemberState와 기록장 투영. 새 원본 없음 |
+
+AppKit 실제 탐침(.build/task38/TableProbe.swift)은 effectFade만 쓰면 들어온 줄의 presentation y가 최종 y에 고정되고 alpha만 변하며 아래 줄만 y가 보간됨을 확인했다(종료0, table-probe.log). 따라서 삽입/삭제에 slide 옵션을 쓰지 않는다. 구획 레일·배지/머리 색·선택 상자는 표의 같은 트랜잭션에서 별도로 보간한다. 동작 줄이기면 즉시다.
+
+유지: 허브 회원 배치/사진 경로·문 명부/기록장·사장 DM/로고·1:1 사진/기본 받을 직원. 구획 이름 설명은 원문 그대로 hejo 이름으로 변환한다. 추가 독해한 SlackSettingsSync.syncedState도 groupNames를 보내므로 원본의 “이 Mac에만 저장” 문장은 원본 코드와도 맞지 않는다. 새 저장 계약을 만들지 않고 기존 허브 배치를 유지하며 이 원본 문구의 불일치를 검토 사항으로 남긴다. 구획 사진은 새로 읽거나 지우지 않고 기존 저장 필드만 하위 호환으로 보존하며 화면/메뉴에서는 쓰지 않는다.
+
+추가 의존: SlackSearch.swift 전체와 SlackFindView.highlighted를 끝까지 읽었다. 검색은 sidebar(hits)와 전체 groups를 나누며, sidebar는 구절 전체·생각 중 줄을 포함하고 원본 snippet·강조 순서를 그대로 쓴다. hejo의 표식 칸은 기존 reply_state의 한국어 보기 낱말이며 원시 asked 같은 값은 sidebar 검색어에 섞지 않는다. 실제 말한 이(speaker)와 방을 따로 표시한다.
+
+옛 시험 대체 범위도 명시한다. AT67의 1:1 대화 열기·모두 읽음·도구 연결 메뉴/빈 곳 메뉴/뺀 방 하위 메뉴는 C16·17의 원문 순서로 바꾼다. 모두 읽음 기능 검사는 남아 있는 머리줄 메뉴에서 그대로 실행한다. AT68·69의 배지 픽셀 검사는 CALayer 배지를 포함하도록 실제 층을 그리며 색 단정은 보존한다. AT80·85의 홈 직원 제외 준비는 V05대로 없애고, 단일 얼굴 너비 검사는 실제 명부 한 명으로 준비한다. 사진 쓰기 권한·새 글/답글 주소·초안 보존·읽음·허브 저장 단정은 완화하지 않는다.
+
+정적 캡처는 원본 SwiftUI 그리기 함수를 분리한 보기다. 화면 밖 렌더러가 직접 그릴 수 없는 TextField만 같은 자리의 ‘검색’ 정적 글자로 대체하고, 원본 ScrollView의 현재 보이는 내용은 같은 크기의 잘린 VStack에 둔다. 원본 메뉴·대화상자 전체 운영 실행이나 픽셀 동일성을 주장하지 않는다. 실제 hejo 캡처는 가짜 루프백에 연결된 실제 ConversationView이며, AppKit의 투명 PNG는 원본과 같은 밝음/어두움 바탕에 sourceOver로 합성한다.
+
+최종 그리기 대조에서 primary의 알파를 확인했다. macOS 기본 글자색은 자체 알파가 있으므로 SwiftUI `.opacity(p)`는 그 알파에 p를 곱한다. SidebarTone은 같은 곱셈으로 구획/레일/검색 배경/quiet 색을 옮긴다. 탭의 안 읽은 글은 이름색만 primary이며 굵기는 선택 때만 바뀐다. 목록의 이름↔핀/종도 HStack 원문 간격 12를 쓴다. 글 검색 행은 본문 한 줄/두 줄 높이에 맞춘다. 고정 홈 사진은 원본 displayRoom/picture(for:)대로 선택한 방 자원이고, 기본 홈의 사진/펫 그림으로 대체하지 않는다. 문이나 사진 API의 원본은 늘리지 않는다.

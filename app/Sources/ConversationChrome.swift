@@ -13,88 +13,118 @@ enum ConversationSidebar {
         return min(listMaximum,max(listMinimum,dragged))
     }
 }
-final class EmployeeSidebarCell: NSTableCellView {
-    var name = "", unread = 0, chosen = false, list = false, muted = false
-    var faces:[(String,ProfileAvatar)] = []
-    var row:SidebarLayout.Row?
-    var pinned=false,dropTarget=false
-    var picture:NSImage?
-    var nameColor:NSColor = .labelColor
-    var railLast=false
-    override func menu(for event: NSEvent) -> NSMenu? { (enclosingScrollView?.documentView as? EmployeeMenuTable)?.menu(for: event) }
-    override var isFlipped: Bool { true }
-    override func draw(_ dirtyRect: NSRect) {
-        if let row,row.kind == .divider {
-            NSColor.labelColor.withAlphaComponent(0.14).setFill();CGRect(x:list ? 12 : 8,y:bounds.midY,width:bounds.width-(list ? 24 : 16),height:1).fill();return
+final class SidebarAXMark:NSView {
+    override func hitTest(_ point:NSPoint)->NSView?{nil}
+}
+final class EmployeeSidebarCell:NSTableCellView {
+    var name="",unread=0,chosen=false,muted=false,pinned=false,dropTarget=false
+    var list=false {didSet{if oldValue != list,duration>0 {let fade=CATransition();fade.type = .fade;fade.duration=duration;fade.timingFunction=SidebarMotion.curve;layer?.add(fade,forKey:"sidebar-form")}}}
+    var faces:[(String,ProfileAvatar)]=[],row:SidebarLayout.Row?,picture:NSImage?
+    var duration:Double=0
+    let selection=CALayer(),heading=CATextLayer()
+    private let counters=(0..<3).map{_ in CALayer()},numbers=(0..<3).map{_ in CATextLayer()},dots=(0..<3).map{_ in CALayer()}
+    private let marks=(0..<5).map{_ in SidebarAXMark()}
+    private var wasChosen=false
+    override init(frame:CGRect){
+        super.init(frame:frame);wantsLayer=true;selection.cornerRadius=10;selection.opacity=0;layer?.addSublayer(selection);layer?.addSublayer(heading)
+        for i in 0..<3 {layer?.addSublayer(counters[i]);counters[i].addSublayer(numbers[i]);layer?.addSublayer(dots[i]);numbers[i].alignmentMode = .center; numbers[i].contentsScale=NSScreen.main?.backingScaleFactor ?? 2}
+        heading.contentsScale=NSScreen.main?.backingScaleFactor ?? 2;heading.truncationMode = .end
+        for mark in marks {addSubview(mark);mark.setAccessibilityElement(true);mark.setAccessibilityRole(.image)}
+    }
+    required init?(coder:NSCoder){nil}
+    override var isFlipped:Bool{true}
+    override func menu(for event:NSEvent)->NSMenu?{(enclosingScrollView?.documentView as? EmployeeMenuTable)?.menu(for:event)}
+    func refreshChrome(){
+        guard let row else{return};let dark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua,header=row.kind == .section || row.kind == .stack
+        let tint=NSColor.labelColor
+        heading.isHidden = !header
+        if header {
+            let font=NSFont.systemFont(ofSize:list ? 16:13,weight:.bold);heading.font=font;heading.fontSize=font.pointSize;heading.string=name;heading.alignmentMode=list ? .left:.center
+            let color=row.open ? (dark ? NSColor.white:tint):SidebarTone.primary(dark ? 0.78:0.75)
+            SidebarMotion.change(heading,key:"foregroundColor",to:color.cgColor,duration:duration)
         }
-        if let row,row.kind == .section || row.kind == .stack || row.kind == .room {
-            let header=row.kind == .section || row.kind == .stack
-            let start:CGFloat=header ? bounds.height/2-9 : 0
-            let height:CGFloat=header && (!row.open || row.items.isEmpty) ? 18 : bounds.height-start-(railLast ? 10 : 0)
-            NSColor.labelColor.withAlphaComponent(0.13).setFill();CGRect(x:0,y:start,width:2,height:max(0,height)).fill()
+        selection.backgroundColor=NSColor.controlAccentColor.withAlphaComponent(dark ? 0.22:0.12).cgColor
+        if wasChosen != chosen || duration==0 {SidebarMotion.change(selection,key:"opacity",to:chosen && !header ? 1.0:0.0,duration:duration,spring:true);wasChosen=chosen}
+        let colors:[NSColor]=[list ? .systemBlue:.systemRed,MessageFormat.color("#ECB22E")!,MessageFormat.color("#36C5F0")!]
+        let values=[unread,row.questions,row.alerts],labels=["안 읽은 글","답을 기다리는 질문","읽지 않은 알림"]
+        for i in 0..<3 {
+            let show=values[i]>0
+            SidebarMotion.change(counters[i],key:"opacity",to:show && !header ? 1.0:0.0,duration:duration)
+            SidebarMotion.change(counters[i],key:"backgroundColor",to:colors[i].cgColor,duration:duration)
+            counters[i].borderColor=(dark ? NSColor(white:0.12,alpha:1):.white).cgColor;counters[i].borderWidth=1
+            numbers[i].string=SidebarLayout.badge(values[i]);numbers[i].font=NSFont.boldSystemFont(ofSize:list ? 9:7);numbers[i].fontSize=list ? 9:7;numbers[i].foregroundColor=(i==1 ? NSColor.black:.white).cgColor
+            SidebarMotion.change(dots[i],key:"backgroundColor",to:colors[i].cgColor,duration:duration)
+            SidebarMotion.change(dots[i],key:"opacity",to:show && header ? 1.0:0.0,duration:duration)
+            marks[i].isHidden = !show || header;marks[i].setAccessibilityLabel("\(labels[i]) \(values[i])개")
         }
-        if dropTarget { NSColor.systemBlue.setStroke();let path=NSBezierPath(rect:bounds.insetBy(dx:1,dy:1));path.lineWidth=2;path.stroke() }
-        if let row,row.kind == .section || row.kind == .stack {
-            let attrs:[NSAttributedString.Key:Any]=[.font:NSFont.systemFont(ofSize:list ? 16 : 13,weight:.bold),.foregroundColor:row.open ? NSColor.labelColor : NSColor.labelColor.withAlphaComponent(0.75)]
-            let title=name
-            let width=max(0,bounds.width-18-(list && !row.open && row.kind != .stack ? CGFloat(min(4,faces.count))*14 : 0))
-            let style=NSMutableParagraphStyle();style.lineBreakMode = .byTruncatingTail;style.alignment=list ? .left : .center
-            var attributes=attrs;attributes[.paragraphStyle]=style
-            let textX:CGFloat=list ? 26 : 7
-            (title as NSString).draw(in:CGRect(x:textX,y:list ? 4 : 0,width:max(0,width-textX),height:21),withAttributes:attributes)
-            if !row.open && row.kind != .stack {
-                let edge:CGFloat=list ? 16 : 13
-                for (i,face) in faces.prefix(4).enumerated() { face.1.draw(in:CGRect(x:list ? bounds.width-8-CGFloat(faces.prefix(4).count-i)*14 : 8+CGFloat(i)*13,y:list ? 6 : 17,width:edge,height:edge),name:face.0) }
-            }
-            if let picture,row.kind != .stack { picture.draw(in:CGRect(x:bounds.width-25,y:2,width:20,height:20),from:.zero,operation:.sourceOver,fraction:1,respectFlipped:true,hints:nil) }
-            let colors:[String:NSColor]=["unread":list ? .systemBlue : .systemRed,"question":.systemYellow,"alert":.systemBlue]
-            let dotsX=min(bounds.width-5,textX+(title as NSString).size(withAttributes:attrs).width+3),dotsHeight=CGFloat(max(0,row.signals.count*4-2))
-            for (i,signal) in row.signals.enumerated() { colors[signal]?.setFill();NSBezierPath(ovalIn:CGRect(x:dotsX,y:(bounds.height-dotsHeight)/2+CGFloat(i)*4,width:2,height:2)).fill() }
-            return
+        marks[3].isHidden = !pinned || header;marks[3].setAccessibilityLabel("고정됨");marks[4].isHidden = !muted || header;marks[4].setAccessibilityLabel("알림 꺼짐")
+        if header {
+            let labels=[unread>0 ? "안 읽은 글 있음":nil,row.questions>0 ? "답을 기다리는 질문 있음":nil,row.alerts>0 ? "읽지 않은 알림 있음":nil].compactMap{$0}
+            setAccessibilityLabel("\(name) \(row.items.count)개"+(!row.open && !labels.isEmpty ? ", 새 글 있음":"")+(row.open ? ", 펼쳐짐":", 접힘"));setAccessibilityValue(labels.joined(separator:", "))
+            toolTip=name+" · 오른쪽 클릭으로 이름 편집 · "+(row.open ? "접기":"펼치기")
+        } else {setAccessibilityLabel(name+(unread>0 ? ", 새 글 \(unread)개":"")+(faces.isEmpty ? "":", "+faces.map(\.0).joined(separator:", ")));toolTip=name}
+        needsLayout=true;needsDisplay=true
+    }
+    override func viewDidChangeEffectiveAppearance(){super.viewDidChangeEffectiveAppearance();effectiveAppearance.performAsCurrentDrawingAppearance{refreshChrome()}}
+    var faceRect:CGRect {let box:CGFloat=34;return CGRect(x:list ? (row?.kind == .home ? 20:36):(bounds.width-box)/2,y:list ? (bounds.height-box)/2:10,width:box,height:box)}
+    override func layout(){super.layout();guard let row else{return};let header=row.kind == .section || row.kind == .stack,box=faceRect
+        CATransaction.begin();CATransaction.setDisableActions(true)
+        selection.frame=list ? CGRect(x:row.kind == .home ? 10:26,y:3,width:max(0,bounds.width-(row.kind == .home ? 20:36)),height:max(0,bounds.height-6)):bounds.insetBy(dx:8,dy:3)
+        let point:CGFloat=list ? 16:13,font=NSFont.systemFont(ofSize:point,weight:.bold),size=(name as NSString).size(withAttributes:[.font:font]),textX:CGFloat=list ? 26:7,available=max(0,bounds.width-textX-(list ? 14:7))
+        heading.frame=CGRect(x:textX,y:(bounds.height-size.height)/2,width:available,height:size.height)
+        let values=[unread,row.questions,row.alerts],active=values.indices.filter{values[$0]>0}
+        for (n,i) in active.enumerated(){
+            let height:CGFloat=list ? 15:11,width=height+(values[i]>9 ? 4:0),frame=CGRect(x:box.maxX-width+(list ? 6:5),y:box.minY-3+CGFloat(n)*(height+(list ? 2:1)),width:width,height:height)
+            counters[i].frame=frame;counters[i].cornerRadius=height/2;numbers[i].frame=CGRect(x:0,y:0,width:width,height:height);marks[i].frame=frame
+            let signalsHeight=CGFloat(active.count*4-2),titleStart=list ? textX:(bounds.width-min(size.width,available))/2
+            dots[i].frame=CGRect(x:titleStart+min(size.width,available)+3,y:(bounds.height-signalsHeight)/2+CGFloat(n)*4,width:2,height:2);dots[i].cornerRadius=1
         }
-        let dark = effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua
-        if chosen {
-            NSColor.controlAccentColor.withAlphaComponent(dark ? 0.22 : 0.12).setFill()
-            let rect=list ? CGRect(x:26,y:3,width:max(0,bounds.width-36),height:bounds.height-6) : bounds.insetBy(dx:8,dy:3)
-            NSBezierPath(roundedRect:rect,xRadius:10,yRadius:10).fill()
+        let nameFont=NSFont.systemFont(ofSize:14,weight:chosen || unread>0 ? .semibold:.medium),nameWidth=(name as NSString).size(withAttributes:[.font:nameFont]).width
+        let roomForName=max(0,bounds.width-box.maxX-32-(pinned ? 20:0)-(muted ? 20:0))
+        let markX=list ? box.maxX+12+min(nameWidth,roomForName)+12:box.minX-8
+        marks[3].frame=CGRect(x:markX,y:list ? bounds.midY-4:box.minY-4,width:8,height:8)
+        marks[4].frame=CGRect(x:list ? markX+(pinned ? 20:0):box.minX-8,y:list ? bounds.midY-4:box.maxY-5,width:8,height:8)
+        CATransaction.commit();if !header {heading.isHidden=true}
+    }
+    override func draw(_ dirtyRect:NSRect){guard let row else{return};let dark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua
+        if row.kind == .divider {let inset:CGFloat=list ? 12:8;SidebarTone.primary(dark ? 0.14:0.11).setFill();CGRect(x:inset,y:bounds.midY,width:max(0,bounds.width-inset*2),height:1).fill();if dropTarget {NSColor.controlAccentColor.setFill();CGRect(x:inset,y:bounds.midY-1,width:max(0,bounds.width-inset*2),height:2).fill()};return}
+        if row.kind == .section || row.kind == .stack {
+            if dropTarget && row.kind == .section {NSColor.controlAccentColor.setStroke();let path=NSBezierPath(roundedRect:CGRect(x:12,y:4,width:max(0,bounds.width-16),height:bounds.height-8),xRadius:10,yRadius:10);path.lineWidth=2;path.stroke()};return
         }
-        let box: CGFloat = ConversationSidebar.faces
-        let face = CGRect(x:list ? 36 : (bounds.width-box)/2,y:list ? (bounds.height-box)/2 : 10,width:box,height:box)
-        FaceGroup.draw(faces,in:face.insetBy(dx:2,dy:2),picture:picture)
-        let paragraph = NSMutableParagraphStyle(); paragraph.lineBreakMode = .byTruncatingTail; paragraph.alignment = list ? .left : .center
-        let area = list ? CGRect(x:face.maxX+12,y:bounds.midY-9,width:max(0,bounds.width-face.maxX-32),height:20) : CGRect(x:7,y:49,width:bounds.width-14,height:14)
-        (name as NSString).draw(in:area,withAttributes:[.font:NSFont.systemFont(ofSize:list ? 14 : 10,weight:chosen || unread > 0 ? .semibold : .medium),.foregroundColor:nameColor.withAlphaComponent(chosen || unread > 0 ? 1 : 0.7),.paragraphStyle:paragraph])
-        for (index,symbol) in [pinned ? "pin.fill" : nil,muted ? "bell.slash.fill" : nil].compactMap({$0}).enumerated() {
-            let labelWidth=(name as NSString).size(withAttributes:[.font:NSFont.systemFont(ofSize:14,weight:.semibold)]).width
-            let x=list ? min(bounds.width-18,area.minX+labelWidth+8)+CGFloat(index)*10 : face.minX-8
-            let y=list ? bounds.midY-4 : face.minY-4+CGFloat(index)*12
-            NSImage(systemSymbolName:symbol,accessibilityDescription:nil)?.withSymbolConfiguration(.init(paletteColors:[.secondaryLabelColor]))?.draw(in:CGRect(x:x,y:y,width:8,height:8))
-        }
-        let counters:[(Int,NSColor,NSColor)]=[(unread,muted ? .systemGray : list ? .systemBlue : .systemRed,.white),(row?.questions ?? 0,.systemYellow,.black),(row?.alerts ?? 0,.systemBlue,.white)]
-        for (index,counter) in counters.filter({$0.0>0}).enumerated() {
-            let (count,fill,text)=counter,value=SidebarLayout.badge(count),size:CGFloat=list ? 15 : 11
-            let badge=CGRect(x:face.maxX-size+(list ? 6 : 5),y:face.minY-3+CGFloat(index)*(size+(list ? 2 : 1)),width:count>9 ? size+5 : size,height:size)
-            fill.setFill(); let path=NSBezierPath(roundedRect:badge,xRadius:size/2,yRadius:size/2); path.fill()
-            (dark ? NSColor(white:0.12,alpha:1) : .white).setStroke(); path.lineWidth=1; path.stroke()
-            let attrs:[NSAttributedString.Key:Any]=[.font:NSFont.boldSystemFont(ofSize:list ? 9 : 7),.foregroundColor:text]
-            let measured=(value as NSString).size(withAttributes:attrs)
-            (value as NSString).draw(at:CGPoint(x:badge.midX-measured.width/2,y:badge.midY-measured.height/2),withAttributes:attrs)
+        guard row.kind == .home || row.kind == .room else{return}
+        FaceGroup.draw(faces,in:faceRect,picture:picture,direct:row.items.first?.kind == .direct,dark:dark)
+        let paragraph=NSMutableParagraphStyle();paragraph.lineBreakMode = .byTruncatingTail;paragraph.alignment=list ? .left:.center
+        let weight:NSFont.Weight=chosen || (list && unread>0) ? .semibold:.medium
+        var font=NSFont.systemFont(ofSize:list ? 14:10,weight:weight)
+        if !list {let measured=(name as NSString).size(withAttributes:[.font:font]).width;if measured>54 {font=NSFont.systemFont(ofSize:max(8.5,10*54/measured),weight:weight)}}
+        let box=faceRect,area=list ? CGRect(x:box.maxX+12,y:bounds.midY-9,width:max(0,bounds.width-box.maxX-32-(pinned ? 20:0)-(muted ? 20:0)),height:20):CGRect(x:(bounds.width-54)/2,y:49,width:54,height:15)
+        (name as NSString).draw(in:area,withAttributes:[.font:font,.foregroundColor:SidebarTone.primary(list || chosen || unread>0 ? 1:0.7),.paragraphStyle:paragraph])
+        for (i,symbol) in [(3,"pin.fill"),(4,"bell.slash.fill")] where !marks[i].isHidden {
+            let rect=marks[i].frame;NSGraphicsContext.saveGraphicsState()
+            if i==3 {let transform=NSAffineTransform();transform.translateX(by:rect.midX,yBy:rect.midY);transform.rotate(byDegrees:45);transform.translateX(by:-rect.midX,yBy:-rect.midY);transform.concat()}
+            NSImage(systemSymbolName:symbol,accessibilityDescription:nil)?.withSymbolConfiguration(.init(pointSize:8,weight:.regular))?.withSymbolConfiguration(.init(paletteColors:[SidebarTone.primary(0.7)]))?.draw(in:rect);NSGraphicsContext.restoreGraphicsState()
         }
     }
 }
 enum FaceGroup {
-    static func draw(_ faces:[(String,ProfileAvatar)],in rect:CGRect,picture:NSImage?=nil) {
-        if let picture { ProfileAvatar(image:picture).draw(in:rect,name:"");return }
-        guard !faces.isEmpty else { return }
-        if faces.count==1 { faces[0].1.draw(in:rect,name:faces[0].0);return }
-        let unit=rect.width*(faces.count==2 ? 0.62 : 0.48)
-        let points:[CGPoint] = faces.count==2 ? [CGPoint(x:0,y:0),CGPoint(x:rect.width-unit,y:rect.height-unit)] : faces.count==3 ? [CGPoint(x:(rect.width-unit)/2,y:0),CGPoint(x:0,y:rect.height-unit),CGPoint(x:rect.width-unit,y:rect.height-unit)] : [CGPoint.zero,CGPoint(x:rect.width-unit,y:0),CGPoint(x:0,y:rect.height-unit),CGPoint(x:rect.width-unit,y:rect.height-unit)]
-        for (i,point) in points.enumerated() {
-            let box=CGRect(x:rect.minX+point.x,y:rect.minY+point.y,width:unit,height:unit)
-            if faces.count>4 && i==3 {
-                NSColor.secondaryLabelColor.setFill();NSBezierPath(roundedRect:box,xRadius:3,yRadius:3).fill()
-                (("+\(faces.count-3)") as NSString).draw(in:box,withAttributes:[.font:NSFont.systemFont(ofSize:unit*0.5),.foregroundColor:NSColor.white])
-            } else { faces[i].1.draw(in:box,name:faces[i].0) }
+    static func draw(_ faces:[(String,ProfileAvatar)],in rect:CGRect,picture:NSImage?=nil,direct:Bool=false,dark:Bool=false){
+        func box(_ size:CGFloat,_ dx:CGFloat=0,_ dy:CGFloat=0)->CGRect{CGRect(x:rect.midX-size/2+dx,y:rect.midY-size/2+dy,width:size,height:size)}
+        if let picture {ProfileAvatar(image:picture).draw(in:box(30),name:"");return}
+        switch faces.count {
+        case 0:
+            let area=box(30);SidebarTone.primary(0.1).setFill();NSBezierPath(roundedRect:area,xRadius:30*ChatMetrics.avatarCorner,yRadius:30*ChatMetrics.avatarCorner).fill()
+            let text=direct ? "@":"#",attrs:[NSAttributedString.Key:Any]=[.font:NSFont.systemFont(ofSize:16,weight:.medium),.foregroundColor:SidebarTone.primary(0.7)],size=(text as NSString).size(withAttributes:attrs)
+            (text as NSString).draw(at:CGPoint(x:area.midX-size.width/2,y:area.midY-size.height/2),withAttributes:attrs)
+        case 1:faces[0].1.draw(in:box(30),name:faces[0].0)
+        case 2:
+            faces[0].1.draw(in:box(21,-6,-5),name:faces[0].0);let second=box(21,6,5);faces[1].1.draw(in:second,name:faces[1].0)
+            (dark ? NSColor.black.withAlphaComponent(0.6):.white).setStroke();let border=NSBezierPath(roundedRect:second,xRadius:21*ChatMetrics.avatarCorner,yRadius:21*ChatMetrics.avatarCorner);border.lineWidth=1.5;border.stroke()
+        default:
+            let slots=faces.count==3 ? [box(16,0,-8.5),box(16,-9,8.5),box(16,9,8.5)]:[box(16,-9,-9),box(16,9,-9),box(16,-9,9),box(16,9,9)]
+            for (i,slot) in slots.enumerated(){if faces.count>4 && i==3 {
+                SidebarTone.primary(0.14).setFill();NSBezierPath(roundedRect:slot,xRadius:16*ChatMetrics.avatarCorner,yRadius:16*ChatMetrics.avatarCorner).fill()
+                let text="+\(faces.count-3)",attrs:[NSAttributedString.Key:Any]=[.font:NSFont.systemFont(ofSize:8,weight:.semibold),.foregroundColor:SidebarTone.primary(0.8)],size=(text as NSString).size(withAttributes:attrs);(text as NSString).draw(at:CGPoint(x:slot.midX-size.width/2,y:slot.midY-size.height/2),withAttributes:attrs)
+            }else{faces[i].1.draw(in:slot,name:faces[i].0)}}
         }
     }
 }

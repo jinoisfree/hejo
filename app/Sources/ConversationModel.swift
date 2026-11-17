@@ -86,6 +86,7 @@ struct ConversationThread: Identifiable {
     private(set) var groups:[String:Room]=[:]
     var rooms: [Room] { employees.map(Room.init(employee:)) + groups.values.sorted{$0.title<$1.title} }
     var homeChannel:Room? {home.settings.channel.flatMap{groups[$0]}.flatMap{$0.archived==true ? nil:$0}}
+    var homePicture:String? {if let channel=homeChannel{return channel.picture};return home.settings.picture}
     var homeScope:[String] {homeChannel.map{[$0.id]} ?? home.members.map(\.id)}
     func people(_ room:String)->[Employee] {let ids=groups[room]?.members;return employees.filter{ids?.contains($0.id) ?? true}}
     func room(for employee: String) -> Room? { rooms.first { $0.id==employee } }
@@ -102,16 +103,13 @@ struct ConversationThread: Identifiable {
     private(set) var isHome=false
     var selectionIdentity:String {isHome ? HomeRoom.id:selected?.employee ?? ""}
     var home:HomeRoom {
-        let settings=memberState.value("layout:home").flatMap{$0.data(using:.utf8)}.flatMap{try? JSONDecoder().decode(HomeRoom.Settings.self,from:$0)} ?? HomeRoom.Settings()
+        var settings=memberState.value("layout:home").flatMap{$0.data(using:.utf8)}.flatMap{try? JSONDecoder().decode(HomeRoom.Settings.self,from:$0)} ?? HomeRoom.Settings()
+        settings.members=nil // The reviewed home view always contains the whole roster.
         return HomeRoom(settings:settings,employees:employees)
     }
     var homeRecipients:HomeRoom {var result=home;if let channel=homeChannel {result.settings.members=channel.members};return result}
     var petMuted:Set<String> {muted.union(home.settings.muted==true ? Set(home.members.map(\.id)+(homeChannel.map{[$0.id]} ?? [])):[])}
-    func configureHome(_ update:(inout HomeRoom.Settings)->Void){var settings=home.settings;update(&settings);saveLayout("layout:home",settings)}
-    func toggleHomeMember(_ employee:String){
-        var ids=home.members.map(\.id);if let index=ids.firstIndex(of:employee){ids.remove(at:index)}else{ids.append(employee)}
-        configureHome{$0.members=ids}
-    }
+    func configureHome(_ update:(inout HomeRoom.Settings)->Void){var settings=home.settings;update(&settings);saveLayout("layout:home",settings);clearHomeChannelFlags()}
     func selectHome(_ key:ConversationKey?=nil,notify:Bool=true){select(key ?? ConversationKey(employee:HomeRoom.id,thread:UUID().uuidString.lowercased()),notify:notify,inHome:true)}
     var homeThreads:[ConversationThread] {
         homeScope.flatMap{threads(employee:$0)}.sorted{a,b in
@@ -158,13 +156,13 @@ struct ConversationThread: Identifiable {
         for (index,id) in pinned.enumerated() where layout.pins[id]==nil { layout.pins[id]=index+1 }
         let fractional=ISO8601DateFormatter();fractional.formatOptions=[.withInternetDateTime,.withFractionalSeconds]
         let seconds=ISO8601DateFormatter()
-        layout.items=rooms.enumerated().filter { !hidden.contains($0.element.id) && $0.element.archived != true }.map { index,room in
+        layout.items=rooms.enumerated().filter { !hidden.contains($0.element.id) && $0.element.archived != true && $0.element.id != homeChannel?.id }.map { index,room in
             let posts=messages.values.filter { room.id==$0.key.employee }
             let latest=posts.map { (fractional.date(from:$0.timestamp) ?? seconds.date(from:$0.timestamp))?.timeIntervalSince1970 ?? Double($0.latestSeq) }.max() ?? 0
             return SidebarLayout.Item(id:room.id,name:room.title,kind:room.kind == .direct ? .direct:.group,members:room.members,rank:index,latest:latest,unread:unread(room:room),questions:notices(room.id).filter(\.questions).reduce(0){$0+$1.messages.count},alerts:notices(room.id).filter{!$0.questions}.reduce(0){$0+$1.messages.count},muted:muted.contains(room.id),picture:room.picture)
         }
         let memberIDs=homeChannel?.members ?? home.members.map(\.id),scope=homeScope,posts=messages.values.filter{scope.contains($0.key.employee)}
-        layout.items.insert(.init(id:HomeRoom.id,name:store.settings.petName,kind:.home,members:memberIDs,latest:Double(posts.map(\.latestSeq).max() ?? 0),unread:scope.reduce(0){$0+unread(employee:$1)},muted:home.settings.muted==true,picture:home.settings.picture),at:0)
+        layout.items.insert(.init(id:HomeRoom.id,name:store.settings.petName,kind:.home,members:memberIDs,latest:Double(posts.map(\.latestSeq).max() ?? 0),unread:scope.reduce(0){$0+unread(employee:$1)},questions:notices(HomeRoom.id).filter(\.questions).reduce(0){$0+$1.messages.count},alerts:notices(HomeRoom.id).filter{!$0.questions}.reduce(0){$0+$1.messages.count},muted:home.settings.muted==true,picture:homePicture),at:0)
         return layout
     }
     private func saveLayout<T:Encodable>(_ key:String,_ value:T) {
@@ -329,6 +327,10 @@ struct ConversationThread: Identifiable {
         onChange?()
     }
     /// Called only after a fresh welcome/current replay, never for historical room records.
+    func clearHomeChannelFlags(){
+        guard let id=homeChannel?.id,hidden.contains(id) || muted.contains(id) else{return}
+        changeState(["hide:"+id:nil,"mute:"+id:nil])
+    }
     func clearArchivedPins(){for room in groups.values where room.archived==true && pinned.contains(room.id) {pin(room.id,slot:nil)}}
     private func removeRoom(_ id:String){
         groups[id]=nil;typingPeople=typingPeople.filter{$0.key.employee != id};messages=messages.filter{$0.value.key.employee != id};typing=typing.filter{$0.key.employee != id};typingSince=typingSince.filter{$0.key.employee != id}

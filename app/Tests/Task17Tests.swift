@@ -171,9 +171,9 @@ import AppKit
     let menuEvent = NSEvent.mouseEvent(with: .rightMouseDown, location: view.employeeTable.convert(rowPoint, to: nil), modifierFlags: [], timestamp: 0,
                                        windowNumber: menuWindow.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!
     try check(titles(view.employeeTable.menu(for: menuEvent)!) == titles(menu(second)), "AT67 right click resolves employee menu")
-    try check(titles(menu(second)) == ["대화 열기", "|", "맨 위에 고정", "2번째 자리에 고정", "3번째 자리에 고정", "4번째 자리에 고정", "5번째 자리에 고정", "모두 읽음", "알림 끄기", "|", "도구 연결…", "목록에서 빼기"], "AT67 employee menu exact order")
+    try check(titles(menu(second)) == ["맨 위에 고정", "2번째 자리에 고정", "3번째 자리에 고정", "4번째 자리에 고정", "5번째 자리에 고정", "|", "알림 끄기", "|", "목록에서 빼기"], "AT67 employee menu exact order")
     try check(!titles(menu(first)).contains("대화 열기"), "AT67 current employee has no open command")
-    try check(titles(view.blankMenu()) == ["새 방 만들기…", "새 섹션 만들기", "|", "목록에서 뺀 방", "|", "목록 넓게"], "AT67 blank menu exact order")
+    try check(titles(view.blankMenu()).isEmpty, "AT67 blank menu exact order")
     try check(titles(view.headerMenu()) == ["제목과 설명 편집…", "|", "이 대화의 알림 끄기", "방 목록 보이기 / 숨기기", "방 목록 너비 전환", "전체 검색 (⌘F)", "모두 읽음", "|", "펫으로 접기"], "AT79 replaces AT67 header with original workspace menu order")
     (menu(third).items.first { $0.title == "맨 위에 고정" } as? RoomActionItem)?.trigger()
     (menu(second).items.first { $0.title == "2번째 자리에 고정" } as? RoomActionItem)?.trigger()
@@ -188,7 +188,7 @@ import AppKit
     try model.apply(message(1, employee: second, thread: threadA))
     try model.apply(message(2, employee: second, thread: threadB))
     try check(model.unread(employee: second) == 2, "AT67 unread spans threads")
-    (menu(second).items.first { $0.title == "모두 읽음" } as? RoomActionItem)?.trigger()
+    view.chooseEmployee(second);(view.headerMenu().items.first { $0.title == "모두 읽음" } as? RoomActionItem)?.trigger()
     try check(model.unread(employee: second) == 0 && model.memberState.read("thread:" + second + "/" + threadA) == 1 && model.memberState.read("thread:" + second + "/" + threadB) == 2, "AT67 all threads marked read")
     try check(model.memberState.read("read:" + second) == 2, "AT74 all-read advances the shared room position as well")
     (menu(second).items.first { $0.title == "알림 끄기" } as? RoomActionItem)?.trigger()
@@ -206,9 +206,9 @@ import AppKit
     try check(island.parts.first(where: { $0.kind == .owner })?.redDot == true && island.expanded != .owner, "AT67 asked counted without muted highlight")
     (menu(second).items.first { $0.title == "목록에서 빼기" } as? RoomActionItem)?.trigger()
     try check(model.hidden.contains(second) && !model.displayRooms.map(\.id).contains(second) && model.messages.count == 3, "AT67 hide preserves messages")
-    let restore = view.blankMenu().items.first { $0.title == "목록에서 뺀 방" }!
-    try check(restore.submenu?.items.map(\.title) == ["둘째"], "AT67 hidden submenu")
-    (restore.submenu?.items.first as? RoomActionItem)?.trigger()
+    let restore = view.addMenu().items.first { $0.title == "@둘째" }
+    try check(restore != nil, "AT89 hidden rooms are inline in add menu")
+    (restore as? RoomActionItem)?.trigger()
     try check(!model.hidden.contains(second), "AT67 restore hidden room")
     model.hide(second)
     try model.apply(message(4, employee: second, thread: threadA))

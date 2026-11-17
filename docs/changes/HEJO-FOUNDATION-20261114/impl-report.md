@@ -1858,3 +1858,21 @@ A07의 원본은 한 스레드에 여러 요청이 있을 때 어느 요청에 �
 - **돌연변이:** 새 글에 고정 초안 UUID를 그대로 보내도록 바꾼 임시 소스는 compile 0·시험 1로 `AT88 new-post draft place stays fixed while wire gets a separate UUID`에 걸렸다. 정상 경로는 최종 전체/반복 0이고 원본 소스는 불변이다. `mutation.json`, `mutation-new-place.log`.
 - **화면·N36-02·서명:** `post_checks.py` 종료 0. 최종 빌드의 TASK-36 PNG는 실제 연결(canSend=true)로 교체했다. TASK-37은 같은 가짜 상태의 원본 조각과 실제 AppKit 카드/작성기 줄을 비교한다. 유효한 620×560 한 개·620×240 두 개·592×36 두 개를 직접 표시 확인했다. 제품 줄의 투명 배경은 흰 캔버스로 source-over 내보냈으며 내용/기하 보정은 없다. 선택 캡슐의 SwiftUI 비활성 농도와 끝 여백 2pt 차이를 TASK-37.md에 명시했다. 운영 앱 전체·픽셀 동일 비교가 아니다. codesign --verify --deep --strict도 0이다. `post-checks.json`, `capture-product.json`, `reference.json`, `image-check.json`.
 - **수준·금지 보존·인계:** 필요/도달 수준은 2/2다. 물리 입력기·실제 서버·두 Mac 결합은 운영 수락에 남는다. public f716bdf·운영 홈·앱 사본·공용 릴리스·본체·ddots·운영 저장소·원격을 바꾸지 않았고 GitHub 조회·push·실제 발송·비밀 파일 열기/키 출력은 없다. 최종 보고 뒤 개인값/훅/diff 검사와 소유 파일만 git commit --only를 수행한다. 실제 전체 커밋·파일 범위·입력/캡처 일치·깨끗한 main은 `final-checks.json`, `commit-result.json`, `final-verification.json`에 기록한다. TASK-38 이후는 계획 담당 검토 뒤 진행한다.
+
+
+## TASK-38 — 구현·자체검증 결과(보완 38·52)
+
+기준 7c8e953에서 기존 SidebarLayout·ConversationModel/MemberState·ConversationView의 투영을 확장한다. 화면 임시 행(검색·틈·글 결과)과 구획별 CAShapeLayer는 조회용이며 새 영구 원본이 아니다. NSTableView 안정 id 차이 갱신을 넣고 직접 reloadData 경로를 제거했다. 접힌 구획의 사진/얼굴·메뉴 사진 항목과 별도 검색 결과 패널을 원본 자리에서 대체했다. 원본 독해와 유지 차이는 copy-review의 TASK-38 표에 있다. 구현과 아래 자체 검증을 마쳤으며 최종 판정은 계획 담당 검토로 넘긴다. 운영 홈·공용 릴리스·앱 사본·본체·ddots·원격·public은 변경하지 않았다.
+
+
+최종 변경은 작성기/전송 원본을 늘리지 않고 관제 화면의 사이드바 자리에서 마쳤다. 글자·얼굴·핀/종·수·구획/레일/선/끌기 강조·맨 아래 띠·검색칸과 글 결과·메뉴/대화상자를 원문 값으로 옮겼다. 구획의 얼굴/사진·사진 메뉴, 홈의 직원 제외 메뉴, 빈 곳 메뉴, 1:1의 대체된 메뉴와 별도 검색 결과 패널은 제거했다. 1:1 사진·대표/직원 빼기·기본 받을 직원·DM 이름·로고는 사장 계약을 유지한다. 고정 홈은 기존 허브 배치에서 그 방의 숨김/알림 끔을 풀고 일반 목록에서 제외하며, 사진 없는 선택 방에 기본 홈 사진을 빌려 주지 않는다. 새 기록 종류·wire·영구 원본·문 변경은 없다.
+
+행 차이는 안정 id의 NSTableView insert/remove(effectFade)/move로 처리한다. 직접 reloadData 호출은 0이다. 구획마다 연속 CAShapeLayer 하나를 두고 같은 0.24 easeInEaseOut로 레일·색을 보간한다. 선택은 두 셀의 opacity spring(response 0.34, damping 0.88)이며 위치를 건너 움직이지 않는다. 동작 줄이기는 즉시다. 화면에 보이는 행의 presentation 좌표를 클릭/메뉴/끌기 대상으로 쓰며, 전환을 거꾸로 바꿔도 기존 셀과 현재 위치를 재사용한다.
+
+검증 변경본은 최종 verification-inputs.json의 166개 입력이다. python3 .build/task38/frozen.py 종료 0: foundation9_runner hejo 236 passed(test_install 포함), 앱 전체·기존 통신 시험 통과, AT-89를 3회 반복해 모두 종료 0·입력 불변. 로그는 .build/task38/frozen-progress.json, final-foundation.log, app-focused-01.log~03.log다. 중간 옛 시험 실패 2건과 소스 대조 보강을 위한 미완료 실행은 별도 로그로 보존했으며 최종 통과 근거에 섞지 않았다. 이전 직원 제외 준비는 실제 한 명 명부로, 보관 복원 준비는 고정 홈이 아닌 일반 방으로 바꿔 각 본래 기능 단정을 유지했다.
+
+python3 .build/task38/mutation.py compile/verify 각각 종료 0. 같은 소스의 baseline은 0, insertRows를 slideDown으로 바꾼 임시 사본은 컴파일 0·시험 1로 ‘AT89 inserted row fades at final y without slide or clipping’에 검출됐다. 원본 입력은 불변이다(.build/task38/mutation.json).
+
+python3 .build/task38/post_checks.py 종료 0. 최종 빌드의 실제 가짜 루프백 연결 캡처·원본 분리 그리기·PNG 유효성/전체 픽셀 불투명/내용 검사·codesign --verify --deep --strict 모두 0이다. 화면은 evidence/HEJO-FOUNDATION/TASK-38.md와 8개 PNG다. 필요한/도달 증거 수준은 2/2다. 원본과 정적 행/얼굴/표식/선택/레일/띠 배치를 직접 비교했으며 네이티브 글꼴 획과 강조색의 최종 합성 농도 차이는 남는다. 픽셀 동일성·운영 앱 전체 비교를 주장하지 않는다. 원본 검색 TextField의 정적 대체 범위는 화면 문서와 copy-review에 명시했다. 물리 입력기·VoiceOver 실사용·실제 서버·두 Mac 결합은 운영 수락에 남는다.
+
+이 결과 뒤 개인값 검사·pre-commit·diff와 소유 파일만의 git commit --only, 커밋/검증 입력/PNG 지문·깨끗한 main·고정 public 대조를 진행하며 실제 커밋은 .build/task38/commit-result.json과 final-verification.json에 남긴다. 앱 사본/공용 릴리스/public/운영 홈/운영 저장소/본체/ddots 변경, 실제 발송, 비밀 파일 열기, GitHub 조회/쓰기와 push는 하지 않았다. TASK-39 이후는 미착수다.

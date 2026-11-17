@@ -57,7 +57,11 @@ enum WorkspaceSearch {
         }.sorted{if $0.exact != $1.exact {return $0.exact};return ($0.latest,$0.key.readKey)>($1.latest,$1.key.readKey)}
     }
     static func sidebar(_ query:String,messages:[ConversationMessage],names:[String:String],hidden:Set<String>)->[ConversationMessage] {
-        groups(query,messages:messages,names:names,hidden:hidden,limit:Int.max).flatMap(\.matches).sorted{(ThreadTools.date($0.timestamp),$0.id)>(ThreadTools.date($1.timestamp),$1.id)}.prefix(30).map{$0}
+        let term=normalized(query);guard !term.isEmpty else{return []}
+        return messages.filter {line in
+            let content=([line.text]+line.files.map(\.name)+[line.role=="owner" ? "나":names[line.speaker] ?? line.speaker,line.replyState.map(ThreadTools.stateLabel) ?? ""]).joined(separator:"\n")
+            return normalized(content).contains(term)
+        }.sorted{(ThreadTools.date($0.timestamp),$0.id)>(ThreadTools.date($1.timestamp),$1.id)}.prefix(30).map{$0}
     }
 }
 struct RoomNotice: Equatable {

@@ -20,7 +20,7 @@ import UniformTypeIdentifiers
     var homePetImage:NSImage?
     private let employeeScroll=EmployeeMenuScroll()
     let employeeSearch=NSSearchField(), search=NSSearchField()
-    let searchResults=WorkspaceResults(frame:.zero), sidebarHits=WorkspaceResults(frame:.zero)
+    let searchResults=WorkspaceResults(frame:.zero)
     let noticeBar=NSStackView(), failureBar=NSStackView()
     private(set) var searchGroups:[WorkspaceSearch.Group]=[]
     private(set) var searchSelection=0
@@ -49,6 +49,11 @@ import UniformTypeIdentifiers
     private let clipboard: ClipboardAttachments
     private var rooms:[Room]=[], threads:[ConversationThread]=[]
     private(set) var sidebarRows:[SidebarLayout.Row]=[]
+    private var renderedSidebarIDs:[String]=[]
+    private var sidebarRails:[String:CAShapeLayer]=[:]
+    private var sidebarUpdating=false
+    private lazy var sidebarSearch=SidebarSearchRow(field:employeeSearch)
+    private let sidebarBlank=SidebarBlank(frame:.zero)
     private var dropSection:String?
     private let addRoom=FileChip(title:"방 추가"), composerFaces=ComposerFaces(frame:.zero), composerFaceScroll=NSScrollView()
     private lazy var addRow=SidebarAddRow(button:addRoom)
@@ -80,8 +85,8 @@ import UniformTypeIdentifiers
         employeeTable.onBlankDoubleClick={ [weak self] in self?.cycleSidebarWidth() }
         employeeScroll.onBlankDoubleClick={ [weak self] in self?.cycleSidebarWidth() }
         employeeScroll.makeBlankMenu = { [weak self] in self?.blankMenu() }
-        employeeScroll.documentView=employeeTable; employeeScroll.drawsBackground=false; employeeScroll.hasVerticalScroller=true; employeeScroll.autohidesScrollers=true; employeeScroll.scrollerStyle = .overlay
-        for view in [headerDrag,brandDrag,island,employeeScroll,brand,version,heading,subtitle,employeeSearch,search,history,sidebarToggle,searchToggle,notice,modeBackground,replyButton,newButton,inputBackground,editor,draftHint,attachButton,sendButton,attachmentScroll,older,handle,drop,composerFaceScroll,searchResults,sidebarHits,noticeBar,failureBar] { addSubview(view) }
+        employeeScroll.automaticallyAdjustsContentInsets=false;employeeScroll.contentInsets=NSEdgeInsets(top:4,left:0,bottom:0,right:0);employeeScroll.documentView=employeeTable; employeeScroll.drawsBackground=false; employeeScroll.hasVerticalScroller=true; employeeScroll.autohidesScrollers=true; employeeScroll.scrollerStyle = .overlay
+        for view in [headerDrag,brandDrag,island,employeeScroll,brand,version,heading,subtitle,search,history,sidebarToggle,searchToggle,notice,modeBackground,replyButton,newButton,inputBackground,editor,draftHint,attachButton,sendButton,attachmentScroll,older,handle,drop,composerFaceScroll,searchResults,sidebarBlank,noticeBar,failureBar] { addSubview(view) }
         addRoom.isBordered=false;addRoom.font = .systemFont(ofSize:12,weight:.medium)
         composerFaces.reduceMotion={ [weak self] in self?.reduceMotion() ?? true }
         composerFaceScroll.documentView=composerFaces;composerFaceScroll.drawsBackground=false
@@ -93,10 +98,11 @@ import UniformTypeIdentifiers
         brand.font = .systemFont(ofSize:14,weight:.semibold); version.font = .systemFont(ofSize:10); version.textColor = .labelColor.withAlphaComponent(0.7)
         version.stringValue=Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? ""
         brand.alignment = .center; version.alignment = .center; heading.font = .systemFont(ofSize:14,weight:.semibold); subtitle.font = .systemFont(ofSize:10); subtitle.textColor = .labelColor.withAlphaComponent(0.7)
-        employeeSearch.placeholderString="직원 검색"; employeeSearch.delegate=self; employeeSearch.font = .systemFont(ofSize:12)
+        employeeSearch.placeholderString="검색"; employeeSearch.delegate=self; employeeSearch.font = .systemFont(ofSize:12)
         search.placeholderString="단어나 문장으로 검색"; search.delegate=self
         searchResults.onChoose={ [weak self] _,line in self?.revealSearch(line) }
-        sidebarHits.onChoose={ [weak self] _,line in self?.revealSearch(line) }
+        sidebarSearch.onClear={ [weak self] in self?.employeeSearch.stringValue="";self?.refresh() }
+        sidebarBlank.toggle={ [weak self] in self?.cycleSidebarWidth() }
         for stack in [noticeBar,failureBar] {stack.orientation = .vertical;stack.alignment = .leading;stack.spacing=6}
         noticeBar.orientation = .horizontal;noticeBar.alignment = .centerY;noticeBar.spacing=8
         composerFaces.makeMenu={ [weak self] index in guard let self,self.composerMembers.indices.contains(index) else{return nil};return self.memberMenu(self.composerMembers[index]) }
@@ -121,7 +127,7 @@ import UniformTypeIdentifiers
         drop.onPaste={ [weak self] board in self?.paste(board) ?? false }; drop.onTarget={ [weak self] target in self?.layer?.borderWidth=target ? 2 : 0 }
         layer?.borderColor=NSColor.controlAccentColor.cgColor
         headerDrag.onMenu = { [weak self] in self?.headerMenu() }
-        brandDrag.onMenu = { [weak self] in self?.headerMenu() }
+        brandDrag.onMenu = { [weak self] in let menu=NSMenu();menu.addItem(RoomActionItem("펫으로 접기"){self?.onCollapse?()});return menu }
         clipboard.recoverLeftovers()
         history.onBlank={ [weak self] in self?.foldAll() }
         history.onMeasured={ [weak self] in self?.reportOpenHeight() }
@@ -179,43 +185,35 @@ import UniformTypeIdentifiers
         guard selected.kind == .room || selected.kind == .home else { return blankMenu() }
         if let room=controller.model.groups[selected.id] {return groupMenu(room)}
         let employee = selected.id, model = controller.model, menu = NSMenu()
-        if model.selected?.employee != employee {
-            menu.addItem(RoomActionItem("대화 열기") { [weak self] in self?.chooseEmployee(employee) })
-            menu.addItem(.separator())
-        }
-        for slot in 1...5 {
-            let title=(slot==1 ? "맨 위에 고정" : "\(slot)번째 자리에 고정")+(model.sidebar.pins[employee]==slot ? " ✓" : "")
-            menu.addItem(RoomActionItem(title) { model.pin(employee,slot:slot) })
-        }
-        if model.pinned.contains(employee) { menu.addItem(.separator());menu.addItem(RoomActionItem("고정 해제") { model.pin(employee,slot:nil) }) }
-        menu.addItem(RoomActionItem("모두 읽음") { model.markAllRead(employee) })
-        menu.addItem(RoomActionItem(model.muted.contains(employee) ? "알림 켜기" : "알림 끄기") { model.toggleMute(employee) })
-        menu.addItem(.separator())
+        appendPinMenu(menu,room:employee);menu.addItem(.separator())
+        menu.addItem(RoomActionItem(model.muted.contains(employee) ? "알림 켜기":"알림 끄기"){model.toggleMute(employee)});menu.addItem(.separator())
         if let person=model.employees.first(where:{$0.id==employee}),person.avatarCustom != nil {
             menu.addItem(RoomActionItem("사진 바꾸기…") { [weak self] in self?.choosePicture(kind:"employee",id:employee) })
             if person.avatarCustom==true { menu.addItem(RoomActionItem("사진 지우기") { [weak self] in Task { _=await self?.controller.changePicture(kind:"employee",id:employee,url:nil) } }) }
         }
-        menu.addItem(RoomActionItem("도구 연결…") { [weak self] in self?.onConnections?(employee) })
         menu.addItem(RoomActionItem("목록에서 빼기") { model.hide(employee) })
         return menu
     }
+    func appendPinMenu(_ menu:NSMenu,room:String){
+        let model=controller.model
+        for slot in 1...5 {menu.addItem(RoomActionItem((slot==1 ? "맨 위에 고정":"\(slot)번째 자리에 고정")+(model.sidebar.pins[room]==slot ? " ✓":"")){model.pin(room,slot:slot)})}
+        if model.pinned.contains(room){menu.addItem(.separator());menu.addItem(RoomActionItem("고정 해제"){model.pin(room,slot:nil)})}
+    }
     func homeMenu()->NSMenu {
         let menu=NSMenu(),model=controller.model
-        menu.addItem(RoomActionItem("사진 바꾸기…") { [weak self] in self?.choosePicture(kind:"room",id:HomeRoom.pictureID) })
-        if model.home.settings.picture != nil {menu.addItem(RoomActionItem("사진 지우기") { [weak self] in Task {await self?.clearHomePicture()} })}
-        menu.addItem(.separator())
-        let shown=NSMenuItem(title:"홈에 보일 직원",action:nil,keyEquivalent:""),people=NSMenu()
-        for person in model.employees {let item=RoomActionItem(person.name){model.toggleHomeMember(person.id)};item.state=model.home.members.contains(where:{$0.id==person.id}) ? .on:.off;people.addItem(item)}
-        shown.submenu=people;menu.addItem(shown)
-        let recipient=NSMenuItem(title:"기본 받을 직원",action:nil,keyEquivalent:""),choices=NSMenu()
-        for person in model.home.members {let item=RoomActionItem(person.name){model.configureHome{$0.recipient=person.id}};item.state=model.home.defaultRecipient==person.id ? .on:.off;choices.addItem(item)}
-        recipient.submenu=choices;menu.addItem(recipient);menu.addItem(.separator())
-        menu.addItem(RoomActionItem(model.home.settings.muted==true ? "알림 켜기":"알림 끄기"){model.configureHome{$0.muted = $0.muted != true}})
-        let item=NSMenuItem(title:"고정 채널 변경",action:nil,keyEquivalent:""),channels=NSMenu()
-        channels.addItem(RoomActionItem("기본으로 되돌리기"){[weak self] in self?.changeHomeChannel(nil)})
-        channels.addItem(.separator())
+        if model.homeChannel != nil {menu.addItem(RoomActionItem("기본 방으로 되돌리기"){[weak self] in self?.changeHomeChannel(nil)});menu.addItem(.separator())}
+        let item=NSMenuItem(title:"고정 방 변경",action:nil,keyEquivalent:""),channels=NSMenu()
+        channels.addItem(RoomActionItem("기본"){[weak self] in self?.changeHomeChannel(nil)});channels.addItem(.separator())
         for room in model.groups.values.filter({$0.archived != true}).sorted(by:{$0.title<$1.title}) {let choice=RoomActionItem("#"+room.title){[weak self] in self?.changeHomeChannel(room.id)};choice.state=model.homeChannel?.id==room.id ? .on:.off;channels.addItem(choice)}
         item.submenu=channels;menu.addItem(item)
+        menu.addItem(RoomActionItem("사진 바꾸기…"){[weak self] in if let room=model.homeChannel {self?.chooseGroupPicture(room)}else{self?.choosePicture(kind:"room",id:HomeRoom.pictureID)}})
+        if model.homePicture != nil {menu.addItem(RoomActionItem("사진 지우기"){[weak self] in Task {if let room=model.homeChannel {_=await self?.controller.changePicture(kind:"room",id:room.id,url:nil)}else{await self?.clearHomePicture()}}})}
+        menu.addItem(.separator())
+        if let room=model.homeChannel {menu.addItem(RoomActionItem("직원 추가…"){[weak self] in guard let self,let members=RoomDialogs.invite(model.employees,room:room) else{return};Task{await self.controller.roomCommand("room_save",room:room,members:members)}});menu.addItem(.separator())}
+        let recipient=NSMenuItem(title:"기본 받을 직원",action:nil,keyEquivalent:""),choices=NSMenu()
+        for person in model.home.members {let choice=RoomActionItem(person.name){model.configureHome{$0.recipient=person.id}};choice.state=model.home.defaultRecipient==person.id ? .on:.off;choices.addItem(choice)}
+        recipient.submenu=choices;menu.addItem(recipient)
+        menu.addItem(RoomActionItem(model.home.settings.muted==true ? "알림 켜기":"알림 끄기"){model.configureHome{$0.muted = $0.muted != true}})
         return menu
     }
     func changeHomeChannel(_ id:String?){
@@ -230,19 +228,13 @@ import UniformTypeIdentifiers
         let menu=NSMenu(), model=controller.model,id=row.kind == .stack ? nil : row.zone
         menu.addItem(RoomActionItem(row.open ? "접기" : "펼치기") { model.toggleSection(id) });menu.addItem(.separator())
         menu.addItem(RoomActionItem("이름 바꾸기…") { [weak self] in
-            let alert=NSAlert();alert.messageText="‘\(row.name)’ 이름 바꾸기";alert.informativeText="비우면 기본 이름으로 돌아가요."
-            let field=NSTextField(frame:CGRect(x:0,y:0,width:260,height:24));field.stringValue=row.name;alert.accessoryView=field
-            alert.addButton(withTitle:"저장");alert.addButton(withTitle:"취소")
-            if alert.runModal() == .alertFirstButtonReturn { self?.controller.model.editSection(id,name:field.stringValue.trimmingCharacters(in:.whitespacesAndNewlines)) }
+            guard let name=RoomDialogs.renameSection(row.name) else{return};self?.controller.model.editSection(id,name:name)
         })
         guard let id else { return menu }
         menu.addItem(.separator())
-        menu.addItem(RoomActionItem("사진 바꾸기…") { [weak self] in self?.choosePicture(kind:"room",id:"section-"+id,section:id) })
-        if row.picture != nil { menu.addItem(RoomActionItem("사진 지우기") { [weak self] in Task { await self?.deleteSectionPicture(id) } }) }
-        menu.addItem(.separator())
         let remove=RoomActionItem("섹션 삭제…") { [weak self] in
             guard let self,let text=model.sidebar.deletion(id) else { return }
-            let alert=NSAlert();alert.messageText=text.title;alert.informativeText=text.body
+            let alert=NSAlert();alert.alertStyle = .warning;alert.messageText=text.title;alert.informativeText=text.body
             alert.addButton(withTitle:"삭제");alert.addButton(withTitle:"취소")
             if alert.runModal() == .alertFirstButtonReturn { Task { await self.deleteSection(id) } }
         };remove.isEnabled=model.sidebar.sections.count>1;menu.addItem(remove);return menu
@@ -268,15 +260,15 @@ import UniformTypeIdentifiers
         let menu=NSMenu(),model=controller.model
         menu.addItem(RoomActionItem("새 방 만들기…") { [weak self] in self?.createRoom() })
         menu.addItem(RoomActionItem("새 섹션 만들기") { model.addSection() });menu.addItem(.separator())
-        let restore=NSMenuItem(title:"목록에서 뺀 방",action:nil,keyEquivalent:""),submenu=NSMenu()
-        for person in model.rooms where model.hidden.contains(person.id) { submenu.addItem(RoomActionItem(person.title) { model.restore(person.id) }) }
-        if submenu.items.isEmpty { let empty=NSMenuItem(title:"뺀 방이 없어요",action:nil,keyEquivalent:"");empty.isEnabled=false;submenu.addItem(empty) }
-        restore.submenu=submenu;menu.addItem(restore)
+        let heading=NSMenuItem(title:"목록에서 뺀 방",action:nil,keyEquivalent:"");heading.isEnabled=false;menu.addItem(heading)
+        let hidden=model.rooms.filter{model.hidden.contains($0.id)}
+        for room in hidden {menu.addItem(RoomActionItem((room.kind == .direct ? "@":"#")+room.title){model.restore(room.id)})}
+        if hidden.isEmpty {let empty=NSMenuItem(title:"뺀 방이 없어요",action:nil,keyEquivalent:"");empty.isEnabled=false;menu.addItem(empty)}
         let archived=model.groups.values.filter{$0.archived==true}.sorted{$0.title<$1.title}
         if !archived.isEmpty {let item=NSMenuItem(title:"보관된 방 (\(archived.count))",action:nil,keyEquivalent:""),list=NSMenu();for room in archived {list.addItem(RoomActionItem("#"+room.title+" 보관 해제"){[weak self] in Task {guard let self else{return};self.controller.model.restore(room.id);await self.controller.roomCommand("room_archive",room:room,archived:false);self.chooseEmployee(room.id)}})};item.submenu=list;menu.addItem(item)}
         return menu
     }
-    func blankMenu() -> NSMenu {let menu=addMenu();menu.addItem(.separator());menu.addItem(RoomActionItem(ConversationSidebar.isList(sidebarWidth) ? "목록 좁게":"목록 넓게"){[weak self] in self?.cycleSidebarWidth()});return menu}
+    func blankMenu()->NSMenu {NSMenu()}
     func cycleSidebarWidth() {setSidebarWidth(sidebarWidth==ConversationSidebar.width ? ConversationSidebar.expandedWidth:ConversationSidebar.width)}
     func headerMenu() -> NSMenu {
         let menu=NSMenu(),model=controller.model,employee=model.selected == nil ? nil:model.selectionIdentity
@@ -504,7 +496,15 @@ import UniformTypeIdentifiers
         let selected=model.selected
         rooms=model.displayRooms.filter { employeeSearch.stringValue.isEmpty || $0.title.localizedCaseInsensitiveContains(employeeSearch.stringValue) }
         let layout=model.sidebar
-        sidebarRows=employeeSearch.stringValue.isEmpty ? layout.rows : layout.items.filter { $0.name.localizedCaseInsensitiveContains(employeeSearch.stringValue) }.map { .init(kind:$0.kind == .home ? .home:.room,id:$0.id,name:$0.name,zone:layout.zone($0.id),items:[$0]) }
+        let query=employeeSearch.stringValue.trimmingCharacters(in:.whitespacesAndNewlines),list=ConversationSidebar.isList(sidebarWidth),searching=list && !query.isEmpty
+        sidebarRows=searching ? layout.items.filter{$0.name.localizedCaseInsensitiveContains(query)}.map{.init(kind:$0.kind == .home ? .home:.room,id:$0.id,name:$0.name,zone:layout.zone($0.id),items:[$0],picture:$0.picture)}:layout.rows
+        if list {sidebarRows.insert(.init(kind:.search,id:"sidebar-search",name:""),at:0)}
+        if searching {
+            let names=Dictionary(uniqueKeysWithValues:model.employees.map{($0.id,$0.name)})
+            let hits=WorkspaceSearch.sidebar(query,messages:Array(model.messages.values),names:names,hidden:model.hidden)
+            sidebarRows.append(.init(kind:.hitHeading,id:"hits-heading",name:hits.isEmpty ? "찾는 글이 없어요":"글 \(hits.count)건"))
+            sidebarRows += hits.map{.init(kind:.hit,id:"hit:"+$0.id,name:$0.id)}
+        }
         composerMembers=model.isHome ? (model.homeChannel?.members ?? model.home.members.map(\.id)):selected.flatMap { model.room(for:$0.employee)?.members } ?? []
         if !model.isHome && composerMembers.count<2 {composerMembers=[]}
         composerFaces.faces=composerMembers.map { (model.name($0),controller.avatar($0)) }
@@ -512,10 +512,9 @@ import UniformTypeIdentifiers
         let light=model.homeRecipients.light(text:controller.draft.text,picked:controller.draft.picks.first,replying:replyMode ? selected?.employee:nil)
         composerFaces.lit=model.isHome ? light.id.flatMap{composerMembers.firstIndex(of:$0)}:nil;composerFaces.ring=model.isHome && light.ring;composerFaces.explicitlyPicked = !replyMode && !controller.draft.picks.isEmpty
         editor.editor.mentions=(model.isHome ? model.homeRecipients.members:model.people(selected?.employee ?? "")).map(\.name)
-        addRoom.toolTip="방 추가 (\(model.hidden.count+model.groups.values.filter{$0.archived==true}.count))";addRoom.setAccessibilityLabel(addRoom.toolTip!)
+        addRoom.toolTip="새 방·섹션 만들기, 뺀 방·보관된 방 다시 넣기";addRoom.setAccessibilityLabel("방 추가")
         employeeTable.rowHeight=ConversationSidebar.isList(sidebarWidth) ? ConversationSidebar.rowHeight : ConversationSidebar.tabHeight
-        employeeTable.reloadData()
-        if selected != nil,let index=rowIndex(for:model.selectionIdentity) { employeeTable.selectRowIndexes(IndexSet(integer:index),byExtendingSelection:false) } else { employeeTable.deselectAll(nil) }
+        updateSidebarRows()
         if let selected {
             let current=model.selectionIdentity
             threads=model.isHome ? model.homeThreads:(model.room(for:current).map { model.threads(room:$0,query:"") } ?? []).sorted { (model.timeline($0.key).first?.seq ?? 0) < (model.timeline($1.key).first?.seq ?? 0) }
@@ -555,9 +554,6 @@ import UniformTypeIdentifiers
         for button in [replyButton,newButton,sendButton] { button.needsDisplay=true }
         notice.stringValue=controller.notice
         refreshWorkspaceBars();scheduleSearch()
-        let names=Dictionary(uniqueKeysWithValues:model.employees.map{($0.id,$0.name)})
-        let hits=WorkspaceSearch.sidebar(employeeSearch.stringValue,messages:Array(model.messages.values),names:names,hidden:model.hidden)
-        sidebarHits.show(hits.map{WorkspaceSearch.Group(key:$0.key,root:$0,matches:[$0],exact:false)},query:employeeSearch.stringValue,selection:-1,compact:true,name:model.name,room:{"@"+model.header($0).title})
         islandModel.update(controller.islandInput);tickIsland(); onUnread?(model.visibleUnreadTotal)
         reportOpenHeight()
         needsLayout=true; needsDisplay=true
@@ -572,12 +568,13 @@ import UniformTypeIdentifiers
         let titleX=island.frame.maxX+12
         heading.frame=CGRect(x:titleX,y:7,width:max(0,w-70-titleX),height:18); subtitle.frame=CGRect(x:titleX,y:26,width:max(0,w-70-titleX),height:12)
         sidebarToggle.frame=CGRect(x:w-64,y:9,width:24,height:26); searchToggle.frame=CGRect(x:w-35,y:9,width:24,height:26)
-        employeeSearch.isHidden = !list; employeeSearch.frame=CGRect(x:12,y:52,width:max(1,left-22),height:36)
-        employeeScroll.frame=CGRect(x:0,y:44+4+(list ? 52 : 0),width:left,height:max(1,h-48-(list ? 52 : 0)))
+        if employeeSearch.superview !== sidebarSearch {sidebarSearch.addSubview(employeeSearch)}
+        employeeScroll.frame=CGRect(x:0,y:44,width:left,height:max(1,h-72))
         employeeTable.tableColumns.first?.width=employeeScroll.contentSize.width; employeeTable.frame.size.width=employeeScroll.contentSize.width
         brandDrag.isHidden=left==0; brand.isHidden=left==0; version.isHidden=left==0; employeeScroll.isHidden=left==0
-        handle.frame=CGRect(x:max(0,left-4),y:44,width:8,height:max(0,h-44))
-        addRow.list=list;addRoom.isHidden=left==0 || !employeeSearch.stringValue.isEmpty
+        handle.isHidden=left==0;handle.frame=CGRect(x:max(0,left-4),y:0,width:8,height:h)
+        sidebarBlank.isHidden=left==0;sidebarBlank.frame=CGRect(x:0,y:max(44,h-28),width:left,height:28)
+        addRow.list=list;addRoom.isHidden=left==0 || (list && !employeeSearch.stringValue.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)
         addRoom.title=controller.model.hidden.isEmpty ? "방 추가":"방 추가 (\(controller.model.hidden.count))"
         addRoom.image=NSImage(systemSymbolName:"plus.circle",accessibilityDescription:nil)?.withSymbolConfiguration(.init(pointSize:list ? 12:17,weight:.medium))
         addRoom.imagePosition=list ? .imageLeading:.imageOnly;addRoom.alignment=list ? .left:.center
@@ -612,8 +609,7 @@ import UniformTypeIdentifiers
         sendButton.frame=CGRect(x:w-52,y:line+inputHeight-42,width:42,height:42)
         history.isHidden=searchOpen;searchResults.isHidden = !searchOpen
         searchResults.frame=history.frame
-        sidebarHits.isHidden = !list || employeeSearch.stringValue.isEmpty
-        if !sidebarHits.isHidden {let top=employeeScroll.frame.minY+min(employeeScroll.frame.height/2,CGFloat(sidebarRows.count)*58);sidebarHits.frame=CGRect(x:0,y:top,width:left,height:max(1,h-top-28));employeeScroll.frame.size.height=max(0,top-employeeScroll.frame.minY)}
+        layoutSidebarRails()
         drop.frame=CGRect(x:x,y:top,width:right,height:max(1,h-top))
         modeBackground.layer?.backgroundColor=NSColor.labelColor.withAlphaComponent(0.1).cgColor
         inputBackground.layer?.backgroundColor=NSColor.labelColor.withAlphaComponent(0.04).cgColor; inputBackground.layer?.borderColor=NSColor.labelColor.withAlphaComponent(0.18).cgColor
@@ -622,48 +618,104 @@ import UniformTypeIdentifiers
         let dark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua
         (dark ? NSColor(white:0.07,alpha:0.4) : .clear).setFill(); bounds.fill()
         NSColor.labelColor.withAlphaComponent(0.035).setFill(); CGRect(x:sidebarWidth,y:0,width:max(0,bounds.width-sidebarWidth),height:44).fill()
-        (dark ? NSColor(white:0.10,alpha:0.45) : NSColor.white.withAlphaComponent(0.12)).setFill(); CGRect(x:0,y:0,width:sidebarWidth,height:bounds.height).fill()
+        SidebarTone.primary(dark ? 0.035:0.025).setFill();CGRect(x:0,y:44,width:sidebarWidth,height:max(0,bounds.height-72)).fill()
         if !noticeBar.isHidden {NSColor.labelColor.withAlphaComponent(0.04).setFill();CGRect(x:sidebarWidth,y:44,width:max(0,bounds.width-sidebarWidth),height:38).fill();NSColor.labelColor.withAlphaComponent(0.1).setFill();CGRect(x:sidebarWidth,y:81,width:max(0,bounds.width-sidebarWidth),height:1).fill()}
-        NSColor.labelColor.withAlphaComponent(0.1).setFill(); CGRect(x:sidebarWidth-1,y:0,width:1,height:bounds.height).fill(); CGRect(x:0,y:43,width:bounds.width,height:1).fill()
+        SidebarTone.primary(0.1).setFill(); CGRect(x:sidebarWidth-1,y:0,width:1,height:bounds.height).fill(); CGRect(x:0,y:43,width:bounds.width,height:1).fill()
     }
-    func numberOfRows(in tableView:NSTableView)->Int { sidebarRows.count+(employeeSearch.stringValue.isEmpty ? 1:0) }
+    func numberOfRows(in tableView:NSTableView)->Int { renderedSidebarIDs.count }
     func tableView(_ tableView:NSTableView,heightOfRow row:Int)->CGFloat {
-        if row==sidebarRows.count && employeeSearch.stringValue.isEmpty {return 40}
-        guard sidebarRows.indices.contains(row) else { return 0 }
-        switch sidebarRows[row].kind { case .divider:return 19;case .section,.stack:return ConversationSidebar.isList(sidebarWidth) ? 29 : 36;default:return ConversationSidebar.isList(sidebarWidth) ? 58 : 72 }
+        if row==sidebarRows.count {return 40};guard sidebarRows.indices.contains(row) else{return 0}
+        switch sidebarRows[row].kind {
+        case .search:return 52
+        case .gap:return 4
+        case .hitHeading:return 26
+        case .hit:if let line=controller.model.messages[sidebarRows[row].name] {return SidebarHitCell.height(line.text,query:employeeSearch.stringValue,width:sidebarWidth)};return 44
+        case .divider:return 19
+        case .section,.stack:return ConversationSidebar.isList(sidebarWidth) ? 29:36
+        default:return ConversationSidebar.isList(sidebarWidth) ? 58:72
+        }
     }
     func tableView(_ tableView:NSTableView,viewFor column:NSTableColumn?,row:Int)->NSView? {
-        if row==sidebarRows.count {return addRow}
-        let id=NSUserInterfaceItemIdentifier("employee-tab"), room=sidebarRows[row],model=controller.model
+        if row==sidebarRows.count {return addRow};guard sidebarRows.indices.contains(row) else{return nil}
+        let data=sidebarRows[row],id=NSUserInterfaceItemIdentifier(data.stableID)
+        if data.kind == .search {return sidebarSearch}
+        if data.kind == .hit,let line=controller.model.messages[data.name] {
+            let cell=tableView.makeView(withIdentifier:id,owner:nil) as? SidebarHitCell ?? SidebarHitCell(frame:.zero);cell.identifier=id
+            cell.configure(line,name:controller.model.name(line.speaker),room:controller.model.header(line.key.employee).title,query:employeeSearch.stringValue);return cell
+        }
+        if data.kind == .hitHeading {
+            let cell=tableView.makeView(withIdentifier:id,owner:nil) as? SidebarHitsHeading ?? SidebarHitsHeading(frame:.zero);cell.identifier=id;cell.title.stringValue=data.name;return cell
+        }
+        if data.kind == .gap {return NSView()}
         let cell=tableView.makeView(withIdentifier:id,owner:nil) as? EmployeeSidebarCell ?? EmployeeSidebarCell(frame:.zero)
-        cell.identifier=id;cell.row=room;cell.name=room.name;cell.faces=(room.kind == .stack ? [] : room.kind == .room ? room.items.flatMap(\.members) : room.faces).map { (model.name($0),controller.avatar($0)) }
-        cell.picture=controller.pictures.image(room.picture) ?? (room.kind == .home ? homePetImage:nil);cell.nameColor=room.kind == .room ? controller.avatar(room.id).color : .secondaryLabelColor
-        cell.railLast = !sidebarRows.indices.contains(row+1) || sidebarRows[row+1].kind != .room || sidebarRows[row+1].zone != room.zone
-        cell.chosen=room.kind == .home ? model.isHome:!model.isHome && room.kind == .room && room.id==model.selected?.employee;cell.unread=room.unread;cell.muted=room.kind == .home ? model.home.settings.muted==true:model.muted.contains(room.id);cell.list=ConversationSidebar.isList(sidebarWidth);cell.pinned=model.pinned.contains(room.id);cell.dropTarget=dropSection != nil && room.zone==dropSection;cell.needsDisplay=true
-        cell.setAccessibilityLabel(room.name+", 안 읽은 글 \(cell.unread)개");return cell
+        cell.identifier=id;configureSidebarCell(cell,row:data);return cell
+    }
+    private func configureSidebarCell(_ cell:EmployeeSidebarCell,row:SidebarLayout.Row){
+        let model=controller.model,header=row.kind == .section || row.kind == .stack
+        cell.row=row;cell.name=row.name;cell.faces=header ? []:row.items.flatMap(\.members).map{(model.name($0),controller.avatar($0))}
+        cell.picture=header ? nil:controller.pictures.image(row.picture) ?? (row.kind == .home && model.homeChannel==nil ? homePetImage:nil)
+        cell.chosen=row.kind == .home ? model.isHome:!model.isHome && row.kind == .room && row.id==model.selected?.employee
+        cell.unread=row.unread;cell.muted=row.kind == .home ? model.home.settings.muted==true:model.muted.contains(row.id);cell.list=ConversationSidebar.isList(sidebarWidth);cell.pinned=model.pinned.contains(row.id);cell.dropTarget=dropSection != nil && row.zone==dropSection
+        cell.duration=reduceMotion() || window==nil ? 0:SidebarMotion.duration;cell.refreshChrome()
+    }
+    private func updateSidebarRows(){
+        guard !sidebarUpdating else{return};sidebarUpdating=true;defer{sidebarUpdating=false}
+        let ids=sidebarRows.map(\.stableID)+(employeeSearch.stringValue.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty || !ConversationSidebar.isList(sidebarWidth) ? ["add"]:[])
+        let old=renderedSidebarIDs;renderedSidebarIDs=ids
+        if old != ids {SidebarMotion.update(employeeTable,old:old,new:ids,animated:!old.isEmpty && !reduceMotion() && window != nil)}
+        else {NSAnimationContext.runAnimationGroup{context in context.duration=reduceMotion() || window==nil ? 0:0.24;context.timingFunction=SidebarMotion.curve;employeeTable.noteHeightOfRows(withIndexesChanged:IndexSet(integersIn:0..<ids.count))}}
+        for i in sidebarRows.indices {if let cell=employeeTable.view(atColumn:0,row:i,makeIfNecessary:false) as? EmployeeSidebarCell {configureSidebarCell(cell,row:sidebarRows[i])}}
+        if let index=rowIndex(for:controller.model.selectionIdentity) {employeeTable.selectRowIndexes(IndexSet(integer:index),byExtendingSelection:false)}else{employeeTable.deselectAll(nil)}
+        layoutSidebarRails()
+    }
+    override func viewDidChangeEffectiveAppearance(){super.viewDidChangeEffectiveAppearance();needsLayout=true;needsDisplay=true;effectiveAppearance.performAsCurrentDrawingAppearance{layoutSidebarRails()}}
+    private func layoutSidebarRails(){
+        let headers=sidebarRows.indices.filter{sidebarRows[$0].kind == .section || sidebarRows[$0].kind == .stack},ids=Set(headers.map{sidebarRows[$0].stableID})
+        for id in Set(sidebarRails.keys).subtracting(ids) {
+            guard let rail=sidebarRails[id] else{continue}
+            if reduceMotion() || window==nil {sidebarRails[id]=nil;rail.removeFromSuperlayer()}
+            else if rail.opacity != 0 {
+                SidebarMotion.change(rail,key:"opacity",to:0.0,duration:0.24)
+                DispatchQueue.main.asyncAfter(deadline:.now()+0.24){[weak self,weak rail] in guard let self,let rail,rail.opacity==0,self.sidebarRails[id]===rail else{return};self.sidebarRails[id]=nil;rail.removeFromSuperlayer()}
+            }
+        }
+        employeeTable.wantsLayer=true
+        for index in headers {
+            let header=sidebarRows[index],id=header.stableID;var last=index
+            while last+1<sidebarRows.count && sidebarRows[last+1].kind == .room && sidebarRows[last+1].zone==header.zone {last+=1}
+            let first=employeeTable.rect(ofRow:index),bottom=employeeTable.rect(ofRow:last),top=first.midY-9,end=last==index ? top+18:bottom.maxY-10
+            let path=CGPath(roundedRect:CGRect(x:ConversationSidebar.isList(sidebarWidth) ? 14:2,y:top,width:2,height:max(18,end-top)),cornerWidth:1,cornerHeight:1,transform:nil)
+            let rail:CAShapeLayer
+            if let old=sidebarRails[id]{rail=old}else{rail=CAShapeLayer();rail.name="section-rail-"+id;sidebarRails[id]=rail;employeeTable.layer?.addSublayer(rail)}
+            let dark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua
+            rail.fillColor=SidebarTone.primary(dark ? 0.72:0.42).cgColor
+            SidebarMotion.change(rail,key:"opacity",to:1.0,duration:reduceMotion() || window==nil ? 0:0.24)
+            SidebarMotion.change(rail,key:"path",to:path,duration:reduceMotion() || window==nil ? 0:0.24)
+        }
     }
     func tableView(_ tableView:NSTableView,shouldSelectRow row:Int)->Bool {
         guard sidebarRows.indices.contains(row) else { return false };let item=sidebarRows[row]
         if item.kind == .section || item.kind == .stack { controller.model.toggleSection(item.kind == .stack ? nil : item.zone);return false }
-        return item.kind == .room || item.kind == .home
+        return item.kind == .room || item.kind == .home || item.kind == .hit
     }
-    func tableViewSelectionDidChange(_ notification:Notification) { guard !rendering,sidebarRows.indices.contains(employeeTable.selectedRow),let employee=Optional(sidebarRows[employeeTable.selectedRow].id) else { return };chooseEmployee(employee) }
+    func tableViewSelectionDidChange(_ notification:Notification) { if !sidebarUpdating,sidebarRows.indices.contains(employeeTable.selectedRow),sidebarRows[employeeTable.selectedRow].kind == .hit,let line=controller.model.messages[sidebarRows[employeeTable.selectedRow].name] {revealSearch(line);return};guard !rendering,!sidebarUpdating,sidebarRows.indices.contains(employeeTable.selectedRow),let employee=Optional(sidebarRows[employeeTable.selectedRow].id) else { return };chooseEmployee(employee) }
     func tableView(_ tableView:NSTableView,pasteboardWriterForRow row:Int)->NSPasteboardWriting? {
         guard sidebarRows.indices.contains(row) else { return nil };let item=sidebarRows[row]
         guard item.kind == .room,item.zone != nil else { return nil }
         let value=NSPasteboardItem();value.setString(item.id,forType:Self.roomDrag);return value
     }
     func tableView(_ tableView:NSTableView,validateDrop info:NSDraggingInfo,proposedRow row:Int,proposedDropOperation operation:NSTableView.DropOperation)->NSDragOperation {
-        let zone=sidebarRows.indices.contains(row) ? sidebarRows[row].zone : nil
-        guard info.draggingSource as? NSTableView === employeeTable,let id=info.draggingPasteboard.string(forType:Self.roomDrag),let zone,controller.model.sidebar.canMove(id,to:zone) else { dropSection=nil;employeeTable.reloadData();return [] }
-        dropSection=zone;employeeTable.setDropRow(row,dropOperation:.on);employeeTable.reloadData();return .move
+        let visual=employeeTable.presentedRow(at:employeeTable.convert(info.draggingLocation,from:nil))
+        let zone=sidebarRows.indices.contains(visual) ? sidebarRows[visual].zone : nil
+        guard info.draggingSource as? NSTableView === employeeTable,let id=info.draggingPasteboard.string(forType:Self.roomDrag),let zone,controller.model.sidebar.canMove(id,to:zone) else { dropSection=nil;updateSidebarRows();return [] }
+        dropSection=zone;employeeTable.setDropRow(visual,dropOperation:.on);updateSidebarRows();return .move
     }
     func tableView(_ tableView:NSTableView,acceptDrop info:NSDraggingInfo,row:Int,dropOperation:NSTableView.DropOperation)->Bool {
-        defer { dropSection=nil;employeeTable.reloadData() }
+        defer { dropSection=nil;updateSidebarRows() }
         guard let zone=dropSection,let id=info.draggingPasteboard.string(forType:Self.roomDrag),controller.model.sidebar.canMove(id,to:zone) else { return false }
         controller.model.move(id,to:zone);return true
     }
-    func tableView(_ tableView:NSTableView,draggingSession session:NSDraggingSession,endedAt screenPoint:NSPoint,operation:NSDragOperation) { dropSection=nil;employeeTable.reloadData() }
+    func tableView(_ tableView:NSTableView,draggingSession session:NSDraggingSession,endedAt screenPoint:NSPoint,operation:NSDragOperation) { dropSection=nil;updateSidebarRows() }
     func controlTextDidChange(_ notification:Notification) {refresh()}
     func control(_ control:NSControl,textView:NSTextView,doCommandBy selector:Selector)->Bool {
         guard control === search else{return false}

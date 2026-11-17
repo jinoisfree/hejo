@@ -197,7 +197,7 @@ struct ConversationFailedSend: Identifiable {
         model.noticeClock={ [weak self] in self?.clock() ?? Date() }
         model.onChange = { [weak self] in
             guard let self else{return}
-            if self.client.replayComplete {self.model.clearArchivedPins()}
+            if self.client.replayComplete {self.model.clearArchivedPins();self.model.clearHomeChannelFlags()}
             self.onChange?()
         }
         model.memberState.onFailure = { [weak self] failed in

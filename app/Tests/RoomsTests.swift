@@ -25,7 +25,7 @@ import AppKit
     var choice=0;let candidates=view.editor.editor.completions(forPartialWordRange:NSRange(location:0,length:3),indexOfSelectedItem:&choice)
     try check(candidates==["@직원 A","@직원 B"],"AT71 native mention suggestions")
     let group=try homeRequire(model.groups[room],"AT70 group exists"),menu=view.groupMenu(group)
-    try check(menu.items.filter{!$0.isSeparatorItem}.map(\.title)==["맨 위에 고정","2번째 자리에 고정","3번째 자리에 고정","4번째 자리에 고정","5번째 자리에 고정","모두 읽음","알림 끄기","이름 바꾸기…","사진 바꾸기…","직원 추가…","대표 직원 바꾸기","목록에서 빼기","보관…","삭제…"],"AT70 group menu AC03 order")
+    try check(menu.items.filter{!$0.isSeparatorItem}.map(\.title)==["고정 방으로 지정","맨 위에 고정","2번째 자리에 고정","3번째 자리에 고정","4번째 자리에 고정","5번째 자리에 고정","알림 끄기","이름 바꾸기…","사진 바꾸기…","직원 추가…","대표 직원 바꾸기","목록에서 빼기","보관…","삭제…"],"AT70 group menu AC03 order")
     let (alert,picks,_,_)=RoomDialogs.dialog(people:model.employees,room:group)
     try check(alert.messageText=="#시험 방에 직원 추가" && picks.boxes.map{$0.1.isEnabled}==[false,false,true],"AT70 invite existing members dimmed")
     try check(view.memberMenu("alpha")?.items.first?.isEnabled==false,"AT70 cannot remove below two members")
@@ -35,9 +35,9 @@ import AppKit
     controller.setText("channel draft");view.changeHomeChannel(nil)
     try check(controller.draft.text=="direct draft","AT80 switching restores direct home draft")
     view.changeHomeChannel(room);try check(controller.draft.text=="channel draft","AT80 switching restores channel draft")
-    model.toggleHomeMember("alpha");controller.pickHome("alpha");view.refresh()
+    model.configureHome{$0.members=["beta"]};controller.pickHome("alpha");view.refresh()
     try check(controller.draft.picks.contains("alpha") && view.editor.editor.mentions==["직원 A","직원 B"],"AT80 channel ignores direct home exclusions")
-    model.configureHome{$0.muted=true};try check(model.petMuted.contains(room) && model.petMuted.contains("beta") && !model.petMuted.contains("alpha"),"AT80 home mute covers channel and included directs")
+    model.configureHome{$0.muted=true};try check(model.petMuted.contains(room) && model.petMuted.contains("beta") && model.petMuted.contains("alpha"),"AT80 home mute covers channel and included directs")
     model.configureHome{$0.muted=false}
     try check(model.homeThreads.map(\.key)==[key],"AT80 channel mode shows channel journal only")
     for (text,picked,expected) in [("질문",Optional("alpha"),"@직원 A 질문"),("",Optional("alpha"),"@직원 A"),("@직원 B 질문",Optional("alpha"),"@직원 B 질문"),("@first 질문",Optional("beta"),"@직원 A 질문"),("질문",nil,"질문"),("@outside 질문",Optional("alpha"),"@직원 C 질문"),("@직원 A @직원 B",nil,"@직원 A @직원 B")] {
@@ -52,6 +52,7 @@ import AppKit
         window.orderOut(nil)
 
     }
+    view.changeHomeChannel(nil) // C27 excludes the chosen home channel; archive recovery below exercises a normal room.
     model.pin(room,slot:1)
     try apply(["type":"room","room":data.merging(["archived":true]){$1}]);try check(!model.sidebar.items.contains{$0.id==room} && !model.pinned.contains(room) && model.timeline(key).count==2,"AT70 archive preserves messages clears pin")
     try apply(["type":"room","room":data]);try check(model.sidebar.items.contains{$0.id==room},"AT70 restore room")
