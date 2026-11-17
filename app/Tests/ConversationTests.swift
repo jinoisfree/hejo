@@ -24,7 +24,7 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     try check(model.unread(employee:"alpha") == 0 && model.memberState.read("thread:alpha/" + threadA) == 1,"opening thread persists read seq")
     model.setVisible(false)
     try commit(["v":1,"type":"edit","seq":2,"msg_id":messageA,"text":"streaming answer","final":false,"buttons":[["id":buttonA,"label":"Continue","kind":"reply","style":"primary"]]])
-    try check(model.messages[messageA]?.streaming == true && model.messages.count == 1 && model.unread(key) == 1,"streaming updates same message and unread")
+    try check(model.messages[messageA]?.streaming == true && model.messages.count == 1 && model.unread(key) == 0,"AT87 streaming edit retains original message read position")
     try commit(["v":1,"type":"state","seq":3,"msg_id":messageA,"reply_state":"closed"])
     let post=model.messages[messageA]!, click=try ConversationModel.click(message:post,button:post.buttons[0])
     try check(click["type"] as? String == "click" && click["msg_id"] as? String == messageA && click["button_id"] as? String == buttonA && click["employee"] == nil,"button uses only server-issued message/button identifiers")
@@ -124,7 +124,7 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     print("CONVERSATION_STAGE replay"); fflush(stdout)
     try await waitFor { controller.canSend && controller.model.applied == 3 }
     let key=ConversationKey(employee:"alpha",thread:threadA)
-    try check(controller.model.unread(key) == 1,"real socket replay applies message/edit/state once")
+    try check(controller.model.unread(key) == 0,"AT87 initial socket replay starts read after sync")
     controller.model.select(key); controller.model.setVisible(true)
     let ui=ConversationView(controller:controller,clipboardArea:directory.appendingPathComponent("clipboard"))
     var uploadProgress:[IslandUpload]=[]
@@ -149,11 +149,12 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     await sending.value
     try await waitFor { controller.drafts[key]?.text.isEmpty == true }
     try check(controller.model.selected?.employee == "beta","upload completion preserves current worker selection")
+    try await waitFor { controller.model.messages.values.contains{$0.key.employee=="beta"} }
+    try check(controller.model.unread(employee:"beta")==0,"AT87 visible room reads ordinary incoming posts during upload")
     try check(uploadProgress.contains(IslandUpload(completed:0,total:1)) && uploadProgress.contains(IslandUpload(completed:1,total:1)) && controller.uploads.isEmpty,"AT55 real upload reports progress and clears it")
     try check(controller.transferFailure == nil,"AT55 successful acknowledgement clears transfer failure")
     controller.model.select(key); ui.chooseThread(key)
     guard let sent=controller.model.timeline(key).first(where:{$0.role == "owner"}), let file=sent.files.first else { throw TestFailure.assertion("owner attachment acknowledgement missing") }
-    try await waitFor { controller.model.unread(employee:"beta") == 1 }
     await pause(0.15); ui.layoutSubtreeIfNeeded()
     let bitmap=pet.pet.bitmapImageRepForCachingDisplay(in:pet.pet.bounds)!
     pet.pet.cacheDisplay(in:pet.pet.bounds,to:bitmap)

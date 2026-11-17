@@ -162,6 +162,7 @@ import AppKit
         ["id": third, "name": "셋째", "aliases": []]
     ]
     try model.apply(["v":1,"type":"roster","employees":roster])
+    model.select(employee:first) // This menu fixture explicitly opens a direct room; first launch now opens Home.
     model.toggleSection(nil)
     func titles(_ menu: NSMenu) -> [String] { menu.items.map { $0.isSeparatorItem ? "|" : $0.title } }
     let menuWindow = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 700, height: 620), styleMask: .borderless, backing: .buffered, defer: false)

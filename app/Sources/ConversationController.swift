@@ -19,7 +19,7 @@ struct ConversationFailedSend: Identifiable {
     let files: GateHTTP
     lazy var pictures: PictureCache = { let cache=PictureCache(http:files);cache.onChange={ [weak self] in self?.onChange?() };return cache }()
     func avatar(_ employee:String) -> ProfileAvatar {
-        let person=model.employees.first{$0.id==employee}
+        let person=model.person(matching:employee)
         return ProfileAvatar(color:PictureCodec.color(name:person?.name ?? employee,hex:person?.color),image:pictures.image(person?.avatar))
     }
     func changePicture(kind:String,id:String,url:URL?) async -> String? {
@@ -128,6 +128,7 @@ struct ConversationFailedSend: Identifiable {
         do {
             let id=UUID().uuidString.lowercased()
             try await client.send(["v":1,"type":"send","id":id,"thread":key.thread,"client_msg_id":id,"text":text].merging(sendFields(key)){$1})
+            model.markThreadRead(key)
             if text != "/stop" {stopped.remove(key)}
             if text != "/stop",working(key) {interruptions[key]=clock()}
         } catch {transferFailed(error);return false}
@@ -226,6 +227,7 @@ struct ConversationFailedSend: Identifiable {
         }
         if let id = frame["client_msg_id"] as? String, let entry = pending.removeValue(forKey: id) {
             if newPostIDs.remove(id) != nil {followup=entry.key}
+            model.markThreadRead(entry.key)
             transferFailure=nil;notice=""
             if !entry.bubble, drafts[entry.key]?.text == entry.draft.text && drafts[entry.key]?.attachments == entry.draft.attachments && drafts[entry.key]?.picks == entry.draft.picks { drafts[entry.key] = ConversationDraft() }
         }
@@ -346,6 +348,7 @@ struct ConversationFailedSend: Identifiable {
             guard address == client.store.settings.address, epoch == client.connectionEpoch, canSend else { throw GateFailure.notConnected }
             try await client.send(["v":1, "type":"send", "id":id, "thread":key.thread,
                                    "text":draft.text.trimmingCharacters(in:.whitespacesAndNewlines), "client_msg_id":id, "files":uploaded.map(\.fileID)].merging(destination){$1})
+            model.markThreadRead(key)
             stopped.remove(key);if working(key) {interruptions[key]=clock()}
         } catch {
             pending[id] = nil;newPostIDs.remove(id)
@@ -356,7 +359,6 @@ struct ConversationFailedSend: Identifiable {
     }
     func click(_ button: MessageButton, message: ConversationMessage) async {
         if button.kind=="reply",button.label=="의견" {model.select(message.key);onRevealThread?(message.key);return}
-        if button.kind=="reply",button.label=="확인" {model.confirm(message);return}
         guard canSend else { transferFailed(GateFailure.notConnected); return }
         do { try await client.send(ConversationModel.click(message: message, button: button)); transferFailure=nil }
         catch { transferFailed(error) }

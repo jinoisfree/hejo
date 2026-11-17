@@ -27,6 +27,7 @@ async def main():
             await emit('welcome',device_id=str(uuid.uuid4()),token='fake-bubble-credential',gate_version='test',head_seq=1,employees=[dict(id='alpha',name='직원 A',aliases=[],avatar=None,queued=True)])
             await post('대상 스레드')
             await emit('sync_done',ref='hello',through=1,head_seq=1,more=False)
+            await post('동기화 뒤 새 글')
             await emit('typing',employee='alpha',thread=THREAD,on=True,ttl_seconds=6)
             async for item in ws:
                 if item.type!=web.WSMsgType.TEXT:continue

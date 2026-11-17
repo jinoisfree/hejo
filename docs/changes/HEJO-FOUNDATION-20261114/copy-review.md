@@ -489,3 +489,45 @@ Hermes 공식 ko 낱말표의 `platform.telegram.approval.resolved_*` 네 종류
 - 사용량: 기존 usage_ledger의 Slack·photon 등록만 유지하고 hejo 제외를 시험했다. hejo 실제 체크리스트 프레임에 제출 낱말·사용량 꼬리말이 없음을 단언한다.
 
 추가한 문 공개 메서드 `first_thread_message(chat_id, thread_id, *, metadata=None)`는 해당 직원의 첫 살아 있는 직원 글 id와 최신 본문 사본만 돌려준다. 사장 글·다른 직원·다른 대화·삭제된 스레드/방은 제외하고, 전달자는 자기 프로필을 강제한다. 자료의 원본은 기존 Journal 투영이며 별도 저장소는 없다. 호환성 계약이 맞지 않으면 기존 _install_plain 경로로 남는 동작도 기존 시험에서 유지했다.
+
+## TASK-36 — 읽음·종·버튼 규칙 이식 전 대조
+
+기준은 보완 38·49, REQ-HF-36.AC-00·01과 대조표 2판 §A 및 §0-4 2.1판 정정이다. 기존 SlackThreads·SlackController·SlackPanel·DdotsConfig 전체 독해 기록을 재사용하고 아래 근거 함수와 호출자를 끝까지 다시 읽었다. 원본은 읽기만 하며 앱 사이 동기화·원본 앱 실행은 하지 않는다.
+
+| 행 | 원본 (`<운영 저장소>/ddots/Sources/`)과 의존·호출자 | 이식 자리·판정 |
+|---|---|---|
+| A01·02 | SlackController.publish의 lastRead 초기화·shownRooms·SlackUnread.entry 호출, SlackThreads의 SlackUnread.count/entry/read/quiet 전체 | ConversationModel의 처음 동기화·방 진입. 기존 read:/thread: 키로 처음 message seq를 저장. 종 스레드 위로 방 읽음 값을 넘기지 않음. 원본 Slack 원격 읽음·미수신 답 추정은 연속 기록장 투영으로 대체. |
+| A03·04 | SlackUnread.count, SlackController.didSend/markRead와 전송 호출 | 편집/state seq 대신 처음 seq. 생각 줄 제외. 기존 Controller 일반·텍스트·말풍선 전송 성공 경로에 읽음 연결. |
+| A05·V01 | SlackController.publish의 bells 전체, SlackNotice.item/isSettled/hermesState | WorkspaceTools의 알림·질문 판정, Model.bell. 처리 중·종결이면 조용한 종도 없음. |
+| A06 | SlackNotice.requestsApproval·approvalExchange·assessment 전체, DdotsConfig ConversationRules 기본 patterns·sets·matches | ThreadTools의 순수 판정으로 이식. 인용 줄 제외·nothingWaiting 우선·approval1/2 정규식 그대로. 학습 보고·메일 초안 전용 탐지는 §0-2에 따라 제외. |
+| A07·08 | SlackNotice.answers/pendingPosts/buttonPosts/itemPostIDs/waitingPostIDs, SlackPanel.slackApproval 전체, ReplyButtonPolicy 전체 | 기존 메시지·state에서 아직 답하지 않은 요청을 계산해 View 버튼/체크리스트에 연결. 문이 발급한 native approval/clarify/slash 버튼은 기존 식별자 계약 유지; 원본 hermes_reply_buttons에 대응하는 kind=reply에 단어 정책을 적용. 텍스트 승인 요청 기본 단추는 기존 sendText·confirm·의견 입력으로 연결하며 프레임 필드 추가 없음. |
+| A09·V02 | SlackNotice.visibleMarks/railColor/assessment, DdotsConfig 색 상수 | 처리 중 노랑·대기 빨강·종결 초록, 생성된 상태 글자 줄 제거. 원래 본문·복사 형식의 상태 표시는 바꾸지 않음. |
+| A10·V16 | SlackNotice.items/item/grouped 전체 | 오래된 root 순으로 기여를 만들고 첫 분류 기여 순서를 유지. 질문은 직원 ID로 다시 정렬하지 않음. |
+| A11 | SlackController.restore·slackRoom 저장 호출·Ddots 첫 선택 | 기존 Mac 화면 설정 LocalSettings에서 마지막 방 ID, 첫 선택 홈. 회원 읽음·배치를 별도 로컬 원본으로 옮기지 않음. |
+| A13 | SlackNotice.approvalExchange·assessment, ConversationRules.sets.yes | 원본 낱말로 글 승인 후 직원 답이 오면 종결. hejo answered는 기존 차례 의미(사장 답을 받고 처리 중)로 원본 working에, closed는 종결에 대응. |
+| A14 | DdotsConfig.matching 전체·SlackSpeakers.profile/key 호출 | 명부 얼굴·이름 조회에 공백·하이픈·밑줄 무시와 소문자 비교 적용. 문으로 보내는 직원 ID·단체방 호출 계약은 그대로. |
+| A15·16 | ChecklistText.swift 전체, NativeThreadContent 본문 생성·checkbox 링크·소유자 색 처리 전체 | 기존 check: 회원 키 안에 본문 revision과 문자 위치를 넣음. 본문 변경은 초기 상태. 내 글도 체크 가능, 지정 색 속성 보존. |
+
+유지 의존은 기존 AppKit·Foundation·CryptoKit·ConversationModel·MemberState·Controller·NativeThreadCard다. 원본 Slack 수신/설정·개인 업무·SwiftUI 화면은 복사하지 않는다. 문구는 22판 변환 규칙을 적용하며 이 범위의 기본 버튼·안내는 원문 그대로다. A12는 제외한다. 원본 코드의 판정과 기존 hejo 시험이 다른 경우 V01·V02·A03의 명시된 대체 범위만 기록하고 갱신한다.
+
+추가 유지 의존 `ReplyActionIcon.swift` 전체(ReplyActionGlyph·ReplyActionLabel)를 읽고 기본 네 기호의 24단위 경로·16pt 크기·36×30 최소 영역·간격 8·모서리 8을 FileChip의 답 버튼 모드로 옮긴다. SwiftUI 화면을 제품에 추가하지 않는다.
+
+### D36-01 — A07의 대상 지정 답 정보는 현행 통신 계약에 없음
+
+추가 호출 경로까지 확인했다. `SlackPanel.answerHermes`는 항목별 단추이면 `onClickSend`에 post의 ts를 넘긴다. `SlackBridge.post(clickedPost:)`는 `SlackNotice.clickBlocks`로 `hermes_click:<ts>` 블록을 붙인다. `SlackMessage.init`·메시지 변환이 이 값을 `slackClickTarget`으로 보존하고 `SlackNotice.answers`는 값이 있을 때 그 요청에만 답한 것으로 본다. 단순히 같은 스레드의 모든 사장 글을 답으로 세는 구현은 원본과 다르다.
+
+hejo `gate/adapter.py`의 click은 그 대상을 Hermes `raw_message._hermes_button.message_id`로 넘기지만, receive의 사장 message 기록에는 넣지 않는다. `Journal.public`·page 재현에도 없고 현행 message 스키마의 추가 필드는 금지다. 원본 answers·pendingPosts 함수를 그대로 분리 컴파일해, 동일한 A=처리 중/B=질문/사장 글='승인'에서 대상 없는 글이면 B도 답해짐, A 대상 글이면 B는 대기함을 확인했다. 문 실제 어댑터 탐침은 A 클릭 뒤 B가 asked로 남아도 앱 기록에는 대상을 판별할 값이 없음을 확인했다.
+
+이는 26판 원문 우선으로 해결할 수 있는 문구·수치 차이가 아니라 hejo의 기록·통신 계약 공백이다. A07을 보류한다. 다른 행의 제품·시험 초안 14개는 `.build/task36/draft/`에 지문과 함께 보존하고 제품 작업 트리는 착수 HEAD로 복구했다. 위 표는 독해·이식 방향 및 초안의 기록이며 최종 채택·전체 검증 완료가 아니다. 규격·문·허브는 바꾸지 않았다.
+
+### TASK-36 보완 50 — D36-01 해소와 초안 재개
+
+35판 결정 `a7cae0c`의 message.answer_to 선택 필드를 적용한다. 보류 당시의 두 기록은 보존한다. 초안 14개는 manifest 지문과 같고 착수 기준과 새 HEAD 사이 제품 차이가 없음을 확인한 뒤 복원했다. 버튼 답만 요청 msg_id를 문 기록에 남기며 앱의 send에는 새 필드를 넣지 않는다. 원본 answers의 `target == nil || target == request` 조건을 앱의 answerTo로 직접 대응시킨다. 옛 문 aeaa652가 필드를 주지 않을 때는 35판에서 승인한 직접 쓴 글 취급이다.
+
+이전 앱 시험의 편집 unread 증가 단정은 A03의 처음 seq 기준이 명시적으로 대체한다. 처리 중 조용한 종은 V01이 대체한다. 첫 직원을 기본으로 가정한 메뉴 시험은 A11에 따라 직접방을 명시적으로 열도록 준비를 고쳤다. 수락 문서의 기대값을 완화한 것이 아니라 지정 원본과 명시적 대체 기준을 적용한 변경이다.
+
+전체 검사에서 같은 대체 범위의 종속 단정도 대조했다. RoomsTests의 고정 방 읽음 값 5(edit·state 포함)는 마지막 처음 글 seq 3으로, 전송 중 보이던 다른 방에 도착한 평범한 글은 A01에 따라 읽음 0으로 바꾼다. 그 방 글 수신 자체를 기다린 뒤 값을 단언하므로 기다림을 없애거나 느슨하게 하지 않는다. 원본 `answerHermes`의 받은 '확인' 단추는 그 단추 답을 보내고(항목별이면 대상 포함), 버튼 없는 텍스트 승인 요청의 기본 '확인'만 로컬 확인이다. 이 둘을 구분해 기존 Controller·전송 시험을 연결했다. 기본 단추의 tooltip은 원문, 정해지지 않은 단추 안내는 원본처럼 tooltip에 둔다. AppKit 버튼의 flipped 좌표에 맞춰 원본 기호의 방향을 유지하고, 바깥 controls의 왼쪽 43pt·위 2pt도 연결했다.
+
+루프백 전송 시험의 A01 단정은 수신 전에 다른 방으로 이동하면 성립하지 않는다. 전체 시험에서 이 준비 순서 문제를 확인해, 전송 완료 뒤 선택이 유지됨을 먼저 확인하고 **그 방에 머문 채 새 글 수신·읽음 0을 확인한 다음** 원래 스레드로 이동하도록 순서를 고정했다. 다른 방 도착 글의 unread를 임의로 0으로 간주하지 않는다. 빈 방을 처음 본 뒤 새로 온 글은 이후 sync로 지워지지 않도록 처음의 read:0도 기존 회원 상태에 남기고 회귀 시험을 넣었다.
+
+최종 체크 의존도 대조했다. NativeThreadContent가 만든 본문의 revision과 문자 위치를 클릭 콜백에 함께 묶어, 화면 교체 전의 행동이 새 본문 체크를 바꾸지 않게 한다. 기존 check: 키를 재사용하며 새 저장소는 없다. 원본/제품 화면의 유효성·같은 상태 비교 범위는 evidence/HEJO-FOUNDATION/TASK-36.md에 기록했다.

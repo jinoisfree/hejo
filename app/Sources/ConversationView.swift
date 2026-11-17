@@ -293,6 +293,7 @@ import UniformTypeIdentifiers
     }
     func chooseEmployee(_ employee:String) {
         if employee==HomeRoom.id {chooseHome();return}
+        if controller.model.visible {controller.model.enterRoom(employee)}
         controller.cancelFollowup()
         if let key=controller.model.selected,!controller.draft.isEmpty {lastPlaces[draftPlaceIdentity]=key}
         if let saved=lastPlaces[employee],controller.drafts[saved]?.isEmpty==false {openThread=controller.model.timeline(saved).isEmpty ? nil:saved;replyMode=openThread != nil;controller.model.select(saved);return}
@@ -301,6 +302,7 @@ import UniformTypeIdentifiers
         else { let key=ConversationKey(employee:employee,thread:UUID().uuidString.lowercased()); newKeys[employee]=key; controller.model.select(key) }
     }
     func chooseHome() {
+        if controller.model.visible {controller.model.enterRoom(HomeRoom.id)}
         controller.cancelFollowup()
         if let key=controller.model.selected,!controller.draft.isEmpty {lastPlaces[draftPlaceIdentity]=key}
         if let saved=lastPlaces[homePlaceIdentity],controller.drafts[saved]?.isEmpty==false {openThread=controller.model.timeline(saved).isEmpty ? nil:saved;replyMode=openThread != nil;controller.model.selectHome(saved);return}
@@ -598,7 +600,8 @@ import UniformTypeIdentifiers
         let model=controller.model,messages=model.timeline(thread.key),expanded=openThread==thread.key
         guard let root=messages.first else {preconditionFailure("Empty thread projection")}
         let replies=Array(messages.dropFirst()),foldable=replies.count>2
-        let shown=expanded || !foldable ? replies:replies.filter{$0.id==replies.last?.id || ($0.replyState=="asked" && (!$0.buttons.isEmpty || $0.checklist != nil) && !model.confirmed($0.id))}
+        let state=model.assessment(thread.key)
+        let shown=expanded || !foldable ? replies:replies.filter{$0.id==replies.last?.id || state.buttons.contains($0.id)}
         let hidden=replies.count-shown.count,dark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua
         let pick:()->Void={ [weak self] in self?.chooseThread(thread.key) }
         var top=postPieces(root,conversational:false)
@@ -626,8 +629,7 @@ import UniformTypeIdentifiers
                 }))
             }
         }
-        let state=messages.reversed().first{$0.replyState != nil && !model.confirmed($0.id)}?.replyState
-        let tone:NSColor?=state=="asked" ? MessageFormat.color("#E01E5A"):state=="answered" || state=="closed" ? MessageFormat.color("#2EB67D"):messages.lazy.compactMap{ThreadTools.color($0.text)}.first
+        let tone=state.color.flatMap(MessageFormat.color) ?? (controller.working(thread.key) ? MessageFormat.color("#ECB22E"):messages.lazy.compactMap{ThreadTools.color($0.text)}.first)
         let target=replyMode && model.selected==thread.key
         let highlighted=messages.contains{$0.id==highlightedMessageID} && (highlightUntil.map{$0>islandModel.now} ?? false)
         let now=controller.clock(),copiedLink=copiedID=="link:"+thread.id,copiedText=copiedID=="text:"+thread.id
@@ -644,6 +646,7 @@ import UniformTypeIdentifiers
             bell:model.bell(thread.key),onBell:{ [weak self] in self?.controller.model.toggleBell(thread.key) },clickCard:pick,textClick:!expanded && foldable ? pick:nil,
             bubbleWidth:max(ChatMetrics.minimumBubbleWidth,(bounds.width-sidebarWidth)*ChatMetrics.bubbleWidthFraction),quiet:NSColor.labelColor.withAlphaComponent(0.7),expanded:expanded,replyTarget:target)
     }
+    static let unavailableReply="정해진 버튼이 아니라 누를 수 없어요. 이 스레드에 글로 답해 주세요."
     private func postPieces(_ message:ConversationMessage,conversational:Bool)->[NativeThreadCard.Piece] {
         let dark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua, mine=message.role == "owner"
         if !mine,ThreadTools.thinking(message.text) {return []}
@@ -652,7 +655,11 @@ import UniformTypeIdentifiers
         let text=NSMutableAttributedString(attributedString:MessageFormat.renderNative(mine ? body : stripped.source,bodySize:ChatMetrics.bodyFont))
         let all=NSRange(location:0,length:text.length), paragraph=NSMutableParagraphStyle(); paragraph.lineSpacing=mine ? 0 : 2
         text.addAttribute(.paragraphStyle,value:paragraph,range:all)
-        if mine { text.addAttribute(.foregroundColor,value:UserBubblePalette(dark:dark).foreground.nsColor,range:all) }
+        if mine {
+            text.enumerateAttributes(in:all) { attributes,range,_ in
+                if attributes[NSAttributedString.Key("hejo.explicitColor")]==nil {text.addAttribute(.foregroundColor,value:UserBubblePalette(dark:dark).foreground.nsColor,range:range)}
+            }
+        }
         else { TextLayout.apply(to:text,lines:stripped.lines,bar:controller.avatar(message.speaker).color,lineSpacing:2) }
         text.enumerateAttributes(in:NSRange(location:0,length:text.length)) { attributes,range,_ in
             if !mine,let font=attributes[.font] as? NSFont,NSFontManager.shared.traits(of:font).contains(.fixedPitchFontMask) {
@@ -662,23 +669,23 @@ import UniformTypeIdentifiers
         }
         if let query=searchHighlight,message.id==highlightedMessageID {for range in WorkspaceSearch.highlights(text.string,query:query) {text.addAttributes([.backgroundColor:NSColor.yellow,.foregroundColor:NSColor.black],range:NSRange(range,in:text.string))}}
         var checks:[Int:(line:Int,original:Bool)]=[:]
-        if !mine && !message.streaming {
-            var offset=0,line=0
+        if !message.streaming {
+            var offset=0,index=0
             for character in text.string {
                 let length=String(character).utf16.count
                 if character=="☐" || character=="☑" {
-                    let original=character=="☑";checks[offset]=(line,original)
-                    text.replaceCharacters(in:NSRange(location:offset,length:length),with:controller.model.check(message.id,line:line,original:original) ? "☑":"☐")
+                    let original=character=="☑";checks[offset]=(index,original)
+                    text.replaceCharacters(in:NSRange(location:offset,length:length),with:controller.model.check(message.id,line:index,original:original,body:message.text) ? "☑":"☐")
                     text.addAttribute(.link,value:URL(string:"hejo-check://toggle/\(offset)")!,range:NSRange(location:offset,length:1))
                 }
-                if character=="\n" {line+=1};offset+=length
+                index+=1;offset+=length
             }
         }
         let post=NativeThreadCard.Post(id:message.id,mine:mine,text:text,speaker:mine ? "나" : controller.model.name(message.speaker),time:displayTime(message.timestamp),avatar:controller.avatar(message.speaker),nameColor:mine ? .labelColor : controller.avatar(message.speaker).color,
             conversational:conversational && !mine && !message.streaming && message.files.isEmpty && ThreadAppearance.isConversational(message.text),streaming:message.streaming,
-            marks:message.replyState=="answered" || message.replyState=="closed" ? [.init(color:MessageFormat.color("#2EB67D")!,text:NSAttributedString(string:"처리 완료"))]:[],foldTitle:foldable ? (folded ? "더 보기" : "접기") : nil,fold:{ [weak self] in guard let self else { return }; if self.expandedMessages.contains(message.id) { self.expandedMessages.remove(message.id) } else { self.expandedMessages.insert(message.id) }; self.refresh() },openLink:{ [weak self] url in
+            marks:[],foldTitle:foldable ? (folded ? "더 보기" : "접기") : nil,fold:{ [weak self] in guard let self else { return }; if self.expandedMessages.contains(message.id) { self.expandedMessages.remove(message.id) } else { self.expandedMessages.insert(message.id) }; self.refresh() },openLink:{ [weak self] url in
                 guard let self else{return}
-                if url.scheme=="hejo-check",let offset=Int(url.lastPathComponent),let check=checks[offset] {self.controller.model.toggleCheck(message.id,line:check.line,original:check.original)}
+                if url.scheme=="hejo-check",let offset=Int(url.lastPathComponent),let check=checks[offset] {self.controller.model.toggleCheck(message.id,line:check.line,original:check.original,body:message.text)}
                 else if url.scheme=="hejo" {self.controller.openLink(url)}
                 else if ["http","https","mailto"].contains(url.scheme?.lowercased() ?? "") {NSWorkspace.shared.open(url)}
             })
@@ -701,24 +708,37 @@ import UniformTypeIdentifiers
                 return container
             }))
         }
-        if let checklist=controller.checklistSelection(message),!controller.model.confirmed(message.id) {
+        let pending=controller.model.assessment(message.key).buttons.contains(message.id)
+        if let checklist=controller.checklistSelection(message),pending {
             pieces.append(.accessory(id:message.id+":checklist",height:CGFloat((checklist.items.count+1)/2+1)*32,view:{ [weak self] in
                 let choices=ReplyChecklistView(checklist,changed:{ [weak self] selected in self?.controller.selectChecklist(message,selected:selected) }) { [weak self] text in Task {await self?.controller.sendText(text,key:message.key)} }
                 return MessageAccessory(choices,limit:choices.fittingSize.width)
             }))
         }
-        if !message.buttons.isEmpty && !controller.model.confirmed(message.id) {
+        if pending,message.checklist==nil {
+            let labels=message.buttons.isEmpty ? ReplyButtonPolicy.standard:message.buttons.map(\.label)
+            let pressable=message.buttons.contains{$0.kind != "reply"} || ReplyButtonPolicy.pressable(labels,message:message)
             pieces.append(.accessory(id:message.id+":buttons",height:32,view:{ [weak self] in
-                let stack=NSStackView(); stack.orientation = .horizontal; stack.spacing=8
-                for item in message.buttons {
-                    let symbol=["승인":"circle","거절":"xmark","의견":"pencil","확인":"checkmark","메모":"note.text","메모+노션":"square.stack","되돌리기":"arrow.uturn.backward"][item.label]
-                    let button=FileChip(title:symbol == nil ? item.label : "")
-                    if let symbol { button.image=NSImage(systemSymbolName:symbol,accessibilityDescription:item.label); button.isBordered=false }
-                    button.toolTip=item.label; button.setAccessibilityLabel(item.label); button.font = .systemFont(ofSize:11)
-                    button.isEnabled=self?.controller.canSend == true && (item.kind != "reply" || message.replyState != "closed")
-                    button.invoke={ [weak self] in guard let self else { return }; self.replyMode=true; self.openThread=message.key; self.controller.model.select(message.key); Task { await self.controller.click(item,message:message) } }
+                let column=NSStackView();column.orientation = .vertical;column.alignment = .leading;column.spacing=4
+                let stack=NSStackView();stack.orientation = .horizontal;stack.spacing=8
+                for (index,label) in labels.enumerated() {
+                    let word=ReplyButtonPolicy.word(label)
+                    let button=FileChip(title:word);button.replyWord=word;button.isBordered=false
+                    button.toolTip = !pressable ? Self.unavailableReply : word=="확인" && message.buttons.isEmpty ? "메시지를 보내지 않고 넘어가기":word
+                    button.setAccessibilityLabel(word);button.font = .systemFont(ofSize:11)
+                    button.isEnabled=pressable && (word=="의견" || (word=="확인" && message.buttons.isEmpty) || self?.controller.canSend==true)
+                    button.invoke={ [weak self] in
+                        guard let self,pressable,self.controller.model.assessment(message.key).buttons.contains(message.id) else{return}
+                        self.replyMode=true;self.openThread=message.key;self.controller.model.select(message.key)
+                        if !message.buttons.isEmpty {Task {await self.controller.click(message.buttons[index],message:message)}}
+                        else if word=="확인" {self.controller.model.confirm(message)}
+                        else if word=="의견" {self.window?.makeFirstResponder(self.editor.editor)}
+                        else {Task {await self.controller.sendText(word,key:message.key)}}
+                    }
                     stack.addArrangedSubview(button)
-                }; return MessageAccessory(stack,limit:stack.fittingSize.width)
+                }
+                column.addArrangedSubview(stack)
+                return MessageAccessory(column,limit:column.fittingSize.width,top:2)
             }))
         }
         return pieces

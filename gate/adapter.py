@@ -590,7 +590,7 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             return
         await self.receive({"employee": click["employee"], "thread": click["thread"],
                             "text": click["label"], "client_msg_id": str(uuid.uuid4()),
-                            "id": frame.get("id"), **({"room":click["room"]} if click.get("room") else {})}, conn,
+                            "id": frame.get("id"), "answer_to": click["msg_id"], **({"room":click["room"]} if click.get("room") else {})}, conn,
                            raw={"_hermes_button": {"label": click["label"], "message_id": click["msg_id"],
                                                    "message_text": click["message_text"]}})
 
@@ -640,7 +640,8 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
                 await self._record({"type":"message", "msg_id":msg_id, "employee":employee,
                     "thread":thread, "role":"owner", "text":frame["text"], "files":attachments,
                     "buttons":[], "reply_state":None, "client_msg_id":frame["client_msg_id"],
-                    "ts":datetime.now(timezone.utc).isoformat(), **({"room":room_id} if room else {})}, internal)
+                    "ts":datetime.now(timezone.utc).isoformat(), **({"room":room_id} if room else {}),
+                    **({"answer_to":frame["answer_to"]} if frame.get("answer_to") else {})}, internal)
             except HejoJournalError:
                 self.files.rollback(moved)
                 return

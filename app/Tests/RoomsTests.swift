@@ -43,7 +43,7 @@ import AppKit
     for (text,picked,expected) in [("질문",Optional("alpha"),"@직원 A 질문"),("",Optional("alpha"),"@직원 A"),("@직원 B 질문",Optional("alpha"),"@직원 B 질문"),("@first 질문",Optional("beta"),"@직원 A 질문"),("질문",nil,"질문"),("@outside 질문",Optional("alpha"),"@직원 C 질문"),("@직원 A @직원 B",nil,"@직원 A @직원 B")] {
         try check(model.home.channelPost(text,picked:picked)==expected,"AT80 channel post literal "+expected)
     }
-    model.markAllRead(HomeRoom.id);try check(model.memberState.read("thread:"+room+"/"+thread)==5,"AT80 channel shares read key")
+    model.markAllRead(HomeRoom.id);try check(model.memberState.read("thread:"+room+"/"+thread)==3,"AT87 channel read key uses original post seq, excluding edit and state")
     if let outputDirectory {
         try FileManager.default.createDirectory(at:outputDirectory,withIntermediateDirectories:true)
         model.toggleSection(model.sidebar.sections[0].id);view.chooseEmployee(room);view.refresh();view.chooseThread(key)

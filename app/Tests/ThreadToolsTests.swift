@@ -23,9 +23,9 @@ func controlFrame(_ seq:Int,thread:String=controlThread,text:String="✅ 보고�
     controller.openLink(ThreadTools.link(.init(employee:"alpha",thread:UUID().uuidString.lowercased())))
     try check(controller.notice=="그 스레드를 불러오지 못했어요","AT75 missing link destination")
     model.setVisible(false);model.toggleBell(key)
-    try check(model.bell(key)==false && model.unread(key)==0,"AT76 bell marks read")
-    model.toggleBell(key);try check(model.bell(key)==true,"AT76 bell undismisses without regressing thread position")
-    let reloaded=try ConversationModel(store:try LocalStore(directory:home));try check(reloaded.bell(key)==true,"AT76 bell null persists")
+    try check(model.bell(key)==nil && model.unread(key)==0,"AT87 working thread has no quiet bell")
+    model.toggleBell(key);try check(model.bell(key)==nil,"AT87 working thread cannot ring on undismiss")
+    let reloaded=try ConversationModel(store:try LocalStore(directory:home));try check(reloaded.bell(key)==nil,"AT87 no working bell after reload")
     for (mark,hex) in [("❌","#E01E5A"),("⚠️","#ECB22E"),("✅","#2EB67D"),("📌","#1D9BD1")] {try check(ThreadTools.color(mark+" 제목")==MessageFormat.color(hex),"AT76 status exact hex")}
     try check(ThreadTools.color("제목")==nil,"AT76 ordinary report has no status color")
     var faces=Array(repeating:model.messages[controlMessage]!,count:5)
@@ -92,7 +92,8 @@ func controlFrame(_ seq:Int,thread:String=controlThread,text:String="✅ 보고�
     let key=ConversationKey(employee:"alpha",thread:controlThread),post=controller.model.messages[controlMessage]!
     await controller.click(post.buttons[0],message:post)
     await controller.click(post.buttons[1],message:post)
-    try check(controller.model.confirmed(post.id),"AT76 opinion/confirm are local member choices")
+    try await waitFor{controller.model.messages[controlMessage]?.replyState=="answered"}
+    try check(!controller.model.confirmed(post.id),"AT87 explicit reply Confirm sends its issued button; inferred Confirm alone is local")
     await controller.click(post.buttons[2],message:post)
     try await waitFor{controller.model.messages[controlMessage]?.replyState=="answered"}
     controller.setText("interrupt",for:key);await controller.sendCurrent(for:key)

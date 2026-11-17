@@ -67,31 +67,29 @@ struct RoomNotice: Equatable {
 }
 @MainActor extension ConversationModel {
     func notices(_ employee:String,now:Date?=nil)->[RoomNotice] {
-        if employee==HomeRoom.id {
-            let all=homeScope.flatMap{notices($0,now:now)},alerts=all.filter{!$0.questions}.flatMap(\.messages)
-            return all.filter(\.questions)+(alerts.isEmpty ? []:[RoomNotice(id:"alert",title:"알림",questions:false,messages:alerts)])
-        }
         let now=now ?? noticeClock()
-        var questions:[String:[ConversationMessage]]=[:],alerts:[ConversationMessage]=[]
-        for thread in threads(employee:employee).sorted(by:{ThreadTools.date(timeline($0.key).first?.timestamp ?? "")<ThreadTools.date(timeline($1.key).first?.timestamp ?? "")}) {
-            let posts=timeline(thread.key).filter{!ThreadTools.thinking($0.text)}
-            guard let root=posts.first,let last=posts.last,last.role != "owner",!last.streaming,last.replyState != "closed",last.replyState != "answered" else{continue}
-            if let stated=posts.last(where:{$0.replyState != nil}),stated.replyState=="closed" || stated.replyState=="answered" || (stated.replyState=="asked" && confirmed(stated.id)) {continue}
-            let seq=posts.map(\.latestSeq).max() ?? 0
-            guard memberState.read("bell:"+thread.key.employee+"/"+thread.key.thread)<seq else{continue}
-            if let asked=posts.last(where:{$0.replyState=="asked" && !confirmed($0.id)}),!posts.contains(where:{$0.role=="owner" && $0.seq>asked.seq}) {
-                questions[asked.key.employee,default:[]].append(asked)
-            } else if last.replyState != "closed",last.replyState != "answered",root.role != "owner",!posts.contains(where:{$0.role=="owner"}),now>=ThreadTools.date(root.timestamp),now.timeIntervalSince(ThreadTools.date(root.timestamp))<86400 {alerts.append(root)}
+        var result:[RoomNotice]=[]
+        let scope=employee==HomeRoom.id ? homeScope:[employee]
+        let ordered=scope.flatMap{threads(employee:$0)}.sorted{a,b in
+            let x=timeline(a.key).first!,y=timeline(b.key).first!
+            return (ThreadTools.date(x.timestamp),x.seq)<(ThreadTools.date(y.timestamp),y.seq)
         }
-        var result=questions.keys.sorted().map{id in RoomNotice(id:"question:"+id,title:name(id)+" 질문",questions:true,messages:questions[id]!.map(\.id))}
-        if !alerts.isEmpty {result.append(RoomNotice(id:"alert",title:"알림",questions:false,messages:alerts.sorted{ThreadTools.date($0.timestamp)<ThreadTools.date($1.timestamp)}.map(\.id)))}
-        return result
+        for thread in ordered {
+            let posts=timeline(thread.key).filter{$0.role=="owner" || !ThreadTools.thinking($0.text)},state=assessment(thread.key)
+            guard let root=posts.first,posts.last?.role != "owner",!state.working,!state.settled,!(state.request.map{confirmed($0.id)} ?? false),memberState.read("bell:"+thread.key.employee+"/"+thread.key.thread)<originalSeq(thread.key) else{continue}
+            let id:String,title:String,message:String,questions:Bool
+            if let asked=state.pending {id="question:"+asked.speaker;title=name(asked.speaker)+" 질문";message=asked.id;questions=true}
+            else if state.request==nil,root.role=="employee",!posts.contains(where:{$0.role=="owner"}),now>=ThreadTools.date(root.timestamp),now.timeIntervalSince(ThreadTools.date(root.timestamp))<86400 {id="alert";title="알림";message=root.id;questions=false}
+            else {continue}
+            if let i=result.firstIndex(where:{$0.id==id}) {result[i].messages.append(message)} else {result.append(.init(id:id,title:title,questions:questions,messages:[message]))}
+        }
+        return result.filter(\.questions)+result.filter{!$0.questions}
     }
     func markAlertSeen(_ key:ConversationKey) {
         if notices(key.employee).filter({!$0.questions}).flatMap(\.messages).contains(where:{messages[$0]?.key==key}) {markNoticeRead(key)}
     }
     func markNoticeRead(_ key:ConversationKey) {
-        let seq=String(timeline(key).map(\.latestSeq).max() ?? 0)
+        let seq=String(originalSeq(key))
         try? memberState.set(["bell:"+key.employee+"/"+key.thread:seq,"thread:"+key.employee+"/"+key.thread:seq])
     }
     func readAllNotices(_ employee:String,now:Date=Date()) { for id in notices(employee,now:now).filter({!$0.questions}).flatMap(\.messages) {if let message=messages[id] {markNoticeRead(message.key)}} }

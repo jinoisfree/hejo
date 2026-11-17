@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 struct Employee: Codable, Equatable, Identifiable {
     var id: String
@@ -61,6 +62,7 @@ struct ConversationMessage: Identifiable, Equatable {
     var checklist: ReplyChecklist? = nil
     var branchFrom: String? = nil
     var employee:String? = nil
+    var answerTo:String? = nil
     var speaker:String {employee ?? key.employee}
 }
 struct ReplyChecklist: Codable, Equatable {
@@ -140,6 +142,7 @@ struct ConversationThread: Identifiable {
         return result
     }
     private var loadingRecords = true
+    private var replaying = false
     var sidebar: SidebarLayout {
         func decoded<T:Decodable>(_ key:String,_ fallback:T) -> T { memberState.value(key).flatMap { $0.data(using:.utf8) }.flatMap { try? JSONDecoder().decode(T.self,from:$0) } ?? fallback }
         var layout=SidebarLayout()
@@ -241,9 +244,9 @@ struct ConversationThread: Identifiable {
         if employee==HomeRoom.id {for room in homeScope {markAllRead(room)};return}
         var values: [String: String?] = [:]
         let roomMessages = messages.values.filter { $0.key.employee == employee }
-        values["read:" + employee] = String(roomMessages.map(\.latestSeq).max() ?? 0)
+        values["read:" + employee] = String(roomMessages.map(\.seq).max() ?? 0)
         for (key, messages) in Dictionary(grouping: roomMessages, by: \.key) {
-            values["thread:" + key.employee + "/" + key.thread] = String(messages.map(\.latestSeq).max() ?? 0)
+            values["thread:" + key.employee + "/" + key.thread] = String(messages.map(\.seq).max() ?? 0)
         }
         changeState(values);readAllNotices(employee)
     }
@@ -253,6 +256,7 @@ struct ConversationThread: Identifiable {
     }
     func apply(_ frame: [String: Any], now: Date = Date()) throws {
         let type = frame["type"] as? String ?? ""
+        if type=="welcome" {replaying=true}
         if let seq = frame["seq"] as? Int {
             var revealedHiddenRoom = false
             if seq <= applied { return }
@@ -275,6 +279,7 @@ struct ConversationThread: Identifiable {
                     replyState: frame["reply_state"] as? String, seq: seq, latestSeq: seq, timestamp: ts, clientMessageID: frame["client_msg_id"] as? String)
                 messages[id] = message
                 messages[id]?.employee=employee
+                messages[id]?.answerTo=frame["answer_to"] as? String
                 if let checklist=frame["checklist"] { messages[id]?.checklist=try decode(checklist,as:ReplyChecklist.self) }
                 messages[id]?.branchFrom=(frame["branch_from"] as? [String:Any])?["thread"] as? String
                 if !loadingRecords, hidden.contains(message.key.employee) { restore(message.key.employee); revealedHiddenRoom = true }
@@ -312,7 +317,13 @@ struct ConversationThread: Identifiable {
                 let expiry=now.addingTimeInterval(TimeInterval(frame["ttl_seconds"] as? Int ?? 6));typingPeople[key,default:[:]][employee]=expiry;typing[key]=typingPeople[key]?.values.max()
             } else {typingPeople[key]?[employee]=nil;typing[key]=typingPeople[key]?.values.filter{$0>now}.max();if typing[key]==nil {typingSince[key]=nil}}
         }
-        if selected == nil {if isHome {selectHome(notify:false)} else if let first=displayRooms.first {select(employee:first.id,notify:false)}}
+        if !loadingRecords && !replaying && ["roster","room"].contains(type) {seedUnseenRooms()}
+        if selected == nil, !employees.isEmpty {
+            if let last=store.settings.lastRoom, last != HomeRoom.id, rooms.contains(where:{$0.id==last && !hidden.contains(last) && $0.archived != true}) {select(employee:last,notify:false)}
+            else {selectHome(notify:false)}
+        }
+        if type=="sync_done",frame["more"] as? Bool==false {seedUnseenRooms();replaying=false}
+        if visible && !replaying {enterRoom(selectionIdentity)}
         try markVisibleRead()
         onChange?()
     }
@@ -336,42 +347,81 @@ struct ConversationThread: Identifiable {
     func timeline(_ key: ConversationKey) -> [ConversationMessage] { messages.values.filter { $0.key == key }.sorted { $0.seq < $1.seq } }
     func unread(_ key: ConversationKey) -> Int {
         let read = max(memberState.read("read:" + key.employee), memberState.read("thread:" + key.employee + "/" + key.thread), store.settings.readSeq?[key.readKey] ?? 0)
-        return messages.values.filter { $0.key == key && $0.role == "employee" && $0.latestSeq > read }.count
+        return messages.values.filter { $0.key == key && $0.role == "employee" && $0.seq > read && !ThreadTools.thinking($0.text) }.count
     }
+    func assessment(_ key:ConversationKey)->ThreadAssessment.Result {
+        ThreadAssessment.assess(timeline(key),confirmed:Set(timeline(key).filter{confirmed($0.id)}.map(\.id)))
+    }
+    func originalSeq(_ key:ConversationKey)->Int {timeline(key).map(\.seq).max() ?? 0}
     func bell(_ key:ConversationKey) -> Bool? {
-        let latest=timeline(key).filter{$0.role=="employee"}.map(\.latestSeq).max() ?? 0
-        guard latest>0 else { return nil }
-        let value=memberState.read("bell:"+key.employee+"/"+key.thread)
-        if value>=latest { return false }
-        if memberState.items["bell:"+key.employee+"/"+key.thread] != nil || unread(key)>0 { return true }
-        return nil
+        let state=assessment(key)
+        guard !state.working,!state.settled,!(state.request.map{confirmed($0.id)} ?? false) else{return nil}
+        let latest=originalSeq(key)
+        if latest>0,memberState.value("bell:"+key.employee+"/"+key.thread) != nil,memberState.read("bell:"+key.employee+"/"+key.thread)>=latest {return false}
+        return notices(key.employee).flatMap(\.messages).contains{messages[$0]?.key==key} ? true:nil
     }
     func toggleBell(_ key:ConversationKey) {
         let name="bell:"+key.employee+"/"+key.thread
-        if bell(key)==false { changeState([name:nil]) }
-        else {
-            let seq=String(timeline(key).map(\.latestSeq).max() ?? 0)
-            changeState([name:seq,"thread:"+key.employee+"/"+key.thread:seq])
-        }
+        if bell(key)==false {changeState([name:nil])}
+        else {let seq=String(originalSeq(key));changeState([name:seq,"thread:"+key.employee+"/"+key.thread:seq])}
     }
-    func confirm(_ message:ConversationMessage) { changeState(["confirm:"+message.id:"1"]) }
-    func confirmed(_ id:String)->Bool { memberState.value("confirm:"+id) != nil }
-    func check(_ id:String,line:Int,original:Bool)->Bool { memberState.value("check:"+id+":"+String(line)).map{$0=="1"} ?? original }
-    func toggleCheck(_ id:String,line:Int,original:Bool) { changeState(["check:"+id+":"+String(line):check(id,line:line,original:original) ? "0":"1"]) }
+    func confirm(_ message:ConversationMessage) {changeState(["confirm:"+message.id:"1"])}
+    func confirmed(_ id:String)->Bool {memberState.value("confirm:"+id) != nil}
+    private func checkKey(_ id:String,_ offset:Int,body:String?)->String {
+        let revision=SHA256.hash(data:Data((body ?? messages[id]?.text ?? "").utf8)).map{String(format:"%02x",$0)}.joined()
+        return "check:"+id+":"+revision+":"+String(offset)
+    }
+    func check(_ id:String,line:Int,original:Bool,body:String?=nil)->Bool {memberState.value(checkKey(id,line,body:body)).map{$0=="1"} ?? original}
+    func toggleCheck(_ id:String,line:Int,original:Bool,body:String?=nil) {changeState([checkKey(id,line,body:body):check(id,line:line,original:original,body:body) ? "0":"1"])}
+    /// The first completed replay is the boundary between existing history and new arrivals.
+    private func seedUnseenRooms() {
+        var values:[String:String?]=[:]
+        for room in rooms where memberState.items["read:"+room.id]==nil {
+            let seen=memberState.items.keys.contains{$0.hasPrefix("thread:"+room.id+"/")}
+            values["read:"+room.id]=String(seen ? 0:messages.values.filter{$0.key.employee==room.id}.map(\.seq).max() ?? 0)
+        }
+        changeState(values)
+    }
+    /// Entering a room reads non-ringing threads, without advancing a receipt over a ringing root.
+    func enterRoom(_ employee:String) {
+        guard employee==HomeRoom.id || room(for:employee) != nil else{return}
+        let scope=employee==HomeRoom.id ? homeScope:[employee]
+        var values:[String:String?]=[:]
+        for room in scope {
+            let keys=threads(employee:room).map(\.key),ringing=Set(notices(room).flatMap(\.messages).compactMap{messages[$0]?.key})
+            for key in keys where !ringing.contains(key) {values["thread:"+key.employee+"/"+key.thread]=String(originalSeq(key))}
+            let cap=ringing.compactMap{timeline($0).first?.seq}.min().map{$0-1}
+            let newest=messages.values.filter{$0.key.employee==room}.map(\.seq).max() ?? 0
+            values["read:"+room]=String(min(newest,cap ?? newest))
+        }
+        changeState(values)
+    }
+    func markThreadRead(_ key:ConversationKey) {
+        let seq=originalSeq(key);guard seq>0 else{return}
+        changeState(["thread:"+key.employee+"/"+key.thread:String(seq)])
+    }
+    func person(matching value:String)->Employee? {
+        func key(_ s:String)->String {s.filter{!$0.isWhitespace && $0 != "-" && $0 != "_"}.lowercased()}
+        let wanted=key(value);guard !wanted.isEmpty else{return nil}
+        return employees.first{([ $0.id,$0.name ]+$0.aliases).contains{key($0)==wanted}}
+    }
     func unread(employee: String) -> Int { Set(messages.values.filter { $0.key.employee == employee }.map(\.key)).reduce(0) { $0 + unread($1) } }
-    func name(_ employee: String) -> String { if employee==HomeRoom.id {return store.settings.petName};return groups[employee]?.title ?? employees.first { $0.id == employee }?.name ?? employee }
+    func name(_ employee: String) -> String { if employee==HomeRoom.id {return store.settings.petName};return groups[employee]?.title ?? person(matching:employee)?.name ?? employee }
     func select(employee: String, notify: Bool = true) {
         guard rooms.contains(where: { $0.id == employee }) else { return }
         select(threads(employee: employee).first?.key ?? ConversationKey(employee: employee, thread: UUID().uuidString.lowercased()), notify: notify)
     }
     func select(_ key: ConversationKey, notify: Bool = true,inHome:Bool=false) {
-        isHome=inHome;selected = key; try? markVisibleRead(); if notify { onChange?() }
+        isHome=inHome;selected = key
+        if !loadingRecords {try? store.update{$0.lastRoom=selectionIdentity}}
+        if visible {markThreadRead(key)}
+        if notify {onChange?()}
     }
     func newThread() { if let selected { select(ConversationKey(employee: selected.employee, thread: UUID().uuidString.lowercased())) } }
-    func setVisible(_ value: Bool) { visible = value; try? markVisibleRead(); onChange?() }
+    func setVisible(_ value: Bool) { visible = value; if value {enterRoom(selectionIdentity)}; try? markVisibleRead(); onChange?() }
     private func markVisibleRead() throws {
-        guard visible, let selected else { return }
-        let seq = timeline(selected).map(\.latestSeq).max() ?? 0
+        guard visible, let selected,bell(selected) != true else { return }
+        let seq = originalSeq(selected)
         let key = "thread:" + selected.employee + "/" + selected.thread
         guard seq > memberState.read(key) else { return }
         try memberState.set([key: String(seq)])

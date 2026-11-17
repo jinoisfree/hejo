@@ -61,6 +61,112 @@ enum ThreadTools {
     }
 }
 
+/// Derived from the journal projection; no status or button source is persisted here.
+enum ThreadAssessment {
+    struct Result {
+        var request: ConversationMessage?
+        var pending: ConversationMessage?
+        var buttons = Set<String>()
+        var working = false
+        var settled = false
+        var approved = false
+        var color: String? { pending != nil ? "#E01E5A" : working ? "#ECB22E" : settled || approved ? "#2EB67D" : nil }
+    }
+    static let yes: Set<String> = ["승인","전송","발송","발송해","승인, 발송해","응","응응","ㅇㅇ","네","예","좋아","진행","그래","오케이","ok","yes"]
+    private static let patterns = [
+        "nothingWaiting": #"승인(을|이)?\s*(기다리는|해\s*주실|해\s*줄|할|받을|드릴)[^\n.!?]{0,14}없"#,
+        "approval1": #"승인(을|이)?\s*((만|좀|다시|한\s*번\s*더)\s*)*(하면|해\s*줘(?!서)|해\s*주|해\s*줄래|해\s*\?|부탁|기다|필요|요청|할래|할까|바라|받아야|줘(?!서)|주면)"#,
+        "approval2": #"승인[^\n.!?]{0,14}?(이?라고|한\s*마디)만?\s*((다시|한\s*번(\s*더|만)?|정확히|꼭|바로|그냥)\s*)*(((답(장|변)?|말씀?|입력)\s*)?(해((?![가-힣])|\s*(줘(?!서)|주))|하면)|(보내|적어|남겨|써|알려)((?![가-힣])|\s*(줘(?!서)|주))|보내면|적으면|남기면|쓰면)"#
+    ].mapValues { try! NSRegularExpression(pattern:$0) }
+    static func requestsApproval(_ body:String)->Bool {
+        let own=body.components(separatedBy:"\n").filter{!$0.trimmingCharacters(in:.whitespaces).hasPrefix(">")}.joined(separator:"\n")
+        func matches(_ name:String)->Bool { patterns[name]!.firstMatch(in:own,range:NSRange(own.startIndex...,in:own)) != nil }
+        return !matches("nothingWaiting") && (matches("approval1") || matches("approval2"))
+    }
+    static func assess(_ lines:[ConversationMessage],confirmed:Set<String> = [])->Result {
+        let posts=lines.filter{$0.role=="owner" || !ThreadTools.thinking($0.text)}
+        let asks=posts.indices.filter{index in
+            let p=posts[index]
+            return p.role=="employee" && (p.replyState != nil || !p.buttons.isEmpty || p.checklist != nil || requestsApproval(p.text))
+        }
+        guard let last=asks.last else{return Result()}
+        func answer(_ index:Int)->Int? {posts.indices.dropFirst(index+1).first{posts[$0].role=="owner" && (posts[$0].answerTo==nil || posts[$0].answerTo==posts[index].id)}}
+        let asked=answer(last)==nil ? last:asks.reversed().first{answer($0)==nil && !posts[$0].buttons.isEmpty} ?? last
+        let request=posts[asked],answered=answer(asked)
+        let said=answered.map{posts[$0].text.trimmingCharacters(in:CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters)).lowercased()} ?? ""
+        let finished=yes.contains(said) && answered.map{index in posts.indices.dropFirst(index+1).contains{posts[$0].role=="employee"}} == true
+        var result=Result(request:request)
+        if finished || request.replyState=="closed" {result.settled=true}
+        else if request.replyState=="answered" {result.working=true}
+        else if answered==nil {if !confirmed.contains(request.id) {result.pending=request}}
+        else {result.approved=yes.contains(said)}
+        let waiting=posts.indices.filter{index in
+            let p=posts[index]
+            return p.role=="employee" && !p.buttons.isEmpty && p.replyState != "answered" && p.replyState != "closed" && answer(index)==nil
+        }
+        result.buttons=waiting.count>=2 ? Set(waiting.map{posts[$0].id}):Set(result.pending.map{[$0.id]} ?? [])
+        return result
+    }
+}
+
+enum ReplyButtonPolicy {
+    static let standard = ["승인", "거절", "의견", "확인"]
+    static let mail = ["메모", "메모+노션", "확인"]
+    static let mailLegend = "메모 = 개인(Obsidian 메모), 메모+노션 = 공용(노션+Obsidian 메모), 확인 = 만들지 않음"
+    static let mailLegendBefore20261031 = "메모 = 개인(Obsidian 메모→미리알림), 메모+노션 = 공용(노션+Obsidian 메모→미리알림), 확인 = 만들지 않음"
+    static let contexts: [(words: [String], legend: String)] = [
+        (["확인", "되돌리기"], "앱 쓰기 결과"),
+        (mail, mailLegend),
+        (mail, mailLegendBefore20261031),
+        (["제작해", "수정", "취소"], "제작해 = 이 제작안대로 만들기, 수정 = 고칠 점 말하기, 취소 = 만들지 않기"),
+        (["다운", "수정", "종결"], "다운 = 받은 파일 저장, 수정 = 고칠 점 말하기, 종결 = 이 작업 끝내기"),
+    ]
+    static let since: TimeInterval = 1793376226
+    static let retired: Set<String> = [":hp-check: 확인", ":hp-memo: 메모", ":hp-notion: 메모+노션", "건너뛰기", "공개", "그만", "나중에", "다운", "답할게", "롤백", "만들 곳 고르기", "모두 거부", "모두 거절", "모두 보류", "모두 승인", "못했어", "반영해", "발송 승인", "비공개", "새 업무로 만들기", "수정", "수정 요청", "수정할게", "완료했어", "이 업무에 반영", "이런 질문 그만", "이번엔 넘어가", "이어 진행", "제작해", "종결", "취소", "확인했어", "오늘 계속 고쳐", "이것만 고쳐", "내일로"]
+    static func word(_ label: String) -> String {
+        guard label.hasPrefix(":"), let end = label.dropFirst().firstIndex(of: ":") else { return label }
+        return label[label.index(after: end)...].trimmingCharacters(in: .whitespaces)
+    }
+    static func symbol(_ label: String) -> String? {
+        switch word(label) {
+        case "승인": return "circle"
+        case "거절": return "xmark"
+        case "의견": return "pencil"
+        case "확인": return "checkmark"
+        case "메모": return "note.text"
+        case "메모+노션": return "square.stack"
+        case "되돌리기": return "arrow.uturn.backward"
+        default: return nil
+        }
+    }
+    static func allowed(_ labels: [String], body: String) -> Bool {
+        guard !labels.isEmpty, Set(labels).count == labels.count else { return false }
+        if labels.allSatisfy(standard.contains) { return true }
+        return contexts.contains { context in
+            labels.allSatisfy(context.words.contains) && labels.contains { !standard.contains($0) } && body.contains(context.legend)
+        }
+    }
+    static let scriptPending = [
+        #"확인 \| 되돌리기"#, #"\d+(?: \| \d+)* \| 거절 \| 의견 \| 확인"#,
+    ]
+    static let scriptSince: TimeInterval = 1793417083
+    static let legacyScript = [
+        #"확인 \| 롤백"#, #"오늘 계속 고쳐 \| 이것만 고쳐 \| 내일로"#, #"완료했어 \| 못했어 \| 수정할게 \| 확인했어"#, #"공개 \| 비공개 \| 나중에"#,
+        #"(?:노션|메모|일정) 기준(?: \| (?:노션|메모|일정) 기준)* \| 그대로 두기"#, #"\d+번 연결(?: \| \d+번 연결)* \| 연결 안 함"#,
+        #"연결 \| 연결 안 함"#, #"확실한 \d+건 모두 연결 \| 하나씩 볼게"#,
+    ]
+    static func script(_ labels: [String], sets: [String] = scriptPending) -> Bool {
+        let joined = labels.joined(separator: " | ")
+        return sets.contains { joined.range(of: "^(?:" + $0 + ")$", options: .regularExpression) != nil }
+    }
+    static func pressable(_ labels: [String], message: ConversationMessage) -> Bool {
+        if allowed(labels, body: message.text) || script(labels) { return true }
+        if ThreadTools.date(message.timestamp).timeIntervalSince1970 < scriptSince && script(labels, sets: legacyScript) { return true }
+        return ThreadTools.date(message.timestamp).timeIntervalSince1970 < since && !labels.isEmpty && Set(labels).count == labels.count
+            && labels.allSatisfy { standard.contains($0) || retired.contains($0) }
+    }
+}
+
 @MainActor final class ReplyChecklistView:NSStackView {
     private let checklist:ReplyChecklist,send:(String)->Void
     private let changed:(Set<String>)->Void

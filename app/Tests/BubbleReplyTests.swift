@@ -65,14 +65,17 @@ import AppKit
     try await waitFor{controller.canSend && !controller.model.typing.isEmpty}
     let key=ConversationKey(employee:"alpha",thread:"11111111-1111-4111-8111-111111111111")
     let file=home.appendingPathComponent("kept.txt");try Data("kept".utf8).write(to:file);controller.model.select(key);controller.addAttachments([file]);controller.setText("interrupt",for:key)
+    controller.model.setVisible(false)
+    try check(controller.model.unread(key)==1,"AT87 folded bubble target has a new unread post before send")
     let accepted=await controller.sendBubbleReply(key);try check(accepted,"AT82 text-only send accepted")
+    try check(controller.model.unread(key)==0 && controller.model.memberState.read("thread:alpha/"+key.thread)>=1,"AT87 bubble send marks exact thread read while folded")
     try check(controller.draft(for:key).text.isEmpty && controller.draft(for:key).attachments==[file] && controller.interruptions[key] != nil,"AT82 sends only text and marks interruption")
-    try await waitFor{controller.model.timeline(key).count==3 && !controller.working(key)}
+    try await waitFor{controller.model.timeline(key).count==4 && !controller.working(key)}
     try check(controller.interruptions[key]==nil,"AT82 employee reply settles interruption")
     let card=BubbleReplyCard(controller:controller);card.aim(.init(key:key,speaker:"직원 A",working:false,queued:true));card.update(.init(),pointerOver:false);card.openNow();card.input.editor.string="reject";card.textDidChange(Notification(name:NSText.didChangeNotification));card.submit()
     try await waitFor{controller.bubbleProblems[key] != nil}
     card.aim(card.target)
     try check(card.visible && card.input.editor.string=="reject" && !card.problemLabel.stringValue.isEmpty && controller.failures.isEmpty && controller.draft(for:key).attachments==[file],"AT82 late rejection restores exact thread without duplicate failure-store draft")
-    await pause(0.3);try check(controller.model.timeline(key).count==3,"AT82 no automatic resend")
+    await pause(0.3);try check(controller.model.timeline(key).count==4,"AT82 no automatic resend")
     client.stop();print("AT-HF-82 BUBBLE NETWORK PASS")
 }

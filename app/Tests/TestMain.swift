@@ -28,7 +28,14 @@ final class MemoryCredentials: GateCredentialStore {
         Task { @MainActor in
             do {
                 let args = CommandLine.arguments
-                if args.count>4 && args[1]=="--update-legacy-network" {
+                if args.count>5 && args[1]=="--read-notice-network" {
+                    try await readNoticeNetwork(args)
+                } else if args.count>2 && args[1]=="--task36-capture" {
+                    NSApp.appearance=NSAppearance(named:.aqua)
+                    try await readNoticeTests(outputDirectory:URL(fileURLWithPath:args[2]))
+                } else if args.contains("--task36") {
+                    try await readNoticeTests()
+                } else if args.count>4 && args[1]=="--update-legacy-network" {
                     try await updateLegacyNetwork(args)
                 } else if args.count>2 && args[1]=="--task33-capture" {
                     NSApp.appearance=NSAppearance(named:.aqua)
@@ -194,6 +201,7 @@ final class MemoryCredentials: GateCredentialStore {
         try await task17Tests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await updateTests()
         try await memberStateTests()
+        try await readNoticeTests()
         try await threadToolsTests()
         try await workspaceTests()
         try await homeRoomTests(resourceDirectory:URL(fileURLWithPath:CommandLine.arguments.last!))

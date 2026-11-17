@@ -146,6 +146,34 @@ final class ConversationHeaderDrag: NSView {
 }
 final class FileChip: NSButton {
     var invoke: (() -> Void)?
+    /// ReplyActionLabel's native equivalent; other chips retain their usual AppKit bezel.
+    var replyWord:String? {didSet{invalidateIntrinsicContentSize();needsDisplay=true}}
+    override var intrinsicContentSize:NSSize {
+        guard let word=replyWord else{return super.intrinsicContentSize}
+        return NSSize(width:ReplyButtonPolicy.symbol(word) != nil ? 36:max(36,(word as NSString).size(withAttributes:[.font:NSFont.systemFont(ofSize:12,weight:.semibold)]).width+20),height:30)
+    }
+    override func draw(_ dirtyRect:NSRect) {
+        guard let word=replyWord else{super.draw(dirtyRect);return}
+        let color=NSColor.labelColor,alpha:CGFloat=isEnabled ? 1:0.4
+        let box=NSBezierPath(roundedRect:bounds.insetBy(dx:0.5,dy:0.5),xRadius:8,yRadius:8)
+        color.withAlphaComponent(0.07*alpha).setFill();box.fill();color.withAlphaComponent(0.18*alpha).setStroke();box.lineWidth=1;box.stroke()
+        let rect=CGRect(x:bounds.midX-8,y:bounds.midY-8,width:16,height:16),path=NSBezierPath()
+        func point(_ x:CGFloat,_ y:CGFloat)->CGPoint{CGPoint(x:rect.minX+x*rect.width/24,y:isFlipped ? rect.minY+y*rect.height/24:rect.maxY-y*rect.height/24)}
+        switch word {
+        case "승인":path.appendOval(in:CGRect(x:rect.minX+rect.width/6,y:rect.minY+rect.height/6,width:rect.width*2/3,height:rect.height*2/3))
+        case "거절":path.move(to:point(4,4));path.line(to:point(20,20));path.move(to:point(20,4));path.line(to:point(4,20))
+        case "의견":path.move(to:point(4,20));path.line(to:point(5,14));path.line(to:point(15,4));path.line(to:point(20,9));path.line(to:point(10,19));path.close();path.move(to:point(13,6));path.line(to:point(18,11))
+        case "확인":path.move(to:point(4,12));path.line(to:point(10,18));path.line(to:point(20,6))
+        default:
+            if let symbol=ReplyButtonPolicy.symbol(word),let image=NSImage(systemSymbolName:symbol,accessibilityDescription:word)?.withSymbolConfiguration(.init(pointSize:14,weight:.regular)) {
+                image.draw(in:rect,from:.zero,operation:.sourceOver,fraction:alpha)
+            } else {
+                let attributes:[NSAttributedString.Key:Any]=[.font:NSFont.systemFont(ofSize:12,weight:.semibold),.foregroundColor:color.withAlphaComponent(alpha)]
+                let size=(word as NSString).size(withAttributes:attributes);(word as NSString).draw(at:CGPoint(x:bounds.midX-size.width/2,y:bounds.midY-size.height/2),withAttributes:attributes)
+            }
+        }
+        color.withAlphaComponent(alpha).setStroke();path.lineWidth=1.2;path.lineCapStyle = .round;path.lineJoinStyle = .round;path.stroke()
+    }
     init(title:String) { super.init(frame:.zero); self.title=title; bezelStyle = .rounded; target=self; action = #selector(pressed); setContentCompressionResistancePriority(.defaultLow,for:.horizontal) }
     required init?(coder:NSCoder) { fatalError() }
     @objc private func pressed() { invoke?() }
@@ -204,13 +232,14 @@ final class MessageAccessory: NSView {
     let content: NSView
     let mine: Bool
     let limit: CGFloat
+    let top:CGFloat
     override var isFlipped: Bool { true }
-    init(_ content: NSView, mine: Bool = false, limit: CGFloat = 240) { self.content=content; self.mine=mine; self.limit=limit; super.init(frame:.zero); addSubview(content) }
+    init(_ content: NSView, mine: Bool = false, limit: CGFloat = 240, top:CGFloat=0) { self.content=content; self.mine=mine; self.limit=limit;self.top=top; super.init(frame:.zero); addSubview(content) }
     required init?(coder:NSCoder) { fatalError() }
     override func layout() {
         super.layout()
         let lead:CGFloat=mine ? 0 : 43, width=min(limit,max(1,bounds.width-lead))
-        content.frame=CGRect(x:mine ? bounds.width-width : lead,y:0,width:width,height:bounds.height)
+        content.frame=CGRect(x:mine ? bounds.width-width : lead,y:top,width:width,height:max(0,bounds.height-top))
     }
 }
 
