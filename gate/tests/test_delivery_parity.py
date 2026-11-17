@@ -115,7 +115,7 @@ async def test_context_bounds_and_branch_is_not_injected_twice(gate, runner, cli
 
 
 async def test_native_labels_outcome_and_repeat_are_idempotent(gate, client, monkeypatch, airport):
-    from agent.i18n import reset_language_cache
+    from agent.i18n import reset_language_cache, t
     (airport/'config.yaml').write_text('display:\n  language: ko\n')
     reset_language_cache()
     ws,_=await client.pair()
@@ -127,6 +127,8 @@ async def test_native_labels_outcome_and_repeat_are_idempotent(gate, client, mon
         await ws.send_json(click)
         edit=await client.read(ws)
         assert edit['type']=='edit' and edit['buttons']==[] and '한 번 승인' in edit['text']
+        assert edit['text'].rsplit('\n\n',1)[-1]==t('platform.telegram.slash_confirm.resolved_once')
+        assert '이(가)' not in edit['text']
         await ws.send_json(click)
         await ws.send_json({'v':1,'type':'roster','id':'barrier'})
         assert (await client.read(ws))['ref']=='barrier'
@@ -211,3 +213,42 @@ async def test_repeated_large_final_edit_preserves_one_chain_and_last_buttons(ga
         rows=[row for row in rows if row]
         assert ''.join(row['text'] for row in rows)==text
         assert len(rows)==2 and not rows[0]['buttons'] and rows[1]['buttons'][0]['label']=='Done'
+
+
+@pytest.mark.parametrize('kind,response,key', [
+    ('approval','once','platform.telegram.approval.resolved_once'),
+    ('approval','session','platform.telegram.approval.resolved_session'),
+    ('approval','always','platform.telegram.approval.resolved_always'),
+    ('approval','deny','platform.telegram.approval.resolved_deny'),
+    ('slash','once','platform.telegram.slash_confirm.resolved_once'),
+    ('slash','always','platform.telegram.slash_confirm.resolved_always'),
+    ('slash','cancel','platform.telegram.slash_confirm.resolved_cancel'),
+])
+async def test_native_outcome_uses_official_nameless_korean_catalog(kind,response,key,monkeypatch):
+    from agent.i18n import t
+    from gate.buttons import decision
+    monkeypatch.setenv('HERMES_LANGUAGE','ko')
+    actual=decision({'kind':kind,'response':response})
+    assert actual==t(key)
+    assert '이(가)' not in actual
+
+
+@pytest.mark.parametrize('other,key', [
+    (False,'platform.slack.clarify.resolved'),
+    (True,'platform.slack.clarify.awaiting'),
+])
+async def test_clarify_outcome_keeps_official_owner_wording(other,key,monkeypatch):
+    from agent.i18n import t
+    from gate.buttons import decision
+    monkeypatch.setenv('HERMES_LANGUAGE','ko')
+    assert decision({'kind':'clarify','response':'A','other':other})==t(key,user='나',choice='A')
+
+
+async def test_video_accepts_extra_base_adapter_keywords(gate,airport):
+    file=airport/'clip.mp4';file.write_bytes(b'fixture-video')
+    result=await gate.send_video('alpha',str(file),supports_streaming=True)
+    assert result.success
+    message=gate.journal.message(result.message_id)
+    assert message['files'][0]['mime']=='video/mp4'
+    path,_=gate.files.registered('alpha',message['files'][0]['file_id'])
+    assert path.read_bytes()==b'fixture-video'

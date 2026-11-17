@@ -438,3 +438,7 @@ REQ-HF-33.AC-03·handoff 보완 36의 실제 옛 문+새 앱 시험에서, TASK-
 - Slack 링크 사진의 SSRF-safe client·redirect 검사·30초와 Base 미디어 공개 메서드를 대조했다. 기존 FileStore 등록/롤백/크기 한도와 안전 경로를 재사용한다. 운영 파일·실제 링크를 읽거나 요청하지 않는다.
 
 서비스 이름 변환은 기존 22판 규칙을 따르며 새 UI 문구는 만들지 않는다. 새 영구 원본·앱 변경·public 후보 변경은 없다. 최종 비교는 같은 가짜 입력에 대한 원본 함수/공식 게이트웨이와 문 기록·프레임을 사용하고 실제 Slack 발송은 하지 않는다.
+
+### TASK-48 보완 46: N48-01·02
+
+Hermes 공식 ko 낱말표의 `platform.telegram.approval.resolved_*` 네 종류와 `platform.telegram.slash_confirm.resolved_*` 세 종류를 직접 대조했다. 승인·확인 결과는 이 이름 없는 공식 낱말로 바꾸며 새 문구를 쓰지 않는다. 이는 보완 46이 정한 22판 Slack 전용 사용자 구절 제거다. 앞선 TASK-48 비교 JSON의 `{user}이(가)` 결과는 수정 전 기록으로 보존하고 현행 결과의 근거로 재사용하지 않는다. clarify의 `platform.slack.clarify.resolved/awaiting(user="나")`는 유지한다. BasePlatformAdapter.send_video의 `**kwargs` 공개 서명도 직접 대조하고 기존 send_document 경로로 그대로 전달한다. 본체·낱말표는 읽기만 했다.

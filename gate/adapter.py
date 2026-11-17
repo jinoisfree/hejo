@@ -783,8 +783,8 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
     async def send_voice(self, chat_id, audio_path, caption=None, reply_to=None, metadata=None, **kwargs):
         return await self.send_document(chat_id, audio_path, caption=caption, reply_to=reply_to, metadata=metadata)
 
-    async def send_video(self, chat_id, video_path, caption=None, reply_to=None, metadata=None):
-        return await self.send_document(chat_id, video_path, caption=caption, reply_to=reply_to, metadata=metadata)
+    async def send_video(self, chat_id, video_path, caption=None, reply_to=None, metadata=None, **kwargs):
+        return await self.send_document(chat_id, video_path, caption=caption, reply_to=reply_to, metadata=metadata, **kwargs)
 
     async def _send_exec_approval_prompt(self, prompt):
         if self.forwarder:

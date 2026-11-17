@@ -8,11 +8,8 @@ def decision(button):
     if kind == "clarify":
         return t("platform.slack.clarify.awaiting" if button.get("other") else "platform.slack.clarify.resolved",
                  user="나", choice=response)
-    keys = {"once":"platform.slack.approval.resolved_once",
-            "session":"platform.slack.approval.resolved_session",
-            "always":"platform.slack.confirm.resolved_always" if kind == "slash" else "platform.slack.approval.resolved_always",
-            "deny":"platform.slack.approval.resolved_deny", "cancel":"platform.slack.confirm.resolved_cancel"}
-    return t(keys[response], user="나")
+    catalog = "slash_confirm" if kind == "slash" else "approval"
+    return t(f"platform.telegram.{catalog}.resolved_{response}")
 
 
 def plain_labels(content):

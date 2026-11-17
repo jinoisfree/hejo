@@ -1740,3 +1740,18 @@ REQ-HF-34.AC-01~09·AT-85와 보완 37 추가 1~3을 따른다. 버전 올리기
 - 필요/도달 인계 증거 수준 **2/2**. 실제 운영·Slack·두 Mac 실물은 미실행이다. 초기 집중 시험 실패는 위 7항에 처분했고 마지막 실행의 실패·skip·xfail은 없다. 기존 앱 Sendable/SDK deprecated 및 기존 비동기 마커 경고는 이번 변경에서 생긴 것이 아니며 억제하지 않았다.
 
 이 최종 보고 뒤 개인값·HEJO_PYTHON 지정 훅·diff 검사를 수행한다. 커밋은 소유 파일 10개만 `git commit --only`로 남기고, 실제 전체 커밋·파일 목록·입력 불변·깨끗한 main·public 고정·0.2.0 준비 ZIP 불변은 `.build/task48/final-checks.json`, `commit-result.json`, `final-verification.json`과 최종 result 보고를 대조한다. 운영 적용·공용 릴리스·public 갱신·원격 쓰기는 하지 않는다.
+
+## TASK-48 보완 46: N48-01·02
+
+- **받은 설계·기준:** handoff 보완 46, 기준 `b9d5e3632f4da018f94c1ee708f2ee48b0d0a708`. 일반·인계 필요 수준 2. 작은 문구·호환 보완을 한 커밋으로 넘긴다.
+- **N48-01:** buttons.decision의 승인·확인 결과를 이름 없는 공식 Telegram 낱말표 키로 교체했다. 이름·조사를 끼워 넣던 Slack 결과 키 매핑은 제거했다. 낱말은 여전히 `agent.i18n.t`의 현재 지역 설정에서 읽으며 새 한국어 문구를 만들지 않았다. clarify의 Slack 공식 결과·직접 입력 안내와 `user="나"`는 그대로다. 클릭 잠금·resolver·결과 edit·단추 비움·재누름 처리는 변경하지 않았다.
+- **N48-02:** send_video가 공식 Base 서명처럼 추가 키워드 인자를 받고 기존 send_document 경로로 전달한다. 별도 첨부 경로나 영구 원본은 만들지 않았다.
+- **집중 검증:** `foundation9_runner.py n48-focused-final` 종료 0, test_delivery_parity.py **24 passed**. 승인 네 종류·확인 세 종류는 지정 공식 키의 실제 낱말과 같고 `이(가)`가 없음을 확인한다. clarify 결과/대기 두 종류는 기존 공식 문구와 같음을 확인한다. 실제 클릭 WebSocket 결과 줄에도 공식 낱말 일치·조사 없음 단언을 추가했다. 영상은 `supports_streaming=True`를 주어 실제 임시 파일 첨부와 등록 바이트를 확인한다. 기존 시험을 삭제하거나 합격 기준을 완화하지 않았다. 로그 `.build/foundation9-n48-focused-final.log`.
+- **성격·증거:** 문구와 Python 호출 호환의 승인된 의미 변경이다. 원본 대조는 copy-review의 보완 46 절에 있으며 수정 전 TASK-48의 결과 문구 비교는 역사 기록으로 유지한다. 이번 인계는 대역 통합 수준 2이며 실제 운영 실행을 뜻하지 않는다. 앱·화면·규격·허브·설치 도구 변경은 없다. 범위가 작고 기존 resolver·권한·분할 알고리즘은 그대로라 별도 돌연변이 검사는 추가하지 않는다. 현행 문구·키워드 경계를 집중 시험과 전체 회귀로 확인한다.
+- **금지·남은 것:** 운영 홈·공용 릴리스·public·준비물·앱 사본·Hermes 본체·ddots·운영 저장소·원격은 바꾸지 않는다. 실제 GitHub/gh 조회·비밀 키 접근·운영 실행은 없다. TASK-49는 이 보완의 계획 담당 검토 뒤 시작한다. 최종 검증·실제 커밋은 아래 기록과 `.build/n48/final-verification.json`을 따른다.
+
+### N48-01·02 최종 자체 검증
+
+`python3 .build/n48/verify.py`는 종료 0이다. 내부 `python3 .build/foundation9_runner.py hejo`는 **232 passed**와 앱·공식 가짜 Hermes·루프백 통신을 모두 통과했다(test_install 포함). 고정 입력 171개가 불변이며 public도 그대로다. 근거는 `.build/n48/foundation-result.json`, `foundation.log`다. 필요/도달 인계 증거 수준은 **2/2**이며 운영 실물은 미실행이다. 변경한 앱 소스가 없어 앱 10회 반복은 추가하지 않았다.
+
+이 보고 뒤 개인값 검사·HEJO_PYTHON 지정 훅·diff를 실행하고 소유 파일 다섯 개만 `git commit --only`로 기록한다. 실제 결과·전체 커밋·파일 목록·깨끗한 main·고정 public와 0.2.0 준비 ZIP 불변은 `.build/n48/final-checks.json`, `commit-result.json`, `final-verification.json`과 최종 result 보고를 대조한다. 후속 TASK-49는 이 결과의 계획 담당 검토 뒤다.
