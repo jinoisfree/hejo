@@ -1666,3 +1666,39 @@ REQ-HF-34.AC-01~09·AT-85와 보완 37 추가 1~3을 따른다. 버전 올리기
 집중 돌연변이와 원본 분리 실행은 위의 같은 소스 근거를 재사용한다. 이번 변경에서 새 컴파일 경고는 없으며 기존 AirportFinder Sendable·Task17Tests NSMenu·TypingTests 미변경 변수 경고는 범위 밖으로 남겼다. 실패를 skip/xfail로 넘기거나 기대값을 바꾸지 않았다. 구현자가 특히 검토를 요청하는 곳은 private ABI 수명/세대 차단, Mac별 설정 연결과 원본 우선으로 처리한 트랙패드 없음 표시다.
 
 이 최종 보고 추가 뒤 `final_checks.py`로 개인값·HEJO_PYTHON 지정 훅·diff, MultitouchSupport 직접 링크 없음·외부 보고 코드 없음·읽기 전용 원본 해시를 확인한다. 이어 소유 파일 16개만 `git commit --only`로 기록하고 `final_verify.py`가 실제 커밋 파일·고정 입력·PNG·깨끗한 main을 대조한다. 실행 이후의 실제 전체 커밋·최종 결과는 `.build/task35/commit-result.json`, `final-verification.json`과 result 상태 블록에 남긴다. 아직 실행하지 않은 검사를 여기서 통과로 세지 않는다. 앱 사본·공용 릴리스·public 갱신·원격 쓰기는 하지 않는다.
+
+## TASK-33: 자동 업데이트 부분 구현·D33-01 보류
+
+1. **받은 설계·기준:** handoff 보완 36(30·31판)·38·40·41·42, REQ-HF-33, design 11절, AT-84. 기준 `bdffda276c7cb1eff7bb82c01a76a6fb9cb3a612`. 고위험, 필요 인계 증거 수준 2. 운영 적용·원격 공개는 범위 밖이다.
+2. **판단 상태:** 부분 구현 뒤 보류. D33-01은 아래의 hejo 통신 계약 충돌이며 최종 완료·배포 준비를 주장하지 않는다. 제품 파일은 기준으로 복구했고 보고 파일만 변경했다. 새 커밋 없음.
+3. **보존 초안:** `.build/task33/draft/`에 제품·시험 19개 파일 사본, `draft-files.json`에 기준·파일별 지문, `draft.patch`에 추적 파일 차이가 있다. 사본 바이트 대조 후 복구했다. 실제 개수와 목록은 `draft-preserved.json`·`draft-files.json`을 우선한다. 재개 때 이 자료를 사용하며 완료한 원본 독해는 `copy-review.md`와 `source-notes.json`을 재사용할 수 있다.
+4. **구현한 범위(현재 제품에 적용 안 됨):** AppUpdate의 30초/6시간·명시 동의·수동 버튼·하루 숨기기, UpdateRelease 공개 메타데이터·주소/버전/크기 허용, SparkleInstaller/UserDriver의 SDK 경계, 설치 버전·빌드 일치 후 펫 알림, 메뉴/일반 탭, 버전 0.2.0/빌드 2, 고정 SDK·안쪽부터 코드 서명·BuildInfo, hejo-ship setup/prepare/사장 전용 publish와 get-hejo 자산 이름 변경을 초안으로 작성했다. SDK만 다운로드·교체·재실행을 맡으며 별도 앱 교체기를 만들지 않았다. Task17 메뉴 기대값은 업데이트 항목 추가에 따라 9→10개로 바꾼 초안을 포함한다.
+5. **독해·설계 차이:** copy-review의 원본 전체 독해 표 참조. 설치 위치는 ddots 및 기존 LoginLaunch의 시스템·사용자 Applications 판정을 유지했다(26판). 공개 저장소 설정은 Info.plist에서만 읽는다. 조용한 설치·토큰·relay·update-feed 원격 쓰기는 제외했다. 원본 설치 완료 알림 우선순위와 10초를 이식했다. 새 영구 원본은 만들지 않았다.
+6. **D33-01 확인 사실:** TASK-21 이전 문 `a4a80d5431ca378f7818d2bb8dc75475e658b2cb`은 hello에서 features를 금지한다(옛 schema 181~241, server 261~276·308~320). 현재 GateClient 118줄은 features:[rooms]를 무조건 넣는다. 실제 옛 문+현재 앱의 인증 전 연결이 실패했고, 별도 같은 입력 대조에서 features 있음→invalid_frame·없음→welcome을 확인했다. 통신 규격 v1의 하위 호환이라는 AC-03과 현재 단체방 capability 계약이 충돌한다. TASK-33의 업데이트 UI나 Sparkle 오류는 아니다.
+7. **선택지·권고(미채택):** 계획 담당이 (A) 구문 거절된 첫 hello에 한해 features 없는 호환 연결을 한 번만 허용하고 그 연결에서는 단체방 기능을 제한하는 계약 또는 (B) 지원하는 문 최소 버전을 명시하고 서버 선갱신을 배포 조건으로 삼는 계약을 정해야 한다. 권고는 AC-03의 목적을 보존하는 A이며, 인증 전/후 구분·재시도 횟수·pair code 보존·기존 캐시의 방 표시·재연결을 명세와 AT로 확정한 뒤 구현한다. 구현자는 임의 fallback·검사 완화·옛 문 수정·수락 기준 변경을 하지 않았다.
+8. **실행한 검사:** 고정 Sparkle 압축 지문 및 SDK 서명 검사 0. `python3 install/hejo-ship setup` 0: 승인된 일반 계정 키체인에 키를 만들고 공개 키만 초안 Info.plist에 보존했다. 키를 내보내거나 출력하지 않았다. `foundation9_runner.py task33-ship <수락 시험 절대 경로>` 0/7 passed(`.build/foundation9-task33-ship.log`). 초기 앱 전체 시험 `foundation9_runner.py app-task33-first` 0(`.build/foundation9-app-task33-first.log`); 이후 집중 시험에 호환 연결·펫 알림 단언을 추가했으므로 최종 전체 통과로 쓰지 않는다. 최종 초안 집중 컴파일/AT-84 앱 실행 0(`focused.json`). 주소 허용 비교 제거 사본은 컴파일 0·시험 1, `AT84 address version size boundary`로 검출·원본 불변(`mutations.json`). 실제 옛 문+새 앱은 1(`legacy.json`, 최초 실행은 시험 환경 변수를 fixture가 지운 준비 오류였고 수정 뒤 연결 실패 재현). raw hello 대조는 0/1 passed(`hello-probe.json`, `hello-boundary.json`). 원본 알림 함수 분리 컴파일/실행은 0이지만 PNG의 텍스트/배경 렌더링이 유효하지 않아 화면 비교 통과로 사용하지 않는다.
+9. **미실행·증거 수준:** 최종 foundation9_runner hejo·test_install·앱 10회·유효한 캡처 비교·실제 prepare·공개본 갱신·커밋은 미실행. 계약 충돌 보류 때문에 인계 필요 2에 아직 도달하지 못했고 전체 도달 수준은 1이다. 실제 두 Mac 업데이트·디스크 실패·재실행 경계는 TASK-23 수준 4에 남는다. 경고는 기존 AirportFinder의 Swift 6 Sendable과 새 시험에서 쓰는 SDK dictionary 초기화의 deprecated API다. 후자는 시스템/앱 버전에 의존하는 SDK 속성을 시험하지 않고 공개 enclosure 해석에만 썼으며, 제품 경로에는 추가하지 않았다.
+10. **운영·인계:** 앱 사본·공용 릴리스·public 가지·운영 홈·본체·ddots·원격은 변경하지 않았다. 로컬 키체인 서명 키는 승인 범위에서 생성된 상태로 유지하며 재개 때 기존 키를 재사용해야 한다. 비밀 키 출력·내보내기·publish·외부 발송 없음. TASK-48 이후 미착수. 계획 담당이 D33-01을 결정한 뒤 초안을 재적용하고 남은 검사를 수행한다.
+
+복구 뒤 보고 파일 최종 검사 근거는 `.build/task33/report-checks.json`이다(개인값·HEJO_PYTHON 지정 훅·diff 검사 각각 종료 0). 제품 초안 전체의 최종 검증을 뜻하지 않는다.
+
+## TASK-33 재개: 보완 43·35판 D33-01 해소
+
+기준은 `3d7e1c07b30e924fd16b4e75aed501b4619a3d07`이다. 위 보류 기록은 당시 사실로 보존한다. 계획 담당이 지원 문 범위를 TASK-21 이후로 정했고, 운영 적용본 aeaa652를 옛 문으로 지정했다. 초안 19개를 지문 대조하고 제품 충돌 없이 다시 적용했다. GateClient·문·규격 변경이나 features 없는 되돌림 연결은 추가하지 않았다. 원본 전체 독해와 주소 검사 돌연변이 근거는 동일 제품 입력임을 확인해 재사용한다.
+
+옛 문 시험은 `.build/task33/supported-release/gate/tests/test_update_compat.py`에서 실제 옛 gate 소스·출입증·기록장·WebSocket과 현재 앱의 GateClient/ConversationController를 실행한다. Hermes 턴만 대역이다. 새 앱은 짝맺기·송신·수신 후 가짜 단체방 목록도 받았으며 종료 0이다(`supported-legacy.json`). 첫 시도 마지막 단언은 빈 team registry를 쓰는 별도 Hermes 권한 대역 때문에 실패했다. 해당 권한 대역을 송수신 호환 시험 범위에서 분리하고, 받은 실제 이벤트를 기록하는 가짜 턴으로 고쳤다. 문 자체의 인증·검증·기록·전송은 대체하지 않았다.
+
+유효한 캡처는 evidence/HEJO-FOUNDATION/TASK-33.md에 있다. 원본과 hejo의 실제 automaticAlert 함수를 그대로 분리 실행하고 하네스에서 흰 불투명 배경을 주었다. 초기의 빈 PNG는 제외했다. 실제 설정 보기 캡처도 포함하며 운영 앱 전체 비교를 주장하지 않는다. 배포 준비·서명에 필요한 기존 키체인 키를 재사용한다. 새 키 생성·비밀 키 출력·내보내기·원격 공개는 하지 않는다.
+
+최종 전체 검사와 앱 10회는 `.build/task33/frozen.py`가 제품·시험·빌드/설치 도구·규격·Resources 입력을 고정해 실행 중이다. 완료한 행을 재실행하지 않는다. 운영 홈·앱 사본·공용 릴리스는 바꾸지 않는다. 최종 결과는 아래 후속 기록과 `.build/task33/final-verification.json`을 함께 대조해야 한다.
+
+### TASK-33 코드·자체 시험 최종 기록(커밋 경계)
+
+- **구현:** AppUpdate가 발견·시각·매번 동의·수동 버튼·중복 방지를, UpdateRelease가 공개 릴리스·주소/버전/크기를, SparkleInstaller/UserDriver가 검증된 SDK 설치 경계를 소유한다. UserDefaults는 design 11절대로 이 Mac 알림 설정·오늘 숨기기·설치 대기 버전/빌드만 저장한다. 서버·허브·기록장·통신 규격 변경은 없다. 업데이트 성공은 기존 펫 말풍선을 재사용한다.
+- **빌드·배포:** 0.2.0/빌드 2에 TASK-34·35를 포함한다. Sparkle 2.10.0 고정 지문·프레임워크/rpath·안쪽부터 서명·LICENSE·BuildInfo를 추가했다. hejo-ship은 setup/prepare/사장 전용 publish를 나누며, 기존 공개 키 불일치·더러운 트리·공개본/빌드 트리 불일치·변조 압축을 거절한다. get-hejo는 새 자산 이름과 같은 태그 서버 소스를 쓰고 교체 전 코드 서명을 확인한다. 공개는 초안→자산 지문/크기 확인→서명 피드 확인→latest이며 실패 초안은 지우지 않는다. 공개 함수 시험의 원격 명령은 모두 대역이고 실제 publish는 실행하지 않았다.
+- **수락·회귀:** 최종 고정 소스의 foundation9_runner hejo 종료 0, Python 198 passed 및 공식 가짜 Hermes·앱·통신 시험 통과. 이 전체 검사에 test_install.py가 포함된다. 최종 앱 시험 10회 연속 종료 0, 11행 모두 inputsUnchanged=true다. 근거 `.build/task33/frozen-progress.json`, `frozen-inputs.json`, `frozen-foundation.log`, `.build/foundation9-app-task33-verified-01.log`~`10.log`.
+- **독립 기준·고장 주입:** 공개 metadata·배포 도구 AT-84 시험 7개는 최종 전체 검사에도 포함됐다. 실제 SDK appcast decoder/delegate와 Sparkle 버전 비교를 사용했다. 주소 허용 비교 제거 돌연변이의 컴파일 0·시험 1 검출은 해당 제품 파일 지문이 같아 재사용했다(`mutations.json`, `static-final.json`). 범위는 주소·버전·크기·메타데이터와 명시 동의 경계이며 실제 앱 교체를 대역으로 통과시켰다고 주장하지 않는다.
+- **기존 시험 변경:** Task17 메뉴 기대는 승인된 업데이트 항목 때문에 9→10개·버전 아래 항목으로 바꿨다. 수락 문서·AT 기대는 바꾸지 않았다. SwiftUI 예외는 기존 연결 창 두 파일만 유지하며 새 화면은 AppKit이다. 제품의 기존 AirportFinder Swift 6 Sendable 경고와 시험의 SDK dictionary 초기화 deprecated 경고는 기준 완화 없이 남겼다.
+- **최종 후검사:** 개인값·HEJO_PYTHON 지정 훅·diff·앱 코드 서명 결과는 `.build/task33/final-checks.json`에 기록한다. 원본 SDK 서명과 고정 지문, ddots 원본 불변은 `static-final.json`이다. 커밋 뒤 같은 제품 소스를 깨끗하게 다시 빌드해 BuildInfo를 공개본 트리에 맞추며, 로컬 public 커밋·prepare 실제 압축/서명 결과는 `post-commit.json`과 `final-verification.json`을 확인해야 한다. 이 문서의 커밋 시점에는 키체인 사용자 인증을 기다려 최종 배포물 서명은 아직 검증하지 못했다. 이를 통과 전부터 완료로 표시하지 않는다.
+- **증거·남은 것:** 필요 인계 수준 2, 최종 도달 여부는 후검사에서 실제 배포물 서명이 확인됐을 때 판정한다. 그 전에는 서명 경계가 미검증이다. evidence/HEJO-FOUNDATION/TASK-33.md의 유효한 함수/설정 캡처는 운영 앱 전체 비교가 아니다. 실제 두 Mac 다운로드·교체·재실행·디스크 실패는 TASK-23 수준 4와 비설계자 검토에 남는다. 운영 반영 전 롤백 자료는 35판의 aeaa652 기준 새 백업을 계획 담당+사장이 준비해야 한다.
+- **소유·금지 준수:** 소유 파일만 git commit --only로 기록한다. 앱 사본·공용 릴리스·운영 홈·launchd·Hermes 본체·ddots·운영 저장소·원격은 변경하지 않는다. 기존 키를 재사용하며 새 키 생성·비밀 키 출력·내보내기·원격 공개 없음. TASK-48 이후는 이 결과의 계획 담당 검토 뒤다.

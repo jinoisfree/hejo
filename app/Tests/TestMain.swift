@@ -28,7 +28,12 @@ final class MemoryCredentials: GateCredentialStore {
         Task { @MainActor in
             do {
                 let args = CommandLine.arguments
-                if args.count>3 && args[1]=="--task35-capture" {
+                if args.count>4 && args[1]=="--update-legacy-network" {
+                    try await updateLegacyNetwork(args)
+                } else if args.count>2 && args[1]=="--task33-capture" {
+                    NSApp.appearance=NSAppearance(named:.aqua)
+                    try await updateTests(outputDirectory:URL(fileURLWithPath:args[2]))
+                } else if args.count>3 && args[1]=="--task35-capture" {
                     NSApp.appearance = NSAppearance(named: .aqua)
                     try await threeTapTests(resourceDirectory: URL(fileURLWithPath: args[2]), outputDirectory: URL(fileURLWithPath: args[3]))
                 } else if args.count>2 && args[1]=="--task34-capture" {
@@ -187,6 +192,7 @@ final class MemoryCredentials: GateCredentialStore {
         try await islandTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await typingTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await task17Tests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
+        try await updateTests()
         try await memberStateTests()
         try await threadToolsTests()
         try await workspaceTests()

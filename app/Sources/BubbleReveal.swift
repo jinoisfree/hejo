@@ -5,7 +5,7 @@ import AppKit
     static let alertStay: TimeInterval = 12
     static let remindAfter: TimeInterval = 1800
     static let settingsKey = "bubbleAlwaysShown"
-    enum Kind: String { case approval, failure, writing, reply, idle }
+    enum Kind: String { case approval, failure, writing, reply, idle, update }
     struct Notice: Equatable {
         var kind: Kind
         var headline: String
@@ -44,10 +44,14 @@ import AppKit
     private var initialized = false, highSequence = 0
     private var openedQuestions = Set<String>()
     private var current: Notice?
+    private var installedNotice: Notice?
     private(set) var notice = Notice(kind:.idle,headline:"",detail:"",key:nil)
     private(set) var persistenceFailed = false
     var reminders: [String:Double] { store.settings.reminders ?? [:] }
     init(store:LocalStore) { self.store=store }
+    func showInstalled(_ text: String, now: Date) {
+        installedNotice = Notice(kind: .update, headline: text, detail: "", key: nil, until: now.addingTimeInterval(10))
+    }
     static func preview(_ text:String)->String {
         for raw in MessageFormat.plain(text).split(whereSeparator: \.isNewline) {
             var line=String(raw).trimmingCharacters(in:.whitespaces)
@@ -84,10 +88,12 @@ import AppKit
             if save(next),let message=eligible.first(where:{$0.id==due.key}) {current=reply(message,names:input.names,now:now,reminder:true)}
         }
         if let shown=current, shown.until!<=now || !ids.contains(shown.id ?? "") || acknowledged.contains(shown.id ?? "") || shown.key.map({input.muted.contains($0.employee)}) == true {current=nil}
+        if let installedNotice, installedNotice.until! <= now { self.installedNotice = nil }
         if input.paused {notice=Notice(kind:.idle,headline:"쉬고 있어요",detail:"메뉴에서 다시 시작할 수 있어요",key:nil)}
         else if let question=liveQuestions.first(where:{!openedQuestions.contains($0.id)}) {
             notice=Notice(kind:.approval,headline:(input.names[question.speaker] ?? "직원")+" · 답변이 필요해요",detail:Self.preview(question.text),key:question.key,sender:input.names[question.speaker] ?? "직원",id:question.id)
-        } else if let failure=input.failure,failure.retryKey.map({!input.muted.contains($0.employee)}) ?? true {
+        } else if let installedNotice { notice = installedNotice }
+        else if let failure=input.failure,failure.retryKey.map({!input.muted.contains($0.employee)}) ?? true {
             notice=Notice(kind:.failure,headline:"보내지 못했어요",detail:failure.message,key:failure.retryKey)
         } else if let key=input.typing.filter({$0.value>now && !input.muted.contains($0.key.employee)}).keys.sorted(by:{ a,b in
             let x=sorted.last(where:{$0.role=="owner" && $0.key==a})?.seq ?? 0,y=sorted.last(where:{$0.role=="owner" && $0.key==b})?.seq ?? 0

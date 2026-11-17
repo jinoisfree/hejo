@@ -16,9 +16,13 @@ if [[ "$mode" == "--join" ]]; then
 fi
 
 tag="$(curl -fsSL "https://api.github.com/repos/$repo/releases/latest" | /usr/bin/python3 -c 'import json,sys;print(json.load(sys.stdin)["tag_name"])')"
+[[ "$tag" =~ ^v[0-9]+(\.[0-9]+){1,3}$ ]] || { echo "배포 태그 형식이 달라요." >&2; exit 1; }
+archive="hejo-${tag#v}-arm64.zip"
 say "hejo $tag 앱을 설치합니다"
-curl -fsSL -o "$work/hejo-app.zip" "https://github.com/$repo/releases/download/$tag/hejo-app.zip"
+curl -fsSL -o "$work/hejo-app.zip" "https://github.com/$repo/releases/download/$tag/$archive"
 ditto -x -k "$work/hejo-app.zip" "$work/app"
+codesign --verify --deep --strict "$work/app/hejo.app"
+[[ -x "$work/app/hejo.app/Contents/MacOS/hejo" ]]
 osascript -e 'tell application id "io.github.hermes-hejo.hejo" to quit' >/dev/null 2>&1 || true
 sleep 1
 rm -rf /Applications/hejo.app

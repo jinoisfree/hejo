@@ -13,6 +13,10 @@ import AppKit
     var onThreeTap: (() -> Void)?
     var onBubbleReply:((Bool)->Void)?
     let loginCheck = NSButton(checkboxWithTitle: "로그인 시 실행", target: nil, action: nil)
+    let updateNoticesCheck = NSButton(checkboxWithTitle: "업데이트 알림 받기", target: nil, action: nil)
+    let updateButton = NSButton(title: "업데이트 확인…", target: nil, action: nil)
+    let updateAvailable = NSTextField(labelWithString: "")
+    var onAppUpdate: (() -> Void)?, onUpdateNotices: ((Bool) -> Void)?
     let loginStatus = NSTextField(wrappingLabelWithString: "")
     let accountName = NSTextField(labelWithString: "로그인 전")
     let connectionStatus = NSTextField(labelWithString: "서버 연결 전")
@@ -39,6 +43,13 @@ import AppKit
         let loginSettings = NSButton(title: "로그인 항목 설정 열기", target: self, action: #selector(openLoginSettings))
         loginSettings.frame = CGRect(x: 24, y: 125, width: 185, height: 30)
         generalView.addSubview(loginCheck); generalView.addSubview(loginStatus); generalView.addSubview(loginSettings)
+        updateNoticesCheck.frame = CGRect(x: 24, y: 90, width: 300, height: 25)
+        updateNoticesCheck.target = self; updateNoticesCheck.action = #selector(changeUpdateNotices)
+        updateButton.frame = CGRect(x: 24, y: 45, width: 185, height: 30)
+        updateButton.target = self; updateButton.action = #selector(checkAppUpdate)
+        updateAvailable.frame = CGRect(x: 24, y: 15, width: 365, height: 20)
+        updateAvailable.font = .systemFont(ofSize: 12); updateAvailable.textColor = .secondaryLabelColor
+        for view in [updateNoticesCheck, updateButton, updateAvailable] { generalView.addSubview(view) }
         general.view = generalView; tabs.addTabViewItem(general)
 
         let pet = NSTabViewItem(identifier: "pet"); pet.label = "화면과 펫"
@@ -117,6 +128,14 @@ import AppKit
     }
     @objc private func changeBubble() { onBubble?(bubbleCheck.state == .on) }
     @objc private func changeLogin() { onLogin?(loginCheck.state == .on) }
+    @objc private func changeUpdateNotices() { onUpdateNotices?(updateNoticesCheck.state == .on) }
+    @objc private func checkAppUpdate() { onAppUpdate?() }
+    func updateAppUpdates(_ updates: AppUpdate) {
+        updateNoticesCheck.state = updates.notices.enabled ? .on : .off
+        updateButton.title = updates.knownRelease == nil ? "업데이트 확인…" : "업데이트"
+        updateButton.isEnabled = updates.canCheck
+        updateAvailable.stringValue = updates.knownRelease.map { "새 버전 \($0.version)이 있어요" } ?? ""
+    }
     @objc private func openLoginSettings() { LoginLaunch.openSettings() }
     @objc private func resetChatSize() { onResetChat?() }
     @objc private func resetPetPosition() { onResetPosition?() }

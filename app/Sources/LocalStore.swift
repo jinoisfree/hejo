@@ -4,7 +4,7 @@ import Darwin
 enum AppIdentity {
     static let name = "hejo"
     static let bundleID = "io.github.hermes-hejo.hejo"
-    static let version = "0.1.0"
+    static let version = "0.2.0"
     static var support: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent(name)
     }

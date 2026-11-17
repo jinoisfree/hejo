@@ -7,7 +7,9 @@ if ! security find-identity -v -p codesigning | /usr/bin/grep -Fq "\"$identity\"
   exit 1
 fi
 bundle=.build/hejo.app
-mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources/Pet"
+bash scripts/fetch_sparkle.sh
+sparkle=.build/sparkle-2.10.0
+mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources/Pet" "$bundle/Contents/Frameworks"
 iconset=.build/AppIcon.iconset
 rm -rf "$iconset"
 xcrun swiftc -swift-version 5 -parse-as-library -O -target "$(uname -m)-apple-macosx13.0" \
@@ -16,6 +18,7 @@ xcrun swiftc -swift-version 5 -parse-as-library -O -target "$(uname -m)-apple-ma
 iconutil -c icns "$iconset" -o .build/AppIcon.icns
 cp .build/AppIcon.icns "$bundle/Contents/Resources/AppIcon.icns"
 cp Resources/Info.plist "$bundle/Contents/Info.plist"
+python3 ../scripts/build_info.py "$bundle/Contents/Resources/BuildInfo.json"
 # hejo's shared Google desktop client: public id in config/google-oauth.json, secret from an untracked file or env.
 google_id=$(/usr/bin/python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("client_id",""))' ../config/google-oauth.json)
 google_secret=""
@@ -32,7 +35,16 @@ cp Resources/Pet/*.png Resources/Pet/LICENSE "$bundle/Contents/Resources/Pet/"
 sips -s format png Resources/Pet/spritesheet.webp --out "$bundle/Contents/Resources/Pet/spritesheet.png" >/dev/null
 xcrun swiftc -swift-version 5 -parse-as-library -O -target "$(uname -m)-apple-macosx13.0" \
   Sources/*.swift -o "$bundle/Contents/MacOS/hejo" \
-  -framework AppKit -framework Accelerate -framework ServiceManagement
+  -framework AppKit -framework Accelerate -framework ServiceManagement \
+  -F "$sparkle" -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks
+rm -rf "$bundle/Contents/Frameworks/Sparkle.framework"
+ditto "$sparkle/Sparkle.framework" "$bundle/Contents/Frameworks/Sparkle.framework"
+cp "$sparkle/LICENSE" "$bundle/Contents/Resources/Sparkle-LICENSE.txt"
+framework="$bundle/Contents/Frameworks/Sparkle.framework/Versions/B"
+for nested in XPCServices/Downloader.xpc XPCServices/Installer.xpc Autoupdate Updater.app; do
+  codesign --force --sign "$identity" --timestamp=none "$framework/$nested"
+done
+codesign --force --sign "$identity" --timestamp=none "$bundle/Contents/Frameworks/Sparkle.framework"
 codesign --force --sign "$identity" --identifier io.github.hermes-hejo.hejo --timestamp=none "$bundle"
-codesign --verify --strict "$bundle"
+codesign --verify --deep --strict "$bundle"
 printf '%s\n' 'BUILD_OK app/.build/hejo.app'

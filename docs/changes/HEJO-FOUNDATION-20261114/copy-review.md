@@ -400,3 +400,29 @@ ConversationView·ConversationChrome·ProgressLayoutTests의 움직임 부분만
 | App.swift | 펫 표시·쉬는 중 검사를 거쳐 기존 펫 클릭 경로로 보내고 앱 시작/종료와 설정 '화면과 펫'에 연결한다. 읽은 범위 밖의 기능은 가져오지 않는다. |
 
 문구 변환 규칙 1번으로 요청문의 ddots를 hejo로 바꾼다. 실패 안내·버튼·시스템 찾아보기 안내는 원문을 유지한다. 트랙패드 없음은 원본 `refreshThreeTapSettings`대로 체크를 조작할 수 있고 도움말로 연결 조건을 안내한다. 명세의 '흐리게'와 달리 원본은 비활성/색 변경을 하지 않으므로 원본대로 구현한다(26판 코드 우선). 실패 상태만 체크를 끄고 비활성으로 보이며, 실패 지점과 요청문 복사를 제공한다. 물리 트랙패드 탭은 후속 실물 확인으로 남긴다.
+
+## TASK-33 착수 독해·대응
+
+기준 `bdffda276c7cb1eff7bb82c01a76a6fb9cb3a612`. 구현 전에 아래 원본을 끝까지 읽었다. App.swift는 이전 전체 독해를 재사용하고 업데이트 생성·알림·메뉴·일반 탭 연결을 다시 읽었다. 제3자 SDK는 고정된 Sparkle 2.10.0 압축의 지문·서명을 확인하고 SPUUpdater/Delegate/UserDriver 헤더와 도구 도움말로 API를 확인한다. 원본이나 운영 앱은 실행·수정하지 않는다.
+
+| 원본 | 책임과 이식 경계 |
+| --- | --- |
+| AppUpdate.swift(416줄) | 30초/6시간 확인, 버전 비교, 발견·묻기·설치 제어·SDK 허용 검사. 조용한 설치/유휴 대기/실패 횟수·relay 정지/복구·토큰 연결·live smoke는 승인대로 제외한다. 앱의 네트워크/창/SDK 경계는 대역으로 시험한다. |
+| UpdateRelease.swift(126줄) | JSON 릴리스·중복 자산·크기·타입/주소·버전 검증, redirect 없는 metadata client. 공개 Info.plist 저장소와 공개 자산 주소로 바꾸고 토큰·update-feed 분기는 제외한다. |
+| UpdateUserDriver.swift(87줄) | 누름이 설치 동의가 되는 경로와 복구된 다운로드의 재동의. silent·waitForIdle·stopBeforeInstall만 제외한다. 실제 교체는 Sparkle이 소유한다. |
+| UpdateReminder.swift(16줄)·UpdateIdlePolicy.swift(63줄) | 달력 기준 다음 날 자정, 알림 켬/끔과 수동 확인, 설치 대기 버전/빌드의 실제 재실행 확인만 가져온다. 유휴 정책·조용한 설치 설정은 제외한다. 이 Mac UserDefaults라는 design 11절의 원본을 유지한다. |
+| fetch_sparkle.sh·setup-updates.sh·package.sh·release_update.py(237줄)·build.sh | 2.10.0/고정 지문, 키체인 공개 키 일치, 압축 해제 후 코드 서명/실행 권한, prepare/publish 분리·초안 자산 검증·서명 피드. hejo-ship으로 옮기되 prepare는 공개본 트리 대조, publish는 사장 전용이고 실행하지 않는다. update-feed 가지 쓰기는 제외한다. |
+| build_info.py·check_build_env.sh·update_installed.py·update_channel.py | 전부 읽어 유지 의존을 구분했다. BuildInfo는 개인 작업 커밋 대신 소스 트리를 담는다. hejo 기존 빌드/인증서를 유지하며 Pillow 준비·앱 손 교체·relay·private/public 채널 전환 코드는 가져오지 않는다. |
+| LoginLaunch.swift·UpdateTests.swift | 설치 위치 판정과 기존 순수/HTTP 대역 시험을 확인했다. 원본 설치 위치는 시스템 및 사용자 Applications 둘 다다. 명세의 /Applications 축약과 달리 원본/현재 hejo LoginLaunch.isInstalled를 유지하고 이 차이를 보고한다(26판 코드 우선). 시험은 가짜 저장소와 임시 환경으로 다시 작성한다. |
+
+문구는 규칙 1번(ddots→hejo), 2번(비공개 토큰·relay 전용 구절 제외)을 적용한다. 릴리스 없음은 승인 문장 '아직 업데이트 릴리스가 없어요.'다. 매번 묻기·펫 업데이트됨 알림은 사장 선택을 유지한다. 고정 SDK의 서명 피드 검증·압축 선검증은 원본 Info.plist와 [Sparkle 공식 설정](https://sparkle-project.org/documentation/customization/)의 2.10.0 지원 범위에 따른다(2.11 전용 항목 제외). 공개 저장소 값은 기존 get-hejo의 공개 배포 설정을 Info.plist로 옮겨 읽고, 앱 코드에 계정 상수를 두지 않는다.
+
+### D33-01: 옛 문과 새 앱 hello 계약 충돌 — 구현 보류
+
+REQ-HF-33.AC-03·handoff 보완 36의 실제 옛 문+새 앱 시험에서, TASK-21 이전 공개본 계열 `a4a80d5431ca378f7818d2bb8dc75475e658b2cb`의 `schemas/hejo-wire-v1.json:181~241`은 hello에 features가 없고 additionalProperties=false다. `gate/server.py:261~276, 308~320`은 이 스키마로 첫 글을 검사해 invalid_frame을 보낸다. 현재 hejo `app/Sources/GateClient.swift:118`은 첫 hello에 features:[rooms]를 항상 보낸다. 따라서 규격 v1이라는 이유만으로 이 조합의 하위 호환을 주장할 수 없다.
+
+임시 HERMES_HOME·가짜 명부·실제 옛 문 WebSocket에서 features를 넣으면 error/invalid_frame, 같은 형식에서 features를 빼면 welcome임을 대조했다(`.build/task33/hello-boundary.json`). 새 앱 실제 GateClient/ConversationController를 붙인 시험도 연결 준비를 기다리다 실패했다(`legacy-run.log`, `legacy.json`). 원본 ddots 동작 차이가 아니라 hejo 고유 통신 계약 충돌이므로 26판에 따라 계획 판단 전 수정하지 않는다. 자동 업데이트 초안은 `.build/task33/draft/`와 `draft.patch`에 보존하고 제품 파일은 착수 HEAD로 복구했다.
+
+### D33-01 해소: 보완 43·35판
+
+계획 커밋 `3d7e1c07b30e924fd16b4e75aed501b4619a3d07`의 변경은 명세·AT·handoff·판정 문서뿐이었다. 제품 충돌 없이 초안 19개를 지문 대조해 복원했다. 최소 지원 문은 TASK-21 이후이며 옛 문 시험은 운영 적용본 `aeaa652a4119bef949c61f192029d2b0b3f5a026`을 쓴다. features 없는 연결·통신 계약 변경은 만들지 않는다. 새 임시 소스에서 실제 짝맺기·송신·수신과 rooms welcome의 가짜 단체방 수신을 확인했다. Hermes 턴만 대역이며 운영 홈·서비스는 쓰지 않는다. 이전 a4a80d5 실패 기록은 잘못 지정된 기준의 재현으로 보존한다.

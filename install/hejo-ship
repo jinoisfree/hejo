@@ -1,0 +1,244 @@
+#!/usr/bin/env python3
+"""Local signing preparation; only the owner runs publish against GitHub."""
+import argparse
+import base64
+import hashlib
+import json
+import os
+from pathlib import Path
+import plistlib
+import re
+import subprocess
+import sys
+import tempfile
+import xml.etree.ElementTree as ET
+
+ROOT = Path(__file__).resolve().parent.parent
+ACCOUNT = 'io.github.hermes-hejo.updates'
+SDK = '2.10.0'
+SPARKLE = 'http://www.andymatuschak.org/xml-namespaces/sparkle'
+
+
+class ShipError(Exception):
+    pass
+
+
+def run(args, *, cwd=ROOT):
+    # Keychain tools can include sensitive diagnostics. Never relay their output on failure.
+    result = subprocess.run(list(map(str, args)), cwd=cwd, text=True,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if result.returncode:
+        raise ShipError(f'{Path(str(args[0])).name} 실행 실패. 원본과 키체인 상태를 확인해 주세요.')
+    return result.stdout.strip()
+
+
+def git(*args):
+    return run(['git', *args])
+
+
+def tools():
+    run(['bash', ROOT / 'app/scripts/fetch_sparkle.sh'])
+    return ROOT / f'app/.build/sparkle-{SDK}/bin'
+
+
+def info(path):
+    with Path(path).open('rb') as stream:
+        return plistlib.load(stream)
+
+
+def public_key(bin_dir):
+    value = run([bin_dir / 'generate_keys', '--account', ACCOUNT, '-p'])
+    try:
+        if len(base64.b64decode(value, validate=True)) != 32:
+            raise ValueError()
+    except ValueError:
+        raise ShipError('서명 공개 키 형식을 확인하지 못했어요.') from None
+    return value
+
+
+def setup():
+    bin_dir = tools()
+    path = ROOT / 'app/Resources/Info.plist'
+    value = info(path)
+    existing = value.get('SUPublicEDKey')
+    if existing:
+        if public_key(bin_dir) != existing:
+            raise ShipError('기존 공개 키와 키체인이 달라요. 키를 바꾸지 않았어요.')
+    else:
+        run([bin_dir / 'generate_keys', '--account', ACCOUNT])
+        value['SUPublicEDKey'] = public_key(bin_dir)
+        with path.open('wb') as stream:
+            plistlib.dump(value, stream, sort_keys=False)
+    print('공개 키 확인 완료. 비밀 키는 로그인 키체인에만 있어요.')
+    print('소유자 백업 방법(자동 실행하지 않음): generate_keys --account ' + ACCOUNT + ' -x <안전한 백업 파일>')
+
+
+def digest(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def version_tuple(value):
+    if not isinstance(value, str) or not re.fullmatch(r'[0-9]+(?:\.[0-9]+){1,3}', value):
+        raise ShipError('배포 버전 형식이 달라요.')
+    return tuple(int(part) for part in value.split('.'))
+
+
+def bundle(app):
+    value = info(app / 'Contents/Info.plist')
+    version_tuple(value.get('CFBundleShortVersionString'))
+    if not re.fullmatch(r'[1-9][0-9]*', value.get('CFBundleVersion', '')):
+        raise ShipError('빌드 번호는 양의 정수여야 해요.')
+    if value.get('CFBundleIdentifier') != 'io.github.hermes-hejo.hejo':
+        raise ShipError('hejo 앱이 아니에요.')
+    if not value.get('SURequireSignedFeed') or not value.get('SUVerifyUpdateBeforeExtraction'):
+        raise ShipError('서명된 피드 검증 설정이 없어요.')
+    executable = app / 'Contents/MacOS' / value['CFBundleExecutable']
+    if not executable.is_file() or not os.access(executable, os.X_OK):
+        raise ShipError('앱 실행 권한이 없어요.')
+    run(['codesign', '--verify', '--deep', '--strict', app])
+    return value
+
+
+def prepare(app, output):
+    if git('status', '--porcelain', '--untracked-files=all'):
+        raise ShipError('커밋하지 않은 변경이 있어요.')
+    public = git('rev-parse', 'refs/heads/public')
+    tree = git('rev-parse', 'refs/heads/public^{tree}')
+    if git('rev-parse', 'HEAD^{tree}') != tree:
+        raise ShipError('현재 트리가 공개본과 달라요.')
+    value = bundle(app)
+    build_info = json.loads((app / 'Contents/Resources/BuildInfo.json').read_text())
+    if build_info.get('tree') != tree or build_info.get('dirty') is not False:
+        raise ShipError('앱 빌드와 공개본 트리가 달라요. 깨끗한 공개본으로 다시 빌드해 주세요.')
+    source = info(ROOT / 'app/Resources/Info.plist')
+    for key in ('CFBundleShortVersionString', 'CFBundleVersion', 'SUPublicEDKey', 'HejoUpdateRepository'):
+        if source.get(key) != value.get(key):
+            raise ShipError('앱과 공개본 배포 설정이 달라요.')
+    bin_dir = tools()
+    if public_key(bin_dir) != value.get('SUPublicEDKey'):
+        raise ShipError('앱 공개 키와 키체인이 달라요.')
+    # The preceding public snapshot is the last candidate, not private development history.
+    parents = git('rev-list', '--parents', '-n', '1', public).split()[1:]
+    if parents:
+        previous = plistlib.loads(git('show', parents[0] + ':app/Resources/Info.plist').encode())
+        if (version_tuple(value['CFBundleShortVersionString']) <= version_tuple(previous['CFBundleShortVersionString'])
+                or int(value['CFBundleVersion']) <= int(previous['CFBundleVersion'])):
+            raise ShipError('이전 공개본보다 버전과 빌드 번호를 올려 주세요.')
+    output.mkdir(parents=True, exist_ok=True)
+    archive = output / f"hejo-{value['CFBundleShortVersionString']}-arm64.zip"
+    if archive.exists() or (output / 'prepared.json').exists():
+        raise ShipError('준비 파일이 이미 있어요. 새 출력 폴더를 골라 주세요.')
+    run(['ditto', '-c', '-k', '--sequesterRsrc', '--keepParent', app, archive])
+    with tempfile.TemporaryDirectory(prefix='hejo-archive-') as temporary:
+        run(['ditto', '-x', '-k', archive, temporary])
+        restored = Path(temporary) / app.name
+        if bundle(restored) != value or digest(restored / 'Contents/MacOS/hejo') != digest(app / 'Contents/MacOS/hejo'):
+            raise ShipError('압축한 앱을 다시 확인하지 못했어요.')
+    signature = run([bin_dir / 'sign_update', '--account', ACCOUNT, '-p', archive])
+    run([bin_dir / 'sign_update', '--account', ACCOUNT, '--verify', archive, signature])
+    manifest = dict(commit=public, tree=tree, repository=value['HejoUpdateRepository'],
+                    version=value['CFBundleShortVersionString'], build=value['CFBundleVersion'],
+                    archive=archive.name, size=archive.stat().st_size, sha256=digest(archive),
+                    signature=signature, publicKey=value['SUPublicEDKey'])
+    (output / 'prepared.json').write_text(json.dumps(manifest, indent=2) + '\n')
+    print('PREPARED ' + str(output / 'prepared.json'))
+
+
+def load_prepared(path):
+    value = json.loads(path.read_text())
+    version_tuple(value.get('version'))
+    if not re.fullmatch(r'[0-9a-f]{40}', value.get('commit', '')):
+        raise ShipError('공개 커밋이 없어요.')
+    if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', value.get('repository', '')):
+        raise ShipError('공개 저장소 형식이 달라요.')
+    if value.get('archive') != f"hejo-{value['version']}-arm64.zip":
+        raise ShipError('압축 이름이 달라요.')
+    archive = path.parent / value['archive']
+    if archive.stat().st_size != value.get('size') or digest(archive) != value.get('sha256'):
+        raise ShipError('준비한 압축이 바뀌었어요.')
+    return value, archive
+
+
+def appcast(value):
+    ET.register_namespace('sparkle', SPARKLE)
+    rss = ET.Element('rss', version='2.0')
+    channel = ET.SubElement(rss, 'channel')
+    ET.SubElement(channel, 'title').text = 'hejo'
+    item = ET.SubElement(channel, 'item')
+    ET.SubElement(item, 'title').text = 'hejo ' + value['version']
+    ET.SubElement(item, 'enclosure', {
+        'url': f"https://github.com/{value['repository']}/releases/download/v{value['version']}/{value['archive']}",
+        'length': str(value['size']), 'type': 'application/octet-stream',
+        f'{{{SPARKLE}}}version': value['build'],
+        f'{{{SPARKLE}}}shortVersionString': value['version'],
+        f'{{{SPARKLE}}}edSignature': value['signature'],
+        f'{{{SPARKLE}}}installationType': 'application'})
+    return ET.tostring(rss, encoding='utf-8', xml_declaration=True)
+
+
+def publish(path, approved):
+    # This function is only invoked by the owner's explicit publish command.
+    value, archive = load_prepared(path)
+    if approved != value['commit']:
+        raise ShipError('승인한 공개 커밋이 달라요.')
+    repo = value['repository']
+    refs = git('ls-remote', 'https://github.com/' + repo + '.git', 'refs/heads/main', 'refs/tags/v' + value['version'])
+    rows = [line.split() for line in refs.splitlines()]
+    if [value['commit'], 'refs/heads/main'] not in rows:
+        raise ShipError('공개 커밋이 원격 main과 같지 않아요.')
+    if any(row[1] == 'refs/tags/v' + value['version'] for row in rows):
+        raise ShipError('같은 태그가 이미 있어요. 기존 릴리스는 바꾸지 않아요.')
+    bin_dir = tools()
+    if public_key(bin_dir) != value['publicKey']:
+        raise ShipError('공개 키가 달라요.')
+    run([bin_dir / 'sign_update', '--account', ACCOUNT, '--verify', archive, value['signature']])
+    tag = 'v' + value['version']
+    gh = ['gh', 'release']
+    run([*gh, 'create', tag, '--repo', repo, '--target', value['commit'], '--draft', '--title', 'hejo ' + value['version'], '--notes', 'hejo ' + value['version']])
+    # Failures from here deliberately leave the draft intact; never clobber an asset/tag.
+    run([*gh, 'upload', tag, archive, '--repo', repo])
+    metadata = json.loads(run(['gh', 'api', f'repos/{repo}/releases/tags/{tag}']))
+    assets = [asset for asset in metadata['assets'] if asset['name'] == value['archive']]
+    if (not metadata['draft'] or len(assets) != 1 or assets[0]['state'] != 'uploaded'
+            or assets[0]['size'] != value['size'] or assets[0].get('digest') != 'sha256:' + value['sha256']):
+        raise ShipError('초안 자산 검증 실패. 초안을 남겨 두었어요.')
+    feed = path.parent / 'appcast.xml'
+    feed.write_bytes(appcast(value))
+    run([bin_dir / 'sign_update', '--account', ACCOUNT, feed])
+    run([bin_dir / 'sign_update', '--account', ACCOUNT, '--verify', feed])
+    run([*gh, 'upload', tag, feed, '--repo', repo])
+    uploaded = json.loads(run(['gh', 'api', f'repos/{repo}/releases/tags/{tag}']))
+    feeds = [asset for asset in uploaded['assets'] if asset['name'] == 'appcast.xml']
+    if (not uploaded['draft'] or len(feeds) != 1 or feeds[0]['state'] != 'uploaded'
+            or feeds[0]['size'] != feed.stat().st_size or feeds[0].get('digest') != 'sha256:' + digest(feed)):
+        raise ShipError('서명된 피드 업로드 검증 실패. 초안을 남겨 두었어요.')
+    run([*gh, 'edit', tag, '--repo', repo, '--draft=false', '--latest'])
+    print('PUBLISHED ' + tag)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    sub = parser.add_subparsers(dest='command', required=True)
+    sub.add_parser('setup')
+    local = sub.add_parser('prepare')
+    local.add_argument('--app', type=Path, default=ROOT / 'app/.build/hejo.app')
+    local.add_argument('--output', type=Path, default=ROOT / '.build/ship')
+    remote = sub.add_parser('publish', help='사장 전용: GitHub 원격 쓰기')
+    remote.add_argument('--prepared', type=Path, default=ROOT / '.build/ship/prepared.json')
+    remote.add_argument('--approve-commit', required=True)
+    args = parser.parse_args()
+    try:
+        if args.command == 'setup':
+            setup()
+        elif args.command == 'prepare':
+            prepare(args.app.resolve(), args.output.resolve())
+        else:
+            publish(args.prepared.resolve(), args.approve_commit)
+    except (ShipError, OSError, ValueError, KeyError) as error:
+        print(str(error) if isinstance(error, ShipError) else '배포 자료를 확인하지 못했어요. 기존 앱과 공개 릴리스는 바꾸지 않았어요.', file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

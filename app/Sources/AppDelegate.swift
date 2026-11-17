@@ -11,6 +11,8 @@ import AppKit
     private var item: NSStatusItem!
     private var hideItem: NSMenuItem?
     private var pauseItem: NSMenuItem?
+    private var updateItem: NSMenuItem?
+    private var appUpdate: AppUpdate?
     private var currentAccount = ""
     private var toolsWindow:ConnectionsWindow?
     private var petSettings: PetSettingsWindow?
@@ -94,6 +96,7 @@ import AppKit
                 DispatchQueue.main.async { [weak self] in self?.threeTap.showNotice(text, failure: failure) }
             }
             threeTap.start()
+            configureUpdates(AppUpdate()); appUpdate?.start()
             pet.show()
             if !pendingURLs.isEmpty {let urls=pendingURLs;pendingURLs=[];application(NSApp,open:urls)}
             if store.settings.address.isEmpty || !store.settings.signsInAutomatically {
@@ -126,18 +129,22 @@ import AppKit
         menu.addItem(.separator())
         menu.addItem(withTitle: "설정…", action: #selector(showOptions), keyEquivalent: ",").target = self
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? AppIdentity.version
-        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "2"
         let versionItem = menu.addItem(withTitle: "hejo \(version) (빌드 \(build))", action: nil, keyEquivalent: "")
         versionItem.isEnabled = false
+        updateItem = menu.addItem(withTitle: appUpdate?.menuTitle ?? "업데이트 확인…", action: #selector(checkAppUpdate), keyEquivalent: "")
+        updateItem?.target = self
         menu.addItem(.separator())
         menu.addItem(withTitle: "hejo 종료", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         return menu
     }
     func menuNeedsUpdate(_ menu: NSMenu) {
+        refreshUpdates()
         hideItem?.title = pet?.panel.isVisible == false ? "펫 보이기" : "펫 숨기기"
         pauseItem?.title = pet?.pet.isPaused == true ? "다시 움직이기" : "잠시 쉬기"
     }
     func applicationWillTerminate(_ notification: Notification) {
+        appUpdate?.stop()
         threeTap?.stop()
         if let activityMonitor { NSEvent.removeMonitor(activityMonitor) }
         bubbleTimer?.invalidate();client?.stop()
@@ -253,6 +260,10 @@ import AppKit
             }
             settings.onBubble = { [weak self] value in self?.setBubbleAlwaysShown(value) }
             settings.onThreeTap = { [weak self] in self?.threeTap.toggle() }
+            settings.onAppUpdate = { [weak self] in self?.appUpdate?.checkNow() }
+            settings.onUpdateNotices = { [weak self] enabled in
+                self?.appUpdate?.notices.setEnabled(enabled); self?.appUpdate?.noticesChanged()
+            }
             settings.onLogin = { [weak self] value in self?.setLoginEnabled(value) }
             settings.onResetChat = { [weak self] in self?.pet.resetChatSize() }
             settings.onResetPosition = { [weak self] in self?.pet.resetPosition() }
@@ -264,10 +275,25 @@ import AppKit
         }
         petSettings?.bubbleReplyCheck.state=store.settings.bubbleReplyEnabled != false ? .on:.off
         petSettings?.updateThreeTap(threeTap)
+        refreshUpdates()
         petSettings?.present(name: store.settings.petName, percent: store.settings.petScalePercent ?? 100,
                              bubble: store.settings.bubbleAlwaysShown ?? false, account: currentAccount, status: client.status.text)
     }
     func applicationDidBecomeActive(_ notification: Notification) { conversation?.model.memberState.activate() }
+    func configureUpdates(_ updates: AppUpdate) {
+        appUpdate = updates
+        updates.onChange = { [weak self] in self?.refreshUpdates() }
+        updates.notifyInstalled = { [weak self] text in
+            self?.bubble?.showInstalled(text, now: Date()); self?.refreshPetActivity()
+        }
+        refreshUpdates()
+    }
+    private func refreshUpdates() {
+        guard let appUpdate else { return }
+        updateItem?.title = appUpdate.menuTitle; updateItem?.isEnabled = appUpdate.canCheck
+        petSettings?.updateAppUpdates(appUpdate)
+    }
+    @objc private func checkAppUpdate() { appUpdate?.checkNow() }
     private func synchronizeLayout() {
         let state = conversation.model.memberState
         Task {

@@ -1,14 +1,15 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-HEJO_SKIP_GOOGLE_SECRET=1 bash scripts/build.sh
+HEJO_SKIP_GOOGLE_SECRET=1 HEJO_SPARKLE_OFFLINE=1 bash scripts/build.sh
 sources=()
 for source in Sources/*.swift; do
   [[ "$source" == Sources/AppMain.swift ]] || sources+=("$source")
 done
 xcrun swiftc -swift-version 5 -parse-as-library -g -target "$(uname -m)-apple-macosx13.0" \
   "${sources[@]}" Tests/*.swift -o .build/app-tests \
-  -framework AppKit -framework Accelerate -framework ServiceManagement
+  -framework AppKit -framework Accelerate -framework ServiceManagement \
+  -F .build/sparkle-2.10.0 -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/hejo.app/Contents/Frameworks
 codesign --force --sign "${HEJO_SIGNING_IDENTITY:-AIpet Local Development}" --timestamp=none .build/app-tests
 [[ "$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' .build/hejo.app/Contents/Info.plist)" == io.github.hermes-hejo.hejo ]]
 codesign --verify --strict .build/hejo.app

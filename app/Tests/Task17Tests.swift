@@ -100,9 +100,9 @@ import AppKit
     try check(accountOpened && loggedOut && settings.connectionStatus.stringValue == "가짜 공항 연결됨", "AT64 account page actions and live status")
     let statusMenu = AppDelegate().makeStatusMenu()
     let titles = statusMenu.items.map { $0.isSeparatorItem ? "|" : $0.title }
-    try check(titles.count == 9 && titles[0...5] == ["대화 열기", "|", "펫 숨기기", "잠시 쉬기", "|", "설정…"] &&
+    try check(titles.count == 10 && titles[0...5] == ["대화 열기", "|", "펫 숨기기", "잠시 쉬기", "|", "설정…"] &&
               titles[6].hasPrefix("hejo ") && titles[6].contains("(빌드 ") && !statusMenu.items[6].isEnabled &&
-              titles[7...8] == ["|", "hejo 종료"], "AT64 status menu exact order")
+              titles[7...9] == ["업데이트 확인…", "|", "hejo 종료"], "AT64 status menu exact order with AT84 update command")
     controller.resizePet(percent: scale)
     try check(controller.pet.petScale == 0.5, "AT64 pet scale applies")
     controller.resetPosition()
