@@ -1355,3 +1355,20 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
   3. 두 Mac에 손으로 설치한다.
   - 그 전에 `aeaa652` 기준으로 새 롤백 백업을 만든다(35판).
 - **다음 순서:** TASK-48 → TASK-49 → TASK-36 → … → 47.
+
+## 보완 지시 46 (TASK-48 검토 뒤, 2026-11-17)
+
+- TASK-48은 통과했다(d467799). TASK-49 전에 작은 보완 두 개를 한 커밋으로 한다.
+- **N48-01(문구, 사장 눈에 보임)**
+  - 문제: `gate/buttons.py` `decision`이 Slack 낱말(`platform.slack.approval.resolved_*`, `platform.slack.confirm.resolved_*`)에 `user="나"`를 넣는다. 그래서 결과 줄이 "✅ 나이(가) 한 번 승인했어요"처럼 문법이 틀린다.
+  - 원인: Slack은 여러 사람 중 누가 눌렀는지를 `{user}이(가)`로 밝힌다. hejo는 누르는 사람이 사장 한 명뿐이라 이 구절이 필요 없다(22판 규칙 "Slack 전용 구절 빼기").
+  - 수정: 승인·확인 결과 줄에는 Hermes 공식 낱말표에서 이름이 없는 낱말을 쓴다. 새 문구는 만들지 않는다.
+    - 승인: `platform.telegram.approval.resolved_once`·`resolved_session`·`resolved_always`·`resolved_deny`("✅ 한 번 승인됨" 등)
+    - 확인: `platform.telegram.slash_confirm.resolved_once`·`resolved_always`·`resolved_cancel`
+  - 선택지(clarify) 결과는 지금처럼 `platform.slack.clarify.resolved`·`awaiting`(`user="나"` → "✅ 나: 선택", "✏️ 나의 직접 입력을…")를 쓴다. 문법이 맞기 때문이다.
+  - 시험: 결과 줄이 위 공식 낱말과 같고 "이(가)"가 없다고 단언한다. Hermes 본체의 낱말표는 읽기만 한다.
+- **N48-02(호환)**
+  - 문제: `send_video`에 `**kwargs`가 없다. Hermes `BasePlatformAdapter.send_video`(base.py 3244)는 `**kwargs`를 받는다.
+  - 수정: `send_video(..., metadata=None, **kwargs)`로 맞춘다. 시험에 추가 키워드 인자로 불러도 첨부가 되는 경우를 하나 더한다.
+- **검증:** `test_delivery_parity.py`, `foundation9_runner hejo` 0, 개인값 0. 별도 git commit --only.
+- **순서:** N48-01·02 → TASK-49 → TASK-36 → … → 47.
