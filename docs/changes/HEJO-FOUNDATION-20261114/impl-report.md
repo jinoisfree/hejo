@@ -1755,3 +1755,25 @@ REQ-HF-34.AC-01~09·AT-85와 보완 37 추가 1~3을 따른다. 버전 올리기
 `python3 .build/n48/verify.py`는 종료 0이다. 내부 `python3 .build/foundation9_runner.py hejo`는 **232 passed**와 앱·공식 가짜 Hermes·루프백 통신을 모두 통과했다(test_install 포함). 고정 입력 171개가 불변이며 public도 그대로다. 근거는 `.build/n48/foundation-result.json`, `foundation.log`다. 필요/도달 인계 증거 수준은 **2/2**이며 운영 실물은 미실행이다. 변경한 앱 소스가 없어 앱 10회 반복은 추가하지 않았다.
 
 이 보고 뒤 개인값 검사·HEJO_PYTHON 지정 훅·diff를 실행하고 소유 파일 다섯 개만 `git commit --only`로 기록한다. 실제 결과·전체 커밋·파일 목록·깨끗한 main·고정 public와 0.2.0 준비 ZIP 불변은 `.build/n48/final-checks.json`, `commit-result.json`, `final-verification.json`과 최종 result 보고를 대조한다. 후속 TASK-49는 이 결과의 계획 담당 검토 뒤다.
+
+
+## TASK-49 착수 보류: 운영 원본과 worktree 사본 불일치
+
+- **받은 지시·기준:** 보완 41·45·40·38, REQ-HF-43·AT-100. hejo 기준 `3c9a0f6d10c147c145b6d8c2b79d50895f39e5bf`, public 후보는 기존 f716bdf 고정이다. 운영 저장소 임시 worktree에서만 개발하고, 시작 사본이 운영 원본과 다르면 멈추라는 조건을 먼저 검사했다.
+- **확인 사실:** 별도 detached worktree의 team-kit 소스 656개와 운영 원본 657개를 비교했다. `lib/hermes_packs/cctv/now.py`·`watch.py` 두 본문이 다르고, 운영 원본에만 `lib/hermes_packs/cctv/tests/test_channel_messages.py`가 있다. 생성 캐시만 제외했으며 파일 종류·실행 비트·링크 대상도 비교했다. 지문과 기준 전체 커밋은 `.build/task49/initial-comparison.json`에 있다.
+- **멈춤 판단:** 작업 대상 reply/report_status와 다른 모듈의 차이지만, 인계의 시작 일치 조건에는 예외가 없다. 구현자가 무시·복사·sync·기준 커밋 변경으로 우회하지 않았다. 새 설계 결함으로 단정하지 않으며 운영 원본에 진행 중인 별도 작업이 있는지는 미확인이다.
+- **변경·미실행:** hejo 추적 변경은 이 보고와 copy-review의 착수 대조 기록뿐이다. 제품·시험·규격·운영 원본·운영 저장소 작업 파일은 바꾸지 않았다. 임시 worktree는 무변경 상태로 보존한다. TASK-49 구현 패치 `team-kit.patch`는 아직 없으며 team-kit 시험·airport-check·AT-100·foundation·앱·test_install·돌연변이·비교 화면은 미실행이다. 필요 인계 수준 2, 현 단계는 소스 대조만 수행하여 수준 1이다.
+- **다음 담당 판단:** 계획 담당과 사장이 별도 운영 변경의 반영 상태를 확인하고, 운영 원본과 일치하는 사본 기준 또는 불일치 처분을 확정한 뒤 재인계해야 한다. 실행 담당은 새 기준으로 첫 대조부터 확인하고 원본 독해→공개 메서드 필요성 판단→구현·시험을 진행한다. 현재 커밋·푸시·후속 TASK는 하지 않았다. 운영 홈 실행·재시작·설치 도우미·sync·공용 릴리스·public·GitHub 조회/쓰기·실제 발송·비밀 파일 열기 없음.
+
+보고 검사: 보고 파일 변경본의 Hermes venv `scripts/scan_private.py --repo .`, `HEJO_PYTHON` 지정 `sh githooks/pre-commit`, `git diff HEAD --check`는 각각 종료 0이었다. 임시 worktree의 `git status --porcelain` 출력은 없고 hejo 변경은 위 보고 두 파일뿐이며 HEAD·public 후보는 불변이다. 최종 로그·종료 코드는 `.build/task49/report-checks.json`과 `private.log`·`hook.log`·`diff.log`를 따른다.
+
+
+## TASK-49 재개·보류: 보완 47 해소 뒤 D49-01 맞춤 제출 계약
+
+- **시작 대조 해소:** hejo 기준 `6e316a241f962fb864ab2158a444182b7a0d10cc`. 보완 47의 변경·의존 범위 373개는 운영 원본과 일치해 착수 조건을 충족했다. 앞선 cctv now.py·watch.py·tests/test_channel_messages.py 불일치는 범위 밖으로 기록만 유지한다. 원본·worktree를 서로 덮지 않았다.
+- **원본 독해:** copy-review의 재개 표와 `.build/task49/source-map.json`에 지정 plugin 전체·report_status 전체, 체크리스트 controls/제출/이벤트 생성과 호출 의존을 기록했다. 아직 구현하지 않은 코드의 이식 완료를 주장하지 않는다.
+- **발견(D49-01):** REQ-HF-43.AC-01의 맞춤 submits를 Slack과 같은 의미로 보존할 때 현재 hejo checklist 계약에는 제출 선택이 없다. 같은 일정 체크도 원본 lv1/lv2/확인 단추는 서로 다른 답을 만들지만 현재 앱은 `선택: 일정`만 만든다. gate는 submits 필드를 거절하고 규격에도 허용되지 않는다. 제출 낱말을 items에 섞으면 전체 특례가 제출값을 지우고, 단일 제출 단추 둘을 함께 고를 수 있어 원문 의미를 조용히 바꾸게 된다.
+- **직접 재현:** `.build/task49/probe_checklist.py` 종료 0. 원본 rb.controls·checklist_blocks·checklist_update·synthetic_event의 6가지 답을 단언했고, 현재 제품 ThreadTools.answer를 분리한 Swift 컴파일/실행 각각 0으로 두 대안 반례를 확인했다. gate 실제 _checklist 함수도 임의 submits를 invalid_checklist로 거절했다. 근거 `checklist-probe.log`·`checklist-contract.json`. 대역/분리 실행 근거 수준 2이며 AT-100 제품 전체의 통과는 아니다.
+- **선택지·권고(미채택):** A는 checklist 선택 필드 submits와 앱의 제출 단추/답 생성 의미를 명세·AT에 추가하고 gate·앱 변경을 허용하는 방법이다. B는 맞춤 submits 변형만 명시된 글자 대체로 낮추되, 보여줄 선택·답 형식·빈 확인/건너뛰기와 asked→answered→closed 기대를 계획에서 정하는 방법이다. 원문 의미 보존에는 A를 권고한다. 공개 메서드 하나만 더하거나 wire 밖 임시 추적 표를 만들어 제출 선택을 추측하지 않았다.
+- **변경·미실행:** 이번 경계는 원본 대조·재현·보고뿐이다. hejo 제품·시험·규격·앱, 운영 원본, 임시 worktree 제품 파일은 무변경이다. `.build/task49/team-kit.patch`는 아직 없고 적용 dry-run·team-kit 전체 tests·airport-check·foundation·앱·test_install·고위험 돌연변이·화면 비교는 미실행이다. 부분 J01/J02 초안도 적용하지 않았다. TASK-49 전체의 필요한 증거 수준 2에는 미도달이다.
+- **인계:** 기존 보류 기록과 이번 결과를 보고 두 파일만의 git commit --only로 남긴다. public 후보 f716bdf 고정, 앱 사본·공용 릴리스·운영 홈·본체·ddots·원격은 바꾸지 않는다. sync·재시작·설치 도우미·실제 발송·비밀 파일 열기 없음. 다음은 계획 담당의 D49-01 계약 처분이며, 그 전 후속 TASK는 진행하지 않는다.

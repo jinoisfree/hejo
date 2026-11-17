@@ -442,3 +442,38 @@ REQ-HF-33.AC-03·handoff 보완 36의 실제 옛 문+새 앱 시험에서, TASK-
 ### TASK-48 보완 46: N48-01·02
 
 Hermes 공식 ko 낱말표의 `platform.telegram.approval.resolved_*` 네 종류와 `platform.telegram.slash_confirm.resolved_*` 세 종류를 직접 대조했다. 승인·확인 결과는 이 이름 없는 공식 낱말로 바꾸며 새 문구를 쓰지 않는다. 이는 보완 46이 정한 22판 Slack 전용 사용자 구절 제거다. 앞선 TASK-48 비교 JSON의 `{user}이(가)` 결과는 수정 전 기록으로 보존하고 현행 결과의 근거로 재사용하지 않는다. clarify의 `platform.slack.clarify.resolved/awaiting(user="나")`는 유지한다. BasePlatformAdapter.send_video의 `**kwargs` 공개 서명도 직접 대조하고 기존 send_document 경로로 그대로 전달한다. 본체·낱말표는 읽기만 했다.
+
+
+## TASK-49 착수 전 대조: 보완 41·45 / J01~J03 — 운영 원본 불일치로 보류
+
+기준은 `3c9a0f6d10c147c145b6d8c2b79d50895f39e5bf`다. 운영 저장소의 별도 detached worktree를 만들고, 그 안의 `hermes/plugin-store/team-kit` 사본을 운영 team-kit과 대조했다. 사본 기준 커밋은 `0ee816be50f9c702e4eb4dbcab15dc628f5eba55`이다. 파일 본문 SHA-256·종류·실행 비트와 심볼릭 링크 대상 문자열을 비교했고, 생성 캐시 `__pycache__`·`.pytest_cache`·`.DS_Store`·pyc/pyo만 제외했다. 비밀 파일은 열지 않았다.
+
+사본 656개와 운영 원본 657개에서 다음 소스 차이 3건을 확인했다.
+
+| team-kit 상대 경로 | 대조 결과 |
+|---|---|
+| `lib/hermes_packs/cctv/now.py` | 양쪽 본문 지문 다름 |
+| `lib/hermes_packs/cctv/watch.py` | 양쪽 본문 지문 다름 |
+| `lib/hermes_packs/cctv/tests/test_channel_messages.py` | 운영 원본에만 있음 |
+
+근거는 `.build/task49/initial-comparison.json`, 대조 도구는 `compare.py`다. 관련 없는 파일이라도 시작 불일치이면 멈추라는 보완 41을 적용했다. 내용을 합치거나 사본을 운영 원본으로 덮지 않았다. Slack send/post_pieces/splittable/체크리스트 및 report_status.handle/repaint의 TASK-49 전체 독해는 아직 시작하지 않았으며 완료했다고 주장하지 않는다.
+
+
+### TASK-49 재개: 보완 47 시작 대조 해소·J03 계약 대조
+
+기준 `6e316a241f962fb864ab2158a444182b7a0d10cc`. 앞선 전체 대조 보류는 당시 지시의 결과로 보존한다. 변경 범위 `lib/hermes_reply/**`·`lib/hermes_team_services/**`·`tests/**`와 읽은 로더/의존 소스를 다시 대조했다. 생성 캐시를 제외한 대조 373개는 일치했다(`.build/task49/scoped-comparison.json`). 범위 밖 cctv 세 경로는 앞 목록대로이며 이번 작업에서 고치지 않는다.
+
+| 읽은 원본·의존 | 끝까지 대조한 내용 |
+|---|---|
+| team-kit `lib/hermes_reply/plugin.py` 전체 456줄 | Slack install의 send·post_pieces·splittable·편집/스트림 제어와 현재 install_hejo 전체. 조각 실패에도 남은 조각을 시도하고 전달된 id만 모으는 결과, interim/expect_edits/열린 stream 배제, 전달자는 기본 문에 위임하는 경계를 확인했다. |
+| `lib/hermes_team_services/report_status.py` 전체 143줄 | handle·repaint·mark·find_message의 소유자/보고 스레드 검사와 자기 글만 다시 칠하기, 제목 표식·종결 단추 제거·숨길 상태 줄을 대조했다. 현재 learning.source는 Slack 한정이므로 hejo 경로를 별도로 연결해야 한다. |
+| `reply_buttons.py`의 체크리스트 추출→controls→렌더링→선택 갱신→checklist_reply→synthetic_event·clicked_context | ChecklistLabels.submits는 체크 항목과 별개인 제출 단추다. 실제 기존 시험의 일정/lv1/lv2/확인 6경우를 원본 함수로 재현했다. 사용자·스레드 문맥은 그대로 답글에 실린다. |
+| `tests/test_reply_migrated_slack_reply_buttons.py` 맞춤 제출 시험·`tests/test_reply_hejo.py` 전체 | 기존 맞춤 제출 의미와 실제 문 대역 통합·프로필 분리·answered/closed 추적·계약 변경 글자 fallback을 확인했다. |
+| `__init__.py` report_status 등록, learning.source/_source_row, usage_ledger.register, project_dispatch의 기존 루프 연결 의존 | 등록은 report 설정이 있을 때만이며 hejo 상태 보고는 Slack 금고/사용자 검사를 재사용할 수 없다. usage_ledger가 Slack·photon만 감싸므로 hejo 꼬리말 제외는 유지할 경계다. |
+| hejo `gate/adapter.py` checklist/공개 send·edit·상태 경로, `schemas/hejo-wire-v1.json` checklist, `app/Sources/ThreadTools.swift` 답 생성·실제 체크리스트 보기 | checklist는 items·selected·can_skip만 받고 추가 필드를 거절한다. 앱에는 고정 작성/건너뛰기만 있고 맞춤 제출 선택은 없다. 아래 D49-01은 hejo 고유 통신·앱 계약 차이로 원문 우선 이식 규칙의 대상이 아니다. |
+
+#### D49-01: 맞춤 제출 의미를 보존할 계약 누락
+
+`[[체크: 일정 | 제출: lv1 | lv2 | 확인]]`의 원본은 일정 선택 여부와 제출 단추를 독립적으로 받는다. 일정 선택 시 lv1은 `선택: lv1, 일정`, lv2는 `선택: lv2, 일정`, 확인은 `선택: 일정`이다. 아무 체크 없이 확인하면 `건너뛰기`다. 반면 승인된 hejo_checklist의 items=[일정]에는 제출 단추 선택을 담을 자리가 없어 같은 체크가 모두 `선택: 일정`이 된다. 임의 submits 필드는 gate의 invalid_checklist와 규격 additionalProperties=false에 막힌다.
+
+제출 선택을 items에 섞는 대안도 그대로 원문 의미라고 볼 수 없다. 앱의 전체 특례는 제출 항목까지 선택돼 있어도 답을 `선택: 전체`로 줄이고, 일반 항목으로 둔 lv1·lv2는 동시에 선택·전달할 수 있다. 재현은 실제 rb 함수·제품 ThreadTools.answer 함수 분리 컴파일·실행이며 결과는 `.build/task49/checklist-contract.json`·`checklist-probe.log`다. 제품 API 수락 시험은 아니다. 문구의 옮김 실수나 시간·정렬 차이가 아니므로 계약을 임의 확장하지 않고 계획 판단으로 인계한다.
