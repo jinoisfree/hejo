@@ -85,6 +85,26 @@ struct PetLayout {
     static func resizeEdge(at point: CGPoint, bubble: CGRect, below: Bool) -> ResizeEdge {
         resizeRegions(bubble: bubble, below: below).first { $0.rect.contains(point) }?.edge ?? []
     }
+    /// The page beside the conversation is never dragged narrower than this.
+    static let defaultPaneWidth = expandedSize.width * 2
+    static let defaultPaneHeight = expandedSize.height * 2
+    static func paneHeight(base: CGFloat, open: Bool, saved: CGFloat?) -> CGFloat {
+        open ? max(base, saved ?? defaultPaneHeight) : base
+    }
+    static let minimumPaneWidth: CGFloat = 280
+    /// The least a page is worth opening at; with less room than this it goes to the browser instead.
+    static let usablePaneWidth: CGFloat = 240
+    /// How the width is shared when a page opens beside the conversation. The conversation keeps its width while the
+    /// screen has room for both. When it has not, the page takes what is left, and with less than 360pt left
+    /// the conversation gives way, down to its own least width.
+    static func paneSplit(base: CGFloat, minimumBase: CGFloat, wanted: CGFloat, available: CGFloat) -> (base: CGFloat, pane: CGFloat) {
+        let kept = min(base, available)
+        guard wanted > 0 else { return (kept, 0) }
+        let need = min(wanted, minimumChatSize.width)
+        if available - kept >= need { return (kept, min(wanted, available - kept)) }
+        let narrowed = max(min(minimumBase, kept), available - need)
+        return (narrowed, max(0, available - narrowed))
+    }
     /// `trailing` is the width of the page open at the conversation's right; the size returned is the conversation's own.
     static func resized(_ placement: PetPlacement, edge: ResizeEdge, delta: CGPoint, screen: CGRect, trailing: CGFloat = 0, screenFrame: CGRect? = nil) -> CGSize {
         let safe = screen.insetBy(dx: 12, dy: 12), center = placement.bubbleBelow ? visibleSprite(in:placement.globalSprite).midX : placement.globalSprite.midX

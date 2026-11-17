@@ -136,7 +136,7 @@ final class UpdateHTTP: URLProtocol {
 
 @MainActor func updateLegacyNetwork(_ args:[String]) async throws {
     let store = try LocalStore(directory:URL(fileURLWithPath:args[2])), client = GateClient(store:store,credentials:MemoryCredentials())
-    let controller = try ConversationController(client:client), model = controller.model
+    let controller = try testConversation(client:client), model = controller.model
     try client.pair(address:args[3],code:args[4],device:"fake update compatibility")
     try await waitFor { controller.canSend && model.employees.contains { $0.id == "alpha" } }
     let key = ConversationKey(employee:"alpha",thread:"11111111-1111-4111-8111-111111111111")

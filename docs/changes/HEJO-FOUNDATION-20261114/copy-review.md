@@ -711,3 +711,20 @@ AT-90의 “따라 읽은 스트림이 완료 후에도 펼침” fixture는 여
 - 받은 글 날짜는 기존 ThreadTools.date의 소수 초/일반 ISO 파서를 쓴다. 재열기는 출입증 요청 구성·직원/파일 메타데이터·삭제되지 않은 기존 캐시 기록을 확인한 뒤 사용자 사본을 연다. 썸네일은 캐시에만 쓰며 사용자 폴더를 만들지 않는다. 다운로드 중 범위가 지워졌으면 사용자 사본 출판도 거절한다.
 - 보낸 사본은 WebSocket 쓰기 완료가 아니라 기존 client_msg_id 송신 확인 때 보관한다. 원본 보내기 큐처럼 전용 직렬 큐가 이름 충돌을 처리한다. 같은 파일의 진행 중 열기 누름은 원본 busyFiles처럼 한 번만 받는다. 테스트의 실제 파일 송수신 경로는 다운로드 위치를 명시적으로 임시 홈 안에 주입했다. 새 영구 색인·기록은 없다.
 - 원본 I/O와 제품 I/O의 같은 입력 비교 결과는 evidence/HEJO-FOUNDATION/task44-files.json이다. 화면을 바꾸지 않는 변경이므로 원본·제품 화면 사진 대신 이름·본문 바이트를 비교했다. ID를 빼는 임시 변형은 이 원본 실행 비교가 검출했다.
+
+
+## TASK-45 원본 독해·책임 배치
+
+- WebPane.swift 전체(1–524), WebAddress.swift(1–40), WebPicture.swift(1–102), WebTabBlank.swift(1–69)를 읽었다. WebPaneModel의 탭·웹 요청·다운로드·새 창·실패·대화상자·권한 거절과 WebPicture의 스냅샷/흐림/재사용을 함께 이식한다. 원본 SwiftUI 페이지·탭/주소 줄은 WebPaneView의 AppKit 부품으로 바꾼다. 기존 WebSmoke는 탐색·다운로드·포커스·그림 전환 시험의 참고로 읽었다.
+- App.swift:839–945의 링크/파일 경로·폭 나눔·그림 전환, PetLayout.swift:91–114의 720pt/280pt/240pt/화면 폭 배분과 App.swift:988의 기존 대화 폭 보존을 PetController/PetLayout에 연결한다. PetView.swift:899–976의 흐린 그림은 기존 폭 전환 덮개에 둔다. 영구 값/기록 원본을 추가하지 않는다.
+- WebPane.swift:282–283의 13번째 탭은 가장 오래된 탭을 비운다. 대화 링크의 ⌘는 브라우저지만 웹 페이지 안 ⌘ 링크는 원본 320–325처럼 배경 탭이다. 검색어는 WebAddress가 검색 URL만 만들며 시험에서는 가져오지 않는다.
+- 문 첨부는 기존 ConversationController/GateHTTP가 출입증으로 받아 로컬 파일 URL을 넘긴다. WebPane은 GateClient를 모르며 URLRequest에 출입증을 넣지 않는다. 로컬 첨부의 WKWebsiteDataStore는 별도 nonPersistent다. Info.plist의 기존 ATS 설정은 바꾸지 않는다.
+- N44-01은 모든 앱 시험 Controller를 TestMain의 testConversation 생성 함수로 모아 임시 LocalStore 아래 Downloads를 주입한다. 앱 전체 시험 진입점은 실제 다운로드 폴더의 이름 목록만 시작/끝 비교하고 이름·내용을 출력하지 않는다.
+
+- 원본 실행에서 첫 웹 탐색이 전송 오류로 끝나면 `tab.url == nil`이며 원래 밖에서 열기 제어는 목적지가 없어 비활성이다(WebPane.swift:235–239·514–516). 실패 안내는 보이고 칸/대화는 남는다. AT-96의 “오류 + 밖에서 열기”는 원본에 있는 제어를 유지한다는 뜻으로 시험하며, 실패한 요청 주소를 임의로 새 영구/임시 원본으로 더하지 않는다. 원본 분리 실행 근거: 로컬 `original-failure-boundary.json`(failureNotice=true, externalCount=0, paneStillOpen=true). 원본과 달리 실패 주소를 밖에서 열게 하는 제품 변경은 이번에 하지 않는다(26판 코드 우선).
+- App.swift:290–291·947–952의 Mac별 웹 칸 폭/높이 저장은 기존 hejo-local.json의 창 크기 값 옆에 둔다. 탭·페이지·그림 수명은 WebPaneModel/WKWebsiteDataStore가 맡는다.
+
+- 원본 WebSurface는 ready가 꺼지면 SwiftUI가 보기를 제거한다(WebPane.swift:442–443). AppKit의 영구 holder는 clear에서 페이지·그림을 제거해 같은 수명을 지킨다. 최종 시험은 닫힌 뒤 WKWebView의 약한 참조가 nil임을 확인한다.
+- 최종 AppKit 대조에서 주소칸 왼쪽 약 20pt·글자 기준선 약 5pt와 페이지 왼쪽 선의 1pt 배치 차이를 확인해 화면 문서에 남겼다. 픽셀 일치를 주장하지 않으며 테마·제어 순서·문구·동작과 페이지 표시를 비교한다.
+
+- 최종 서식 검사에서 WebPane.swift 끝의 빈 줄 한 개만 제거했다. 시험 당시 지문과 원본 바이트는 로컬 자료에 보존했고 `시험 바이트 = 최종 바이트 + LF 1개`를 단언한다. 나머지 검증 입력은 바이트가 같다. 실행 코드 변경은 없다.

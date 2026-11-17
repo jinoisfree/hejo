@@ -20,6 +20,7 @@ import UniformTypeIdentifiers
     var retrySend:(ConversationKey)->Void
     let employeeTable = EmployeeMenuTable(), history = NativeThreadList(frame:.zero), editor = DraftScrollView(frame:.zero)
     let headerDrag = ConversationHeaderDrag(), brandDrag = ConversationHeaderDrag()
+    var onOpenURL: (URL) -> Void = { NSWorkspace.shared.open($0) }
     var homePetImage:NSImage?
     private let employeeScroll=EmployeeMenuScroll()
     let employeeSearch=NSSearchField(), search=NSSearchField()
@@ -931,7 +932,7 @@ import UniformTypeIdentifiers
                 guard let self else{return}
                 if url.scheme=="hejo-check",let offset=Int(url.lastPathComponent),let check=checks[offset] {self.controller.model.toggleCheck(message.id,line:check.line,original:check.original,body:message.text)}
                 else if url.scheme=="hejo" {self.controller.openLink(url)}
-                else if CardText.mayOpen(url) {NSWorkspace.shared.open(url)}
+                else if CardText.mayOpen(url) {self.onOpenURL(url)}
             })
         post.flash=message.id==highlightedMessageID && (highlightUntil.map{$0>islandModel.now} ?? false)
         var pieces:[NativeThreadCard.Piece]=[.post(post)]

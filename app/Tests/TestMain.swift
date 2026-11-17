@@ -23,12 +23,20 @@ final class MemoryCredentials: GateCredentialStore {
     func save(_ token: String, account: String) -> Bool { self.token = token; return true }
     func delete(account: String) { token = nil }
 }
+/// Tests always write beneath their temporary LocalStore, including future file-open/send paths.
+@MainActor func testConversation(client: GateClient, downloads: URL? = nil) throws -> ConversationController {
+    try ConversationController(client: client, downloads: downloads ?? client.store.directory.appendingPathComponent("Downloads"))
+}
 @MainActor final class TestDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         Task { @MainActor in
             do {
                 let args = CommandLine.arguments
-                if args.count>3 && args[1]=="--task44-network" {
+                if args.count>4 && args[1]=="--task45-network" {
+                    try await webPaneNetwork(args)
+                } else if args.contains("--task45") {
+                    try webAddressTests()
+                } else if args.count>3 && args[1]=="--task44-network" {
                     try await downloadsNetwork(args)
                 } else if args.contains("--task44") {
                     try downloadsTests()
@@ -126,6 +134,7 @@ final class MemoryCredentials: GateCredentialStore {
         }
     }
     func unit() async throws {
+        try webAddressTests()
         try downloadsTests()
         try await appearanceTests()
         try await settingsTests()

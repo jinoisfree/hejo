@@ -8,7 +8,7 @@ import AppKit
     try check(ChatAppearance.theme == .system && ChatAppearance.opacity==65 && ChatMetrics.bodyFont==14 && ChatAppearance.color() == .blue,"AT94 neutral local defaults")
     let candidate=Bundle.main.executableURL!.deletingLastPathComponent().appendingPathComponent("hejo.app/Contents/Resources/Pet")
     let resource=FileManager.default.fileExists(atPath:candidate.path) ? candidate:URL(fileURLWithPath:"app/.build/hejo.app/Contents/Resources/Pet")
-    let client=GateClient(store:store,credentials:MemoryCredentials()),controller=try ConversationController(client:client)
+    let client=GateClient(store:store,credentials:MemoryCredentials()),controller=try testConversation(client:client)
     let view=ConversationView(controller:controller),pet=PetController(store:store,atlas:try SpriteAtlas(resourceDirectory:resource))
     let connections=ConnectionsWindow(controller:controller)
     pet.reducedMotion={true};pet.pet.reduceTransparency={false};pet.showChat();await waitForTransition(pet,progress:1)

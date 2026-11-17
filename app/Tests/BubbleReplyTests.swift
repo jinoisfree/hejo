@@ -3,7 +3,7 @@ import AppKit
 @MainActor func bubbleReplyTests(resourceDirectory:URL,outputDirectory:URL?=nil) async throws {
     let home=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer{try? FileManager.default.removeItem(at:home)}
-    let store=try LocalStore(directory:home),controller=try ConversationController(client:GateClient(store:store,credentials:MemoryCredentials()))
+    let store=try LocalStore(directory:home),controller=try testConversation(client:GateClient(store:store,credentials:MemoryCredentials()))
     controller.receive(["type":"roster","employees":[["id":"alpha","name":"직원 A","aliases":[],"queued":true],["id":"beta","name":"직원 B","aliases":[]]]])
     let a=ConversationKey(employee:"alpha",thread:UUID().uuidString.lowercased()),b=ConversationKey(employee:"beta",thread:UUID().uuidString.lowercased())
     for (i,key) in [a,b].enumerated(){controller.receive(["v":1,"type":"message","seq":i+1,"msg_id":UUID().uuidString.lowercased(),"employee":key.employee,"thread":key.thread,"role":"employee","text":"대상 글","files":[],"buttons":[],"reply_state":NSNull(),"ts":"2026-01-01T00:00:00Z"])}
@@ -60,7 +60,7 @@ import AppKit
 }
 
 @MainActor func bubbleReplyNetwork(_ args:[String]) async throws {
-    let home=URL(fileURLWithPath:args[2]),store=try LocalStore(directory:home),client=GateClient(store:store,credentials:MemoryCredentials()),controller=try ConversationController(client:client,downloads:client.store.directory.appendingPathComponent("Downloads"))
+    let home=URL(fileURLWithPath:args[2]),store=try LocalStore(directory:home),client=GateClient(store:store,credentials:MemoryCredentials()),controller=try testConversation(client:client,downloads:client.store.directory.appendingPathComponent("Downloads"))
     try client.pair(address:args[3],code:"test_code-12",device:"fake bubble")
     try await waitFor{controller.canSend && !controller.model.typing.isEmpty}
     let key=ConversationKey(employee:"alpha",thread:"11111111-1111-4111-8111-111111111111")

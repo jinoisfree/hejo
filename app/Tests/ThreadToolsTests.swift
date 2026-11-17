@@ -8,7 +8,7 @@ func controlFrame(_ seq:Int,thread:String=controlThread,text:String="✅ 보고�
 @MainActor func threadToolsTests(outputDirectory:URL?=nil) async throws {
     let home=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer {try? FileManager.default.removeItem(at:home)}
-    let store=try LocalStore(directory:home),client=GateClient(store:store,credentials:MemoryCredentials()),controller=try ConversationController(client:client)
+    let store=try LocalStore(directory:home),client=GateClient(store:store,credentials:MemoryCredentials()),controller=try testConversation(client:client)
     let model=controller.model,key=ConversationKey(employee:"alpha",thread:controlThread)
     controller.receive(["v":1,"type":"roster","employees":[["id":"alpha","name":"직원 A","aliases":[]]]])
     func commit(_ row:[String:Any]) throws {try store.append(row);controller.receive(row)}
@@ -84,7 +84,7 @@ func controlFrame(_ seq:Int,thread:String=controlThread,text:String="✅ 보고�
 }
 
 @MainActor func threadNetwork(_ args:[String]) async throws {
-    let store=try LocalStore(directory:URL(fileURLWithPath:args[2])),client=GateClient(store:store,credentials:MemoryCredentials()),controller=try ConversationController(client:client)
+    let store=try LocalStore(directory:URL(fileURLWithPath:args[2])),client=GateClient(store:store,credentials:MemoryCredentials()),controller=try testConversation(client:client)
     defer {client.stop()}
     let ui=ConversationView(controller:controller);ui.frame=CGRect(x:0,y:0,width:720,height:650)
     try client.pair(address:args[3],code:"test_code-12",device:"Thread fixture")

@@ -3,7 +3,7 @@ import AppKit
 @MainActor func progressLayoutTests(outputDirectory:URL?=nil) async throws {
     let home=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer{try? FileManager.default.removeItem(at:home)}
-    let controller=try ConversationController(client:GateClient(store:LocalStore(directory:home),credentials:MemoryCredentials()))
+    let controller=try testConversation(client:GateClient(store:LocalStore(directory:home),credentials:MemoryCredentials()))
     let people:[[String:Any]]=zip(["alpha","beta","gamma","delta","epsilon","zeta"],["A","B","C","D","E","F"]).map{["id":$0.0,"name":"직원 "+$0.1,"aliases":[]]}
     controller.receive(["type":"roster","employees":people])
     let view=ConversationView(controller:controller,islandModel:IslandModel(clock:{controller.clock()}));view.frame=CGRect(x:0,y:0,width:850,height:620);view.reduceMotion={true};view.chooseHome()

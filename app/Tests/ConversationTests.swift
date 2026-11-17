@@ -43,7 +43,7 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     try check(rebuilt.applied == 4 && rebuilt.messages == model.messages && rebuilt.unread(employee:"beta") == 1,"projection and unread survive cache replay/restart")
     try commit(["v":1,"type":"delete","seq":5,"msg_id":messageA])
     try check(model.messages[messageA] == nil,"delete removes message")
-    let controller=try ConversationController(client:GateClient(store:store))
+    let controller=try testConversation(client:GateClient(store:store))
     try controller.model.apply(roster()); controller.model.select(employee:"beta")
     let ui=ConversationView(controller:controller,clipboardArea:directory.appendingPathComponent("clipboard"))
     try check(ui.brand.stringValue == "HEJO." && ui.brand.alignment == .center,"AT52 uppercase centered logo")
@@ -52,7 +52,7 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
               (1..<logo.length).allSatisfy { (logo.attribute(.foregroundColor,at:$0,effectiveRange:nil) as? NSColor) == .labelColor },"AT52 only H is systemBlue")
     try check((logo.attribute(.font,at:0,effectiveRange:nil) as? NSFont) == .systemFont(ofSize:14,weight:.semibold),"AT52 14 semibold")
     try check(ui.version.stringValue == (Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "") && ui.version.font?.pointSize == 10,"AT52 bundle version unchanged at 10pt")
-    let emptyUI=ConversationView(controller:try ConversationController(client:GateClient(store:try LocalStore(directory:directory.appendingPathComponent("empty")))),clipboardArea:directory.appendingPathComponent("empty-clipboard"))
+    let emptyUI=ConversationView(controller:try testConversation(client:GateClient(store:try LocalStore(directory:directory.appendingPathComponent("empty")))),clipboardArea:directory.appendingPathComponent("empty-clipboard"))
     try check(emptyUI.heading.stringValue == "HEJO.","AT52 empty-room heading")
     print("AT-HF-52 PASS")
     let pet=PetController(store:store,atlas:try SpriteAtlas(resourceDirectory:resourceDirectory))
@@ -119,7 +119,7 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
 }
 @MainActor func conversationNetwork(_ args:[String]) async throws {
     let directory=URL(fileURLWithPath:args[2]), store=try LocalStore(directory:directory), client=GateClient(store:store)
-    let controller=try ConversationController(client:client,downloads:client.store.directory.appendingPathComponent("Downloads"))
+    let controller=try testConversation(client:client,downloads:client.store.directory.appendingPathComponent("Downloads"))
     try client.pair(address:args[3],code:"test_code-12",device:"test-device")
     print("CONVERSATION_STAGE replay"); fflush(stdout)
     try await waitFor { controller.canSend && controller.model.applied == 3 }

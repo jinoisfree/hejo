@@ -3,7 +3,7 @@ import AppKit
 @MainActor func readNoticeTests(outputDirectory:URL?=nil) async throws {
     let home=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer {try? FileManager.default.removeItem(at:home)}
-    let store=try LocalStore(directory:home),controller=try ConversationController(client:GateClient(store:store,credentials:MemoryCredentials())),model=controller.model
+    let store=try LocalStore(directory:home),controller=try testConversation(client:GateClient(store:store,credentials:MemoryCredentials())),model=controller.model
     if outputDirectory != nil {
         let address=try homeRequire(ProcessInfo.processInfo.environment["HEJO_CAPTURE_ADDRESS"],"N36 capture requires live fake socket")
         try controller.client.pair(address:address,code:"test_code-12",device:"fake capture")
@@ -138,7 +138,7 @@ import AppKit
 /// Real gateway loopback: the optional target must survive a fresh replica, not only one live view.
 @MainActor func readNoticeNetwork(_ args:[String]) async throws {
     let home=URL(fileURLWithPath:args[2]),credentials=MemoryCredentials()
-    let client=GateClient(store:try LocalStore(directory:home),credentials:credentials),controller=try ConversationController(client:client)
+    let client=GateClient(store:try LocalStore(directory:home),credentials:credentials),controller=try testConversation(client:client)
     try client.pair(address:args[3],code:args[4],device:"fake target compatibility")
     defer{client.stop()}
     try await waitFor{controller.canSend && controller.model.messages.count==2}
@@ -151,7 +151,7 @@ import AppKit
     try check(controller.model.assessment(first.key).pending?.id==(expectsTarget ? second.id:nil),"AT87 real targeted answer preserves B; old gate treats as typed")
     let token=credentials.token!
     client.stop()
-    let fresh=GateClient(store:try LocalStore(directory:home.appendingPathComponent("fresh")),credentials:MemoryCredentials()),reconnected=try ConversationController(client:fresh)
+    let fresh=GateClient(store:try LocalStore(directory:home.appendingPathComponent("fresh")),credentials:MemoryCredentials()),reconnected=try testConversation(client:fresh)
     defer{fresh.stop()}
     try await fresh.adopt(address:args[3],device:"fake fresh replica",token:token)
     try await waitFor{reconnected.canSend && reconnected.model.messages.count==3}

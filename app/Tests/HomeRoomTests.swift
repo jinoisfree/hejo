@@ -6,7 +6,7 @@ func homeRequire<T>(_ value:T?,_ message:String)throws->T {guard let value else{
 
 @MainActor func homeRoomTests(resourceDirectory:URL,outputDirectory:URL?=nil) async throws {
     let home=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString);defer{try? FileManager.default.removeItem(at:home)}
-    let store=try LocalStore(directory:home),controller=try ConversationController(client:GateClient(store:store,credentials:MemoryCredentials())),model=controller.model
+    let store=try LocalStore(directory:home),controller=try testConversation(client:GateClient(store:store,credentials:MemoryCredentials())),model=controller.model
     controller.receive(["type":"roster","employees":[["id":"alpha","name":"직원 A","aliases":["A"]],["id":"beta","name":"직원 B","aliases":["B"]],["id":"gamma","name":"직원 C","aliases":["C"]]]])
     let ids=["11111111-1111-4111-8111-111111111111","22222222-2222-4222-8222-222222222222","33333333-3333-4333-8333-333333333333"]
     let a=ConversationKey(employee:"alpha",thread:ids[0]),b=ConversationKey(employee:"beta",thread:ids[1]),c=ConversationKey(employee:"gamma",thread:ids[2])
@@ -54,7 +54,7 @@ func homeRequire<T>(_ value:T?,_ message:String)throws->T {guard let value else{
 }
 
 @MainActor func homeRoomNetwork(_ args:[String]) async throws {
-    let store=try LocalStore(directory:URL(fileURLWithPath:args[2])),client=GateClient(store:store,credentials:MemoryCredentials()),controller=try ConversationController(client:client),model=controller.model
+    let store=try LocalStore(directory:URL(fileURLWithPath:args[2])),client=GateClient(store:store,credentials:MemoryCredentials()),controller=try testConversation(client:client),model=controller.model
     let view=ConversationView(controller:controller)
     try client.pair(address:args[3],code:"test_code-12",device:"fake home");try await waitFor{controller.canSend}
     view.chooseHome();controller.setText("default");await controller.sendCurrent();try await waitFor{model.messages.count==1}

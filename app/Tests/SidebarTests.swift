@@ -5,7 +5,7 @@ import QuartzCore
 @MainActor func sidebarTests(outputDirectory:URL?=nil) async throws {
     let directory=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer {try? FileManager.default.removeItem(at:directory)}
-    let store=try LocalStore(directory:directory),controller=try ConversationController(client:GateClient(store:store,credentials:MemoryCredentials())),model=controller.model
+    let store=try LocalStore(directory:directory),controller=try testConversation(client:GateClient(store:store,credentials:MemoryCredentials())),model=controller.model
     if outputDirectory != nil {
         try controller.client.pair(address:try homeRequire(ProcessInfo.processInfo.environment["HEJO_CAPTURE_ADDRESS"],"AT89 capture requires fake connection"),code:"test_code-12",device:"fake capture")
         try await waitFor{controller.canSend}

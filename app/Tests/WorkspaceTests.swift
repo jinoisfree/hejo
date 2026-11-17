@@ -8,7 +8,7 @@ private final class WorkspaceCanvas:NSView {
 @MainActor func workspaceTests(outputDirectory:URL?=nil) async throws {
     let home=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer {try? FileManager.default.removeItem(at:home)}
-    let store=try LocalStore(directory:home),controller=try ConversationController(client:GateClient(store:store,credentials:MemoryCredentials())),model=controller.model
+    let store=try LocalStore(directory:home),controller=try testConversation(client:GateClient(store:store,credentials:MemoryCredentials())),model=controller.model
     var now=Date(timeIntervalSince1970:1760000000);controller.clock={now}
     controller.receive(["type":"roster","employees":[["id":"alpha","name":"직원 A","aliases":[]],["id":"beta","name":"직원 B","aliases":[]]]])
     var seq=0
@@ -130,7 +130,7 @@ private final class WorkspaceCanvas:NSView {
 }
 
 @MainActor func workspaceNetwork(_ args:[String]) async throws {
-    let home=URL(fileURLWithPath:args[2]),store=try LocalStore(directory:home),client=GateClient(store:store,credentials:MemoryCredentials()),controller=try ConversationController(client:client)
+    let home=URL(fileURLWithPath:args[2]),store=try LocalStore(directory:home),client=GateClient(store:store,credentials:MemoryCredentials()),controller=try testConversation(client:client)
     let ui=ConversationView(controller:controller,clipboardArea:home.appendingPathComponent("clipboard"))
     try client.pair(address:args[3],code:"test_code-12",device:"fake workspace")
     try await waitFor{controller.canSend};ui.chooseEmployee("alpha");ui.createThread()

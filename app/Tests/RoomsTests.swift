@@ -3,7 +3,7 @@ import AppKit
 /// AT70/71/80: room state shares durable seq/cache, group identity differs from the speaker.
 @MainActor func roomsTests(resourceDirectory:URL,outputDirectory:URL?=nil) async throws {
     let directory=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString);defer{try? FileManager.default.removeItem(at:directory)}
-    let store=try LocalStore(directory:directory),controller=try ConversationController(client:GateClient(store:store,credentials:MemoryCredentials())),model=controller.model
+    let store=try LocalStore(directory:directory),controller=try testConversation(client:GateClient(store:store,credentials:MemoryCredentials())),model=controller.model
     controller.receive(["type":"roster","employees":[["id":"alpha","name":"직원 A","aliases":["first"]],["id":"beta","name":"직원 B","aliases":["second"]],["id":"gamma","name":"직원 C","aliases":["outside"]]]])
     try await controller.client.receive(["v":1,"type":"welcome","device_id":"fake-device","gate_version":"test","head_seq":0,"employees":try JSONSerialization.jsonObject(with:JSONEncoder().encode(model.employees)),"rooms":[]])
     try await controller.client.receive(["v":1,"type":"sync_done","ref":"hello","through":0,"more":false,"head_seq":0])
@@ -69,7 +69,7 @@ import AppKit
 }
 
 @MainActor func roomsNetwork(_ args:[String]) async throws {
-    let store=try LocalStore(directory:URL(fileURLWithPath:args[2])),client=GateClient(store:store,credentials:MemoryCredentials()),controller=try ConversationController(client:client),model=controller.model,view=ConversationView(controller:controller)
+    let store=try LocalStore(directory:URL(fileURLWithPath:args[2])),client=GateClient(store:store,credentials:MemoryCredentials()),controller=try testConversation(client:client),model=controller.model,view=ConversationView(controller:controller)
     try client.pair(address:args[3],code:args[4],device:"fake room app");try await waitFor{controller.canSend}
     await controller.roomCommand("room_save",title:"함께",members:["alpha","beta"],lead:"beta");try await waitFor{model.groups.count==1}
     let room=model.groups.values.first!.id

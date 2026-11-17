@@ -82,7 +82,7 @@ import AppKit
 @MainActor private func workspaceMotionTests(outputDirectory:URL?,samples:[String:Double]) async throws {
     NSApp.appearance=NSAppearance(named:.aqua)
     let home=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString);defer{try? FileManager.default.removeItem(at:home)}
-    let store=try LocalStore(directory:home),client=GateClient(store:store,credentials:MemoryCredentials()),controller=try ConversationController(client:client),model=controller.model
+    let store=try LocalStore(directory:home),client=GateClient(store:store,credentials:MemoryCredentials()),controller=try testConversation(client:client),model=controller.model
     defer{client.stop()}
     if outputDirectory != nil {try client.pair(address:try homeRequire(ProcessInfo.processInfo.environment["HEJO_CAPTURE_ADDRESS"],"AT91 fake connection"),code:"test_code-12",device:"fake capture");try await waitFor{controller.canSend}}
     controller.receive(["type":"roster","employees":[["id":"alpha","name":"직원 A","aliases":[]],["id":"beta","name":"직원 B","aliases":[]]]])

@@ -44,10 +44,15 @@ import AppKit
             conversationView.onConnections={ [weak self] profile in self?.showConnections(profile) }
             conversationView.homePetImage=pet.pet.atlas.image(row:0,frame:0)
             pet.pet.installConversation(conversationView)
+            pet.installWeb(WebPaneModel(downloads: conversation.files.downloads.root))
+            pet.web?.onExternal = { url in if url.isFileURL || CardText.mayOpen(url) { NSWorkspace.shared.open(url) } }
+            conversationView.onOpenURL = { [weak self] url in self?.followLink(url) }
+            conversation.onOpenFile = { [weak self] url in guard let self else { return }; if !self.pet.showBeside(url) { NSWorkspace.shared.open(url) } }
+            pet.panel.onPageKey = { [weak self] event in guard let self, let web = self.pet.web, web.hasFocus(in: self.pet.panel) else { return false }; return web.handleShortcut(event) }
             conversationView.onCollapse = { [weak self] in self?.pet.collapseChat() }
             pet.onReadingResizeBegan={ [weak conversationView] in conversationView?.beginReadingResize() };pet.onReadingResizeEnded={ [weak conversationView] in conversationView?.endReadingResize() }
             conversationView.onOpenThreadHeight = { [weak self] height in self?.pet.fitOpenThread(height) }
-            pet.panel.onWorkspaceKey = { [weak self] event in self?.conversationView.handleWorkspaceKey(event) ?? false }
+            pet.panel.onWorkspaceKey = { [weak self] event in guard let self, self.pet.web?.hasFocus(in:self.pet.panel) != true else {return false}; return self.conversationView.handleWorkspaceKey(event) }
             pet.panel.onCollapse = { [weak self] in guard let self else { return }; if !self.conversationView.pickingFiles && !self.conversationView.closeSearchIfOpen() { self.pet.collapseChat() } }
             pet.pet.onBubbleOpen = { [weak self] key in guard let self else {return};self.openBubble(key) }
             pet.pet.onClick={ [weak self] in guard let self else{return};if self.pet.chatExpanded {self.pet.collapseChat()} else {self.openBubble(self.pet.pet.bubbleTarget)} }
@@ -246,12 +251,17 @@ import AppKit
         if let key {conversationView.openFromBubble(key)}
         bubble.dismiss();pet.showChat();refreshPetActivity()
     }
+    private func followLink(_ url: URL) {
+        // Gateway URLs never become authenticated WebKit requests. Resolve a known attachment through GateHTTP instead.
+        if conversation.openAttachmentLink(url) { return }
+        pet.openWebLink(url)
+    }
     private func performBubbleAction(_ action:BubbleReveal.Action) {
         switch action {
         case .openChat:openBubble(pet.pet.bubbleTarget)
         case .link(let url):
             guard ["https","http"].contains(url.scheme?.lowercased() ?? "") else{return}
-            NSWorkspace.shared.open(url);bubble.dismiss();refreshPetActivity()
+            followLink(url);bubble.dismiss();refreshPetActivity()
         case .remindLater:
             if !bubble.remindLater(now:Date()) {pet.pet.bubbleStatus="나중에 알림을 저장하지 못했어요. 저장 공간을 확인해 주세요."}
             refreshPetActivity()

@@ -63,7 +63,7 @@ import AppKit
     settings.pointerButton.performClick(nil)
     try check(pet.pet.previewLook && (14.95...15).contains(pet.previewTimer!.fireDate.timeIntervalSinceNow) && pet.pet.foldedBubble.detail=="hejo · 포인터를 움직여 보세요","AT93 pointer preview fifteen seconds and original wording")
     pet.previewTimer?.fire();try check(!pet.pet.previewLook,"AT93 pointer preview ends")
-    let client=GateClient(store:store,credentials:MemoryCredentials()),controller=try ConversationController(client:client)
+    let client=GateClient(store:store,credentials:MemoryCredentials()),controller=try testConversation(client:client)
     let frame:[String:Any]=["v":1,"type":"message","seq":1,"msg_id":"fixture-post","employee":"alpha","thread":"fixture-thread","role":"employee","text":"hello","ts":"2026-01-01T00:00:00Z"]
     controller.setPaused(true);controller.receive(frame)
     try check(controller.model.messages.isEmpty,"AT93 pause holds presentation delivery")

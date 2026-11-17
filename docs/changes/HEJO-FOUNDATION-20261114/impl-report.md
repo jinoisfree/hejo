@@ -1996,3 +1996,22 @@ python3 .build/task38/post_checks.py 종료 0. 최종 빌드의 실제 가짜 �
 11. 중간 근거: 첫 단위 시험의 임시 루트 생성 누락과 새 가짜 welcome의 avatar 필드 누락을 고쳤다. 실제 제품 오류가 아닌 시험 초기 상태였고 원문/통신 계약은 바꾸지 않았다. 저장 실패 안내 초기화를 더하기 전 전체 검사는 소유 실행만 중단하고 intermediate-before-notice-clear에 보존했다. 선택한 글 날짜를 직접 전달하도록 호출자를 맞추기 전 실행은 intermediate-before-message-date에 보존했다. 이후 최종 입력으로 재검증했다. 기존 Swift 5 actor/SDK 경고는 원 로그에 남겼다. 범위 밖 부채는 새로 발견하지 않았다.
 12. 검토 요청: 사용자 사본과 조회 캐시 구분, 재열기의 직원/삭제 범위, 기존 소수 초 날짜 파서, 송신 확인 경계·직렬 사본 큐, 오류 안내/캐시 fallback을 봐 달라. public f716bdf는 고정했고 운영 홈·앱 사본·공용 릴리스·운영 허브·운영 저장소·본체/ddots·원격 변경, GitHub 조회·실제 발송·비밀 파일 열기는 없다. TASK-45 이후 미착수다.
 13. 최종 정적 검사·커밋: 보고 추가 뒤 개인값·HEJO_PYTHON 지정 훅·diff 검사를 하고 소유 파일만 git commit --only로 기록한다. 실제 전체 커밋·소유 파일·입력/산출물 지문 일치·깨끗한 main·고정 public은 .build/task44/final-checks.json·commit-result.json·final-verification.json을 따른다.
+
+
+## TASK-45 · N44-01 구현 인계
+
+1. 받은 설계: handoff 보완 38·58, REQ-HF-39/AT-96, H03·H03+. 기준 main ca80a9d. 일반 위험, 필요 증거 수준 2. 운영·공개본 반영 없이 로컬 구현·시험이다.
+2. 구현자 판단 상태: 구현·자체 시험 완료, 계획 담당 검토 대기.
+3. 변경 후 구조: 기존 ConversationView/AppDelegate의 링크와 접힌 말풍선 행동을 PetController의 옆 창 열기로 연결했다. WebPaneModel은 일시 탭·WebKit 요청·그림을, 기존 DownloadFileStore는 다운로드 위치를, LocalStore는 Mac별 칸 크기만 맡는다. 문·허브·기록장·wire는 바꾸지 않는다.
+4. 더한 것/뺀 것: WebPane·WebAddress·WebPicture·WebTabBlank 원본의 기능을 옮기고 WebPaneView를 AppKit으로 작성했다. 기존 외부 링크 바로 열기를 ⌘/옆 칸 분기로 대체했다. 문 첨부는 기존 GateHTTP로 받은 로컬 파일을 별도 nonPersistent 저장소에서 연다. 기존 50MiB 첨부 한도와 Info.plist는 유지한다. WebKit 프레임워크를 기존 빌드/시험 명령에 더했다.
+5. 설계 차이: 첫 탐색 실패 시 원본은 tab.url=nil이라 밖에서 열기 제어가 비활성이다. 원본 분리 실행으로 확인하고 26판 코드 우선으로 유지했으며 copy-review와 TASK-45 화면 문서에 기록했다. AT-96 문서는 수정하지 않았다. 이 해석은 검토자가 확인해 주어야 한다.
+6. 경계/임시 코드: AppKit UI와 원본의 관찰 모델 사이에는 onChange로 화면 갱신을 연결한다. 시험 전용 testConversation 생성 함수는 실제 Controller에 임시 다운로드 경로를 주입하며 본문 로직을 바꾸지 않는다. 원본 화면 분리 실행의 주변 대역과 그림 내보내기 도우미는 로컬 빌드 자료에만 있다. 제품의 두 번째 영구 원본은 없다.
+7. 변경 성격: 의미 변경(외부 링크만 열던 동작을 옆 창으로 대체). 원본의 탭·탐색·파일·그림 수명과 폴더 이름 규칙을 대조했다. Mac별 웹 칸 크기는 hejo-local.json의 기존 창 크기 자리다.
+8. 추가 시험: WebPaneTests/web_pane_fixture는 실제 WebKit의 새 창·탭 한도·선택 스크롤·주소/검색 계산·탐색·한글 키 위치 단축키·다운로드·문 첨부 로컬 보기·실패·접힌 말풍선 열기·폭/높이·그림 재사용을 보호한다. 서버는 웹 요청의 Authorization 부재와 앱 파일 요청의 인증을 따로 검사한다. N44-01은 모든 시험 Controller를 임시 경로에 묶고 앱 시험 진입점이 실제 다운로드 폴더의 항목 이름 불변을 검사한다. 이름이나 내용은 로그에 쓰지 않는다.
+9. 최종 검증: frozen.py 종료 0. foundation9_runner hejo 245 passed(test_install·허브 포함), 앱 전체/통신·AT-96 반복 3회 모두 종료 0·inputsUnchanged=true, 입력 194개 불변. 앱 전체 시험의 실제 다운로드 폴더 항목 이름 불변도 통과했다. mutation.py compile/verify 각각 0: 정상 0·탭 한도 13개 변형 1로 검출. post_checks.py 0: 최종 연결 캡처·PNG 4개(720×1000, 불투명, 제어 줄 아래 페이지)·codesign deep/strict 통과. 원본 분리 실행 0, 라이트/다크 직접 표시 비교 완료. 제품 주소칸 왼쪽 약 20pt·글자 기준선 약 5pt와 페이지 왼쪽 선 1pt 차이는 TASK-45 화면 문서에 명시했다. 개인값/HEJO_PYTHON 지정 훅/diff의 실제 종료 결과는 final-checks.json, 별도 커밋·입력/그림 일치는 final-verification.json에 기록한다. 중간 실패·중단 실행은 로컬 intermediate-*에 보존했으며 최종 통과 근거로 세지 않는다. 하위 에이전트는 쓰지 않았다.
+10. 미검증: 실제 서버·운영 허브·두 Mac·임의 웹 사이트 로그인·시스템 브라우저 실행·물리 입력기·VoiceOver. 운영 설치·공용 릴리스·public 변경·원격 조회/쓰기·실제 발송·비밀 파일 접근은 하지 않았다.
+11. 범위 밖 부채: 이번에는 없음. 첫 실패의 밖에서 열기 동작은 5항의 원본 대조/검토 사항이다.
+12. 검토 초점: AppKit 폭 변화 때 살아 있는 페이지의 배치 지연과 흐린 그림, 첨부의 비영구 저장소, 원본 실패 경계, 시험 다운로드 격리. 필요/도달 증거 수준은 2/2다. 실제 운영·두 Mac 결합을 확인했다는 뜻은 아니다.
+13. 대상 변경본: 기준 ca80a9d 위의 TASK-45 소유 파일 별도 commit-only 대상. tasks.md의 TASK-45 대기는 계획 담당 판정에서 갱신한다. TASK-46 이후 미착수이며 public f716bdf는 고정이다.
+
+TASK-45 최종 서식 보완: WebPane.swift EOF의 빈 줄 한 개를 제거했다. 전체/반복 실행 중 입력 194개는 불변이었고, 최종 커밋에서는 이 1개 파일만 끝 LF 1바이트 차이가 있다. `.build/task45/finalization-whitespace.json`과 시험본 사본으로 정확히 대조한다. 나머지 193개 입력은 시험 지문과 같으며 실행 코드 변경은 없다.

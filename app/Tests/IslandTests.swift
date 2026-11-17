@@ -90,7 +90,7 @@ private func islandMessage(_ seq:Int,_ key:ConversationKey = islandA,asked:Bool=
 
     let directory=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString);defer { try? FileManager.default.removeItem(at:directory) }
     let client=GateClient(store:try LocalStore(directory:directory),credentials:MemoryCredentials())
-    let controller=try ConversationController(client:client)
+    let controller=try testConversation(client:client)
     let roster:[[String:Any]]=["alpha","beta","gamma"].map { ["id":$0,"name":$0.capitalized,"aliases":[],"avatar":NSNull()] }
     try await client.receive(["v":1,"type":"welcome","employees":roster])
     for seq in 1...65 {

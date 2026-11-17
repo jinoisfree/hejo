@@ -112,7 +112,7 @@ import AppKit
     controller.show(); try check(controller.panel.isVisible, "AT64 show pet")
     controller.panel.orderOut(nil)
 
-    let chat = try ConversationController(client: GateClient(store: store, credentials: MemoryCredentials()))
+    let chat = try testConversation(client: GateClient(store: store, credentials: MemoryCredentials()))
     let view = ConversationView(controller: chat, clipboardArea: directory.appendingPathComponent("clipboard"))
     let panel = PetPanel(contentRect: CGRect(x: 0, y: 0, width: 500, height: 500), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
     panel.contentView = view; panel.chatExpanded = true
@@ -146,7 +146,7 @@ import AppKit
 @MainActor private func task17MenuTests(directory: URL) async throws {
     let home = directory.appendingPathComponent("menus")
     let store = try LocalStore(directory: home)
-    let chat = try ConversationController(client: GateClient(store: store, credentials: MemoryCredentials()))
+    let chat = try testConversation(client: GateClient(store: store, credentials: MemoryCredentials()))
     let view = ConversationView(controller: chat, clipboardArea: directory.appendingPathComponent("menus-clipboard"))
     let model = chat.model
     func menu(_ employee: String) -> NSMenu {
@@ -265,7 +265,7 @@ import AppKit
     let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: home) }
     let store = try LocalStore(directory: home)
-    let chat = try ConversationController(client: GateClient(store: store, credentials: MemoryCredentials()))
+    let chat = try testConversation(client: GateClient(store: store, credentials: MemoryCredentials()))
     let view = ConversationView(controller: chat, clipboardArea: home.appendingPathComponent("clipboard"))
     try chat.model.apply(["v":1,"type":"roster","employees":[["id":"employee-test","name":"가짜 직원","aliases":[]]]])
     let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 700, height: 570), styleMask: [.titled,.closable], backing: .buffered, defer: false)

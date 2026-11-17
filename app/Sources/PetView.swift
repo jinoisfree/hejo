@@ -5,6 +5,7 @@ final class PetPanel: NSPanel {
     var chatExpanded = false
     var bubbleReplyPresented=false
     var onCollapse: (() -> Void)?
+    var onPageKey: ((NSEvent) -> Bool)?
     var onWorkspaceKey:((NSEvent)->Bool)?
     override var canBecomeKey: Bool { chatExpanded || bubbleReplyPresented }
     override var canBecomeMain: Bool { false }
@@ -23,10 +24,12 @@ final class PetPanel: NSPanel {
             if let input=firstResponder as? NSTextInputClient,input.hasMarkedText(){super.sendEvent(event);return}
             cancelOperation(nil);return
         }
+        if chatExpanded,event.type == .keyDown,onPageKey?(event)==true {return}
         if chatExpanded,event.type == .keyDown,onWorkspaceKey?(event)==true {return}
         super.sendEvent(event)
     }
     override func performKeyEquivalent(with event:NSEvent)->Bool {
+        if chatExpanded,onPageKey?(event)==true{return true}
         if chatExpanded,event.modifierFlags.contains(.command),Self.shortcutKey(event)=="f",onWorkspaceKey?(event)==true{return true}
         if chatExpanded || bubbleReplyPresented && isKeyWindow,let action=Self.editAction(for:event),NSApp.sendAction(action,to:nil,from:self){return true}
         return super.performKeyEquivalent(with:event)
@@ -81,6 +84,11 @@ final class PetView: NSView {
     let statusLabel = NSTextField(labelWithString: "서버 연결 전")
     let collapseButton = NSButton(title: "펫으로 접기", target: nil, action: nil)
     private var conversationContent: NSView?
+    private(set) var webPane: WebPaneView?
+    var paneWidth: CGFloat = 0, paneSliding = false
+    var onResetPaneSize: (() -> Void)?
+    func installWeb(_ view: WebPaneView) { webPane?.removeFromSuperview(); webPane = view; conversation.addSubview(view) }
+
     private var glass: NSView!
     private let tint = NSView()
     let unreadBadge = PetBadgeView()
@@ -323,7 +331,11 @@ final class PetView: NSView {
         collapseButton.frame = CGRect(x: 16, y: max(0, p.bubbleRect.height - 38), width: 120, height: 28)
         glass.frame = conversation.bounds; tint.frame = conversation.bounds
         updateScrim()
-        conversationContent?.frame = CGRect(origin: .zero, size: p.bubbleRect.size)
+        if !paneSliding {
+            conversationContent?.frame = CGRect(x:0,y:0,width:max(0,p.bubbleRect.width-paneWidth),height:p.bubbleRect.height)
+            webPane?.isHidden = paneWidth <= 0
+            webPane?.frame = CGRect(x:p.bubbleRect.width-paneWidth,y:0,width:paneWidth,height:p.bubbleRect.height)
+        }
         updateUnreadBadge()
         updateFoldedBubble()
         sprite.needsDisplay = true
@@ -344,7 +356,7 @@ final class PetView: NSView {
         let local = convert(event.locationInWindow, from: nil)
         edge = spriteContains(local) ? [] : placement.map { $0.expanded ? PetLayout.resizeEdge(at: local, bubble: $0.bubbleRect, below: $0.bubbleBelow) : [] } ?? []
         guard spriteContains(local) || !edge.isEmpty else { return }
-        if !edge.isEmpty && event.clickCount==2 {onResetSize?();return}
+        if !edge.isEmpty && event.clickCount==2 {if paneWidth > 0, edge.contains(.right) {onResetPaneSize?()} else {onResetSize?()};return}
         guard event.clickCount==1 else{return}
         noteActivity()
         press = pointerLocation();previousDragMouse=press;anchor = placement?.anchorOrigin ?? .zero;didDrag=false
@@ -399,8 +411,25 @@ final class PetView: NSView {
         captureGenie();widthCover.image=genie.blurredImage.map{NSImage(cgImage:$0,size:conversation.bounds.size)} ?? genie.image
         endGenie(expanded:true);widthCover.imageScaling = .scaleAxesIndependently;widthCover.frame=conversation.bounds;conversation.addSubview(widthCover);widthCover.alphaValue=0
     }
-    func setWidthCover(alpha:CGFloat){widthCover.frame=conversation.bounds;widthCover.alphaValue=alpha}
-    func endWidthCover(){widthCover.removeFromSuperview();widthCover.image=nil}
+    func setWidthCover(alpha:CGFloat){widthCover.frame=conversation.bounds;widthCover.alphaValue=alpha;layoutPanePicture()}
+    private var panePicture: CALayer?, paneSharp: CALayer?
+    private var panePictureBase: CGFloat = 0
+    func setPanePicture(_ picture: WebPicture?, base: CGFloat, closing: Bool) {
+        panePicture?.removeFromSuperlayer(); panePicture = nil; paneSharp = nil; panePictureBase = base
+        guard let picture else { return }
+        widthCover.wantsLayer = true
+        let image = CALayer(); image.contents = picture.soft; image.masksToBounds = true
+        widthCover.layer?.addSublayer(image); panePicture = image
+        if closing { let sharp = CALayer(); sharp.contents = picture.sharp; image.addSublayer(sharp); paneSharp = sharp }
+        layoutPanePicture()
+    }
+    private func layoutPanePicture() {
+        panePicture?.frame = CGRect(x:panePictureBase,y:0,width:max(0,widthCover.bounds.width-panePictureBase),height:max(0,widthCover.bounds.height-78))
+        paneSharp?.frame = panePicture?.bounds ?? .zero
+        paneSharp?.opacity = Float(1-widthCover.alphaValue)
+    }
+    var hasPanePicture: Bool { panePicture?.contents != nil }
+    func endWidthCover(){widthCover.removeFromSuperview();widthCover.image=nil;panePicture?.removeFromSuperlayer();panePicture=nil;paneSharp=nil}
     func captureGenie() {
         conversation.isHidden = false; conversation.layoutSubtreeIfNeeded()
         if let rep = conversation.bitmapImageRepForCachingDisplay(in: conversation.bounds) {

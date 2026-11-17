@@ -24,7 +24,7 @@ import AppKit
 @MainActor func downloadsNetwork(_ args:[String]) async throws {
     let home=URL(fileURLWithPath:args[2]),store=try LocalStore(directory:home)
     let client=GateClient(store:store,credentials:MemoryCredentials())
-    let downloads=home.appendingPathComponent("Downloads"),controller=try ConversationController(client:client,downloads:downloads)
+    let downloads=home.appendingPathComponent("Downloads"),controller=try testConversation(client:client,downloads:downloads)
     defer {client.stop()}
     try client.pair(address:args[3],code:"test_code-12",device:"fake download test")
     try await waitFor{controller.canSend && controller.model.messages.count==3}
@@ -44,7 +44,7 @@ import AppKit
     opened=nil;let foreign=await controller.open(file,employee:"beta",date:date);try check(!foreign && opened==nil,"AT95 saved copy never bypasses employee scope")
     // A file occupying the directory path reliably fails even when the test account can write chmod-locked folders.
     let blocked=home.appendingPathComponent("blocked");try Data("not a directory".utf8).write(to:blocked)
-    let fallback=try ConversationController(client:client,downloads:blocked)
+    let fallback=try testConversation(client:client,downloads:blocked)
     // Keep the real client's callback on the original controller for the sending checks below.
     client.onFrame={ [weak controller] in controller?.receive($0) }
     var cached:URL?;fallback.onOpenFile={cached=$0}

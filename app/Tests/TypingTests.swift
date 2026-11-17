@@ -13,7 +13,7 @@ private func descendants<T:NSView>(_ root:NSView,_ type:T.Type)->[T] {
     var time=Date(timeIntervalSince1970:1000), motion:TimeInterval=0, blink:TimeInterval=0, reduced=false
     let directory=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString);defer { try? FileManager.default.removeItem(at:directory) }
     let client=GateClient(store:try LocalStore(directory:directory),credentials:MemoryCredentials())
-    let controller=try ConversationController(client:client);controller.clock={time}
+    let controller=try testConversation(client:client);controller.clock={time}
     try await client.receive(["v":1,"type":"welcome","employees":[["id":"alpha","name":"Alpha","aliases":[],"avatar":NSNull()]]])
     controller.receive(["v":1,"type":"message","seq":1,"msg_id":typingRoot,"employee":"alpha","thread":typingKey.thread,"role":"owner","text":"Please check","files":[],"buttons":[],"ts":ISO8601DateFormatter().string(from:time)])
     controller.model.select(typingKey)

@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 
 @MainActor func pictureNetwork(_ args:[String]) async throws {
     let store=try LocalStore(directory:URL(fileURLWithPath:args[2])),client=GateClient(store:store,credentials:MemoryCredentials())
-    let chat=try ConversationController(client:client)
+    let chat=try testConversation(client:client)
     defer { client.stop() }
     try client.pair(address:args[3],code:"test_code-12",device:"Picture test")
     try await waitFor { client.isConnected && chat.model.employees.count==1 }
@@ -116,7 +116,7 @@ import UniformTypeIdentifiers
 
     let directory=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at:directory) }
-    let store=try LocalStore(directory:directory), chat=try ConversationController(client:GateClient(store:store,credentials:MemoryCredentials()))
+    let store=try LocalStore(directory:directory), chat=try testConversation(client:GateClient(store:store,credentials:MemoryCredentials()))
     let model=chat.model,view=ConversationView(controller:chat,clipboardArea:directory.appendingPathComponent("clip"))
     try model.apply(["type":"roster","employees":[["id":"alpha","name":"Test alpha","aliases":[],"color":"#12ABCD","avatar_custom":false],["id":"beta","name":"Test beta","aliases":[]]]])
     model.toggleSection(nil)

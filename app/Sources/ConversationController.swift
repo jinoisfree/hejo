@@ -153,6 +153,15 @@ struct ConversationFailedSend: Identifiable {
         guard let writer=model.typingPeople[key]?.keys.sorted().first else{return false}
         return model.employees.first{$0.id==writer}?.queued != true
     }
+    @discardableResult func openAttachmentLink(_ url: URL) -> Bool {
+        guard let endpoint = try? GateClient.endpoint(client.store.settings.address), url.host == endpoint.host, url.port == endpoint.port,
+              url.path.hasPrefix("/v1/files/") else { return false }
+        let parts = url.pathComponents
+        guard parts.count == 5, let message = model.messages.values.first(where: { $0.speaker == parts[3] && $0.files.contains(where: { $0.fileID == parts[4] }) }),
+              let file = message.files.first(where: { $0.fileID == parts[4] }) else { transferFailed(FileTransferFailure.unavailable); return true }
+        Task { await open(file, employee: message.speaker, date: ThreadTools.date(message.timestamp)) }
+        return true
+    }
     func openLink(_ url:URL) {
         guard let key=ThreadTools.destination(url),!model.timeline(key).isEmpty else { notice="그 스레드를 불러오지 못했어요";return }
         model.select(key);onRevealThread?(key)

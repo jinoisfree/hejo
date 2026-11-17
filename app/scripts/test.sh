@@ -1,6 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+downloads_snapshot=$(mktemp)
+"${HEJO_PYTHON:-python3}" Tests/downloads_guard.py snapshot "$downloads_snapshot"
+trap 'result=$?; "${HEJO_PYTHON:-python3}" Tests/downloads_guard.py verify "$downloads_snapshot" || result=1; rm -f "$downloads_snapshot"; exit "$result"' EXIT
 HEJO_SKIP_GOOGLE_SECRET=1 HEJO_SPARKLE_OFFLINE=1 bash scripts/build.sh
 sources=()
 for source in Sources/*.swift; do
@@ -8,7 +11,7 @@ for source in Sources/*.swift; do
 done
 xcrun swiftc -swift-version 5 -parse-as-library -g -target "$(uname -m)-apple-macosx13.0" \
   "${sources[@]}" Tests/*.swift -o .build/app-tests \
-  -framework AppKit -framework Accelerate -framework ServiceManagement \
+  -framework AppKit -framework WebKit -framework Accelerate -framework ServiceManagement \
   -F .build/sparkle-2.10.0 -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/hejo.app/Contents/Frameworks
 codesign --force --sign "${HEJO_SIGNING_IDENTITY:-AIpet Local Development}" --timestamp=none .build/app-tests
 [[ "$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' .build/hejo.app/Contents/Info.plist)" == io.github.hermes-hejo.hejo ]]
@@ -31,3 +34,5 @@ printf '%s\n' 'AT-HF-23 PASS'
 "${HEJO_PYTHON:-python3}" Tests/composer_target_fixture.py .build/app-tests
 
 "${HEJO_PYTHON:-python3}" Tests/downloads_fixture.py .build/app-tests
+
+"${HEJO_PYTHON:-python3}" Tests/web_pane_fixture.py .build/app-tests
