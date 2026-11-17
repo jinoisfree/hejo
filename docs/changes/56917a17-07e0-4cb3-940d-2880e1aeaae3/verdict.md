@@ -1,3 +1,29 @@
+## 검증 판정: TASK-38 사이드바 (2026-11-18)
+
+1. **판정:** TASK-38 완료(`f535b3114857cb8c46e8c1edbb315570d7eab92c`, 파일 27개). 증거 수준은 2/2다. 차단 결함은 없다. 비차단 N38-01(그림 크기·간격)은 TASK-39로 넘긴다.
+2. **검증 조건:** 교차 모델이다. 구현은 codex gpt-6.1-sol, 검토는 Claude Opus 5.5다.
+3. **설계 적합성(4.2):** REQ-HF-36.AC-03, 대조표 §C·V03~V06·V13, 2.1판 C22~C27, 이관된 REQ-HF-34.AC-08을 충족한다.
+   - 움직임
+     - 행 차이는 `NSTableView` `beginUpdates`와 `insert/removeRows(.effectFade)`로 처리한다. 0.24초 easeInEaseOut이고, 직접 `reloadData`를 부르지 않는다.
+     - 높이 변화는 `noteHeightOfRows`로 0.24초 움직인다.
+     - 레일은 `CAShapeLayer` path·opacity가 0.24초 동안 바뀌고, presentation 값에서 이어 간다.
+     - 선택 상자는 spring이다. ddots `.spring(response: 0.34, dampingFraction: 0.88)`(SlackPanel.swift:2071)을 stiffness `(2π/0.34)²`, damping `2·0.88·ω`로 정확히 바꿨다.
+     - 동작 줄이기와 창이 없을 때는 즉시 바뀐다.
+   - 접힌 구획에는 얼굴·사진이 없다(V03). 사장이 고른 것(DM 기본 이름, 얼굴 줄 없음)은 그대로다.
+   - 새 영구 원본·wire·문 변경은 없다.
+4. **직접 확인한 것**
+   - 캡처: `task38-{ddots,hejo}-light-212.png`, `-dark-68.png`를 직접 비교했다.
+     - 구획·홈·고정·함께·보관 전·DM 순서, 레일, 구분선, 선택 상자, 얼굴 묶음 +3, 수 배지 색(빨강·노랑·하늘)이 같다.
+     - 좁은 폭(68)의 핀 위치와 이름 줄도 같다.
+   - `final-foundation.log`: 236 passed.
+   - `mutation.json`: slideDown 변형이 검출됐다(baseline 0, 변형 1).
+5. **지적**
+   - N38-01(비차단, 세부): 방 행의 핀·알림 끔 그림이 ddots보다 작고 흐리다. "방 추가"의 ⊕와 글자 사이가 좁다. TASK-39에서 ddots 값으로 맞춘다(보완 53).
+6. **남은 위험:** VoiceOver 실사용, 실제 서버, 두 Mac에서 ddots와 나란히 보는 실물 확인.
+7. **작업 56917a17 전체:** 부분 완료. 다음은 TASK-39다.
+
+---
+
 ## 검증 판정: TASK-37 작성기 대상·보내기 (2026-11-18)
 
 1. **판정:** TASK-37 완료(`13596ba16b74e1326a0bf899ec927f09f63fafea`, 파일 24개). N36-01·N36-02도 반영했다. 증거 수준은 2/2다. 차단 결함은 없다. 비차단 N37-01(카드 단추 색)은 TASK-39로 넘긴다.
