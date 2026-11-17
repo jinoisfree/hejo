@@ -196,6 +196,14 @@ struct ConversationFailedSend: Identifiable {
             status:client.status,failure:transferFailure ?? stateFailure,uploads:uploads,muted:model.petMuted)
     }
     var onOpenFile: (URL) -> Void = { NSWorkspace.shared.open($0) }
+    private(set) var paused = false
+    // Presentation delivery pauses, while the gate keeps its authenticated socket and durable replay cache.
+    private var pausedFrames: [[String: Any]] = []
+    func setPaused(_ value: Bool) {
+        guard paused != value else { return }; paused = value
+        if !value { let frames = pausedFrames; pausedFrames = []; for frame in frames { receive(frame) } }
+        onChange?()
+    }
     private var replicaAddress: String
     private var timer: Timer?
     init(client: GateClient) throws {
@@ -213,7 +221,7 @@ struct ConversationFailedSend: Identifiable {
         client.onFrame = { [weak self] frame in self?.receive(frame) }
         timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                guard let self else{return}
+                guard let self, !self.paused else{return}
                 let old=(self.confirmingDelete.count,self.interruptions.count,self.branching.count)
                 self.model.expireTyping()
                 let now=self.clock();self.confirmingDelete=self.confirmingDelete.filter{now.timeIntervalSince($0.value)<4}
@@ -226,6 +234,7 @@ struct ConversationFailedSend: Identifiable {
     deinit { timer?.invalidate() }
     func receive(_ frame: [String: Any]) {
         if ["connections_status","connection_result"].contains(frame["type"] as? String ?? "") {onConnectionsFrame?(frame);return}
+        if paused { pausedFrames.append(frame); return }
         if ["welcome","roster"].contains(frame["type"] as? String ?? "") { pictures.invalidate() }
         if frame["type"] as? String == "welcome" { reconnectPending = Set(pending.keys) }
         if frame["type"] as? String == "sync_done", frame["more"] as? Bool == false {

@@ -28,7 +28,9 @@ final class MemoryCredentials: GateCredentialStore {
         Task { @MainActor in
             do {
                 let args = CommandLine.arguments
-                if args.contains("--task41") {
+                if args.contains("--task42") {
+                    try await settingsTests()
+                } else if args.contains("--task41") {
                     try await petWindowTests()
                 } else if args.count>2 && args[1]=="--task41-capture" {
                     try await petWindowTests(outputDirectory:URL(fileURLWithPath:args[2]))
@@ -118,6 +120,7 @@ final class MemoryCredentials: GateCredentialStore {
         }
     }
     func unit() async throws {
+        try await settingsTests()
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: dir) }
         let store = try LocalStore(directory: dir)
@@ -154,7 +157,7 @@ final class MemoryCredentials: GateCredentialStore {
         _ = try await revoked.receive(["v":1, "type":"auth_rejected", "reason":"revoked"])
         try check(revoked.status == .revoked && memory.token == nil, "revocation stops and removes credential")
         try check(GateKeychain().read(account: "bad\"") == nil && !GateKeychain().save("bad\"", account: "test"), "keychain command input rejects quotes")
-        try check(PetIdentity.normalized("  ") == "hejo" && PetIdentity.normalized(String(repeating:"a", count:30)).count == 20, "neutral pet identity")
+        try check(PetIdentity.defaultName == "hejo" && PetIdentity.validationMessage(for:"  ") != nil && PetIdentity.validationMessage(for:String(repeating:"a", count:30)) != nil, "neutral pet identity")
         let atlas = try SpriteAtlas(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         let controller = PetController(store: reset, atlas: atlas)
         let first = PetDisplay(frame: CGRect(x: 0,y: 0,width: 1200,height: 900), visible: CGRect(x: 0,y: 40,width: 1200,height: 830))

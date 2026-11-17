@@ -133,8 +133,8 @@ import LocalAuthentication
             let context=LAContext()
             return (try? await context.evaluatePolicy(.deviceOwnerAuthentication,localizedReason:"서버의 연결 설정을 바꾸려면 다시 확인해 주세요"))==true
         })
-        window=NSWindow(contentRect:CGRect(x:0,y:0,width:860,height:590),styleMask:[.titled,.closable,.resizable,.miniaturizable],backing:.buffered,defer:false)
-        super.init();model.people={ [weak controller] in controller?.model.employees.map{AgentConnectionProfile(profile:$0.id,display_name:$0.name,connections:[])} ?? [] };model.avatar={ [weak controller] in controller?.avatar($0) ?? ProfileAvatar() };window.title="직원별 도구 연결";window.isReleasedWhenClosed=false;window.center()
+        window=NSWindow(contentRect:CGRect(x:0,y:0,width:760,height:560),styleMask:[.titled,.closable,.resizable,.miniaturizable],backing:.buffered,defer:false)
+        super.init();model.people={ [weak controller] in controller?.model.employees.map{AgentConnectionProfile(profile:$0.id,display_name:$0.name,connections:[])} ?? [] };model.avatar={ [weak controller] in controller?.avatar($0) ?? ProfileAvatar() };window.title="에이전트 연결";window.minSize=CGSize(width:760,height:500);window.isReleasedWhenClosed=false;window.center()
         window.contentView=NSHostingView(rootView:ConnectionsView(model:model))
         model.privacy={ [weak window] active in window?.sharingType=active ? .none:.readWrite;window?.sheets.forEach{$0.sharingType = .none} }
         request={ [weak self,weak controller] frame in
@@ -152,7 +152,7 @@ import LocalAuthentication
         }
         NotificationCenter.default.addObserver(forName:NSWindow.willCloseNotification,object:window,queue:.main){[weak self] _ in Task{@MainActor in self?.model.close()}}
     }
-    func show(profile:String?=nil){if let profile{model.selected=profile};window.makeKeyAndOrderFront(nil);Task{await model.refresh();await model.resumeRestart()}}
+    func show(profile:String?=nil){NSApp.activate(ignoringOtherApps:true);if let profile{model.selected=profile};window.makeKeyAndOrderFront(nil);Task{await model.refresh();await model.resumeRestart()}}
 }
 
 struct ConnectionsView:View {

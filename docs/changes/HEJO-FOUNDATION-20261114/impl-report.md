@@ -1942,3 +1942,23 @@ python3 .build/task38/post_checks.py 종료 0. 최종 빌드의 실제 가짜 �
 - 첫 전체 실행은 AT-92까지 통과 후 N40-01로 바뀐 공용 색을 옛 AT-78이 기대해 실패했다. 원문상 명시된 색 단정과 머리줄 재배치 보류를 더한 뒤 새 입력으로 검증했다. 숨김 억제 뒤 창을 다시 보이는 초기 프레임의 AT-82 실패도 확인해 창 수명 경계에서 갱신했고, 그 hover/포커스 단언은 보존했다. 마지막 배지 숨김의 가짜 시계도 3초 기한 이후로 옮겼다. 이전 행/지문/로그는 intermediate-before-color-guard·intermediate-before-bubble-show·intermediate-before-pop-clock에 보존했다.
 
 필요/도달 증거 수준은 2/2다. 화면은 동일 합성 상태의 원본 함수/실제 AppKit 조립 비교이며 운영 앱 전체·실제 두 Mac 검증이 아니다. 보완 조립은 `python3 .build/task41/native_capture.py` compile/run 0(`native-capture.json`), 단추 바탕 라이트/다크 표본은 원본과 같음(`capsule-colors.json`)을 확인했다. 실제 서버·입력기·VoiceOver·다중 화면 실물은 운영 수락에 남는다. evidence/HEJO-FOUNDATION/TASK-41.md와 PNG에 범위를 명시했다. 최종 보고 뒤 개인값·HEJO_PYTHON 훅·diff 검사와 소유 파일 git commit --only 및 커밋/입력/그림 바이트 검증을 한다. 그 실제 커밋과 결과는 .build/task41/final-verification.json에 둔다. tasks.md 판정은 계획 담당이 갱신하며 TASK-42 이후는 미착수다. public f716bdf는 고정했다. 운영 홈·앱 사본·공용 릴리스·운영 저장소·본체·ddots·원격 변경, GitHub 조회·push·실제 발송·비밀 파일 열기는 하지 않았다.
+
+## 구현 인계: TASK-42 설정·메뉴·대기 동기화
+
+1. 받은 설계: handoff 보완 38·42(N35-01), 대조표 §G·V11 및 2.1판 G04/G09/G11~G13, REQ-HF-36.AC-07·AT-93. 기준 `cd6db146cb4b286d20b2e5c036e4fd6207bc947f`. 일반 위험, 필요 증거 수준 2, 임시 홈·가짜 명부·루프백만 사용했다.
+2. 구현자 판단: 구현 완료(자체 판단), 계획 담당 검토 대기. tasks의 대기 표시는 검토자가 갱신한다.
+3. 책임 배치: 기존 PetSettingsWindow·AppDelegate가 설정과 메뉴를, PetController/PetView가 일시적 미리보기를 맡는다. 기존 MemberState 복제본·outbox와 HubClient·hub/server.py가 동기화를 맡으며 새 영구 원본·상태 키를 만들지 않았다.
+4. 추가/제거: 620 폭·탭별 스크롤·화면 맞춤·이름 검사·연속 크기·로그인 상태/실패 문구·고급 두 미리보기·실패 때만 요청문 복사·고정 채널 팝업·동기화 결과 창을 연결했다. 작업 목록/내 캘린더 메뉴는 후속 TASK 자리로 비활성 상태다. 연결 창 760×560/최소 760×500·활성 앱 층과 테마, 쉬기 중 화면 전달 보류/재개를 연결했다. 조용한 이름 자름·고정 네 탭·늘 보이는 로그인 설정 단추·등록 실패 경고창을 대체했다. 클립보드·끌어놓기 탭은 넣지 않았다.
+5. 설계 차이: 2.1판과 원문 코드 우선 사항은 copy-review에 적었다. N35-01 단언 추가는 명시 인계 범위다. 통신 프레임·문·기록장은 바꾸지 않았다.
+6. 호환: 새 wait GET은 `X-Hejo-State-Wait: 1`로 지원을 알리고 25초 뒤 빈 상태를 돌려준다. 옛 앱의 since GET/PATCH는 그대로다. 옛 허브는 wait 쿼리를 무시하므로 한 번 받은 뒤 기존 30초 받기를 쓴다. 새 허브에서는 대기 요청 하나만 유지하고 30초 경로를 끈다. 보내기는 기존 outbox에 1.5초 묶음이며 진행 중인 PATCH와 겹치지 않는다. 늦은 낮은 rev 응답은 최신 복제본을 되돌리지 않는다.
+7. 변경 성격: 승인된 의미 변경이다. 미리보기는 동작 9개·방향 2개 각 2초, 졸기는 dozeCycle, 시선은 15초다. 쉼은 문 연결·캐시를 유지하고 화면 전달과 작업 소비만 멈춘다.
+8. 시험: SettingsTests는 실제 native controls의 오류·스크롤·크기·팝업·복사·미리보기·쉼을, 실제 HubClient 요청 대역은 wait 쿼리/인증/지원 헤더를, 지연 네트워크 대역은 송신 묶음/중복 요청 없음/낮은 rev/옛 허브를 보호한다. test_state_wait.py 8개는 실제 임시 허브 HTTP에서 회원 격리·변경 즉시 깨우기·25초 기본/빈 응답·옛 GET·잘못된 요청/인증·종료를 보호한다. 알림 깨우기 제거 돌연변이는 정상 0·변형 1로 검출했다.
+9. 최종 검증: `.build/task42/frozen.py` 종료 0, foundation9_runner hejo 244 passed(test_install 포함), 앱 전체와 기존 통신 시험 종료 0. AT-93 집중 3회 모두 0·입력 180개 불변. `.build/task42/mutation.py` 종료 0, 원본 불변. `.build/task42/capture.py` 및 post_checks.py 종료 0, 유효 PNG 8개 직접 비교·4쌍 바이트 일치·codesign deep/strict 통과. 상세는 frozen-progress.json, final-foundation.log, mutation.json, capture.json, post-checks.json, image-check.json에 있다. Swift 5 빌드의 actor 격리·SDK deprecated 경고는 원 로그에 남겼다. 개인값·훅·diff 최종 결과는 아래 최종 기록과 final-checks.json을 따른다.
+10. 미검증: 실제 로그인 항목 등록, 운영 허브/서버, 두 Mac, 물리 입력기와 VoiceOver. 필요/도달 증거 수준 2/2이며 화면은 원본 분리와 제품 AppKit 페이지 조립이다. 운영 앱 전체 비교가 아니다.
+11. 중간 실패: 시험 자원 경로의 실행 위치 가정과 가짜 허브의 응답/저장 판 번호 불일치를 고쳤다. 기존 단언은 완화하지 않았다. 앞 실행은 intermediate-resource-path·intermediate-fixture-revision에 보존했다. 초기 빈 캡처는 intermediate-capture에 격리했고 창/탭 수명·외관·레이아웃을 보장한 최종 그림만 증거로 썼다.
+12. 검토 요청: 대기 지원 선언/옛 허브 분기·rev 경합·쉼의 화면 전달 경계·이름 조합 보호와 N35-01 조건을 봐 달라. 운영 적용·공용 릴리스/앱 사본·public/원격·본체/ddots 변경은 없다.
+13. 검토 코드: main의 TASK-42 소유 파일 별도 commit-only 결과는 `.build/task42/commit-result.json`, 입력/그림 일치 및 깨끗한 작업 트리 확인은 final-verification.json이다. TASK-43 이후는 미착수다.
+
+### TASK-42 최종 정적 검사
+
+개인값 검사·HEJO_PYTHON 지정 pre-commit·diff는 각각 종료 0이다. 최종 owned 목록은 29개이며 commit-only 대상 목록을 `.build/task42/owned-files.json`에 남겼다. 서명 검증·PNG 직접 비교·검증 입력 불변은 post-checks.json에서 확인했다. 커밋 뒤 verify가 기록한 실제 전체 커밋을 계획 담당에게 인계한다.

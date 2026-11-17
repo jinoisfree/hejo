@@ -21,6 +21,7 @@ import AppKit
     private var bubbleTimer: Timer?
     private var bubbleReply:BubbleReplyCard!
     private var wasSending = false
+    private var loginChangeFailed = false
     private var settingsRevision = 0
     private var settingsTask: Task<Void, Never>?
     private var activityMonitor: Any?
@@ -54,7 +55,7 @@ import AppKit
             bubbleTimer=Timer(timeInterval:0.25,repeats:true){ [weak self] _ in Task { @MainActor in self?.refreshPetActivity() } }
             RunLoop.main.add(bubbleTimer!,forMode:.common)
             let previousChange = conversation.onChange
-            conversation.onChange = { [weak self] in previousChange?(); self?.refreshPetActivity() }
+            conversation.onChange = { [weak self] in previousChange?(); self?.refreshPetActivity(); if let self { self.petSettings?.refreshHome(rooms:self.conversation.model.rooms,selected:self.conversation.model.home.settings.channel) } }
             conversationView.onUnread = { [weak self] count in self?.pet.pet.unreadCount = count }
             conversationView.onSidebarWidth = { [weak self] delta in
                 guard let self, let current = self.pet.placementTarget else { return }
@@ -123,11 +124,15 @@ import AppKit
     func makeStatusMenu() -> NSMenu {
         let menu = NSMenu(); menu.delegate = self; menu.autoenablesItems = false
         menu.addItem(withTitle: "대화 열기", action: #selector(openChat), keyEquivalent: "").target = self
+        for title in ["작업 목록", "내 캘린더"] {
+            let item = menu.addItem(withTitle: title, action: nil, keyEquivalent: ""); item.isEnabled = false
+        }
         menu.addItem(.separator())
         hideItem = menu.addItem(withTitle: "펫 숨기기", action: #selector(togglePet), keyEquivalent: ""); hideItem?.target = self
         pauseItem = menu.addItem(withTitle: "잠시 쉬기", action: #selector(togglePause), keyEquivalent: ""); pauseItem?.target = self
         menu.addItem(.separator())
         menu.addItem(withTitle: "설정…", action: #selector(showOptions), keyEquivalent: ",").target = self
+        menu.addItem(withTitle:"에이전트 연결…",action:#selector(openAgentConnections),keyEquivalent:"").target=self
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? AppIdentity.version
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "2"
         let versionItem = menu.addItem(withTitle: "hejo \(version) (빌드 \(build))", action: nil, keyEquivalent: "")
@@ -141,7 +146,7 @@ import AppKit
     func menuNeedsUpdate(_ menu: NSMenu) {
         refreshUpdates()
         hideItem?.title = pet?.panel.isVisible == false ? "펫 보이기" : "펫 숨기기"
-        pauseItem?.title = pet?.pet.isPaused == true ? "다시 움직이기" : "잠시 쉬기"
+        pauseItem?.title = pet?.pet.isPaused == true ? "다시 시작" : "잠시 쉬기"
     }
     func applicationWillTerminate(_ notification: Notification) {
         appUpdate?.stop()
@@ -153,7 +158,7 @@ import AppKit
     }
     /// Member settings live at the hub so every Mac this member signs in on looks the same.
     private func applyMemberSettings(_ settings: [String: String]) {
-        let name = settings["petName"].flatMap { $0.isEmpty ? nil : PetIdentity.normalized($0) } ?? store.settings.petName
+        let name = settings["petName"].flatMap { PetIdentity.validationMessage(for:$0)==nil ? PetIdentity.normalized($0):nil } ?? store.settings.petName
         let size = settings["petScale"].flatMap(Double.init).map { min(200,max(25,$0)) } ?? store.settings.petScalePercent ?? 100
         let always = settings[BubbleReveal.settingsKey].map { $0 == "true" } ?? store.settings.bubbleAlwaysShown ?? false
         try? store.update { $0.petName = name; $0.petScalePercent = size; $0.bubbleAlwaysShown = always }
@@ -181,6 +186,7 @@ import AppKit
         settingsTask = Task { [weak self] in
             guard let self else { return }
             repeat {
+                do {try await Task.sleep(nanoseconds:1_500_000_000)} catch {break}
                 let revision = self.settingsRevision
                 guard let address = self.store.settings.hubAddress, let token = self.client.bearer else { break }
                 let hub = HubClient(address: address)
@@ -202,6 +208,7 @@ import AppKit
     }
     private func refreshPetActivity() {
         guard let pet, let conversation, let client else { return }
+        guard !conversation.paused else { pet.pet.updateFoldedBubble(); return }
         let model = conversation.model
         let input=conversation.islandInput
         let messages=Array(model.messages.values)
@@ -252,7 +259,14 @@ import AppKit
     }
     @objc private func openChat() { pet.showChat() }
     @objc private func signOut() { conversation.model.memberState.disconnect(); currentAccount = ""; petSettings?.accountName.stringValue = "로그인 전"; Task { await client.signOut(); petSettings?.updateConnection(client.status.text); connection.present() } }
-    private func showConnections(_ profile:String?=nil){if toolsWindow==nil {toolsWindow=ConnectionsWindow(controller:conversation)};toolsWindow?.show(profile:profile)}
+    @objc private func openAgentConnections() { showConnections() }
+    private func showConnections(_ profile:String?=nil){
+        if toolsWindow==nil {toolsWindow=ConnectionsWindow(controller:conversation)}
+        toolsWindow?.window.appearance=pet.panel.appearance
+        toolsWindow?.show(profile:profile);updateConnectionsLevel()
+    }
+    private func updateConnectionsLevel() { toolsWindow?.window.level = NSApp.isActive ? NSWindow.Level(rawValue:pet.panel.level.rawValue+1):.normal }
+    func applicationDidResignActive(_ notification:Notification) { updateConnectionsLevel() }
     @objc private func showOptions() {
         if petSettings == nil {
             let settings = PetSettingsWindow()
@@ -273,16 +287,20 @@ import AppKit
             settings.onOpenAccount = { [weak self] in self?.connection.present() }
             settings.onLogout = { [weak self] in self?.signOut() }
             settings.onConnections={ [weak self] in self?.showConnections() }
+            settings.onPreview = { [weak self] in self?.pet.preview() }
+            settings.onPointer = { [weak self] in self?.pet.previewPointer() }
+            settings.onHome = { [weak self] id in self?.conversation.model.configureHome { $0.channel=id.isEmpty ? nil:id } }
             settings.onSyncLayout = { [weak self] in self?.synchronizeLayout() }
             petSettings = settings
         }
+        petSettings?.refreshHome(rooms:conversation.model.rooms,selected:conversation.model.home.settings.channel)
         petSettings?.bubbleReplyCheck.state=store.settings.bubbleReplyEnabled != false ? .on:.off
         petSettings?.updateThreeTap(threeTap)
         refreshUpdates()
         petSettings?.present(name: store.settings.petName, percent: store.settings.petScalePercent ?? 100,
                              bubble: store.settings.bubbleAlwaysShown ?? false, account: currentAccount, status: client.status.text)
     }
-    func applicationDidBecomeActive(_ notification: Notification) { conversation?.model.memberState.activate() }
+    func applicationDidBecomeActive(_ notification: Notification) { conversation?.model.memberState.activate();petSettings?.refreshLogin(LoginLaunchPresentation.resolve(LoginLaunch.state,installed:LoginLaunch.isInstalled(),failed:loginChangeFailed));updateConnectionsLevel() }
     func configureUpdates(_ updates: AppUpdate) {
         appUpdate = updates
         updates.onChange = { [weak self] in self?.refreshUpdates() }
@@ -305,26 +323,29 @@ import AppKit
                 PetSettingsWindow.layoutConfirmation(connected: false).runModal(); return
             }
             guard PetSettingsWindow.layoutConfirmation(connected: true).runModal() == .alertFirstButtonReturn else { return }
-            do { try await state.makeLayoutStandard(); await state.sync() }
-            catch { state.onFailure?(true) }
+            do {
+                try await state.makeLayoutStandard(); await state.sync()
+                PetSettingsWindow.layoutResult(saved:true,connected:state.pending.isEmpty).runModal()
+            } catch { state.onFailure?(true);PetSettingsWindow.layoutResult(saved:false,connected:false).runModal() }
         }
     }
     @objc private func togglePet() { if pet.panel.isVisible { pet.panel.orderOut(nil) } else { pet.show() } }
-    @objc private func togglePause() { pet.pet.isPaused.toggle(); pet.pet.noteActivity() }
+    @objc private func togglePause() { pet.pet.isPaused.toggle();conversation.setPaused(pet.pet.isPaused);pet.pet.noteActivity();refreshPetActivity() }
     private func setLoginEnabled(_ enabled: Bool) {
-        do { try LoginLaunch.setEnabled(enabled) }
-        catch { let alert = NSAlert(); alert.messageText = "로그인 항목을 확인해 주세요"; alert.informativeText = LoginLaunchPresentation.resolve(LoginLaunch.state, installed: LoginLaunch.isInstalled(), failed: true).message; alert.runModal() }
+        do { try LoginLaunch.setEnabled(enabled);loginChangeFailed=false } catch { loginChangeFailed=true }
+        petSettings?.refreshLogin(LoginLaunchPresentation.resolve(LoginLaunch.state,installed:LoginLaunch.isInstalled(),failed:loginChangeFailed))
     }
     private func setPetName(_ value: String) {
+        guard PetIdentity.validationMessage(for:value)==nil else{return}
         let name = PetIdentity.normalized(value)
-        try? store.update { $0.petName = name }
+        do {try store.update { $0.petName = name }} catch {petSettings?.nameHint.stringValue="설정을 저장하지 못했어요. 저장 공간을 확인해 주세요.";petSettings?.nameHint.textColor = .systemRed;return}
         pet.pet.bubbleName = name
         conversationView.refresh()
         pet.pet.setAccessibilityLabel("hejo · \(name) · 대화 열기")
         saveMemberSettings()
     }
     private func setPetScale(_ value: Double) {
-        try? store.update { $0.petScalePercent = min(200,max(25,value)) }
+        try? store.update { $0.petScalePercent = min(200,max(25,value.isFinite ? value.rounded():100)) }
         pet.resizePet(percent: value); saveMemberSettings()
     }
     private func setBubbleAlwaysShown(_ value: Bool) {

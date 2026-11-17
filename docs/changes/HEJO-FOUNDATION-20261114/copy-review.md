@@ -681,3 +681,15 @@ AT-90의 “따라 읽은 스트림이 완료 후에도 펼침” fixture는 여
 - F15의 숨김 억제 이후, 창을 다시 보이는 순간에는 새 타이머를 기다리지 않고 표시 상태를 갱신한다. PetPanel의 orderFront/orderOut 수명 자리에 연결했다. 기존 AT-82의 0.3초 hover·포커스 없음 단언은 수정하지 않고 검증한다.
 
 - AT-81 배지/생각 점 숨김 시험의 고정 시계는 마지막 숨김 검사 전에 새 3초 표면 기한을 넘긴다. 기존 12초 내용 기한 단언은 그대로이며, AT-92가 두 시간을 따로 검사한다. 원본 reveal은 notice 종류가 바뀌어도 3초 기한 자체를 없애지 않는다.
+
+## TASK-42 원본 독해·배치
+
+- 기준: 보완 38·42, 대조표 §G·V11 및 2.1판 G04·G09·G11~G13. App.swift의 buildMenu, refreshThreeTapSettings/copyThreeTapRequest, makeSyncStandard, showOptions 전체와 SettingsPages.make, OptionsLayout, PetIdentity, LoginLaunchPresentation을 읽었다. preview/previewPointer와 PetView의 previewRow/previewLook 소비, SlackSettingsSync.syncSettings/receiveSynced 및 실제 상태 송신 경로를 대조했다.
+- G01~G07: 기존 PetSettingsWindow에서 원본의 스크롤 블록·620 폭·화면 여백 16·내용 640, 원문 검사/로그인 상태, 9개 동작+방향 2개+졸기·15초 시선, 실패 때만 요청문 복사를 연결한다. 이름 기본값만 사장 선택의 hejo다. Slack 전용 연결 안내·제외 탭·사용량은 옮기지 않는다. 모양 편집 내용은 TASK-43 책임이다.
+- G08·G11~G13: AppDelegate의 기존 메뉴/쉬기/연결 창 책임을 확장한다. 작업 목록·캘린더 항목 자리는 후속 TASK가 채운다. 기존 홈 설정 layout:home을 고정 채널 팝업에서도 쓴다.
+- V11/G09: 옛 표의 ‘1.5초 받기’보다 2.1판과 design §12를 우선한다. MemberState의 영구 복제본·outbox는 유지하고 송신 1.5초 묶음, 새 허브 25초 대기 GET, 옛 허브 30초 받기를 구분한다. 서버의 기존 since GET/PATCH와 회원 격리는 유지한다.
+
+- G04 대체 근거: 기존의 빈 이름을 기본값으로 바꾸기/20자로 자르기를 지우고 원본 PetIdentity.validationMessage의 세 오류와 NFC·안쪽 공백 묶기를 사용한다. 과거 ‘조용히 자름’ 단정과 설정 네 탭·메뉴 열 항목 단정만 이번 승인된 대체에 맞췄다. 옛 허브의 30초 받기 단정은 그대로 둔다. LoginLaunchPresentation은 이미 원본과 같아 재작성하지 않는다.
+- G07 원본 PetView: 방향 보기 열은 0.25초마다 8칸을 순회한다. 동작 아홉 개는 각 2초, 졸기만 dozeCycle이며 시선 보기 15초다. 기존 PetController/PetView에 일시적 미리보기 상태만 추가했다.
+- G09: 헤더 X-Hejo-State-Wait=1로 새 허브 지원을 확인한다. 옛 허브는 wait 쿼리를 무시해 기존 전체 상태를 돌려주므로 이를 한 번 받아들이고 30초 받기로 남는다. 새로운 영구 설정·상태 키는 없다. 대기 응답과 PATCH 순서가 뒤집혀도 더 낮은 rev를 적용하지 않는다.
+- G12: 문 인증·핑·기록 캐시 경로는 계속 돌고 ConversationController의 화면 전달만 일시 큐로 멈춘다. 쉬는 동안 작업/타이핑 만료 소비도 멈추며 재개 때 원래 receive 경로로 차례대로 전달한다. 운영 재시작을 실행하는 기능이 아니다.

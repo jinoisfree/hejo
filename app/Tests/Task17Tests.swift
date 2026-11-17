@@ -85,7 +85,7 @@ import AppKit
     let settings = PetSettingsWindow()
     var name = "", scale = 0.0, bubble = false
     settings.onName = { name = $0 }; settings.onScale = { scale = $0 }; settings.onBubble = { bubble = $0 }
-    try check(settings.tabs.numberOfTabViewItems == 4 && settings.tabs.tabViewItems.map(\.label) == ["일반", "화면과 펫", "계정", "연결과 동기화"] &&
+    try check(settings.tabs.numberOfTabViewItems == 5 && settings.tabs.tabViewItems.map(\.label) == ["일반", "화면과 펫", "연결과 동기화", "고급", "계정"] &&
               settings.scaleSlider.minValue == 25 && settings.scaleSlider.maxValue == 200, "AT64 native settings pages and range")
     settings.nameField.stringValue = "hejo-test"
     _ = settings.nameField.sendAction(settings.nameField.action, to: settings.nameField.target)
@@ -100,9 +100,9 @@ import AppKit
     try check(accountOpened && loggedOut && settings.connectionStatus.stringValue == "가짜 공항 연결됨", "AT64 account page actions and live status")
     let statusMenu = AppDelegate().makeStatusMenu()
     let titles = statusMenu.items.map { $0.isSeparatorItem ? "|" : $0.title }
-    try check(titles.count == 10 && titles[0...5] == ["대화 열기", "|", "펫 숨기기", "잠시 쉬기", "|", "설정…"] &&
-              titles[6].hasPrefix("hejo ") && titles[6].contains("(빌드 ") && !statusMenu.items[6].isEnabled &&
-              titles[7...9] == ["업데이트 확인…", "|", "hejo 종료"], "AT64 status menu exact order with AT84 update command")
+    try check(titles.count == 13 && titles[0...8] == ["대화 열기", "작업 목록", "내 캘린더", "|", "펫 숨기기", "잠시 쉬기", "|", "설정…", "에이전트 연결…"] &&
+              titles[9].hasPrefix("hejo ") && titles[9].contains("(빌드 ") && !statusMenu.items[9].isEnabled &&
+              titles[10...12] == ["업데이트 확인…", "|", "hejo 종료"], "AT64 status menu exact order with AT84 update command")
     controller.resizePet(percent: scale)
     try check(controller.pet.petScale == 0.5, "AT64 pet scale applies")
     controller.resetPosition()

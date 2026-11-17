@@ -97,7 +97,7 @@ final class PetView: NSView {
     var bubbleReply:BubbleReplyCard?
     var bubbleReplyAllowed=true
     var bubbleReplyConnected=false
-    var foldedSize:CGSize {CGSize(width:231,height:(bubbleNotice.actions.isEmpty ? 56:90)+(bubbleReply?.visible==true ? bubbleReply!.height:0))}
+    var foldedSize:CGSize {CGSize(width:231,height:(previewing || bubbleNotice.actions.isEmpty ? 56:90)+(bubbleReply?.visible==true ? bubbleReply!.height:0))}
     func installBubbleReply(_ card:BubbleReplyCard){
         bubbleReply=card;foldedBubble.addSubview(card)
         card.onGeometry={ [weak self] in guard let self else{return};self.onBubbleSize?();self.updateFoldedBubble() }
@@ -120,6 +120,9 @@ final class PetView: NSView {
     var subtitleInterrupted=false
     private var doze=PetDoze(),chatBehavior=ChatPetBehavior()
     private var wavePending=false,dragAnimation=PetAnimation.right,previousDragMouse:CGPoint?
+    var previewRow: Int? { didSet { animationStarted = activityNow(); onBubbleSize?() } }
+    var previewLook = false { didSet { onBubbleSize?() } }
+    var previewing: Bool { previewRow != nil || previewLook }
     private var animationStarted:Double=0,currentAnimation=PetAnimation.idle
     var displayedFrame:PetAnimationFrame {pose}
     var onBubbleOpen:((ConversationKey?)->Void)?
@@ -137,7 +140,7 @@ final class PetView: NSView {
     func requestReplyJump(){replyJump=true;noteActivity()}
     func updateFoldedBubble(){
         let notice=bubbleNotice
-        let shown=window?.isVisible==true && placement?.expanded != true && (notice.held || bubbleNow()<alertUntil || bubbleHover || bubbleAlwaysShown || bubbleReply?.visible==true)
+        let shown=window?.isVisible==true && placement?.expanded != true && (previewing || notice.held || bubbleNow()<alertUntil || bubbleHover || bubbleAlwaysShown || bubbleReply?.visible==true)
         if shown != bubbleShown {
             bubbleShown=shown
             if shown {foldedBubble.isHidden=false}
@@ -148,8 +151,12 @@ final class PetView: NSView {
         if reduceMotion(){foldedBubble.alphaValue=shown ? 1:0;foldedBubble.isHidden = !shown}
         foldedBubble.headline=notice.headline.isEmpty ? (firstHeadline ? PetIdentity.greeting(bubbleName):activityPose == .doze ? "나 자는거 아니다":"헤헤헹"):isPaused ? PetIdentity.subject(bubbleName)+" 쉬고 있어요":notice.headline
         foldedBubble.detail=notice.kind == .idle && !isPaused ? "":notice.detail
+        if previewing {
+            foldedBubble.headline = "미리보기 · " + (previewLook ? "마우스 바라보기" : PetController.previewNames[previewRow!])
+            foldedBubble.detail = previewLook ? "\(bubbleName) · 포인터를 움직여 보세요" : "\(bubbleName)의 동작 · 실제 작업과 별개"
+        }
         foldedBubble.sender=notice.sender;foldedBubble.avatar=notice.sender.isEmpty ? nil:notice.key.flatMap{avatarForEmployee?($0.employee)}
-        foldedBubble.kind=notice.kind;foldedBubble.unread=unreadCount;foldedBubble.actions=notice.actions
+        foldedBubble.kind=notice.kind;foldedBubble.unread=unreadCount;foldedBubble.actions=previewing ? []:notice.actions
         foldedBubble.interrupted=subtitleInterrupted;foldedBubble.tick(at:Date().timeIntervalSinceReferenceDate,paused:isPaused || !animationsAllowed)
         toolTip="\(bubbleName) · 클릭: 열기 · 드래그: 이동 · 오른쪽 클릭: 메뉴"
         setAccessibilityLabel("hejo · \(bubbleName) · \(foldedBubble.headline) · 버튼: \(foldedBubble.actions.map(\.title).joined(separator:", ")) · 안 읽은 답 \(unreadCount)개")
@@ -258,21 +265,27 @@ final class PetView: NSView {
         bubbleHover = hoverArmed && (global.contains(pointer) || (bubbleHover && bubbleShown && bridge.contains(pointer)))
         updateFoldedBubble()
         updateBubbleReply(pointerOver:!foldedBubble.isHidden && placement!.bubbleRect.offsetBy(dx:origin.x,dy:origin.y).contains(pointer))
-        let phase=self.pointer.update(pointer:pointer,sprite:global,display:window!.screen?.frame ?? global,now:now,enabled:!didDrag,reducedMotion:reduceMotion())
+        let phase=self.pointer.update(pointer:pointer,sprite:global,display:window!.screen?.frame ?? global,now:now,enabled:!didDrag && !previewing,reducedMotion:reduceMotion())
         let pointerElapsed:TimeInterval?;if case .jumping(let elapsed)=phase {pointerElapsed=elapsed} else {pointerElapsed=nil}
-        jumpElapsed=playback.update(now:now,reply:replyJump,pointerElapsed:pointerElapsed,enabled:!isPaused && !hasAsked && !didDrag && !reduceMotion())
+        jumpElapsed=playback.update(now:now,reply:replyJump,pointerElapsed:pointerElapsed,enabled:!isPaused && !hasAsked && !didDrag && !previewing && !reduceMotion())
         let state:WorkState=hasAsked ? .waiting:isTyping ? .running:.idle
-        let animation=PetChatPlayback.animation(state:state,typing:isTyping,jumping:jumpElapsed != nil,drag:didDrag ? dragAnimation:nil,preview:nil)
+        let animation=PetChatPlayback.animation(state:state,typing:isTyping && !previewLook,jumping:jumpElapsed != nil,drag:didDrag ? dragAnimation:nil,preview:previewRow.flatMap(PetAnimation.init(rawValue:)))
         if animation != currentAnimation {currentAnimation=animation;animationStarted=now}
-        pose=PetAnimationTimeline.frame(for:animation,elapsed:jumpElapsed ?? (now-animationStarted),reducedMotion:reduceMotion(),loop:didDrag || animation == .replyWaiting)
+        pose=PetAnimationTimeline.frame(for:animation,elapsed:jumpElapsed ?? (now-animationStarted),reducedMotion:reduceMotion(),loop:didDrag || previewRow != nil || animation == .replyWaiting)
         var looking=false
-        if !didDrag && !hasAsked && jumpElapsed==nil && !isTyping,case .looking=phase,animation.allowsLook {
-            pose=PetAnimationTimeline.lookFrame(from:CGPoint(x:global.midX,y:global.midY),toward:pointer,previous:pose) ?? pose;looking=true
+        if previewRow == PetAnimationTimeline.dozeRow {
+            pose=PetAnimationTimeline.dozeFrame(elapsed:now-animationStarted,reducedMotion:reduceMotion())
+        } else if let row=previewRow,row>=9 {
+            pose=PetAnimationFrame(row:row,column:Int((now-animationStarted)/0.25)%8)
+        } else if previewRow==nil,!didDrag,!hasAsked,jumpElapsed==nil,(!isTyping || previewLook),animation.allowsLook {
+            if previewLook || { if case .looking = phase { return true }; return false }() {
+                pose=PetAnimationTimeline.lookFrame(from:CGPoint(x:global.midX,y:global.midY),toward:pointer,previous:pose) ?? pose;looking=true
+            }
         }
-        let quiet=animation == .idle && !looking && phase == .inactive && placement?.expanded != true
+        let quiet=animation == .idle && !previewing && !looking && phase == .inactive && placement?.expanded != true
         if let elapsed=doze.update(now:now,quiet:quiet){pose=PetAnimationTimeline.dozeFrame(elapsed:elapsed,reducedMotion:reduceMotion());activityPose = .doze}
         else if placement?.expanded==true && activityPose == .doze {activityPose = .idle}
-        if placement?.expanded==true,homeConversation,!hasAsked,!didDrag {
+        if placement?.expanded==true,homeConversation,!hasAsked,!didDrag,!previewing {
             let elapsed=chatBehavior.update(now:now,touching:global.contains(pointer),cursorNear:placement!.globalBubble.contains(pointer),writing:isTyping,hop:replyJump,wave:wavePending)
             switch chatBehavior.pose {
             case .approval:pose=PetAnimationTimeline.frame(for:.waiting,elapsed:elapsed,reducedMotion:reduceMotion())

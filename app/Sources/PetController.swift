@@ -33,6 +33,20 @@ final class PetController: NSObject {
         let session = CGSessionCopyCurrentDictionary() as? [String: Any]
         return !(session?["CGSSessionScreenIsLocked"] as? Bool ?? false) && CGDisplayIsAsleep(CGMainDisplayID()) == 0
     }
+    private(set) var previewTimer: Timer?
+    static let previewNames = PetAnimation.allCases.map(\.name) + ["방향 보기 1", "방향 보기 2", "조는 중"]
+    func preview() { previewTimer?.invalidate(); pet.previewLook = false; previewStep(0) }
+    func previewStep(_ row: Int) {
+        guard row < Self.previewNames.count else { pet.previewRow = nil; pet.updateFoldedBubble(); return }
+        pet.previewRow = row; pet.updateFoldedBubble()
+        let seconds = row == PetAnimationTimeline.dozeRow ? PetAnimationTimeline.dozeCycle : 2
+        previewTimer = Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { [weak self] _ in self?.previewStep(row+1) }
+    }
+    func previewPointer() {
+        previewTimer?.invalidate(); pet.previewRow = nil; pet.previewLook = true; pet.updateFoldedBubble()
+        previewTimer = Timer.scheduledTimer(withTimeInterval: 15, repeats: false) { [weak self] _ in self?.finishPreview() }
+    }
+    func finishPreview() { previewTimer?.invalidate(); previewTimer = nil; pet.previewRow = nil; pet.previewLook = false; pet.updateFoldedBubble() }
     private var timer: Timer?,motionTimer:Timer?
     private var bubbleMotion=PetBubbleMotion()
     private var widthFadeStart:Double?
@@ -84,7 +98,7 @@ final class PetController: NSObject {
         let screen = displays().first ?? PetDisplay.nearest(to: .zero, in: [])
         placePet(at: CGPoint(x: store.settings.petX ?? Double(screen.visible.maxX-PetLayout(scale:pet.petScale).spriteSize.width-30), y: store.settings.petY ?? Double(screen.visible.minY+25)))
     }
-    deinit { if let outsideMonitor {NSEvent.removeMonitor(outsideMonitor)};motionTimer?.invalidate();timer?.invalidate(); NotificationCenter.default.removeObserver(self); NSWorkspace.shared.notificationCenter.removeObserver(self); DistributedNotificationCenter.default().removeObserver(self) }
+    deinit { previewTimer?.invalidate(); if let outsideMonitor {NSEvent.removeMonitor(outsideMonitor)};motionTimer?.invalidate();timer?.invalidate(); NotificationCenter.default.removeObserver(self); NSWorkspace.shared.notificationCenter.removeObserver(self); DistributedNotificationCenter.default().removeObserver(self) }
     func show() { panel.orderFrontRegardless() }
     @objc func toggle() { if chatExpanded { collapseChat() } else { showChat() } }
     func threeFingerTapped() {

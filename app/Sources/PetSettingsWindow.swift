@@ -1,130 +1,164 @@
 import AppKit
 
-/// Native settings for the pet and this Mac's presentation. The caller owns persistence.
-@MainActor final class PetSettingsWindow: NSObject {
+/// Native settings controls. Persistence and device registration remain with the caller.
+@MainActor final class PetSettingsWindow: NSObject, NSTabViewDelegate {
     let window: NSWindow
-    let tabs = NSTabView(frame: CGRect(x: 0, y: 0, width: 430, height: 310))
-    let nameField = NSTextField(frame: CGRect(x: 24, y: 215, width: 250, height: 25))
+    let tabs = NSTabView(frame: CGRect(x: 0, y: 0, width: 620, height: 640))
+    let nameField = NSTextField(string: "")
+    let nameHint = NSTextField(labelWithString: "1~20자 · 저장하면 모든 화면에 적용됩니다.")
     let scaleSlider = NSSlider(value: 100, minValue: 25, maxValue: 200, target: nil, action: nil)
     let scaleValue = NSTextField(labelWithString: "100%")
     let bubbleCheck = NSButton(checkboxWithTitle: "말풍선 항상 보이기", target: nil, action: nil)
-    let bubbleReplyCheck=NSButton(checkboxWithTitle:"말풍선에서 바로 답하기",target:nil,action:nil)
+    let bubbleReplyCheck = NSButton(checkboxWithTitle: "말풍선에서 바로 답하기", target: nil, action: nil)
     let threeTapCheck = NSButton(checkboxWithTitle: ThreeTapController.title, target: nil, action: nil)
-    var onThreeTap: (() -> Void)?
-    var onBubbleReply:((Bool)->Void)?
+    let tapCopyButton = NSButton(title: "수정 요청문 복사", target: nil, action: nil)
     let loginCheck = NSButton(checkboxWithTitle: "로그인 시 실행", target: nil, action: nil)
+    let loginSettings = NSButton(title: "로그인 항목 설정 열기", target: nil, action: nil)
     let updateNoticesCheck = NSButton(checkboxWithTitle: "업데이트 알림 받기", target: nil, action: nil)
     let updateButton = NSButton(title: "업데이트 확인…", target: nil, action: nil)
     let updateAvailable = NSTextField(labelWithString: "")
-    var onAppUpdate: (() -> Void)?, onUpdateNotices: ((Bool) -> Void)?
     let loginStatus = NSTextField(wrappingLabelWithString: "")
     let accountName = NSTextField(labelWithString: "로그인 전")
     let connectionStatus = NSTextField(labelWithString: "서버 연결 전")
     let openAccount = NSButton(title: "로그인·계정 창 열기", target: nil, action: nil)
     let logout = NSButton(title: "로그아웃", target: nil, action: nil)
     let syncLayout = NSButton(title: "화면 배치 동기화…", target: nil, action: nil)
-    var onConnections:(()->Void)?
-    var onSyncLayout: (() -> Void)?
-    var onName: ((String) -> Void)?, onScale: ((Double) -> Void)?, onBubble: ((Bool) -> Void)?, onLogin: ((Bool) -> Void)?
+    let homePicker = NSPopUpButton(frame: .zero, pullsDown: false)
+    let previewButton = NSButton(title: "동작 미리보기", target: nil, action: nil)
+    let pointerButton = NSButton(title: "마우스 시선 미리보기", target: nil, action: nil)
+    var onThreeTap: (() -> Void)?, onConnections: (() -> Void)?, onSyncLayout: (() -> Void)?
+    var onAppUpdate: (() -> Void)?, onUpdateNotices: ((Bool) -> Void)?
+    var onName: ((String) -> Void)?, onScale: ((Double) -> Void)?, onBubble: ((Bool) -> Void)?
+    var onBubbleReply: ((Bool) -> Void)?, onLogin: ((Bool) -> Void)?
     var onResetChat: (() -> Void)?, onResetPosition: (() -> Void)?
     var onOpenAccount: (() -> Void)?, onLogout: (() -> Void)?
+    var onPreview: (() -> Void)?, onPointer: (() -> Void)?, onHome: ((String) -> Void)?
+    var requestPasteboard: NSPasteboard = .general
+    private var tapFailure: ThreeTapFailure?
 
     override init() {
-        window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 430, height: 310), styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
+        window = NSWindow(contentRect: tabs.frame, styleMask: [.titled, .closable], backing: .buffered, defer: false)
         super.init()
-        window.title = "hejo 설정"; window.center(); window.isReleasedWhenClosed = false
-        window.contentView = tabs
-        let general = NSTabViewItem(identifier: "general"); general.label = "일반"
-        let generalView = NSView(frame: tabs.bounds)
-        loginCheck.frame = CGRect(x: 24, y: 215, width: 250, height: 25)
+        window.title = "hejo 설정"; window.isReleasedWhenClosed = false
+        window.contentView = tabs; tabs.autoresizingMask = [.width, .height]
+        func note(_ text: String) -> NSTextField {
+            let label = NSTextField(wrappingLabelWithString: text)
+            label.font = .systemFont(ofSize: 12); label.textColor = .secondaryLabelColor
+            label.frame = CGRect(x: 24, y: 0, width: 312, height: 48); return label
+        }
+        func title(_ text: String, y: CGFloat) -> NSTextField {
+            let label = NSTextField(labelWithString: text); label.font = .systemFont(ofSize: 14, weight: .semibold)
+            label.frame = CGRect(x: 24, y: y, width: 200, height: 20); return label
+        }
+        func button(_ view: NSButton, _ action: Selector) -> NSButton {
+            view.target = self; view.action = action; view.bezelStyle = .rounded
+            view.frame = CGRect(x: 24, y: 0, width: 312, height: 32); return view
+        }
+        func check(_ view: NSButton, _ action: Selector) -> NSButton {
+            view.target = self; view.action = action; view.frame = CGRect(x: 24, y: 0, width: 312, height: 26); return view
+        }
+        func page(_ label: String, _ blocks: [[NSView]]) {
+            let item = NSTabViewItem(identifier: label); item.label = label; item.view = SettingsPages.make(blocks: blocks); tabs.addTabViewItem(item)
+        }
         loginCheck.target = self; loginCheck.action = #selector(changeLogin)
+        loginCheck.frame = CGRect(x: 24, y: 510, width: 312, height: 24)
         loginStatus.font = .systemFont(ofSize: 11); loginStatus.textColor = .secondaryLabelColor
-        loginStatus.frame = CGRect(x: 24, y: 165, width: 365, height: 42)
-        let loginSettings = NSButton(title: "로그인 항목 설정 열기", target: self, action: #selector(openLoginSettings))
-        loginSettings.frame = CGRect(x: 24, y: 125, width: 185, height: 30)
-        generalView.addSubview(loginCheck); generalView.addSubview(loginStatus); generalView.addSubview(loginSettings)
-        updateNoticesCheck.frame = CGRect(x: 24, y: 90, width: 300, height: 25)
-        updateNoticesCheck.target = self; updateNoticesCheck.action = #selector(changeUpdateNotices)
-        updateButton.frame = CGRect(x: 24, y: 45, width: 185, height: 30)
-        updateButton.target = self; updateButton.action = #selector(checkAppUpdate)
-        updateAvailable.frame = CGRect(x: 24, y: 15, width: 365, height: 20)
+        loginStatus.frame = CGRect(x: 24, y: 460, width: 312, height: 44)
+        _ = button(loginSettings, #selector(openLoginSettings)); loginSettings.frame = CGRect(x: 24, y: 421, width: 220, height: 30)
         updateAvailable.font = .systemFont(ofSize: 12); updateAvailable.textColor = .secondaryLabelColor
-        for view in [updateNoticesCheck, updateButton, updateAvailable] { generalView.addSubview(view) }
-        general.view = generalView; tabs.addTabViewItem(general)
-
-        let pet = NSTabViewItem(identifier: "pet"); pet.label = "화면과 펫"
-        let petView = NSView(frame: tabs.bounds)
-        func label(_ text: String, _ frame: CGRect) {
-            let view = NSTextField(labelWithString: text); view.frame = frame; petView.addSubview(view)
-        }
-        label("펫 이름", CGRect(x: 24, y: 244, width: 90, height: 20))
+        updateAvailable.frame = CGRect(x: 24, y: 0, width: 312, height: 20)
+        page("일반", [[loginCheck, loginStatus, loginSettings], [check(updateNoticesCheck, #selector(changeUpdateNotices))],
+                    [button(updateButton, #selector(checkAppUpdate))], [updateAvailable]])
+        nameField.placeholderString = "펫 이름을 입력하세요"; nameField.setAccessibilityLabel("펫 이름")
         nameField.target = self; nameField.action = #selector(changeName)
-        let saveName = NSButton(title: "저장", target: self, action: #selector(changeName))
-        saveName.frame = CGRect(x: 285, y: 212, width: 76, height: 30)
-        petView.addSubview(nameField); petView.addSubview(saveName)
-        label("펫 크기", CGRect(x: 24, y: 170, width: 100, height: 20))
-        scaleSlider.frame = CGRect(x: 24, y: 137, width: 290, height: 26)
-        scaleSlider.isContinuous = false; scaleSlider.target = self; scaleSlider.action = #selector(changeScale)
-        scaleValue.frame = CGRect(x: 328, y: 141, width: 58, height: 20)
-        petView.addSubview(scaleSlider); petView.addSubview(scaleValue)
-        bubbleCheck.frame = CGRect(x: 24, y: 96, width: 240, height: 25)
-        bubbleCheck.target = self; bubbleCheck.action = #selector(changeBubble)
-        petView.addSubview(bubbleCheck)
-        bubbleReplyCheck.frame=CGRect(x:24,y:72,width:300,height:25);bubbleReplyCheck.target=self;bubbleReplyCheck.action=#selector(changeBubbleReply);petView.addSubview(bubbleReplyCheck)
-        threeTapCheck.frame = CGRect(x: 24, y: 47, width: 380, height: 25)
-        threeTapCheck.target = self; threeTapCheck.action = #selector(changeThreeTap)
-        petView.addSubview(threeTapCheck)
-        let resetChat = NSButton(title: "대화창 크기 초기화", target: self, action: #selector(resetChatSize))
-        resetChat.frame = CGRect(x: 24, y: 10, width: 160, height: 30)
-        let resetPet = NSButton(title: "펫 위치 초기화", target: self, action: #selector(resetPetPosition))
-        resetPet.frame = CGRect(x: 195, y: 10, width: 130, height: 30)
-        petView.addSubview(resetChat); petView.addSubview(resetPet)
-        pet.view = petView; tabs.addTabViewItem(pet)
-
-        let account = NSTabViewItem(identifier: "account"); account.label = "계정"
-        let accountView = NSView(frame: tabs.bounds)
-        func accountLabel(_ title: String, y: CGFloat) {
-            let label = NSTextField(labelWithString: title); label.frame = CGRect(x: 24, y: y, width: 350, height: 20); accountView.addSubview(label)
+        nameField.frame = CGRect(x: 24, y: 203, width: 220, height: 26)
+        let save = button(NSButton(title: "이름 저장", target: nil, action: nil), #selector(changeName))
+        save.frame = CGRect(x: 249, y: 200, width: 92, height: 32)
+        nameHint.font = .systemFont(ofSize: 11); nameHint.textColor = .secondaryLabelColor
+        nameHint.frame = CGRect(x: 24, y: 175, width: 312, height: 17)
+        scaleValue.alignment = .right; scaleValue.font = .monospacedDigitSystemFont(ofSize: 13, weight: .medium)
+        scaleValue.frame = CGRect(x: 254, y: 125, width: 82, height: 20)
+        scaleSlider.frame = CGRect(x: 22, y: 86, width: 316, height: 26)
+        scaleSlider.isContinuous = true; scaleSlider.target = self; scaleSlider.action = #selector(changeScale)
+        scaleSlider.setAccessibilityLabel("펫 크기")
+        scaleSlider.toolTip = "캐릭터만 25%부터 200%까지 조절 · 말풍선 크기는 고정"
+        let endpoints: [NSView] = [("25%", CGFloat(24)), ("200%", CGFloat(294))].map { text, x in
+            let label = NSTextField(labelWithString: text); label.font = .systemFont(ofSize: 11); label.textColor = .secondaryLabelColor
+            label.frame = CGRect(x: x, y: 65, width: 44, height: 16); return label
         }
-        accountLabel("아이디", y: 246)
-        accountName.frame = CGRect(x: 24, y: 218, width: 350, height: 22)
-        accountLabel("서버 연결 상태", y: 180)
-        connectionStatus.frame = CGRect(x: 24, y: 152, width: 350, height: 22)
-        openAccount.frame = CGRect(x: 24, y: 85, width: 185, height: 32)
-        openAccount.target = self; openAccount.action = #selector(openAccountWindow)
-        logout.frame = CGRect(x: 220, y: 85, width: 100, height: 32)
-        logout.target = self; logout.action = #selector(logoutAccount)
-        for view in [accountName, connectionStatus, openAccount, logout] { accountView.addSubview(view) }
-        account.view = accountView; tabs.addTabViewItem(account)
-
-        let sync = NSTabViewItem(identifier: "sync"); sync.label = "연결과 동기화"
-        let syncView = NSView(frame: tabs.bounds)
-        syncLayout.frame = CGRect(x: 24, y: 210, width: 200, height: 32)
-        syncLayout.target = self; syncLayout.action = #selector(synchronizeLayout)
-        let tools=NSButton(title:"직원별 도구 연결…",target:self,action:#selector(openConnections));tools.frame=CGRect(x:24,y:160,width:200,height:32);syncView.addSubview(tools)
-        syncView.addSubview(syncLayout); sync.view = syncView; tabs.addTabViewItem(sync)
+        let sizeHint = note("말풍선 크기는 그대로 유지됩니다.")
+        sizeHint.font = .systemFont(ofSize: 11); sizeHint.frame = CGRect(x: 24, y: 26, width: 216, height: 17)
+        let reset = button(NSButton(title: "기본 크기", target: nil, action: nil), #selector(resetPetSize))
+        reset.frame = CGRect(x: 247, y: 19, width: 94, height: 32)
+        page("화면과 펫", [[button(NSButton(title: "대화창 크기 초기화", target: nil, action: nil), #selector(resetChatSize))],
+            [title("펫 이름", y: 241), nameField, save, nameHint],
+            [title("펫 크기", y: 125), scaleValue, scaleSlider, sizeHint, reset] + endpoints,
+            [check(bubbleCheck, #selector(changeBubble))], [check(bubbleReplyCheck, #selector(changeBubbleReply))],
+            [check(threeTapCheck, #selector(changeThreeTap))],
+            [button(NSButton(title: "펫 위치 초기화", target: nil, action: nil), #selector(resetPetPosition))]])
+        homePicker.frame = CGRect(x: 24, y: 0, width: 312, height: 30)
+        homePicker.setAccessibilityLabel("고정 채널"); homePicker.target = self; homePicker.action = #selector(changeHome)
+        let homeTitle=title("고정 채널", y:38);homeTitle.frame=CGRect(x:24,y:38,width:312,height:22)
+        page("연결과 동기화", [[button(NSButton(title: "에이전트 연결…", target: nil, action: nil), #selector(openConnections))],
+            [homeTitle, homePicker], [button(syncLayout, #selector(synchronizeLayout))],
+            [note("이 Mac의 섹션·순서·접힘·숨김·사진을 다른 Mac에도 적용합니다. 다른 Mac에만 있는 배치·사진은 지웁니다.")]])
+        page("고급", [[button(previewButton, #selector(preview))], [button(pointerButton, #selector(previewPointer))], [button(tapCopyButton, #selector(copyTapRequest))]])
+        tapCopyButton.isHidden = true
+        accountName.frame = CGRect(x: 24, y: 0, width: 312, height: 22)
+        connectionStatus.frame = CGRect(x: 24, y: 0, width: 312, height: 22)
+        page("계정", [[title("아이디", y: 30), accountName], [title("서버 연결 상태", y: 30), connectionStatus],
+            [button(openAccount, #selector(openAccountWindow))], [button(logout, #selector(logoutAccount))]])
+        tabs.delegate = self; refreshHome(rooms: [], selected: nil)
     }
     func present(name: String, percent: Double, bubble: Bool, account: String = "", status: String = "서버 연결 전") {
-        nameField.stringValue = name
-        scaleSlider.doubleValue = percent; scaleValue.stringValue = "\(Int(percent))%"
-        bubbleCheck.state = bubble ? .on : .off
-        let presentation = LoginLaunchPresentation.resolve(LoginLaunch.state, installed: LoginLaunch.isInstalled())
-        loginCheck.state = presentation.checked ? .on : .off; loginCheck.isEnabled = presentation.canChange
-        loginStatus.stringValue = presentation.message
-        accountName.stringValue = account.isEmpty ? "로그인 전" : account
-        connectionStatus.stringValue = status
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        nameField.stringValue = name; nameHint.stringValue = "1~20자 · 저장하면 모든 화면에 적용됩니다."; nameHint.textColor = .secondaryLabelColor
+        scaleSlider.doubleValue = percent; scaleValue.stringValue = "\(Int(percent))%"; bubbleCheck.state = bubble ? .on : .off
+        refreshLogin(); accountName.stringValue = account.isEmpty ? "로그인 전" : account; connectionStatus.stringValue = status
+        if let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) ?? window.screen ?? NSScreen.main { fit(to: screen.visibleFrame) }
+        window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
     }
-    @objc private func changeName() { onName?(nameField.stringValue) }
-    @objc private func changeScale() { scaleValue.stringValue = "\(Int(scaleSlider.doubleValue))%"; onScale?(scaleSlider.doubleValue) }
-    @objc private func changeBubbleReply(){onBubbleReply?(bubbleReplyCheck.state == .on)}
+    func fit(to visible: CGRect) {
+        let titleBar = window.frame.height - window.contentRect(forFrameRect: window.frame).height
+        window.setContentSize(CGSize(width: 620, height: OptionsLayout.viewportHeight(visibleHeight: visible.height, titleBarHeight: titleBar)))
+        window.setFrameOrigin(CGPoint(x: visible.midX-window.frame.width/2, y: visible.midY-window.frame.height/2)); scrollToTop()
+    }
+    func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) { scrollToTop() }
+    func scrollToTop() {
+        guard let scroll = tabs.selectedTabViewItem?.view as? NSScrollView, let document = scroll.documentView else { return }
+        scroll.layoutSubtreeIfNeeded(); document.scroll(.zero)
+    }
+    func refreshLogin(_ value: LoginLaunchPresentation? = nil) {
+        let value = value ?? LoginLaunchPresentation.resolve(LoginLaunch.state, installed: LoginLaunch.isInstalled())
+        loginCheck.state = value.checked ? .on : .off; loginCheck.isEnabled = value.canChange
+        loginStatus.stringValue = value.message; loginSettings.isHidden = !value.showsSettings
+    }
+    func refreshHome(rooms: [Room], selected: String?) {
+        let choices = [("기본(홈 방 기본)", "")] + rooms.filter { $0.kind == .group && $0.archived != true }.map { ("#"+$0.title, $0.id) }
+        if homePicker.itemTitles != choices.map(\.0) || homePicker.itemArray.map({ $0.representedObject as? String ?? "" }) != choices.map(\.1) {
+            homePicker.removeAllItems(); for (title, id) in choices { homePicker.addItem(withTitle: title); homePicker.lastItem?.representedObject = id }
+        }
+        homePicker.selectItem(at: choices.firstIndex { $0.1 == selected } ?? 0)
+    }
+    @objc private func changeName() {
+        // Never rewrite a field while an input method still owns its marked text.
+        guard (window.firstResponder as? NSTextInputClient)?.hasMarkedText() != true else { return }
+        if let message = PetIdentity.validationMessage(for: nameField.stringValue) { nameHint.stringValue = message; nameHint.textColor = .systemRed; return }
+        let name = PetIdentity.normalized(nameField.stringValue); nameField.stringValue = name
+        nameHint.stringValue = "이름을 저장했어요. 모든 화면에 적용했습니다."; nameHint.textColor = .secondaryLabelColor; onName?(name)
+    }
+    @objc private func changeScale() { scaleValue.stringValue = "\(Int(scaleSlider.doubleValue.rounded()))%"; onScale?(scaleSlider.doubleValue) }
+    @objc private func resetPetSize() { scaleSlider.doubleValue = 100; changeScale() }
+    @objc private func changeHome() { onHome?(homePicker.selectedItem?.representedObject as? String ?? "") }
+    @objc private func preview() { onPreview?() }
+    @objc private func previewPointer() { onPointer?() }
+    @objc private func copyTapRequest() { if let tapFailure { ThreeTapController.copy(tapFailure, to: requestPasteboard) } }
+    @objc private func changeBubbleReply() { onBubbleReply?(bubbleReplyCheck.state == .on) }
     @objc private func changeThreeTap() { onThreeTap?() }
     func updateThreeTap(_ controller: ThreeTapController) {
         threeTapCheck.state = controller.enabled && controller.health.failure == nil ? .on : .off
         threeTapCheck.isEnabled = controller.health.failure == nil
-        threeTapCheck.toolTip = controller.health.failure.map { "작동을 멈췄어요: " + $0 }
-            ?? (controller.health == .absent ? "트랙패드가 연결되면 사용할 수 있어요." : "")
+        threeTapCheck.toolTip = controller.health.failure.map { "작동을 멈췄어요: " + $0 } ?? (controller.health == .absent ? "트랙패드가 연결되면 사용할 수 있어요." : "")
+        tapFailure = controller.failure; tapCopyButton.isHidden = tapFailure == nil
     }
     @objc private func changeBubble() { onBubble?(bubbleCheck.state == .on) }
     @objc private func changeLogin() { onLogin?(loginCheck.state == .on) }
@@ -132,8 +166,7 @@ import AppKit
     @objc private func checkAppUpdate() { onAppUpdate?() }
     func updateAppUpdates(_ updates: AppUpdate) {
         updateNoticesCheck.state = updates.notices.enabled ? .on : .off
-        updateButton.title = updates.knownRelease == nil ? "업데이트 확인…" : "업데이트"
-        updateButton.isEnabled = updates.canCheck
+        updateButton.title = updates.knownRelease == nil ? "업데이트 확인…" : "업데이트"; updateButton.isEnabled = updates.canCheck
         updateAvailable.stringValue = updates.knownRelease.map { "새 버전 \($0.version)이 있어요" } ?? ""
     }
     @objc private func openLoginSettings() { LoginLaunch.openSettings() }
@@ -142,18 +175,19 @@ import AppKit
     func updateConnection(_ text: String) { connectionStatus.stringValue = text }
     @objc private func openAccountWindow() { onOpenAccount?() }
     @objc private func logoutAccount() { onLogout?() }
-    @objc private func openConnections(){onConnections?()}
+    @objc private func openConnections() { onConnections?() }
     @objc private func synchronizeLayout() { onSyncLayout?() }
+    static func layoutResult(saved: Bool, connected: Bool) -> NSAlert {
+        let done = NSAlert()
+        if !saved { done.messageText = "아직 맞출 수 없어요"; done.informativeText = "hejo에 연결된 뒤 다시 해 주세요." }
+        else if !connected { done.messageText = "이 Mac에 저장했어요"; done.informativeText = "공유하는 Mac에 연결되지 않았어요. 연결되면 다른 Mac에도 반영되도록 다시 한 번 해 주세요." }
+        else { done.messageText = "맞췄어요"; done.informativeText = "다른 Mac에는 몇 초 안에 반영돼요." }
+        return done
+    }
     static func layoutConfirmation(connected: Bool) -> NSAlert {
-        let alert = NSAlert()
-        if connected {
-            alert.messageText = "이 Mac 화면을 다른 Mac에도 맞출까요?"
-            alert.informativeText = "같은 hejo 계정으로 로그인한 다른 Mac의 섹션·방 순서·접힘·숨김·알림 끄기·사진이 이 Mac과 같아져요. 읽음 표시는 어느 Mac에서 읽었든 그대로 합쳐져요."
-            alert.addButton(withTitle: "맞추기"); alert.addButton(withTitle: "취소")
-        } else {
-            alert.messageText = "아직 맞출 수 없어요"
-            alert.informativeText = "hejo에 연결된 뒤 다시 해 주세요."
-        }
-        return alert
+        guard connected else { return layoutResult(saved: false, connected: false) }
+        let alert = NSAlert(); alert.messageText = "이 Mac 화면을 다른 Mac에도 맞출까요?"
+        alert.informativeText = "같은 hejo 계정으로 로그인한 다른 Mac의 섹션·방 순서·접힘·숨김·알림 끄기·사진이 이 Mac과 같아져요. 읽음 표시는 어느 Mac에서 읽었든 그대로 합쳐져요."
+        alert.addButton(withTitle: "맞추기"); alert.addButton(withTitle: "취소"); return alert
     }
 }
