@@ -1616,3 +1616,20 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
 - **그다음(계획 담당+사장):**
   - 사장이 화면에서 public 푸시를 승인하고 publish를 실행한다.
   - 0.2.x 운영 반영(보완 49·57·60, TASK-23 점검표)을 한다.
+
+## 보완 지시 62 (TASK-50, 0.2.0 운영 반영 뒤 발견, 2026-11-18)
+
+- **문제(운영 재현):** 사장이 hejo에서 직원에게 메일 확인을 시키자 `MAIL_APP_OWNER_CHAT_REQUIRED`로 거절했다. 서버에서 Mail 앱은 정상이다(사장 확인).
+  - 원인: 운영 team-kit `lib/hermes_packs/mail/__init__.py:540`이 `HERMES_SESSION_PLATFORM`이 `{"slack","photon"}`일 때만 사장 대화로 본다. 같은 판정이 team-kit 곳곳(비시험 약 100곳: `hermes_governance/approval.py`·`write_policy.py`·`owner_context.py`·`request_approvals.py`·`browser.py`, `hermes_execution/personal_roles.py`·`personal_scopes.py`, `hermes_packs/mail/full_mail_tools.py`, `linked_work/`, `diagnosis/`, `hermes_team_services/conversation_recall.py`·`wait_jobs.py` 등)에 글자로 박혀 있다.
+  - ddots는 Slack 위에서 돌아 이 판정을 통과했다. hejo는 새 플랫폼 `hejo`라 빠졌다.
+- **D50-01(계획 담당 결정, 근거):** hejo 대화는 사장 대화다. 문은 `allowed_users: ["owner"]`이고 짝맺은 사장 기기만 붙으며, 모든 사건의 `user_id`가 `"owner"`다(`gate/adapter.py:649·662`). 허브 회원은 각자 자기 서버의 문을 쓴다. 따라서 Slack 사장 대화가 받는 권한을 hejo 1:1·단체방·스레드도 똑같이 받는다. 배경·예약 거절은 그대로 둔다.
+- **할 일(실행 담당, TASK-49와 같은 방식):**
+  1. 운영 원본 `~/.hermes/plugin-store/team-kit`을 읽기만 하고, 임시 사본(`.build/task50/`)에서 고친다. 시작 때 사본과 운영 원본이 범위 안에서 같은지 대조한다(운영 원본에는 TASK-49 패치가 이미 들어가 있다).
+  2. team-kit 비시험 코드에서 `slack`·`photon`(·`bluebubbles`) 글자 집합을 모두 찾아 표로 분류한다(`.build/task50/classification.md`: 파일:줄, 뜻, 처분).
+     - **사장 대화 판정**(사장이 직접 시킨 대화인지·승인 버튼을 받을 수 있는지·사장 대화 기록인지): 한 곳의 공용 상수/함수(예: `OWNER_CHAT_PLATFORMS`)로 바꾸고 `hejo`를 넣는다.
+     - **플랫폼 전용**(Slack 인증·연결 점검·CHANNEL_LABEL·라우터 ingress·사용량 집계·설정 조립·게이트웨이 재시작·iMessage 채널): 바꾸지 않는다. 바꾸지 않은 이유를 표에 적는다.
+     - 판단이 어려운 곳(예: `wait_jobs.py:272` `owner_slack_thread_required`, 승인 흐름이 Slack 전용 블록을 보내는 곳)은 hejo에서 실제로 무엇이 일어나는지 확인해 적는다. hejo로 보내면 깨지는 곳은 고치지 말고 D50-02로 보고한다.
+  3. 시험: 바뀐 판정마다 `HERMES_SESSION_PLATFORM=hejo`(chat_id·user_id `owner`·thread 포함)가 Slack과 같은 결과를 내는 시험, 배경·예약·빈 chat_id는 여전히 거절하는 시험. 메일 앱 다른 계정 읽기(`mail/__init__.py:540`) 재현 시험을 꼭 넣는다. 돌연변이(공용 상수에서 hejo 빼기, 배경 검사 빼기) 각각 잡힘을 보인다.
+  4. 게이트웨이 Python과 `PYTHONPATH=~/.local/share/hermes-pytest:$HOME/.hermes/hermes-agent`로 team-kit `tests` 전체 종료 0. 패치 `.build/task50/team-kit.patch`(sha256 기록), 운영 원본에 `patch -p1 --dry-run` 통과.
+- **금지:** 운영 원본 team-kit·`~/.hermes` 변경, 게이트웨이 재시작, 운영 저장소 커밋·푸시, Hermes 본체·ddots 수정, 비밀 파일 열기, 실제 메일 읽기·Slack 발송.
+- **보고(result):** 분류표, 패치·sha256, 시험·돌연변이 결과, dry-run 결과, D50-02 후보. 운영 적용·재시작·실물(hejo에서 다른 계정 메일 읽기)은 계획 담당+사장이 한다.
