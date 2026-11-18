@@ -33,6 +33,8 @@ import AppKit
     var onResetChat: (() -> Void)?, onResetPosition: (() -> Void)?
     var onOpenAccount: (() -> Void)?, onLogout: (() -> Void)?
     var onPreview: (() -> Void)?, onPointer: (() -> Void)?, onHome: ((String) -> Void)?
+    let hooksButton = NSButton(title:"승인 알림 연결 안내",target:nil,action:nil)
+    var onHooks: (() -> Void)?
     var requestPasteboard: NSPasteboard = .general
     private(set) var appearanceControls: ChatAppearanceControls!
     private var tapFailure: ThreeTapFailure?
@@ -109,7 +111,7 @@ import AppKit
         homePicker.setAccessibilityLabel("고정 채널"); homePicker.target = self; homePicker.action = #selector(changeHome)
         let homeTitle=title("고정 채널", y:38);homeTitle.frame=CGRect(x:24,y:38,width:312,height:22)
         page("연결과 동기화", [[button(NSButton(title: "에이전트 연결…", target: nil, action: nil), #selector(openConnections))],
-            [homeTitle, homePicker], [button(syncLayout, #selector(synchronizeLayout))],
+            [button(hooksButton, #selector(showHooks))], [homeTitle, homePicker], [button(syncLayout, #selector(synchronizeLayout))],
             [note("이 Mac의 섹션·순서·접힘·숨김·사진을 다른 Mac에도 적용합니다. 다른 Mac에만 있는 배치·사진은 지웁니다.")]])
         page("고급", [[button(previewButton, #selector(preview))], [button(pointerButton, #selector(previewPointer))], [button(tapCopyButton, #selector(copyTapRequest))]])
         tapCopyButton.isHidden = true
@@ -162,6 +164,7 @@ import AppKit
     @objc private func preview() { onPreview?() }
     @objc private func previewPointer() { onPointer?() }
     @objc private func copyTapRequest() { if let tapFailure { ThreeTapController.copy(tapFailure, to: requestPasteboard) } }
+    @objc private func showHooks() { onHooks?() }
     @objc private func changeBubbleReply() { onBubbleReply?(bubbleReplyCheck.state == .on) }
     @objc private func changeThreeTap() { onThreeTap?() }
     func updateThreeTap(_ controller: ThreeTapController) {

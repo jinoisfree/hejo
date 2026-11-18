@@ -750,3 +750,20 @@ AT-90의 “따라 읽은 스트림이 완료 후에도 펼침” fixture는 여
 - 네이티브 글의 일정 부속 줄은 NativeThreadContent:83-86/PetActionMemo:437-445대로 사장 글·pending만 제외한다. SlackPanel의 SwiftUI line에만 있던 streaming 억제를 네이티브 소비자에 더하지 않는다. 글을 계속 작성 중이어도 이미 도착한 날짜/제목과 실제 일정이 맞으면 부속 단추가 남는 회귀를 더했다.
 
 - 원본 @Published month는 조회 중에도 즉시 발행한다. AppKit moveMonth도 완료를 기다리지 않고 화면 알림을 내며, 이전 조회가 진행 중인 채 다음 달을 누르는 단언을 더했다. 원본의 세대 검사·추가 조회 순서는 바꾸지 않았다.
+
+
+## TASK-47 — H05·H05+ 독해와 책임 배치
+
+- 원본 전체 독해: Dashboard.swift(1–127), Monitor.swift(1–114), HookBridge.swift(1–59), TranscriptDecoder.swift(1–192), ScreenFocus.swift(1–83), ComputerUseActivity.swift(1–42), ScreenWindowResolver.swift(전체), Models.swift·PetIdentity.swift(전체), scripts/configure_hooks.py(1–56), Tests/test_hooks.py·CoreTests.swift, Resources/연결안내.html. 호출부 App.swift의 진입점·2초 갱신·apply/updatePet·Dashboard 창·showHooksHelp와 PetView 시선 분기도 확인했다.
+- 관제 화면 칸: 원본 세션은 읽기만, 기존 PetState에 rank를 더하고 메타데이터·모니터·훅을 앱에 둔다. AppDelegate가 감시와 목록 창, 기존 BubbleReveal이 우선순위, PetView가 동작·시선을 소유한다. 세션 본문·추론·도구 인자·사용량은 저장하지 않는다.
+- 원본값: 세션 발견 15초·훅 폴링 2초, 300초 뒤 unknown, responded 움직임 20초, 파일/상태 하루·서비스당 파일 200개·목록 200개, 꼬리 2MiB·헤더 256KiB. 화면 도구는 최대 32개·60초·결과 뒤 3초, 가장 먼저 시작한 작업의 명확한 창만 바라본다.
+- 우선순위: 쉼 → 직원 승인 → 설치 알림 → 외부 작업 승인/최근 60초 오류 → 직원 작성 → 새 답 → 고정/화면/작업 중·최근 응답 → idle. 제외된 FileDrop·연결 제안·사용량은 이식하지 않는다.
+- 이름은 hejo·사용자 펫 이름으로 치환한다. 원본 Dashboard의 접근 실패 상세는 ‘기록 폴더에 접근할 수 없음’이다. 연결 제목은 수락 기준의 ‘연결 안 됨’으로 함께 보인다.
+- 훅 연결 원본은 create-only다. 기존 설정은 동일한 훅 설정일 때만 통과하고 다른 설정이면 변경 없이 멈춘다. hejo 고유 안전장치인 백업·영수증·바이트 복원·실패 보상을 이 경로에 추가한다. 사장 버튼/명령 실행 때만 설정에 접근한다.
+- 실제 CLI 설정 본문은 읽지 않는다. 시험의 실제 설정 보호는 lstat 메타데이터(존재·종류·inode·크기·수정/변경 시각·권한) 지문으로 전후 확인하고, 내용 SHA 검사는 임시 설정에서만 한다. 실제 다운로드는 이름 목록만 비교한다.
+
+- 보완 독해/대조: 기존 PetState·BubbleReveal·PetView·AppDelegate·PetSettingsWindow의 원래 책임에 연결했다. 원본 CoreTests 68개는 별도 실행에서 통과했다. SF Symbol의 ‘30’은 프레임 크기가 아니라 글씨 크기여서 native symbol configuration 30pt의 47×35 자리를 사용한다. 화면/접근 실패 낱말과 AppKit 선택 구획·기본 단추의 차이는 TASK-47 화면 문서에 명시한다.
+
+- 원본 Dashboard의 선택 핀은 프로젝트 글자 바로 뒤의 teal 10pt 그림이다. AppKit에서도 그 자리에 두고, 펫 이름을 바꿀 때 열린 목록 소개·창 제목을 갱신한다. 원본의 Hermes 직접 연결 상세 줄은 이식하지 않는다(hejo 연결 상태는 기존 서버 연결 화면이 소유). 작업/세션 연결 줄 두 개는 원본대로 유지한다. 펼친 홈 행동이 오류 작업 동작을 덮지 않는 회귀도 포함한다.
+
+- 최종 제품·원본의 일반/고정/빈 목록 세 상태를 직접 비교했다. 자동 갱신 때 SwiftUI ForEach처럼 같은 작업의 native 단추 객체를 유지해 포커스/누름이 끊기지 않는다. 원본 CoreTests 분리 68개, 제품 AT-98·전체 앱·훅 9개와 세 번 반복, 실패 보상 제거 돌연변이 검출 근거는 impl-report와 `.build/task47/`에 있다. 실제 CLI 설정 내용은 읽지 않았고 실물 수락은 남겼다.

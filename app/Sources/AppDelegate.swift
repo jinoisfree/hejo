@@ -17,6 +17,13 @@ import AppKit
     private var toolsWindow:ConnectionsWindow?
     private var petSettings: PetSettingsWindow?
     private var threeTap: ThreeTapController!
+    private var monitor: StatusMonitor?
+    private let monitorQueue = DispatchQueue(label:"hejo.monitor")
+    private var monitorTimer: Timer?
+    private var monitorBusy = false
+    private let dashboardModel = DashboardModel()
+    private var dashboardWindow: NSWindow?
+    private var workSnapshot: Snapshot?
     private var calendar: MacCalendar!
     private var calendarWindow: NSWindow?
     private var bubble: BubbleReveal!
@@ -109,6 +116,14 @@ import AppKit
             threeTap.start()
             configureUpdates(AppUpdate()); appUpdate?.start()
             calendar.refresh(requestAccess:true)
+            dashboardModel.onSelect = { [weak self] id in self?.dashboardModel.selectedID=id;self?.dashboardModel.onChange?();self?.refreshPetActivity() }
+            dashboardModel.onPause = { [weak self] in self?.togglePause() }
+            dashboardModel.onRefresh = { [weak self] in self?.refreshWork(force:true) }
+            dashboardModel.onPreview = { [weak self] in self?.pet.preview() }
+            dashboardModel.onHooks = { [weak self] in self?.showHooksHelp() }
+            monitor = StatusMonitor()
+            monitorTimer = Timer(timeInterval:2,repeats:true) { [weak self] _ in Task { @MainActor in self?.refreshWork() } }
+            RunLoop.main.add(monitorTimer!,forMode:.common);refreshWork(force:true)
             pet.show()
             if !pendingURLs.isEmpty {let urls=pendingURLs;pendingURLs=[];application(NSApp,open:urls)}
             if store.settings.address.isEmpty || !store.settings.signsInAutomatically {
@@ -135,7 +150,7 @@ import AppKit
     func makeStatusMenu() -> NSMenu {
         let menu = NSMenu(); menu.delegate = self; menu.autoenablesItems = false
         menu.addItem(withTitle: "대화 열기", action: #selector(openChat), keyEquivalent: "").target = self
-        let taskItem = menu.addItem(withTitle:"작업 목록",action:nil,keyEquivalent:"");taskItem.isEnabled = false
+        menu.addItem(withTitle:"작업 목록",action:#selector(showDashboard),keyEquivalent:"").target = self
         menu.addItem(withTitle:"내 캘린더",action:#selector(showCalendar),keyEquivalent:"").target = self
         menu.addItem(.separator())
         hideItem = menu.addItem(withTitle: "펫 숨기기", action: #selector(togglePet), keyEquivalent: ""); hideItem?.target = self
@@ -162,7 +177,7 @@ import AppKit
         appUpdate?.stop()
         threeTap?.stop()
         if let activityMonitor { NSEvent.removeMonitor(activityMonitor) }
-        bubbleTimer?.invalidate();client?.stop()
+        monitorTimer?.invalidate();bubbleTimer?.invalidate();client?.stop()
         // Without automatic sign-in, quitting signs this Mac out.
         if let store, !store.settings.signsInAutomatically { GateKeychain().delete(account: store.settings.credentialAccount) }
     }
@@ -174,7 +189,7 @@ import AppKit
         try? store.update { $0.petName = name; $0.petScalePercent = size; $0.bubbleAlwaysShown = always }
         let replyEnabled=settings[BubbleReply.settingsKey].map{$0=="true"} ?? store.settings.bubbleReplyEnabled ?? true
         try? store.update{$0.bubbleReplyEnabled=replyEnabled};pet.pet.bubbleReplyAllowed=replyEnabled;petSettings?.bubbleReplyCheck.state=replyEnabled ? .on:.off
-        pet.resizePet(percent: size); pet.pet.bubbleAlwaysShown = always; pet.pet.bubbleName = name
+        pet.resizePet(percent: size); pet.pet.bubbleAlwaysShown = always; pet.pet.bubbleName = name;dashboardModel.name=name;dashboardWindow?.title="hejo · \(name) · AI 작업"
         if let address = store.settings.hubAddress, let token = client.bearer, !currentAccount.isEmpty {
             do {
                 try conversation.model.memberState.join(member: currentAccount, hub: address, legacy: settings)
@@ -227,12 +242,12 @@ import AppKit
             let key=message.key
             return message.latestSeq<=max(model.memberState.read("read:"+key.employee),model.memberState.read("thread:"+key.employee+"/"+key.thread))
         }.map(\.id))
-        let jumped=bubble.update(.init(messages:messages,calendarEvents:conversation.calendarEvents,questions:questions,typing:model.typing,names:input.names,muted:model.petMuted,readIDs:readIDs,opened:model.selected,chatOpen:pet.chatExpanded,paused:pet.pet.isPaused,ready:client.replayComplete,failure:input.failure),now:Date())
+        let jumped=bubble.update(.init(messages:messages,calendarEvents:conversation.calendarEvents,questions:questions,typing:model.typing,names:input.names,muted:model.petMuted,readIDs:readIDs,opened:model.selected,chatOpen:pet.chatExpanded,paused:pet.pet.isPaused,ready:client.replayComplete,tasks:dashboardModel.tasks,selectedTask:dashboardModel.selectedID,screenFocus:workSnapshot?.screenFocus,failure:input.failure),now:Date())
         if jumped {pet.pet.requestReplyJump()}
         var notice=bubble.notice
         if bubble.persistenceFailed {notice.detail="알림을 저장하지 못했어요. 저장 공간을 확인해 주세요."}
         // A failed inline reply keeps its existing draft target; it does not become an alert bubble.
-        if notice.key==nil,let old=bubbleReply.target,conversation.bubbleProblems[old.key] != nil,!model.petMuted.contains(old.key.employee),!model.timeline(old.key).isEmpty {notice.key=old.key}
+        if notice.key==nil,notice.workState==nil,let old=bubbleReply.target,conversation.bubbleProblems[old.key] != nil,!model.petMuted.contains(old.key.employee),!model.timeline(old.key).isEmpty {notice.key=old.key}
         let target=notice.key.flatMap{key->BubbleReplyTarget? in
             guard !model.timeline(key).isEmpty else{return nil}
             return BubbleReplyTarget(key:key,speaker:model.name(key.employee),working:conversation.working(key),queued:model.employees.first{$0.id==key.employee}?.queued ?? false)
@@ -242,10 +257,10 @@ import AppKit
         bubbleReply.aim(target)
         pet.pet.bubbleNotice=notice
         if !conversation.canSend || pet.chatExpanded || pet.pet.isPaused || !pet.pet.bubbleReplyAllowed {pet.pet.updateBubbleReply(pointerOver:false)}
-        let asked = questions.filter{ id in model.messages[id].map{!model.petMuted.contains($0.key.employee)} ?? false }.count
         let working = Set(model.typing.filter{$0.value>Date() && !model.petMuted.contains($0.key.employee)}.keys.map(\.employee)).count
-        pet.pet.hasAsked = asked > 0; pet.pet.isTyping = working > 0
-        pet.pet.sendFailed=false;pet.pet.homeConversation=model.isHome
+        pet.pet.hasAsked = notice.kind == .approval; pet.pet.isTyping = notice.kind == .writing && notice.workState == nil
+        pet.pet.taskState=notice.workState ?? .idle;pet.pet.screenFocus=workSnapshot?.screenFocus
+        pet.pet.sendFailed=notice.workState == .failed;pet.pet.homeConversation=model.isHome
         pet.pet.subtitleInterrupted=target.map{conversation.interruptions[$0.key] != nil && $0.working} ?? false
         pet.pet.bubbleStatus=""
         item?.button?.toolTip="hejo · \(store.settings.petName) · 작업 중 \(working)개 · 안 읽은 답 \(model.visibleUnreadTotal)개"
@@ -274,6 +289,29 @@ import AppKit
             refreshPetActivity()
         }
     }
+    private func refreshWork(force:Bool=false) {
+        guard let monitor,!monitorBusy,pet?.pet.isPaused != true else {return}
+        monitorBusy=true
+        monitorQueue.async { [weak self] in
+            let snapshot=monitor.poll(forceDiscovery:force)
+            DispatchQueue.main.async {
+                guard let self else{return};self.monitorBusy=false
+                guard self.pet?.pet.isPaused != true else{return}
+                self.workSnapshot=snapshot;self.dashboardModel.apply(snapshot);self.refreshPetActivity()
+            }
+        }
+    }
+    @objc func showDashboard() {
+        dashboardModel.name=store.settings.petName;dashboardModel.paused=pet.pet.isPaused
+        if dashboardWindow == nil {
+            let window=NSWindow(contentRect:CGRect(x:0,y:0,width:710,height:610),styleMask:[.titled,.closable,.miniaturizable,.resizable],backing:.buffered,defer:false)
+            window.titlebarAppearsTransparent=true;window.isReleasedWhenClosed=false
+            window.contentView=Dashboard(model:dashboardModel);window.minSize=CGSize(width:680,height:560);window.center();dashboardWindow=window
+        }
+        dashboardWindow?.title="hejo · \(store.settings.petName) · AI 작업"
+        dashboardModel.onChange?();NSApp.activate(ignoringOtherApps:true);dashboardWindow?.makeKeyAndOrderFront(nil)
+    }
+    @objc func showHooksHelp() { HooksHelp.present() }
     @objc func showCalendar() { calendar.browse();presentCalendar() }
     private func showRelatedCalendar(_ events:[CalendarEntry]) { calendar.showRelated(events);presentCalendar() }
     private func presentCalendar() {
@@ -314,6 +352,7 @@ import AppKit
             settings.onResetPosition = { [weak self] in self?.pet.resetPosition() }
             settings.onOpenAccount = { [weak self] in self?.connection.present() }
             settings.onLogout = { [weak self] in self?.signOut() }
+            settings.onHooks = { [weak self] in self?.showHooksHelp() }
             settings.onConnections={ [weak self] in self?.showConnections() }
             settings.onPreview = { [weak self] in self?.pet.preview() }
             settings.onPointer = { [weak self] in self?.pet.previewPointer() }
@@ -358,7 +397,7 @@ import AppKit
         }
     }
     @objc private func togglePet() { if pet.panel.isVisible { pet.panel.orderOut(nil) } else { pet.show() } }
-    @objc private func togglePause() { pet.pet.isPaused.toggle();conversation.setPaused(pet.pet.isPaused);pet.pet.noteActivity();refreshPetActivity() }
+    @objc private func togglePause() { pet.pet.isPaused.toggle();dashboardModel.paused=pet.pet.isPaused;dashboardModel.onChange?();conversation.setPaused(pet.pet.isPaused);pet.pet.noteActivity();refreshPetActivity() }
     private func setLoginEnabled(_ enabled: Bool) {
         do { try LoginLaunch.setEnabled(enabled);loginChangeFailed=false } catch { loginChangeFailed=true }
         petSettings?.refreshLogin(LoginLaunchPresentation.resolve(LoginLaunch.state,installed:LoginLaunch.isInstalled(),failed:loginChangeFailed))
@@ -367,7 +406,7 @@ import AppKit
         guard PetIdentity.validationMessage(for:value)==nil else{return}
         let name = PetIdentity.normalized(value)
         do {try store.update { $0.petName = name }} catch {petSettings?.nameHint.stringValue="설정을 저장하지 못했어요. 저장 공간을 확인해 주세요.";petSettings?.nameHint.textColor = .systemRed;return}
-        pet.pet.bubbleName = name
+        pet.pet.bubbleName = name;dashboardModel.name=name;dashboardWindow?.title="hejo · \(name) · AI 작업"
         conversationView.refresh()
         pet.pet.setAccessibilityLabel("hejo · \(name) · 대화 열기")
         saveMemberSettings()

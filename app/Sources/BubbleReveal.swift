@@ -15,7 +15,8 @@ import AppKit
         var id: String?
         var body = ""
         var until: Date? = nil
-        var held: Bool { kind == .approval }
+        var held: Bool { kind == .approval && workState == nil }
+        var workState: WorkState? = nil
         var date = Date.distantPast
         var calendarEvents: [CalendarEntry] = []
         var actions: [Action] { kind == .reply ? Action.bubble(body, events: calendarEvents, at: date) : [] }
@@ -50,6 +51,9 @@ import AppKit
         var chatOpen = false
         var paused = false
         var ready = false
+        var tasks: [WorkItem] = []
+        var selectedTask: String?
+        var screenFocus: ScreenFocus?
         var failure: IslandFailure?
     }
     private let store: LocalStore
@@ -101,17 +105,30 @@ import AppKit
         }
         if let shown=current, shown.until!<=now || !ids.contains(shown.id ?? "") || acknowledged.contains(shown.id ?? "") || shown.key.map({input.muted.contains($0.employee)}) == true {current=nil}
         if let installedNotice, installedNotice.until! <= now { self.installedNotice = nil }
+        let urgent = input.tasks.first { $0.state == .waiting || ($0.state == .failed && now.timeIntervalSince($0.updatedAt) < 60) }
         if input.paused {notice=Notice(kind:.idle,headline:"쉬고 있어요",detail:"메뉴에서 다시 시작할 수 있어요",key:nil)}
         else if let question=liveQuestions.first(where:{!openedQuestions.contains($0.id)}) {
             notice=Notice(kind:.approval,headline:(input.names[question.speaker] ?? "직원")+" · 답변이 필요해요",detail:Self.preview(question.text).isEmpty ? "확인할 요청이 있어요 · 눌러서 스레드 보기":Self.preview(question.text),key:question.key,sender:input.names[question.speaker] ?? "직원",id:question.id)
         } else if let installedNotice { notice = installedNotice }
+        else if let urgent { notice = task(urgent, tasks:input.tasks, urgent:true, now:now) }
         else if let key=input.typing.filter({$0.value>now && !input.muted.contains($0.key.employee)}).keys.sorted(by:{$0.readKey<$1.readKey}).first {
             let names=input.typing.filter{$0.value>now && !input.muted.contains($0.key.employee)}.keys.sorted{$0.readKey<$1.readKey}.map{input.names[$0.employee] ?? "직원"}
             notice=Notice(kind:.writing,headline:"답변을 생각하고 있어요",detail:Array(NSOrderedSet(array:names)) .compactMap{$0 as? String}.joined(separator:", ")+" 작성 중…",key:key)
         } else if let current {notice=current}
-        else {notice=Notice(kind:.idle,headline:"",detail:"",key:nil)}
+        else if let item = input.tasks.first(where:{$0.id == input.selectedTask}) ?? input.tasks.first(where:{$0.id == input.screenFocus?.taskID && $0.state == .running}) ?? input.tasks.first(where:{$0.state == .running || ($0.state == .responded && now.timeIntervalSince($0.updatedAt) < 20)}) {
+            notice = task(item,tasks:input.tasks,urgent:false,now:now)
+        } else {notice=Notice(kind:.idle,headline:input.tasks.contains{$0.state == .unknown} ? "헤이헤이 일끝났어":"",detail:"",key:nil)}
         notice.calendarEvents = input.calendarEvents
         return !fresh.isEmpty && !input.paused
+    }
+    private func task(_ item:WorkItem,tasks:[WorkItem],urgent:Bool,now:Date)->Notice {
+        let active=tasks.filter{$0.state == .running}.count
+        var state=PetTaskSummary.animationState(item,at:now)
+        var headline="\(item.provider.name) · \(item.state.label)"
+        var detail=active>1 ? "\(active)개 작업 진행 중 · 클릭하면 대화창":"\(item.project.isEmpty ? item.shortID:item.project) · 클릭하면 대화창"
+        if !urgent,let summary=PetTaskSummary.runningHeadline(tasks) {headline=summary;state = .running}
+        else if urgent,active>0 {detail="작업 중: \(PetTaskSummary.runningDetail(tasks))"}
+        return Notice(kind:state == .waiting ? .approval:state == .failed ? .failure:state == .running ? .writing:.idle,headline:headline,detail:detail,key:nil,id:"task:\(item.id):\(item.state)",workState:state)
     }
     private func reply(_ message:ConversationMessage,names:[String:String],now:Date,reminder:Bool)->Notice {
         let name=names[message.speaker] ?? "직원"

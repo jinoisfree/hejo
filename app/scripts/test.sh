@@ -1,9 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+settings_snapshot=$(mktemp)
+"${HEJO_PYTHON:-python3}" Tests/settings_guard.py snapshot "$settings_snapshot"
 downloads_snapshot=$(mktemp)
 "${HEJO_PYTHON:-python3}" Tests/downloads_guard.py snapshot "$downloads_snapshot"
-trap 'result=$?; "${HEJO_PYTHON:-python3}" Tests/downloads_guard.py verify "$downloads_snapshot" || result=1; rm -f "$downloads_snapshot"; exit "$result"' EXIT
+trap 'result=$?; "${HEJO_PYTHON:-python3}" Tests/settings_guard.py verify "$settings_snapshot" || result=1; rm -f "$settings_snapshot"; "${HEJO_PYTHON:-python3}" Tests/downloads_guard.py verify "$downloads_snapshot" || result=1; rm -f "$downloads_snapshot"; exit "$result"' EXIT
 HEJO_SKIP_GOOGLE_SECRET=1 HEJO_SPARKLE_OFFLINE=1 bash scripts/build.sh
 sources=()
 for source in Sources/*.swift; do
@@ -36,3 +38,5 @@ printf '%s\n' 'AT-HF-23 PASS'
 "${HEJO_PYTHON:-python3}" Tests/downloads_fixture.py .build/app-tests
 
 "${HEJO_PYTHON:-python3}" Tests/web_pane_fixture.py .build/app-tests
+
+"${HEJO_PYTHON:-python3}" Tests/test_hooks.py

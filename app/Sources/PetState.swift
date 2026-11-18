@@ -13,6 +13,17 @@ enum WorkState: String, Codable {
         case .unknown: return "상태 확인 필요"
         }
     }
+    var rank: Int {
+        switch self {
+        case .waiting: return 6
+        case .failed: return 5
+        case .running: return 4
+        case .responded: return 3
+        case .interrupted: return 2
+        case .unknown: return 1
+        case .idle: return 0
+        }
+    }
     var row: Int {
         switch self {
         case .running: return 7

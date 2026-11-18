@@ -32,7 +32,11 @@ final class MemoryCredentials: GateCredentialStore {
         Task { @MainActor in
             do {
                 let args = CommandLine.arguments
-                if args.contains("--task46") {
+                if args.contains("--task47") {
+                    try workMonitorTests();try await dashboardTests()
+                } else if args.count>2 && args[1]=="--task47-capture" {
+                    try workMonitorTests();try await dashboardTests(outputDirectory:URL(fileURLWithPath:args[2]))
+                } else if args.contains("--task46") {
                     try await calendarTests()
                 } else if args.count>2 && args[1]=="--task46-capture" {
                     try await calendarTests(outputDirectory:URL(fileURLWithPath:args[2]))
@@ -138,6 +142,7 @@ final class MemoryCredentials: GateCredentialStore {
         }
     }
     func unit() async throws {
+        try workMonitorTests();try await dashboardTests()
         try await calendarTests()
         try webAddressTests()
         try downloadsTests()
