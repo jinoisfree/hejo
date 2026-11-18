@@ -1,3 +1,25 @@
+## 검증 판정: 보완 61 — 0.2.0 공개 후보 재생성 (2026-11-18)
+
+1. **판정:** 보완 61 완료. 차단 결함·지적 없음. 제품 코드 변경 없음(실행 커밋 `7c8ae5d`는 impl-report 10줄).
+2. **검증 조건:** 교차 모델(구현 codex gpt-6.1-sol, 검토 Claude Opus 5.5).
+3. **계획 담당 직접 확인:**
+   - public `1dfda649f14483acc5dd90f1f363e63904805b43`, 부모 `f90bf08`(0.1.0), 공개 계보 4커밋. `cd1b995`는 public 조상이 아니다(개인 이력 미포함).
+   - 트리: public = main(`7c8ae5d`) = `1886a991…`, `git diff public main` 없음.
+   - 보존: `archive/public-0.2.0-before-parity` = `f716bdf`, `archive/task33-before-n33-01` = `09157e9`.
+   - 작성자: 이전 공개본과 같은 GitHub noreply 이름만 사용.
+   - 준비물 `.build/release-0.2.0/`: zip SHA256 `3f856009…bf47`이 prepared.json과 같다. 새 임시 폴더에 풀어 `codesign --verify --deep --strict` 통과, 버전 0.2.0·빌드 2, BuildInfo tree `1886a991…`·dirty false.
+   - 서명 키: 앱 SUPublicEDKey = prepared publicKey = 이전 후보(n33-01) publicKey. 기존 키 재사용이 맞다.
+   - 로그 직접 확인: final-foundation `OK`·실제 CLI 설정 lstat 불변·실제 다운로드 이름 불변, legacy-aeaa652 `AT84_OLD_GATE_NEW_APP_PASS`·1 passed, app-repeat 1~3 모두 `APP_TEST_OK`, offline-gh는 로컬 캐시만(network false), final-verification remoteCalls/remoteWrites 0.
+4. **설계 적합성(4.2):** 보완 61 절차(보존→hejo-publish 스냅샷→prepare→같은 트리 검증)와 REQ-HF-33(사장만 publish, 에이전트 원격 쓰기 금지), D33-01(옛 문 aeaa652 호환)을 따른다. 운영 홈·공용 릴리스·본체·ddots 변경 없음.
+5. **참고:** 이 판정 문서 커밋 뒤 main은 public보다 문서만 앞선다. 공개본 재생성은 필요 없다.
+6. **작업 56917a17 전체:** 부분 완료. 남은 것은 모두 사장 승인·실행이다.
+   - public `1dfda64` → github main 푸시 승인(플러그인 화면)
+   - 사장 publish: `install/hejo-ship publish --approve-commit 1dfda649f14483acc5dd90f1f363e63904805b43 --prepared .build/release-0.2.0/prepared.json`
+   - 0.2.x 운영 반영(계획 담당+사장): aeaa652 기준 새 롤백 백업, 문·허브 갱신, team-kit 패치, 게이트웨이 재시작, 실물 점검(보완 49·57·60, TASK-47 훅, TASK-23)
+   - 비설계자 검토 여부
+
+---
+
 ## 검증 판정: N47-01·02와 33·34판 구현 마감 현황 (2026-11-18)
 
 1. **N47-01·02 판정:** 완료(`db2b51e9c76a0e7805e04bd920b2afc9f0a4b53b`, 파일 10개). 차단 결함과 지적은 없다.
