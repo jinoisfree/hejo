@@ -2071,3 +2071,13 @@ TASK-46 최종 확인: 마지막 입력 199개를 동결한 전체 검사와 집
 - `.build/n47/frozen.py` 종료 0: foundation9_runner hejo 245 passed(test_install·허브 포함), 앱 전체·기존 통신·훅 9개 통과. 집중 3회 모두 종료 0이며 실행 중 입력 214개 불변이다. 실제 CLI 설정 lstat 메타데이터·실제 다운로드 이름 불변 단언도 통과했다. 로그는 `.build/n47/final-foundation.log`·`frozen-progress.json`·`app-focused-01.log`~`03.log`다.
 - `.build/n47/post_checks.py` 종료 0: 최종 제품·원본의 일반/고정/빈 목록 캡처 여섯 개를 다시 만들고 직접 비교했다. 원본 세 그림은 이전과 바이트가 같고 제품 세 그림은 두 지적을 반영한다. 단추 글자 크기·높이는 원본 분리 실측과 같으며 ‘기록 폴더에 접근할 수 없음’ 앞에 새 낱말이 없다. 기존 AppKit 기본 단추 바탕·선택 구획의 플랫폼 차이는 그대로 문서화했다. PNG 유효성·원본 불변·codesign deep/strict 통과, 운영 앱 전체·픽셀 동일 비교를 주장하지 않는다.
 - `.build/n47/finalize.py`의 checks·commit·verify가 정적 검사와 소유 파일 commit-only·커밋/입력/그림 대조를 맡는다. 실제 결과와 전체 커밋은 `.build/n47/final-checks.json`·`commit-result.json`·`final-verification.json`을 따른다. public 후보 고정, 운영 홈·앱 사본·공용 릴리스·운영 허브·본체/ddots·원격·실제 발송·비밀 파일 접근은 없다. 계획 담당의 N47-01·02 검토와 보완 60 수준 3 실물 수락은 남긴다.
+
+
+## 보완 61 — 0.2.0 공개 후보 재생성
+
+- 받은 설계: handoff 보완 61, 사장 결정에 따라 TASK-36~47을 포함한 main 전체를 새 0.2.0 후보로 만든다. 버전 0.2.0·빌드 2를 유지하며 제품 코드 변경은 없다. 이 보고만 먼저 commit-only한 깨끗한 main을 공개·빌드·검증의 기준으로 고정한다.
+- 기존 public은 archive/public-0.2.0-before-parity로, 더 앞선 archive/task33-before-n33-01도 그대로 보존한다. hejo-publish는 기존 public 작성자 정보를 로컬에서 재사용하는 gh 대역으로 실행한다. 실제 GitHub 조회·원격 쓰기는 하지 않는다. 부모는 이전 공개 계보 0.1.0 f90bf08이며 개인 main 계보는 포함하지 않는다.
+- 준비물 위치는 `.build/release-0.2.0/`, 실행 근거·전체 커밋·트리·개인 이력 배제·공개본 검사·서명·반복·호환성·보호 검사 결과의 원본은 `.build/release-0.2.0-work/final-verification.json`과 `checkpoint.json`이다. 새 후보의 트리와 고정 main 트리, 앱 BuildInfo의 트리를 대조한다. 공개본 자체도 별도 worktree에서 개인값 검사한다.
+- 같은 트리의 foundation9_runner hejo(test_install 포함), 전체 앱 실행 3회, aeaa652 옛 문과 새 앱의 실제 루프백 짝맺기·송수신을 검사한다. 모든 실행은 가짜 홈·명부·세션·설정·임시 다운로드·로컬 웹/문만 쓴다. 실제 CLI 설정은 lstat만, 실제 다운로드 폴더는 이름만 대조하며 실제 내용 SHA 불변을 주장하지 않는다.
+- hejo-ship prepare는 기존 키체인 키를 재사용한다. 새 키 생성·비밀 키 출력/내보내기·setup은 실행하지 않는다. 압축을 다시 풀어 codesign deep/strict·실행 파일 지문·Sparkle 서명을 검사한다. 기존 Sparkle 고정 캐시를 사용해 외부 다운로드를 하지 않는다.
+- 이번 단계는 로컬 공개 후보·배포 준비와 자체 검증(필요/도달 수준은 최종 근거 기준)이다. 사장 public 푸시 승인·publish, aeaa652 기준 새 롤백 백업, 운영 허브/문·team-kit 반영·TASK-23·실물 훅 연결/해제·두 Mac 자동 업데이트·비설계자 검토는 수행하지 않는다. 고위험 운영 수락 완료를 주장하지 않는다. 운영 홈·공용 릴리스·본체/ddots는 바꾸지 않는다.
