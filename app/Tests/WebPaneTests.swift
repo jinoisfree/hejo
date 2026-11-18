@@ -20,6 +20,7 @@ import WebKit
 /// Real WebKit navigation/downloads and panel motion against a loopback-only fixture. External opens are recorded.
 @MainActor func webPaneNetwork(_ args: [String]) async throws {
     try webAddressTests()
+    try webToolbarTests()
     let home=URL(fileURLWithPath:args[2]), base=URL(string:args[3])!, resources=URL(fileURLWithPath:args[4])
     let store=try LocalStore(directory:home), client=GateClient(store:store,credentials:MemoryCredentials()), conversation=try testConversation(client:client)
     let pet=PetController(store:store,atlas:try SpriteAtlas(resourceDirectory:resources))
@@ -46,6 +47,7 @@ import WebKit
     try await waitFor(10){web.current?.title=="합성 페이지" && !web.sliding}
     try check(pet.pet.paneWidth==720 && web.width==720 && pet.preferredChatSize==preferred,"AT96 pane adds width without changing conversation preference")
     let first=web.current!
+    try webAddressInk(pet.pet.webPane!)
     let script=try await first.view.evaluateJavaScript("document.getElementById('field').value='한글'; document.getElementById('field').value")
     try check(script as? String == "한글","AT96 actual page is interactive")
     let href=try await first.view.evaluateJavaScript("document.getElementById('next').click(); 'clicked'")
@@ -139,4 +141,33 @@ import WebKit
         }
         try rep.representation(using:.png,properties:[:])!.write(to:folder.appendingPathComponent("task45-hejo-"+name+".png"))
     }
+}
+
+/// N45-01: unmodified SwiftUI reference measured at width 720 (native control frames and baseline).
+@MainActor func webToolbarTests() throws {
+    let web = WebPaneModel();web.persistent = false
+    let pane = WebPaneView(web:web);pane.frame = NSRect(x:0,y:0,width:720,height:1000);pane.layoutSubtreeIfNeeded()
+    let buttons = pane.subviews.compactMap{$0 as? WebControl}
+    func button(_ label:String)->WebControl {buttons.first{$0.accessibilityLabel() == label}!}
+    try check(button("뒤로").frame == NSRect(x:12,y:52,width:10,height:14),"AT96 reference back button native frame")
+    try check(button("앞으로").frame == NSRect(x:30,y:52,width:10,height:14),"AT96 reference forward button native frame")
+    try check(button("새로고침").frame == NSRect(x:48,y:51,width:14,height:16),"AT96 reference reload button native frame")
+    try check(pane.address.frame == NSRect(x:68,y:47,width:616,height:25),"AT96 original background incl 10pt horizontal and 5pt vertical padding")
+    let text = pane.address.cell!.drawingRect(forBounds:pane.address.bounds)
+    let placed = pane.address.convert(text,to:pane)
+    try check(placed == NSRect(x:78,y:52,width:596,height:15) && placed.maxY-3 == 64,"AT96 source address text frame and 64pt baseline")
+    try check(pane.surface.frame.minX == 0 && pane.surface.frame.width == 720,"AT96 leading rule overlays rather than consuming page width")
+}
+
+/// Sample actual drawn glyphs, independent of the cell's reported layout rectangle (source reference 1x capture).
+@MainActor func webAddressInk(_ pane:WebPaneView) throws {
+    pane.window?.appearance = NSAppearance(named:.aqua)
+    pane.window?.makeFirstResponder(nil);pane.web.addressFocused = false;pane.web.current?.address = "http://localhost/page";pane.refresh();pane.layoutSubtreeIfNeeded();pane.displayIfNeeded()
+    let bitmap = pane.bitmapImageRepForCachingDisplay(in:pane.bounds)!;pane.cacheDisplay(in:pane.bounds,to:bitmap)
+    var left = Int.max,top = Int.max,bottom = 0
+    for y in 48..<73 {for x in 75..<350 {
+        let c = bitmap.colorAt(x:x,y:y)!.usingColorSpace(.deviceRGB)!
+        if c.alphaComponent>0.5 && c.redComponent<0.4 && c.greenComponent<0.4 && c.blueComponent<0.4 {left = min(left,x);top = min(top,y);bottom = max(bottom,y)}
+    }}
+    try check(left == 81 && top == 55 && bottom == 65,"AT96 original rendered address glyph x and vertical baseline: \(left)/\(top)/\(bottom)")
 }

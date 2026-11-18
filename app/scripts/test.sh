@@ -11,7 +11,7 @@ for source in Sources/*.swift; do
 done
 xcrun swiftc -swift-version 5 -parse-as-library -g -target "$(uname -m)-apple-macosx13.0" \
   "${sources[@]}" Tests/*.swift -o .build/app-tests \
-  -framework AppKit -framework WebKit -framework Accelerate -framework ServiceManagement \
+  -framework AppKit -framework EventKit -framework WebKit -framework Accelerate -framework ServiceManagement \
   -F .build/sparkle-2.10.0 -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/hejo.app/Contents/Frameworks
 codesign --force --sign "${HEJO_SIGNING_IDENTITY:-AIpet Local Development}" --timestamp=none .build/app-tests
 [[ "$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' .build/hejo.app/Contents/Info.plist)" == io.github.hermes-hejo.hejo ]]

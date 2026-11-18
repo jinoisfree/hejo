@@ -20,6 +20,11 @@ struct ConversationFailedSend: Identifiable {
     let client: GateClient
     let model: ConversationModel
     let files: GateHTTP
+    var calendarEvents: [CalendarEntry] = [] { didSet { onChange?() } }
+    func calendarActions(for message: ConversationMessage) -> [BubbleReveal.Action] {
+        guard message.role != "owner", !message.pending else { return [] }
+        return BubbleReveal.Action.content(message.text, events: calendarEvents, at: ThreadTools.date(message.timestamp)).filter(\.isCalendar)
+    }
     lazy var pictures: PictureCache = { let cache=PictureCache(http:files);cache.onChange={ [weak self] in self?.onChange?() };return cache }()
     func avatar(_ employee:String) -> ProfileAvatar {
         let person=model.person(matching:employee)

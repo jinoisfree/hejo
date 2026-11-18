@@ -1,0 +1,16 @@
+[
+  {
+    "inkBottom" : 75,
+    "inkTop" : 65,
+    "source" : "ddots",
+    "inkLeft" : 346,
+    "inkRight" : 412
+  },
+  {
+    "inkBottom" : 75,
+    "inkLeft" : 346,
+    "inkRight" : 413,
+    "inkTop" : 65,
+    "source" : "hejo"
+  }
+]

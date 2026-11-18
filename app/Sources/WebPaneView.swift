@@ -13,6 +13,7 @@ final class WebPaneView: NSView, NSTextFieldDelegate {
     private let outside = WebControl("arrow.up.forward.square", "밖에서 열고 칸 닫기", "밖에서 열고 칸 닫기")
     let newTab = WebControl("plus", "새 탭", "새 탭 (⌘T)"), close = WebControl("sidebar.right", "웹 칸 닫기", "웹 칸 닫기")
     private let notice = NSTextField(wrappingLabelWithString: "")
+    private let leadingRule = WebLeadingRule()
     private var chips: [UUID: WebChip] = [:]
     private var seenFocus = 0
     private var shownTab: UUID?
@@ -21,12 +22,13 @@ final class WebPaneView: NSView, NSTextFieldDelegate {
         self.web = web; super.init(frame: .zero)
         wantsLayer = true; setAccessibilityIdentifier("web-pane")
         tabsScroll.documentView = tabsRow; tabsScroll.drawsBackground = false; tabsScroll.hasHorizontalScroller = false
+        address.cell = WebAddressCell();address.isEditable = true;address.isSelectable = true;address.usesSingleLineMode = true
         address.placeholderString = "주소 또는 검색어"; address.font = .systemFont(ofSize: ChatMetrics.auxiliaryFont + 1)
         address.drawsBackground = false; address.isBordered = false; address.focusRingType = .none; address.delegate = self; address.target = self; address.action = #selector(submit)
         address.wantsLayer = true; address.layer?.cornerRadius = 9; address.setAccessibilityLabel("주소"); address.setAccessibilityIdentifier("web-address")
         outside.setAccessibilityIdentifier("web-open-outside"); newTab.setAccessibilityIdentifier("web-new-tab"); close.setAccessibilityIdentifier("web-close")
         notice.font = .systemFont(ofSize: ChatMetrics.auxiliaryFont); notice.setAccessibilityIdentifier("web-notice")
-        [tabsScroll, newTab, close, back, forward, reload, address, outside, notice, surface, blank].forEach(addSubview)
+        [tabsScroll, newTab, close, back, forward, reload, address, outside, notice, surface, blank, leadingRule].forEach(addSubview)
         blank.web = web; web.addressField = address
         back.invoke = { [weak web] in web?.current?.view.goBack() }; forward.invoke = { [weak web] in web?.current?.view.goForward() }
         reload.invoke = { [weak web] in guard let tab = web?.current else { return }; if tab.loading { tab.view.stopLoading() } else { tab.view.reload() } }
@@ -67,7 +69,7 @@ final class WebPaneView: NSView, NSTextFieldDelegate {
     }
     override func viewDidChangeEffectiveAppearance() { super.viewDidChangeEffectiveAppearance(); refresh() }
     override func layout() {
-        super.layout()
+        super.layout();leadingRule.frame = CGRect(x:0,y:0,width:1,height:bounds.height)
         let width = bounds.width
         tabsScroll.frame = CGRect(x: 8, y: 7, width: max(0, width - 74), height: 26)
         var x: CGFloat = 0
@@ -76,17 +78,16 @@ final class WebPaneView: NSView, NSTextFieldDelegate {
         newTab.frame = CGRect(x: width - 60, y: 9, width: 20, height: 22); close.frame = CGRect(x: width - 34, y: 9, width: 20, height: 22)
         blank.frame = CGRect(x: 0, y: 0, width: width, height: 40)
         blank.occupied = web.tabs.compactMap { chips[$0.id].map { blank.convert($0.bounds, from: $0) } } + [newTab.frame, close.frame]
-        back.frame = CGRect(x: 12, y: 48, width: 18, height: 22); forward.frame = CGRect(x: 38, y: 48, width: 18, height: 22)
-        reload.frame = CGRect(x: 64, y: 48, width: 18, height: 22)
-        address.frame = CGRect(x: 90, y: 45, width: max(1, width - 136), height: 28)
-        outside.frame = CGRect(x: width - 38, y: 48, width: 24, height: 22)
+        back.frame = CGRect(x: 12, y: 52, width: 10, height: 14); forward.frame = CGRect(x: 30, y: 52, width: 10, height: 14)
+        reload.frame = CGRect(x: 48, y: 51, width: 14, height: 16)
+        address.frame = CGRect(x: 68, y: 47, width: max(1, width - 104), height: 25)
+        outside.frame = CGRect(x: width - 30, y: 52, width: 16, height: 14)
         let noticeHeight = web.notice == nil ? 0 : max(36, notice.sizeThatFits(NSSize(width: max(1,width-20), height: 200)).height + 20)
         notice.frame = CGRect(x: 10, y: 88, width: max(1,width-20), height: max(0,noticeHeight-20))
-        surface.frame = CGRect(x: 1, y: 78 + noticeHeight, width: max(0,width-1), height: max(0,bounds.height-78-noticeHeight))
+        surface.frame = CGRect(x: 0, y: 78 + noticeHeight, width: max(0,width), height: max(0,bounds.height-78-noticeHeight))
         effectiveAppearance.performAsCurrentDrawingAppearance { address.layer?.backgroundColor = NSColor.labelColor.withAlphaComponent(0.07).cgColor }
     }
     override func draw(_ dirtyRect: NSRect) {
-        NSColor.labelColor.withAlphaComponent(0.14).setFill(); NSRect(x:0,y:0,width:1,height:bounds.height).fill()
         if web.notice != nil {NSColor.labelColor.withAlphaComponent(0.06).setFill();NSRect(x:0,y:78,width:bounds.width,height:max(0,surface.frame.minY-78)).fill()}
         NSColor.separatorColor.setFill(); NSRect(x:0,y:40,width:bounds.width,height:1).fill(); NSRect(x:0,y:77,width:bounds.width,height:1).fill()
     }
@@ -132,3 +133,15 @@ private final class WebChip: NSView {
 }
 
 private final class WebSpinner: NSProgressIndicator {override func hitTest(_ point:NSPoint)->NSView? {nil}}
+
+/// A padded line of text centered in the original 25pt address background, including field-editor placement.
+final class WebAddressCell: NSTextFieldCell {
+    override func drawingRect(forBounds rect:NSRect)->NSRect {
+        let height:CGFloat = 15
+        return NSRect(x:rect.minX+10,y:rect.midY-height/2,width:max(0,rect.width-20),height:height)
+    }
+}
+private final class WebLeadingRule:NSView {
+    override func hitTest(_ point:NSPoint)->NSView? {nil}
+    override func draw(_ rect:NSRect) {NSColor.labelColor.withAlphaComponent(0.14).setFill();bounds.fill()}
+}

@@ -17,6 +17,8 @@ import AppKit
     private var toolsWindow:ConnectionsWindow?
     private var petSettings: PetSettingsWindow?
     private var threeTap: ThreeTapController!
+    private var calendar: MacCalendar!
+    private var calendarWindow: NSWindow?
     private var bubble: BubbleReveal!
     private var bubbleTimer: Timer?
     private var bubbleReply:BubbleReplyCard!
@@ -37,6 +39,8 @@ import AppKit
             bubble = BubbleReveal(store:store)
             client = GateClient(store: store); pet = PetController(store: store, atlas: try SpriteAtlas())
             conversation = try ConversationController(client: client)
+            calendar = MacCalendar()
+            calendar.onChange = { [weak self] events in self?.conversation.calendarEvents = events }
             bubbleReply=BubbleReplyCard(controller:conversation);pet.pet.installBubbleReply(bubbleReply)
             pet.pet.bubbleReplyAllowed=store.settings.bubbleReplyEnabled ?? true
             pet.pet.avatarForEmployee = { [weak self] id in self?.conversation.avatar(id) ?? ProfileAvatar(color:PictureCodec.color(name:id,hex:nil)) }
@@ -46,6 +50,7 @@ import AppKit
             pet.pet.installConversation(conversationView)
             pet.installWeb(WebPaneModel(downloads: conversation.files.downloads.root))
             pet.web?.onExternal = { url in if url.isFileURL || CardText.mayOpen(url) { NSWorkspace.shared.open(url) } }
+            conversationView.onCalendar = { [weak self] in self?.showRelatedCalendar($0) }
             conversationView.onOpenURL = { [weak self] url in self?.followLink(url) }
             conversation.onOpenFile = { [weak self] url in guard let self else { return }; if !self.pet.showBeside(url) { NSWorkspace.shared.open(url) } }
             pet.panel.onPageKey = { [weak self] event in guard let self, let web = self.pet.web, web.hasFocus(in: self.pet.panel) else { return false }; return web.handleShortcut(event) }
@@ -57,7 +62,7 @@ import AppKit
             pet.pet.onBubbleOpen = { [weak self] key in guard let self else {return};self.openBubble(key) }
             pet.pet.onClick={ [weak self] in guard let self else{return};if self.pet.chatExpanded {self.pet.collapseChat()} else {self.openBubble(self.pet.pet.bubbleTarget)} }
             pet.pet.onBubbleAction = { [weak self] action in self?.performBubbleAction(action) }
-            bubbleTimer=Timer(timeInterval:0.25,repeats:true){ [weak self] _ in Task { @MainActor in self?.refreshPetActivity() } }
+            bubbleTimer=Timer(timeInterval:0.25,repeats:true){ [weak self] _ in Task { @MainActor in self?.refreshPetActivity(); self?.calendar.refresh() } }
             RunLoop.main.add(bubbleTimer!,forMode:.common)
             let previousChange = conversation.onChange
             conversation.onChange = { [weak self] in previousChange?(); self?.refreshPetActivity(); if let self { self.petSettings?.refreshHome(rooms:self.conversation.model.rooms,selected:self.conversation.model.home.settings.channel) } }
@@ -103,6 +108,7 @@ import AppKit
             }
             threeTap.start()
             configureUpdates(AppUpdate()); appUpdate?.start()
+            calendar.refresh(requestAccess:true)
             pet.show()
             if !pendingURLs.isEmpty {let urls=pendingURLs;pendingURLs=[];application(NSApp,open:urls)}
             if store.settings.address.isEmpty || !store.settings.signsInAutomatically {
@@ -129,9 +135,8 @@ import AppKit
     func makeStatusMenu() -> NSMenu {
         let menu = NSMenu(); menu.delegate = self; menu.autoenablesItems = false
         menu.addItem(withTitle: "대화 열기", action: #selector(openChat), keyEquivalent: "").target = self
-        for title in ["작업 목록", "내 캘린더"] {
-            let item = menu.addItem(withTitle: title, action: nil, keyEquivalent: ""); item.isEnabled = false
-        }
+        let taskItem = menu.addItem(withTitle:"작업 목록",action:nil,keyEquivalent:"");taskItem.isEnabled = false
+        menu.addItem(withTitle:"내 캘린더",action:#selector(showCalendar),keyEquivalent:"").target = self
         menu.addItem(.separator())
         hideItem = menu.addItem(withTitle: "펫 숨기기", action: #selector(togglePet), keyEquivalent: ""); hideItem?.target = self
         pauseItem = menu.addItem(withTitle: "잠시 쉬기", action: #selector(togglePause), keyEquivalent: ""); pauseItem?.target = self
@@ -222,7 +227,7 @@ import AppKit
             let key=message.key
             return message.latestSeq<=max(model.memberState.read("read:"+key.employee),model.memberState.read("thread:"+key.employee+"/"+key.thread))
         }.map(\.id))
-        let jumped=bubble.update(.init(messages:messages,questions:questions,typing:model.typing,names:input.names,muted:model.petMuted,readIDs:readIDs,opened:model.selected,chatOpen:pet.chatExpanded,paused:pet.pet.isPaused,ready:client.replayComplete,failure:input.failure),now:Date())
+        let jumped=bubble.update(.init(messages:messages,calendarEvents:conversation.calendarEvents,questions:questions,typing:model.typing,names:input.names,muted:model.petMuted,readIDs:readIDs,opened:model.selected,chatOpen:pet.chatExpanded,paused:pet.pet.isPaused,ready:client.replayComplete,failure:input.failure),now:Date())
         if jumped {pet.pet.requestReplyJump()}
         var notice=bubble.notice
         if bubble.persistenceFailed {notice.detail="알림을 저장하지 못했어요. 저장 공간을 확인해 주세요."}
@@ -262,10 +267,22 @@ import AppKit
         case .link(let url):
             guard ["https","http"].contains(url.scheme?.lowercased() ?? "") else{return}
             followLink(url);bubble.dismiss();refreshPetActivity()
+        case .calendar(let events):
+            showRelatedCalendar(events)
         case .remindLater:
             if !bubble.remindLater(now:Date()) {pet.pet.bubbleStatus="나중에 알림을 저장하지 못했어요. 저장 공간을 확인해 주세요."}
             refreshPetActivity()
         }
+    }
+    @objc func showCalendar() { calendar.browse();presentCalendar() }
+    private func showRelatedCalendar(_ events:[CalendarEntry]) { calendar.showRelated(events);presentCalendar() }
+    private func presentCalendar() {
+        if calendarWindow == nil {
+            let window = NSWindow(contentRect:NSRect(x:0,y:0,width:760,height:540),styleMask:[.titled,.closable,.resizable],backing:.buffered,defer:false)
+            window.title = "내 캘린더 · hejo";window.isReleasedWhenClosed = false
+            window.contentView = MacCalendarView(model:calendar);window.minSize = NSSize(width:660,height:480);window.center();calendarWindow = window
+        }
+        NSApp.activate(ignoringOtherApps:true);calendarWindow?.makeKeyAndOrderFront(nil)
     }
     @objc private func openChat() { pet.showChat() }
     @objc private func signOut() { conversation.model.memberState.disconnect(); currentAccount = ""; petSettings?.accountName.stringValue = "로그인 전"; Task { await client.signOut(); petSettings?.updateConnection(client.status.text); connection.present() } }
@@ -311,7 +328,7 @@ import AppKit
         petSettings?.present(name: store.settings.petName, percent: store.settings.petScalePercent ?? 100,
                              bubble: store.settings.bubbleAlwaysShown ?? false, account: currentAccount, status: client.status.text)
     }
-    func applicationDidBecomeActive(_ notification: Notification) { conversation?.model.memberState.activate();petSettings?.refreshLogin(LoginLaunchPresentation.resolve(LoginLaunch.state,installed:LoginLaunch.isInstalled(),failed:loginChangeFailed));updateConnectionsLevel() }
+    func applicationDidBecomeActive(_ notification: Notification) { conversation?.model.memberState.activate();calendar?.refresh(force:true);petSettings?.refreshLogin(LoginLaunchPresentation.resolve(LoginLaunch.state,installed:LoginLaunch.isInstalled(),failed:loginChangeFailed));updateConnectionsLevel() }
     func configureUpdates(_ updates: AppUpdate) {
         appUpdate = updates
         updates.onChange = { [weak self] in self?.refreshUpdates() }

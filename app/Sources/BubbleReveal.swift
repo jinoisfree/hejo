@@ -16,19 +16,31 @@ import AppKit
         var body = ""
         var until: Date? = nil
         var held: Bool { kind == .approval }
-        var actions: [Action] { kind == .reply ? Self.buttons(body) : [] }
-        private static let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
-        static func buttons(_ text: String) -> [Action] {
-            let url = detector?.matches(in:text,range:NSRange(text.startIndex...,in:text)).compactMap(\.url).first { ["http","https"].contains($0.scheme?.lowercased() ?? "") }
-            return (url.map { [Action.link($0)] } ?? []) + [.openChat,.remindLater]
-        }
+        var date = Date.distantPast
+        var calendarEvents: [CalendarEntry] = []
+        var actions: [Action] { kind == .reply ? Action.bubble(body, events: calendarEvents, at: date) : [] }
+        static func buttons(_ text: String) -> [Action] { Action.bubble(text) }
     }
     enum Action: Equatable {
-        case link(URL), openChat, remindLater
-        var title: String { switch self {case .link:return "링크 열기";case .openChat:return "대화 열기";case .remindLater:return "나중에 알려줘"} }
+        case link(URL), calendar([CalendarEntry]), openChat, remindLater
+        var title: String { switch self {case .link:return "링크 열기";case .calendar(let events):return events.count == 1 ? "일정 보기":"관련 일정 \(events.count)개";case .openChat:return "대화 열기";case .remindLater:return "나중에 알려줘"} }
+        var isCalendar: Bool { if case .calendar = self { return true }; return false }
+        private static let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+        static func content(_ body: String, events: [CalendarEntry] = [], at date: Date = Date()) -> [Action] {
+            let url = detector?.matches(in:body,range:NSRange(body.startIndex...,in:body)).compactMap(\.url).first { ["http","https"].contains($0.scheme?.lowercased() ?? "") }
+            var result = url.map { [Action.link($0)] } ?? []
+            let related = CalendarMatch.related(to: body, at: date, events: events)
+            if !related.isEmpty { result.append(.calendar(related)) }
+            return result
+        }
+        static func bubble(_ body: String, events: [CalendarEntry] = [], at date: Date = Date()) -> [Action] {
+            let found = content(body, events: events, at: date)
+            return Array((found.count == 2 ? found + [.remindLater] : found + [.openChat, .remindLater]).prefix(3))
+        }
     }
     struct Input {
         var messages: [ConversationMessage] = []
+        var calendarEvents: [CalendarEntry] = []
         var questions: Set<String> = []
         var typing: [ConversationKey:Date] = [:]
         var names: [String:String] = [:]
@@ -98,11 +110,12 @@ import AppKit
             notice=Notice(kind:.writing,headline:"답변을 생각하고 있어요",detail:Array(NSOrderedSet(array:names)) .compactMap{$0 as? String}.joined(separator:", ")+" 작성 중…",key:key)
         } else if let current {notice=current}
         else {notice=Notice(kind:.idle,headline:"",detail:"",key:nil)}
+        notice.calendarEvents = input.calendarEvents
         return !fresh.isEmpty && !input.paused
     }
     private func reply(_ message:ConversationMessage,names:[String:String],now:Date,reminder:Bool)->Notice {
         let name=names[message.speaker] ?? "직원"
-        return Notice(kind:.reply,headline:name+" · "+(reminder ? "다시 알림":"새 메시지"),detail:Self.preview(message.text),key:message.key,sender:name,id:message.id,body:message.text,until:now.addingTimeInterval(Self.alertStay))
+        return Notice(kind:.reply,headline:name+" · "+(reminder ? "다시 알림":"새 메시지"),detail:Self.preview(message.text),key:message.key,sender:name,id:message.id,body:message.text,until:now.addingTimeInterval(Self.alertStay),date:ThreadTools.date(message.timestamp))
     }
     @discardableResult func remindLater(now:Date)->Bool {
         guard notice.kind == .reply,let id=notice.id else {return false}

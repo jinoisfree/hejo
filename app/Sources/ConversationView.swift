@@ -20,6 +20,7 @@ import UniformTypeIdentifiers
     var retrySend:(ConversationKey)->Void
     let employeeTable = EmployeeMenuTable(), history = NativeThreadList(frame:.zero), editor = DraftScrollView(frame:.zero)
     let headerDrag = ConversationHeaderDrag(), brandDrag = ConversationHeaderDrag()
+    var onCalendar: (([CalendarEntry]) -> Void)?
     var onOpenURL: (URL) -> Void = { NSWorkspace.shared.open($0) }
     var homePetImage:NSImage?
     private let employeeScroll=EmployeeMenuScroll()
@@ -937,6 +938,19 @@ import UniformTypeIdentifiers
         post.flash=message.id==highlightedMessageID && (highlightUntil.map{$0>islandModel.now} ?? false)
         var pieces:[NativeThreadCard.Piece]=[.post(post)]
         if !extras {return pieces}
+        let calendarActions = controller.calendarActions(for: message)
+        if !calendarActions.isEmpty {
+            pieces.append(.accessory(id:message.id+":calendar",height:22,view:{ [weak self] in
+                let row = NSStackView(); row.orientation = .horizontal; row.spacing = 6
+                for action in calendarActions {
+                    let button = FileChip(title:action.title);button.bezelStyle = .rounded;button.isBordered = true;button.controlSize = .small
+                    button.font = .systemFont(ofSize:NSFont.smallSystemFontSize);button.setAccessibilityLabel(action.title)
+                    button.invoke = { [weak self] in if case .calendar(let events) = action { self?.onCalendar?(events) } }
+                    row.addArrangedSubview(button)
+                }
+                return MessageAccessory(row, limit:10000,top:2)
+            }))
+        }
         for file in message.files {
             if message.pending {pieces.append(.accessory(id:file.id,height:28,view:{MessageAccessory(NSTextField(labelWithString:file.name),mine:mine,limit:240)}));continue}
             if file.mime.hasPrefix("image/") {requestThumbnail(file,employee:message.speaker)}

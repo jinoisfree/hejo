@@ -58,5 +58,7 @@
 	</dict>
 	<key>SUPublicEDKey</key>
 	<string>a829ivqwkswdmv9OZ9oGMIq1D4jV6aRRT9BSCGgG9WA=</string>
+<key>NSCalendarsUsageDescription</key><string>Mac 캘린더의 실제 일정을 조회하고, 대화와 관련된 일정의 상세 내용을 보여줍니다.</string>
+<key>NSCalendarsFullAccessUsageDescription</key><string>Mac 캘린더의 실제 일정을 조회하고, 대화와 관련된 일정의 상세 내용을 보여줍니다.</string>
 </dict>
 </plist>

@@ -35,7 +35,7 @@ cp Resources/Pet/*.png Resources/Pet/LICENSE "$bundle/Contents/Resources/Pet/"
 sips -s format png Resources/Pet/spritesheet.webp --out "$bundle/Contents/Resources/Pet/spritesheet.png" >/dev/null
 xcrun swiftc -swift-version 5 -parse-as-library -O -target "$(uname -m)-apple-macosx13.0" \
   Sources/*.swift -o "$bundle/Contents/MacOS/hejo" \
-  -framework AppKit -framework WebKit -framework Accelerate -framework ServiceManagement \
+  -framework AppKit -framework EventKit -framework WebKit -framework Accelerate -framework ServiceManagement \
   -F "$sparkle" -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks
 rm -rf "$bundle/Contents/Frameworks/Sparkle.framework"
 ditto "$sparkle/Sparkle.framework" "$bundle/Contents/Frameworks/Sparkle.framework"

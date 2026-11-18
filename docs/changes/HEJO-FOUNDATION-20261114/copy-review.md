@@ -728,3 +728,25 @@ AT-90의 “따라 읽은 스트림이 완료 후에도 펼침” fixture는 여
 - 최종 AppKit 대조에서 주소칸 왼쪽 약 20pt·글자 기준선 약 5pt와 페이지 왼쪽 선의 1pt 배치 차이를 확인해 화면 문서에 남겼다. 픽셀 일치를 주장하지 않으며 테마·제어 순서·문구·동작과 페이지 표시를 비교한다.
 
 - 최종 서식 검사에서 WebPane.swift 끝의 빈 줄 한 개만 제거했다. 시험 당시 지문과 원본 바이트는 로컬 자료에 보존했고 `시험 바이트 = 최종 바이트 + LF 1개`를 단언한다. 나머지 검증 입력은 바이트가 같다. 실행 코드 변경은 없다.
+
+
+## TASK-46 원본 독해·배치
+
+- 기준: 보완 38·59, REQ-HF-40/AT-97, H04·H04+. 착수 main 985d9d8이며 TASK-45 제품과 판정 문서를 대조했다. `MacCalendar.swift` 211줄·`CalendarMatch.swift` 96줄 전체를 읽었다(원본 저장소 c85c905). EventKit 공급자의 권한/조회·직렬 큐·세대·월 추가 조회·선택 재조회와 SwiftUI 창 전체를 포함한다. `Conversation.swift` 448줄의 기존 독해를 바탕으로 PetAction.content/bubble(294~328)·PetActionMemo(428~448)를 다시 대조했다. App의 생성·시작/주기/활성화 refresh·onChange·showCalendar/presentCalendar·showRelated 호출, SlackPanel.calendarButtons와 NativeThreadContent의 부속 단추 자리, CalendarTests 전체와 Info.plist의 두 문구를 확인했다.
+- 칸: CalendarMatch는 순수 날짜/실제 일정 판정, MacCalendar는 이 Mac EventKit의 일시 값 조회만 맡는다. 기존 ConversationController의 화면 투영과 BubbleReveal.Action에 같은 일정 값을 전달하고 기존 AppDelegate가 창을 소유한다. MacCalendarView는 SwiftUI 대신 AppKit 창·목록·상세다. 일정은 LocalStore/문/허브/기록장에 저장하지 않는다. 읽기 공급자 계약에는 쓰기 메서드가 없다. 시스템 설정 열기 URL은 원본 그대로이며 시험에서는 실행하지 않는다.
+- 원본 개인 reverse-domain 큐 이름은 중립 `hejo.calendar`로 바꿨다. 원본 SwiftUI/ObservableObject의 화면 발행은 AppKit onPresentation으로 대체하고 EventKit 순서·계산·문구는 보존한다. 캘린더 창 제목의 앱 이름만 hejo로 바꾼다. 원본의 다른 채널 기능 제한은 hejo 메뉴를 숨기는 데 쓰지 않는다(이번 요구가 이 Mac 캘린더를 명시).
+- 날짜는 수신 글 날짜가 기준이다. 원본은 단순 날짜만으로 일정을 발명하지 않는다. 일반 낱말 '회의' 자체는 제외하며 구체적인 제목 또는 날짜+장소가 맞아야 한다. AT-97의 '내일 3시 회의'는 실제 '3시 회의' 일정과 대조한다. '다음 주'는 날짜 7개로 해석되지만 실제 제목/장소가 없으면 단추가 생기지 않는다. 같은 반복 일정도 시작 시각·캘린더 식별자를 포함한 id로 구별하고 누를 때 다시 읽는다.
+- N45-01: 이전에 전체 독해한 WebPane.swift 524줄 중 주소줄(495~518)과 overlay(445)를 다시 읽고, 수정하지 않은 원본을 분리 실행했다. 720폭에서 네 탐색 단추는 x=12/30/48/690, 주소 글자 칸은 (78,52,596,15), 아래 기준선 간격 3pt다. 주소 바탕은 10pt/5pt 여백으로 (68,47,616,25)다. 원본의 왼쪽 1pt 선은 페이지 폭을 줄이지 않는 overlay라 그대로 두고 본문 x=0으로 바꾼다. AppKit 셀 가운데 정렬과 필드 편집 위치를 함께 맞추고 AT-96에 측정 단언을 더한다. 원본 화면은 읽기 전용이며 운영 앱을 실행하지 않는다.
+
+- 말풍선에서 '대화 열기'를 빼는 조건은 일정 수가 아니라 내용 단추 수가 둘일 때다. 원본 `Conversation.swift:323-327`·REQ-HF-40의 구체 문장대로 링크+일정 단추가 함께 있으면 뺀다. 일정 여러 개는 '관련 일정 N개' 한 단추로 묶어 선택 창을 연다. 새 의미를 만들지 않는다.
+- N45-01의 셀 배치 사각형뿐 아니라 실제 그려진 주소 글자도 단언한다. 수정하지 않은 원본 1배 캡처의 잉크 경계는 x=81·위=55·아래=65다. AppKit 셀의 그리기/편집에 안쪽 여백을 다시 더하던 경로를 제거하고 drawingRect 한 곳만 둔다. 한글 입력 상태의 ⌘T/⌘W와 주소칸 편집 회귀도 계속 검사한다.
+
+- 최종 캡처의 월 제목 잉크 경계가 원본 y=65~75, 제품 y=62~72라 3pt 차이를 측정했다. AppKit 월 제목 칸을 y=62로 옮겨 잉크 경계를 맞췄다. 변경 전 통과 근거는 intermediate-before-month-baseline에 보존하고 최종 입력으로 전체 검사를 다시 한다.
+
+- `SlackPanel.swift:3474-3479`의 .bordered/.small 단추와 NativeThreadContent:83-86의 왼쪽 43/위 2 여백을 분리 실행해 한 항목의 fittingSize=(105,22), 단추=(62,20)을 확인했다. 기존 MessageAccessory에 top=2·전체 높이 22를 연결하고 같은 측정 단언을 추가했다. 임의의 30pt 행 높이는 제거했다.
+
+- 목록의 긴 제목은 원본에 lineLimit가 없으므로 자르지 않는다. 원본 VStack(행 간격 4·padding 10·body/headline/caption)을 폭 360에서 실행한 높이는 보통 73·긴 합성 제목 105다. 글 높이로 행과 스크롤 문서를 계산하고 행 사이 6을 유지한다. 권한 안내도 내용 높이에 14를 더해 다음 단추를 배치하고, 단추 크기는 원본과 같은 기본 AppKit intrinsicContentSize를 쓴다. 이 보완 전 검증은 intermediate-before-calendar-row-sizing에 보존했다.
+
+- 네이티브 글의 일정 부속 줄은 NativeThreadContent:83-86/PetActionMemo:437-445대로 사장 글·pending만 제외한다. SlackPanel의 SwiftUI line에만 있던 streaming 억제를 네이티브 소비자에 더하지 않는다. 글을 계속 작성 중이어도 이미 도착한 날짜/제목과 실제 일정이 맞으면 부속 단추가 남는 회귀를 더했다.
+
+- 원본 @Published month는 조회 중에도 즉시 발행한다. AppKit moveMonth도 완료를 기다리지 않고 화면 알림을 내며, 이전 조회가 진행 중인 채 다음 달을 누르는 단언을 더했다. 원본의 세대 검사·추가 조회 순서는 바꾸지 않았다.
