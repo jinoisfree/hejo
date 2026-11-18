@@ -776,3 +776,13 @@ AT-90의 “따라 읽은 스트림이 완료 후에도 펼침” fixture는 여
 - 수정 범위는 Dashboard와 관련 앱 시험·보고·동일 상태 캡처뿐이다. 감시·훅·문·허브·기록장·로컬 저장 계약은 바꾸지 않는다.
 
 - 보완 뒤 일반/고정/빈 목록을 같은 상태로 재캡처해 직접 비교했다. detail 원문과 세 단추의 13pt·24pt 표시를 확인했고, 나머지 기본 제어 외관 차이는 기존 화면 문서대로다. 실행·서명·메타데이터 보호 결과는 impl-report의 보완 60 최종 검증과 `.build/n47/`에 있다.
+
+
+## TASK-50 — 사장 대화 판정과 플랫폼 전용 경계
+
+- 보완 62/D50-01에 따라 운영 원본은 읽기만 하고 임시 사본에서 작업했다. 생성 캐시를 제외한 658개 파일/상대 링크의 본문·권한·대상을 시작 때 대조했다. TASK-49의 install_hejo가 포함된 원본을 기준으로 한다.
+- 비시험 Python·shell·JS·Swift를 조사했다. 집합/튜플/목록/사전 47곳과 단일 플랫폼·SQL 문자열까지 원본 기준 146행의 파일:줄·뜻·처분을 `.build/task50/classification.md`에 기록했다. 루트 별칭 링크와 lib 실제 파일은 중복 수정하지 않는다.
+- 바꾼 것은 사장 대화/기록 원본을 고르는 26개 표현식이다. 경량 공용 모듈 hermes_owner_chat의 OWNER_CHAT_PLATFORMS에 slack·photon·hejo를 두고, 배경·계정·역할·요청 원문 검사는 각 기존 책임 자리에 남겼다. pending route의 기존 bluebubbles만 별도 합집합으로 보존한다. SQL IN도 같은 상수의 값과 자리표시자로 묶는다. CHANNEL_LABEL·라우터 ingress·사용량·연결 인증·설정 조립·재시작 경로는 바꾸지 않는다.
+- hejo의 쓰기 소유자 확인은 문이 보증하는 user_id=owner를 쓴다. forwarder 프로필에는 별도 api_human_users가 없으므로 Slack 설정 키를 요구하지 않는다. 기존 Slack/iMessage 설정 소유자 검증과 배경·빈 대화 거절은 그대로다. 전송 태그를 고르는 함수는 그 자체로 소유권 증명이 아니며 기존 호출자의 역할·범위·배경 검사를 대체하지 않는다.
+- D50-02: wait_jobs의 Slack 채널/스레드 정규식, 원문 증명/선택·workspace·관리 학습, Slack 블록 승인, Notion 되돌림 문맥 등의 경계는 이번 패치로 풀지 않았다. 실제 hejo 가짜 입력에서 wait_jobs=owner_slack_thread_required, 원문 증명=not_slack, 백업 승인 runner 호출 0, Notion conversation=None을 확인했다. 상세·추가 후보는 분류표와 `.build/task50/d50-02.json`이다.
+- 실제 메일 읽기·발송과 운영 적용은 하지 않았다. 바뀐 판정은 실제 함수를 호출하는 194개 집중 경우로 검사했고, 실행 줄 추적으로 공용 집합을 소비하는 모든 위치를 확인했다. 결과와 패치 지문은 impl-report 및 `.build/task50/` 근거를 따른다.
