@@ -1587,3 +1587,32 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
   - Codex·Claude 승인 대기 때 펫이 반응하는지 본다.
   - 연결을 해제한 뒤 원래 설정이 바이트까지 그대로인지 확인한다.
   - 기존 `~/.claude/settings.json`이 있으면 원본의 create-only 정책에 따라 덮어쓰지 않고 안내만 하는지도 본다.
+
+## 보완 지시 61 (0.2.0 공개 후보 재생성, 사장 결정 2026-11-18)
+
+- **사장 결정:** 0.2.0 공개본은 지금 main 전체로 다시 만든다(권고안 가). TASK-36~47의 ddots 맞추기도 0.2.0에 들어간다. 0.2.0은 아직 GitHub에 공개하지 않았으므로 버전 0.2.0, 빌드 2를 그대로 쓴다.
+- **실행 담당이 할 일**
+  1. 지금 로컬 `public`(f716bdf)을 `archive/public-0.2.0-before-parity`로 남긴다. 기존 `archive/task33-before-n33-01`은 그대로 둔다.
+  2. `install/hejo-publish`로 main HEAD 작업 트리 스냅샷의 새 public 커밋을 만든다. 부모는 지금처럼 이전 공개 계보(0.1.0 `f90bf08`)다.
+     - 새 public 트리와 main HEAD 트리가 같은지 확인한다.
+     - 개인 이력이 섞이지 않았는지 확인한다.
+     - 공개본 개인값 검사(`scan_private`)를 한다.
+  3. 같은 트리로 앱을 빌드하고 `install/hejo-ship prepare`로 `.build/release-0.2.0/` 준비물을 만든다.
+     - 기존 키체인 서명 키를 다시 쓴다. 새 키를 만들지 않고, 비밀 키를 출력하지 않는다.
+     - 압축을 풀어 다시 확인한다: `codesign --verify --deep --strict`, Sparkle 서명.
+  4. 같은 트리에서 전체 검증을 한다.
+     - `foundation9_runner hejo` 0, test_install, 앱 반복 3회
+     - 옛 문 `aeaa652` + 새 앱 연결 시험(AT-84)
+     - 실제 다운로드 폴더 이름과 실제 CLI 설정 lstat 불변
+  5. 결과로 보고할 것:
+     - 새 public 전체 커밋
+     - 준비물 경로
+     - 사장용 공개 명령 한 줄: `install/hejo-ship publish --approve-commit <새 public 커밋> --prepared .build/release-0.2.0/prepared.json`
+     - 플러그인 푸시 대상 `{repository, remote: github, branch: main, commit: <새 public 커밋>}`
+- **금지**
+  - GitHub 조회·쓰기를 하지 않는다(ls-remote 포함). publish, gh release, push도 하지 않는다.
+  - 공용 릴리스 폴더와 운영 홈을 바꾸지 않는다.
+  - main 개인 이력을 push하지 않는다.
+- **그다음(계획 담당+사장):**
+  - 사장이 화면에서 public 푸시를 승인하고 publish를 실행한다.
+  - 0.2.x 운영 반영(보완 49·57·60, TASK-23 점검표)을 한다.
