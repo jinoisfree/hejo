@@ -80,7 +80,7 @@ final class BubbleReplyPrompt:NSTextField {override func hitTest(_ point:NSPoint
         input.editor.onFocus={ [weak self] _ in self?.updateControls() }
         input.onHeight={ [weak self] h in guard let self,abs(self.fieldHeight-h)>0.5 else{return};self.fieldHeight=h;self.onGeometry?() }
         capsule.wantsLayer=true;capsule.layer?.cornerRadius=16;capsule.layer?.backgroundColor=NSColor.labelColor.withAlphaComponent(0.05).cgColor;capsule.layer?.borderColor=NSColor.labelColor.withAlphaComponent(0.18).cgColor;capsule.layer?.borderWidth=1
-        prompt.font = .systemFont(ofSize:14);prompt.textColor = .placeholderTextColor
+        prompt.font = .systemFont(ofSize:ChatMetrics.bodyFont);prompt.textColor = .placeholderTextColor
         prompt.setAccessibilityElement(false)
         problemLabel.font = .systemFont(ofSize:11);problemLabel.textColor = .systemRed;problemLabel.lineBreakMode = .byTruncatingTail
         send.image=NSImage(systemSymbolName:"arrow.up",accessibilityDescription:BubbleReply.sendName);send.isBordered=false;send.contentTintColor = .white;send.wantsLayer=true;send.layer?.cornerRadius=14;send.layer?.backgroundColor=NSColor.systemBlue.cgColor;send.setAccessibilityLabel(BubbleReply.sendName);send.invoke={ [weak self] in self?.submit() }
@@ -117,7 +117,10 @@ final class BubbleReplyPrompt:NSTextField {override func hitTest(_ point:NSPoint
     @discardableResult func escape()->Bool {guard visible else{return false};hover.fold();releaseFocus();isHidden=true;onGeometry?();return true}
     private func releaseFocus(){if focused {window?.makeFirstResponder(nil);window?.resignKey()}}
     func textDidChange(_ notification:Notification){if let target {controller.setText(input.editor.string,for:target.key)};input.measure();updateControls()}
-    private func updateControls(){prompt.isHidden = !input.editor.string.isEmpty;send.isEnabled = target.map{!controller.bubblePending($0.key)} == true && !submitting && !input.editor.string.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty;send.alphaValue=send.isEnabled ? 1:0.4;needsLayout=true}
+    func applyChatAppearance(){updateControls()}
+    private func updateControls(){
+        if !input.editor.hasMarkedText(),input.editor.font?.pointSize != ChatMetrics.bodyFont {input.editor.font = .systemFont(ofSize:ChatMetrics.bodyFont);prompt.font = .systemFont(ofSize:ChatMetrics.bodyFont);input.measure()}
+        prompt.isHidden = !input.editor.string.isEmpty;send.isEnabled = target.map{!controller.bubblePending($0.key)} == true && !submitting && !input.editor.string.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty;send.alphaValue=send.isEnabled ? 1:0.4;needsLayout=true}
     func submit(){
         guard eligible,!submitting,let target,!controller.bubblePending(target.key),!input.editor.string.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty else{return}
         controller.setText(input.editor.string,for:target.key);submitting=true;releaseFocus();updateControls()

@@ -5,6 +5,7 @@ import AppKit
 /// so the text underneath is never re-laid out. The caller draws the dim base text itself.
 final class ShimmerLayer: CALayer {
     static let period: TimeInterval = 1.6
+    var period=ShimmerLayer.period,bandFraction:CGFloat?,highlight:NSColor?
     private let band = CAGradientLayer(), glyphs = CATextLayer()
     private(set) var bandX: CGFloat = 0
     override init() {
@@ -21,15 +22,19 @@ final class ShimmerLayer: CALayer {
         glyphs.frame = CGRect(origin: .zero, size: frame.size); glyphs.contentsScale = scale
         glyphs.alignmentMode = .left; glyphs.truncationMode = .end
         glyphs.string = NSAttributedString(string: text, attributes: [.font: font, .foregroundColor: NSColor.white])
-        band.bounds = CGRect(x: 0, y: 0, width: 60, height: frame.height)
+        let width=bandFraction.map{frame.width*$0} ?? 60
+        band.bounds = CGRect(x: 0, y: 0, width: width, height: frame.height)
+        glyphs.isWrapped=bandFraction != nil
+        if let highlight {band.colors=[highlight.withAlphaComponent(0).cgColor,highlight.cgColor,highlight.withAlphaComponent(0).cgColor]}
         CATransaction.commit()
     }
     /// Places the band for `time`; hidden (and frozen) when not running.
     func update(time: TimeInterval, running: Bool) {
         isHidden = !(running && bounds.width > 0)
         guard !isHidden else { return }
-        let cycle = time.truncatingRemainder(dividingBy: Self.period) / Self.period
-        let x = -30 + (bounds.width + 60) * CGFloat(cycle)
+        let cycle = time.truncatingRemainder(dividingBy: period) / period
+        let width=band.bounds.width
+        let x = -width/2 + (bounds.width + width) * CGFloat(cycle)
         CATransaction.begin(); CATransaction.setDisableActions(true)
         band.position = CGPoint(x: x, y: bounds.height / 2)
         CATransaction.commit()

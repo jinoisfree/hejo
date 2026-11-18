@@ -427,7 +427,7 @@ def home_channels_airport(install_airport):
 
 
 def home_targets(home):
-    return [item for item in receipt(home)["targets"] if item.get("owner_may_change")]
+    return [item for item in receipt(home)["targets"] if item.get("owner_may_change") and item["keys"] == ["platforms", "hejo", "home_channel"]]
 
 
 def set_owner_home(home, profile="default"):
@@ -832,3 +832,47 @@ def test_at_hf_72_owner_removed_is_distinct_from_rollback(home_channels_airport)
     assert config.read_bytes() == original
     assert cli(home, "--uninstall-home-channel").returncode == 0
     assert config.read_bytes() == original
+
+
+def test_at85_cleanup_progress_installs_only_missing_key_and_home_rollback_leaves_it(install_airport):
+    home=install_airport;yaml=YAML()
+    (home/'config.yaml').write_text('display:\n  cleanup_progress: false\n  platforms:\n    slack: {cleanup_progress: false}\n')
+    owner='display:\n  platforms:\n    hejo: {cleanup_progress: false}\n'
+    (home/'profiles/beta/config.yaml').write_text(owner)
+    assert cli(home).returncode==0
+    document=yaml.load((home/'config.yaml').read_text())
+    assert document['display']=={'cleanup_progress':False,'platforms':{'slack':{'cleanup_progress':False},'hejo':{'cleanup_progress':True}}}
+    assert yaml.load((home/'profiles/beta/config.yaml').read_text())['display']['platforms']['hejo']['cleanup_progress'] is False
+    targets=[t for t in receipt(home)['targets'] if t.get('keys')==['display','platforms','hejo','cleanup_progress']]
+    assert len(targets)==1 and targets[0]['state']=='applied' and targets[0]['after'] is True
+    assert cli(home,'--check').returncode==0
+    assert cli(home,'--uninstall-home-channel').returncode==0
+    assert yaml.load((home/'config.yaml').read_text())['display']['platforms']['hejo']['cleanup_progress'] is True
+    assert cli(home,'--uninstall').returncode==0
+    assert yaml.load((home/'config.yaml').read_text())['display']=={'cleanup_progress':False,'platforms':{'slack':{'cleanup_progress':False}}}
+    assert (home/'profiles/beta/config.yaml').read_text()==owner
+
+
+def test_at85_cleanup_upgrade_rollback_and_owner_change(install_airport,installer,monkeypatch):
+    home=install_airport;yaml=YAML()
+    with monkeypatch.context() as patch:
+        patch.setitem(installer,'cleanup_target',lambda file,doc:None)
+        assert installer['main'](['--home',str(home)])==0
+    old={file:(home/file).read_bytes() for file in receipt(home)['configs']}
+    assert cli(home,'--check').returncode==1
+    write=installer['write_config']
+    def fail(path,document,mode):
+        value=document.get('display',{}).get('platforms',{}).get('hejo',{}).get('cleanup_progress')
+        if path.parent.name=='beta' and value is True:raise OSError('fake failure')
+        return write(path,document,mode)
+    with monkeypatch.context() as patch:
+        patch.setitem(installer,'write_config',fail)
+        assert installer['main'](['--home',str(home)])==1
+    assert receipt(home)['status']=='installed'
+    assert all((home/file).read_bytes()==raw for file,raw in old.items())
+    assert cli(home).returncode==0
+    path=home/'config.yaml';doc=yaml.load(path.read_text());doc['display']['platforms']['hejo']['cleanup_progress']=False
+    with path.open('w') as f:yaml.dump(doc,f)
+    assert cli(home,'--check').returncode==0
+    assert cli(home,'--uninstall').returncode==0
+    assert yaml.load(path.read_text())['display']['platforms']['hejo']['cleanup_progress'] is False

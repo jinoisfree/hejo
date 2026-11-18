@@ -31,7 +31,7 @@ enum WorkspaceSearch {
     }
     static func attributed(_ text:String,query:String)->NSAttributedString {
         let result=NSMutableAttributedString(string:text,attributes:[.font:NSFont.systemFont(ofSize:12),.foregroundColor:NSColor.labelColor])
-        for range in highlights(text,query:query) {result.addAttributes([.backgroundColor:NSColor.yellow,.foregroundColor:NSColor.black],range:NSRange(range,in:text))};return result
+        for range in highlights(text,query:query) {result.addAttributes([.backgroundColor:NSColor.systemYellow,.foregroundColor:NSColor.black],range:NSRange(range,in:text))};return result
     }
     static func words(_ line:ConversationMessage,names:[String:String])->String {
         ([line.text]+line.files.map(\.name)+[line.role=="owner" ? "나":names[line.speaker] ?? line.speaker,line.replyState.map{ThreadTools.stateLabel($0)+" "+$0} ?? ""]).joined(separator:"\n")
@@ -57,7 +57,11 @@ enum WorkspaceSearch {
         }.sorted{if $0.exact != $1.exact {return $0.exact};return ($0.latest,$0.key.readKey)>($1.latest,$1.key.readKey)}
     }
     static func sidebar(_ query:String,messages:[ConversationMessage],names:[String:String],hidden:Set<String>)->[ConversationMessage] {
-        groups(query,messages:messages,names:names,hidden:hidden,limit:Int.max).flatMap(\.matches).sorted{(ThreadTools.date($0.timestamp),$0.id)>(ThreadTools.date($1.timestamp),$1.id)}.prefix(30).map{$0}
+        let term=normalized(query);guard !term.isEmpty else{return []}
+        return messages.filter {line in
+            let content=([line.text]+line.files.map(\.name)+[line.role=="owner" ? "나":names[line.speaker] ?? line.speaker,line.replyState.map(ThreadTools.stateLabel) ?? ""]).joined(separator:"\n")
+            return normalized(content).contains(term)
+        }.sorted{(ThreadTools.date($0.timestamp),$0.id)>(ThreadTools.date($1.timestamp),$1.id)}.prefix(30).map{$0}
     }
 }
 struct RoomNotice: Equatable {
@@ -67,37 +71,39 @@ struct RoomNotice: Equatable {
 }
 @MainActor extension ConversationModel {
     func notices(_ employee:String,now:Date?=nil)->[RoomNotice] {
-        if employee==HomeRoom.id {
-            let all=homeScope.flatMap{notices($0,now:now)},alerts=all.filter{!$0.questions}.flatMap(\.messages)
-            return all.filter(\.questions)+(alerts.isEmpty ? []:[RoomNotice(id:"alert",title:"알림",questions:false,messages:alerts)])
-        }
         let now=now ?? noticeClock()
-        var questions:[String:[ConversationMessage]]=[:],alerts:[ConversationMessage]=[]
-        for thread in threads(employee:employee).sorted(by:{ThreadTools.date(timeline($0.key).first?.timestamp ?? "")<ThreadTools.date(timeline($1.key).first?.timestamp ?? "")}) {
-            let posts=timeline(thread.key).filter{!ThreadTools.thinking($0.text)}
-            guard let root=posts.first,let last=posts.last,last.role != "owner",!last.streaming,last.replyState != "closed",last.replyState != "answered" else{continue}
-            if let stated=posts.last(where:{$0.replyState != nil}),stated.replyState=="closed" || stated.replyState=="answered" || (stated.replyState=="asked" && confirmed(stated.id)) {continue}
-            let seq=posts.map(\.latestSeq).max() ?? 0
-            guard memberState.read("bell:"+thread.key.employee+"/"+thread.key.thread)<seq else{continue}
-            if let asked=posts.last(where:{$0.replyState=="asked" && !confirmed($0.id)}),!posts.contains(where:{$0.role=="owner" && $0.seq>asked.seq}) {
-                questions[asked.key.employee,default:[]].append(asked)
-            } else if last.replyState != "closed",last.replyState != "answered",root.role != "owner",!posts.contains(where:{$0.role=="owner"}),now>=ThreadTools.date(root.timestamp),now.timeIntervalSince(ThreadTools.date(root.timestamp))<86400 {alerts.append(root)}
+        var result:[RoomNotice]=[]
+        let scope=employee==HomeRoom.id ? homeScope:[employee]
+        let ordered=scope.flatMap{threads(employee:$0)}.sorted{a,b in
+            let x=timeline(a.key).first!,y=timeline(b.key).first!
+            return (ThreadTools.date(x.timestamp),x.seq)<(ThreadTools.date(y.timestamp),y.seq)
         }
-        var result=questions.keys.sorted().map{id in RoomNotice(id:"question:"+id,title:name(id)+" 질문",questions:true,messages:questions[id]!.map(\.id))}
-        if !alerts.isEmpty {result.append(RoomNotice(id:"alert",title:"알림",questions:false,messages:alerts.sorted{ThreadTools.date($0.timestamp)<ThreadTools.date($1.timestamp)}.map(\.id)))}
-        return result
+        for thread in ordered {
+            let posts=timeline(thread.key).filter{$0.role=="owner" || !ThreadTools.thinking($0.text)},state=assessment(thread.key)
+            guard let root=posts.first,posts.last?.role != "owner",!state.working,!state.settled,!(state.request.map{confirmed($0.id)} ?? false),memberState.read("bell:"+thread.key.employee+"/"+thread.key.thread)<originalSeq(thread.key) else{continue}
+            let id:String,title:String,message:String,questions:Bool
+            if let asked=state.pending {id="question:"+asked.speaker;title=name(asked.speaker)+" 질문";message=asked.id;questions=true}
+            else if state.request==nil,root.role=="employee",!posts.contains(where:{$0.role=="owner"}),now>=ThreadTools.date(root.timestamp),now.timeIntervalSince(ThreadTools.date(root.timestamp))<86400 {id="alert";title="알림";message=root.id;questions=false}
+            else {continue}
+            if let i=result.firstIndex(where:{$0.id==id}) {result[i].messages.append(message)} else {result.append(.init(id:id,title:title,questions:questions,messages:[message]))}
+        }
+        return result.filter(\.questions)+result.filter{!$0.questions}
     }
     func markAlertSeen(_ key:ConversationKey) {
         if notices(key.employee).filter({!$0.questions}).flatMap(\.messages).contains(where:{messages[$0]?.key==key}) {markNoticeRead(key)}
     }
     func markNoticeRead(_ key:ConversationKey) {
-        let seq=String(timeline(key).map(\.latestSeq).max() ?? 0)
+        let seq=String(originalSeq(key))
         try? memberState.set(["bell:"+key.employee+"/"+key.thread:seq,"thread:"+key.employee+"/"+key.thread:seq])
     }
     func readAllNotices(_ employee:String,now:Date=Date()) { for id in notices(employee,now:now).filter({!$0.questions}).flatMap(\.messages) {if let message=messages[id] {markNoticeRead(message.key)}} }
     func header(_ employee:String)->(title:String,description:String) {
-        if let room=groups[employee] {return (room.title,room.description ?? "")}
-        if employee==HomeRoom.id,let channel=homeChannel {return ("#"+channel.title,channel.description ?? "")}
+        if employee==HomeRoom.id {
+            if let channel=homeChannel {return (channel.title,"#"+channel.title)}
+            let value=memberState.value("title:"+HomeRoom.id).flatMap{$0.data(using:.utf8)}.flatMap{try? JSONDecoder().decode([String:String].self,from:$0)}
+            return (value?["title"].flatMap{$0.isEmpty ? nil:$0} ?? "hejo",value?["description"] ?? "조직원들의 소식과 대화")
+        }
+        if let room=groups[employee] {return (room.title,room.description.flatMap{$0.isEmpty ? nil:$0} ?? "조직원들의 소식과 대화")}
         if let text=memberState.value("title:"+employee),let data=text.data(using:.utf8),let value=try? JSONDecoder().decode([String:String].self,from:data),let title=value["title"],!title.isEmpty {return (title,value["description"] ?? "")}
         return (room(for:employee)?.title ?? name(employee),"함께 나누는 대화")
     }

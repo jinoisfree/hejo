@@ -14,16 +14,18 @@ final class WorkspaceResults: NSScrollView {
     required init?(coder:NSCoder) {fatalError()}
     func show(_ groups:[WorkspaceSearch.Group],query:String,selection:Int,compact:Bool=false,name:(String)->String,room:(String)->String) {
         self.groups=groups;self.selection=selection
+        let primary:NSColor=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua ? .white:.black
         for view in stack.arrangedSubviews {stack.removeArrangedSubview(view);view.removeFromSuperview()}
         func label(_ text:String)->NSTextField {let v=NSTextField(wrappingLabelWithString:text);v.font = .systemFont(ofSize:11);return v}
         let count=label(groups.isEmpty ? "찾는 글이 없어요":"스레드 \(groups.count)개 · 글 \(groups.reduce(0){$0+$1.matches.count})건");count.textColor = .secondaryLabelColor;stack.addArrangedSubview(count)
         for (index,group) in groups.enumerated() {
             let box=NSStackView();box.orientation = .vertical;box.alignment = .leading;box.spacing=8;box.edgeInsets=NSEdgeInsets(top:12,left:12,bottom:12,right:12)
-            box.wantsLayer=true;box.layer?.cornerRadius=10;box.layer?.backgroundColor=NSColor.labelColor.withAlphaComponent(index==selection ? 0.10:0.035).cgColor;box.layer?.borderWidth=1;box.layer?.borderColor=NSColor.labelColor.withAlphaComponent(index==selection ? 0.22:0.06).cgColor
+            box.wantsLayer=true;box.layer?.cornerRadius=10;box.layer?.backgroundColor=primary.withAlphaComponent(index==selection ? 0.10:0.035).cgColor;box.layer?.borderWidth=1;box.layer?.borderColor=primary.withAlphaComponent(index==selection ? 0.22:0.06).cgColor
             let title=WorkspaceResultHeader(title:compact ? room(group.key.employee)+" · "+name(group.key.employee):room(group.key.employee),date:compact ? nil:DateFormatter.localizedString(from:group.latest,dateStyle:.long,timeStyle:.none),preview:compact ? nil:WorkspaceSearch.snippet(group.root.text,query:query))
             title.onClick={ [weak self] in if let line=group.matches.first {self?.onChoose?(index,line)} };box.addArrangedSubview(title)
+            let rootPreview=NSMutableAttributedString(attributedString:WorkspaceSearch.attributed(WorkspaceSearch.snippet(group.root.text,query:query),query:query));rootPreview.addAttribute(.font,value:NSFont.systemFont(ofSize:14,weight:.medium),range:NSRange(location:0,length:rootPreview.length));title.preview.attributedStringValue=rootPreview
             for line in group.matches.prefix(3) {
-                let speaker=line.role=="owner" ? "나":name(line.key.employee)
+                let speaker=line.role=="owner" ? "나":name(line.speaker)
                 let heading=FileChip(title:speaker+"  "+DateFormatter.localizedString(from:ThreadTools.date(line.timestamp),dateStyle:.none,timeStyle:.short))
                 let header=NSMutableAttributedString(string:heading.title,attributes:[.font:NSFont.systemFont(ofSize:11),.foregroundColor:NSColor.labelColor])
                 let timeStart=(speaker as NSString).length
@@ -34,15 +36,28 @@ final class WorkspaceResults: NSScrollView {
                 let source=compact ? ([preview.body]+preview.notes).joined(separator:"\n"):preview.body
                 let text=label("");if compact {text.maximumNumberOfLines=2;text.lineBreakMode = .byTruncatingTail};text.attributedStringValue=WorkspaceSearch.attributed(WorkspaceSearch.snippet(source,query:query),query:query);box.addArrangedSubview(text)
                 let hit=WorkspaceHitView();hit.onClick={ [weak self] in self?.onChoose?(index,line) };text.addSubview(hit);hit.frame=text.bounds;hit.autoresizingMask=[.width,.height]
-                if !compact {for note in preview.notes {let field=label("");field.attributedStringValue=WorkspaceSearch.attributed(WorkspaceSearch.snippet(note,query:query),query:query);box.addArrangedSubview(field);let tap=WorkspaceHitView();tap.onClick={ [weak self] in self?.onChoose?(index,line) };field.addSubview(tap);tap.frame=field.bounds;tap.autoresizingMask=[.width,.height]}}
+                if !compact {for note in preview.notes {
+                    let row=NSStackView();row.spacing=4
+                    let file=note.hasPrefix("📎 "),words=file ? String(note.dropFirst(2)):note
+                    if file {let icon=NSImageView();icon.image=NSImage(systemSymbolName:"paperclip",accessibilityDescription:nil);icon.contentTintColor=SidebarTone.primary(0.7);row.addArrangedSubview(icon)}
+                    let field=label("");field.attributedStringValue=WorkspaceSearch.attributed(WorkspaceSearch.snippet(words,query:query),query:query);field.font = .systemFont(ofSize:11);row.addArrangedSubview(field);box.addArrangedSubview(row)
+                    let tap=WorkspaceHitView();tap.onClick={ [weak self] in self?.onChoose?(index,line) };row.addSubview(tap);tap.frame=row.bounds;tap.autoresizingMask=[.width,.height]
+                }}
             }
             if group.matches.count>3 {box.addArrangedSubview(label("+\(group.matches.count-3)건"))}
             stack.addArrangedSubview(box)
         }
         needsLayout=true
     }
+    override func viewDidChangeEffectiveAppearance(){super.viewDidChangeEffectiveAppearance();needsLayout=true}
     override func layout() {
-        super.layout();let width=max(1,contentSize.width-24)
+        super.layout()
+        let primary:NSColor=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua ? .white:.black
+        for (index,view) in stack.arrangedSubviews.dropFirst().enumerated() {
+            view.layer?.backgroundColor=primary.withAlphaComponent(index==selection ? 0.10:0.035).cgColor
+            view.layer?.borderColor=primary.withAlphaComponent(index==selection ? 0.22:0.06).cgColor
+        }
+        let width=max(1,contentSize.width-24)
         for view in stack.arrangedSubviews {
             if let constraint=view.constraints.first(where:{$0.identifier=="workspace-width"}) {constraint.constant=width}
             else {let constraint=view.widthAnchor.constraint(equalToConstant:width);constraint.identifier="workspace-width";constraint.isActive=true}
@@ -69,6 +84,7 @@ final class NoticePill:NSButton {
     var tint:NSColor {MessageFormat.color(item.questions ? "#ECB22E":"#36C5F0")!}
     init(_ item:RoomNotice) {
         self.item=item;super.init(frame:.zero);title=item.title;isBordered=false;target=self;action=#selector(pressed)
+        toolTip="눌러서 해당 글로 이동"
         setAccessibilityLabel("\(item.title) \(item.messages.count)건, 눌러서 이동");setAccessibilityIdentifier("notice-"+item.id)
     }
     required init?(coder:NSCoder) {fatalError()}
@@ -86,7 +102,7 @@ final class NoticePill:NSButton {
         let size=(item.title as NSString).size(withAttributes:attrs)
         (item.title as NSString).draw(at:CGPoint(x:22,y:bounds.midY-size.height/2),withAttributes:attrs)
         (String(item.messages.count) as NSString).draw(at:CGPoint(x:27+size.width,y:bounds.midY-size.height/2),withAttributes:[.font:NSFont.boldSystemFont(ofSize:11),.foregroundColor:NSColor.labelColor])
-        NSImage(systemSymbolName:"chevron.right",accessibilityDescription:nil)?.withSymbolConfiguration(.init(pointSize:8,weight:.semibold))?.draw(in:CGRect(x:bounds.maxX-17,y:bounds.midY-4,width:8,height:8))
+        FileTile.symbol("chevron.right",point:8,at:CGPoint(x:bounds.maxX-13,y:bounds.midY),color:SidebarTone.primary(0.7),weight:.semibold)
     }
 }
 
@@ -115,4 +131,32 @@ final class WorkspaceResultHeader:NSView {
         heading.frame=CGRect(x:0,y:0,width:max(0,bounds.width-width-8),height:15)
         preview.frame=CGRect(x:0,y:19,width:bounds.width,height:17)
     }
+}
+
+/// Same easeInOut control points as SlackModel.motion, sampled by the workspace's display clock.
+struct WorkspaceEase {
+    var from:CGFloat=0,to:CGFloat=0,start:Double=0
+    func value(_ now:Double)->CGFloat {
+        let x=min(1,max(0,(now-start)/0.24));var lo=0.0,hi=1.0
+        for _ in 0..<20 {let t=(lo+hi)/2,one=1-t,at=3*one*one*t*0.42+3*one*t*t*0.58+t*t*t;if at<x {lo=t}else{hi=t}}
+        let t=(lo+hi)/2,y=t*t*(3-2*t)
+        return x>=1 ? to:from+(to-from)*CGFloat(y)
+    }
+    mutating func target(_ next:CGFloat,now:Double,immediate:Bool){guard to != next else{if immediate {from=next;start=now-0.24};return};from=immediate ? next:value(now);to=next;start=immediate ? now-0.24:now}
+    func pending(_ now:Double)->Bool {now<start+0.24 && from != to}
+}
+final class WorkspaceFindRow:NSView {
+    let field:NSSearchField,glass=NSImageView(),close=NSButton()
+    var onClose:(()->Void)?
+    init(field:NSSearchField){self.field=field;super.init(frame:.zero)
+        field.isBordered=false;field.drawsBackground=false;field.focusRingType = .none;field.font = .systemFont(ofSize:13)
+        if let cell=field.cell as? NSSearchFieldCell {cell.searchButtonCell=nil;cell.cancelButtonCell=nil}
+        glass.image=NSImage(systemSymbolName:"magnifyingglass",accessibilityDescription:nil);glass.contentTintColor=SidebarTone.primary(0.7)
+        close.isBordered=false;close.image=NSImage(systemSymbolName:"xmark.circle.fill",accessibilityDescription:nil);close.contentTintColor=SidebarTone.primary(0.7);close.toolTip="검색 닫기 (Esc)";close.setAccessibilityLabel("검색 닫기 (Esc)");close.target=self;close.action=#selector(pressed)
+        for view in [glass,field,close]{addSubview(view)}
+    }
+    required init?(coder:NSCoder){nil}
+    override var isFlipped:Bool{true}
+    @objc private func pressed(){onClose?()}
+    override func layout(){super.layout();let dark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua;glass.contentTintColor=CardText.quiet(dark:dark);close.contentTintColor=CardText.quiet(dark:dark);field.textColor=dark ? .white:.black;glass.frame=CGRect(x:12,y:bounds.midY-7,width:14,height:14);close.frame=CGRect(x:bounds.width-26,y:bounds.midY-7,width:14,height:14);field.frame=CGRect(x:34,y:12,width:max(1,bounds.width-68),height:max(17,bounds.height-24))}
 }

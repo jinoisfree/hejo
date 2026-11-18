@@ -1,4 +1,5 @@
 """hub HTTP API. Apps sign up / sign in here and learn their own Hermes gate; gates verify app tokens here."""
+import asyncio
 import ipaddress
 import json
 import logging
@@ -37,9 +38,13 @@ class Hub:
         self.runner = None
         self.sites = []
         self.port = None
+        self.state_waiters = {}
+        self.stopping = False
+        self.state_wait_seconds = 25
 
     def app(self):
         app = web.Application(client_max_size=64 * 1024, middlewares=[self.guard])
+        app.on_shutdown.append(self.shutdown)
         app.router.add_get("/v1/hub", self.info)
         app.router.add_post("/v1/signup", self.signup)
         app.router.add_post("/v1/login", self.login)
@@ -79,6 +84,13 @@ class Hub:
             await site.start()
             self.sites.append(site)
             self.port = site._server.sockets[0].getsockname()[1]
+
+    async def shutdown(self, app):
+        self.stopping = True
+        for waiters in self.state_waiters.values():
+            for future in waiters:
+                if not future.done():
+                    future.set_result(None)
 
     async def stop(self):
         if self.runner:
@@ -135,18 +147,46 @@ class Hub:
         try:
             if request.method == "GET":
                 since = request.query.get("since")
-                if since is not None and (not since.isdecimal() or len(since) > 16):
+                waiting = request.query.get("wait")
+                if since is not None and waiting is not None:
                     raise Rejected("bad_state")
-                result = self.state.get(member, int(since) if since is not None else None)
+                revision = waiting if waiting is not None else since
+                if revision is not None and (not revision.isascii() or not revision.isdecimal() or len(revision) > 16):
+                    raise Rejected("bad_state")
+                revision = int(revision) if revision is not None else None
+                if waiting is None:
+                    result = self.state.get(member, revision)
+                else:
+                    # Register before inspecting the revision: PATCH cannot be missed between read and wait.
+                    future = asyncio.get_running_loop().create_future()
+                    waiters = self.state_waiters.setdefault(member, set())
+                    waiters.add(future)
+                    try:
+                        result = self.state.get(member, revision)
+                        if result["rev"] == revision and not self.stopping:
+                            try:
+                                await asyncio.wait_for(future, self.state_wait_seconds)
+                            except asyncio.TimeoutError:
+                                pass
+                            self.store.device(self.bearer(request))  # Revalidate after a device may have been revoked.
+                            result = self.state.get(member, revision)
+                    finally:
+                        waiters.discard(future)
+                        future.cancel()
+                        if not waiters:
+                            self.state_waiters.pop(member, None)
             else:
                 request = request.clone(client_max_size=MAX_BYTES + 64 * 1024)
                 body = await self.body(request)
                 if set(body) != {"items"}:
                     raise Rejected("bad_state")
                 result = self.state.patch(member, body["items"])
+                for future in self.state_waiters.get(member, ()):
+                    if not future.done():
+                        future.set_result(None)
         except (ValueError, TypeError, KeyError, web.HTTPRequestEntityTooLarge):
             raise Rejected("bad_state") from None
-        return web.json_response(result)
+        return web.json_response(result, headers={"X-Hejo-State-Wait": "1"})
 
     # Gate side: only from this Mac (each member's Hermes runs here, in that member's own Mac account).
 

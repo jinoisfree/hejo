@@ -1,0 +1,10 @@
+{
+  "source": "Original event-label and calendarButtons modifiers with static synthetic text",
+  "width": 360,
+  "shortRowHeight": 73,
+  "wrappingRowHeight": 105,
+  "calendarButtonWidth": 62,
+  "calendarButtonHeight": 20,
+  "calendarControlRowHeight": 22,
+  "calendarControlTopInset": 2
+}

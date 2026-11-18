@@ -21,17 +21,18 @@ struct SidebarLayout {
         var picture: String?
     }
     struct Row {
-        enum Kind { case home, room, section, stack, divider }
+        enum Kind { case home, room, section, stack, divider, gap, search, hitHeading, hit }
         var kind: Kind
         var id: String, name: String
         var zone: String? = nil
         var items: [Item] = []
         var open = false
         var picture: String?
+        var stableID:String {kind == .room ? "room:"+id:kind == .home ? "home":id}
         var unread: Int { items.filter { !($0.muted && (kind == .section || kind == .stack)) }.reduce(0) { $0+$1.unread } }
         var questions: Int { items.filter { !$0.muted || kind == .room }.reduce(0) { $0+$1.questions } }
         var alerts: Int { items.filter { !$0.muted || kind == .room }.reduce(0) { $0+$1.alerts } }
-        var faces: [String] { var seen=Set<String>(); return Array(items.flatMap(\.members).filter { seen.insert($0).inserted }.prefix(4)) }
+        var faces: [String] { var seen=Set<String>(); return items.flatMap(\.members).filter { seen.insert($0).inserted } }
         var signals: [String] { [(unread,"unread"),(questions,"question"),(alerts,"alert")].filter { $0.0>0 }.map(\.1) }
     }
     static let defaults = (1...3).map { Section(id:String($0)) }
@@ -41,7 +42,7 @@ struct SidebarLayout {
     var pins: [String: Int] = [:]
     var items: [Item] = []
     func name(_ section: Section) -> String { section.name.isEmpty ? "section \((sections.firstIndex(where:{$0.id==section.id}) ?? 0)+1)" : section.name }
-    var stackName: String { stack.name.isEmpty ? "section \(sections.count+1)" : stack.name }
+    var stackName: String { stack.name.isEmpty ? "DM" : stack.name }
     func zone(_ id: String) -> String { sections.first(where:{$0.id==zones[id]})?.id ?? sections.first?.id ?? "1" }
     var stacked: [Item] {
         items.filter { $0.kind == .direct && pins[$0.id] == nil }.sorted { ($0.rank,$0.name,$0.id)<($1.rank,$1.name,$1.id) }
@@ -67,6 +68,7 @@ struct SidebarLayout {
     }
     var rows: [Row] {
         var result=items.filter{$0.kind == .home}.map { Row(kind:.home,id:$0.id,name:$0.name,items:[$0],picture:$0.picture) }
+        if !result.isEmpty {result.append(Row(kind:.gap,id:"home-gap",name:""))}
         for (index,section) in sections.enumerated() {
             if index>0 { result.append(Row(kind:.divider,id:"divider:"+section.id,name:"",zone:section.id)) }
             let rooms=group(section.id)

@@ -12,15 +12,29 @@ struct ConversationFailedSend: Identifiable {
     var draft: ConversationDraft
     var newPost: Bool
     var reason: String
+    var workspace = ""
+    var shown = ""
+    var place:ConversationKey? = nil
 }
 @MainActor final class ConversationController {
     let client: GateClient
     let model: ConversationModel
     let files: GateHTTP
+    var calendarEvents: [CalendarEntry] = [] { didSet { onChange?() } }
+    func calendarActions(for message: ConversationMessage) -> [BubbleReveal.Action] {
+        guard message.role != "owner", !message.pending else { return [] }
+        return BubbleReveal.Action.content(message.text, events: calendarEvents, at: ThreadTools.date(message.timestamp)).filter(\.isCalendar)
+    }
     lazy var pictures: PictureCache = { let cache=PictureCache(http:files);cache.onChange={ [weak self] in self?.onChange?() };return cache }()
     func avatar(_ employee:String) -> ProfileAvatar {
-        let person=model.employees.first{$0.id==employee}
+        let person=model.person(matching:employee)
         return ProfileAvatar(color:PictureCodec.color(name:person?.name ?? employee,hex:person?.color),image:pictures.image(person?.avatar))
+    }
+    func palette(_ employee:String,dark:Bool)->CharacterPalette {
+        let colors=model.employees.sorted{$0.name==$1.name ? $0.id<$1.id:$0.name<$1.name}.compactMap { person -> (id:String,color:NSColor)? in
+            guard let hex=person.color,let color=MessageFormat.color(hex) else{return nil};return (person.id,color)
+        }
+        return CharacterPalette.make(hue:CharacterPalette.hues(colors:colors)[employee],dark:dark)
     }
     func changePicture(kind:String,id:String,url:URL?) async -> String? {
         let address=client.store.settings.address,epoch=client.connectionEpoch,token=client.bearer
@@ -57,18 +71,53 @@ struct ConversationFailedSend: Identifiable {
         do {try await client.send(frame)} catch {makingRoom=false;transferFailed(error)}
     }
     private(set) var drafts: [ConversationKey: ConversationDraft] = [:]
+    /// The current composer's auto/new/thread place; bubbles use their real thread directly.
+    var composeKey:ConversationKey?
+    private var newPostPlaces=Set<ConversationKey>()
+    func registerNewPlace(_ key:ConversationKey){newPostPlaces.insert(key)}
+    private var draftAddress:String
+    func prepareDraftAddress(){
+        let address=client.store.settings.address;guard address != draftAddress else{return}
+        draftBanks[draftAddress]=drafts;drafts=draftBanks[address] ?? [:];draftAddress=address;composeKey=nil
+    }
+    func savedDraft(_ key:ConversationKey,address:String)->ConversationDraft {
+        address==draftAddress ? drafts[key] ?? ConversationDraft():draftBanks[address]?[key] ?? ConversationDraft()
+    }
+    private var draftBanks:[String:[ConversationKey:ConversationDraft]]=[:]
+    func moveDraft(from:ConversationKey?,to:ConversationKey,carry:Bool) {
+        if carry,let from,from != to,draft(for:to).isEmpty,let words=drafts.removeValue(forKey:from) {drafts[to]=words}
+        composeKey=to
+    }
+    func folded() {if let key=composeKey ?? model.selected {drafts[key]?.picks=[]};onChange?()}
     private var reconnectPending = Set<String>()
-    private struct PendingSend {var key:ConversationKey;var draft:ConversationDraft;var bubble=false}
+    private struct PendingSend {var key:ConversationKey;var draft:ConversationDraft;var bubble=false;var workspace:String;var shown:String;var newPost:Bool;var at:Date;var revision:Int;var place:ConversationKey}
+    func timeline(_ key:ConversationKey)->[ConversationMessage] {
+        let echoes=pending.sorted{$0.value.at<$1.value.at}.filter{$0.value.key==key && $0.value.workspace==replicaAddress}.map{id,item in
+            var message=ConversationMessage(id:"pending:"+id,key:key,role:"owner",text:item.draft.text,files:item.draft.attachments.map{MessageFile(fileID:$0.absoluteString,name:$0.lastPathComponent,mime:"application/octet-stream",size:0)},buttons:[],replyState:nil,seq:Int.max,latestSeq:Int.max,timestamp:ISO8601DateFormatter().string(from:item.at),clientMessageID:id)
+            message.pending=true;return message
+        }
+        return model.timeline(key)+echoes
+    }
+    func includingPending(_ threads:[ConversationThread],scope:[String])->[ConversationThread] {
+        var result=threads;var seen=Set(threads.map(\.key))
+        for entry in pending.values.sorted(by:{$0.at<$1.at}) where entry.workspace==replicaAddress && scope.contains(entry.key.employee) && seen.insert(entry.key).inserted {
+            result.append(ConversationThread(key:entry.key,title:String(entry.draft.text.prefix(48)),preview:entry.draft.text,latestSeq:Int.max))
+        }
+        return result
+    }
     private var pending:[String:PendingSend]=[:]
     private(set) var bubbleProblems:[ConversationKey:String]=[:]
-    func draft(for key:ConversationKey)->ConversationDraft {drafts[key] ?? ConversationDraft()}
+    func draft(for key:ConversationKey)->ConversationDraft {prepareDraftAddress();return drafts[key] ?? ConversationDraft()}
     func bubblePending(_ key:ConversationKey)->Bool {pending.values.contains{$0.key==key}}
     private func failPending(_ entry:PendingSend,reason:String){
-        if entry.bubble {
+        if entry.bubble,entry.workspace != draftAddress {
+            let current=draftBanks[entry.workspace]?[entry.key]?.text ?? ""
+            draftBanks[entry.workspace,default:[:]][entry.key,default:ConversationDraft()].text=[entry.draft.text,current].filter{!$0.isEmpty}.joined(separator:"\n")
+        } else if entry.bubble {
             let current=drafts[entry.key]?.text ?? ""
             drafts[entry.key,default:ConversationDraft()].text=[entry.draft.text,current].filter{!$0.isEmpty}.joined(separator:"\n")
             bubbleProblems[entry.key]=reason
-        } else {saveFailure(entry.key,draft:entry.draft,reason:reason)}
+        } else {saveFailure(entry.key,draft:entry.draft,reason:reason,workspace:entry.workspace,shown:entry.shown,newPost:entry.newPost,place:entry.place)}
     }
     /// Text-only use of the same send/pending/confirmation path. Main-composer attachments stay in their draft.
     @discardableResult func sendBubbleReply(_ key:ConversationKey) async ->Bool {
@@ -81,6 +130,7 @@ struct ConversationFailedSend: Identifiable {
     }
     private(set) var failures:[ConversationFailedSend]=[]
     private var newPostIDs=Set<String>()
+    private var composeRevision=0
     private var followup:ConversationKey?
     var notice = "" { didSet { onChange?() } }
     var onChange: (() -> Void)?
@@ -102,7 +152,20 @@ struct ConversationFailedSend: Identifiable {
     }
     var clock:()->Date = Date.init
     func working(_ key:ConversationKey)->Bool {
-        model.typing[key] != nil || model.timeline(key).contains{$0.role != "owner" && ($0.streaming || ThreadTools.thinking($0.text))}
+        model.typing[key] != nil || model.timeline(key).contains{$0.role != "owner" && ($0.streaming || (!$0.finalized && ThreadTools.thinking($0.text)))}
+    }
+    func canInterrupt(_ key:ConversationKey)->Bool {
+        guard let writer=model.typingPeople[key]?.keys.sorted().first else{return false}
+        return model.employees.first{$0.id==writer}?.queued != true
+    }
+    @discardableResult func openAttachmentLink(_ url: URL) -> Bool {
+        guard let endpoint = try? GateClient.endpoint(client.store.settings.address), url.host == endpoint.host, url.port == endpoint.port,
+              url.path.hasPrefix("/v1/files/") else { return false }
+        let parts = url.pathComponents
+        guard parts.count == 5, let message = model.messages.values.first(where: { $0.speaker == parts[3] && $0.files.contains(where: { $0.fileID == parts[4] }) }),
+              let file = message.files.first(where: { $0.fileID == parts[4] }) else { transferFailed(FileTransferFailure.unavailable); return true }
+        Task { await open(file, employee: message.speaker, date: ThreadTools.date(message.timestamp)) }
+        return true
     }
     func openLink(_ url:URL) {
         guard let key=ThreadTools.destination(url),!model.timeline(key).isEmpty else { notice="그 스레드를 불러오지 못했어요";return }
@@ -125,21 +188,20 @@ struct ConversationFailedSend: Identifiable {
     }
     @discardableResult func sendText(_ text:String,key:ConversationKey) async -> Bool {
         guard canSend else {transferFailed(GateFailure.notConnected);return false}
-        do {
-            let id=UUID().uuidString.lowercased()
-            try await client.send(["v":1,"type":"send","id":id,"thread":key.thread,"client_msg_id":id,"text":text].merging(sendFields(key)){$1})
-            if text != "/stop" {stopped.remove(key)}
-            if text != "/stop",working(key) {interruptions[key]=clock()}
-        } catch {transferFailed(error);return false}
-        onChange?()
-        return true
+        if text != "/stop" {return await transmit(key,draft:ConversationDraft(text:text))}
+        let id=UUID().uuidString.lowercased()
+        do {try await client.send(["v":1,"type":"send","id":id,"thread":key.thread,"client_msg_id":id,"text":text].merging(sendFields(key)){$1})}
+        catch {transferFailed(error);return false}
+        onChange?();return true
     }
+
     func stop(_ key:ConversationKey) async {
         guard !stopped.contains(key),canSend else{return}
         stopped.insert(key);if !(await sendText("/stop",key:key)) {stopped.remove(key)}
     }
     private(set) var transferFailure: IslandFailure? { didSet { onChange?() } }
     private(set) var stateFailure: IslandFailure? { didSet { onChange?() } }
+    private var activeUploads:[ConversationKey:String]=[:]
     private(set) var uploads: [ConversationKey: IslandUpload] = [:] { didSet { onChange?() } }
     var islandInput: IslandModel.Input {
         IslandModel.Input(messages:Array(model.messages.values).map { var message=$0;if model.confirmed(message.id) {message.replyState=nil};return message },typing:model.typing,
@@ -148,14 +210,22 @@ struct ConversationFailedSend: Identifiable {
             status:client.status,failure:transferFailure ?? stateFailure,uploads:uploads,muted:model.petMuted)
     }
     var onOpenFile: (URL) -> Void = { NSWorkspace.shared.open($0) }
+    private(set) var paused = false
+    // Presentation delivery pauses, while the gate keeps its authenticated socket and durable replay cache.
+    private var pausedFrames: [[String: Any]] = []
+    func setPaused(_ value: Bool) {
+        guard paused != value else { return }; paused = value
+        if !value { let frames = pausedFrames; pausedFrames = []; for frame in frames { receive(frame) } }
+        onChange?()
+    }
     private var replicaAddress: String
     private var timer: Timer?
-    init(client: GateClient) throws {
-        self.client = client; replicaAddress = client.store.settings.address; model = try ConversationModel(store: client.store); files = GateHTTP(client: client)
+    init(client: GateClient, downloads:URL?=nil) throws {
+        self.client = client; replicaAddress = client.store.settings.address;draftAddress=replicaAddress; model = try ConversationModel(store: client.store); files = GateHTTP(client: client,downloads:downloads)
         model.noticeClock={ [weak self] in self?.clock() ?? Date() }
         model.onChange = { [weak self] in
             guard let self else{return}
-            if self.client.replayComplete {self.model.clearArchivedPins()}
+            if self.client.replayComplete {self.model.clearArchivedPins();self.model.clearHomeChannelFlags()}
             self.onChange?()
         }
         model.memberState.onFailure = { [weak self] failed in
@@ -165,7 +235,7 @@ struct ConversationFailedSend: Identifiable {
         client.onFrame = { [weak self] frame in self?.receive(frame) }
         timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                guard let self else{return}
+                guard let self, !self.paused else{return}
                 let old=(self.confirmingDelete.count,self.interruptions.count,self.branching.count)
                 self.model.expireTyping()
                 let now=self.clock();self.confirmingDelete=self.confirmingDelete.filter{now.timeIntervalSince($0.value)<4}
@@ -178,12 +248,13 @@ struct ConversationFailedSend: Identifiable {
     deinit { timer?.invalidate() }
     func receive(_ frame: [String: Any]) {
         if ["connections_status","connection_result"].contains(frame["type"] as? String ?? "") {onConnectionsFrame?(frame);return}
+        if paused { pausedFrames.append(frame); return }
         if ["welcome","roster"].contains(frame["type"] as? String ?? "") { pictures.invalidate() }
         if frame["type"] as? String == "welcome" { reconnectPending = Set(pending.keys) }
         if frame["type"] as? String == "sync_done", frame["more"] as? Bool == false {
             let unconfirmed = reconnectPending.intersection(pending.keys)
             reconnectPending = []
-            if let id=unconfirmed.sorted().first, let entry=pending[id] {
+            if let id=unconfirmed.sorted().first(where:{pending[$0]?.workspace==replicaAddress}), let entry=pending[id] {
                 transferFailure=IslandFailure(message:"전송 확인이 없어요. 내용을 확인하고 다시 보내 주세요.",firstWords:IslandModel.firstLine(entry.draft.text),retryKey:entry.key,isSend:true)
             }
             for id in unconfirmed {
@@ -192,7 +263,7 @@ struct ConversationFailedSend: Identifiable {
             }
         }
         if frame["type"] as? String == "welcome", replicaAddress != client.store.settings.address {
-            model.resetReplica(); drafts = [:]; pending = [:]; failures=[];newPostIDs=[];followup=nil;transferFailure=nil;bubbleProblems=[:]; uploads=[:];stopped=[];interruptions=[:];branching=[:];deleting=[];confirmingDelete=[:];checklistSelections=[:];replicaAddress = client.store.settings.address
+            prepareDraftAddress();model.resetReplica();newPostIDs=[];followup=nil;transferFailure=nil;bubbleProblems=[:];uploads=[:];activeUploads=[:];stopped=[];interruptions=[:];branching=[:];deleting=[];confirmingDelete=[:];checklistSelections=[:];replicaAddress = client.store.settings.address
         }
         let previousRooms=Set(model.groups.keys)
         do { try model.apply(frame) } catch { notice = "대화 기록을 읽지 못했어요. 다시 연결해 주세요." }
@@ -203,7 +274,7 @@ struct ConversationFailedSend: Identifiable {
             if room.archived==true,model.selected?.employee==id {model.selectHome()}
         }
         if frame["type"] as? String=="room_deleted",let room=frame["id"] as? String {
-            drafts=drafts.filter{$0.key.employee != room};pending=pending.filter{$0.value.key.employee != room};failures.removeAll{$0.key.employee==room};bubbleProblems=bubbleProblems.filter{$0.key.employee != room};if followup?.employee==room {followup=nil}
+            drafts=drafts.filter{$0.key.employee != room};pending=pending.filter{$0.value.workspace != replicaAddress || $0.value.key.employee != room};failures.removeAll{$0.workspace==replicaAddress && $0.key.employee==room};bubbleProblems=bubbleProblems.filter{$0.key.employee != room};if followup?.employee==room {followup=nil}
         }
         if let employee=(frame["room"] ?? frame["employee"]) as? String,let thread=frame["thread"] as? String {
             let key=ConversationKey(employee:employee,thread:thread)
@@ -214,20 +285,21 @@ struct ConversationFailedSend: Identifiable {
             if frame["role"] as? String == "employee" { interruptions[key]=nil }
             if frame["role"] as? String == "employee",followup==key,!ThreadTools.thinking(frame["text"] as? String ?? "") {
                 followup=nil
-                if model.selected?.employee==key.employee,draft.isEmpty {let home=model.isHome;model.select(key,inHome:home);onRevealThread?(key)}
+                if (model.selected?.employee==key.employee || model.isHome && model.homeScope.contains(key.employee)),draft.isEmpty {let home=model.isHome;model.select(key,notify:false,inHome:home);onRevealThread?(key)}
             }
             if !working(key) { interruptions[key]=nil }
         }
         if frame["scope"] as? String == "thread",let room=frame["room"] as? String,let thread=frame["thread"] as? String {
             let key=ConversationKey(employee:room,thread:thread)
-            drafts[key]=nil;bubbleProblems[key]=nil;pending=pending.filter{$0.value.key != key};deleting.remove(key);stopped.remove(key);interruptions[key]=nil
-            failures.removeAll{$0.key==key};if followup==key {followup=nil}
+            bubbleProblems[key]=nil;pending=pending.filter{$0.value.workspace != replicaAddress || $0.value.key != key};deleting.remove(key);stopped.remove(key);interruptions[key]=nil
+            if followup==key {followup=nil}
             checklistSelections=checklistSelections.filter{model.messages[$0.key] != nil}
         }
         if let id = frame["client_msg_id"] as? String, let entry = pending.removeValue(forKey: id) {
-            if newPostIDs.remove(id) != nil {followup=entry.key}
+            if newPostIDs.remove(id) != nil,entry.revision==composeRevision {followup=entry.key}
+            model.markThreadRead(entry.key)
             transferFailure=nil;notice=""
-            if !entry.bubble, drafts[entry.key]?.text == entry.draft.text && drafts[entry.key]?.attachments == entry.draft.attachments && drafts[entry.key]?.picks == entry.draft.picks { drafts[entry.key] = ConversationDraft() }
+            if !entry.draft.attachments.isEmpty {Task {await files.keepSent(entry.draft.attachments,date:entry.at)}}
         }
         if frame["type"] as? String == "error" {
             deleting=[];makingRoom=false
@@ -251,12 +323,12 @@ struct ConversationFailedSend: Identifiable {
         }
         onChange?()
     }
-    var draft: ConversationDraft { model.selected.flatMap { drafts[$0] } ?? ConversationDraft() }
+    var draft: ConversationDraft {prepareDraftAddress();return (composeKey ?? model.selected).flatMap { drafts[$0] } ?? ConversationDraft() }
     var canSend: Bool { client.isConnected && client.replayComplete }
-    var sending: Bool { guard let key = model.selected else { return false }; return pending.values.contains { $0.key == key } }
-    func setText(_ text: String, for destination: ConversationKey? = nil) { if let key = destination ?? model.selected { drafts[key, default: ConversationDraft()].text = text } }
+    var sending: Bool { pending.values.contains { $0.workspace == replicaAddress } }
+    func setText(_ text: String, for destination: ConversationKey? = nil) {prepareDraftAddress();if let key = destination ?? composeKey ?? model.selected { drafts[key, default: ConversationDraft()].text = text } }
     func mention(_ employee:String) {
-        guard let key=model.selected else{return}
+        guard let key=composeKey ?? model.selected else{return}
         let name=model.name(employee)
         drafts[key,default:ConversationDraft()].text=WorkspaceMention.toggle(draft.text,name:name)
         if drafts[key]!.picks.contains(employee) {drafts[key]!.picks.remove(employee)} else {drafts[key]!.picks.insert(employee)}
@@ -266,115 +338,157 @@ struct ConversationFailedSend: Identifiable {
         guard model.homeRecipients.members.contains(where:{$0.id==employee}) else{return}
         cancelFollowup()
         if let key=model.selected,!model.timeline(key).isEmpty {model.selectHome()}
-        guard let key=model.selected else{return}
+        guard let key=composeKey ?? model.selected else{return}
         let selected=drafts[key]?.picks.contains(employee)==true
         drafts[key,default:ConversationDraft()].picks=selected ? []:[employee]
         onChange?()
     }
-    func cancelFollowup() {followup=nil}
-    private func saveFailure(_ key:ConversationKey,draft:ConversationDraft,reason:String) {
-        failures.append(.init(key:key,draft:draft,newPost:model.timeline(key).isEmpty,reason:reason))
-        if drafts[key]?.text==draft.text && drafts[key]?.attachments==draft.attachments {drafts[key]=ConversationDraft()}
-        notice=reason+" · 보내지 못한 글은 입력창 위 ‘되살리기’로 다시 쓸 수 있어요."
+    func cancelFollowup() {composeRevision+=1;followup=nil}
+    private func saveFailure(_ key:ConversationKey,draft:ConversationDraft,reason:String,workspace:String?=nil,shown:String?=nil,newPost:Bool?=nil,place draftPlace:ConversationKey?=nil) {
+        let address=workspace ?? replicaAddress,place=shown ?? model.selectionIdentity,destinationPlace=draftPlace
+        failures.append(.init(key:key,draft:draft,newPost:newPost ?? model.timeline(key).isEmpty,reason:reason,workspace:address,shown:place,place:destinationPlace))
+        if address==replicaAddress {notice=reason+" · 보내지 못한 글은 "+(place==model.selectionIdentity ? "입력창 위":"보낸 방의 입력창 위")+" ‘되살리기’로 다시 쓸 수 있어요."}
     }
+    var currentFailures:[ConversationFailedSend] {failures.filter{$0.workspace==replicaAddress}}
+    var shownFailures:[ConversationFailedSend] {currentFailures.filter{$0.shown==model.selectionIdentity}}
+    var elsewhereFailures:[ConversationFailedSend] {currentFailures.filter{$0.shown != model.selectionIdentity}}
+    var onRestoreDraft:((ConversationKey,Bool,Bool)->Void)?
+    var onShowFailure:((ConversationFailedSend)->Void)?
+
     func discardFailure(_ id:UUID) {
         guard failures.contains(where:{$0.id==id}) else{return}
         failures.removeAll{$0.id==id};if failures.isEmpty {transferFailure=nil};notice="";onChange?()
     }
     func restoreFailure(_ id:UUID) {
         guard let failure=failures.first(where:{$0.id==id}) else{return}
+        guard failure.workspace==replicaAddress else{return}
+        if failure.shown != model.selectionIdentity {onShowFailure?(failure);return}
+        if !failure.newPost && model.timeline(failure.key).isEmpty {notice="그 스레드를 아직 불러오지 못했어요. 잠시 뒤 다시 눌러 주세요.";return}
         if !model.timeline(failure.key).isEmpty || model.rooms.contains(where:{$0.id==failure.key.employee}) {
-            let current=drafts[failure.key] ?? ConversationDraft()
+            let inHome=failure.shown==HomeRoom.id
+            let key=failure.newPost ? failure.place ?? failure.key:failure.key
+            moveDraft(from:composeKey,to:key,carry:model.selected==failure.key)
+            let current=drafts[key] ?? ConversationDraft()
             var files=failure.draft.attachments
             for file in current.attachments where !files.contains(file) {files.append(file)}
             guard files.count<=10 else {notice="첨부가 10개를 넘어 되살리지 못했어요. 지금 첨부를 줄인 뒤 다시 눌러 주세요.";return}
-            drafts[failure.key]=ConversationDraft(text:[failure.draft.text,current.text].filter{!$0.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty}.joined(separator:"\n"),attachments:files,picks:current.picks.isEmpty ? failure.draft.picks:current.picks)
-            failures.removeAll{$0.id==id};model.select(failure.key);onRevealThread?(failure.key);notice="";transferFailure=nil;onChange?()
+            drafts[key]=ConversationDraft(text:[failure.draft.text,current.text].filter{!$0.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty}.joined(separator:"\n"),attachments:files,picks:current.picks.isEmpty ? failure.draft.picks:current.picks)
+            failures.removeAll{$0.id==id};model.select(key,notify:false,inHome:inHome)
+            onRestoreDraft?(key,failure.newPost,inHome)
+            if onRestoreDraft==nil && !failure.newPost {onRevealThread?(key)}
+            notice="";transferFailure=nil;onChange?()
         }
     }
+
     func retrySaved(_ key:ConversationKey) async {
-        if drafts[key]?.isEmpty != false,let item=failures.first(where:{$0.key==key}) {restoreFailure(item.id)}
+        if drafts[key]?.isEmpty != false,let item=failures.first(where:{$0.key==key}) {
+            restoreFailure(item.id)
+            guard !failures.contains(where:{$0.id==item.id}) else{return}
+            if item.newPost {await sendCurrent();return}
+        }
         await sendCurrent(for:key)
     }
     func addAttachments(_ urls: [URL]) {
-        guard let key = model.selected else { return }
+        guard let key = composeKey ?? model.selected else { return }
         let existing = drafts[key]?.attachments ?? []
         let result = ClipboardAttachments.validate(urls.filter { !existing.contains($0) }, available: max(0,10-existing.count))
         drafts[key, default: ConversationDraft()].attachments += result.files
         if let message = result.notice { notice = message }; onChange?()
     }
-    func removeAttachment(_ url: URL) { if let key = model.selected { drafts[key]?.attachments.removeAll { $0 == url }; onChange?() } }
-    func sendCurrent(for destination: ConversationKey? = nil,homeNew:Bool=false) async {
-        guard let key = destination ?? model.selected, !pending.values.contains(where: { $0.key == key }) else { return }
-        let draft = drafts[key] ?? ConversationDraft()
-        let home = key.employee==HomeRoom.id || homeNew
-        let channel = home ? model.homeChannel:nil
-        let picked=draft.picks.first
-        let channelText=channel != nil ? model.home.channelPost(draft.text,picked:picked):draft.text
-        guard !channelText.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty || !draft.attachments.isEmpty else {return}
+    func removeAttachment(_ url: URL) { if let key = composeKey ?? model.selected { drafts[key]?.attachments.removeAll { $0 == url }; onChange?() } }
+    func sendCurrent(for destination:ConversationKey?=nil,homeNew:Bool=false,draftFrom:ConversationKey?=nil) async {
+        guard let key=destination ?? model.selected else{return}
+        let source=draftFrom ?? (destination==nil ? composeKey:nil) ?? key
+        let draft=drafts[source] ?? ConversationDraft()
+        let home=key.employee==HomeRoom.id || homeNew
+        let channel=home ? model.homeChannel:nil,picked=draft.picks.first
+        var outgoing=draft,target=key
+        if channel != nil {outgoing.text=model.home.channelPost(draft.text,picked:picked)}
+        guard !outgoing.text.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty || !outgoing.attachments.isEmpty else{return}
         if home {
-            let target:String
-            var words=draft
-            if let channel {target=channel.id;words.text=channelText}
-            else {
-                switch model.home.destination(text:words.text,picked:picked) {
+            let employee:String
+            if let channel {employee=channel.id}
+            else {switch model.home.destination(text:outgoing.text,picked:picked) {
                 case .refused(let reason):notice=reason;onChange?();return
-                case .employee(let employee):target=employee
-                }
-            }
-            let destination=ConversationKey(employee:target,thread:UUID().uuidString.lowercased())
-            drafts[destination]=words;drafts[key]=nil;if model.selected==key {model.select(destination,inHome:true)}
-            await sendCurrent(for:destination);return
+                case .employee(let id):employee=id
+            }}
+            target=ConversationKey(employee:employee,thread:UUID().uuidString.lowercased())
+        } else if key==source,newPostPlaces.contains(source) {target=ConversationKey(employee:key.employee,thread:UUID().uuidString.lowercased())}
+        guard canSend else {
+            let reason=transferMessage(GateFailure.notConnected)
+            transferFailure=IslandFailure(message:reason,firstWords:IslandModel.firstLine(outgoing.text),retryKey:target,isSend:true)
+            saveFailure(target,draft:outgoing,reason:reason,place:source);drafts[source]=ConversationDraft();onChange?();return
         }
-        guard canSend else { transferFailed(GateFailure.notConnected,for:key); return }
-        guard draft.text.utf8.count <= 65_536 else { transferFailure=IslandFailure(message:"너무 큼 · 글은 64 KiB까지 보낼 수 있어요.",firstWords:IslandModel.firstLine(draft.text),isSend:true);saveFailure(key,draft:draft,reason:"너무 큼 · 글은 64 KiB까지 보낼 수 있어요.");return }
-        _=await transmit(key,draft:draft)
+        guard outgoing.text.utf8.count<=65_536 else {
+            let reason="너무 큼 · 글은 64 KiB까지 보낼 수 있어요."
+            transferFailure=IslandFailure(message:reason,firstWords:IslandModel.firstLine(outgoing.text),isSend:true)
+            saveFailure(target,draft:outgoing,reason:reason,place:source);drafts[source]=ConversationDraft();onChange?();return
+        }
+        drafts[source]=ConversationDraft()
+        _=await transmit(target,draft:outgoing,place:source)
     }
-    private func transmit(_ key:ConversationKey,draft:ConversationDraft,bubble:Bool=false) async ->Bool {
+    private func transmit(_ key:ConversationKey,draft:ConversationDraft,bubble:Bool=false,place:ConversationKey?=nil) async ->Bool {
         let id = UUID().uuidString.lowercased(), address = client.store.settings.address, epoch = client.connectionEpoch
         let destination=sendFields(key)
-        if model.timeline(key).isEmpty {newPostIDs.insert(id)}
-        pending[id] = PendingSend(key:key,draft:draft,bubble:bubble); notice = ""
-        if !draft.attachments.isEmpty { uploads[key]=IslandUpload(completed:0,total:draft.attachments.count) }
-        defer { uploads[key]=nil }
+        if model.timeline(key).isEmpty {composeRevision+=1;followup=nil;newPostIDs.insert(id)}
+        let attempt=PendingSend(key:key,draft:draft,bubble:bubble,workspace:replicaAddress,shown:model.selectionIdentity,newPost:model.timeline(key).isEmpty,at:clock(),revision:composeRevision,place:place ?? key)
+        pending[id]=attempt;notice="";onChange?()
+        if !draft.attachments.isEmpty {activeUploads[key]=id;uploads[key]=IslandUpload(completed:0,total:draft.attachments.count) }
+        defer {if activeUploads[key]==id,address==replicaAddress {uploads[key]=nil;activeUploads[key]=nil}}
         do {
             var uploaded: [MessageFile] = []
-            for url in draft.attachments {
-                uploaded.append(try await files.upload(url, employee: destination["employee"] as! String))
-                uploads[key]=IslandUpload(completed:uploaded.count,total:draft.attachments.count)
+            let sizes=try GateHTTP.prepareUploads(draft.attachments)
+            for (index,url) in draft.attachments.enumerated() {
+                uploaded.append(try await files.upload(url, employee: destination["employee"] as! String,expectedSize:sizes[index]))
+                guard address==client.store.settings.address,epoch==client.connectionEpoch,canSend else{throw GateFailure.notConnected}
+                if activeUploads[key]==id {uploads[key]=IslandUpload(completed:uploaded.count,total:draft.attachments.count)}
             }
             guard address == client.store.settings.address, epoch == client.connectionEpoch, canSend else { throw GateFailure.notConnected }
             try await client.send(["v":1, "type":"send", "id":id, "thread":key.thread,
                                    "text":draft.text.trimmingCharacters(in:.whitespacesAndNewlines), "client_msg_id":id, "files":uploaded.map(\.fileID)].merging(destination){$1})
-            stopped.remove(key);if working(key) {interruptions[key]=clock()}
+            model.markThreadRead(key)
+            stopped.remove(key);if canInterrupt(key) {interruptions[key]=clock()}
         } catch {
             pending[id] = nil;newPostIDs.remove(id)
-            if bubble {failPending(PendingSend(key:key,draft:draft,bubble:true),reason:"전송하지 못했어요. 연결을 확인해 주세요.")} else {transferFailed(error,for:key)}
+            let reason=transferMessage(error)
+            failPending(attempt,reason:reason)
+            if attempt.workspace==replicaAddress {transferFailure=IslandFailure(message:reason,firstWords:IslandModel.firstLine(draft.text),retryKey:key,isSend:true)}
             onChange?();return false
         }
         onChange?();return true
     }
     func click(_ button: MessageButton, message: ConversationMessage) async {
         if button.kind=="reply",button.label=="의견" {model.select(message.key);onRevealThread?(message.key);return}
-        if button.kind=="reply",button.label=="확인" {model.confirm(message);return}
         guard canSend else { transferFailed(GateFailure.notConnected); return }
         do { try await client.send(ConversationModel.click(message: message, button: button)); transferFailure=nil }
         catch { transferFailed(error) }
     }
-    func open(_ file: MessageFile, employee: String) async {
-        do { let url = try await files.download(file, employee: employee); onOpenFile(url); transferFailure=nil }
-        catch { transferFailed(error) }
-    }
-    private func transferFailed(_ error: Error, for key: ConversationKey? = nil) {
-        let message:String, retryable:Bool
-        switch error {
-        case FileTransferFailure.tooLarge, GateFailure.tooLarge: message = "너무 큼 · 첨부는 50 MiB까지 보낼 수 있어요."; retryable=false
-        case FileTransferFailure.unauthorized: message = "출입증을 확인하지 못했어요. 다시 연결해 주세요."; retryable=false
-        case FileTransferFailure.changed: message = "파일이 바뀌었어요. 다시 첨부해 주세요."; retryable=false
-        case GateFailure.notConnected: message = "연결이 복구된 뒤 다시 보내 주세요."; retryable=true
-        default: message = "파일을 처리하지 못했어요. 파일과 연결을 확인해 주세요."; retryable=true
+    private var openingFiles=Set<String>()
+    @discardableResult func open(_ file: MessageFile, employee: String, date:Date) async ->Bool {
+        guard openingFiles.insert(file.fileID).inserted else{return true}
+        defer {openingFiles.remove(file.fileID)}
+        notice=""
+        do {
+            let result=try await files.openedFile(file,employee:employee,date:date)
+            onOpenFile(result.url);transferFailure=nil
+            if let problem=result.problem {notice=problem;onChange?()}
+            return true
         }
-        transferFailure=IslandFailure(message:message,firstWords:key.map { IslandModel.firstLine(drafts[$0]?.text ?? "") } ?? "",retryKey:retryable ? key : nil,isSend:key != nil)
-        if let key,let draft=drafts[key],!draft.isEmpty {saveFailure(key,draft:draft,reason:message)}
+        catch {transferFailed(error);return false}
+    }
+    private func transferMessage(_ error:Error)->String {
+        if let error=error as? OutgoingFileProblem {return error.message}
+        switch error {
+        case GateFailure.notConnected:return "연결이 복구된 뒤 다시 보내 주세요."
+        case FileTransferFailure.tooLarge,GateFailure.tooLarge:return "너무 큼 · 첨부는 50 MiB까지 보낼 수 있어요."
+        case FileTransferFailure.unauthorized:return "출입증을 확인하지 못했어요. 다시 연결해 주세요."
+        default:return "파일을 처리하지 못했어요. 파일과 연결을 확인해 주세요."
+        }
+    }
+    private func transferFailed(_ error:Error) {
+        let message:String
+        if case FileTransferFailure.changed=error {message="파일이 바뀌었어요. 다시 첨부해 주세요."}
+        else {message=transferMessage(error)}
+        transferFailure=IslandFailure(message:message,firstWords:"")
     }
 }

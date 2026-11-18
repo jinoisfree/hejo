@@ -1,0 +1,10 @@
+{
+  "source": "Dashboard.swift footer Button modifiers, independently executed with SwiftUI",
+  "nativeFontPoints": 13,
+  "heightPoints": 24,
+  "widthPoints": {
+    "refresh": 69,
+    "preview": 96,
+    "hooks": 125
+  }
+}

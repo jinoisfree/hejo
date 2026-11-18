@@ -684,6 +684,10 @@
         },
         "room": {
           "$ref": "#/$defs/thread"
+        },
+        "answer_to": {
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [

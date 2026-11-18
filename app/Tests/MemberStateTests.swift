@@ -79,7 +79,7 @@ import AppKit
     let offline = PetSettingsWindow.layoutConfirmation(connected: false)
     try check(offline.messageText == "아직 맞출 수 없어요" && offline.informativeText == "hejo에 연결된 뒤 다시 해 주세요.", "AT74 offline explanation")
     let settings = PetSettingsWindow(); var clicked = false; settings.onSyncLayout = { clicked = true }; settings.syncLayout.performClick(nil)
-    try check(clicked && settings.tabs.tabViewItems.last?.label == "연결과 동기화", "AT74 real native settings control dispatch")
+    try check(clicked && settings.tabs.tabViewItems[2].label == "연결과 동기화", "AT74 real native settings control dispatch")
     b.connect(fetch: { try hub.fetch($0) }, push: { try hub.push($0) })
     await pause(0.03)
     hub.doc.rev += 1; hub.doc.items["check:timer:0"] = StateEntry(v: "1", at: 200, dev: "mac-a")

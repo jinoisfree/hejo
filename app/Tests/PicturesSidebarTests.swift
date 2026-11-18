@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 
 @MainActor func pictureNetwork(_ args:[String]) async throws {
     let store=try LocalStore(directory:URL(fileURLWithPath:args[2])),client=GateClient(store:store,credentials:MemoryCredentials())
-    let chat=try ConversationController(client:client)
+    let chat=try testConversation(client:client)
     defer { client.stop() }
     try client.pair(address:args[3],code:"test_code-12",device:"Picture test")
     try await waitFor { client.isConnected && chat.model.employees.count==1 }
@@ -90,7 +90,7 @@ import UniformTypeIdentifiers
     try check(layout.group("1").map(\.id)==["d0","g2","g0","g1"],"AT69 slots one and three filled, rest newest")
     try check(layout.stacked.map(\.id)==["d1","d2","d3","d4"],"AT69 unpinned directs roster order")
     try check(layout.rows.first?.id=="home" && layout.rows.last?.id=="d4","AT69 home first, stack last")
-    try check(layout.rows.first(where:{$0.kind == .stack})?.name=="section 4","AT69 default stack name")
+    try check(layout.rows.first(where:{$0.kind == .stack})?.name=="DM","AT85 approved default DM name")
     try check(layout.canMove("d0",to:"2") && !layout.canMove("d1",to:"2") && !layout.canMove("home",to:"2"),"AT69 move guards")
     let header=layout.rows.first(where:{$0.id=="section:1"})!
     try check(header.unread==4 && header.signals==["unread","question","alert"] && header.faces==["d0","d1"],"AT69 muted group omitted from totals and ordered signals")
@@ -98,7 +98,8 @@ import UniformTypeIdentifiers
     let cell=EmployeeSidebarCell(frame:CGRect(x:0,y:0,width:212,height:58))
     var signaled=SidebarLayout.Item(id:"fixture",name:"Test",kind:.group);signaled.questions=2;signaled.alerts=3
     cell.list=true;cell.row = .init(kind:.room,id:"fixture",name:"Test",items:[signaled])
-    let surface=NSImage(size:cell.bounds.size);surface.lockFocus();cell.draw(cell.bounds);surface.unlockFocus()
+    cell.refreshChrome();cell.layoutSubtreeIfNeeded()
+    let surface=NSImage(size:cell.bounds.size);surface.lockFocus();cell.layer?.render(in:NSGraphicsContext.current!.cgContext);surface.unlockFocus()
     let bitmap=NSBitmapImageRep(data:surface.tiffRepresentation!)!
     var yellow=false,blue=false
     for y in 0..<bitmap.pixelsHigh { for x in 0..<bitmap.pixelsWide {
@@ -115,7 +116,7 @@ import UniformTypeIdentifiers
 
     let directory=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at:directory) }
-    let store=try LocalStore(directory:directory), chat=try ConversationController(client:GateClient(store:store,credentials:MemoryCredentials()))
+    let store=try LocalStore(directory:directory), chat=try testConversation(client:GateClient(store:store,credentials:MemoryCredentials()))
     let model=chat.model,view=ConversationView(controller:chat,clipboardArea:directory.appendingPathComponent("clip"))
     try model.apply(["type":"roster","employees":[["id":"alpha","name":"Test alpha","aliases":[],"color":"#12ABCD","avatar_custom":false],["id":"beta","name":"Test beta","aliases":[]]]])
     model.toggleSection(nil)
@@ -131,7 +132,7 @@ import UniformTypeIdentifiers
     try check(model.sidebar.zone("alpha")=="1" && model.sidebar.sections.count==2,"AT69 removal moves to first remaining")
     model.addSection();try check(model.sidebar.sections.count==3 && model.sidebar.sections.last?.id=="5","AT69 empty section after existing sections")
     model.editSection("5",name:String(repeating:"a",count:40));try check(model.sidebar.sections.last?.name.count==30,"AT69 section name length")
-    try check(view.addMenu().items.map(\.title)==["새 방 만들기…","새 섹션 만들기","","목록에서 뺀 방"],"AT69 room addition plus menu")
+    try check(view.addMenu().items.map(\.title)==["새 방 만들기…","새 섹션 만들기","","목록에서 뺀 방","뺀 방이 없어요"],"AT69 room addition plus menu")
     let replica=try ConversationModel(store:LocalStore(directory:directory))
     try check(replica.sidebar.sections==model.sidebar.sections && replica.sidebar.pins==model.sidebar.pins,"AT69 reopen uses MemberState")
     print("AT-HF-68 automatic PASS; AT-HF-69 automatic PASS")

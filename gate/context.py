@@ -2,6 +2,17 @@
 import re
 
 
+def split_text(text, byte_limit):
+    """Lossless UTF-8 chunks, preferring complete lines within the wire bound."""
+    chunks = []
+    while len(text.encode("utf-8")) > byte_limit:
+        prefix = text.encode("utf-8")[:byte_limit].decode("utf-8", errors="ignore")
+        end = prefix.rfind("\n") + 1 or len(prefix)
+        chunks.append(text[:end])
+        text = text[end:]
+    return chunks + [text]
+
+
 def thinking(text):
     return bool(re.fullmatch(r"[◐◓◑◒🤔\s]*생각\s*중\s*(?:\.{2,}|…)?\s*", text.split("\n", 1)[0]))
 

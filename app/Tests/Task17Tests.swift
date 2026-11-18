@@ -41,7 +41,7 @@ import AppKit
     var clock = ProcessInfo.processInfo.systemUptime
     controller.pet.bubbleNow = { clock }; controller.pet.activityNow = { clock }
     let key = ConversationKey(employee: "employee-test", thread: UUID().uuidString.lowercased())
-    controller.pet.bubbleNotice = BubbleReveal.Notice(kind:.reply,headline:"가짜 직원 · 새 메시지",detail:"새 글 첫 줄",key:key,sender:"가짜 직원",until:Date(timeIntervalSince1970:clock+12))
+    controller.pet.bubbleNotice = BubbleReveal.Notice(kind:.reply,headline:"가짜 직원 · 새 메시지",detail:"새 글 첫 줄",key:key,sender:"가짜 직원",id:"fake-reply",until:Date(timeIntervalSince1970:clock+12))
     try check(!controller.pet.foldedBubble.isHidden && controller.pet.foldedBubble.detail == "새 글 첫 줄", "AT62 first line shown")
     clock += 12.1; controller.pet.updateFoldedBubble()
     try check(controller.pet.foldedBubble.isHidden, "AT62 superseded by AT81 twelve-second timeout")
@@ -61,7 +61,7 @@ import AppKit
     try check(controller.pet.activityPose == .phone, "AT63 asked phone")
     controller.pet.hasAsked = false; controller.pet.isTyping = true; controller.pet.updateActivityPresentation(at: clock)
     try check(controller.pet.activityPose == .laptop, "AT63 typing laptop")
-    controller.pet.isTyping = false; controller.pet.noteSend(); controller.pet.updateActivityPresentation(at: clock)
+    controller.pet.isTyping = false; controller.pet.homeConversation=true;controller.pet.noteSend(); controller.pet.updateActivityPresentation(at: clock)
     try check(controller.pet.activityPose == .wave, "AT63 send wave")
     clock += PetActivity.waveDuration + 0.01
     controller.pet.sendFailed = true; controller.pet.updateActivityPresentation(at: clock)
@@ -85,7 +85,7 @@ import AppKit
     let settings = PetSettingsWindow()
     var name = "", scale = 0.0, bubble = false
     settings.onName = { name = $0 }; settings.onScale = { scale = $0 }; settings.onBubble = { bubble = $0 }
-    try check(settings.tabs.numberOfTabViewItems == 4 && settings.tabs.tabViewItems.map(\.label) == ["일반", "화면과 펫", "계정", "연결과 동기화"] &&
+    try check(settings.tabs.numberOfTabViewItems == 5 && settings.tabs.tabViewItems.map(\.label) == ["일반", "화면과 펫", "연결과 동기화", "고급", "계정"] &&
               settings.scaleSlider.minValue == 25 && settings.scaleSlider.maxValue == 200, "AT64 native settings pages and range")
     settings.nameField.stringValue = "hejo-test"
     _ = settings.nameField.sendAction(settings.nameField.action, to: settings.nameField.target)
@@ -100,9 +100,9 @@ import AppKit
     try check(accountOpened && loggedOut && settings.connectionStatus.stringValue == "가짜 공항 연결됨", "AT64 account page actions and live status")
     let statusMenu = AppDelegate().makeStatusMenu()
     let titles = statusMenu.items.map { $0.isSeparatorItem ? "|" : $0.title }
-    try check(titles.count == 9 && titles[0...5] == ["대화 열기", "|", "펫 숨기기", "잠시 쉬기", "|", "설정…"] &&
-              titles[6].hasPrefix("hejo ") && titles[6].contains("(빌드 ") && !statusMenu.items[6].isEnabled &&
-              titles[7...8] == ["|", "hejo 종료"], "AT64 status menu exact order")
+    try check(titles.count == 13 && titles[0...8] == ["대화 열기", "작업 목록", "내 캘린더", "|", "펫 숨기기", "잠시 쉬기", "|", "설정…", "에이전트 연결…"] &&
+              titles[9].hasPrefix("hejo ") && titles[9].contains("(빌드 ") && !statusMenu.items[9].isEnabled &&
+              titles[10...12] == ["업데이트 확인…", "|", "hejo 종료"], "AT64 status menu exact order with AT84 update command")
     controller.resizePet(percent: scale)
     try check(controller.pet.petScale == 0.5, "AT64 pet scale applies")
     controller.resetPosition()
@@ -112,7 +112,7 @@ import AppKit
     controller.show(); try check(controller.panel.isVisible, "AT64 show pet")
     controller.panel.orderOut(nil)
 
-    let chat = try ConversationController(client: GateClient(store: store, credentials: MemoryCredentials()))
+    let chat = try testConversation(client: GateClient(store: store, credentials: MemoryCredentials()))
     let view = ConversationView(controller: chat, clipboardArea: directory.appendingPathComponent("clipboard"))
     let panel = PetPanel(contentRect: CGRect(x: 0, y: 0, width: 500, height: 500), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
     panel.contentView = view; panel.chatExpanded = true
@@ -127,7 +127,7 @@ import AppKit
     try check(folded, "AT65 second Escape folds chat")
     let originalMenu = NSApp.mainMenu
     AppDelegate().installEditMenu()
-    let redo = NSApp.mainMenu?.items.flatMap { $0.submenu?.items ?? [] }.first { $0.title == "다시 실행" }
+    let redo = NSApp.mainMenu?.items.flatMap { $0.submenu?.items ?? [] }.first { $0.title == "실행 복귀" }
     try check(redo?.action == Selector(("redo:")) && redo?.keyEquivalent == "z" &&
               redo?.keyEquivalentModifierMask == [.command, .shift], "AT65 menu binds Cmd-Shift-Z to redo")
     NSApp.mainMenu = originalMenu
@@ -146,7 +146,7 @@ import AppKit
 @MainActor private func task17MenuTests(directory: URL) async throws {
     let home = directory.appendingPathComponent("menus")
     let store = try LocalStore(directory: home)
-    let chat = try ConversationController(client: GateClient(store: store, credentials: MemoryCredentials()))
+    let chat = try testConversation(client: GateClient(store: store, credentials: MemoryCredentials()))
     let view = ConversationView(controller: chat, clipboardArea: directory.appendingPathComponent("menus-clipboard"))
     let model = chat.model
     func menu(_ employee: String) -> NSMenu {
@@ -162,6 +162,7 @@ import AppKit
         ["id": third, "name": "셋째", "aliases": []]
     ]
     try model.apply(["v":1,"type":"roster","employees":roster])
+    model.select(employee:first) // This menu fixture explicitly opens a direct room; first launch now opens Home.
     model.toggleSection(nil)
     func titles(_ menu: NSMenu) -> [String] { menu.items.map { $0.isSeparatorItem ? "|" : $0.title } }
     let menuWindow = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 700, height: 620), styleMask: .borderless, backing: .buffered, defer: false)
@@ -170,9 +171,9 @@ import AppKit
     let menuEvent = NSEvent.mouseEvent(with: .rightMouseDown, location: view.employeeTable.convert(rowPoint, to: nil), modifierFlags: [], timestamp: 0,
                                        windowNumber: menuWindow.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!
     try check(titles(view.employeeTable.menu(for: menuEvent)!) == titles(menu(second)), "AT67 right click resolves employee menu")
-    try check(titles(menu(second)) == ["대화 열기", "|", "맨 위에 고정", "2번째 자리에 고정", "3번째 자리에 고정", "4번째 자리에 고정", "5번째 자리에 고정", "모두 읽음", "알림 끄기", "|", "도구 연결…", "목록에서 빼기"], "AT67 employee menu exact order")
+    try check(titles(menu(second)) == ["맨 위에 고정", "2번째 자리에 고정", "3번째 자리에 고정", "4번째 자리에 고정", "5번째 자리에 고정", "|", "알림 끄기", "|", "목록에서 빼기"], "AT67 employee menu exact order")
     try check(!titles(menu(first)).contains("대화 열기"), "AT67 current employee has no open command")
-    try check(titles(view.blankMenu()) == ["새 방 만들기…", "새 섹션 만들기", "|", "목록에서 뺀 방", "|", "목록 넓게"], "AT67 blank menu exact order")
+    try check(titles(view.blankMenu()).isEmpty, "AT67 blank menu exact order")
     try check(titles(view.headerMenu()) == ["제목과 설명 편집…", "|", "이 대화의 알림 끄기", "방 목록 보이기 / 숨기기", "방 목록 너비 전환", "전체 검색 (⌘F)", "모두 읽음", "|", "펫으로 접기"], "AT79 replaces AT67 header with original workspace menu order")
     (menu(third).items.first { $0.title == "맨 위에 고정" } as? RoomActionItem)?.trigger()
     (menu(second).items.first { $0.title == "2번째 자리에 고정" } as? RoomActionItem)?.trigger()
@@ -187,7 +188,7 @@ import AppKit
     try model.apply(message(1, employee: second, thread: threadA))
     try model.apply(message(2, employee: second, thread: threadB))
     try check(model.unread(employee: second) == 2, "AT67 unread spans threads")
-    (menu(second).items.first { $0.title == "모두 읽음" } as? RoomActionItem)?.trigger()
+    view.chooseEmployee(second);(view.headerMenu().items.first { $0.title == "모두 읽음" } as? RoomActionItem)?.trigger()
     try check(model.unread(employee: second) == 0 && model.memberState.read("thread:" + second + "/" + threadA) == 1 && model.memberState.read("thread:" + second + "/" + threadB) == 2, "AT67 all threads marked read")
     try check(model.memberState.read("read:" + second) == 2, "AT74 all-read advances the shared room position as well")
     (menu(second).items.first { $0.title == "알림 끄기" } as? RoomActionItem)?.trigger()
@@ -205,9 +206,9 @@ import AppKit
     try check(island.parts.first(where: { $0.kind == .owner })?.redDot == true && island.expanded != .owner, "AT67 asked counted without muted highlight")
     (menu(second).items.first { $0.title == "목록에서 빼기" } as? RoomActionItem)?.trigger()
     try check(model.hidden.contains(second) && !model.displayRooms.map(\.id).contains(second) && model.messages.count == 3, "AT67 hide preserves messages")
-    let restore = view.blankMenu().items.first { $0.title == "목록에서 뺀 방" }!
-    try check(restore.submenu?.items.map(\.title) == ["둘째"], "AT67 hidden submenu")
-    (restore.submenu?.items.first as? RoomActionItem)?.trigger()
+    let restore = view.addMenu().items.first { $0.title == "@둘째" }
+    try check(restore != nil, "AT89 hidden rooms are inline in add menu")
+    (restore as? RoomActionItem)?.trigger()
     try check(!model.hidden.contains(second), "AT67 restore hidden room")
     model.hide(second)
     try model.apply(message(4, employee: second, thread: threadA))
@@ -264,7 +265,7 @@ import AppKit
     let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: home) }
     let store = try LocalStore(directory: home)
-    let chat = try ConversationController(client: GateClient(store: store, credentials: MemoryCredentials()))
+    let chat = try testConversation(client: GateClient(store: store, credentials: MemoryCredentials()))
     let view = ConversationView(controller: chat, clipboardArea: home.appendingPathComponent("clipboard"))
     try chat.model.apply(["v":1,"type":"roster","employees":[["id":"employee-test","name":"가짜 직원","aliases":[]]]])
     let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 700, height: 570), styleMask: [.titled,.closable], backing: .buffered, defer: false)

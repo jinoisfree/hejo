@@ -4,7 +4,7 @@ import Darwin
 enum AppIdentity {
     static let name = "hejo"
     static let bundleID = "io.github.hermes-hejo.hejo"
-    static let version = "0.1.0"
+    static let version = "0.2.0"
     static var support: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent(name)
     }
@@ -26,11 +26,24 @@ struct LocalSettings: Codable {
     /// Mac-specific window geometry; a nil value uses the current native default.
     var chatWidth: Double?
     var chatHeight: Double?
+    var webPaneWidth: Double?
+    var webPaneHeight: Double?
+    var chatTheme: String?
+    var chatOpacity: Double?
+    var chatBodyFontSize: Double?
+    var chatUserBubbleColor: String?
+    var lastRoom: String?
     /// Offline presentation copies of the member's hub settings.
     var petScalePercent: Double?
     var bubbleAlwaysShown: Bool?
     var bubbleReplyEnabled: Bool?
     var reminders: [String:Double]?
+    /// Trackpad hardware and maintenance notices belong to this Mac.
+    var threeTapEnabled: Bool?
+    var threeTapCheckedOS: String?
+    var threeTapFailures: [String]?
+    var threeTapPendingUpdate: Bool?
+    var threeTapLookupExplained: Bool?
     /// Offline mirrors of the member's room-list preferences.
     var pinnedEmployees: [String]?
     var mutedEmployees: [String]?

@@ -48,7 +48,7 @@ async def main():
                 frame = json.loads(item.data); validator.validate(frame)
                 kind = frame["type"]
                 if kind == "click":
-                    assert frame["button_id"] == buttons[2]["id"]
+                    assert frame["button_id"] in [buttons[1]["id"], buttons[2]["id"]]
                     seen["click"] += 1
                     await emit("state", msg_id=MESSAGE, reply_state="answered")
                 elif kind == "send":
@@ -87,7 +87,7 @@ async def main():
             args = [str(Path(sys.argv[1]).resolve()), "--threads", tmp, f"127.0.0.1:{port}", *sys.argv[2:]]
             result = await asyncio.to_thread(subprocess.run, args)
             assert result.returncode == 0 and not errors, errors
-            assert seen == {"stop": 1, "undo": 1, "branch": 1, "delete": 1, "click": 1, "interrupt": 1}, seen
+            assert seen == {"stop": 1, "undo": 1, "branch": 1, "delete": 1, "click": 2, "interrupt": 1}, seen
             print("THREAD_CONTROL_FIXTURE_PASS")
     finally: await runner.cleanup()
 

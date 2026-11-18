@@ -1,10 +1,12 @@
 import AppKit
 
+func homeDescendants<T:NSView>(_ root:NSView,_ type:T.Type)->[T] { root.subviews.flatMap{($0 as? T).map{[$0]} ?? []} + root.subviews.flatMap{homeDescendants($0,type)} }
+
 func homeRequire<T>(_ value:T?,_ message:String)throws->T {guard let value else{throw TestFailure.assertion(message)};return value}
 
 @MainActor func homeRoomTests(resourceDirectory:URL,outputDirectory:URL?=nil) async throws {
     let home=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString);defer{try? FileManager.default.removeItem(at:home)}
-    let store=try LocalStore(directory:home),controller=try ConversationController(client:GateClient(store:store,credentials:MemoryCredentials())),model=controller.model
+    let store=try LocalStore(directory:home),controller=try testConversation(client:GateClient(store:store,credentials:MemoryCredentials())),model=controller.model
     controller.receive(["type":"roster","employees":[["id":"alpha","name":"직원 A","aliases":["A"]],["id":"beta","name":"직원 B","aliases":["B"]],["id":"gamma","name":"직원 C","aliases":["C"]]]])
     let ids=["11111111-1111-4111-8111-111111111111","22222222-2222-4222-8222-222222222222","33333333-3333-4333-8333-333333333333"]
     let a=ConversationKey(employee:"alpha",thread:ids[0]),b=ConversationKey(employee:"beta",thread:ids[1]),c=ConversationKey(employee:"gamma",thread:ids[2])
@@ -23,12 +25,11 @@ func homeRequire<T>(_ value:T?,_ message:String)throws->T {guard let value else{
         if case .employee(let id)=model.home.destination(text:text,picked:picked){try check(id==expected,"AT80 face mention default priority")}else{throw TestFailure.assertion("AT80 route refused")}
     }
     if case .refused(let reason)=model.home.destination(text:"@A @B",picked:nil){try check(reason=="홈에서는 한 명에게 보내요. 여럿은 단체방에서 불러 주세요","AT80 multi mention exact refusal")}else{throw TestFailure.assertion("AT80 multi mention allowed")}
-    model.toggleHomeMember("gamma")
-    if case .refused(let reason)=model.home.destination(text:"@C",picked:nil){try check(reason=="직원 C은 홈에 없어요","AT80 absent exact refusal")}else{throw TestFailure.assertion("AT80 absent allowed")}
-    if case .refused(let reason)=model.home.destination(text:"draft",picked:"gamma"){try check(reason=="직원 C은 홈에 없어요","AT80 removed explicit face refuses instead of fallback")}else{throw TestFailure.assertion("AT80 removed face rerouted")}
-    try check(model.homeThreads.map(\.key)==[b,a] && model.employees.count==3,"AT80 removing member filters view only")
+    model.configureHome{$0.members=["alpha","beta"]}
+    if case .employee(let id)=model.home.destination(text:"@C",picked:nil){try check(id=="gamma","AT89 legacy membership does not exclude home staff")}else{throw TestFailure.assertion("AT89 home staff excluded")}
+    try check(model.homeThreads.map(\.key)==[b,c,a] && model.employees.count==3,"AT89 all direct conversations remain in home")
     view.chooseHome();controller.pickHome("alpha");view.refresh()
-    let faces=try homeRequire(view.subviews.compactMap{$0 as? ComposerFaces}.first,"AT80 native faces")
+    let faces=try homeRequire(homeDescendants(view,ComposerFaces.self).first,"AT80 native faces")
     try check(faces.lit==0 && faces.ring,"AT80 selected face bright with ring")
     controller.pickHome("alpha");view.refresh();try check(faces.lit==nil && !faces.ring,"AT80 same face releases selection")
     controller.setText("@B text");view.refresh();try check(faces.lit==1 && !faces.ring,"AT80 mention previews without selection ring")
@@ -36,24 +37,24 @@ func homeRequire<T>(_ value:T?,_ message:String)throws->T {guard let value else{
     try check(model.isHome && model.selected==a && model.unread(a)==0 && model.memberState.read("thread:alpha/"+a.thread)==4,"AT80 home reply shares direct thread read key")
     view.chooseEmployee("alpha");try check(!model.isHome && model.unread(a)==0,"AT80 direct view shares home read")
     model.configureHome{$0.muted=true}
-    try check(model.petMuted==Set(["alpha","beta"]) && controller.islandInput.muted==Set(["alpha","beta"]) && model.visibleUnreadTotal==1,"AT80 muted home quiets only included direct rooms without double badge")
+    try check(model.petMuted==Set(["alpha","beta","gamma"]) && controller.islandInput.muted==Set(["alpha","beta","gamma"]) && model.visibleUnreadTotal==0,"AT80 muted home quiets only included direct rooms without double badge")
     model.configureHome{$0.muted=false};try check(model.petMuted.isEmpty,"AT80 home alerts restore")
     view.chooseHome();let menu=view.homeMenu()
-    try check(menu.items.filter{!$0.isSeparatorItem}.map(\.title)==["사진 바꾸기…","홈에 보일 직원","기본 받을 직원","알림 끄기","고정 채널 변경"],"AT80 home native menu order")
-    try check(menu.items.first{$0.title=="홈에 보일 직원"}?.submenu?.items.map(\.state)==[.on,.on,.off],"AT80 membership checkmarks")
-    let reopened=try ConversationModel(store:LocalStore(directory:home));try reopened.apply(["type":"roster","employees":try JSONSerialization.jsonObject(with:JSONEncoder().encode(model.employees))]);try check(reopened.home.members.map(\.id)==["alpha","beta"] && reopened.home.defaultRecipient=="beta","AT80 home settings restore through member state")
+    try check(menu.items.filter{!$0.isSeparatorItem}.map(\.title)==["고정 방 변경","사진 바꾸기…","기본 받을 직원","알림 끄기"],"AT80 home native menu order")
+    try check(!menu.items.contains{$0.title=="홈에 보일 직원"} && menu.items.first{$0.title=="기본 받을 직원"}?.submenu?.items.count==3,"AT89 all staff with retained default-recipient menu")
+    let reopened=try ConversationModel(store:LocalStore(directory:home));try reopened.apply(["type":"roster","employees":try JSONSerialization.jsonObject(with:JSONEncoder().encode(model.employees))]);try check(reopened.home.members.map(\.id)==["alpha","beta","gamma"] && reopened.home.defaultRecipient=="beta","AT80 home settings restore through member state")
     if let outputDirectory {
         try FileManager.default.createDirectory(at:outputDirectory,withIntermediateDirectories:true)
-        model.toggleHomeMember("gamma");controller.setText("@직원 B 다음 요청");view.refresh()
+        controller.setText("@직원 B 다음 요청");view.refresh()
         let window=NSWindow(contentRect:view.frame,styleMask:[.borderless],backing:.buffered,defer:false);window.isReleasedWhenClosed=false;window.backgroundColor = .white;view.layer?.backgroundColor=NSColor.white.cgColor;window.contentView=view;window.orderFrontRegardless();view.layoutSubtreeIfNeeded();await pause(0.2)
         let rep=view.bitmapImageRepForCachingDisplay(in:view.bounds)!;view.cacheDisplay(in:view.bounds,to:rep);try rep.representation(using:.png,properties:[:])!.write(to:outputDirectory.appendingPathComponent("task27-hejo.png"))
-        let faces=try homeRequire(view.subviews.compactMap{$0 as? ComposerFaces}.first,"AT80 capture faces");let image=faces.bitmapImageRepForCachingDisplay(in:CGRect(x:0,y:0,width:102,height:32))!;faces.cacheDisplay(in:CGRect(x:0,y:0,width:102,height:32),to:image);try image.representation(using:.png,properties:[:])!.write(to:outputDirectory.appendingPathComponent("task27-hejo-faces.png"));window.orderOut(nil)
+        let faces=try homeRequire(homeDescendants(view,ComposerFaces.self).first,"AT80 capture faces");let image=faces.bitmapImageRepForCachingDisplay(in:CGRect(x:0,y:0,width:102,height:32))!;faces.cacheDisplay(in:CGRect(x:0,y:0,width:102,height:32),to:image);try image.representation(using:.png,properties:[:])!.write(to:outputDirectory.appendingPathComponent("task27-hejo-faces.png"));window.orderOut(nil)
     }
     print("AT-HF-80 PASS")
 }
 
 @MainActor func homeRoomNetwork(_ args:[String]) async throws {
-    let store=try LocalStore(directory:URL(fileURLWithPath:args[2])),client=GateClient(store:store,credentials:MemoryCredentials()),controller=try ConversationController(client:client),model=controller.model
+    let store=try LocalStore(directory:URL(fileURLWithPath:args[2])),client=GateClient(store:store,credentials:MemoryCredentials()),controller=try testConversation(client:client),model=controller.model
     let view=ConversationView(controller:controller)
     try client.pair(address:args[3],code:"test_code-12",device:"fake home");try await waitFor{controller.canSend}
     view.chooseHome();controller.setText("default");await controller.sendCurrent();try await waitFor{model.messages.count==1}
@@ -65,7 +66,7 @@ func homeRequire<T>(_ value:T?,_ message:String)throws->T {guard let value else{
     view.createThread();controller.setText("@C mention");await controller.sendCurrent();try await waitFor{model.messages.count==8}
     model.configureHome{$0.recipient="beta"};view.createThread();controller.setText("configured");await controller.sendCurrent();try await waitFor{model.messages.count==10}
     view.createThread();controller.setText("@A @B");await controller.sendCurrent();try check(controller.notice==HomeRoom.multiple && controller.draft.text=="@A @B","AT80 rejected multi keeps draft")
-    model.toggleHomeMember("gamma");controller.setText("@C absent");await controller.sendCurrent();try check(controller.notice=="직원 C은 홈에 없어요" && controller.draft.text=="@C absent","AT80 absent refusal keeps draft")
+    model.configureHome{$0.members=["alpha","beta"]};if case .employee(let id)=model.home.destination(text:"@C",picked:nil){try check(id=="gamma","AT89 all home staff remain callable")}else{throw TestFailure.assertion("AT89 home staff excluded")}
     view.chooseThread(first);controller.setText("reply");await controller.sendCurrent();try await waitFor{model.messages.count==12}
     await pause(0.2);try check(model.isHome && model.timeline(first).count==4,"AT80 home reply uses original thread")
     let image=NSBitmapImageRep(bitmapDataPlanes:nil,pixelsWide:1,pixelsHigh:1,bitsPerSample:8,samplesPerPixel:4,hasAlpha:true,isPlanar:false,colorSpaceName:.deviceRGB,bytesPerRow:4,bitsPerPixel:32)!

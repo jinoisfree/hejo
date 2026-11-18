@@ -19,6 +19,7 @@ struct StateDocument: Codable, Equatable {
 /// A durable replica and outbox for the hub's member state. No credentials are stored here.
 @MainActor final class MemberState {
     static let interval: TimeInterval = 30
+    static let sendInterval: TimeInterval = 1.5
     let store: LocalStore
     var onChange: (() -> Void)?
     var onFailure: ((Bool) -> Void)?
@@ -27,6 +28,9 @@ struct StateDocument: Codable, Equatable {
     var push: (([String: StateEntry]) async throws -> StateDocument)?
     private(set) var timer: Timer?
     private var syncing = false
+    private var sendTimer: Timer?
+    private var receiver: Task<Void, Never>?
+    private(set) var waitingSupported = false
     private var generation = 0
     private(set) var connected = false
     var account: String { store.settings.stateAccount ?? "" }
@@ -34,7 +38,7 @@ struct StateDocument: Codable, Equatable {
     var pending: [String: StateEntry] { store.settings.pendingState?[account] ?? [:] }
     var items: [String: StateEntry] { Self.merge(document.items, pending) }
     init(store: LocalStore) { self.store = store }
-    deinit { timer?.invalidate() }
+    deinit { timer?.invalidate(); sendTimer?.invalidate(); receiver?.cancel() }
     static func isRead(_ key: String) -> Bool { ["read:", "thread:"].contains { key.hasPrefix($0) } }
     static func isLayout(_ key: String) -> Bool { ["layout:", "zone:", "pin:", "hide:", "mute:", "title:"].contains { key.hasPrefix($0) } }
     static func wins(_ key: String, _ new: StateEntry, _ old: StateEntry?) -> Bool {
@@ -95,19 +99,57 @@ struct StateDocument: Codable, Equatable {
         if releasedPins > 0 { onUnpinned?(releasedPins) }
     }
     func configure(hub: HubClient, token: String) {
-        connect(fetch: { try await hub.state(since: $0, token: token) }, push: { try await hub.patch(state: $0, token: token) })
+        connect(fetch: { try await hub.state(since: $0, token: token) }, push: { try await hub.patch(state: $0, token: token) }, wait: { try await hub.waitState(revision: $0, token: token) })
     }
-    func connect(fetch: @escaping (Int?) async throws -> StateDocument, push: @escaping ([String: StateEntry]) async throws -> StateDocument) {
+    func connect(fetch: @escaping (Int?) async throws -> StateDocument, push: @escaping ([String: StateEntry]) async throws -> StateDocument, wait: ((Int) async throws -> (StateDocument, Bool))? = nil) {
+        disconnect()
         self.fetch = fetch; self.push = push
         connected = true; generation += 1
-        timer?.invalidate()
+        startFallbackTimer()
+        if let wait {
+            let epoch = generation
+            receiver = Task { [weak self] in
+                while !Task.isCancelled {
+                    guard let revision = self?.document.rev, self?.generation == epoch else { return }
+                    do {
+                        let (remote, supported) = try await wait(revision)
+                        guard let self, self.generation == epoch, !Task.isCancelled else { return }
+                        try self.accept(remote)
+                        self.waitingSupported = supported
+                        guard supported else { return } // Old hub: preserve thirty-second polling.
+                        self.timer?.invalidate(); self.timer = nil
+                        self.onFailure?(false)
+                    } catch {
+                        guard let self, self.generation == epoch, !Task.isCancelled else { return }
+                        self.onFailure?(true)
+                        do { try await Task.sleep(nanoseconds: 1_500_000_000) } catch { return }
+                    }
+                }
+            }
+        } else { activate() }
+        if !pending.isEmpty { scheduleSend() }
+    }
+    private func startFallbackTimer() {
         timer = Timer.scheduledTimer(withTimeInterval: Self.interval, repeats: true) { [weak self] _ in
             Task { @MainActor in await self?.sync() }
         }
-        activate()
     }
-    func disconnect() { connected = false; generation += 1; timer?.invalidate(); timer = nil; fetch = nil; push = nil }
-    func activate() { Task { await sync() } }
+    func disconnect() {
+        connected = false; generation += 1; timer?.invalidate(); timer = nil
+        sendTimer?.invalidate(); sendTimer = nil; receiver?.cancel(); receiver = nil
+        waitingSupported = false; fetch = nil; push = nil
+    }
+    func activate() { if !waitingSupported { Task { await sync() } } }
+    private func scheduleSend() {
+        guard connected, sendTimer == nil else { return }
+        sendTimer = Timer.scheduledTimer(withTimeInterval: Self.sendInterval, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }; self.sendTimer = nil
+                await self.flush()
+                if !self.pending.isEmpty { self.scheduleSend() }
+            }
+        }
+    }
     func set(_ values: [String: String?], at: Double = Date().timeIntervalSince1970) throws {
         let dev = store.settings.stateDevice ?? UUID().uuidString.lowercased()
         var edits: [String: StateEntry] = [:]
@@ -121,13 +163,14 @@ struct StateDocument: Codable, Equatable {
             $0.stateDevice = dev
             if $0.pendingState == nil { $0.pendingState = [:] }; $0.pendingState?[account] = queued
         }
-        onChange?(); if connected { activate() }
+        onChange?(); scheduleSend()
     }
     /// GET gives a complete snapshot on a changed revision, or no items at the same revision.
     private func accept(_ remote: StateDocument, sent: [String: StateEntry] = [:]) throws {
         var queue = pending
         for (key, entry) in sent where queue[key] == entry { queue[key] = nil }
-        try persist(document: remote.rev == document.rev ? document : remote, pending: queue)
+        let next = remote.rev > document.rev ? remote : document
+        if next != document || queue != pending { try persist(document: next, pending: queue) }
     }
     func sync() async {
         guard !syncing, let fetch, let push else { return }
@@ -144,6 +187,16 @@ struct StateDocument: Codable, Equatable {
                 try accept(response, sent: sent)
             }
             onFailure?(false)
+        } catch { if epoch == generation { onFailure?(true) } }
+    }
+    private func flush() async {
+        guard !syncing, let push, !pending.isEmpty else { return }
+        syncing = true; let epoch = generation; let sent = pending
+        defer { syncing = false }
+        do {
+            let response = try await push(sent)
+            guard epoch == generation else { return }
+            try accept(response, sent: sent); onFailure?(false)
         } catch { if epoch == generation { onFailure?(true) } }
     }
     /// Capture this Mac before fetching other Mac keys; absent local layout keys become tombstones.

@@ -1578,3 +1578,506 @@ D32-01은 29판 D9로 해소했다. 위 보류 기록은 당시 근거로 보존
 이 보고 추가 뒤 `final_checks.py`와 커밋 도우미로 개인값/훅/diff를 확인한다. 커밋 실행 결과는 `.build/task32/commit-result.json`·`commit.log`에 남긴다. 이어 `release.py`로 공용 릴리스를 갱신하고 `final_verify.py`로 RELEASE 표식·전체 릴리스 파일·앱 서명/설정·검증 소스·깨끗한 작업 트리를 대조한다. 실제 커밋과 릴리스 최종 결과는 `release-verify.json`·`final-verification.json` 및 result 인계에서 확인한다. 이 문서 작성 시점에는 커밋/릴리스 이후 결과를 미리 통과로 세지 않았다.
 
 구현 범위는 문 공식 관리 경계·설치 준비/점검/제거·승인된 연결 UI 예외와 시험/증거다. 실제 서버 키·OAuth 동의·게이트웨이 재시작·두 Mac·권한 창·launchd 활성화·운영 창 결합은 TASK-23에 남는다. 운영 홈 설치/실행·재시작·launchd 등록·실제 비밀 파일 열기·Hermes venv 설치·본체/ddots/운영 저장소 수정·외부 발송·public 갱신·push는 하지 않았다. 운영 자료 롤백은 기존 design 15판대로 shared/hejo 사본과 이전 릴리스를 함께 복원해야 하며 이번 앱/릴리스 백업이 운영 자료 사본을 대신하지 않는다. 계획 담당 검토로 인계하고 푸시 승인 대기로 진행을 멈추지 않는다.
+
+
+## N32-01 시험 보강 인계
+
+기준 `37fb43f06507176d6b4244a5a252c5ef339c5c51`. 보상 PUT/DELETE가 성공 응답을 보내지만 이전과 다른 키 존재 상태를 남기는 두 입력을 gate/tests/test_connections.py에 추가했다. `write_partial`·승인된 문장·행동 기록 partial·값 미노출을 확인한다. 제품 변경 없이 시험 한 파일만 `git commit --only`로 `e77a5f7bf150e59a237e10a6c86ea7e5ccb2bf8b`에 기록했다.
+
+- `foundation9_runner.py task34-n32 <test_connections.py>` 종료 0, 18 passed(`.build/foundation9-task34-n32.log`).
+- `mutation_n32.py` 종료 0. compensate의 is_set 비교를 제거한 사본은 pytest 종료 1로 새 두 입력에 검출됐다(`.build/task34/n32-mutation.json`, `mutation-presence.log`). 실제 소스 불변이다.
+- 개인값·HEJO_PYTHON 지정 훅·diff 각각 종료 0(`.build/task34/n32-checks.json`), 커밋 결과 `n32-commit.json`.
+
+## TASK-34 보완 37 구현·자체 검증
+
+REQ-HF-34.AC-01~09·AT-85와 보완 37 추가 1~3을 따른다. 버전 올리기는 AC-04대로 TASK-33에 남긴다. 필요/도달 증거 수준은 최종 검사 결과를 아래에 이어 적는다. 원본 전체 독해 재사용·추가 의존은 copy-review.md에 있다.
+
+- 문: 기존 edit 대기열을 그 직원/스레드 범위로 끝내고, 마지막 본문을 edit final:true로 추가한다. 반복 stop은 같은 글을 다시 닫지 않고 늦은 편집은 평소처럼 받는다. 보조 전달의 thread_id를 보존했다. delete_message는 자기 직원·대화·직원 글만 보통 delete로 지우며, 사장/남의/없는 글은 기록하지 않는다. 실제 Hermes 성공 차례 post-delivery 정리 함수와 가짜 차례를 연결했고 실패 차례 보존도 검사한다.
+- 앱: 얼굴을 스위치와 같은 세로 가운데의 오른쪽 가로 스크롤로 옮겼다. 작업 중 줄은 9pt 간격, 중지는 초 오른쪽 6pt·18px 영역/9pt 그림이다. 완료된 생각 줄도 작성 중으로 세지 않으며 늦은 final:false는 다시 작성 중이다. DM은 사장 이름을 보존하고 기본 DM·이름만 표시한다. + 고정 뷰를 없애고 표 마지막 40px 행으로 옮겼다. 방 이름 변환/Slack 안내를 없애고 제목/설명 폼 생성은 RoomDialogs로 옮겨 실제 입력기를 시험한다. 구획/DM의 행·레일은 0.24 easeInEaseOut, 선택은 0.34/0.88 spring이며 움직임 줄이기는 즉시다. 같은 내용 재갱신이 진행 중 움직임을 끊지 않는다.
+- 설치: 기존 owner_may_change 영수증·pending/applied/removing/removed 맞춤/키 단위 되돌림을 정리 설정에도 재사용한다. 값 없을 때만 display.platforms.hejo.cleanup_progress=true를 넣고, 사장 값·전역/Slack 설정을 보존한다. --check는 두 키를 따로 확인하며 --uninstall-home-channel은 홈 키만 다룬다. 운영 설치 도우미는 실행하지 않았다.
+
+기존 시험 조정은 승인된 계약 변경 범위다. PicturesSidebarTests의 기본 DM 이름 기대 한 줄을 AC-05로 바꿨다. HomeRoomTests의 얼굴 조회 두 곳은 가로 스크롤 안의 실제 같은 뷰를 재귀 조회하도록 바꿨고 단정은 유지했다. test_install.py의 home_targets는 새 정리 설정을 홈 채널로 잘못 세지 않도록 정확한 홈 키만 고른다(기존 수치/단정/입력 완화 없음). 수락 기준 Markdown·spec·design은 수정하지 않았다.
+
+집중 근거: 문·설치 57 passed(`.build/foundation9-task34-progress-final.log`, 설치만 52 passed `foundation9-task34-install.log`). AppKit 집중 시험은 컴파일/실행 0이며 얼굴 1/6/넘침·중지 간격·완료/늦은 편집·한글 marked text 5개 native field와 작성기·DM·3/20 방·중간 alpha/행 y/레일 높이·움직이는 중 선택·즉시 접기를 검사한다(`.build/task34/focused.json`). 소유자 검사와 final 닫기 제거 돌연변이는 각각 pytest 1로 검출했다(`mutations.json`). 최초 홈 명부 aliases 누락과 개발 중 파일 변경 빌드 실패는 최종 근거에서 제외했다. ＋를 임의 문서 자식으로 두던 초안은 실제 표 행으로 대체했다. 실패를 skip/xfail로 넘기거나 수락 기준을 완화하지 않았다.
+
+같은 가짜 직원 6명과 초/DM/버튼 상태의 원본 표시 조각을 분리 실행했다(`reference.json`). 원본/운영 앱 전체 비교나 실제 한국어 입력기·두 Mac 실물 확인은 아니다. 시스템 조합 입력·실제 성공/실패 차례는 TASK-23 실물에서 확인한다. 전체·10회 반복은 고정 입력 드라이버가 진행 중이며 완료 후 결과를 이어 적는다. 운영 홈·앱 사본·공용 릴리스·게이트웨이·launchd·ddots/본체/운영 저장소·원격은 변경하지 않았다. TASK-35·33은 미착수다.
+
+
+### TASK-34 진행 중 계획 변경(33판 보완 38)
+
+현재 기준은 계획 커밋 `a0b3782e9fbe77608478aed5a3f3a4a167444927`다. 실행 담당의 N32-01 커밋 위에 추가된 계획 문서 여섯 파일을 보존한다. 보완 38은 TASK-34 AC-08을 TASK-38로 옮기므로, 위 움직임 구현·중간 프레임 시험은 이번 커밋에서 제외했다. 원복 전 세 파일과 전체 변경은 `.build/task34/pre-scope38/`에, 움직임만 다시 적용하는 패치는 `.build/task38-start.patch`에 있다(적용 점검 0). 보관은 출발 자료이며 33판 움직임 완성 판정이 아니다.
+
+이 변경 전 최종 드라이버는 전체 189 passed 및 앱 7회 종료 0이었다. 마지막 회차의 inputsUnchanged는 계획 담당이 AT 문서를 갱신해 false가 됐고 드라이버가 종료 1로 멈췄다. 실행 담당 제품 소스가 임의로 바뀐 것이 아니다. 원래 기록과 로그는 pre-scope38에 보존하고 새 범위의 최종 결과로 세지 않는다. 계약과 실제 움직임 코드를 바꿨으므로 새 고정 입력으로 전체·10회를 다시 수행한다. 나머지 문/설치·돌연변이 근거는 관련 코드가 같아 재사용한다.
+
+
+현재 재개 경계: AC-08 분리 후 집중 AppKit 컴파일/실행은 0이다. 분리 뒤 diff 검사에서 끝줄 빈 줄 한 건을 발견해 정리했다. 그 짧은 초기 검증 자식만 종료했고(`format-restart.json`, 세션 종료 143), 소유 검증 외 프로세스는 건드리지 않았다. 이후 최종 개인값·훅·diff는 모두 0(`final-checks.json`)이다. 새 고정 입력은 150개, 실행은 `.build/task34/frozen.py`이며 전체/10회가 진행 중이다. 최종 소스의 전체·반복 완료를 아직 선언하지 않는다. 진행·다음 절차는 `.build/task34/checkpoint.json`과 `frozen-progress.json`에 있다. TASK-34 커밋·앱 사본/공용 릴리스/공개본 갱신은 아직 하지 않았다.
+
+
+33판 범위의 새 고정 입력 150개로 전체 검사 종료 0(189 passed·AT-HF-85 APP PASS·기존 가짜 Hermes/앱/통신 통과)을 확인했다. `.build/task34/frozen-progress.json` 첫 행은 inputsUnchanged=true이며 전용 전체 로그는 `frozen-foundation.log`다. 같은 드라이버가 앱 10회를 이어 실행 중이다. 아직 최종 반복·TASK-34 커밋·최종 캡처 결과는 미완료이며, 기존 세션을 이어 기다려야 한다. 현재 움직임 코드가 이번 제품 변경에 남지 않았고, 패치 적용 점검은 0이다.
+
+### TASK-34 최종 구현 인계 결과
+
+기존 세션 20606의 `frozen.py`가 종료 0으로 끝났다. 완료 행을 재실행하지 않았다. 전체 1행과 앱 10행 모두 `exitCode=0`, `inputsUnchanged=true`이며 입력 150개가 끝까지 같다. 이번 인계 범위는 REQ-HF-34.AC-01~07·09이며, 필요/도달 증거 수준은 **2/2**다. AC-08은 승인된 33판 보완 38에 따라 TASK-38로 옮겼다. 위 초안 움직임 구현·시험 설명은 진행 이력이고 이번 제품 변경에는 포함하지 않는다.
+
+| 최종 실행 | 실제 결과·근거 |
+| --- | --- |
+| `python3 .build/task34/frozen.py` | 종료 0. 전체 검사 189 passed·AT-HF-85 APP PASS·기존 가짜 Hermes/앱/통신 통과. `.build/task34/frozen-foundation.log`, `frozen-progress.json`, `frozen-inputs.json`. |
+| `bash app/scripts/test.sh` 10회 연속 | 같은 드라이버의 `app-task34-verified-01`~`10` 모두 종료 0·입력 불변. `.build/foundation9-app-task34-verified-01.log`~`10.log`. |
+| 최종 빌드 `app/.build/app-tests --task34-capture` | 임시 HERMES_HOME에서 종료 0·AT-HF-85 APP PASS. `capture-final.py`가 두 PNG를 evidence에 복사했고 소스 불변을 확인했다. `.build/task34/capture-final.json`, `capture-final.log`. |
+
+문/설치 집중 검사(57 passed, 설치만 52 passed)와 소유자 검사·진행 글 닫기 돌연변이 검출은 같은 문/설치 코드의 위 근거를 재사용한다. N32-01은 앞의 시험 전용 커밋 그대로다. 최종 hejo 캡처는 실제 AppKit 조립 보기이며, 원본 표시 조각과 함께 직접 확인했다. 상단 연결 끊김/재시도 숫자는 합성 시계 상태에서 나온 표시로 비교 대상이 아니다. 실제 운영 연결·원본 앱 전체·물리 한글 입력기 확인을 증명하지 않는다.
+
+이 보고 추가 뒤 `final_checks.py`로 개인값·HEJO_PYTHON 지정 훅·diff를 검사하고, 소유 파일 20개만 `git commit --only`로 기록한다. 이후 `final_verify.py`가 실제 커밋 파일·검증 입력·캡처 바이트·깨끗한 main을 대조한다. 실행 이후의 실제 전체 커밋과 결과는 `.build/task34/commit-result.json`, `final-verification.json`과 result 상태 블록에 기록한다. 이 문서에서 아직 실행하지 않은 검사를 통과로 세지 않는다.
+
+실물 성공/실패 차례와 시스템 한글 조합은 TASK-23에 남는다. TASK-35·33 제품 구현은 미착수이며 계획 담당 검토 뒤 순서대로 진행한다. 운영 홈 설치/변경·실행·재시작·launchd 등록, 앱 사본 교체, 공용 릴리스/public 갱신, ddots/본체/운영 저장소 수정과 원격 쓰기는 하지 않았다. `.build/task38-start.patch`는 새 움직임 계약의 완성본이 아니라 후속 출발 자료다.
+
+## N34-01 시험 보강 결과
+
+시험 전용 커밋 `e94ee2f6d03fd2e1914d2604a6d9b7cac5b8f5f7`는 gate/tests/test_progress.py 한 파일만 바꿨고 계획 담당이 `10ce6701e09c0f2dc5b62ed4649332a969646007`에서 검토를 마쳤다. 두 스레드 모두 진행 편집 중일 때 A 중지 두 번이 A의 final:true 한 번만 남기며 B 편집 0·작성 중 유지를 기본/전달자 경로로 확인했다. 집중 검사 7 passed와 필터 제거/metadata 되돌림 돌연변이 검출 근거는 `.build/n34-01/`에 있다. 이 검사를 TASK-35에서 반복하지 않는다.
+
+## TASK-35 구현·자체 검증
+
+받은 설계는 보완 37·38·40·41의 TASK-35, REQ-HF-35.AC-01·AT-HF-86이며 기준은 `10ce6701e09c0f2dc5b62ed4649332a969646007`다. 일반 위험·필요 인계 증거 수준 2다. 구현은 작업 트리에 있고 최종 전체·반복·커밋 결과는 아래에 이어 기록한다. 하위 에이전트를 쓰지 않았다.
+
+- 원래 책임: ThreeTapGesture·Frames·DeviceIdentity가 접촉을 판정하고, ThreeTapReader가 private ABI/기기 수명·콜백을 소유한다. dlopen/dlsym만 쓰며 프레임워크를 링크하지 않는다. ThreeTapController가 설정·OS 점검·알림·복사를 맡고 AppDelegate가 시작/종료·설정 창에 연결한다. 유효 탭은 PetController의 기존 펫 클릭 경로로 보내며 숨김/쉬는 중이면 무시한다.
+- 저장: UserDefaults 저장 경로를 가져오지 않고 기존 LocalSettings의 Mac별 hejo-local.json에 켬·마지막 OS·실패 키·OS 변경 대기·찾아보기 안내 표시만 둔다. 새 파일·허브 상태·기록장 원본은 없다. 저장 실패는 안내하고 켬/끔 값을 바꾸지 않는다.
+- 유지/제외: 원본 0.3초·0.04·정확히 3개·0.4초, 30연속 검사, 10초 기기 목록 확인, 잠자기 깨기, 실패 창 대기열과 복사를 유지했다. ThreeTapCommand·Sender·Slack/원격 보고와 원격 보고 전용 필드는 제외했다. 새 기능의 꺼짐은 기존 클릭을 바꾸지 않는다. 버전 변경은 TASK-33이다.
+- 원본과 차이: 트랙패드 없음은 명세의 '흐리게' 대신 원본 App.refreshThreeTapSettings대로 체크 조작을 허용하고 도움말을 보인다(26판 코드 우선). 실패 상태만 비활성이다. 설정 창의 기존 배치는 유지하면서 새 체크 한 줄을 추가하고 초기화 버튼 두 개를 아래로 옮겼다. 원본 전체 독해·의존 기록은 copy-review.md에 있다.
+- 시험 경계: ThreeTapReading·시각/라이브러리 기호/시스템 설정 조회 주입은 하드웨어·시스템 설정을 대역으로 격리하는 경계다. 제품의 탭/프레임 판정과 실제 설정 창·실패 창·펫 클릭을 그대로 실행한다. 새 시험을 TestMain에 연결했다. 기존 수락 기준·기존 시험 기대값은 바꾸지 않았다.
+
+초기 앱 빌드는 시험 파일 수정과 겹쳐 입력 변경을 감지해 종료 1이었다(`foundation9-app-task35-first.log`); 통과 근거로 세지 않는다. 수정이 끝난 집중 컴파일/실행은 각각 0·AT-HF-86 APP PASS다(`focused.json`). 처음 캡처의 투명 배경 때문에 읽기 어려운 글자는 보기의 흰 배경으로 보강했고, 이후 최종 캡처를 사용한다. 원본 분리 컴파일/실행은 각각 0(`reference.json`), 운영 앱 전체 비교가 아니다.
+
+탭 허용 시간을 0.5초로 늘린 사본과 실패 한도를 31로 바꾼 사본은 실제 ThreeTapTests의 순수 판정 단정을 추출한 집중 실행에서 각각 종료 1로 검출했다. 같은 단정의 무변경 사본은 0이고 제품 원본은 불변이다(`.build/task35/mutations.json`). 이 결과는 전체 앱·하드웨어 검증을 대신하지 않는다.
+
+남은 실물은 실제 트랙패드 탭과 잠자기 깨기/기기 교체에서 private ABI가 맞는지 확인하는 것이다. 인계 도달 수준 2를 실물 수준 4로 주장하지 않는다. 운영 홈·앱 사본·공용 릴리스/public·원격·Hermes 본체/ddots는 수정하지 않았다. 후속 TASK-33·48·49·36~47은 착수하지 않는다. 임시 대조/검증 도우미는 `.build/task35/`의 비추적 자료이며 제품 진입 경로가 아니다.
+
+### TASK-35 최종 결과
+
+고정 입력 154개로 `frozen.py`가 종료 0으로 끝났다. 전체 1행과 앱 10행 모두 `exitCode=0`·`inputsUnchanged=true`다. 필요/도달 인계 증거 수준은 **2/2**, 구현자 판단은 구현·자체 검증 완료이며 최종 판정은 계획 담당에게 넘긴다.
+
+| 실행 | 실제 결과·근거 |
+| --- | --- |
+| `python3 .build/task35/frozen.py` | 종료 0. 내부 foundation9_runner hejo는 191 passed·AT-HF-86 APP PASS·기존 가짜 Hermes/앱/통신 통과. test_install도 이 전체 실행에 포함했다. `.build/task35/frozen-foundation.log`, `frozen-progress.json`, `frozen-inputs.json`. |
+| `bash app/scripts/test.sh` 10회 연속 | 같은 드라이버에서 모두 종료 0·고정 입력 불변. `.build/foundation9-app-task35-verified-01.log`~`10.log`. 완료 행을 다시 실행하지 않았다. |
+| `python3 .build/task35/capture_final.py` | 종료 0. 최종 빌드 app-tests의 AT-86 캡처와 별도 native 설정 내용 캡처를 임시 HERMES_HOME에서 실행하고 원본 조각을 포함한 PNG 4개를 evidence에 복사했다. `capture-final.json`, `capture-final.log`, `settings-final.log`. |
+
+최종 캡처를 직접 대조했다. 실패 창의 문장·복사/닫기 순서·요청문 구조가 같고 서비스 이름만 바뀐다. 설정은 원본 체크 조각과 실제 hejo 펫 설정 내용이다. NSTabView 전체를 바로 캐시하면 일부 배경이 투명하게 나오는 한계가 있어, 실제 선택된 내용 뷰를 흰 바탕으로 옮겨 그렸고 탭 머리는 제외했다. 그림 후처리나 다른 UI 재구현이 아니다. 전체 원본 앱·운영 앱 비교나 실제 트랙패드 실행을 주장하지 않는다.
+
+집중 돌연변이와 원본 분리 실행은 위의 같은 소스 근거를 재사용한다. 이번 변경에서 새 컴파일 경고는 없으며 기존 AirportFinder Sendable·Task17Tests NSMenu·TypingTests 미변경 변수 경고는 범위 밖으로 남겼다. 실패를 skip/xfail로 넘기거나 기대값을 바꾸지 않았다. 구현자가 특히 검토를 요청하는 곳은 private ABI 수명/세대 차단, Mac별 설정 연결과 원본 우선으로 처리한 트랙패드 없음 표시다.
+
+이 최종 보고 추가 뒤 `final_checks.py`로 개인값·HEJO_PYTHON 지정 훅·diff, MultitouchSupport 직접 링크 없음·외부 보고 코드 없음·읽기 전용 원본 해시를 확인한다. 이어 소유 파일 16개만 `git commit --only`로 기록하고 `final_verify.py`가 실제 커밋 파일·고정 입력·PNG·깨끗한 main을 대조한다. 실행 이후의 실제 전체 커밋·최종 결과는 `.build/task35/commit-result.json`, `final-verification.json`과 result 상태 블록에 남긴다. 아직 실행하지 않은 검사를 여기서 통과로 세지 않는다. 앱 사본·공용 릴리스·public 갱신·원격 쓰기는 하지 않는다.
+
+## TASK-33: 자동 업데이트 부분 구현·D33-01 보류
+
+1. **받은 설계·기준:** handoff 보완 36(30·31판)·38·40·41·42, REQ-HF-33, design 11절, AT-84. 기준 `bdffda276c7cb1eff7bb82c01a76a6fb9cb3a612`. 고위험, 필요 인계 증거 수준 2. 운영 적용·원격 공개는 범위 밖이다.
+2. **판단 상태:** 부분 구현 뒤 보류. D33-01은 아래의 hejo 통신 계약 충돌이며 최종 완료·배포 준비를 주장하지 않는다. 제품 파일은 기준으로 복구했고 보고 파일만 변경했다. 새 커밋 없음.
+3. **보존 초안:** `.build/task33/draft/`에 제품·시험 19개 파일 사본, `draft-files.json`에 기준·파일별 지문, `draft.patch`에 추적 파일 차이가 있다. 사본 바이트 대조 후 복구했다. 실제 개수와 목록은 `draft-preserved.json`·`draft-files.json`을 우선한다. 재개 때 이 자료를 사용하며 완료한 원본 독해는 `copy-review.md`와 `source-notes.json`을 재사용할 수 있다.
+4. **구현한 범위(현재 제품에 적용 안 됨):** AppUpdate의 30초/6시간·명시 동의·수동 버튼·하루 숨기기, UpdateRelease 공개 메타데이터·주소/버전/크기 허용, SparkleInstaller/UserDriver의 SDK 경계, 설치 버전·빌드 일치 후 펫 알림, 메뉴/일반 탭, 버전 0.2.0/빌드 2, 고정 SDK·안쪽부터 코드 서명·BuildInfo, hejo-ship setup/prepare/사장 전용 publish와 get-hejo 자산 이름 변경을 초안으로 작성했다. SDK만 다운로드·교체·재실행을 맡으며 별도 앱 교체기를 만들지 않았다. Task17 메뉴 기대값은 업데이트 항목 추가에 따라 9→10개로 바꾼 초안을 포함한다.
+5. **독해·설계 차이:** copy-review의 원본 전체 독해 표 참조. 설치 위치는 ddots 및 기존 LoginLaunch의 시스템·사용자 Applications 판정을 유지했다(26판). 공개 저장소 설정은 Info.plist에서만 읽는다. 조용한 설치·토큰·relay·update-feed 원격 쓰기는 제외했다. 원본 설치 완료 알림 우선순위와 10초를 이식했다. 새 영구 원본은 만들지 않았다.
+6. **D33-01 확인 사실:** TASK-21 이전 문 `a4a80d5431ca378f7818d2bb8dc75475e658b2cb`은 hello에서 features를 금지한다(옛 schema 181~241, server 261~276·308~320). 현재 GateClient 118줄은 features:[rooms]를 무조건 넣는다. 실제 옛 문+현재 앱의 인증 전 연결이 실패했고, 별도 같은 입력 대조에서 features 있음→invalid_frame·없음→welcome을 확인했다. 통신 규격 v1의 하위 호환이라는 AC-03과 현재 단체방 capability 계약이 충돌한다. TASK-33의 업데이트 UI나 Sparkle 오류는 아니다.
+7. **선택지·권고(미채택):** 계획 담당이 (A) 구문 거절된 첫 hello에 한해 features 없는 호환 연결을 한 번만 허용하고 그 연결에서는 단체방 기능을 제한하는 계약 또는 (B) 지원하는 문 최소 버전을 명시하고 서버 선갱신을 배포 조건으로 삼는 계약을 정해야 한다. 권고는 AC-03의 목적을 보존하는 A이며, 인증 전/후 구분·재시도 횟수·pair code 보존·기존 캐시의 방 표시·재연결을 명세와 AT로 확정한 뒤 구현한다. 구현자는 임의 fallback·검사 완화·옛 문 수정·수락 기준 변경을 하지 않았다.
+8. **실행한 검사:** 고정 Sparkle 압축 지문 및 SDK 서명 검사 0. `python3 install/hejo-ship setup` 0: 승인된 일반 계정 키체인에 키를 만들고 공개 키만 초안 Info.plist에 보존했다. 키를 내보내거나 출력하지 않았다. `foundation9_runner.py task33-ship <수락 시험 절대 경로>` 0/7 passed(`.build/foundation9-task33-ship.log`). 초기 앱 전체 시험 `foundation9_runner.py app-task33-first` 0(`.build/foundation9-app-task33-first.log`); 이후 집중 시험에 호환 연결·펫 알림 단언을 추가했으므로 최종 전체 통과로 쓰지 않는다. 최종 초안 집중 컴파일/AT-84 앱 실행 0(`focused.json`). 주소 허용 비교 제거 사본은 컴파일 0·시험 1, `AT84 address version size boundary`로 검출·원본 불변(`mutations.json`). 실제 옛 문+새 앱은 1(`legacy.json`, 최초 실행은 시험 환경 변수를 fixture가 지운 준비 오류였고 수정 뒤 연결 실패 재현). raw hello 대조는 0/1 passed(`hello-probe.json`, `hello-boundary.json`). 원본 알림 함수 분리 컴파일/실행은 0이지만 PNG의 텍스트/배경 렌더링이 유효하지 않아 화면 비교 통과로 사용하지 않는다.
+9. **미실행·증거 수준:** 최종 foundation9_runner hejo·test_install·앱 10회·유효한 캡처 비교·실제 prepare·공개본 갱신·커밋은 미실행. 계약 충돌 보류 때문에 인계 필요 2에 아직 도달하지 못했고 전체 도달 수준은 1이다. 실제 두 Mac 업데이트·디스크 실패·재실행 경계는 TASK-23 수준 4에 남는다. 경고는 기존 AirportFinder의 Swift 6 Sendable과 새 시험에서 쓰는 SDK dictionary 초기화의 deprecated API다. 후자는 시스템/앱 버전에 의존하는 SDK 속성을 시험하지 않고 공개 enclosure 해석에만 썼으며, 제품 경로에는 추가하지 않았다.
+10. **운영·인계:** 앱 사본·공용 릴리스·public 가지·운영 홈·본체·ddots·원격은 변경하지 않았다. 로컬 키체인 서명 키는 승인 범위에서 생성된 상태로 유지하며 재개 때 기존 키를 재사용해야 한다. 비밀 키 출력·내보내기·publish·외부 발송 없음. TASK-48 이후 미착수. 계획 담당이 D33-01을 결정한 뒤 초안을 재적용하고 남은 검사를 수행한다.
+
+복구 뒤 보고 파일 최종 검사 근거는 `.build/task33/report-checks.json`이다(개인값·HEJO_PYTHON 지정 훅·diff 검사 각각 종료 0). 제품 초안 전체의 최종 검증을 뜻하지 않는다.
+
+## TASK-33 재개: 보완 43·35판 D33-01 해소
+
+기준은 `3d7e1c07b30e924fd16b4e75aed501b4619a3d07`이다. 위 보류 기록은 당시 사실로 보존한다. 계획 담당이 지원 문 범위를 TASK-21 이후로 정했고, 운영 적용본 aeaa652를 옛 문으로 지정했다. 초안 19개를 지문 대조하고 제품 충돌 없이 다시 적용했다. GateClient·문·규격 변경이나 features 없는 되돌림 연결은 추가하지 않았다. 원본 전체 독해와 주소 검사 돌연변이 근거는 동일 제품 입력임을 확인해 재사용한다.
+
+옛 문 시험은 `.build/task33/supported-release/gate/tests/test_update_compat.py`에서 실제 옛 gate 소스·출입증·기록장·WebSocket과 현재 앱의 GateClient/ConversationController를 실행한다. Hermes 턴만 대역이다. 새 앱은 짝맺기·송신·수신 후 가짜 단체방 목록도 받았으며 종료 0이다(`supported-legacy.json`). 첫 시도 마지막 단언은 빈 team registry를 쓰는 별도 Hermes 권한 대역 때문에 실패했다. 해당 권한 대역을 송수신 호환 시험 범위에서 분리하고, 받은 실제 이벤트를 기록하는 가짜 턴으로 고쳤다. 문 자체의 인증·검증·기록·전송은 대체하지 않았다.
+
+유효한 캡처는 evidence/HEJO-FOUNDATION/TASK-33.md에 있다. 원본과 hejo의 실제 automaticAlert 함수를 그대로 분리 실행하고 하네스에서 흰 불투명 배경을 주었다. 초기의 빈 PNG는 제외했다. 실제 설정 보기 캡처도 포함하며 운영 앱 전체 비교를 주장하지 않는다. 배포 준비·서명에 필요한 기존 키체인 키를 재사용한다. 새 키 생성·비밀 키 출력·내보내기·원격 공개는 하지 않는다.
+
+최종 전체 검사와 앱 10회는 `.build/task33/frozen.py`가 제품·시험·빌드/설치 도구·규격·Resources 입력을 고정해 실행 중이다. 완료한 행을 재실행하지 않는다. 운영 홈·앱 사본·공용 릴리스는 바꾸지 않는다. 최종 결과는 아래 후속 기록과 `.build/task33/final-verification.json`을 함께 대조해야 한다.
+
+### TASK-33 코드·자체 시험 최종 기록(커밋 경계)
+
+- **구현:** AppUpdate가 발견·시각·매번 동의·수동 버튼·중복 방지를, UpdateRelease가 공개 릴리스·주소/버전/크기를, SparkleInstaller/UserDriver가 검증된 SDK 설치 경계를 소유한다. UserDefaults는 design 11절대로 이 Mac 알림 설정·오늘 숨기기·설치 대기 버전/빌드만 저장한다. 서버·허브·기록장·통신 규격 변경은 없다. 업데이트 성공은 기존 펫 말풍선을 재사용한다.
+- **빌드·배포:** 0.2.0/빌드 2에 TASK-34·35를 포함한다. Sparkle 2.10.0 고정 지문·프레임워크/rpath·안쪽부터 서명·LICENSE·BuildInfo를 추가했다. hejo-ship은 setup/prepare/사장 전용 publish를 나누며, 기존 공개 키 불일치·더러운 트리·공개본/빌드 트리 불일치·변조 압축을 거절한다. get-hejo는 새 자산 이름과 같은 태그 서버 소스를 쓰고 교체 전 코드 서명을 확인한다. 공개는 초안→자산 지문/크기 확인→서명 피드 확인→latest이며 실패 초안은 지우지 않는다. 공개 함수 시험의 원격 명령은 모두 대역이고 실제 publish는 실행하지 않았다.
+- **수락·회귀:** 최종 고정 소스의 foundation9_runner hejo 종료 0, Python 198 passed 및 공식 가짜 Hermes·앱·통신 시험 통과. 이 전체 검사에 test_install.py가 포함된다. 최종 앱 시험 10회 연속 종료 0, 11행 모두 inputsUnchanged=true다. 근거 `.build/task33/frozen-progress.json`, `frozen-inputs.json`, `frozen-foundation.log`, `.build/foundation9-app-task33-verified-01.log`~`10.log`.
+- **독립 기준·고장 주입:** 공개 metadata·배포 도구 AT-84 시험 7개는 최종 전체 검사에도 포함됐다. 실제 SDK appcast decoder/delegate와 Sparkle 버전 비교를 사용했다. 주소 허용 비교 제거 돌연변이의 컴파일 0·시험 1 검출은 해당 제품 파일 지문이 같아 재사용했다(`mutations.json`, `static-final.json`). 범위는 주소·버전·크기·메타데이터와 명시 동의 경계이며 실제 앱 교체를 대역으로 통과시켰다고 주장하지 않는다.
+- **기존 시험 변경:** Task17 메뉴 기대는 승인된 업데이트 항목 때문에 9→10개·버전 아래 항목으로 바꿨다. 수락 문서·AT 기대는 바꾸지 않았다. SwiftUI 예외는 기존 연결 창 두 파일만 유지하며 새 화면은 AppKit이다. 제품의 기존 AirportFinder Swift 6 Sendable 경고와 시험의 SDK dictionary 초기화 deprecated 경고는 기준 완화 없이 남겼다.
+- **최종 후검사:** 개인값·HEJO_PYTHON 지정 훅·diff·앱 코드 서명 결과는 `.build/task33/final-checks.json`에 기록한다. 원본 SDK 서명과 고정 지문, ddots 원본 불변은 `static-final.json`이다. 커밋 뒤 같은 제품 소스를 깨끗하게 다시 빌드해 BuildInfo를 공개본 트리에 맞추며, 로컬 public 커밋·prepare 실제 압축/서명 결과는 `post-commit.json`과 `final-verification.json`을 확인해야 한다. 이 문서의 커밋 시점에는 키체인 사용자 인증을 기다려 최종 배포물 서명은 아직 검증하지 못했다. 이를 통과 전부터 완료로 표시하지 않는다.
+- **증거·남은 것:** 필요 인계 수준 2, 최종 도달 여부는 후검사에서 실제 배포물 서명이 확인됐을 때 판정한다. 그 전에는 서명 경계가 미검증이다. evidence/HEJO-FOUNDATION/TASK-33.md의 유효한 함수/설정 캡처는 운영 앱 전체 비교가 아니다. 실제 두 Mac 다운로드·교체·재실행·디스크 실패는 TASK-23 수준 4와 비설계자 검토에 남는다. 운영 반영 전 롤백 자료는 35판의 aeaa652 기준 새 백업을 계획 담당+사장이 준비해야 한다.
+- **소유·금지 준수:** 소유 파일만 git commit --only로 기록한다. 앱 사본·공용 릴리스·운영 홈·launchd·Hermes 본체·ddots·운영 저장소·원격은 변경하지 않는다. 기존 키를 재사용하며 새 키 생성·비밀 키 출력·내보내기·원격 공개 없음. TASK-48 이후는 이 결과의 계획 담당 검토 뒤다.
+
+## TASK-33 보완 44: N33-01 초안 조회 수정
+
+- **받은 설계·판단:** handoff 보완 44, 기준 `7d0eb07f731e91c7aba50cd992e5899b36bdda2a`. 고위험 배포 경계의 국소 수정이며 필요한 인계 증거 수준은 2다. 앞선 TASK-33의 키체인 대기는 당시 기록으로 보존하며, 기존 `.build/task33/final-verification.json`에서 실제 서명 성공을 확인했다.
+- **책임·변경:** `install/hejo-ship`의 배포 도구 안에서 초안을 조회한다. 두 `releases/tags/<tag>` 조회를 제거하고 `gh api repos/{repo}/releases --paginate --slurp`의 페이지를 합쳐 `tag_name`과 `draft == true`로 고른다. 자산·피드 업로드 각각 뒤 정확히 한 초안만 허용하고 0개·중복이면 초안을 보존한 채 멈춘다. 기존 태그 보호·자산 상태/크기/지문·서명 피드·latest 공개 순서는 유지한다. 같은 태그 초안은 생성 전 확인하며, 원격 태그까지 함께 있는 경우에도 지정된 초안 안내문으로 멈춘다. 삭제·덮어쓰기·자동 재시도는 없다.
+- **시험 대역 교체:** `tests/acceptance/test_ship.py`의 경로 무관 초안 응답을 제거했다. 태그 조회는 초안에 404 명령 실패, 페이지 목록은 초안을 포함하는 대역으로 교체했다. 선택 초안을 두 번째 페이지에 두고 다른 태그·같은 태그의 공개 릴리스와 구별한다. 기존 승인/태그 거절과 자산 변조 단언을 보존하고, 보관 초안 1/2개·태그 동시 존재·각 업로드 뒤 0/2개·피드 변조 거절을 추가했다. 초안 조회가 생겨 기존 태그 시험의 관측은 '명령 0회'에서 '읽기 목록 조회 1회·원격 쓰기 0회'로 명확히 바꿨다. 이는 보완 44의 생성 전 초안 확인에 필요한 변경이며 거절·무쓰기 기준은 완화하지 않았다.
+- **집중 검증:** `foundation9_runner.py n33-01-ship` 종료 0, 17 passed. `mutation.py`는 무변경 사본 종료 0, 업로드 뒤 조회를 태그 조회로 되돌린 사본 종료 1로 결함을 검출했다. 제품 원본은 불변이다. 초기 돌연변이 하네스는 venv에 pytest가 없어 본문 미실행이었고, 기존 별도 pytest 의존 경로를 지정해 고쳤다. Hermes venv에는 설치하지 않았다. 로그는 `.build/foundation9-n33-01-ship.log`, `.build/n33-01/mutation.json`, `mutation-baseline.log`, `mutation-tag-lookup.log`다.
+- **앱·운영 경계:** 앱 소스·통신·문·규격·버전/빌드·키는 변경하지 않았다. 기존 TASK-33 앱 10회·캡처 근거는 같은 앱 입력의 증거로 보존한다. 이번 수정은 화면 변경이 아니므로 새 캡처는 만들지 않는다. 실제 GitHub 목록/초안 공개는 미실행이며 시험 대역 수준 2를 실제 원격 공개 수준으로 주장하지 않는다.
+- **공개본·준비물 재생성 방법:** 실제 gh/GitHub 읽기도 금지되어 `install/hejo-publish`의 계정 조회 두 번만 기존 로컬 public 커밋의 작성자 정보로 응답하는 비추적 대역을 사용한다. 실제 gh 실행은 하지 않는다. 이전 로컬 0.2.0 후보는 보관 참조에 남기고 같은 0.1.0 부모에서 대체 후보를 만든다. 그래야 버전/빌드 증가 검사를 완화하지 않고 같은 0.2.0·빌드 2 준비물을 다시 만들 수 있다. 새 공개본과 깨끗한 빌드의 트리를 맞춘 뒤 기존 키체인 키로 새 출력 폴더에 prepare한다. 이전 후보·준비물은 지우지 않는다. 실제 결과는 후속 최종 기록을 따른다.
+
+### N33-01 최종 자체 검증·커밋 경계
+
+최종 소스의 전체 실행 `python3 .build/n33-01/verify.py`는 종료 0이다. 내부 `python3 .build/foundation9_runner.py hejo`는 Python 208 passed와 가짜 Hermes·앱·통신 전체 시험을 통과했다(test_install 포함). 실행 중 고정 입력은 불변이다. 첫 전체 실행은 초안/태그 동시 존재 안내를 보강하기 전 Python 206 passed였으므로 최종 근거로 쓰지 않으며, 변경 뒤 전체를 한 번 더 실행한 결과를 `.build/n33-01/foundation-result.json`, `foundation.log`에 별도로 보존했다. 완료 행을 이유 없이 반복하거나 시험을 skip하지 않았다.
+
+고정 소스의 집중 시험은 17 passed이고 태그 조회로 되돌린 돌연변이는 1 failed/16 deselected로 검출됐다. 필요/도달 인계 증거 수준은 **2/2**다. 실제 원격 API·사장 publish·두 Mac 업데이트 실물은 미실행이며 계획 담당 검토·TASK-23에 남는다. 앱 화면·원본 독해·같은 상태 캡처는 앱 소스 불변이므로 기존 TASK-33 근거를 재사용한다. 실제 공개가 통과했다고 주장하지 않는다.
+
+이 보고 뒤 개인값·HEJO_PYTHON 지정 훅·diff를 검사하고 소유 파일 세 개(배포 도구·시험·이 보고)만 `git commit --only`로 기록한다. 이어 비추적 로컬 계정 대역으로 public 후보 생성, 깨끗한 앱 빌드·코드 서명 검사, 기존 키로 새 ZIP 서명과 독립 검증을 수행한다. 커밋 시점에 후검사는 아직 미실행이며 실제 커밋·public·트리·서명·깨끗한 main은 `.build/n33-01/commit-result.json`, `post-commit.json`, `final-verification.json`과 최종 result 보고를 따른다. 새 키 생성·내보내기·비밀 키 출력·실제 gh/GitHub 호출·앱 사본 교체·공용 릴리스/운영 홈 변경은 하지 않는다. TASK-48 이후는 검토 뒤에 시작한다.
+
+## TASK-48: 문 Slack 경로 동등(I01~I06)
+
+1. **받은 설계:** 보완 45·40, REQ-HF-42.AC-01, design 12-1, 대조표 2.1판 §0-4-3, AT-99. 기준 `763c839b359842e50ac2503db68198ddd74728ef`. 일반·필요 인계 수준 2. 구현자 판단은 구현·자체 검증이며 최종 판정은 계획 담당에게 넘긴다.
+2. **원본·칸:** copy-review의 TASK-48 절처럼 Hermes Slack 유지 메서드와 공식 어댑터·저장소·지역 낱말표·미디어 의존을 대조했다. 문 기존 책임 안에서 처리하며 Hermes 본체·앱·허브·규격은 바꾸지 않았다. 새 영구 원본은 없다.
+3. **I01:** 공식 set_session_store로 받은 저장소의 exact-key 조회와 suspended를 읽고, 세션 없는 1:1 앞 글을 기존 context.py 한도로 복원한다. 조회는 세션을 만들거나 활동 시각을 갱신하지 않는다. Slack 수신처럼 공식 MessageEvent.channel_context를 써 원래 본문·명령 위치를 보존한다. 기존 방 문맥과 25판 분기 문맥은 유지하며 첫 분기 글에 복원 문맥을 겹치지 않는다. 물리 파일·삭제된 글을 새 원본으로 읽지 않고 Journal의 현재 투영을 사용한다. Slack의 활성 세션 watermark/재시작 delta는 '활성 세션이면 붙이지 않음'이라는 이번 hejo AC 범위에 포함하지 않는다.
+4. **I02·03:** splits_long_messages를 선언했다. context.py가 줄을 우선해 UTF-8 바이트 한도로 손실 없이 나누고, send가 같은 스레드의 보통 message로 기록한다. 기본 단추·명시 단추·첨부 메타는 마지막 조각에 둔다. 편집 넘침은 기존 edit 지연 작업을 정리하고 조각을 편집·추가하며 축소 때 남은 꼬리를 보통 delete로 지운다. 조각 인덱스는 프로세스 메모리에만 두고 disconnect에서 없앤다. 같은 최종 편집을 반복해도 새 꼬리를 중복 생성하지 않으며 기존 단추는 마지막 조각으로 옮긴다. 편집 예정인 긴 최초 보냄은 첫 조각을 편집 anchor로 반환하고, 보통 긴 최종 보냄은 Slack처럼 마지막 조각 id를 반환한다. 중간 기록 실패는 이미 커밋한 조각을 보존하고 기존 실패 결과를 반환한다. seq를 미리 예약하지 않는다.
+5. **I04·05:** 기존 resolver는 유지하고 공식 지역 낱말표로 slash 확인·기타 단추를 만든다. 성공한 기본 단추 클릭은 결과 줄 edit와 buttons=[]로 닫는다. 원래 내부 단추 매핑이 있는 이미 닫힌 글의 재누름은 무시하며, 모르는 단추·실제로 만료된 resolver의 오류 처리는 유지했다. native 클릭 잠금으로 동시 두 번 해석을 막는다. 기존 AT-17에는 승인된 결과 edit를 읽고 단추 비움을 단언하는 세 줄을 추가했다. 기존 resolver 호출·barrier 단언을 없애거나 완화하지 않았다.
+6. **I06:** 링크 사진은 공식 SSRF-safe HTTP 클라이언트·redirect 검사·30초 한도와 FileStore의 스트리밍 크기 한도·0700/0600·원자적 등록을 사용한다. image MIME이 아니거나 안전하지 않거나 받기에 실패하면 공식 미디어 실패 글로 알리고 URL·서버 파일 경로는 노출하지 않는다. 음성·영상은 기존 send_document의 검증·등록·삭제 방어·전달자 경로를 재사용한다. 별도 파일 저장소는 없다.
+7. **시험·초기 오류 처분:** 새 집중 시험 14개와 기존 확장 시험을 함께 실행해 22개가 통과했다. 초기 하네스의 replay 호출 인자, 페어링 재현 순서, 가짜 게이트웨이 사장 허용 설정을 고쳤다. SessionStore 시험은 실제 multiplex 설정과 맞췄고, 한국어 입력은 공식 display.language 위치를 사용했다. 원본 비교 도우미의 상대 출력 경로 오류는 도우미 위치 기준으로 고쳤다(출력 파일 생성 전 실패, 운영 파일 쓰기 없음). 제품 계약이나 합격 기준을 낮추지 않았다. 바이트 분할 제거 돌연변이는 무변경 사본 0·변경 사본 1로 검출했고 제품 원본은 불변이다(`.build/task48/mutation.json`).
+8. **같은 상태 비교:** evidence/HEJO-FOUNDATION/TASK-48.md와 task48-comparison.json을 참조한다. 앱 파일이 없는 문 작업이어서 UI를 새로 그리거나 기존 캡처를 새 증거로 바꾸지 않았다. 실제 원본 함수·공식 세션 저장소와 문 수신을 같은 가짜 상태로 비교했다. 정기 보고·메시지 도구는 공식 가짜 게이트웨이 통합에서 확인한다. 도달 수준은 대역 통합 2이며 실제 Slack/운영 실행·실물 4를 주장하지 않는다.
+9. **미검증·검토 요청:** 실제 운영 정기 보고·두 Mac 긴 글/첨부 보기는 TASK-23에 남는다. 검토자는 편집 anchor/꼬리 인덱스·반복 최종 편집, 프로필별 세션 키, 기본 단추 클릭 순서, 파일 등록 실패 시 롤백을 특히 확인한다. 프로세스 재시작 후 예전 스트리밍 편집 체인을 복원하는 새 영구 인덱스는 만들지 않았다. 범위 밖 UI·team-kit 변경은 없다.
+10. **소유·금지:** 소유 파일만 git commit --only로 기록한다. public `f716bdff38af3d8c2cb2cdf4502e080ecbecb2bc`와 준비물은 그대로 둔다. 운영 홈·설치 도우미 운영 실행·게이트웨이 재시작·공용 릴리스·앱 사본·GitHub 조회/원격 쓰기·본체/ddots/운영 저장소 변경·비밀 키 접근은 하지 않았다. TASK-49는 계획 담당 검토 뒤다.
+
+### TASK-48 최종 실행 결과
+
+- `python3 .build/task48/verify.py` 종료 0. 내부 `foundation9_runner.py hejo`는 Python **222 passed**와 가짜 Hermes·앱·루프백 통신 시험을 모두 통과했다. test_install이 포함된다. 고정 입력 불변·public 불변을 확인했다(`.build/task48/foundation-result.json`, `foundation.log`). 앱 소스가 바뀌지 않아 앱 10회 반복은 추가하지 않았으며 이 전체 실행의 앱 시험을 사용한다.
+- 집중 실행은 새 시험 14개와 기존 확장 시험을 합쳐 **22 passed**다(`.build/foundation9-task48-execution.log`). 바이트 분할 제거 돌연변이는 시험 종료 1로 검출했고 무변경 사본은 0이다(`.build/task48/mutation.json`). 같은 공식 저장소 상태·한국어 단추의 원본 비교는 종료 0/1 passed다(`.build/foundation9-task48-reference-final.log`, `comparison.json`).
+- 필요/도달 인계 증거 수준 **2/2**. 실제 운영·Slack·두 Mac 실물은 미실행이다. 초기 집중 시험 실패는 위 7항에 처분했고 마지막 실행의 실패·skip·xfail은 없다. 기존 앱 Sendable/SDK deprecated 및 기존 비동기 마커 경고는 이번 변경에서 생긴 것이 아니며 억제하지 않았다.
+
+이 최종 보고 뒤 개인값·HEJO_PYTHON 지정 훅·diff 검사를 수행한다. 커밋은 소유 파일 10개만 `git commit --only`로 남기고, 실제 전체 커밋·파일 목록·입력 불변·깨끗한 main·public 고정·0.2.0 준비 ZIP 불변은 `.build/task48/final-checks.json`, `commit-result.json`, `final-verification.json`과 최종 result 보고를 대조한다. 운영 적용·공용 릴리스·public 갱신·원격 쓰기는 하지 않는다.
+
+## TASK-48 보완 46: N48-01·02
+
+- **받은 설계·기준:** handoff 보완 46, 기준 `b9d5e3632f4da018f94c1ee708f2ee48b0d0a708`. 일반·인계 필요 수준 2. 작은 문구·호환 보완을 한 커밋으로 넘긴다.
+- **N48-01:** buttons.decision의 승인·확인 결과를 이름 없는 공식 Telegram 낱말표 키로 교체했다. 이름·조사를 끼워 넣던 Slack 결과 키 매핑은 제거했다. 낱말은 여전히 `agent.i18n.t`의 현재 지역 설정에서 읽으며 새 한국어 문구를 만들지 않았다. clarify의 Slack 공식 결과·직접 입력 안내와 `user="나"`는 그대로다. 클릭 잠금·resolver·결과 edit·단추 비움·재누름 처리는 변경하지 않았다.
+- **N48-02:** send_video가 공식 Base 서명처럼 추가 키워드 인자를 받고 기존 send_document 경로로 전달한다. 별도 첨부 경로나 영구 원본은 만들지 않았다.
+- **집중 검증:** `foundation9_runner.py n48-focused-final` 종료 0, test_delivery_parity.py **24 passed**. 승인 네 종류·확인 세 종류는 지정 공식 키의 실제 낱말과 같고 `이(가)`가 없음을 확인한다. clarify 결과/대기 두 종류는 기존 공식 문구와 같음을 확인한다. 실제 클릭 WebSocket 결과 줄에도 공식 낱말 일치·조사 없음 단언을 추가했다. 영상은 `supports_streaming=True`를 주어 실제 임시 파일 첨부와 등록 바이트를 확인한다. 기존 시험을 삭제하거나 합격 기준을 완화하지 않았다. 로그 `.build/foundation9-n48-focused-final.log`.
+- **성격·증거:** 문구와 Python 호출 호환의 승인된 의미 변경이다. 원본 대조는 copy-review의 보완 46 절에 있으며 수정 전 TASK-48의 결과 문구 비교는 역사 기록으로 유지한다. 이번 인계는 대역 통합 수준 2이며 실제 운영 실행을 뜻하지 않는다. 앱·화면·규격·허브·설치 도구 변경은 없다. 범위가 작고 기존 resolver·권한·분할 알고리즘은 그대로라 별도 돌연변이 검사는 추가하지 않는다. 현행 문구·키워드 경계를 집중 시험과 전체 회귀로 확인한다.
+- **금지·남은 것:** 운영 홈·공용 릴리스·public·준비물·앱 사본·Hermes 본체·ddots·운영 저장소·원격은 바꾸지 않는다. 실제 GitHub/gh 조회·비밀 키 접근·운영 실행은 없다. TASK-49는 이 보완의 계획 담당 검토 뒤 시작한다. 최종 검증·실제 커밋은 아래 기록과 `.build/n48/final-verification.json`을 따른다.
+
+### N48-01·02 최종 자체 검증
+
+`python3 .build/n48/verify.py`는 종료 0이다. 내부 `python3 .build/foundation9_runner.py hejo`는 **232 passed**와 앱·공식 가짜 Hermes·루프백 통신을 모두 통과했다(test_install 포함). 고정 입력 171개가 불변이며 public도 그대로다. 근거는 `.build/n48/foundation-result.json`, `foundation.log`다. 필요/도달 인계 증거 수준은 **2/2**이며 운영 실물은 미실행이다. 변경한 앱 소스가 없어 앱 10회 반복은 추가하지 않았다.
+
+이 보고 뒤 개인값 검사·HEJO_PYTHON 지정 훅·diff를 실행하고 소유 파일 다섯 개만 `git commit --only`로 기록한다. 실제 결과·전체 커밋·파일 목록·깨끗한 main·고정 public와 0.2.0 준비 ZIP 불변은 `.build/n48/final-checks.json`, `commit-result.json`, `final-verification.json`과 최종 result 보고를 대조한다. 후속 TASK-49는 이 결과의 계획 담당 검토 뒤다.
+
+
+## TASK-49 착수 보류: 운영 원본과 worktree 사본 불일치
+
+- **받은 지시·기준:** 보완 41·45·40·38, REQ-HF-43·AT-100. hejo 기준 `3c9a0f6d10c147c145b6d8c2b79d50895f39e5bf`, public 후보는 기존 f716bdf 고정이다. 운영 저장소 임시 worktree에서만 개발하고, 시작 사본이 운영 원본과 다르면 멈추라는 조건을 먼저 검사했다.
+- **확인 사실:** 별도 detached worktree의 team-kit 소스 656개와 운영 원본 657개를 비교했다. `lib/hermes_packs/cctv/now.py`·`watch.py` 두 본문이 다르고, 운영 원본에만 `lib/hermes_packs/cctv/tests/test_channel_messages.py`가 있다. 생성 캐시만 제외했으며 파일 종류·실행 비트·링크 대상도 비교했다. 지문과 기준 전체 커밋은 `.build/task49/initial-comparison.json`에 있다.
+- **멈춤 판단:** 작업 대상 reply/report_status와 다른 모듈의 차이지만, 인계의 시작 일치 조건에는 예외가 없다. 구현자가 무시·복사·sync·기준 커밋 변경으로 우회하지 않았다. 새 설계 결함으로 단정하지 않으며 운영 원본에 진행 중인 별도 작업이 있는지는 미확인이다.
+- **변경·미실행:** hejo 추적 변경은 이 보고와 copy-review의 착수 대조 기록뿐이다. 제품·시험·규격·운영 원본·운영 저장소 작업 파일은 바꾸지 않았다. 임시 worktree는 무변경 상태로 보존한다. TASK-49 구현 패치 `team-kit.patch`는 아직 없으며 team-kit 시험·airport-check·AT-100·foundation·앱·test_install·돌연변이·비교 화면은 미실행이다. 필요 인계 수준 2, 현 단계는 소스 대조만 수행하여 수준 1이다.
+- **다음 담당 판단:** 계획 담당과 사장이 별도 운영 변경의 반영 상태를 확인하고, 운영 원본과 일치하는 사본 기준 또는 불일치 처분을 확정한 뒤 재인계해야 한다. 실행 담당은 새 기준으로 첫 대조부터 확인하고 원본 독해→공개 메서드 필요성 판단→구현·시험을 진행한다. 현재 커밋·푸시·후속 TASK는 하지 않았다. 운영 홈 실행·재시작·설치 도우미·sync·공용 릴리스·public·GitHub 조회/쓰기·실제 발송·비밀 파일 열기 없음.
+
+보고 검사: 보고 파일 변경본의 Hermes venv `scripts/scan_private.py --repo .`, `HEJO_PYTHON` 지정 `sh githooks/pre-commit`, `git diff HEAD --check`는 각각 종료 0이었다. 임시 worktree의 `git status --porcelain` 출력은 없고 hejo 변경은 위 보고 두 파일뿐이며 HEAD·public 후보는 불변이다. 최종 로그·종료 코드는 `.build/task49/report-checks.json`과 `private.log`·`hook.log`·`diff.log`를 따른다.
+
+
+## TASK-49 재개·보류: 보완 47 해소 뒤 D49-01 맞춤 제출 계약
+
+- **시작 대조 해소:** hejo 기준 `6e316a241f962fb864ab2158a444182b7a0d10cc`. 보완 47의 변경·의존 범위 373개는 운영 원본과 일치해 착수 조건을 충족했다. 앞선 cctv now.py·watch.py·tests/test_channel_messages.py 불일치는 범위 밖으로 기록만 유지한다. 원본·worktree를 서로 덮지 않았다.
+- **원본 독해:** copy-review의 재개 표와 `.build/task49/source-map.json`에 지정 plugin 전체·report_status 전체, 체크리스트 controls/제출/이벤트 생성과 호출 의존을 기록했다. 아직 구현하지 않은 코드의 이식 완료를 주장하지 않는다.
+- **발견(D49-01):** REQ-HF-43.AC-01의 맞춤 submits를 Slack과 같은 의미로 보존할 때 현재 hejo checklist 계약에는 제출 선택이 없다. 같은 일정 체크도 원본 lv1/lv2/확인 단추는 서로 다른 답을 만들지만 현재 앱은 `선택: 일정`만 만든다. gate는 submits 필드를 거절하고 규격에도 허용되지 않는다. 제출 낱말을 items에 섞으면 전체 특례가 제출값을 지우고, 단일 제출 단추 둘을 함께 고를 수 있어 원문 의미를 조용히 바꾸게 된다.
+- **직접 재현:** `.build/task49/probe_checklist.py` 종료 0. 원본 rb.controls·checklist_blocks·checklist_update·synthetic_event의 6가지 답을 단언했고, 현재 제품 ThreadTools.answer를 분리한 Swift 컴파일/실행 각각 0으로 두 대안 반례를 확인했다. gate 실제 _checklist 함수도 임의 submits를 invalid_checklist로 거절했다. 근거 `checklist-probe.log`·`checklist-contract.json`. 대역/분리 실행 근거 수준 2이며 AT-100 제품 전체의 통과는 아니다.
+- **선택지·권고(미채택):** A는 checklist 선택 필드 submits와 앱의 제출 단추/답 생성 의미를 명세·AT에 추가하고 gate·앱 변경을 허용하는 방법이다. B는 맞춤 submits 변형만 명시된 글자 대체로 낮추되, 보여줄 선택·답 형식·빈 확인/건너뛰기와 asked→answered→closed 기대를 계획에서 정하는 방법이다. 원문 의미 보존에는 A를 권고한다. 공개 메서드 하나만 더하거나 wire 밖 임시 추적 표를 만들어 제출 선택을 추측하지 않았다.
+- **변경·미실행:** 이번 경계는 원본 대조·재현·보고뿐이다. hejo 제품·시험·규격·앱, 운영 원본, 임시 worktree 제품 파일은 무변경이다. `.build/task49/team-kit.patch`는 아직 없고 적용 dry-run·team-kit 전체 tests·airport-check·foundation·앱·test_install·고위험 돌연변이·화면 비교는 미실행이다. 부분 J01/J02 초안도 적용하지 않았다. TASK-49 전체의 필요한 증거 수준 2에는 미도달이다.
+- **인계:** 기존 보류 기록과 이번 결과를 보고 두 파일만의 git commit --only로 남긴다. public 후보 f716bdf 고정, 앱 사본·공용 릴리스·운영 홈·본체·ddots·원격은 바꾸지 않는다. sync·재시작·설치 도우미·실제 발송·비밀 파일 열기 없음. 다음은 계획 담당의 D49-01 계약 처분이며, 그 전 후속 TASK는 진행하지 않는다.
+
+
+## TASK-49 최종 구현·자체 시험(보완 48·47·41)
+
+- **기준·해소:** `afc019d56724621784d72a0137e0f92a4486becd` 위에서 D49-01을 승인된 ddots 방식으로 해소했다. 기존 시작 보류·맞춤 제출 보류 기록은 보존한다. 재개 직전 변경/의존 373개 일치. 범위 밖 `cctv/now.py`·`watch.py`·`tests/test_channel_messages.py` 차이는 이전 목록대로이며 이번 패치에 없다.
+- **책임·파일:** 문에는 `gate/adapter.py` 공개 조회 메서드와 `gate/tests/test_report_query.py`만 더했다. 현재 투영에서 자기 직원의 첫 글을 읽으며 기록장·캐시·통신 규격은 바꾸지 않는다. team-kit 변경은 임시 worktree의 `lib/hermes_reply/plugin.py`, `lib/hermes_team_services/report_status.py`, `tests/test_hejo_parity.py`, `tests/test_reply_hejo.py` 네 파일이고 결과 패치는 `.build/task49/team-kit.patch`다. 운영 저장소에는 커밋하지 않는다.
+- **J01:** Slack과 공통인 조각 결과 집계, 조각별 prepare, 같은 스레드·마지막 성공 id/이전 id 목록, 중간 실패 후 다음 조각 시도/partial_overflow를 구현했다. interim·expect_edits·열린 흐름은 한 글로 보낸다. 새 글의 스레드 id와 흐름·질문 추적은 기존 어댑터별 한도 2048의 힌트를 확장하며 영구 원본을 추가하지 않는다.
+- **J02:** 공식 현재 턴의 소유자·프로필·대화·세션이 맞는 hejo 도구 실행만 현재 연결로 보낸다. 첫 직원 글에 pending/failed→asked, partial→answered, done/declined→closed 및 제목 🔴/🟡/🟢를 적용한다. 단추는 부분 상태에서 id까지 보존하고 종결 때 비운다. 상태 안내 줄·시각·note는 보이지 않는다. 공개 어댑터 조회·edit_message·set_reply_state만 쓰며 gate 내부 import는 없다. 기존 Slack handle/repaint는 유지한다.
+- **J03:** 일반 체크리스트는 items·빈 selected·can_skip=true, 맞춤 제출 변형은 체크 항목만·빈 selected·can_skip=false다. 맞춤 제출 낱말은 실제 hejo 프레임 어느 곳에도 없다. 앱의 선택/전체/건너뛰기 답을 해당 직원·스레드의 asked→answered→closed로 연결했다. 스레드 없는 첫 글도 답 추적을 검증했다. usage_ledger의 hejo 제외를 고정했다.
+- **수락·회귀(최종 변경본):** 집중 시험 154 passed. worktree team-kit tests 전체 4878 passed·3 skipped·58 subtests passed. `./airport-check --snapshot <임시 worktree>` 종료 0, boundary 382·document 0·compartments 0이며 기준선은 바꾸지 않았다. cctv 범위 밖 차이로 인한 실패는 없었다. hejo foundation9_runner 전체 종료 0, 235 passed 및 가짜 Hermes·AppKit·루프백 통신 APP_TEST_OK. test_install.py도 이 전체 검사에 포함됐다. `.build/task49/frozen-progress.json` 세 행 모두 exitCode=0·inputsUnchanged=true, 입력 721개 불변이다. runner는 기존 foundation9_runner의 team-kit 라이브러리 경로만 worktree로 지정한 격리 사본이다. Hermes venv에 설치하지 않았다.
+- **기존 시험 처분:** test_reply_hejo의 65537자 실패 기대는 TASK-48의 바이트 나누기 이후 유효하지 않았다. 실패 보냄이 answered를 닫지 않는 기존 단언은 그대로 두고, 임시 기록장 append 실패를 직접 주입했다. 수락 문서의 기대 완화는 없다. 보완 48이 지정한 일반 skip=true·맞춤 skip=false/제출 낱말 미전송 두 경우를 새 AT-100 매핑 시험으로 고정했다. 초기 시험의 fixture 호출 착오는 공개 메서드/공식 session_context 실제 시그니처에 맞게 바로잡았다.
+- **돌연변이:** 자기 직원 필터 제거와 맞춤 can_skip 판정 제거 사본은 각각 baseline 0·mutation 1로 검출했다. 원본 불변을 확인했다. `.build/task49/mutations.json`, query-owner/custom-skip 로그 참조.
+- **같은 상태 비교:** ddots의 실제 파서·checklistAnswer와 제품 ThreadTools.answer를 분리 컴파일/실행하고 같은 가짜 입력의 실제 hejo 프레임을 비교했다. 비교 시험 1 passed, Swift 컴파일·실행 각각 0, DDOTS_HEJO_CONTROL_PARITY_PASS. `.build/task49/parity-comparison.json`·comparison.log. 새 화면/레이아웃 변경이 없어 GUI 캡처는 만들지 않았다. 운영 앱 전체·실제 서버·Slack 비교를 주장하지 않는다.
+- **패치 적용성:** 운영 원본을 임시 디렉터리에 cp -R로 복사한 뒤 patch --dry-run -p1 종료 0. 네 파일 모두 적용 가능했고 운영 원본에는 적용하지 않았다. `.build/task49/patch-dry-run.json`·patch-dry-run.log. 배포 때는 이 패치와 문 공개 메서드 커밋이 함께 필요하다.
+- **증거·남은 범위:** tasks.md의 최종 요구 수준은 일반·3이다. 이번 구현/대역 통합 도달 수준은 2이며 실제 운영 원본 교체·서버 재시작 후 상태 보고는 계획 담당+사장의 승인된 운영 단계에 남는다. 기존 2048개 힌트는 프로세스 수명 추적이므로 재시작 뒤 답 추적 복구 실물도 검토 대상이다. 현재 어댑터·앱·통신 계약의 확장은 공개 조회 메서드 외에 없다.
+- **최종 확인·인계:** 보고 추가 뒤 개인값·HEJO_PYTHON 지정 훅·hejo/worktree diff 검사를 실행하고 `.build/task49/final-checks.json`에 실제 결과를 남긴다. hejo 소유 네 파일만 git commit --only로 기록한다. 운영 원본·본체·ddots·운영 저장소 작업 파일·공용 릴리스·앱 사본·public·원격은 바꾸지 않는다. sync·재시작·설치 도우미 운영 실행·실제 발송·GitHub 조회/쓰기·비밀 파일 열기 없음. 최종 커밋/패치 지문·원본 보존은 `.build/task49/final-verification.json`에서 확인한다. 다음은 계획 담당 검토이며 TASK-36 이후는 아직 시작하지 않았다.
+
+## TASK-36 착수 대조·부분 초안 — D36-01(A07 통신 계약 공백) 보류
+
+- 기준: `05cc1fba76bd2df65038ae80174599c5635679f5`, 보완 38·49와 대조표 2판 §A·§0-4 2.1판. TASK-49 완료 근거는 재실행하지 않았다. 공통 규칙·현재 인계·실제 깨끗한 main을 대조한 뒤 시작했다.
+- 원래 자리: 읽음·종·확인·체크는 기존 MemberState 키, 스레드 상태는 기록장 투영에서 계산, 마지막 방은 기존 LocalSettings의 Mac 화면 설정, 표시는 기존 AppKit 카드·단추다. 새 영구 자료 원본은 만들지 않았다.
+- 작성한 초안: 처음 동기화의 과거 읽음, 방 진입 때 종 스레드 제외, 처음 message seq·생각 줄 제외, 보낸 뒤 읽음, 텍스트 승인 정규식·기본 단추·상태 막대·질문 기여 순서, 마지막 방, 별명·본문 revision별 체크·내 글 색을 기존 경로에 연결했다. `answered`는 사장 답을 받고 처리 중인 원래 차례 뜻이므로 ddots working(노랑), closed는 종결(초록)에 대응시켰다.
+- 기존 시험의 명시적 대체: A03에 따라 편집 뒤 unread 증가 단정을 0으로, V01에 따라 처리 중 조용한 종 단정을 없음으로 바꾼 초안을 보존했다. A11에 따라 직접방 메뉴 시험은 방을 명시적으로 고르는 준비를 추가했다. 기존 AT 문서의 기준·입력은 바꾸지 않았다.
+
+### D36-01 사실과 결정이 필요한 범위
+
+A07의 원본은 한 스레드에 여러 요청이 있을 때 어느 요청에 단추로 답했는지 구분한다. 근거는 ddots `SlackPanel.swift`의 answerHermes·onClickSend, `SlackBridge.swift`의 post(clickedPost:), `SlackThreads.swift`의 clickBlocks·answers·pendingPosts다. 클릭 대상이 있으면 그 요청만, 없는 직접 쓴 글이면 해당 글 앞 요청 모두를 답한 것으로 본다.
+
+현재 hejo는 `gate/adapter.py:560` click에서 대상 msg_id를 알고 Hermes 이벤트에는 넘기지만 `receive`의 사장 기록(642행 부근)에는 보존하지 않는다. `gate/journal.py:165` public·page 및 `schemas/hejo-wire-v1.json` message에도 대상 필드가 없다. 앱은 state(A=answered), B=asked 뒤의 사장 '승인'이 A 버튼 클릭인지 직접 쓴 글인지 재현만으로 구별할 수 없다. state 변화의 인접 순서로 추정하면 report_status 같은 독립 상태 갱신·다른 Mac·재접속 순서에서 다른 뜻을 만들므로 채택하지 않았다.
+
+- 실제 어댑터 탐침: 요청 A·B 생성, A만 answered로 바꾸는 허용 클릭 callback, A 단추 클릭. Hermes raw 이벤트에는 A가 있지만 앱용 사장 기록에는 대상 필드 없음, B는 asked 유지. 대상 필드를 덧붙이면 현행 스키마 거절. `.build/task36/button-target-boundary.json`, `.build/foundation9-task36-boundary.log`.
+- 원본 함수 분리 실행: A=working·B=asking 뒤 같은 사장 본문 '승인'. 직접 쓴 답이면 pending=[], A 대상 클릭이면 pending=[B]. 원본 함수는 변경하지 않고 가짜 메시지·스레드 타입만 제공했다. `.build/task36/target-comparison.json`, `target-run.log`.
+- 판단 요청: 기록·재현·통신에서 대상 요청 id를 선택적으로 보존·전달하는 계약과 옛 앱/문 호환을 계획 담당이 정해 주면 A07을 원본대로 이식할 수 있다. 권고는 이 계약을 명시하는 것이다. 여러 요청을 모두 답한 것으로 취급하는 차이는 원본 동등 동작이 아니므로 사장 선택 없이는 적용하지 않는다. 구현자가 규격을 바꾸지 않았다.
+
+### 실제 검증·현재 상태
+
+- `python3 .build/task36/focused.py`: 컴파일 0·집중 실행 0(`AT-HF-87 APP PASS`). 단일 요청·읽음·본문 승인·색·체크·별명·마지막 방의 초안 시험이다. 새로 발견한 항목별 대상 구분은 포함하지 않아 TASK-36 수락 완료 근거로 쓰지 않는다. 로그 `focused-compile.log`, `focused-run.log`, `focused.json`.
+- 앱 전체 1차: 종료 1, 편집 시 unread를 다시 늘리는 기존 단정. 앱 전체 2차: 종료 1, 첫 선택을 첫 직원으로 가정한 기존 메뉴 단정. 위에서 적은 명시적 대체만 초안에 반영했다. 그 뒤 앱 전체 재실행·foundation 전체·test_install·돌연변이·원본과 같은 상태 화면 대조는 미실행이다. 집중 실행에서 만든 PNG도 원본 비교 통과 증거로 쓰지 않는다.
+- 진단 시험 최초 실행은 Journal.replay 인자 사용 오류로 종료 1, 실제 page(0) 경로로 고친 재실행은 종료 0·1 passed다. 이는 제품 변경이 아닌 계약 탐침이다. 원본 함수 탐침 컴파일·실행 각각 0.
+- A07을 보류했고, 나머지 행의 초안 14개를 `.build/task36/draft/`·`draft-files.json`·`draft.patch`에 보존했다. 보존 사본과 지문 대조 뒤 제품 파일은 착수 HEAD로 복구했다. 보고 두 파일만 미커밋 변경이며 새 커밋은 없다. 필요/도달 증거 수준은 2/1이다. 후속 TASK는 미착수다.
+- 운영 홈·비밀 파일·본체·ddots·운영 저장소 수정, 재시작·운영 설치·실제 발송·GitHub 조회/쓰기·public·공용 릴리스·앱 사본 변경은 하지 않았다. 공개 후보는 고정값 그대로다. 이 보류는 푸시와 무관하다.
+
+보고 변경본의 개인값 검사·HEJO_PYTHON 지정 pre-commit·diff 검사와 최종 파일 범위 확인은 `.build/task36/report-checks.json`에 실제 종료 코드로 기록한다. 이 검사는 복구 뒤의 보고 변경본 검사이며 제품 수락 시험을 대신하지 않는다.
+
+
+## TASK-36 최종 구현·자체 시험 — 보완 50 D36-01 해소
+
+- **기준·초안:** 기준은 `a7cae0ce0a1898afc400843b3655f55f0a9c4bdd`다. 기존 D36-01 보류·독해 기록을 보존했다. 보존한 14개 초안은 manifest 지문과 대조하고, 이전 기준에서 제품 차이가 없음을 확인해 복원했다. 기존 TASK 완료 검사를 반복하지 않았다.
+- **원본 자리·구현:** 읽음·종·확인·체크는 기존 MemberState 키, 요청/답/상태는 기록장 투영, 마지막 방은 LocalSettings의 Mac 화면 설정을 쓴다. 처음 보는 방의 과거 글만 처음 seq로 읽고, 빈 방은 read:0을 남겨 나중 글을 재접속이 지우지 않게 한다. 방 진입 때 종 스레드는 제외하며, 편집/state/생각 줄을 새 글로 세지 않는다. 전송 성공 뒤 읽음을 연결했다. 새 영구 원본은 없다.
+- **A05~16:** 원본 승인 정규식·직접 답 낱말·요청별 대기·기본 네 단추·누를 수 없음 안내, 알림 기여 순서, 상태 색을 이식했다. answered는 사장 답을 받고 처리 중인 노랑, asked는 빨강, closed는 초록이며 생성된 “처리 완료” 줄은 없다. 받은 확인 단추는 그 단추 답을 전송하고 기본 추론 확인만 로컬 처리한다. 별명 조회는 공백·하이픈·밑줄을 무시한다. 본문 revision/문자 위치별 체크와 내 글의 지정 색을 보존하며, 옛 화면의 체크 행동도 그 화면 본문에만 적용한다. AppKit 기호·단추 기하도 원본과 대조했다.
+- **D36-01·통신:** 승인된 wire v1 message 선택 필드 answer_to만 추가했다. reply 클릭의 요청 id를 사장 message 기록에 남기고 Journal/page/sync가 그대로 전달한다. send에는 필드가 없으며 위조 입력은 거절된다. 앱은 대상이 없으면 앞 요청 모두, 있으면 해당 요청만 답한 것으로 계산한다. A가 working/B가 asking일 때 A 버튼 “승인”은 B를 남기고, 같은 말을 직접 쓰면 B도 답해진다. 빈 캐시 재접속에서도 같다.
+- **호환성:** 최종 app-tests 빌드와 현재 문·실제 옛 문 aeaa652를 각각 임시 홈의 실제 루프백으로 시험해 종료 0이다. 옛 문의 필드 없음은 승인된 직접 입력 취급이며 오류가 없다. 기존 a7cae0c의 GateClient·LocalStore·ConversationModel 소스를 따로 컴파일해 새 문의 실제 answer_to 포함 기록을 읽었고 컴파일/실행 모두 0이다. 운영 홈·통신의 되돌림 연결은 만들지 않았다. 근거 `.build/task36/compatibility.json`, `compatibility-final.log`, `old-app.json`, `old-app-final.log`.
+- **최종 전체·반복:** `python3 .build/task36/frozen.py` 종료 0. 내부 foundation9_runner hejo는 236 passed 및 앱·가짜 Hermes·루프백 통신을 통과했다. tests/acceptance/test_install.py도 이 전체 검사에 포함됐다. 이후 같은 최종 빌드의 앱 단위 시험과 여덟 루프백 시나리오를 세 차례 반복했고 모두 종료 0이다. 전체 1행+앱 3행의 inputsUnchanged=true, 검증 입력 159개 불변이다. 로그 `frozen-progress.json`, `final-foundation.log`, `app-repeat-01.log`~`03.log`.
+- **시험 처분:** 이전의 편집 unread 증가·첫 직원 기본 선택·edit/state까지 포함한 읽음 seq 단정은 대조표 A03·A11과 원본으로 명시적으로 대체했다. 평범한 글 수신 뒤 읽음은 그 방에 머문 채 수신을 확인한 다음 이동하도록 시험 순서를 고쳤다. 초기 전체 실패는 이 옛 단정/준비 순서였고, 마지막 본문 revision 보강 도중 완료한 실행은 입력 불변이 아니므로 최종 근거에서 제외했다. 최종 소스로 전체/반복을 다시 완료한 결과가 위 근거다. 수락 문서 기대값은 완화하지 않았다.
+- **돌연변이:** answer_to 기록을 제거한 임시 사본은 baseline 종료 0, 돌연변이 종료 1로 요청 대상 보존 단언에 걸렸다. 원본 불변. `.build/task36/mutation.json`, `mutation-missing-target.log`. 이 근거의 gate 구현·시험은 최종 소스와 같다.
+- **화면·서명:** 최종 빌드 `--task36-capture`와 원본 NativeThreadCard·ReplyActionIcon·ConversationRules·slackApproval 분리 실행은 각각 종료 0이다. 같은 가짜 상태·14pt/파랑·밝은 화면의 PNG 두 개를 evidence로 보존했다. 유효한 620×560 PNG와 빨강/노랑/초록 막대를 확인하고 직접 표시를 대조했다. 실제 hejo Content 조립 대 원본 조각 비교이며 운영 앱 전체·픽셀 동일 비교는 아니다. 세부 범위는 `evidence/HEJO-FOUNDATION/TASK-36.md`, 지문/실행은 `.build/task36/post-checks.json`, `image-check.json`. `codesign --verify --deep --strict app/.build/hejo.app`도 종료 0이다.
+- **수준·인계:** 필요한/도달 증거 수준은 2/2다. 실제 서버·두 Mac·실물 입력 결합과 최종 제품 판정은 별도 운영/검토 단계에 남는다. 최종 보고 뒤 개인값·HEJO_PYTHON 지정 훅·diff 검사를 실행하고 소유 파일만 git commit --only로 기록한다. 실제 종료 코드·전체 커밋·입력/캡처 바이트·깨끗한 main은 `.build/task36/final-checks.json`, `commit-result.json`, `final-verification.json`에서 확인한다.
+- **변경 금지 보존:** public 후보 f716bdf 고정, 앱 사본·공용 릴리스·운영 홈·본체·ddots·운영 저장소·원격을 바꾸지 않았다. 재시작·운영 설치·sync·실제 발송·GitHub 조회/쓰기·비밀 파일 열기·키 출력은 없다. TASK-37 이후는 아직 시작하지 않았으며 계획 담당 검토 뒤 이어간다.
+
+
+## TASK-37 진행 기록 — 작성기·전송 경계(보완 51·38)
+
+기준은 f1dbde2이며 TASK-36 판정은 유지한다. 작성기 값은 기존 Controller의 초안/실패/전송 메모리, 확정 글은 기존 기록장·복제본, 읽음은 기존 회원 상태다. 새 영구 원본·통신 필드는 없다. 원본 독해와 B05/N36-01의 코드 대조 사실은 copy-review에 이어 적었다.
+
+초안 자리는 auto/new/thread로 유지하고, 새 글의 실제 전송 UUID와 구분한다. 확인 전 글·첨부는 pending 메모리에서 기존 Post.pending으로 보이며, 확인되면 기록장 글로 바뀐다. 이후 입력을 늦은 확인이 지우지 않고, 실패 글은 원래 연결·보던 방·초안 자리와 함께 남는다. 자동 답글 대상의 선택은 읽음 처리와 분리한다. 날짜 이름의 옛 범례 상수는 제거하되 무조건 적용되던 allowed 본문 맥락은 결과 불변 지시대로 보존한다.
+
+아직 최종 완료 근거가 아니다. 초기 전체 검사의 gate/수락 236개는 통과했으나 앱의 연결 전 아일랜드 오류 표시 누락과 마지막 방 숨김 뒤 선택 재생성 회귀를 발견해 수정했다. 그 실행은 최종 통과로 쓰지 않는다. 새 기본 진입 시험에는 앞 경우에서 남긴 초안이 있어 자동 기본값보다 복원이 우선됐으며, 빈 자리를 남기는 준비로 바로잡았다. 기대값은 바꾸지 않았다. 현재 소스의 최종 전체·반복·돌연변이·같은 상태 캡처·개인값 검사는 계속 진행한다. 실제 명령/종료와 미완료는 추적하지 않는 .build/task37/checkpoint.json 및 로그에서 대조한다. 운영 자료·앱 사본·공용 릴리스·public·원격은 변경하지 않았다.
+
+
+## TASK-37 최종 구현·자체 시험 — 보완 51·38
+
+- **기준·책임 자리:** 부모는 f1dbde24efa1b136212864b11f9a712989b0b105다. 기존 독해/진행 기록을 보존했다. 대상·초안·실패·확인 전 글은 기존 ConversationController 메모리, 확정 글은 기존 기록장 복제본, 읽음은 MemberState다. 새 영구 원본·규격·문·Hermes 본체 변경은 없다.
+- **B01~06:** 홈을 제외한 기본 답글은 최근 활동 스레드의 직원 첫 글로 정한다. 명시적 답글도 최근 활동을 기준으로 고르며, 새 글 모드라도 열린 작업 스레드로 보낸다. auto/new/thread 초안 자리는 연결별 메모리에 남기고 실제 새 글 UUID와 구분한다. 사라진 대상의 초안은 방의 현재 자리로 옮긴다. 자동 대상 변경은 종이 울린 요청을 읽음 처리하지 않고 명시적 누름만 읽는다.
+- **전송·실패:** pending을 실제 카드에 0.6 흐림·“보내는 중”으로 먼저 보이며 작성기를 즉시 비운다. 확인은 그 글만 교체하고 후속 입력을 지우지 않는다. 실패는 원래 주소·방·자리·글·파일·얼굴을 보존한다. 되살리기는 원래 방 확인 후 정확한 자리에 합친다. 새 글/홈 글의 늦은 거절, 다른 방에서의 명시적 재전송, 재접속 뒤 확인 없는 글 보존을 실제 루프백으로 검증했다. 자동 재전송은 없다. 전송 중 표시는 현재 연결의 실제 pending으로 계산해 새 글 UUID·다른 방 보기에도 맞춘다.
+- **B07~18:** queue 직원의 끼어들기 표시는 생략한다. 표시는 답들 뒤·작업 줄 앞의 왼쪽이다. 홈 “새 대화”·빈칸 안내·실패 문구, 원본 모드 선택/접근성, 얼굴 24pt+각4pt·2pt 간격·가로 스크롤, 홈의 개별 단추·30pt 고리·0.5 흐림·0.24초 전환(동작 줄이기는 즉시)을 연결했다. 파일은 모두 크기를 확인한 뒤 하나씩 읽고 이름 있는 오류를 보인다. 고르기 창 문구/첨부 버튼/modalPanel/기본 저장 폴더와 고르는 동안 대화 접힘 방지를 연결했다. 첨부 50MiB·통신 64KiB·고정 채널/대표 직원 계약은 유지한다.
+- **원본 대조 판단:** B05의 replyInterrupted 생산자는 별도 Hermes 기록 보기의 SQL이고 Slack 방 경로는 기본 false다. 기존 그리기는 보존하고 새 wire 이벤트나 추정을 만들지 않았다. N36-01은 날짜 분기·상수를 지우되 실제로 날짜와 무관한 allowed 범례 본문을 유지한다. 원본/제품 분리 실행 compile/run 각각 0, valid-date 범례 판정 true/true다(`policy-probe.json`, `policy-comparison.json`). 자세한 근거는 copy-review에 이어 적었다.
+- **최종 전체·반복:** `python3 .build/task37/frozen.py` 종료 0. foundation9_runner hejo는 236 passed(test_install 포함), 앱 전체 단위 시험·기존 통신 시나리오·AT-88 실제 루프백을 통과했다. 이어 같은 빌드의 TASK-37 앱 집중 시험과 다섯 전송 경우(delay/reject/unconfirmed/new-reject/home-reject)를 세 차례 반복해 모두 종료 0이다. 앱 전체를 세 번 반복했다고 세지 않는다. 전체 1행+집중3행 모두 inputsUnchanged=true, 입력 164개 불변. `frozen-progress.json`, `final-foundation.log`, `app-focused-01.log`~`03.log`.
+- **실패 후 처리:** 초기 아일랜드 연결 전 오류·마지막 방 숨김·다른 방 재전송 표시 회귀를 제품 책임 자리에서 수정했다. 기존 AT55 재전송 단정은 유지했다. queue 표시 단정만 B07 원문대로 바꾸고, WorkspaceTests는 고정 초안 UUID 대신 실제 확인 글의 UUID를 얻도록 준비를 바꿨다. 캡처 연결이 빈 방 읽음을 먼저 seed하던 준비 문제는 최초 빈 명부로 연결한 뒤 합성 이력을 넣도록 고쳤으며, 그 최종 시험 파일까지 포함해 전체/반복을 다시 완료했다. 옛 실패·이전 통과 로그는 first-full/second-full/third-full-failure/pre-capture-fixture-final에 보존하며 최종 통과와 구분한다.
+- **돌연변이:** 새 글에 고정 초안 UUID를 그대로 보내도록 바꾼 임시 소스는 compile 0·시험 1로 `AT88 new-post draft place stays fixed while wire gets a separate UUID`에 걸렸다. 정상 경로는 최종 전체/반복 0이고 원본 소스는 불변이다. `mutation.json`, `mutation-new-place.log`.
+- **화면·N36-02·서명:** `post_checks.py` 종료 0. 최종 빌드의 TASK-36 PNG는 실제 연결(canSend=true)로 교체했다. TASK-37은 같은 가짜 상태의 원본 조각과 실제 AppKit 카드/작성기 줄을 비교한다. 유효한 620×560 한 개·620×240 두 개·592×36 두 개를 직접 표시 확인했다. 제품 줄의 투명 배경은 흰 캔버스로 source-over 내보냈으며 내용/기하 보정은 없다. 선택 캡슐의 SwiftUI 비활성 농도와 끝 여백 2pt 차이를 TASK-37.md에 명시했다. 운영 앱 전체·픽셀 동일 비교가 아니다. codesign --verify --deep --strict도 0이다. `post-checks.json`, `capture-product.json`, `reference.json`, `image-check.json`.
+- **수준·금지 보존·인계:** 필요/도달 수준은 2/2다. 물리 입력기·실제 서버·두 Mac 결합은 운영 수락에 남는다. public f716bdf·운영 홈·앱 사본·공용 릴리스·본체·ddots·운영 저장소·원격을 바꾸지 않았고 GitHub 조회·push·실제 발송·비밀 파일 열기/키 출력은 없다. 최종 보고 뒤 개인값/훅/diff 검사와 소유 파일만 git commit --only를 수행한다. 실제 전체 커밋·파일 범위·입력/캡처 일치·깨끗한 main은 `final-checks.json`, `commit-result.json`, `final-verification.json`에 기록한다. TASK-38 이후는 계획 담당 검토 뒤 진행한다.
+
+
+## TASK-38 — 구현·자체검증 결과(보완 38·52)
+
+기준 7c8e953에서 기존 SidebarLayout·ConversationModel/MemberState·ConversationView의 투영을 확장한다. 화면 임시 행(검색·틈·글 결과)과 구획별 CAShapeLayer는 조회용이며 새 영구 원본이 아니다. NSTableView 안정 id 차이 갱신을 넣고 직접 reloadData 경로를 제거했다. 접힌 구획의 사진/얼굴·메뉴 사진 항목과 별도 검색 결과 패널을 원본 자리에서 대체했다. 원본 독해와 유지 차이는 copy-review의 TASK-38 표에 있다. 구현과 아래 자체 검증을 마쳤으며 최종 판정은 계획 담당 검토로 넘긴다. 운영 홈·공용 릴리스·앱 사본·본체·ddots·원격·public은 변경하지 않았다.
+
+
+최종 변경은 작성기/전송 원본을 늘리지 않고 관제 화면의 사이드바 자리에서 마쳤다. 글자·얼굴·핀/종·수·구획/레일/선/끌기 강조·맨 아래 띠·검색칸과 글 결과·메뉴/대화상자를 원문 값으로 옮겼다. 구획의 얼굴/사진·사진 메뉴, 홈의 직원 제외 메뉴, 빈 곳 메뉴, 1:1의 대체된 메뉴와 별도 검색 결과 패널은 제거했다. 1:1 사진·대표/직원 빼기·기본 받을 직원·DM 이름·로고는 사장 계약을 유지한다. 고정 홈은 기존 허브 배치에서 그 방의 숨김/알림 끔을 풀고 일반 목록에서 제외하며, 사진 없는 선택 방에 기본 홈 사진을 빌려 주지 않는다. 새 기록 종류·wire·영구 원본·문 변경은 없다.
+
+행 차이는 안정 id의 NSTableView insert/remove(effectFade)/move로 처리한다. 직접 reloadData 호출은 0이다. 구획마다 연속 CAShapeLayer 하나를 두고 같은 0.24 easeInEaseOut로 레일·색을 보간한다. 선택은 두 셀의 opacity spring(response 0.34, damping 0.88)이며 위치를 건너 움직이지 않는다. 동작 줄이기는 즉시다. 화면에 보이는 행의 presentation 좌표를 클릭/메뉴/끌기 대상으로 쓰며, 전환을 거꾸로 바꿔도 기존 셀과 현재 위치를 재사용한다.
+
+검증 변경본은 최종 verification-inputs.json의 166개 입력이다. python3 .build/task38/frozen.py 종료 0: foundation9_runner hejo 236 passed(test_install 포함), 앱 전체·기존 통신 시험 통과, AT-89를 3회 반복해 모두 종료 0·입력 불변. 로그는 .build/task38/frozen-progress.json, final-foundation.log, app-focused-01.log~03.log다. 중간 옛 시험 실패 2건과 소스 대조 보강을 위한 미완료 실행은 별도 로그로 보존했으며 최종 통과 근거에 섞지 않았다. 이전 직원 제외 준비는 실제 한 명 명부로, 보관 복원 준비는 고정 홈이 아닌 일반 방으로 바꿔 각 본래 기능 단정을 유지했다.
+
+python3 .build/task38/mutation.py compile/verify 각각 종료 0. 같은 소스의 baseline은 0, insertRows를 slideDown으로 바꾼 임시 사본은 컴파일 0·시험 1로 ‘AT89 inserted row fades at final y without slide or clipping’에 검출됐다. 원본 입력은 불변이다(.build/task38/mutation.json).
+
+python3 .build/task38/post_checks.py 종료 0. 최종 빌드의 실제 가짜 루프백 연결 캡처·원본 분리 그리기·PNG 유효성/전체 픽셀 불투명/내용 검사·codesign --verify --deep --strict 모두 0이다. 화면은 evidence/HEJO-FOUNDATION/TASK-38.md와 8개 PNG다. 필요한/도달 증거 수준은 2/2다. 원본과 정적 행/얼굴/표식/선택/레일/띠 배치를 직접 비교했으며 네이티브 글꼴 획과 강조색의 최종 합성 농도 차이는 남는다. 픽셀 동일성·운영 앱 전체 비교를 주장하지 않는다. 원본 검색 TextField의 정적 대체 범위는 화면 문서와 copy-review에 명시했다. 물리 입력기·VoiceOver 실사용·실제 서버·두 Mac 결합은 운영 수락에 남는다.
+
+이 결과 뒤 개인값 검사·pre-commit·diff와 소유 파일만의 git commit --only, 커밋/검증 입력/PNG 지문·깨끗한 main·고정 public 대조를 진행하며 실제 커밋은 .build/task38/commit-result.json과 final-verification.json에 남긴다. 앱 사본/공용 릴리스/public/운영 홈/운영 저장소/본체/ddots 변경, 실제 발송, 비밀 파일 열기, GitHub 조회/쓰기와 push는 하지 않았다. TASK-39 이후는 미착수다.
+
+
+## TASK-39 1차: D39-01로 보류
+
+- 목표: 보완 38·52·53의 카드·글·파일 이식(REQ-HF-36.AC-04, AT-90), N37-01·N38-01 포함. 기존 카드 엔진·기록장·회원 상태를 재사용하고 새 영구 원본을 두지 않는 범위다.
+- 발견: 대조표 D11의 삭제된 사진/파일은 ddots가 Slack의 명시 tombstone/is_deleted를 읽어서 표시한다. hejo wire file에는 해당 정보가 없고 추가 필드는 스키마에 거절된다. 미등록 첨부와 기록 뒤 파일 유실은 같은 404이며, 후자는 기존 message 파일 정보가 page에 그대로 남는다. 스레드 삭제는 글 전체를 delete로 치환한다. 추정으로 삭제 상태를 만들면 파일 소실·권한 문제를 삭제로 오인할 수 있다.
+- 판단 요청: (권고) D11의 명시 삭제 표식은 현재 hejo에 생산자가 없음을 기록하고 적용 범위를 정한다. 또는 계획 담당이 파일 삭제 표식의 생산·재현·보안 계약을 따로 승인한다. 실행 담당은 wire·문·기록장을 바꾸지 않았다.
+- 실제 변경: 제품 초안 4개를 로컬 `.build/task39/draft/`에 보존(팔레트·링크/스트림 표시·얼굴 바탕·본문 분할)하고 제품은 착수 HEAD로 복구했다. 추적 변경은 이 보고와 copy-review뿐이다. N37-01·N38-01 포함 나머지 구현은 미완료다.
+- 검증: 임시 HERMES_HOME의 실제 문·HTTP·기록장·스키마 경계 시험 1건 통과. 삭제 표식 거절·404 동일·유실 뒤 page 불변·스레드 삭제 시 글 전체 치환을 확인했다. 전체 foundation/test_install·앱 반복·돌연변이·유효한 원본/제품 캡처 비교·제품 커밋은 미실행이다. 필요 증거 수준 2, 전체 도달 수준 1. 이번 경계 재현이 AT-90 완료 근거는 아니다. 로그는 로컬 `.build/foundation9-task39-file-boundary.log`, `.build/task39/file-boundary.json`.
+- 미수행: 운영 홈·앱 사본·공용 릴리스·본체·ddots·운영 저장소·원격 변경, GitHub 조회, push, 실제 발송, 비밀 파일 열기. public 후보는 그대로다. 계획 담당이 D39-01을 정한 뒤 같은 TASK를 재개한다.
+
+
+## TASK-39 최종 구현·자체 검증
+
+- 기준은 보완 54·53·52·38과 대조표 §D·2.1판 정정이다. 부모는 `d7d12f9f5490b35748dcab0ff81b86f08efe337e`. D39-01 보류 기록을 보존하고 승인된 제외를 적용했다. wire·문·기록장·새 영구 원본 변경은 없다. 기존 Model/Controller·NativeThreadCard·TextLayout·MemberState를 재사용했다.
+- 카드 내용 조립을 글 머리→답 단추→자세한 내용으로 맞추고 분기·삭제 조건, quiet/accent/orange/red, 복사 머리 #/@·접근성 이름·단추 줄 누름 차단, 날짜·빈 방·불러오는 중 줄, 인용 색·자동 링크·obsidian·대비 계산을 연결했다.
+- 파일 타일·실제 404 실패·비율 유지 확대/중앙 정렬·크기/PDF·처리 중/손 커서, 별도 빼기 단추인 첨부 칩, 오른쪽 칸 전체 끌기 강조·Divider·info 안내·작성기 안 실패/보러 가기, 넓음/좁음 체크리스트를 native 보기로 옮겼다. AppKit 제어의 미세한 베젤·기준선 차이는 화면 문서에 명시했다.
+- 작업 중 얼굴 34·이름/접근성·생각 중, 두 줄 활동/quiet/1.8초 shimmer·중지/되돌리기, 표시 전용 StreamReveal·uniformSize·최종 본문의 bounded reveal·따라 읽던 답 펼침 유지·6pt 행 높이 양보를 연결했다. 별도 작성 중 1.6초와 커서는 보존했다. 사진 얼굴 바탕 색을 제거했다.
+- N37-01 카드 단추와 N38-01 그림 intrinsic 크기·quiet·방 추가 8pt 간격을 같은 변경에 포함했다. 기존 시험의 대체된 보기 구조·시간/스트림 가정만 copy-review의 원문 근거대로 갱신하고 전송·초안·커서·체크리스트 단언은 유지했다. AT-90 문서는 승인된 D04·404 정정만 반영했다.
+- 변경 자리는 app/Sources의 기존 보기·Controller와 표시 계산용 CardRendering.swift, 앱 회귀/수락 시험, 공식 AT-90 정정, copy-review/이 보고, evidence/HEJO-FOUNDATION/TASK-39.md와 PNG다. TASK-40 이후는 미착수이며 tasks.md 판정은 계획 담당이 갱신한다.
+
+검증 결과(최종 고정 입력):
+
+- `python3 .build/task39/frozen.py` 종료 0. 내부 `foundation9_runner.py hejo` 종료 0, 236 passed(test_install 포함)·앱 전체·통신 시나리오 통과. AT-90 앱 집중 3회 모두 종료 0·inputsUnchanged=true, 검증 입력 168개 불변. `.build/task39/frozen-progress.json`, `final-foundation.log`, `app-focused-01.log`~`03.log`.
+- `mutation.py compile`·`verify` 종료 0. 삭제 대상 조건을 제거한 사본은 컴파일 0·시험 1로 “AT90 no replies deletes only my post”에 검출, 정상 사본 0·제품 입력 불변. `.build/task39/mutation.json`.
+- `post_checks.py` 종료 0. 최종 빌드의 실제 가짜 루프백 연결 캡처·404 실패·원본 분리 실행·사이드바 보완 비교·PNG 8개 유효성·`codesign --verify --deep --strict` 각각 0. `.build/task39/post-checks.json`, `image-validation.log`, `static.json`. 원본 파일 불변·새 SwiftUI import 0·gate/schema 변경 0. 그림은 직접 표시해 비교했다.
+- 첫 appearance 중복 컴파일, 이전 시간/실패 줄 단정 실패, 사진 비율 마지막 보정 이전 실행은 `intermediate-*`에 보존하고 최종 통과와 구분했다. 삭제 표식 계약 경계 재현은 기존 기록을 재사용했다.
+
+필요/도달 인계 증거 수준은 2/2다. 캡처는 가짜 연결 상태의 실제 AppKit 조립과 원본 함수 분리 비교이며 원본/운영 앱 전체·픽셀 동일 비교가 아니다. 실제 서버·두 Mac·물리 입력기·VoiceOver·운영 수락은 남는다. 최종 보고 추가 뒤 개인값·HEJO_PYTHON 지정 훅·diff 검사를 하고 소유 파일만 별도 git commit --only로 기록한다. 실제 커밋·입력·그림 바이트 대조와 깨끗한 main 확인은 `.build/task39/final-verification.json`에 둔다. public 후보 `f716bdff38af3d8c2cb2cdf4502e080ecbecb2bc`는 유지한다. 운영 홈·앱 사본·공용 릴리스·운영 저장소·본체·ddots·원격 변경, GitHub 조회·push·실제 발송·비밀 파일 열기는 하지 않았다.
+
+
+## TASK-40 최종 구현·자체 검증
+
+- 받은 기준: 보완 38·55와 대조표 §E·V07·V15, 2.1판 E09·E14~17. 부모는 `2ab15395d537a074804f29237a34dcfaecf1b24c`. 일반 작업, 필요 증거 수준 2, 자체 구현·시험이며 최종 판정은 계획 담당에게 맡긴다. 하위 에이전트는 쓰지 않았다.
+- 기존 NativeThreadList의 무조건 마지막 행 이동을 가운데/끝 요청·120pt 바닥 따라가기·glide·keep·입력 취소로 교체했다. 0/0.15/0.45 요청과 0/0.06/0.2/0.4 보존 재관찰은 입력/요청 세대가 바뀌면 폐기한다. 휠 중 최신 표시 갱신은 0.25초, 연속 입력은 최대 2초까지 미룬다. 방 재진입은 가장 최근 활동으로 가고 크기 변경은 행 id/offset 또는 바닥을 보존한다. 기록·통신·읽음 원본은 그대로다.
+- flash는 accent 2·본문 0.18·둥근 8, 원래 1.6초/아일랜드 1.5초다. 검색어는 이 타이머와 분리해 해당 스레드를 접을 때까지 남긴다. 알림 막대 가로 스크롤·툴팁/접근성·quiet 화살표·위쪽 이동/opacity 0.24를 연결했다. A17 개수는 스레드당 하나인 기존 notices의 대표 글 수를 재사용한다.
+- 머리줄 오른쪽 단추 두 개를 없애고 기존 메뉴·⌘F로 연결했다. 홈 제목 2.1판 순서·단체방 기본 설명·끌기/문맥 메뉴 도움말, 평평한 검색 줄·닫기·첫 글 14 medium·실제 speaker·@/#/홈 이름·파일 노트 paperclip을 적용했다. 테마가 바뀌면 보조 글자/그림과 검색 상자 색도 다시 계산한다.
+- 모드 선택 색·바탕과 칩·알림은 같은 easeInOut 0.24, 홈 얼굴은 기존 ComposerFaces의 0.24를 재사용했다. 기존 PetController가 창 높이를 τ0.065로 추종한다. 더 보기 전 실측 높이·창 높이를 잠시 보유하고 늘어난 높이만 합산하며 접거나 수동 크기 조절하면 해제한다. 새 영구 원본·wire·문·기록장 변경은 없다. 날짜 비교는 기존 ThreadTools의 두 ISO 파서 자원만 잠금 아래 재사용하고, 표시 갱신 안의 알림 조회 결과는 한 번만 계산한다. 기존 fractional/whole/실패 결과를 동시 호출로 대조했으며 날짜 값 캐시는 없다.
+- N39-01은 원본 bordered 실제 크기와 비교해 native regular 버튼의 글꼴·intrinsic 폭·fixedSize를 적용했다. 원문 12pt 환경이 macOS bordered 기본 제어에서 실제 13pt/61×24·47×24·69×24가 되는 실측 근거와 차이는 copy-review에 있다. AT-90에 실제 항목·작성·건너뛰기 치수 단언을 추가했다.
+- 추가 시험은 ScrollTests.swift(AT-91)에 실제 native clip 좌표·중간 프레임·취소·지연·따라가기·자리 보존·요청 수·검색 강조/테마·모드/칩·긴 글/창 높이를 관찰한다. 수락 문서를 바꾸지 않았다. IslandTests의 옛 2.5pt 강조 단언은 명시적 V15 대체에 따라 2pt와 accent 결합 검사로 교체했으며 그 밖 단언은 유지했다.
+
+검증 결과(최종 고정 입력):
+- `python3 .build/task40/frozen.py` 종료 0. 내부 `foundation9_runner.py hejo` 종료 0, 236 passed(test_install 포함), 앱 전체·통신 시험 통과. AT-91 집중 3회 모두 0·inputsUnchanged=true. 검증 입력 169개 불변. `.build/task40/frozen-progress.json`, `final-foundation.log`, `app-focused-01.log`~`03.log`.
+- `mutation.py compile`·`verify` 종료 0. 가운데 이동을 바닥 이동으로 되돌린 사본은 컴파일 0·시험 1로 “AT91 jump centers the thread”에 검출, 정상 사본 0·제품 입력 불변. `.build/task40/mutation.json`.
+- `post_checks.py` 종료 0. 실제 가짜 루프백 연결의 최종 빌드 캡처·원본 함수 분리 실행·원본 glideStep/native 좌표 대조·PNG 10개 유효성·codesign deep strict 각각 0. `.build/task40/post-checks.json`, `scroll-comparison.json`, `image-validation.log`, `static.json`. 원본 불변·추가 SwiftUI import 0·gate/schema 변경 0. 그림은 라이트/다크로 직접 비교했다.
+- `event_probe.py` 종료 0. 같은 제품 소스의 실제 AppKit Space/화살표/Home/End/Page 키 9종·클릭·휠 진입 경로가 예약된 먼 이동을 취소했다. 휠의 실제 10pt 이동(30→20)은 유지됐다. `.build/task40/event-results.json`, `event-run.log`.
+- 단독 단체방 루프백의 지연은 단계 로그·프로세스 sample로 날짜 파서 반복 생성에 좁혔고, 수정 뒤 기존 8초/90초 기준으로 13개 전송 경우가 통과했다. `.build/task40/room-probe-result.json`, `room-probe-run.log`.
+- 앞선 집중 시도의 시험 초기 상태 오류·중간 렌더·테마 색 수정 전 중단 전체는 최종 근거가 아니다. 마지막 고정 소스의 위 결과만 인계한다. 운영 앱 전체·픽셀 동일 비교는 아니다. 원본 ScrollView는 ImageRenderer에 빈 화면이 나와 정적 같은 내용 틀로 바꾸고 TextField만 정적 글자로 대체했다. hejo 왼쪽 목록/아일랜드/작성기와 원본의 비교 대상 범위 차이, native 제어의 기준선·높이 차이는 evidence/HEJO-FOUNDATION/TASK-40.md에 명시했다.
+
+필요/도달 인계 증거 수준은 2/2다. 실제 서버·두 Mac·손 트랙패드/물리 한글 입력·VoiceOver와 운영 결합은 TASK-23에 남는다. TASK-41 이후는 미착수다. 최종 보고 추가 뒤 개인값·HEJO_PYTHON 훅·diff 검사, 소유 파일 git commit --only, 커밋 입력·그림 바이트 대조를 수행하고 실제 커밋은 `.build/task40/final-verification.json`에 둔다. public `f716bdff38af3d8c2cb2cdf4502e080ecbecb2bc`는 불변이다. 운영 홈·앱 사본·공용 릴리스·운영 저장소·Hermes 본체·ddots·원격 변경, GitHub 조회·push·실제 발송·비밀 파일 접근은 없다.
+
+
+## TASK-41 최종 구현·자체 검증
+
+보완 38·56의 §F·V08·V10·V14 및 F05·F06·F20~25, N40-01을 기존 AppKit 책임 자리에서 구현했다. PetController의 단일 배치에 원본 PetBubbleMotion을 연결하고 높이 추종도 합쳤다. 머리줄 끌기는 dragged(by:)와 재배치 보류로 높이를 유지하며 펫 끌기와 구별한다. 지니 흐림/바탕 합성·현재 진행도 반전·0.3 폭/0.06 덮개·0.8 추종, 커서·초기화·층·위치와 화면 변경을 연결했다.
+
+유리 말풍선·3초 표면/12초 내용·0.18 페이드·hoverArmed·승인 유지·버튼/문구·홈 행동·걷기·Zzz·졸기, 키 창/작성기·말풍선 대상·접기 정리·한글 키코드/조합 Esc·편집 메뉴·접근성을 연결했다. 실패 알림은 제거하고 인라인 답 실패의 기존 대상/초안/문제 줄은 보존했다. 검색 공용 강조는 systemYellow다. 새 영구 원본·wire·문·기록장·SwiftUI import는 없다. 대체된 옛 단정의 원문 근거는 copy-review에 적었다.
+
+최종 검증(입력 170개):
+
+- `python3 .build/task41/frozen.py` 종료 0. foundation9_runner hejo 236 passed(test_install 포함), 앱 전체/통신 통과. AT-92 세 번 모두 종료 0·inputsUnchanged=true. 로그 frozen-progress.json·final-foundation.log·app-focused-01~03.log.
+- `mutation.py compile`·`verify` 각각 종료 0. 반전 때 현재 진행도를 버리는 사본은 compile 0·시험 1, 정상 사본 0으로 검출했다. 원본 입력 불변. mutation.json.
+- `post_checks.py` 종료 0. 최종 고정 제품 입력의 native 보기 조립 캡처·원본 조각 실행·4개 PNG 유효성·독립 수치 대조·codesign deep/strict 통과, 원본 지문 불변·gate/schema 변경 0. 원시 캡처의 외관 범위 오류를 별도 조립으로 보완했고 제품 입력은 불변이다. 그림을 직접 표시해 비교했다. post-checks.json·image-check.json·motion-comparison.json.
+- 첫 전체 실행은 AT-92까지 통과 후 N40-01로 바뀐 공용 색을 옛 AT-78이 기대해 실패했다. 원문상 명시된 색 단정과 머리줄 재배치 보류를 더한 뒤 새 입력으로 검증했다. 숨김 억제 뒤 창을 다시 보이는 초기 프레임의 AT-82 실패도 확인해 창 수명 경계에서 갱신했고, 그 hover/포커스 단언은 보존했다. 마지막 배지 숨김의 가짜 시계도 3초 기한 이후로 옮겼다. 이전 행/지문/로그는 intermediate-before-color-guard·intermediate-before-bubble-show·intermediate-before-pop-clock에 보존했다.
+
+필요/도달 증거 수준은 2/2다. 화면은 동일 합성 상태의 원본 함수/실제 AppKit 조립 비교이며 운영 앱 전체·실제 두 Mac 검증이 아니다. 보완 조립은 `python3 .build/task41/native_capture.py` compile/run 0(`native-capture.json`), 단추 바탕 라이트/다크 표본은 원본과 같음(`capsule-colors.json`)을 확인했다. 실제 서버·입력기·VoiceOver·다중 화면 실물은 운영 수락에 남는다. evidence/HEJO-FOUNDATION/TASK-41.md와 PNG에 범위를 명시했다. 최종 보고 뒤 개인값·HEJO_PYTHON 훅·diff 검사와 소유 파일 git commit --only 및 커밋/입력/그림 바이트 검증을 한다. 그 실제 커밋과 결과는 .build/task41/final-verification.json에 둔다. tasks.md 판정은 계획 담당이 갱신하며 TASK-42 이후는 미착수다. public f716bdf는 고정했다. 운영 홈·앱 사본·공용 릴리스·운영 저장소·본체·ddots·원격 변경, GitHub 조회·push·실제 발송·비밀 파일 열기는 하지 않았다.
+
+## 구현 인계: TASK-42 설정·메뉴·대기 동기화
+
+1. 받은 설계: handoff 보완 38·42(N35-01), 대조표 §G·V11 및 2.1판 G04/G09/G11~G13, REQ-HF-36.AC-07·AT-93. 기준 `cd6db146cb4b286d20b2e5c036e4fd6207bc947f`. 일반 위험, 필요 증거 수준 2, 임시 홈·가짜 명부·루프백만 사용했다.
+2. 구현자 판단: 구현 완료(자체 판단), 계획 담당 검토 대기. tasks의 대기 표시는 검토자가 갱신한다.
+3. 책임 배치: 기존 PetSettingsWindow·AppDelegate가 설정과 메뉴를, PetController/PetView가 일시적 미리보기를 맡는다. 기존 MemberState 복제본·outbox와 HubClient·hub/server.py가 동기화를 맡으며 새 영구 원본·상태 키를 만들지 않았다.
+4. 추가/제거: 620 폭·탭별 스크롤·화면 맞춤·이름 검사·연속 크기·로그인 상태/실패 문구·고급 두 미리보기·실패 때만 요청문 복사·고정 채널 팝업·동기화 결과 창을 연결했다. 작업 목록/내 캘린더 메뉴는 후속 TASK 자리로 비활성 상태다. 연결 창 760×560/최소 760×500·활성 앱 층과 테마, 쉬기 중 화면 전달 보류/재개를 연결했다. 조용한 이름 자름·고정 네 탭·늘 보이는 로그인 설정 단추·등록 실패 경고창을 대체했다. 클립보드·끌어놓기 탭은 넣지 않았다.
+5. 설계 차이: 2.1판과 원문 코드 우선 사항은 copy-review에 적었다. N35-01 단언 추가는 명시 인계 범위다. 통신 프레임·문·기록장은 바꾸지 않았다.
+6. 호환: 새 wait GET은 `X-Hejo-State-Wait: 1`로 지원을 알리고 25초 뒤 빈 상태를 돌려준다. 옛 앱의 since GET/PATCH는 그대로다. 옛 허브는 wait 쿼리를 무시하므로 한 번 받은 뒤 기존 30초 받기를 쓴다. 새 허브에서는 대기 요청 하나만 유지하고 30초 경로를 끈다. 보내기는 기존 outbox에 1.5초 묶음이며 진행 중인 PATCH와 겹치지 않는다. 늦은 낮은 rev 응답은 최신 복제본을 되돌리지 않는다.
+7. 변경 성격: 승인된 의미 변경이다. 미리보기는 동작 9개·방향 2개 각 2초, 졸기는 dozeCycle, 시선은 15초다. 쉼은 문 연결·캐시를 유지하고 화면 전달과 작업 소비만 멈춘다.
+8. 시험: SettingsTests는 실제 native controls의 오류·스크롤·크기·팝업·복사·미리보기·쉼을, 실제 HubClient 요청 대역은 wait 쿼리/인증/지원 헤더를, 지연 네트워크 대역은 송신 묶음/중복 요청 없음/낮은 rev/옛 허브를 보호한다. test_state_wait.py 8개는 실제 임시 허브 HTTP에서 회원 격리·변경 즉시 깨우기·25초 기본/빈 응답·옛 GET·잘못된 요청/인증·종료를 보호한다. 알림 깨우기 제거 돌연변이는 정상 0·변형 1로 검출했다.
+9. 최종 검증: `.build/task42/frozen.py` 종료 0, foundation9_runner hejo 244 passed(test_install 포함), 앱 전체와 기존 통신 시험 종료 0. AT-93 집중 3회 모두 0·입력 180개 불변. `.build/task42/mutation.py` 종료 0, 원본 불변. `.build/task42/capture.py` 및 post_checks.py 종료 0, 유효 PNG 8개 직접 비교·4쌍 바이트 일치·codesign deep/strict 통과. 상세는 frozen-progress.json, final-foundation.log, mutation.json, capture.json, post-checks.json, image-check.json에 있다. Swift 5 빌드의 actor 격리·SDK deprecated 경고는 원 로그에 남겼다. 개인값·훅·diff 최종 결과는 아래 최종 기록과 final-checks.json을 따른다.
+10. 미검증: 실제 로그인 항목 등록, 운영 허브/서버, 두 Mac, 물리 입력기와 VoiceOver. 필요/도달 증거 수준 2/2이며 화면은 원본 분리와 제품 AppKit 페이지 조립이다. 운영 앱 전체 비교가 아니다.
+11. 중간 실패: 시험 자원 경로의 실행 위치 가정과 가짜 허브의 응답/저장 판 번호 불일치를 고쳤다. 기존 단언은 완화하지 않았다. 앞 실행은 intermediate-resource-path·intermediate-fixture-revision에 보존했다. 초기 빈 캡처는 intermediate-capture에 격리했고 창/탭 수명·외관·레이아웃을 보장한 최종 그림만 증거로 썼다.
+12. 검토 요청: 대기 지원 선언/옛 허브 분기·rev 경합·쉼의 화면 전달 경계·이름 조합 보호와 N35-01 조건을 봐 달라. 운영 적용·공용 릴리스/앱 사본·public/원격·본체/ddots 변경은 없다.
+13. 검토 코드: main의 TASK-42 소유 파일 별도 commit-only 결과는 `.build/task42/commit-result.json`, 입력/그림 일치 및 깨끗한 작업 트리 확인은 final-verification.json이다. TASK-43 이후는 미착수다.
+
+### TASK-42 최종 정적 검사
+
+개인값 검사·HEJO_PYTHON 지정 pre-commit·diff는 각각 종료 0이다. 최종 owned 목록은 29개이며 commit-only 대상 목록을 `.build/task42/owned-files.json`에 남겼다. 서명 검증·PNG 직접 비교·검증 입력 불변은 post-checks.json에서 확인했다. 커밋 뒤 verify가 기록한 실제 전체 커밋을 계획 담당에게 인계한다.
+
+
+## 구현 인계: TASK-43 대화창 모양·N42-01 대기 경합
+
+1. 받은 설계: 보완 38·57, 대조표 H01과 2.1판 정정, REQ-HF-38·AT-94. 기준 e7cfa7ae219d3a9ab6be7247b93bf54f19c00caa. 일반 위험, 필요 증거 수준 2, 임시 홈·가짜 명부·루프백만 썼다.
+2. 구현자 판단: 구현·자체 검증 완료, 계획 담당 검토 대기. tasks의 판정은 검토자가 갱신한다.
+3. 책임 배치: LocalStore의 기존 hejo-local.json에 선택 필드 네 개만 더했다. ChatAppearance는 그 원본의 읽기·원자적 쓰기 투영이며 별도 복제 저장소가 아니다. PetSettingsWindow의 기존 화면과 펫 탭에 AppKit 모양 묶음을 넣었다. PetController·ConversationView·ConnectionsWindow가 자기 창/내용을 갱신하며 NativeThreadList의 기존 높이 계산을 재사용한다.
+4. 화면: 시스템 설정/라이트/다크, 55~100 불투명도(기본 65), 글씨 12·13·14·15·16·18·20(기본 14), 내 말풍선 14색·대비 글자·미리보기·기본값으로를 연결했다. 대화창 크기 초기화는 모양 묶음으로 옮겼다. 투명도 줄이기면 불투명이다. 설정 창 자체는 시스템 모양을 유지한다. 원본의 사용되지 않는 양 끝 불투명도 문구는 넣지 않았다.
+5. 변경 성격: 승인된 의미 변경이다. 모양은 허브 회원 상태/outbox에 보내지 않는다. 작성기는 마지막 표시 기본 크기로 초안을 직렬화하고 한글 조합 중 내용 교체를 보류한다. 카드의 기존 내용도 글씨 변경 즉시 다시 측정한다. 새 SwiftUI import·문·wire·기록장 변경은 없다. 대체한 고정 14pt·65% 소비는 지웠으며 범위 밖 부채를 새로 발견하지 않았다. 기존 연결 창의 승인된 SwiftUI는 유지한다.
+6. N42-01: 회원별 공유 Event를 요청별 Future 집합으로 바꿨다. 읽기 전 등록, PATCH 때 등록된 대기 모두 깨우기, 취소/종료 때 정리를 구현했다. GET/PATCH·지원 헤더·옛 앱/허브 계약은 그대로다. 운영 허브에는 적용하지 않았다. AppKit 미리보기는 승인된 네이티브 이식이며 새 SwiftUI 예외가 아니다. 투명도 정책 주입은 실제 시스템 설정을 바꾸지 않고 같은 유리 계산을 검사하는 격리 목적이다. 하위 에이전트는 쓰지 않았다.
+7. 자동 시험: 실제 native controls를 눌러 테마 창 반영·세 불투명도·접근성 투명도 정책·7단계 글씨/기존 카드 높이·14색 실제 본문 대비·다시 읽은 로컬 파일·회원 상태 불변·기본값·한글 조합을 단언했다. N42-01은 PATCH와 뒤 대기가 앞 대기의 알림을 지우는 순서를 실제 임시 허브 HTTP에서 만든 뒤 1초 안 새 rev를 받는지 검사한다.
+8. 최종 검증: python3 .build/task43/frozen.py 종료 0, foundation9_runner hejo 245 passed(test_install·허브 시험 포함), 앱 전체·기존 통신 시험 통과. AT-94 집중 3회 모두 0·inputsUnchanged=true, 입력 184개 불변. frozen-progress.json·final-foundation.log·app-focused-01~03.log. mutation.py 종료 0: 정상 0, 옛 공유 Event 사본은 1초 경합 단언으로 종료 1, 원본 불변. mutation.json.
+9. 화면·서명: capture.py·post_checks.py 종료 0. 원본 SettingsPages/ChatStyle/BubbleOpacity 분리와 제품 AppKit 모양 묶음의 세 테마 PNG 여섯 개를 직접 확인했다. 미리보기 536×184, 14pt 글자 두 사각형은 원본/제품 일치다. 범위·그림 차이는 evidence/HEJO-FOUNDATION/TASK-43.md에 적었다. codesign --verify --deep --strict 종료 0. capture.json·post-checks.json·image-check.json. 운영 앱 전체·픽셀 동일 비교를 주장하지 않는다.
+10. 중간 근거: 새 메서드의 메인 액터 호출을 명시한 뒤 집중 컴파일을 통과했다. 회원 상태 비교 기준은 방 선택/읽음 변경이 끝난 뒤로 옮겼다. 첫 전체 결과는 원본 불투명도 숫자 글꼴을 맞추기 전이며 intermediate-before-value-font에 보존했다. 그 뒤 최종 고정 입력으로 검사했다. 숨은 탭의 부품을 캡처한 초기 그림은 최종 증거로 쓰지 않고, 보이는 탭·창 수명·같은 비활성 창 상태를 맞춘 그림만 사용했다.
+11. 미검증: 운영 허브/서버, 두 Mac, 실제 시스템 접근성 전환·로그인 항목 등록, 물리 입력기와 VoiceOver. 필요/도달 증거 수준 2/2, 실물은 운영 수락에 남는다. TASK-44 이후는 미착수다.
+12. 검토 요청: LocalStore 한 원본과 허브 분리, 한글 조합/기본 크기 직렬화, 모양 revision 높이 무효화, Future 경합/정리 경계를 봐 달라. public f716bdf는 고정했고 운영 홈·앱 사본·공용 릴리스·운영 저장소·본체/ddots·원격 변경과 GitHub 조회·실제 발송·비밀 파일 열기는 없었다.
+13. 최종 정적 검사·커밋: 개인값 검사·HEJO_PYTHON 지정 훅·diff는 각각 종료 0이다. 소유 파일 27개만 git commit --only 대상으로 정했다. 실제 전체 커밋과 커밋된 입력/그림 바이트 일치·깨끗한 main·고정 public은 .build/task43/final-checks.json·commit-result.json·final-verification.json을 따른다.
+
+
+## 구현 인계: TASK-44 다운로드 폴더 저장
+
+1. 받은 설계: handoff 보완 38 및 대조표 H02/H02+, REQ-HF-37·AT-95와 이번 직접 지시. 기준 7f23b69bb370eb63c492928ada5494ed53d46008. 일반 위험, 필요 증거 수준 2, 임시 홈·명시적 임시 다운로드 위치·루프백만 사용했다.
+2. 구현자 판단: 구현·자체 검증 완료, 계획 담당 검토 대기. tasks 판정은 검토자가 갱신한다.
+3. 책임 배치: 기존 GateHTTP 안의 DownloadFileStore가 사용자 사본의 이름·충돌·저장을, 기존 ConversationController가 사장 열기와 client_msg_id 송신 확인 뒤 보관을 맡는다. 파일 ID·이름·날짜·직원 범위는 기존 조회 복제본에서 읽는다. 새 영구 색인·LocalStore 필드·원본·허브/wire/문/기록장 변경은 없다.
+4. 추가/제거: 받은 파일은 현지 시각 yyyy-MM-dd HHmm와 원본 named의 ID/확장자 규칙으로 저장 후 연다. 같은 파일 진행 중 누름은 한 번만 받고, 저장된 사본의 재열기는 받지 않는다. 보낸 파일은 송신 확인 뒤 ID 없는 이름으로 보관하며 같은 내용 재사용·다른 내용 2~99 번호·이미 다운로드 안인 원본 보존을 적용한다. 사본 보관 큐는 직렬이다. 그림 미리보기의 download는 기존 캐시만 쓴다.
+5. 설계 차이: 원본 받은 파일 저장 실패는 안내만 표시하지만 이번 직접 지시대로 캐시로 열기를 더했다. 원본 `파일을 저장하지 못했어요. …` 문구를 그대로 사용하고 다음 열기 시 이전 안내를 지운다. 원본의 Slack 200MB·보관하지 않기·별도 ddots 기록장은 제외했다. hejo 50MiB·변경된 업로드·출입증/리디렉션/크기 검사는 유지했다.
+6. 사용 형태: 다운로드 위치 주입은 실제 사용자 폴더에 쓰지 않는 시험 격리다. 사본은 사용자 소유 산출물이며 파일 공급자의 두 번째 원본으로 쓰지 않는다. 서버 조회용 cache/files는 그대로다. 하위 에이전트·새 SwiftUI·시험 전용 제품 분기는 없다.
+7. 변경 성격: 승인된 의미 변경이다. 기존 열기 요청이 사용자 사본을 남기며 확인된 전송도 이 Mac에 사본을 남긴다. 업로드 성공만으로는 저장하지 않고 거절된 전송 사본은 남기지 않는다. 보낸 사본 실패가 성공한 전송을 실패로 뒤집지 않는 원문 동작은 유지했다.
+8. 시험: DownloadsTests는 현지 날짜/ID/한글 UTF-8/확장자·위험 이름·같은 내용 재사용/번호/폴더 안 파일·한도를 단언한다. downloads_fixture.py는 실제 GateClient/Controller/HTTP와 가짜 문에서 동시 누름·재열기 각 한 번 받기, 다른 ID, 직원 범위, 불가 폴더 안내+캐시 열기, 확인된 전송/거절된 전송을 보호한다. 기존 실제 파일 송수신 시험들도 다운로드 위치를 임시 홈에 명시했다. 통과한 시험의 단언은 완화하지 않았다.
+9. 실행 검증: frozen.py 종료 0. foundation9_runner hejo 245 passed(test_install·허브 포함), 앱 전체·기존 통신·새 AT-95 루프백 통과. 파일 함수+실제 AT-95 루프백 반복 3회 모두 0·inputsUnchanged=true, 입력 186개 불변. frozen-progress.json·final-foundation.log·app-focused-01~03.log. reference.py 종료 0: 읽기 전용 ddots 원본과 실제 제품 파일 함수를 각각 컴파일·실행한 이름/파일 본문 결과가 같다. mutation.py 종료 0: 파일 ID를 빼는 사본 compile/run 0, 원본 비교 단언은 정상 0·변형 1로 검출했다. 원본과 실제 제품은 변형하지 않았다. post_checks.py 종료 0: 같은 입력·원본 불변·산출물 지문·codesign deep/strict 통과. 로그는 .build/task44에 있다.
+10. 미검증: 실제 사용자 다운로드 폴더·운영 서버·두 Mac 실물. 필요/도달 수준 2/2다. 새 제품 화면이 없는 I/O 변경이므로 화면 사진 대신 원본/제품의 같은 파일 이름·본문 비교를 evidence/HEJO-FOUNDATION/TASK-44.md·task44-files.json에 남겼다. 운영 앱 전체 비교를 주장하지 않는다.
+11. 중간 근거: 첫 단위 시험의 임시 루트 생성 누락과 새 가짜 welcome의 avatar 필드 누락을 고쳤다. 실제 제품 오류가 아닌 시험 초기 상태였고 원문/통신 계약은 바꾸지 않았다. 저장 실패 안내 초기화를 더하기 전 전체 검사는 소유 실행만 중단하고 intermediate-before-notice-clear에 보존했다. 선택한 글 날짜를 직접 전달하도록 호출자를 맞추기 전 실행은 intermediate-before-message-date에 보존했다. 이후 최종 입력으로 재검증했다. 기존 Swift 5 actor/SDK 경고는 원 로그에 남겼다. 범위 밖 부채는 새로 발견하지 않았다.
+12. 검토 요청: 사용자 사본과 조회 캐시 구분, 재열기의 직원/삭제 범위, 기존 소수 초 날짜 파서, 송신 확인 경계·직렬 사본 큐, 오류 안내/캐시 fallback을 봐 달라. public f716bdf는 고정했고 운영 홈·앱 사본·공용 릴리스·운영 허브·운영 저장소·본체/ddots·원격 변경, GitHub 조회·실제 발송·비밀 파일 열기는 없다. TASK-45 이후 미착수다.
+13. 최종 정적 검사·커밋: 보고 추가 뒤 개인값·HEJO_PYTHON 지정 훅·diff 검사를 하고 소유 파일만 git commit --only로 기록한다. 실제 전체 커밋·소유 파일·입력/산출물 지문 일치·깨끗한 main·고정 public은 .build/task44/final-checks.json·commit-result.json·final-verification.json을 따른다.
+
+
+## TASK-45 · N44-01 구현 인계
+
+1. 받은 설계: handoff 보완 38·58, REQ-HF-39/AT-96, H03·H03+. 기준 main ca80a9d. 일반 위험, 필요 증거 수준 2. 운영·공개본 반영 없이 로컬 구현·시험이다.
+2. 구현자 판단 상태: 구현·자체 시험 완료, 계획 담당 검토 대기.
+3. 변경 후 구조: 기존 ConversationView/AppDelegate의 링크와 접힌 말풍선 행동을 PetController의 옆 창 열기로 연결했다. WebPaneModel은 일시 탭·WebKit 요청·그림을, 기존 DownloadFileStore는 다운로드 위치를, LocalStore는 Mac별 칸 크기만 맡는다. 문·허브·기록장·wire는 바꾸지 않는다.
+4. 더한 것/뺀 것: WebPane·WebAddress·WebPicture·WebTabBlank 원본의 기능을 옮기고 WebPaneView를 AppKit으로 작성했다. 기존 외부 링크 바로 열기를 ⌘/옆 칸 분기로 대체했다. 문 첨부는 기존 GateHTTP로 받은 로컬 파일을 별도 nonPersistent 저장소에서 연다. 기존 50MiB 첨부 한도와 Info.plist는 유지한다. WebKit 프레임워크를 기존 빌드/시험 명령에 더했다.
+5. 설계 차이: 첫 탐색 실패 시 원본은 tab.url=nil이라 밖에서 열기 제어가 비활성이다. 원본 분리 실행으로 확인하고 26판 코드 우선으로 유지했으며 copy-review와 TASK-45 화면 문서에 기록했다. AT-96 문서는 수정하지 않았다. 이 해석은 검토자가 확인해 주어야 한다.
+6. 경계/임시 코드: AppKit UI와 원본의 관찰 모델 사이에는 onChange로 화면 갱신을 연결한다. 시험 전용 testConversation 생성 함수는 실제 Controller에 임시 다운로드 경로를 주입하며 본문 로직을 바꾸지 않는다. 원본 화면 분리 실행의 주변 대역과 그림 내보내기 도우미는 로컬 빌드 자료에만 있다. 제품의 두 번째 영구 원본은 없다.
+7. 변경 성격: 의미 변경(외부 링크만 열던 동작을 옆 창으로 대체). 원본의 탭·탐색·파일·그림 수명과 폴더 이름 규칙을 대조했다. Mac별 웹 칸 크기는 hejo-local.json의 기존 창 크기 자리다.
+8. 추가 시험: WebPaneTests/web_pane_fixture는 실제 WebKit의 새 창·탭 한도·선택 스크롤·주소/검색 계산·탐색·한글 키 위치 단축키·다운로드·문 첨부 로컬 보기·실패·접힌 말풍선 열기·폭/높이·그림 재사용을 보호한다. 서버는 웹 요청의 Authorization 부재와 앱 파일 요청의 인증을 따로 검사한다. N44-01은 모든 시험 Controller를 임시 경로에 묶고 앱 시험 진입점이 실제 다운로드 폴더의 항목 이름 불변을 검사한다. 이름이나 내용은 로그에 쓰지 않는다.
+9. 최종 검증: frozen.py 종료 0. foundation9_runner hejo 245 passed(test_install·허브 포함), 앱 전체/통신·AT-96 반복 3회 모두 종료 0·inputsUnchanged=true, 입력 194개 불변. 앱 전체 시험의 실제 다운로드 폴더 항목 이름 불변도 통과했다. mutation.py compile/verify 각각 0: 정상 0·탭 한도 13개 변형 1로 검출. post_checks.py 0: 최종 연결 캡처·PNG 4개(720×1000, 불투명, 제어 줄 아래 페이지)·codesign deep/strict 통과. 원본 분리 실행 0, 라이트/다크 직접 표시 비교 완료. 제품 주소칸 왼쪽 약 20pt·글자 기준선 약 5pt와 페이지 왼쪽 선 1pt 차이는 TASK-45 화면 문서에 명시했다. 개인값/HEJO_PYTHON 지정 훅/diff의 실제 종료 결과는 final-checks.json, 별도 커밋·입력/그림 일치는 final-verification.json에 기록한다. 중간 실패·중단 실행은 로컬 intermediate-*에 보존했으며 최종 통과 근거로 세지 않는다. 하위 에이전트는 쓰지 않았다.
+10. 미검증: 실제 서버·운영 허브·두 Mac·임의 웹 사이트 로그인·시스템 브라우저 실행·물리 입력기·VoiceOver. 운영 설치·공용 릴리스·public 변경·원격 조회/쓰기·실제 발송·비밀 파일 접근은 하지 않았다.
+11. 범위 밖 부채: 이번에는 없음. 첫 실패의 밖에서 열기 동작은 5항의 원본 대조/검토 사항이다.
+12. 검토 초점: AppKit 폭 변화 때 살아 있는 페이지의 배치 지연과 흐린 그림, 첨부의 비영구 저장소, 원본 실패 경계, 시험 다운로드 격리. 필요/도달 증거 수준은 2/2다. 실제 운영·두 Mac 결합을 확인했다는 뜻은 아니다.
+13. 대상 변경본: 기준 ca80a9d 위의 TASK-45 소유 파일 별도 commit-only 대상. tasks.md의 TASK-45 대기는 계획 담당 판정에서 갱신한다. TASK-46 이후 미착수이며 public f716bdf는 고정이다.
+
+TASK-45 최종 서식 보완: WebPane.swift EOF의 빈 줄 한 개를 제거했다. 전체/반복 실행 중 입력 194개는 불변이었고, 최종 커밋에서는 이 1개 파일만 끝 LF 1바이트 차이가 있다. `.build/task45/finalization-whitespace.json`과 시험본 사본으로 정확히 대조한다. 나머지 193개 입력은 시험 지문과 같으며 실행 코드 변경은 없다.
+
+
+## TASK-46 · N45-01 구현 인계
+
+1. 받은 설계: handoff 보완 38·59, REQ-HF-40/AT-97, H04·H04+. 기준 main 985d9d8. 일반 위험, 필요 증거 수준 2(실물 권한 확인은 별도). 운영·공개본 반영 없이 로컬 구현·시험이다.
+2. 구현자 판단 상태: 구현·자체 시험 완료, 계획 담당 검토 대기.
+3. 변경 후 구조: MacCalendar가 EventKit을 직렬 조회해 일시 값만 내고 CalendarMatch가 수신 글 시각과 실제 일정의 제목/장소를 맞춘다. 기존 ConversationController·BubbleReveal.Action이 같은 값을 화면에 전달하며 AppDelegate가 AppKit 캘린더 창을 소유한다. 일정은 LocalStore·문·허브·기록장에 저장하지 않는다.
+4. 더한 것/뺀 것: MacCalendar/CalendarMatch 원본을 이식하고 MacCalendarView를 AppKit으로 만들었다. 메뉴의 비활성 캘린더 자리를 실제 창으로 채웠다. 월 이동·제목/장소 검색·상세·종일·삭제/이동 재조회·권한 안내와 카드/말풍선 단추를 연결했다. Info.plist에 원본 캘린더 문구 두 키, 기존 빌드/시험에 EventKit 링크를 더했다. N45-01은 WebPaneView의 단추·주소칸 프레임과 셀 가운데 정렬을 고쳤고 선은 원본처럼 폭을 차지하지 않는 overlay로 옮겼다.
+5. 설계 차이: 날짜만으로 일정이 생기는 것으로 해석하지 않았다. 원본은 일반 제목 '회의'를 제외하고 구체적 제목 또는 날짜+장소가 맞아야 한다. '대화 열기'를 빼는 조건도 일정 개수가 아니라 링크+일정의 내용 단추 둘이다. REQ-HF-40의 구체 문장과 원본을 따라 copy-review에 기록했다. 수락 기준 문서는 바꾸지 않았다.
+6. 경계/임시 코드: 공급자 프로토콜은 권한/조회만 노출한다. EventKit은 운영 앱에서만 실제 공급자를 쓰고 모든 시험은 가짜 공급자·observe:false다. SwiftUI/ObservableObject 발행은 AppKit onPresentation으로 대체했다. 캡처/원본 분리 실행 도우미는 로컬 빌드 자료이며 제품에 시험 분기를 넣지 않았다. 하위 에이전트·새 영구 원본·SwiftUI 추가는 없다.
+7. 변경 성격: 새 기능과 주소줄 배치 수정이다. 기존 일반 링크/파일·50MiB 한도·전송/기록장 계약·허브 동작을 유지했다. 기존 링크 내용 단추를 공용 Action.content에 합쳐 캘린더와 함께 최대 세 단추를 만든다.
+8. 시험: CalendarTests는 원본 날짜 예, 짧은 제목 경계·일반 낱말·중복/다른 캘린더·장소+날짜·1/2 일정·실제 카드 누름·말풍선 단추 수·월/검색/상세·종일 종료일·삭제/이동·권한 없음/미정/있음과 메뉴 연결을 보호한다. N45-01은 원본에서 측정한 제어 프레임과 실제 그려진 주소 글자 경계(x=81, 위=55, 아래=65)를 독립 literal로 단언한다. 기존 WebKit 통합/한글 키 위치 단축키와 임시 다운로드 격리는 그대로 검사한다.
+9. 최종 검증: frozen.py 종료 0. foundation9_runner hejo 245 passed(test_install·허브 포함), 앱 전체·기존 통신·AT-97/AT-96 통과. 집중 반복 3회 모두 0·inputsUnchanged=true다. 실제 다운로드 폴더 항목 이름 불변도 통과했다. 원본 분리 실행은 수정하지 않은 MacCalendar/CalendarMatch와 WebPane 계열에 가짜 공급자/로컬 페이지를 넣었다. 최종 그림·서명·읽기 전용 EventKit 호출·Info.plist·돌연변이·개인값/훅/diff 결과는 .build/task46/post-checks.json·mutation.json·final-checks.json·final-verification.json을 따른다. 시험 중 동결 입력은 바꾸지 않았다.
+10. 미검증: 실제 EventKit 권한 요청/운영 캘린더·실제 서버/허브·두 Mac·물리 입력기·VoiceOver. 필요/도달 수준 2/2다. 화면은 같은 합성 상태의 원본 함수/창과 제품 AppKit 보기 비교이며 운영 앱 전체·픽셀 동일 비교가 아니다. 원본과 같은 글꼴/크기를 지정해도 AppKit/SwiftUI 글자 합성과 기본 제어 외관 차이가 남는다.
+11. 중간 근거: 첫 날짜 단추 시험의 시간대 기준을 이 Mac 달력과 일치시켰다(제품 판정은 원본 그대로). 셀 교체 때 빠진 편집 가능 속성으로 ⌘W 회귀가 실패해 복구했다. 주소 셀 여백 중복은 실제 잉크 경계 검사로 고쳤다. 잘못 시작한 중복 집중 컴파일은 소유 프로세스만 중단했다. 초기 실패/보조 탐침은 최종 통과로 세지 않는다. 기존 SDK/Swift 5 actor 경고는 원 로그에 남겼으며 이번 변경 때문에 억제하지 않았다. 범위 밖 부채는 새로 발견하지 않았다.
+12. 검토 초점: 이 Mac 일정의 비영구 투영·수신 시각 기준·정확한 반복 일정 재조회·권한 후 캐시 제거·실제 카드/말풍선 연결과 N45-01 실제 글자 위치를 봐 달라. 화면 증거는 evidence/HEJO-FOUNDATION/TASK-46.md다. 운영 홈·앱 사본·공용 릴리스·운영 저장소·운영 허브·본체/ddots·원격 변경, GitHub 조회·실제 발송·비밀 파일 접근은 없다.
+13. 대상 변경본: 기준 985d9d8 위의 TASK-46/N45-01 소유 파일만 별도 git commit --only 대상이다. 전체 커밋·입력/그림 지문 일치·깨끗한 main은 .build/task46/final-verification.json을 따른다. tasks.md의 대기 표시는 계획 담당 판정에서 갱신한다. public f716bdf는 고정이며 TASK-47은 미착수다.
+
+TASK-46 최종 UI 보완: 원본 실측에 따라 월 제목 3pt, 카드 일정 단추 줄 22pt/위 2pt, 목록 보통 73pt/긴 제목 105pt를 맞췄다. 긴 제목은 줄 수로 높이를 계산하며 권한 설명도 내용 높이 다음 14pt에 기본 크기 단추를 놓는다. 이전 통과/중단 자료는 intermediate-before-*에 보존했으며 이 보완 뒤 전체/반복 실행을 최종 근거로 사용한다. 최종 검증 입력에는 Info.plist도 포함한다.
+
+TASK-46 최종 확인: 마지막 입력 199개를 동결한 전체 검사와 집중 3회가 모두 종료 0이며 실행/커밋 사이 입력도 그대로다. 시작 시각이 다른 같은 식별자의 일정을 여는 변형은 종료 1로 검출했다. post_checks.py는 캡처 8개·실제 주소 잉크 경계·월 제목 y=65~75·두 캘린더 사용 키·읽기 전용 EventKit 호출·codesign deep/strict를 확인했다. 최종 8개 PNG를 직접 표시해 비교했다. NSTextField의 기본 안쪽 여백/합성에 따른 약 2pt 글자 시작 차이와 월 제목 오른쪽 끝 1px 차이는 플랫폼 표시 차이로 남기며 픽셀 동일을 주장하지 않는다. 긴 제목·조회 중 월 이동·네이티브 스트리밍 일정 단추는 최종 회귀에 포함한다. 개인값/훅/diff 및 별도 커밋의 실제 결과는 final-checks.json·final-verification.json을 따른다.
+
+
+## TASK-47 구현·자체 시험
+
+- H05·H05+: 기존 관제 화면 칸에서 작업 메타데이터·세션 꼬리 읽기·공식 훅 상태·화면 도구 관측과 AppKit 작업 목록을 연결했다. 세션은 읽기만 하고 본문·추론·도구 인자·사용량은 보관하지 않는다. 메뉴 ‘작업 목록’과 설정 ‘승인 알림 연결 안내’가 실제 동작한다.
+- 원본 Dashboard·Monitor·HookBridge·TranscriptDecoder·ScreenFocus·ComputerUseActivity·configure_hooks·안내·시험과 호출부 전체 독해는 copy-review에 있다. 세션 검색 15초/상태 읽기 2초, stale 300초·응답 동작 20초·하루 보존·각 200개·화면 호출 수명 60초/결과 뒤 3초를 유지했다.
+- 훅 진입은 GUI 초기화 전에 끝나며 상태 파일만 쓴다. 훅 연결은 원본 create-only와 같은 충돌 정책을 유지한다. 설정 변경 전 비공개 백업·영수증, 중간 실패 보상, 원래 바이트·권한 복원, 사용자가 나중에 바꾼 설정 보호를 추가했다. 사장이 안내에서 연결·연결 해제를 고를 때만 설정에 접근한다.
+- 원본 우선 기록: App.swift updatePet·PetView의 승인/실패 동작은 화면 시선보다 앞선다. 화면 조작 중인 작업의 명확한 창만 바라보며 승인 창은 추정하지 않는다. 접근 실패는 ‘연결 안 됨’과 원본 상세를 함께 표시한다. FileDrop·사용량·원본의 연결 제안은 제외 결정대로 넣지 않았다.
+- 모든 시험은 임시 홈과 가짜 세션/설정이다. 실제 CLI 설정 본문을 읽지 않고 메타데이터 지문을 비교하며 내용 바이트 비교는 임시 설정에만 한다. 실제 다운로드는 이름만 비교한다. 운영 홈·배포·공용 릴리스·운영 허브·본체·ddots·원격·고정 public 변경과 실제 발송은 없다.
+- 증거: [TASK-47](../../../evidence/HEJO-FOUNDATION/TASK-47.md). 필요/도달 3/2이며 실제 설정 연결/해제·작업 창·물리 입력기·VoiceOver 실사용은 운영 수락에 남는다. 최종 명령 결과와 커밋 대조는 추적하지 않는 `.build/task47/final-verification.json`에 기록한다.
+
+### 최종 자체 검증 기록
+
+- 착수 기준 `b0d6a9a9ac4904ba25402f9f1430d07571f5fe39`. 최종 `frozen.py` 종료 0: Python 245 passed(test_install·허브 포함), 앱 전체·기존 통신 시험과 새 훅 시험 9개 통과. AT-98 및 훅 시험을 3회 반복해 모두 종료 0·inputsUnchanged=true. 고정 입력 213개, 별도 안내 HTML은 시험 시작 이전 메타데이터와 빌드 사본의 바이트 일치를 확인했다. 로그 `.build/task47/final-foundation.log`·`frozen-progress.json`.
+- `mutation.py` 종료 0: 정상본 0, 실패 보상 제거 사본 1로 중간 실패 복원 단언에 검출했다. 제품 입력 불변. `.build/task47/mutation.json`.
+- `post_checks.py` 종료 0: 최종 제품 조립 캡처·원본 규칙 분리 실행 68개·원본 Dashboard 분리 캡처·6개 PNG(710×610·불투명·내용)·codesign deep/strict 통과. 최종 그림을 직접 비교했다. 원본 규칙 네 파일은 제품과 바이트가 같고, gate·hub·schemas 변경은 없다. `.build/task47/post-checks.json`·`image-check.json`.
+- 실제 CLI 설정은 내용을 열지 않고 지정된 설정 파일들의 lstat 메타데이터 지문 불변을 확인했다. 이는 실제 설정 내용 SHA와 다르다. 실제 다운로드는 이름 목록 불변을 확인했다. 가짜 설정의 정확한 원래 바이트·권한 복원과 실패 보상은 실행해 확인했다.
+- 중간 전체 검사 중단 3건과 자원 경로 오류 실행 1건은 `intermediate-*`에 보존했다. 경로 오류는 제품 변경 없이 시험 자원 위치를 실행 파일 기준으로 고쳐 해소했으며 최종 통과 자료와 구분한다.
+- 구현자 인계 상태: 배정 코드·자체 시험은 수준 2 통과, 필요한 수준 3의 실제 설정 연결/해제·실제 작업 창 결합은 미실행. 독립 검토·운영 수락이 남는다. 소유 파일만 commit-only하며 최종 커밋·깨끗한 작업 트리·고정 public·입력/그림 대조는 `.build/task47/final-verification.json`을 따른다.
+
+- 정적 진단 처분: 새 monitor 캡처의 Swift 6 Sendable 경고는 현재 Swift 5 빌드에서 관측됐다. 가변 모니터는 전용 직렬 큐에서만 poll하고 main의 monitorBusy가 중복을 막는다. UI에는 값 스냅샷만 넘기는 의도된 소유 경계로 분류했고 경고를 억제하지 않았다. 나머지 기존 actor/미사용 변수 진단은 범위 밖 부채로 남겼다.
+
+
+## 보완 60 구현·자체 시험: N47-01·02
+
+- 착수 기준 `41644e8b50e1968a78e0f89a7d87b9b42a21c2e8`. 기존 TASK-47 기록은 당시 이력으로 보존한다. 계획 담당이 정정한 AT-98에 따라 Dashboard의 ‘연결 안 됨 · ’ 앞붙임을 제거하고 Monitor의 detail 원문만 그린다. 사용 가능 여부의 teal/gray 점은 그대로다. 감시·훅·상태·저장·문·허브 계약 변경은 없다.
+- 아래 세 단추는 AppKit rounded 기본 13pt로 맞췄다. 원본 Dashboard의 같은 SwiftUI 구성을 별도 실행한 결과 새로고침 69×24, 동작 미리보기 96×24, 승인 알림 연결 안내 125×24pt이며 제품과 같다. AT-98에는 글꼴·세 크기 실측 단언을, Monitor 시험에는 ‘기록 폴더에 접근할 수 없음’ 원문 단언을 추가했다. 실측 자료는 evidence/HEJO-FOUNDATION/task47-footer-metrics.json이다.
+- 집중 컴파일·실행은 `.build/n47/focused.py` 종료 0, AT-HF-98 MONITOR/APP PASS·APP_TEST_OK다. 원본 단추 분리 실측 compile/run은 각각 종료 0이며 `.build/n47/button-reference.log`에 있다. 이후 검증과 최종 커밋은 아래 최종 기록과 `.build/n47/final-verification.json`을 따른다.
+- 실물 훅 연결/해제·실제 작업 창·물리 입력기·VoiceOver는 미실행이며 필요/도달 증거 수준은 3/2다. 실제 CLI 설정은 내용 접근 없이 lstat 메타데이터만, 실제 다운로드는 이름만 대조한다. 실제 내용 SHA 불변을 주장하지 않는다. 운영 반영은 보완 60의 계획 담당+사장 점검에 남긴다.
+
+### 보완 60 최종 검증
+
+- `.build/n47/frozen.py` 종료 0: foundation9_runner hejo 245 passed(test_install·허브 포함), 앱 전체·기존 통신·훅 9개 통과. 집중 3회 모두 종료 0이며 실행 중 입력 214개 불변이다. 실제 CLI 설정 lstat 메타데이터·실제 다운로드 이름 불변 단언도 통과했다. 로그는 `.build/n47/final-foundation.log`·`frozen-progress.json`·`app-focused-01.log`~`03.log`다.
+- `.build/n47/post_checks.py` 종료 0: 최종 제품·원본의 일반/고정/빈 목록 캡처 여섯 개를 다시 만들고 직접 비교했다. 원본 세 그림은 이전과 바이트가 같고 제품 세 그림은 두 지적을 반영한다. 단추 글자 크기·높이는 원본 분리 실측과 같으며 ‘기록 폴더에 접근할 수 없음’ 앞에 새 낱말이 없다. 기존 AppKit 기본 단추 바탕·선택 구획의 플랫폼 차이는 그대로 문서화했다. PNG 유효성·원본 불변·codesign deep/strict 통과, 운영 앱 전체·픽셀 동일 비교를 주장하지 않는다.
+- `.build/n47/finalize.py`의 checks·commit·verify가 정적 검사와 소유 파일 commit-only·커밋/입력/그림 대조를 맡는다. 실제 결과와 전체 커밋은 `.build/n47/final-checks.json`·`commit-result.json`·`final-verification.json`을 따른다. public 후보 고정, 운영 홈·앱 사본·공용 릴리스·운영 허브·본체/ddots·원격·실제 발송·비밀 파일 접근은 없다. 계획 담당의 N47-01·02 검토와 보완 60 수준 3 실물 수락은 남긴다.
+
+
+## 보완 61 — 0.2.0 공개 후보 재생성
+
+- 받은 설계: handoff 보완 61, 사장 결정에 따라 TASK-36~47을 포함한 main 전체를 새 0.2.0 후보로 만든다. 버전 0.2.0·빌드 2를 유지하며 제품 코드 변경은 없다. 이 보고만 먼저 commit-only한 깨끗한 main을 공개·빌드·검증의 기준으로 고정한다.
+- 기존 public은 archive/public-0.2.0-before-parity로, 더 앞선 archive/task33-before-n33-01도 그대로 보존한다. hejo-publish는 기존 public 작성자 정보를 로컬에서 재사용하는 gh 대역으로 실행한다. 실제 GitHub 조회·원격 쓰기는 하지 않는다. 부모는 이전 공개 계보 0.1.0 f90bf08이며 개인 main 계보는 포함하지 않는다.
+- 준비물 위치는 `.build/release-0.2.0/`, 실행 근거·전체 커밋·트리·개인 이력 배제·공개본 검사·서명·반복·호환성·보호 검사 결과의 원본은 `.build/release-0.2.0-work/final-verification.json`과 `checkpoint.json`이다. 새 후보의 트리와 고정 main 트리, 앱 BuildInfo의 트리를 대조한다. 공개본 자체도 별도 worktree에서 개인값 검사한다.
+- 같은 트리의 foundation9_runner hejo(test_install 포함), 전체 앱 실행 3회, aeaa652 옛 문과 새 앱의 실제 루프백 짝맺기·송수신을 검사한다. 모든 실행은 가짜 홈·명부·세션·설정·임시 다운로드·로컬 웹/문만 쓴다. 실제 CLI 설정은 lstat만, 실제 다운로드 폴더는 이름만 대조하며 실제 내용 SHA 불변을 주장하지 않는다.
+- hejo-ship prepare는 기존 키체인 키를 재사용한다. 새 키 생성·비밀 키 출력/내보내기·setup은 실행하지 않는다. 압축을 다시 풀어 codesign deep/strict·실행 파일 지문·Sparkle 서명을 검사한다. 기존 Sparkle 고정 캐시를 사용해 외부 다운로드를 하지 않는다.
+- 이번 단계는 로컬 공개 후보·배포 준비와 자체 검증(필요/도달 수준은 최종 근거 기준)이다. 사장 public 푸시 승인·publish, aeaa652 기준 새 롤백 백업, 운영 허브/문·team-kit 반영·TASK-23·실물 훅 연결/해제·두 Mac 자동 업데이트·비설계자 검토는 수행하지 않는다. 고위험 운영 수락 완료를 주장하지 않는다. 운영 홈·공용 릴리스·본체/ddots는 바꾸지 않는다.

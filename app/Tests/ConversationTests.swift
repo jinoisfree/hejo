@@ -24,7 +24,7 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     try check(model.unread(employee:"alpha") == 0 && model.memberState.read("thread:alpha/" + threadA) == 1,"opening thread persists read seq")
     model.setVisible(false)
     try commit(["v":1,"type":"edit","seq":2,"msg_id":messageA,"text":"streaming answer","final":false,"buttons":[["id":buttonA,"label":"Continue","kind":"reply","style":"primary"]]])
-    try check(model.messages[messageA]?.streaming == true && model.messages.count == 1 && model.unread(key) == 1,"streaming updates same message and unread")
+    try check(model.messages[messageA]?.streaming == true && model.messages.count == 1 && model.unread(key) == 0,"AT87 streaming edit retains original message read position")
     try commit(["v":1,"type":"state","seq":3,"msg_id":messageA,"reply_state":"closed"])
     let post=model.messages[messageA]!, click=try ConversationModel.click(message:post,button:post.buttons[0])
     try check(click["type"] as? String == "click" && click["msg_id"] as? String == messageA && click["button_id"] as? String == buttonA && click["employee"] == nil,"button uses only server-issued message/button identifiers")
@@ -43,7 +43,7 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     try check(rebuilt.applied == 4 && rebuilt.messages == model.messages && rebuilt.unread(employee:"beta") == 1,"projection and unread survive cache replay/restart")
     try commit(["v":1,"type":"delete","seq":5,"msg_id":messageA])
     try check(model.messages[messageA] == nil,"delete removes message")
-    let controller=try ConversationController(client:GateClient(store:store))
+    let controller=try testConversation(client:GateClient(store:store))
     try controller.model.apply(roster()); controller.model.select(employee:"beta")
     let ui=ConversationView(controller:controller,clipboardArea:directory.appendingPathComponent("clipboard"))
     try check(ui.brand.stringValue == "HEJO." && ui.brand.alignment == .center,"AT52 uppercase centered logo")
@@ -52,14 +52,14 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
               (1..<logo.length).allSatisfy { (logo.attribute(.foregroundColor,at:$0,effectiveRange:nil) as? NSColor) == .labelColor },"AT52 only H is systemBlue")
     try check((logo.attribute(.font,at:0,effectiveRange:nil) as? NSFont) == .systemFont(ofSize:14,weight:.semibold),"AT52 14 semibold")
     try check(ui.version.stringValue == (Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "") && ui.version.font?.pointSize == 10,"AT52 bundle version unchanged at 10pt")
-    let emptyUI=ConversationView(controller:try ConversationController(client:GateClient(store:try LocalStore(directory:directory.appendingPathComponent("empty")))),clipboardArea:directory.appendingPathComponent("empty-clipboard"))
+    let emptyUI=ConversationView(controller:try testConversation(client:GateClient(store:try LocalStore(directory:directory.appendingPathComponent("empty")))),clipboardArea:directory.appendingPathComponent("empty-clipboard"))
     try check(emptyUI.heading.stringValue == "HEJO.","AT52 empty-room heading")
     print("AT-HF-52 PASS")
     let pet=PetController(store:store,atlas:try SpriteAtlas(resourceDirectory:resourceDirectory))
     pet.reducedMotion={true}; pet.pet.installConversation(ui); pet.preferredChatSize=CGSize(width:428,height:500)
     pet.onExpansionChanged={ controller.model.setVisible($0) }; pet.showChat(); pet.pet.layoutSubtreeIfNeeded()
     try check(ui.sidebarRows.filter { $0.kind == .section }.count == 3 && ui.sidebarRows.filter { $0.kind == .stack }.count == 1 && ui.history.contents.filter { !$0.id.hasPrefix("date:") }.count == 1,"reviewed workspace renders employee tabs and thread cards")
-    try check(!pet.panel.isKeyWindow,"installing populated conversation does not take key focus")
+    try check(pet.panel.isKeyWindow,"AT92 populated conversation opens with key focus (V08)")
     try check(ui.sidebarWidth == 68 && ui.employeeTable.rowHeight == 72 && ui.headerDrag.frame.height == 44,"source strip and workspace header metrics")
     var resized:CGFloat=0; ui.onSidebarWidth={resized += $0}
     ui.setSidebarWidth(210); ui.layoutSubtreeIfNeeded()
@@ -119,12 +119,12 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
 }
 @MainActor func conversationNetwork(_ args:[String]) async throws {
     let directory=URL(fileURLWithPath:args[2]), store=try LocalStore(directory:directory), client=GateClient(store:store)
-    let controller=try ConversationController(client:client)
+    let controller=try testConversation(client:client,downloads:client.store.directory.appendingPathComponent("Downloads"))
     try client.pair(address:args[3],code:"test_code-12",device:"test-device")
     print("CONVERSATION_STAGE replay"); fflush(stdout)
     try await waitFor { controller.canSend && controller.model.applied == 3 }
     let key=ConversationKey(employee:"alpha",thread:threadA)
-    try check(controller.model.unread(key) == 1,"real socket replay applies message/edit/state once")
+    try check(controller.model.unread(key) == 0,"AT87 initial socket replay starts read after sync")
     controller.model.select(key); controller.model.setVisible(true)
     let ui=ConversationView(controller:controller,clipboardArea:directory.appendingPathComponent("clipboard"))
     var uploadProgress:[IslandUpload]=[]
@@ -149,11 +149,12 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     await sending.value
     try await waitFor { controller.drafts[key]?.text.isEmpty == true }
     try check(controller.model.selected?.employee == "beta","upload completion preserves current worker selection")
+    try await waitFor { controller.model.messages.values.contains{$0.key.employee=="beta"} }
+    try check(controller.model.unread(employee:"beta")==0,"AT87 visible room reads ordinary incoming posts during upload")
     try check(uploadProgress.contains(IslandUpload(completed:0,total:1)) && uploadProgress.contains(IslandUpload(completed:1,total:1)) && controller.uploads.isEmpty,"AT55 real upload reports progress and clears it")
     try check(controller.transferFailure == nil,"AT55 successful acknowledgement clears transfer failure")
     controller.model.select(key); ui.chooseThread(key)
     guard let sent=controller.model.timeline(key).first(where:{$0.role == "owner"}), let file=sent.files.first else { throw TestFailure.assertion("owner attachment acknowledgement missing") }
-    try await waitFor { controller.model.unread(employee:"beta") == 1 }
     await pause(0.15); ui.layoutSubtreeIfNeeded()
     let bitmap=pet.pet.bitmapImageRepForCachingDisplay(in:pet.pet.bounds)!
     pet.pet.cacheDisplay(in:pet.pet.bounds,to:bitmap)
@@ -161,9 +162,9 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     print("CONVERSATION_AUTOMATIC_CAPTURE_OK"); fflush(stdout)
     var opened:URL?
     controller.onOpenFile={opened=$0}
-    await controller.open(file,employee:"alpha")
+    await controller.open(file,employee:"alpha",date:ThreadTools.date(sent.timestamp))
     try check(opened != nil && (try Data(contentsOf:opened!)) == Data("fixture attachment".utf8),"download passes original bytes to open callback")
-    opened=nil; await controller.open(file,employee:"beta")
+    opened=nil; await controller.open(file,employee:"beta",date:ThreadTools.date(sent.timestamp))
     try check(opened == nil && controller.transferFailure != nil,"foreign employee download never opens a file")
     controller.setText(String(repeating:"한",count:30_000)); await controller.sendCurrent()
     try check(controller.transferFailure?.message.contains("너무 큼") == true,"composer blocks 64KiB text before socket send")
@@ -174,7 +175,7 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     controller.setText("normal request again"); await controller.sendCurrent()
     try await waitFor { controller.draft.text.isEmpty && !controller.sending }
     let redirect=MessageFile(fileID:"77777777-7777-4777-8777-777777777777",name:"redirect.txt",mime:"text/plain",size:0)
-    opened=nil; await controller.open(redirect,employee:"alpha")
+    opened=nil; await controller.open(redirect,employee:"alpha",date:ThreadTools.date(sent.timestamp))
     try check(opened == nil,"HTTP redirects cannot carry credentials or open unverified files")
     controller.setText("disconnect unacknowledged"); await controller.sendCurrent()
     try await waitFor { controller.canSend && controller.transferFailure?.message.contains("전송 확인") == true }

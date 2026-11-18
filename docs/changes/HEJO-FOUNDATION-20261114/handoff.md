@@ -1042,3 +1042,577 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
 - **구현 TASK 현황:** 20·21·22·24·25·32는 부분 완료(고위험), 26·27·29·30·31은 완료다.
 - **TASK-23(운영 적용·실물 확인):** 사장이 시작을 승인하고 함께할 때만 한다. 운영 `~/.hermes` 설정·플러그인 연결·게이트웨이 재시작·launchd 등록은 그 작업 안에서만, 롤백 절차와 함께 한다.
   - 롤백은 `--uninstall-home-channel`과 `shared/hejo` 사본, 이전 릴리스 복원이다.
+
+## 보완 지시 36: TASK-33 앱 자동 업데이트 착수(30판) — 먼저 N32-01 (2026-11-16)
+
+- **사장 지시·선택:** 앱 버전업 때 구버전을 신버전이 자동으로 대체하게 한다.
+  - 받는 곳은 GitHub 릴리스(ddots 방식)다.
+  - 새 버전이 있으면 매번 묻는다.
+  - 서버는 명령으로 갱신한다.
+- **TASK-23 현황:** 운영 적용과 재시작은 끝났다(evidence TASK-23.md). 사장 실물 확인을 기다린다. 이 작업은 운영 서버를 건드리지 않으므로 동시에 진행한다.
+- **순서:**
+  1. 보완 35의 N32-01 시험 보강을 하고, 시험만 커밋한다.
+  2. TASK-33을 진행한다. 기준은 spec REQ-HF-33, design 11절, AT-84다.
+- **베끼기:** design 11절의 ddots 원본 전체를 끝까지 읽고 `copy-review.md`에 기록한다. 26판 규칙(ddots 동작은 코드 우선)대로 하고, 사장 선택 차이(조용한 설치 없음, 알림 센터 대신 펫 말풍선)는 바꾸지 않는다.
+- **해도 되는 것:**
+  - Sparkle 2.10.0을 고정 지문으로 받는다(`.build`, 추적 안 함).
+  - 로컬 키체인에 업데이트 서명 키를 만든다(`install/hejo-ship setup`). 계정 이름에 개인값을 넣지 않는다(예: `io.github.hermes-hejo.updates`). 공개 키만 Info.plist에 커밋한다.
+  - 버전을 0.2.0, 빌드 2로 올린다.
+  - `install/hejo-ship prepare`로 로컬 배포물을 만든다.
+- **하지 않는 것:**
+  - `hejo-ship publish`, `gh release`, 태그 push, 어떤 GitHub 원격 쓰기도 하지 않는다. 공개는 사장이 실행한다.
+  - 운영 `~/.hermes`를 바꾸거나 다시 시작하지 않는다.
+  - 비밀 키를 내보내거나 출력하지 않는다.
+- **검증:**
+  - AT-84 자동 시험: 네트워크 없이, 가짜 릴리스와 appcast로 한다.
+  - 옛 문 + 새 앱 연결 시험. 옛 문은 운영 공용 릴리스 `aeaa652`다(35판 보완 43이 바로잡음. 처음 쓴 `a4a80d5`는 잘못된 예시).
+  - `foundation9_runner hejo` 종료 0, 앱 시험 반복, 개인값 0.
+  - 고위험 돌연변이 1개 이상: `allows` 주소 검사 제거, 버전 비교 뒤집기 등.
+  - 빌드된 앱의 `codesign --verify --deep --strict`와 Sparkle 서명 확인.
+  - `prepare` 결과물 서명 검증.
+- **끝나면:** 별도 커밋을 만들고 공개본(`install/hejo-publish`)을 갱신한 뒤 result로 보고한다. 보고에 사장이 실행할 `publish` 명령 한 줄과 대상 커밋을 적는다. 공용 릴리스 갱신은 TASK-23 확인이 끝날 때까지 하지 않는다(운영 서버 안정 유지).
+
+- **31판 추가(사장 지시):** 자동 창을 기다리지 않고도 업데이트할 수 있게 한다. spec REQ-HF-33.AC-01 '수동 업데이트', design 11절 31판 줄, AT-84 갱신을 따른다.
+  - 메뉴와 일반 탭의 '업데이트 확인…'은 같은 동작이다.
+  - 자동 확인이 새 버전을 찾아 두었으면 메뉴 '업데이트 <버전> 설치…'와 일반 탭 '업데이트' 버튼이 보이고, 누르면 바로 설치한다.
+  - 받는 중에 다시 눌러도 두 번 받지 않는다.
+
+## 보완 지시 37: 사장 실물 지적 4건 + 세 손가락 탭(32판) — TASK-34·35 먼저 (2026-11-16)
+
+- **사장 실물 확인에서 나온 지적:**
+  1. 세 손가락 탭으로 여닫기가 안 된다. ddots 기능인데 이식 대상에서 빠져 있었다.
+  2. 버전이 0.1.0이다.
+  3. 작성기에서 얼굴이 스위치 바로 옆에 붙어 있고, 둘이 가운데 정렬도 안 돼 있다.
+  4. 중지 버튼이 줄 반대쪽 끝에 있다.
+  5. 답이 끝났는데 "작성 중"이 계속 남는다.
+- **원인 확인(계획 담당):**
+  - 5번: 운영 기록장 seq 43(`📚 스킬 읽는 중`)은 `edit final:false`만 두 번 받았다(seq 44·45). 최종 답 seq 46이 온 뒤에도 끝나지 않은 글로 남았다. Hermes 에이전트 로그에서는 차례가 20:27:07에 끝났다.
+  - 3·4번: ddots `SlackPanel.slackComposer`(2980~)는 `HStack(spacing:8){스위치; Spacer(min 4); 얼굴}`이다. `stopControl`(2738~)은 `HStack(spacing:6){[스피너·문구·초](spacing 9); 중지}`다. hejo 배치가 다르다.
+  - TASK-22는 운영 기록장을 보니 재시작 뒤 `/sethome` 안내가 0건이라 통과다. 사장 화면에 보인 안내는 11-15 기록이다.
+- **순서(바꿈):**
+  1. N32-01: 이미 했으면 그대로 둔다.
+  2. TASK-34(REQ-HF-34, AT-85).
+  3. TASK-35(REQ-HF-35, AT-86).
+  4. TASK-33(자동 업데이트, 0.2.0).
+  - TASK-33을 이미 시작했으면 그 작업물은 커밋하지 말고 보존한 채 34·35를 먼저 커밋한다.
+  - 0.2.0 첫 배포에 34·35가 들어가게 한다.
+- **TASK-34:**
+  - 문(`gate/adapter.py`) `stop_typing`(보조 프로필 전달 경로 포함)에서 그 직원의 그 스레드 중 `final`이 아닌 글을 마지막 본문으로 `edit final:true` 한다.
+  - 앱 배치 두 곳은 ddots 원문 수치 그대로다.
+  - 가짜 Hermes 시험으로 실물 순서(도구 진행 편집 → 최종 답 → stop_typing)를 재현한다.
+- **TASK-35:**
+  - ddots `ThreeTap.swift`(132)·`ThreeTapReader.swift`(150)·`ThreeTapController.swift`(139)와 App.swift 연결(1370~1406, 1947)을 전체 읽는다.
+  - 이식할 때 `ThreeTapNotice.swift`의 Slack 보고(`ThreeTapSender`·`ThreeTapCommand`)는 뺀다.
+  - 비공개 프레임워크는 dlopen만 쓰고 링크하지 않는다.
+- **공통:**
+  - 각 TASK는 별도로 커밋한다.
+  - 검증: foundation9_runner hejo 0, 앱 시험, 개인값 0, 같은 상태 ddots 캡처 비교.
+  - 운영 `~/.hermes` 변경·재시작과 공용 릴리스 갱신은 하지 않는다. 운영 반영은 0.2.0 배포 때 계획 담당과 사장이 한다.
+  - 끝나면 result로 보고한다.
+- **보완 37 추가(사장 지적 3건, 같은 TASK-34):** spec REQ-HF-34.AC-05~07과 AT-85에 반영했다.
+  - DM 묶음: 머리줄은 이름 글자만이다(ddots `slackFolded`). 얼굴 줄은 없고 기본 이름은 "DM"이다.
+  - + 버튼: 목록 마지막 줄 바로 아래에 둔다(ddots `slackAddRoom` 위치). 맨 아래 고정이 아니다.
+  - 한글 입력: 원인 후보는 `RoomDialogs.swift:26~27`의 Slack 채널 이름 변환이다(소문자·빈칸→-·영숫자만). 입력 중에 글자를 고치면 조합 중 글자가 깨진다. 방 이름은 자유 글로 하고, 조합 중에는 글자를 고치지 않는다. 85줄의 Slack 안내 문구도 뺀다. 다른 입력칸(제목·설명·구획 이름·작성기)도 함께 확인한다.
+- **보완 37 추가 2(사장 지적 '섹션 열리는 애니메이션'):** spec REQ-HF-34.AC-08과 AT-85를 따른다. ddots 원문은 `SlackModel.motion = easeInOut(0.24)`, `animated{}`, 사이드바 `.animation(value: rooms)`, 선택 표시 spring(0.34, 0.88)이다. hejo는 지금 움직임이 없다. AppKit에서는 `NSAnimationContext`(0.24, easeInEaseOut)로 줄 frame·alpha·rail 높이를 함께 움직이고, '동작 줄이기'면 즉시 바꾼다.
+- **보완 37 추가 3(사장 지시 '도구 진행 글은 작업이 끝나면 사라져야'):** spec REQ-HF-34.AC-09와 AT-85를 따른다.
+  - 근거(계획 담당 확인, Hermes ebb026e):
+    - `gateway/run_turn.py` 4183~4215는 성공한 차례의 진행 글을 `delete_message`로 지운다.
+    - 3115~3122는 어댑터에 `delete_message`가 없으면 정리를 끈다.
+    - `display_config.py`의 순서는 `display.platforms.<p>.cleanup_progress` → `display.cleanup_progress` → 플랫폼 기본이다.
+    - 운영 설정 5곳에 `display.cleanup_progress: false`가 있다.
+  - 할 일:
+    - `HejoAdapter.delete_message`를 구현한다(자기 글만, 보통 `delete`).
+    - 설치 도우미에 `display.platforms.hejo.cleanup_progress: true`를 키 단위로 넣는다(값 없을 때만, 영수증, 되돌리기, `--check`). 홈 채널 규칙과 같다.
+    - AC-03(stop_typing 때 끝내기)은 그대로 둔다. 정리를 꺼 둔 사장이나 실패한 차례의 남는 진행 글이 '작성 중'으로 보이지 않게 하는 장치다.
+  - 운영 반영은 0.2.0 배포 때 계획 담당과 사장이 한다. 설치 도우미를 실행하고 게이트웨이를 다시 시작해야 한다.
+
+## 보완 지시 38: ddots 동등 2차(33판) — TASK-34 AC-08 이관, TASK-36~47 추가 (2026-11-16)
+
+- **사장 지시:** "ddots에서 그대로 구현 안 된 게 아주 많다. 코드를 자세하게 살펴봐", "다시 한번 냉정하고 샅샅이 검토해봐", "애니메이션도 많이 다르니 자세히 조사해".
+- **사장 결정:**
+  - "내가 고른 것만 남기고 모두 ddots".
+  - 캘린더·옆 창·대화창 모양·작업 목록 모두 넣는다.
+  - 다운로드 폴더 저장은 넣고, 사용량 표시는 넣지 않는다.
+  - 클립보드 보관함·파일 맡기기는 넣지 않는다.
+  - 단체방에서 부르지 않은 답은 대표 직원이 받는다(유지).
+- **계획 담당 조사:**
+  - ddots 제품 파일 전부와 hejo e77a5f7을 대조했다. 갈래는 화면, 규칙, 카드, 펫·설정, 부가 기능, 애니메이션이다.
+  - 1차 주장 69건은 다른 조사가 호출 경로로 다시 검증했다(거짓 1, 의도된 결정 11).
+  - 문구 1,315개와 조작 장치 98곳도 대조했다.
+  - 결과는 [ddots-inventory.md](ddots-inventory.md) 2판에 있다. 이것이 이번 작업의 기준표다.
+- **원인(계획 담당 책임):**
+  - 8판이 규칙 코드를 "가져오지 않음"으로 두고 명세 문장으로 다시 만들게 했다.
+  - 1판 대조표는 핵심 파일 밖을 훑기만 했고 ✅ 오류가 2건 있었다.
+  - 계획 담당이 ddots와 다른 값을 명세에 넣었다(V01~V17).
+  - 검토가 AC 통과만 보고, ddots와 나란히 비교하지 않았다.
+- **문서:**
+  - spec 33판: REQ-HF-36(AC-00~07), 37~41, 대체 표시 `[33판 …]` 12곳, REQ-HF-34.AC-08 폐기·이관.
+  - design 12절.
+  - tasks TASK-36~47.
+  - AT-HF-87~98(AT-85의 움직임 항목은 AT-89로 옮김).
+- **TASK-34(진행 중) 처리:**
+  - AC-08(구획 움직임)은 TASK-34에서 빼고 TASK-38에서 REQ-HF-36.AC-03 기준으로 한다.
+  - 이미 만든 움직임 코드가 있으면 TASK-34 커밋에 넣지 않는다. `git diff`를 `.build/task38-start.patch`로 보관하고 작업 트리에서 되돌린다. TASK-38 출발점으로 쓸 수 있다.
+  - AC-01~07·09는 그대로 끝내고 커밋한다.
+- **순서(이 순서대로, 같은 파일이 겹쳐 순차):**
+  1. TASK-34(AC-08 제외)
+  2. TASK-35
+  3. TASK-33(자동 업데이트, 0.2.0). 이후 작업은 업데이트로 두 Mac에 간다.
+  4. TASK-36 → 37 → 38 → 39 → 40 → 41 → 42 → 43 → 44 → 45 → 46 → 47
+  - 병렬 갈래: 없음. 파일 겹침: `ConversationView`·`ConversationModel`을 36~40이, `AppDelegate`·`BubbleReveal`·`PetController`를 41·42·45·46·47이 함께 고친다.
+- **TASK마다 할 일(36~47 공통):**
+  - 대조표 2판에서 그 TASK 행(§A~§H)의 ddots 근거 함수를 **전체** 읽는다. 부르는 코드까지 읽는다. 행 ID별 대응을 `copy-review.md`에 적은 뒤 옮긴다.
+  - 행 요약과 코드가 다르면 코드를 따르고 보고서에 적는다.
+  - hejo 고유 계약(문·허브·기록장·출입증·단체방 대표 직원)과 부딪치는 행은 그 행만 멈추고 result로 보고한다.
+  - 유지(§0-2)·제외(§K, A12, B14, D24, F19) 행은 건드리지 않는다.
+  - 연결되지 않은 복사 코드는 연결하거나 지운다.
+  - 시험: AT 기대값은 ddots 근거 줄의 값이다. 움직임은 중간 프레임 값(위치·투명도·높이)을 단언한다.
+  - 커밋: TASK마다 `git commit --only`로 따로 하고 result로 보고한다.
+  - 증거:
+    - foundation9_runner hejo 0, 앱 시험, test_install, 개인값 0.
+    - 같은 상태의 ddots와 hejo 캡처 나란히 비교(`evidence/HEJO-FOUNDATION/TASK-<n>.md`, 개인 경로·사설 IP 금지).
+- **TASK별 주의:**
+  - 36: 읽음은 기존 회원 상태 키만 쓴다(새 원본 없음). 안 읽은 수는 글의 처음 seq로 센다. 첫 실행 때 숫자가 줄어드는 것은 의도다.
+  - 37: 보내는 중 글은 앱 메모리에만 둔다. 실패하면 글·첨부를 잃지 않고 보내지 못한 글로 옮긴다.
+  - 38: `reloadData`로 여닫지 않는다. 행 id 차이 + `.effectFade` + 겹 층 레일 + spring 선택 상자(design 12절)다.
+  - 41: `dragged(by:)`·`blurredImage` 연결, `PetBubbleMotion` 이식, 유리 말풍선.
+  - 42: 받기 1.5초. 앞 요청이 끝나기 전에는 보내지 않는다. 허브에 부담을 주지 않게 바뀐 것이 없으면 빈 응답을 쓴다(필요하면 허브에 조건부 응답 추가, 하위 호환).
+  - 45: WKWebView(AppKit). 문 첨부 주소에는 출입증을 넣지 않는다.
+  - 46: EventKit은 읽기만 한다. Info.plist 문구를 넣는다.
+  - 47:
+    - 훅 등록은 사장이 누를 때만 한다. 백업·영수증·연결 해제는 필수다.
+    - 시험은 임시 HOME에서만 한다. 사장 Mac의 실제 `~/.codex`·`~/.claude` 설정을 시험에서 바꾸지 않는다.
+- **금지(그대로):**
+  - 운영 `~/.hermes` 변경·재시작·설치 도우미 운영 실행, 공용 릴리스 폴더 갱신.
+  - GitHub 원격 쓰기(publish·gh release·태그 push).
+  - Hermes 본체·ddots 수정.
+  - 비밀 키 출력.
+  - 문구는 '서버'를 쓴다.
+
+## 보완 지시 39: TASK-34 검토 통과 — N34-01 시험 보강 뒤 TASK-35 (2026-11-17)
+
+- **TASK-34(44ab635):** 완료. 판정은 [verdict.md](../56917a17-07e0-4cb3-940d-2880e1aeaae3/verdict.md)에 있다.
+  - 깨끗한 worktree에서 hejo 전체 시험 189 passed를 확인했다.
+  - 검토자 돌연변이 5개 중 3개를 잡았다.
+- **N34-01(먼저, 시험만, `gate/tests/test_progress.py`):**
+  - 같은 대화에서 스레드 A·B가 둘 다 `final:false` 글을 흘리는 중일 때, `stop_typing(chat, metadata={"thread_id": A})`를 보낸다.
+  - 기대:
+    - A 글만 `edit final:true` 한 번을 받는다.
+    - B 글에는 편집 기록이 0이다.
+    - B 작성 중 상태가 남는다.
+  - 같은 경우를 보조 프로필 전달자 경로로도 시험한다. 전달자가 `thread_id`를 문에 그대로 넘겨야 한다.
+  - 돌연변이로 시험을 확인한다. 아래 두 가지를 각각 넣으면 새 시험이 실패해야 한다.
+    - 필터 `(selected is None or entry[1]==selected)` 제거
+    - 전달자 metadata를 `{"hermes_profile":…}`로 되돌림
+  - 제품 코드는 바꾸지 않는다. 시험만 따로 커밋한다.
+- **다음 순서:**
+  - TASK-35 → TASK-33(0.2.0, 34·35 포함) → TASK-36~47(보완 38 그대로)
+  - TASK-36을 시작하기 전에 handoff의 최신 보완 지시와 ddots-inventory 2판을 다시 읽는다. 계획 담당이 마지막 대조 결과로 행을 더할 수 있다.
+
+## 보완 지시 40: 마지막 조사 반영(34판, 대조표 2.1판) — TASK-48 추가 (2026-11-17)
+
+- **사장 지시:** "마지막으로 한 번 더 조사하자 빠진 게 있는지".
+- **조사 세 갈래(계획 담당):**
+  - ddots 시험 19개·문서 8개 기준으로 동작 약 220개를 대조했다.
+  - 안 본 파일과 문(gate) 쪽, Info.plist를 봤다.
+  - 2판 140행의 근거를 다시 확인했다. 함수 804개는 역방향으로 대조했다.
+  - 결과는 [ddots-inventory.md](ddots-inventory.md) §0-4(2.1판 보강)에 있다. 이 절의 정정은 아래 행보다 우선한다.
+- **바뀐 것:**
+  - 행 정정 28건. 주요한 것:
+    - D04: 카드 아래 단추 툴팁은 ddots 실제 화면에 없다 → 접근성 이름만.
+    - V11·G09: 받기 1.5초가 아니라 보내기 1.5초 묶음, 받기는 바로 → 허브 대기 요청.
+    - B04: 시간 자리 문구는 "보내는 중".
+    - E09: 홈 제목 순서.
+    - F05·V10: 승인 말풍선은 남는다.
+    - F06: 부제 없음.
+    - V05: "기본 받을 직원"은 유지.
+  - 새 앱 행 31개(A13~A17, B15~B18, C22~C27, D25~D30, E14~E17, F20~F25, G11~G13, H02+~H05+). 각 행의 TASK 번호를 따른다.
+  - 새 문 행 I01~I06 → REQ-HF-42, **TASK-48**, AT-HF-99.
+  - spec 34판:
+    - AC-00: "지운다" → "연결한다".
+    - AC-04: 툴팁 → 접근성 이름.
+    - AC-07: 맞추기.
+    - REQ-37·39·40·41 실패 문장 정정.
+    - 꼬리표 K1·K6·V05/V17.
+  - design 12절 정정과 12-1절.
+- **순서:** N34-01 → TASK-35 → TASK-33(0.2.0) → **TASK-48** → TASK-36 → 37 → … → 47.
+  - TASK-48은 문만 고친다. 앱 파일과 겹치지 않는다.
+  - 정기 보고 잘림과 1:1 문맥 누락이 운영에서 바로 보이는 문제라 먼저 한다.
+- **TASK-48 주의:**
+  - Hermes 본체를 고치지 않는다. 쓰는 것은 공개 어댑터 계약(`splits_long_messages`, `send_image`·`send_voice`·`send_video`, 수신 문맥, 지역 낱말표)뿐이다.
+  - 세션 판정은 Hermes가 넘기는 정보를 따른다. 문이 새 세션 표를 만들지 않는다.
+  - 나누기는 규격을 바꾸지 않는다. 조각마다 보통 `message` 기록이다.
+  - 시험은 가짜 게이트웨이로만 한다. 운영 정기 보고 확인은 0.2.x 운영 반영 때 계획 담당과 사장이 한다.
+- **사장 결정 대기(이 저장소 밖, 착수 금지):**
+  - J01 `[[글 나누기]]`, J02 `report_status` hejo 갈래, J03 체크리스트 메타(TASK-28). 모두 운영 저장소 team-kit 일이다.
+  - Slack 답에 붙던 사용량 꼬리말(⏱·📥·📤)을 hejo에서도 보일지.
+- **공통·금지:** 보완 38·39와 같다.
+
+## 보완 지시 41: 사장 결정 — 사용량 꼬리말 안 넣음, team-kit hejo 경로 진행(TASK-49) (2026-11-17)
+
+- **사장 결정:** "사용량은 이제 넣지 말자", "2번도 진행하자"(team-kit J01~J03), "연합개발로 시작".
+- **사용량 꼬리말:**
+  - hejo에는 붙지 않는다. team-kit `usage_ledger`는 slack·photon 어댑터에만 붙인다(`usage_ledger.py` 614줄).
+  - TASK-49에서 hejo 글에 꼬리말이 0임을 시험으로 고정한다.
+  - 대조표 2.1판 D25("─" 줄 줄이기)는 그대로 둔다. ddots 동작이고, 다른 출처의 긴 가로줄에도 적용된다.
+- **TASK-49(REQ-HF-43, AT-HF-100, TASK-28 대체):**
+  - 순서: TASK-48 다음, TASK-36 앞.
+  - 대상: 운영 저장소 team-kit의 `lib/hermes_reply/plugin.py` `install_hejo`와 `lib/hermes_team_services/report_status.py`.
+  - 원본 독해: Slack 경로의 `send`·`post_pieces`·`splittable`·체크리스트 처리와 `report_status.handle`·`repaint`를 끝까지 읽는다. 대응은 `copy-review.md`에 적는다.
+  - 개발 위치(운영 원본 보호)
+    - 운영 원본 `~/.hermes/plugin-store/team-kit`은 바꾸지 않는다.
+    - 운영 저장소에 임시 worktree를 만들고, 그 안의 `hermes/plugin-store/team-kit` 사본에서 개발·시험한다. 이 사본은 `./sync`가 운영 원본으로 덮어쓰는 사본이다. 그러니 시작할 때 운영 원본과 같은지 먼저 확인하고, 다르면 멈추고 보고한다.
+    - 결과는 패치 `.build/task49/team-kit.patch`(hejo 저장소 .build, 추적 안 함)와 시험 로그로 낸다.
+    - 운영 저장소에 커밋·푸시하지 않는다.
+    - 시험은 운영 저장소 규칙대로 team-kit `tests`와 `./airport-check`를 그 worktree에서 실행한다. `--rebaseline`은 금지다.
+  - 문 쪽
+    - report_status에 스레드 첫 글 조회가 필요하면 문에 공개 메서드 하나를 더한다(hejo 저장소, 규격 변경 없음). 따로 커밋한다.
+    - team-kit은 문 내부를 import하지 않는다. `install_hejo`에 넘어온 어댑터의 공개 메서드만 쓴다.
+  - 상태 대응
+    - pending·failed → asked, partial → answered, done·declined → closed.
+    - 제목 표식 🔴🟡🟢를 바꾼다. done·declined면 단추를 비운다.
+    - 상태 줄 글자는 보이지 않는다(ddots가 숨기는 표식).
+  - 운영 반영: 운영 원본 교체, `./sync`, 운영 저장소 커밋, 게이트웨이 재시작은 0.2.x 운영 반영 때 계획 담당과 사장이 한다.
+- **순서(갱신):** N34-01 → TASK-35 → TASK-33(0.2.0) → TASK-48 → **TASK-49** → TASK-36 → … → 47.
+- **공통·금지:** 보완 38·39와 같다. 운영 `~/.hermes`(team-kit 운영 원본 포함) 변경은 금지한다.
+
+## 보완 지시 42 (TASK-35 검토 뒤, 2026-11-17)
+
+- TASK-35는 통과했다(91956f5). N34-01도 통과했다(e94ee2f).
+- N35-01(비차단, TASK-42에서 함께 한다)
+  - ddots 설정 "고급" 탭에는 "수정 요청문 복사" 단추가 있다(D:App.swift:1982-1984).
+  - 세 손가락 탭이 실패했을 때만 보이고, 평소에는 숨긴다(D:App.swift:1401 `tapCopyButton?.isHidden = fault == nil`).
+  - 누르면 `ThreeTapController.copy(failure)`를 부른다(D:App.swift:1406).
+  - TASK-42에서 고급 탭(G02·G07)을 만들 때 이 단추를 같은 자리·같은 조건으로 넣는다. AT-HF-93에 "실패 없음이면 숨김, 실패면 보이고 누르면 요청문 복사" 단언을 더한다.
+- 순서는 그대로다: TASK-33(0.2.0) → TASK-48 → TASK-49 → TASK-36 → … → 47.
+
+## 보완 지시 43 (TASK-33 D33-01 결정, 35판, 2026-11-17)
+
+- **원인:** 계획 담당이 보완 36에 옛 문 예시를 `release-a4a80d5`로 잘못 적었다.
+  - `a4a80d5`는 TASK-21 단체방(`61a5548`) 이전 문이다. hello의 `features`를 거절한다.
+  - 지금 운영 서버는 2026-11-16 20:06에 `aeaa652`를 적용했다. 이 문은 `features`를 받는다(`gate/server.py:373`).
+  - 0.1.0 앱도 TASK-21부터 `features:["rooms"]`를 보낸다. 따라서 `a4a80d5`는 0.2.0 이전에도 이미 지원 밖이었다.
+  - D33-01은 TASK-33 결함이 아니다. 계획 담당의 기준 문 지정 오류다.
+- **결정**
+  - REQ-HF-33.AC-03의 "옛 문"은 `aeaa652`(운영 공용 릴리스)다. 지원하는 가장 낮은 문은 `61a5548` 이후다.
+  - 권고안 A(features 없는 되돌림 연결)는 하지 않는다. 그 문을 쓰는 서버가 없기 때문이다.
+  - GateClient·문 통신 계약은 바꾸지 않는다.
+- **실행 담당 재개 절차**
+  1. `.build/task33/draft/`의 초안 19개를 `draft-files.json` 지문과 대조해 다시 적용한다. 기준 커밋이 `bdffda2`에서 바뀌었으면 차이를 확인한다.
+  2. `gate/tests/test_update_compat.py`의 옛 문을 `aeaa652` 공용 릴리스로 바꾼다. 문 소스는 `git archive aeaa652 gate`처럼 임시 폴더로 꺼낸다.
+     - 확인: 새 앱이 짝맺기, 송신, 수신에 성공한다(종료 0).
+     - 확인: `rooms`가 있는 연결로 단체방 목록을 받는다.
+  3. 남은 보완 36 검증을 끝낸다.
+     - `foundation9_runner hejo` 0, `test_install`, 앱 반복 10회, 개인값 0.
+     - `codesign --verify --deep --strict`, Sparkle 서명 확인.
+     - `hejo-ship prepare` 결과물 서명 검증, 원격 쓰기 0.
+     - 유효한 캡처 비교. 렌더링이 깨진 PNG는 증거로 쓰지 않는다.
+  4. 별도 커밋으로 남긴다. 지금 작업 트리에 있는 `copy-review.md`·`impl-report.md` 변경도 같은 커밋에 포함한다.
+     - 공개본(`install/hejo-publish`) 갱신과 사장용 `publish` 명령 한 줄은 보완 36대로 한다.
+     - 공용 릴리스 폴더는 갱신하지 않는다.
+  5. 이미 만든 키체인 서명 키를 다시 쓴다. 새 키를 만들지 않는다. 비밀 키를 출력하거나 내보내지 않는다.
+- **운영 주의(계획 담당·사장)**
+  - 기존 롤백 자료 `task23-20261116-200307`은 `a4a80d5`로 되돌린다. 이 자료는 TASK-21 이후 앱과 맞지 않는다.
+  - 0.2.x 운영 반영 때는 그 직전 상태(`aeaa652`)로 새 백업을 만들어 롤백 기준으로 삼는다.
+- **순서:** TASK-33 재개 → TASK-48 → TASK-49 → TASK-36 → … → 47.
+
+## 보완 지시 44 (TASK-33 검토 뒤, 2026-11-17)
+
+- TASK-33 앱 쪽은 통과했다(1675529, 공개본 09157e9). 남은 차단 결함은 배포 도구 N33-01 하나다.
+- **N33-01(결함, 사장의 publish를 막음)**
+  - 위치: `install/hejo-ship` `publish`(200·210줄)는 초안 상태 확인에 `gh api repos/{repo}/releases/tags/{tag}`를 쓴다.
+  - 문제: GitHub REST "Get a release by tag name"은 **공개된 릴리스만** 돌려준다. 초안이면 404다.
+  - 결과: `create --draft`와 `upload` 뒤 이 조회가 실패한다. 사장이 publish를 실행하면 늘 초안만 남고 공개되지 않는다.
+  - 시험 `test_at84_publish_draft_upload_verify_signed_feed_latest`는 `gh api` 대역이 어떤 경로든 초안을 돌려준다. 그래서 이 문제가 드러나지 않았다.
+- **수정**
+  1. 초안 조회를 초안도 돌려주는 경로로 바꾼다. 예: `gh api repos/{repo}/releases --paginate`에서 `tag_name == tag`이고 `draft == true`인 항목을 정확히 하나 고른다.
+     - 0개거나 2개 이상이면 `ShipError`로 멈추고, 초안을 남긴다.
+     - 이후 검사는 지금처럼 자산 하나, `uploaded`, 크기, `digest`를 본다.
+     - 피드를 올린 뒤의 재조회도 같은 방식으로 한다.
+  2. 시험 대역을 실제 GitHub 의미에 맞춘다.
+     - `releases/tags/<tag>`는 초안이면 404(명령 실패)를 돌려준다.
+     - 목록 경로는 초안을 돌려준다.
+     - 돌연변이: 조회를 다시 `releases/tags`로 되돌리면 시험이 실패하는지 확인한다.
+  3. 같은 태그 초안이 이미 있을 때(앞선 실패 뒤 재실행)의 동작을 정해 시험한다.
+     - 기존 초안을 지우거나 덮어쓰지 않는다.
+     - "같은 태그의 초안이 남아 있어요. GitHub에서 확인한 뒤 지우고 다시 실행해 주세요."로 멈춘다.
+  4. 앱 소스는 바꾸지 않는다.
+     - 공개본(`install/hejo-publish`)과 `prepare` 결과물을 다시 만든다. 트리가 바뀌므로 publish 승인 커밋도 바뀐다.
+     - 별도 커밋으로 남기고, 사장용 publish 명령 한 줄을 다시 적는다.
+  5. 검증
+     - `tests/acceptance/test_ship.py` 전체, `foundation9_runner hejo` 0, 개인값 0.
+     - `prepare` 재실행과 서명 검증, 원격 쓰기 0.
+  6. 실제 `gh`·GitHub에 쓰지 않는다. 읽기 조회도 하지 않는다.
+- **순서:** N33-01 → TASK-48 → TASK-49 → TASK-36 → … → 47.
+
+## 보완 지시 45 (N33-01 검토 뒤, 2026-11-17)
+
+- N33-01은 통과했다(96ec311). 0.2.0 공개 후보는 로컬 `public` 가지 `f716bdff38af3d8c2cb2cdf4502e080ecbecb2bc`이고, 준비물은 `.build/n33-01/prepared/`다.
+- 앞 후보 09157e9는 `archive/task33-before-n33-01`에 보존돼 있다. 쓰지 않는다.
+- 0.2.0 공개는 0.2.x 운영 반영 때 사장이 한다. 순서는 다음과 같다.
+  1. public 가지를 github main에 푸시한다(플러그인 승인).
+  2. `install/hejo-ship publish --approve-commit f716bdff38af3d8c2cb2cdf4502e080ecbecb2bc --prepared .build/n33-01/prepared/prepared.json`을 실행한다.
+  3. 두 Mac에 손으로 설치한다.
+  - 그 전에 `aeaa652` 기준으로 새 롤백 백업을 만든다(35판).
+- **다음 순서:** TASK-48 → TASK-49 → TASK-36 → … → 47.
+
+## 보완 지시 46 (TASK-48 검토 뒤, 2026-11-17)
+
+- TASK-48은 통과했다(d467799). TASK-49 전에 작은 보완 두 개를 한 커밋으로 한다.
+- **N48-01(문구, 사장 눈에 보임)**
+  - 문제: `gate/buttons.py` `decision`이 Slack 낱말(`platform.slack.approval.resolved_*`, `platform.slack.confirm.resolved_*`)에 `user="나"`를 넣는다. 그래서 결과 줄이 "✅ 나이(가) 한 번 승인했어요"처럼 문법이 틀린다.
+  - 원인: Slack은 여러 사람 중 누가 눌렀는지를 `{user}이(가)`로 밝힌다. hejo는 누르는 사람이 사장 한 명뿐이라 이 구절이 필요 없다(22판 규칙 "Slack 전용 구절 빼기").
+  - 수정: 승인·확인 결과 줄에는 Hermes 공식 낱말표에서 이름이 없는 낱말을 쓴다. 새 문구는 만들지 않는다.
+    - 승인: `platform.telegram.approval.resolved_once`·`resolved_session`·`resolved_always`·`resolved_deny`("✅ 한 번 승인됨" 등)
+    - 확인: `platform.telegram.slash_confirm.resolved_once`·`resolved_always`·`resolved_cancel`
+  - 선택지(clarify) 결과는 지금처럼 `platform.slack.clarify.resolved`·`awaiting`(`user="나"` → "✅ 나: 선택", "✏️ 나의 직접 입력을…")를 쓴다. 문법이 맞기 때문이다.
+  - 시험: 결과 줄이 위 공식 낱말과 같고 "이(가)"가 없다고 단언한다. Hermes 본체의 낱말표는 읽기만 한다.
+- **N48-02(호환)**
+  - 문제: `send_video`에 `**kwargs`가 없다. Hermes `BasePlatformAdapter.send_video`(base.py 3244)는 `**kwargs`를 받는다.
+  - 수정: `send_video(..., metadata=None, **kwargs)`로 맞춘다. 시험에 추가 키워드 인자로 불러도 첨부가 되는 경우를 하나 더한다.
+- **검증:** `test_delivery_parity.py`, `foundation9_runner hejo` 0, 개인값 0. 별도 git commit --only.
+- **순서:** N48-01·02 → TASK-49 → TASK-36 → … → 47.
+
+## 보완 지시 47 (TASK-49 시작 조건 정정, 2026-11-17)
+
+- **확인한 사실**
+  - 실행 담당이 시작 대조에서 차이 3건을 찾고 멈췄다. 차이는 `lib/hermes_packs/cctv/now.py`·`watch.py`, 운영 원본에만 있는 `cctv/tests/test_channel_messages.py`다.
+  - 이 셋은 운영 원본이 오늘 21:51에 바뀌었고, 아직 `./sync`로 모으지 않은 것이다. 운영 저장소 규칙상 원본은 `~/.hermes`이고, 매일 04:30 `./sync --commit`이 모은다.
+  - 다른 운영 작업의 정상적인 미동기 상태이며, TASK-49와 겹치지 않는다.
+  - 계획 담당이 다시 확인했다(읽기만). `lib/hermes_reply/`, `lib/hermes_team_services/report_status.py`, `tests/`는 사본과 운영 원본이 같다(`.pytest_cache`만 다름).
+- **결정:** 시작 일치 조건을 TASK-49가 바꾸는 범위로 좁힌다.
+  - 대조 대상: `lib/hermes_reply/**`, `lib/hermes_team_services/**`, `tests/**`(캐시 제외), 그리고 실제로 고치거나 import하는 파일.
+  - 이 범위가 같으면 진행한다. 범위 밖 차이는 보고서에 목록으로만 남긴다.
+  - 범위 안에 차이가 있으면 지금처럼 멈춘다.
+- **패치 기준**
+  - 패치는 운영 원본에 그대로 적용될 수 있어야 한다.
+  - 마지막에 `.build/task49/team-kit.patch`를 운영 원본의 임시 복사본(예: `cp -R ~/.hermes/plugin-store/team-kit <임시>`)에 `git apply --check` 또는 `patch --dry-run`으로 적용해 본다. 운영 원본에는 적용하지 않는다.
+  - 시험이 cctv를 함께 돌려 범위 밖 차이 때문에 결과가 달라지면, 그 사실과 해당 시험을 따로 적는다.
+- **나머지는 보완 41과 같다.** 지금 작업 트리에 있는 `copy-review.md`·`impl-report.md`의 보류 기록은 지우지 말고 이어서 적는다. hejo 쪽에 커밋할 것이 생기면 그 커밋에 함께 넣고, 없으면 그 두 파일만 따로 커밋한다.
+- **운영 주의(계획 담당·사장):** TASK-49 운영 반영 때 운영 원본에 패치를 적용한 뒤 `./sync`를 하면, cctv 변경도 함께 모인다. 커밋 전에 `git status`로 cctv 변경이 다른 작업의 것인지 확인한다.
+
+## 보완 지시 48 (TASK-49 D49-01 결정, 35판, 2026-11-17)
+
+- **D49-01:** 체크리스트의 맞춤 제출(`| 제출: lv1 | lv2 | 확인`)을 hejo 체크리스트 계약(`items`·`selected`·`can_skip`)으로는 표현하지 못한다.
+- **결정: ddots와 같게 한다(33판 "사장이 고른 것 외에는 ddots").** 실행 담당이 권고한 A안(규격에 submits 추가)과 B안(글자 대체)은 채택하지 않는다.
+  - 근거: ddots는 맞춤 제출 단추를 그리지 않는다.
+    - `ddots/Sources/SlackThreads.swift:74-88`은 체크리스트 블록에서 토글 단추와 `hermes_reply_checklist_skip`만 읽는다.
+    - `SlackPanel.swift:3540-3575` `HermesReplyChecklist`는 "작성"과 (있으면) 건너뛰기만 보인다.
+    - 답은 `checklistAnswer`(605-609)의 `선택: …`이다.
+    - 따라서 사장이 ddots에서 받던 답은 지금 hejo 앱이 만드는 답과 같다.
+  - J03 처리
+    - `submits`가 있는 체크리스트도 `hejo_checklist {items: 체크 항목, selected: [], can_skip: false}`로 보낸다.
+    - 맞춤 변형에는 Slack 건너뛰기 단추가 없으므로 `can_skip`은 false다.
+    - 제출 낱말은 보내지 않는다. 본문에도 덧붙이지 않는다.
+    - 문·앱·통신 규격은 바꾸지 않는다.
+  - 시험(AT-100에 더함)
+    - 맞춤 제출 체크리스트를 hejo로 보내면 `items`가 체크 항목뿐이고, `can_skip`이 false이며, 제출 낱말이 프레임 어디에도 없다.
+    - 일반 체크리스트(건너뛰기 있음)는 `can_skip`이 true다.
+- **나머지는 보완 47·41과 같다.** 재개해서 J01·J02·J03을 구현하고 시험한다.
+  - `.build/task49/team-kit.patch`를 만들고, 운영 원본 임시 복사본에 dry-run으로 적용해 본다.
+  - team-kit tests와 `./airport-check`를 실행한다.
+  - 보고 두 파일에 이어서 적는다.
+
+## 보완 지시 49 (TASK-49 검토 뒤, 2026-11-17)
+
+- TASK-49는 수준 2까지 통과했다.
+  - 문 공개 조회 `first_thread_message`: `85f1e23`.
+  - team-kit 패치: `.build/task49/team-kit.patch`, sha256 `7d7cb693…`.
+- **운영 반영 때 확인할 것(0.2.x, 계획 담당+사장)**
+  - 반영 전 준비
+    - 운영 원본 team-kit을 백업한다.
+    - 범위 대조 373개를 다시 확인한다.
+    - `patch -p1`로 적용한다.
+  - 반영 후 정리: `./sync`를 하고, `git status`로 cctv의 다른 작업 변경이 섞였는지 확인한 뒤, 운영 저장소에 커밋한다.
+  - 게이트웨이를 재시작한 뒤 실물로 확인한다.
+    1. 정기 보고 스레드에서 `report_status`를 부르면 첫 직원 글 제목 표식과 답 상태가 바뀐다. ContextVar 연결이 실제 Hermes 백그라운드 차례로 이어지는지 본다. 대기열에 들어간 차례도 본다.
+    2. `[[글 나누기]]` 답이 조각별 글과 버튼으로 온다.
+    3. 일반 체크리스트와 맞춤 제출 체크리스트가 보이고, 답한 뒤 상태가 answered로 바뀐다.
+    4. 답 끝에 사용량 꼬리말이 없다.
+  - 문제가 생기면 백업으로 되돌리고 게이트웨이를 재시작한다.
+- **다음 순서:** TASK-36 → 37 → … → 47(보완 38; ddots-inventory.md §0-4 2.1판 정정을 함께 읽는다; TASK-42에는 N35-01을 포함한다).
+
+## 보완 지시 50 (TASK-36 D36-01 결정, 35판, 2026-11-17)
+
+- **D36-01:** A07에서 버튼 답과 직접 쓴 답을 구분하려면, 사장 글 기록에 어느 요청에 답했는지가 남아야 한다. 지금은 그 정보가 Hermes 원시 이벤트에만 있다.
+- **결정:** 규격 v1 `message`에 선택 필드 `answer_to`(문자열 msg_id)를 더한다. spec REQ-HF-36.AC-01 [35판 D36-01]이다.
+  - `schemas/hejo-wire-v1.json`
+    - `message.properties.answer_to = {type: string, minLength: 1}`. 필수 필드가 아니다.
+    - 앱이 보내는 `send`에는 넣지 않는다. 앱은 계속 `click`을 보낸다.
+  - 문 `gate/adapter.py`
+    - `click`의 reply 갈래가 `receive`를 부를 때 `answer_to = click["msg_id"]`를 넘긴다.
+    - `receive`는 그 사장 `message` 기록에 `answer_to`를 남긴다. 기록장과 sync page로 그대로 나간다.
+    - 손으로 보낸 `send`는 `answer_to`를 받지 않는다. 받으면 지금처럼 스키마가 거절한다.
+  - 앱
+    - 모델은 `answer_to`를 읽는다.
+    - A07 `answers`·`pendingPosts`를 ddots 원문(`SlackThreads.swift`, `SlackPanel.answerHermes`·`onClickSend`, `SlackBridge.post(clickedPost:)`)대로 계산한다. 필드가 있으면 그 요청만, 없으면 그 글보다 앞의 요청을 모두 답한 것으로 본다.
+  - 시험
+    - AT-87에 경우를 더한다. A가 working이고 B가 asking일 때 A 대상 버튼 "승인"을 누르면 B는 계속 대기다. 같은 말을 직접 쓰면 B도 답해진다.
+    - 재접속(sync page)에서 같은 결과가 나와야 한다.
+    - 옛 문(aeaa652) + 새 앱에서는 버튼 답이 직접 쓴 글처럼 계산되고, 오류가 없어야 한다.
+    - 옛 앱 경로에서는 새 필드가 있어도 디코딩이 실패하지 않아야 한다.
+  - 돌연변이: `answer_to` 기록을 빼면 AT-87의 대상 구분 단언이 실패해야 한다.
+- **재개**
+  - `.build/task36/draft/` 초안 14개를 `draft-files.json` 지문과 대조해 다시 적용한다. 앱 전체 시험의 옛 단정 두 개(편집 시 unread 증가, 첫 직원 기본 선택)는 26판 코드 우선에 따라 바꾼 근거를 copy-review에 남긴다.
+  - 그 뒤 남은 검증을 한다: foundation9_runner hejo 0, test_install, 앱 반복, 돌연변이, 같은 상태 캡처 비교, 개인값 0.
+  - 작업 트리의 보고 두 파일은 TASK-36 커밋에 함께 넣는다.
+- **public:** 0.2.0 후보 f716bdf는 바꾸지 않는다. 이 규격 추가는 다음 공개본에 들어간다.
+
+## 보완 지시 51 (TASK-36 검토 뒤, 2026-11-18)
+
+- TASK-36은 통과했다(f42a739). 아래 두 개는 TASK-37 커밋에 함께 넣는다.
+- **N36-01(죽은 코드 정리)**
+  - 문제: `ReplyButtonPolicy`에 ddots의 날짜 조건 분기가 들어 있다.
+    - `since` 1793376226, `scriptSince` 1793417083은 둘 다 2026-10-31이다.
+    - 그 날짜 조건으로만 쓰이는 것은 `retired`, `legacyScript`, `mailLegendBefore20261031`이다.
+  - hejo 기록은 2026-11-14 이후뿐이라 이 분기는 절대 실행되지 않는다. 그런데 공개 저장소에 운영자 업무 낱말(`:hp-check:` 같은 낡은 이모지 코드)을 남긴다.
+  - 수정: 날짜 조건 분기와 그것만 쓰는 상수를 지운다. `allowed`와 `scriptPending` 규칙은 그대로 둔다. 시험에서 결과가 바뀌지 않는지 확인한다.
+- **N36-02(증거)**
+  - 문제: `task36-hejo.png`는 `controller.canSend == false`(연결 안 됨) 상태로 찍혔다. 그래서 승인·거절 단추와 분기·삭제가 흐리게 나와, ddots 캡처(연결됨)와 같은 상태가 아니다.
+  - 연결이 끊겼을 때 보내기를 막는 것은 hejo 고유 계약이라 그대로 둔다.
+  - 수정: 같은 장면을 연결된 상태로 다시 찍어 `task36-hejo.png`를 바꾸고, `TASK-36.md`에 그 사실을 한 줄 적는다.
+
+## 보완 지시 52 (TASK-37 검토 뒤, 2026-11-18)
+
+- TASK-37은 통과했다(13596ba). N36-01·02도 반영됐다.
+- **N37-01(TASK-39에 넣는다, 카드 단추 색)**
+  - 문제: hejo 카드의 "분기"·"삭제" 단추는 `.secondaryLabelColor`로 그려져 "링크"·"복사"보다 흐리다(`ConversationView.swift:752`, 그 아래 삭제 줄).
+  - ddots는 네 단추 모두 `quiet`다. 강조할 때만 색이 바뀐다: 분기는 긴 스레드면 `.systemOrange`, 누른 뒤면 accent. 삭제는 확인 중이면 `.systemRed`(`NativeThreadContent.swift:120-140`).
+  - TASK-39(§D 카드)에서 ddots 색으로 맞춘다.
+  - 같은 곳의 표시 조건도 대조표 D행(삭제 조건)과 함께 ddots대로 확인한다.
+    - 분기: 직원 글이 있을 때.
+    - 삭제: 답 없는 스레드는 내 글일 때, 답 있는 스레드는 골랐을 때.
+
+## 보완 지시 53 (TASK-38 검토 뒤, 2026-11-18)
+
+- TASK-38은 통과했다(f535b31).
+- **N38-01(비차단, 사이드바 세부, TASK-39 커밋에 함께 넣는다)**
+  - `task38-*-light-212.png`를 나란히 보면 두 군데가 다르다.
+    - 방 행의 핀·알림 끔 그림이 ddots보다 작고 흐리다.
+    - "방 추가" 줄에서 ⊕ 그림과 글자 사이가 ddots보다 좁다(ddots는 그림 뒤에 간격이 있다).
+  - ddots 사이드바 원문(SlackPanel.swift의 방 행 핀·종 그림 크기·색, 방 추가 줄 HStack 간격)과 값을 맞추고, AT-89 측정 단언을 하나씩 더한다.
+
+## 보완 지시 54 (TASK-39 D39-01 결정, 35판, 2026-11-18)
+
+- **D39-01:** 대조표 D11의 "삭제된 사진"/"삭제된 파일" 표시에 hejo 쪽 신호가 없다.
+  - ddots는 Slack의 tombstone/is_deleted를 읽는다.
+- **확인한 사실(계획 담당)**
+  - `gate/files.py:177-193` `cleanup`은 기록장에 등록되지 않았거나 숨겨진(삭제된) 글의 파일만 지운다.
+  - 스레드 삭제는 글 전체를 `delete`로 바꾼다.
+  - 따라서 보이는 글이 가리키는 파일을 hejo가 일부러 지우는 경로가 없다.
+- **결정:** D11의 삭제 표시는 넣지 않는다(D24와 같은 "생산자 없음" 제외). 대조표 D11에 기록했다.
+  - wire·문·기록장은 바꾸지 않는다.
+  - 등록 파일 요청이 404이거나 다른 이유로 실패하면 ddots의 실패 표시("사진을 불러오지 못했어요", 파일은 같은 실패 상태)를 쓴다.
+  - "삭제된 …" 문구는 hejo에 없다.
+- **재개**
+  - `.build/task39/draft/` 초안 4개를 `draft-files.json` 지문과 대조해 다시 적용한다.
+  - TASK-39의 나머지 §D·2.1판 D04·D25~D30을 구현한다. N37-01(보완 52)과 N38-01(보완 53)도 넣는다.
+  - AT-90의 "삭제됨" 경우는 "404 → 실패 표시"로 바꿔 단언한다.
+  - 보고 두 파일은 TASK-39 커밋에 포함한다.
+
+## 보완 지시 55 (TASK-39 검토 뒤, 2026-11-18)
+
+- TASK-39는 통과했다(439136d). N37-01과 N38-01도 반영됐다.
+- **N39-01(비차단, TASK-40 커밋에 함께 넣는다)**
+  - `task39-{ddots,hejo}-light.png` 아래쪽 체크리스트를 비교하면 다르다.
+    - hejo 항목 단추(☐ 일정·가격·문의)는 글자가 ddots보다 작고, 단추 폭과 안쪽 여백이 더 크다.
+    - "건너뛰기" 단추도 ddots보다 넓다.
+  - ddots `HermesReplyChecklist`(SlackPanel.swift:3540-3575)의 `.buttonStyle(.bordered)`와 `.font(.system(size: 12))` 기준 크기·여백에 맞추고, AT-90 측정 단언을 더한다.
+
+## 보완 지시 56 (TASK-40 검토 뒤, 2026-11-18)
+
+- TASK-40은 통과했다(0e3f4c0). N39-01도 반영됐다.
+- **N40-01(비차단, 검색 강조 색, TASK-41 커밋에 함께 넣는다)**
+  - ddots 검색 강조색은 SwiftUI `Color.yellow`다(`SlackFindView.swift:89`). 이 색은 시스템 노랑(밝은 화면에서 주황빛 노랑)이다.
+  - hejo는 `NSColor.yellow`(순수 #FFFF00)를 쓴다(`WorkspaceTools.swift:34`). 캡처에서도 색이 다르다.
+  - 수정: `NSColor.systemYellow`로 바꾸고, AT-91에 색 값 단언을 하나 더한다. 같은 함수를 쓰는 다른 강조(작업 공간 검색 등)도 함께 바꾼다.
+
+## 보완 지시 57 (TASK-42 검토 뒤, 2026-11-18)
+
+- TASK-42는 통과했다(631ef5a). N35-01도 반영됐다.
+- **N42-01(비차단, 허브 대기 깨우기 경합, TASK-43 커밋에 함께 넣는다)**
+  - 위치: `hub/server.py` `member_state`. 회원마다 `asyncio.Event` 하나를 같이 쓰고, 새 대기 요청이 들어올 때마다 `event.clear()`를 한다.
+  - 경합이 생기는 순서
+    1. 대기 A가 `clear`하고 상태를 읽는다.
+    2. A의 `wait_for(event.wait())`가 실제로 기다리기 시작하기 전에 PATCH가 `set()`을 한다.
+    3. 그 사이 대기 B가 다시 `clear()`를 한다.
+    4. 그러면 A는 25초 뒤 시간 초과로만 새 값을 받는다.
+  - 값이 사라지지는 않고, 늦을 뿐이다.
+  - 수정
+    - 대기마다 자기 Future를 회원별 집합에 등록하고, PATCH가 등록된 Future를 모두 끝낸다. `asyncio.Condition`을 써도 된다.
+    - "읽기 전 등록" 순서는 그대로 지킨다.
+    - 시험: PATCH와 새 대기가 겹친 경우에도 앞선 대기가 1초 안에 새 rev를 받는다는 단언을 `tests/acceptance/test_state_wait.py`에 더한다.
+- **참고:** ddots "연결과 동기화" 페이지의 "승인 알림 연결 안내"(showHooksHelp)는 Codex·Claude 훅 연결이라 TASK-47(작업 목록·HookBridge)에서 넣는다.
+
+## 보완 지시 58 (TASK-44 검토 뒤, 2026-11-18)
+
+- TASK-44는 통과했다(a6dbadf).
+- **N44-01(비차단, 시험 격리, TASK-45 커밋에 함께 넣는다)**
+  - 문제: `ConversationController(client:downloads:)`의 `downloads` 기본값은 실제 사용자 다운로드 폴더(`DownloadFileStore.standard()`)다.
+    - `HomeRoomTests`, `AppearanceTests`, `ProgressLayoutTests`, `PicturesSidebarTests` 같은 여러 앱 시험이 `downloads:` 없이 Controller를 만든다.
+    - 지금은 이 시험들이 파일을 열거나 보내지 않아서 실제 다운로드 폴더에 쓰지 않았다(계획 담당이 확인: 11-17 20시 이후 새 파일 없음).
+    - 하지만 앞으로 시험이 파일을 열거나 보내면 실제 폴더에 쓰게 된다. "실제 다운로드 폴더에 쓰지 않는다" 제약을 시험 구조로 보장해야 한다.
+  - 수정
+    - 시험 진입점(`TestMain`)에서 기본 다운로드 폴더를 임시 폴더로 바꾸는 시험 전용 주입을 둔다. 또는 모든 시험 Controller 생성에 임시 `downloads:`를 넘긴다.
+    - 앱 전체 시험이 끝난 뒤 실제 다운로드 폴더의 항목 목록이 시작 때와 같은지 단언하는 검사를 하나 더한다. 이름 목록만 비교하고 내용은 읽지 않는다.
+
+## 보완 지시 59 (TASK-45 검토 뒤, 2026-11-18)
+
+- TASK-45는 통과했다(0dec461). N44-01도 반영됐다.
+- **N45-01(비차단, 옆 창 주소줄 배치, TASK-46 커밋에 함께 넣는다)**
+  - `task45-{ddots,hejo}-light.png`를 비교하면 다르다.
+    - hejo 주소칸 글자가 칸 위쪽에 붙어 있다. ddots는 세로 가운데다(기준선 약 5pt 차이).
+    - hejo 주소칸이 약 20pt 오른쪽에서 시작한다. 뒤로·앞으로·새로고침 단추 간격이 ddots보다 넓다.
+    - 페이지 왼쪽에 1pt 선이 있다.
+  - 실행 담당은 이것을 AppKit 차이로 기록했다. 하지만 글자가 칸 위쪽에 붙는 것은 눈에 띄는 배치 결함이다.
+  - 수정
+    - ddots WebPane 주소줄 원문(단추 크기·간격, 주소칸 높이·안쪽 여백)과 값을 맞춘다.
+    - 주소칸은 세로 가운데 정렬이 되는 AppKit 칸(예: `NSTextField` + 가운데 정렬 셀)으로 바꾼다.
+    - 왼쪽 1pt 선은 원본에 있으면 남기고, 없으면 지운다.
+    - AT-96에 단추 x 위치, 주소칸 x, 글자 기준선 측정 단언을 더한다.
+
+## 보완 지시 60 (TASK-47 검토 뒤, 2026-11-18)
+
+- TASK-47 코드는 수준 2까지 통과했다(8067d22). 아래 두 개를 한 커밋으로 고친다.
+- **N47-01(문구, 계획 담당 원인)**
+  - 문제: `Dashboard.swift:99`가 연결 줄 앞에 "연결 안 됨 · "을 붙인다. ddots는 `Monitor.swift:46`의 detail만 보인다(`Dashboard.swift:85-87`, 점 색으로만 구분).
+  - 원인: AT-98에 계획 담당이 "연결 안 됨"이라고 적었다. AT-98은 ddots 원문으로 고쳤다(35판).
+  - 수정: 앞붙임을 지운다. 사용 가능 여부는 점 색(teal/gray)으로만 보인다. 시험 단언도 원문으로 바꾼다.
+- **N47-02(외관)**
+  - 문제: 아래쪽 "새로고침"·"동작 미리보기"·"승인 알림 연결 안내" 단추 글자가 ddots보다 작다(`task47-*-dashboard.png`).
+  - 수정: ddots Dashboard 단추(`.bordered` 기본 크기)와 같은 글꼴 크기와 높이로 맞추고, AT-98에 측정 단언을 하나 더한다.
+- **검증:** foundation9_runner hejo 0, 앱 반복, 같은 상태 캡처 다시 찍기, 실제 설정 메타데이터·다운로드 이름 불변, 개인값 0. git commit --only, result.
+- **실물(수준 3, 계획 담당+사장, 0.2.x 반영 때)**
+  - 사장 Mac에서 "승인 알림 연결"을 실제로 해 본다. 실행 전에 백업과 영수증을 확인한다.
+  - Codex·Claude 승인 대기 때 펫이 반응하는지 본다.
+  - 연결을 해제한 뒤 원래 설정이 바이트까지 그대로인지 확인한다.
+  - 기존 `~/.claude/settings.json`이 있으면 원본의 create-only 정책에 따라 덮어쓰지 않고 안내만 하는지도 본다.
+
+## 보완 지시 61 (0.2.0 공개 후보 재생성, 사장 결정 2026-11-18)
+
+- **사장 결정:** 0.2.0 공개본은 지금 main 전체로 다시 만든다(권고안 가). TASK-36~47의 ddots 맞추기도 0.2.0에 들어간다. 0.2.0은 아직 GitHub에 공개하지 않았으므로 버전 0.2.0, 빌드 2를 그대로 쓴다.
+- **실행 담당이 할 일**
+  1. 지금 로컬 `public`(f716bdf)을 `archive/public-0.2.0-before-parity`로 남긴다. 기존 `archive/task33-before-n33-01`은 그대로 둔다.
+  2. `install/hejo-publish`로 main HEAD 작업 트리 스냅샷의 새 public 커밋을 만든다. 부모는 지금처럼 이전 공개 계보(0.1.0 `f90bf08`)다.
+     - 새 public 트리와 main HEAD 트리가 같은지 확인한다.
+     - 개인 이력이 섞이지 않았는지 확인한다.
+     - 공개본 개인값 검사(`scan_private`)를 한다.
+  3. 같은 트리로 앱을 빌드하고 `install/hejo-ship prepare`로 `.build/release-0.2.0/` 준비물을 만든다.
+     - 기존 키체인 서명 키를 다시 쓴다. 새 키를 만들지 않고, 비밀 키를 출력하지 않는다.
+     - 압축을 풀어 다시 확인한다: `codesign --verify --deep --strict`, Sparkle 서명.
+  4. 같은 트리에서 전체 검증을 한다.
+     - `foundation9_runner hejo` 0, test_install, 앱 반복 3회
+     - 옛 문 `aeaa652` + 새 앱 연결 시험(AT-84)
+     - 실제 다운로드 폴더 이름과 실제 CLI 설정 lstat 불변
+  5. 결과로 보고할 것:
+     - 새 public 전체 커밋
+     - 준비물 경로
+     - 사장용 공개 명령 한 줄: `install/hejo-ship publish --approve-commit <새 public 커밋> --prepared .build/release-0.2.0/prepared.json`
+     - 플러그인 푸시 대상 `{repository, remote: github, branch: main, commit: <새 public 커밋>}`
+- **금지**
+  - GitHub 조회·쓰기를 하지 않는다(ls-remote 포함). publish, gh release, push도 하지 않는다.
+  - 공용 릴리스 폴더와 운영 홈을 바꾸지 않는다.
+  - main 개인 이력을 push하지 않는다.
+- **그다음(계획 담당+사장):**
+  - 사장이 화면에서 public 푸시를 승인하고 publish를 실행한다.
+  - 0.2.x 운영 반영(보완 49·57·60, TASK-23 점검표)을 한다.

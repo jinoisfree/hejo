@@ -1,5 +1,15 @@
 """Native Hermes prompt construction and public resolver dispatch."""
 import re
+from agent.i18n import t
+
+
+def decision(button):
+    kind, response = button["kind"], button["response"]
+    if kind == "clarify":
+        return t("platform.slack.clarify.awaiting" if button.get("other") else "platform.slack.clarify.resolved",
+                 user="나", choice=response)
+    catalog = "slash_confirm" if kind == "slash" else "approval"
+    return t(f"platform.telegram.{catalog}.resolved_{response}")
 
 
 def plain_labels(content):

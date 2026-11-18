@@ -75,10 +75,13 @@ async def test_at_hf_17(gate, client):
          patch("tools.slash_confirm.resolve", new_callable=AsyncMock, return_value="done") as resolve_slash:
         await gate._send_exec_approval_prompt(approval())
         await click(ws, await client.read(ws))
+        assert (await client.read(ws))["buttons"] == []  # REQ-HF-42: outcome edit retires the card.
         await gate.send_clarify("alpha", "Choose", ["First", "Second"], "fixture-clarify", "fixture-session")
         await click(ws, await client.read(ws))
+        assert (await client.read(ws))["buttons"] == []
         await gate.send_slash_confirm("alpha", "Confirm", "Reload?", "fixture-session", "fixture-confirm")
         await click(ws, await client.read(ws))
+        assert (await client.read(ws))["buttons"] == []
         # Round trip a request after clicks so dispatch is known to have completed.
         await ws.send_json({"v": 1, "type": "roster", "id": "barrier"})
         assert (await client.read(ws))["ref"] == "barrier"

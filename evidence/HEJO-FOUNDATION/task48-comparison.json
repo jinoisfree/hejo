@@ -1,0 +1,37 @@
+{
+  "context": [
+    {
+      "state": "missing",
+      "slackHasActiveSession": false,
+      "hejoContextInjected": true
+    },
+    {
+      "state": "active",
+      "slackHasActiveSession": true,
+      "hejoContextInjected": false
+    },
+    {
+      "state": "suspended",
+      "slackHasActiveSession": false,
+      "hejoContextInjected": true
+    }
+  ],
+  "decisions": [
+    {
+      "choice": "once",
+      "reference": "✅ 나이(가) 한 번 승인했어요",
+      "hejo": "✅ 나이(가) 한 번 승인했어요"
+    },
+    {
+      "choice": "always",
+      "reference": "🔒 나이(가) 항상 승인했어요",
+      "hejo": "🔒 나이(가) 항상 승인했어요"
+    },
+    {
+      "choice": "cancel",
+      "reference": "❌ 나이(가) 취소했어요",
+      "hejo": "❌ 나이(가) 취소했어요"
+    }
+  ],
+  "actualSlackSends": 0
+}

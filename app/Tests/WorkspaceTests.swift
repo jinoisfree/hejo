@@ -8,7 +8,7 @@ private final class WorkspaceCanvas:NSView {
 @MainActor func workspaceTests(outputDirectory:URL?=nil) async throws {
     let home=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer {try? FileManager.default.removeItem(at:home)}
-    let store=try LocalStore(directory:home),controller=try ConversationController(client:GateClient(store:store,credentials:MemoryCredentials())),model=controller.model
+    let store=try LocalStore(directory:home),controller=try testConversation(client:GateClient(store:store,credentials:MemoryCredentials())),model=controller.model
     var now=Date(timeIntervalSince1970:1760000000);controller.clock={now}
     controller.receive(["type":"roster","employees":[["id":"alpha","name":"직원 A","aliases":[]],["id":"beta","name":"직원 B","aliases":[]]]])
     var seq=0
@@ -77,7 +77,7 @@ private final class WorkspaceCanvas:NSView {
     controller.discardFailure(tooMany.id)
     try check(controller.transferFailure==nil && controller.notice.isEmpty,"AT79 discarding last failed send clears its failure guidance")
     controller.model.select(employee:"beta");controller.setText("다른 방 실패");await controller.sendCurrent();ui.chooseEmployee("alpha");ui.refresh()
-    try check(ui.failureBar.arrangedSubviews.contains{($0 as? FileChip)?.title=="다른 방에서 보내지 못한 글 1개 · 보러 가기"},"AT79 elsewhere failure link")
+    try check(homeDescendants(ui.failureBar,NSTextField.self).contains{$0.stringValue=="다른 방에서 보내지 못한 글 1개"} && homeDescendants(ui.failureBar,FileChip.self).contains{$0.title=="보러 가기" && !$0.isBordered},"AT79 elsewhere failure link")
     let names=["alpha":"직원 A","beta":"직원 B"]
     let redraw=controller.onChange;controller.onChange=nil
     let one=UUID().uuidString.lowercased()
@@ -102,7 +102,7 @@ private final class WorkspaceCanvas:NSView {
     try check(ranges.count==1 && String("banana"[ranges[0]])=="anana","AT78 overlapping highlights merge")
     let unicode="e\u{301}clair 안녕";try check(!WorkspaceSearch.highlights(unicode,query:"éclair").isEmpty,"AT78 original Unicode range")
     let field=WorkspaceSearch.attributed("needle",query:"needle")
-    try check(field.attribute(.backgroundColor,at:0,effectiveRange:nil) as? NSColor == .yellow && field.attribute(.foregroundColor,at:0,effectiveRange:nil) as? NSColor == .black,"AT78 yellow black highlight")
+    try check(field.attribute(.backgroundColor,at:0,effectiveRange:nil) as? NSColor == .systemYellow && field.attribute(.foregroundColor,at:0,effectiveRange:nil) as? NSColor == .black,"AT78 yellow black highlight")
     controller.onChange=redraw;ui.refresh()
     let restored=try ConversationModel(store:try LocalStore(directory:home));try check(restored.messages.count==model.messages.count,"AT78 local cache projection search source survives reload")
     ui.openSearch();ui.search.stringValue="search words";ui.scheduleSearch();await pause(0.1)
@@ -130,15 +130,19 @@ private final class WorkspaceCanvas:NSView {
 }
 
 @MainActor func workspaceNetwork(_ args:[String]) async throws {
-    let home=URL(fileURLWithPath:args[2]),store=try LocalStore(directory:home),client=GateClient(store:store,credentials:MemoryCredentials()),controller=try ConversationController(client:client)
+    let home=URL(fileURLWithPath:args[2]),store=try LocalStore(directory:home),client=GateClient(store:store,credentials:MemoryCredentials()),controller=try testConversation(client:client)
     let ui=ConversationView(controller:controller,clipboardArea:home.appendingPathComponent("clipboard"))
     try client.pair(address:args[3],code:"test_code-12",device:"fake workspace")
     try await waitFor{controller.canSend};ui.chooseEmployee("alpha");ui.createThread()
-    let first=controller.model.selected!;controller.setText("follow-empty");await controller.sendCurrent()
+    controller.setText("follow-empty");await controller.sendCurrent()
+    try await waitFor{controller.model.messages.values.contains{$0.role=="owner" && $0.text=="follow-empty"}}
+    let first=controller.model.messages.values.first{$0.role=="owner" && $0.text=="follow-empty"}!.key
     try await waitFor{controller.model.timeline(first).count==2}
     try check(ui.replyMode && controller.model.selected==first,"AT79 employee reply automatically targets empty new-post composer")
-    ui.createThread();let second=controller.model.selected!;controller.setText("follow-typed");await controller.sendCurrent()
-    try await waitFor{!controller.sending};controller.setText("another draft")
+    ui.createThread();controller.setText("follow-typed");await controller.sendCurrent()
+    controller.setText("another draft")
+    try await waitFor{controller.model.messages.values.contains{$0.role=="owner" && $0.text=="follow-typed"}}
+    let second=controller.model.messages.values.first{$0.role=="owner" && $0.text=="follow-typed"}!.key
     try await waitFor{controller.model.timeline(second).count==2}
     try check(!ui.replyMode && controller.draft.text=="another draft","AT79 employee reply never redirects nonempty draft")
     controller.setText("fail");await controller.sendCurrent();try await waitFor{controller.failures.count==1}

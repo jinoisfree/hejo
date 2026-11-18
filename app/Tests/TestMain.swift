@@ -23,12 +23,75 @@ final class MemoryCredentials: GateCredentialStore {
     func save(_ token: String, account: String) -> Bool { self.token = token; return true }
     func delete(account: String) { token = nil }
 }
+/// Tests always write beneath their temporary LocalStore, including future file-open/send paths.
+@MainActor func testConversation(client: GateClient, downloads: URL? = nil) throws -> ConversationController {
+    try ConversationController(client: client, downloads: downloads ?? client.store.directory.appendingPathComponent("Downloads"))
+}
 @MainActor final class TestDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         Task { @MainActor in
             do {
                 let args = CommandLine.arguments
-                if args.count>2 && args[1]=="--task32-capture" {
+                if args.contains("--task47") {
+                    try workMonitorTests();try await dashboardTests()
+                } else if args.count>2 && args[1]=="--task47-capture" {
+                    try workMonitorTests();try await dashboardTests(outputDirectory:URL(fileURLWithPath:args[2]))
+                } else if args.contains("--task46") {
+                    try await calendarTests()
+                } else if args.count>2 && args[1]=="--task46-capture" {
+                    try await calendarTests(outputDirectory:URL(fileURLWithPath:args[2]))
+                } else if args.count>4 && args[1]=="--task45-network" {
+                    try await webPaneNetwork(args)
+                } else if args.contains("--task45") {
+                    try webAddressTests()
+                } else if args.count>3 && args[1]=="--task44-network" {
+                    try await downloadsNetwork(args)
+                } else if args.contains("--task44") {
+                    try downloadsTests()
+                } else if args.contains("--task43") {
+                    try await appearanceTests()
+                } else if args.contains("--task42") {
+                    try await settingsTests()
+                } else if args.contains("--task41") {
+                    try await petWindowTests()
+                } else if args.count>2 && args[1]=="--task41-capture" {
+                    try await petWindowTests(outputDirectory:URL(fileURLWithPath:args[2]))
+                } else if args.contains("--task40") {
+                    try await scrollTests()
+                } else if args.count>2 && args[1]=="--task40-capture" {
+                    try await scrollTests(outputDirectory:URL(fileURLWithPath:args[2]))
+                } else if args.contains("--task39") {
+                    try await cardTests()
+                } else if args.count>2 && args[1]=="--task39-capture" {
+                    try await cardTests(outputDirectory:URL(fileURLWithPath:args[2]))
+                } else if args.contains("--task38") {
+                    try await sidebarTests()
+                } else if args.count>2 && args[1]=="--task38-capture" {
+                    try await sidebarTests(outputDirectory:URL(fileURLWithPath:args[2]))
+                } else if args.count>3 && args[1]=="--task37-network" {
+                    try await composerTargetNetwork(args)
+                } else if args.contains("--task37") {
+                    try await sidebarTests()
+                    try await composerTargetTests()
+                } else if args.count>5 && args[1]=="--read-notice-network" {
+                    try await readNoticeNetwork(args)
+                } else if args.count>2 && args[1]=="--task36-capture" {
+                    NSApp.appearance=NSAppearance(named:.aqua)
+                    try await readNoticeTests(outputDirectory:URL(fileURLWithPath:args[2]))
+                } else if args.contains("--task36") {
+                    try await readNoticeTests()
+                } else if args.count>4 && args[1]=="--update-legacy-network" {
+                    try await updateLegacyNetwork(args)
+                } else if args.count>2 && args[1]=="--task33-capture" {
+                    NSApp.appearance=NSAppearance(named:.aqua)
+                    try await updateTests(outputDirectory:URL(fileURLWithPath:args[2]))
+                } else if args.count>3 && args[1]=="--task35-capture" {
+                    NSApp.appearance = NSAppearance(named: .aqua)
+                    try await threeTapTests(resourceDirectory: URL(fileURLWithPath: args[2]), outputDirectory: URL(fileURLWithPath: args[3]))
+                } else if args.count>2 && args[1]=="--task34-capture" {
+                    NSApp.appearance=NSAppearance(named:.aqua)
+                    try await progressLayoutTests(outputDirectory:URL(fileURLWithPath:args[2]))
+                } else if args.count>2 && args[1]=="--task32-capture" {
                     NSApp.appearance=NSAppearance(named:.aqua)
                     try await connectionsTests(outputDirectory:URL(fileURLWithPath:args[2]))
                 } else if args.contains("--lock-child") {
@@ -79,6 +142,12 @@ final class MemoryCredentials: GateCredentialStore {
         }
     }
     func unit() async throws {
+        try workMonitorTests();try await dashboardTests()
+        try await calendarTests()
+        try webAddressTests()
+        try downloadsTests()
+        try await appearanceTests()
+        try await settingsTests()
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: dir) }
         let store = try LocalStore(directory: dir)
@@ -115,7 +184,7 @@ final class MemoryCredentials: GateCredentialStore {
         _ = try await revoked.receive(["v":1, "type":"auth_rejected", "reason":"revoked"])
         try check(revoked.status == .revoked && memory.token == nil, "revocation stops and removes credential")
         try check(GateKeychain().read(account: "bad\"") == nil && !GateKeychain().save("bad\"", account: "test"), "keychain command input rejects quotes")
-        try check(PetIdentity.normalized("  ") == "hejo" && PetIdentity.normalized(String(repeating:"a", count:30)).count == 20, "neutral pet identity")
+        try check(PetIdentity.defaultName == "hejo" && PetIdentity.validationMessage(for:"  ") != nil && PetIdentity.validationMessage(for:String(repeating:"a", count:30)) != nil, "neutral pet identity")
         let atlas = try SpriteAtlas(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         let controller = PetController(store: reset, atlas: atlas)
         let first = PetDisplay(frame: CGRect(x: 0,y: 0,width: 1200,height: 900), visible: CGRect(x: 0,y: 40,width: 1200,height: 830))
@@ -131,7 +200,7 @@ final class MemoryCredentials: GateCredentialStore {
         try check(controller.transitionProgress == 0, "AT47 opening starts folded")
         await waitForTransition(controller, progress: 1)
         try check(controller.transitionProgress == 1 && controller.transitionSteps > 0, "AT47 0.30s completes")
-        try check(!controller.panel.isKeyWindow, "opening does not make key")
+        try check(controller.panel.isKeyWindow, "AT92 opening takes key focus (V08 replaces old AT47)")
         try check(front == NSWorkspace.shared.frontmostApplication?.processIdentifier, "opening keeps foreground app")
         controller.pet.onClick?(); try check(!controller.chatExpanded, "AT47 pet re-click folds")
         await waitForTransition(controller, progress: 0); try check(controller.transitionProgress == 0, "AT47 closing ends folded")
@@ -181,11 +250,20 @@ final class MemoryCredentials: GateCredentialStore {
         try await islandTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await typingTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await task17Tests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
+        try await updateTests()
         try await memberStateTests()
+        try await sidebarTests()
+        try await cardTests()
+        try await scrollTests()
+        try await petWindowTests()
+        try await composerTargetTests()
+        try await readNoticeTests()
         try await threadToolsTests()
         try await workspaceTests()
         try await homeRoomTests(resourceDirectory:URL(fileURLWithPath:CommandLine.arguments.last!))
         try await connectionsTests()
+        try await progressLayoutTests()
+        try await threeTapTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await roomsTests(resourceDirectory:URL(fileURLWithPath:CommandLine.arguments.last!))
         try await bubbleReplyTests(resourceDirectory:URL(fileURLWithPath:CommandLine.arguments.last!))
         try await petNotificationTests(resourceDirectory:URL(fileURLWithPath:CommandLine.arguments.last!))

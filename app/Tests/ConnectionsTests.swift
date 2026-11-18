@@ -32,7 +32,7 @@ import SwiftUI
     try check(frames.count==before,"AT83 closing never submits")
     let dir=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer{try? FileManager.default.removeItem(at:dir)}
-    let store=try LocalStore(directory:dir),controller=try ConversationController(client:GateClient(store:store,credentials:MemoryCredentials()))
+    let store=try LocalStore(directory:dir),controller=try testConversation(client:GateClient(store:store,credentials:MemoryCredentials()))
     var received=false;controller.onConnectionsFrame={_ in received=true}
     controller.receive(["v":1,"type":"connection_result","ref":"request","reply":["outcome":"done"]])
     try check(received && controller.model.messages.isEmpty && !FileManager.default.fileExists(atPath:store.cacheURL.path),"AT83 management response bypasses message cache")

@@ -8,7 +8,7 @@ func controlFrame(_ seq:Int,thread:String=controlThread,text:String="✅ 보고�
 @MainActor func threadToolsTests(outputDirectory:URL?=nil) async throws {
     let home=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer {try? FileManager.default.removeItem(at:home)}
-    let store=try LocalStore(directory:home),client=GateClient(store:store,credentials:MemoryCredentials()),controller=try ConversationController(client:client)
+    let store=try LocalStore(directory:home),client=GateClient(store:store,credentials:MemoryCredentials()),controller=try testConversation(client:client)
     let model=controller.model,key=ConversationKey(employee:"alpha",thread:controlThread)
     controller.receive(["v":1,"type":"roster","employees":[["id":"alpha","name":"직원 A","aliases":[]]]])
     func commit(_ row:[String:Any]) throws {try store.append(row);controller.receive(row)}
@@ -23,9 +23,9 @@ func controlFrame(_ seq:Int,thread:String=controlThread,text:String="✅ 보고�
     controller.openLink(ThreadTools.link(.init(employee:"alpha",thread:UUID().uuidString.lowercased())))
     try check(controller.notice=="그 스레드를 불러오지 못했어요","AT75 missing link destination")
     model.setVisible(false);model.toggleBell(key)
-    try check(model.bell(key)==false && model.unread(key)==0,"AT76 bell marks read")
-    model.toggleBell(key);try check(model.bell(key)==true,"AT76 bell undismisses without regressing thread position")
-    let reloaded=try ConversationModel(store:try LocalStore(directory:home));try check(reloaded.bell(key)==true,"AT76 bell null persists")
+    try check(model.bell(key)==nil && model.unread(key)==0,"AT87 working thread has no quiet bell")
+    model.toggleBell(key);try check(model.bell(key)==nil,"AT87 working thread cannot ring on undismiss")
+    let reloaded=try ConversationModel(store:try LocalStore(directory:home));try check(reloaded.bell(key)==nil,"AT87 no working bell after reload")
     for (mark,hex) in [("❌","#E01E5A"),("⚠️","#ECB22E"),("✅","#2EB67D"),("📌","#1D9BD1")] {try check(ThreadTools.color(mark+" 제목")==MessageFormat.color(hex),"AT76 status exact hex")}
     try check(ThreadTools.color("제목")==nil,"AT76 ordinary report has no status color")
     var faces=Array(repeating:model.messages[controlMessage]!,count:5)
@@ -33,9 +33,9 @@ func controlFrame(_ seq:Int,thread:String=controlThread,text:String="✅ 보고�
     try check(ThreadTools.answeredFaces(faces)==["fake-0","fake-1","fake-2"],"AT76 answered faces cap three")
     var answer:String?
     let checklist=ReplyChecklistView(.init(items:["전체","하나","둘"],selected:[],canSkip:true)){answer=$0}
-    let chips=checklist.arrangedSubviews.compactMap{$0 as? NSStackView}.flatMap(\.arrangedSubviews).compactMap{$0 as? FileChip}
+    let chips=homeDescendants(checklist,FileChip.self)
     chips.first{$0.title=="☐ 전체"}?.invoke?()
-    let selectedChips=checklist.arrangedSubviews.compactMap{$0 as? NSStackView}.flatMap(\.arrangedSubviews).compactMap{$0 as? FileChip}
+    let selectedChips=homeDescendants(checklist,FileChip.self)
     selectedChips.first{$0.title=="작성"}?.invoke?()
     try check(answer=="선택: 전체","AT76 checklist all answer")
     selectedChips.first{$0.title=="건너뛰기"}?.invoke?();try check(answer=="건너뛰기","AT76 checklist skip")
@@ -84,7 +84,7 @@ func controlFrame(_ seq:Int,thread:String=controlThread,text:String="✅ 보고�
 }
 
 @MainActor func threadNetwork(_ args:[String]) async throws {
-    let store=try LocalStore(directory:URL(fileURLWithPath:args[2])),client=GateClient(store:store,credentials:MemoryCredentials()),controller=try ConversationController(client:client)
+    let store=try LocalStore(directory:URL(fileURLWithPath:args[2])),client=GateClient(store:store,credentials:MemoryCredentials()),controller=try testConversation(client:client)
     defer {client.stop()}
     let ui=ConversationView(controller:controller);ui.frame=CGRect(x:0,y:0,width:720,height:650)
     try client.pair(address:args[3],code:"test_code-12",device:"Thread fixture")
@@ -92,7 +92,8 @@ func controlFrame(_ seq:Int,thread:String=controlThread,text:String="✅ 보고�
     let key=ConversationKey(employee:"alpha",thread:controlThread),post=controller.model.messages[controlMessage]!
     await controller.click(post.buttons[0],message:post)
     await controller.click(post.buttons[1],message:post)
-    try check(controller.model.confirmed(post.id),"AT76 opinion/confirm are local member choices")
+    try await waitFor{controller.model.messages[controlMessage]?.replyState=="answered"}
+    try check(!controller.model.confirmed(post.id),"AT87 explicit reply Confirm sends its issued button; inferred Confirm alone is local")
     await controller.click(post.buttons[2],message:post)
     try await waitFor{controller.model.messages[controlMessage]?.replyState=="answered"}
     controller.setText("interrupt",for:key);await controller.sendCurrent(for:key)

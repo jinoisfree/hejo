@@ -462,3 +462,128 @@ HTTP(같은 포트, 헤더 `Authorization: Bearer <출입증>`):
 - 고위험: 네트워크 리스너·인증(출입증), 운영 게이트웨이 설정 변경, 동시성(기록장 순번).
 - 롤백: `install/hejo-install --uninstall`(영수증 키만 되돌림) → 게이트웨이 재시작. 기록장·금고는 남는다. team-kit 변경은 운영 저장소 커밋 되돌림. 캐시는 `5m` 복원.
 - 운영 재시작은 Slack 대화를 잠시 끊으므로 TASK-09에서 진행 중 차례가 없을 때 사장 확인 뒤 한다.
+
+## 11. 앱 자동 업데이트(30판, REQ-HF-33)
+
+- **사장 선택(2026-11-16):**
+  - 받는 곳은 GitHub 릴리스(ddots 방식)다.
+  - 새 버전이 있으면 매번 묻는다.
+  - 서버의 hejo는 명령으로 갱신한다.
+- **칸:**
+  - 배포 원본은 GitHub 공개 저장소의 릴리스다. 공개본 `public` 스냅샷 커밋에 태그 `v<버전>`을 단다.
+  - 앱 교체 주체는 각 Mac의 Sparkle이다. 사장이 "업데이트"를 누른 뒤에만 바꾼다.
+  - 서명 비밀 키는 배포하는 Mac의 로그인 키체인에만 둔다. 공개 키는 `app/Resources/Info.plist`의 `SUPublicEDKey`에 둔다.
+  - 새 영구 원본은 없다. 앱 쪽 상태(오늘 다시 보지 않음, 알림 켜기, 설치 대기 버전)는 이 Mac의 사용자 기본값에 둔다. 다른 Mac과 맞추지 않는다. 회원 상태로 옮기지 않는 이유는 Mac마다 설치 상태가 다르기 때문이다.
+- **베낄 원본(전체 독해 필수):**
+  - ddots `Sources/AppUpdate.swift`(416), `UpdateRelease.swift`(126), `UpdateUserDriver.swift`(87), `UpdateReminder.swift`(16), `UpdateIdlePolicy.swift`(63, `SilentUpdateSettings.installed`와 `UpdateNoticePolicy`·`UpdateNoticeSettings`만)
+  - ddots `scripts/fetch_sparkle.sh`(Sparkle 2.10.0, 지문 고정), `setup-updates.sh`, `package.sh`, `release_update.py`(prepare·publish), `build.sh`(Frameworks·rpath·서명 순서)
+  - **빼는 것:**
+    - 조용한 설치(유휴 대기·3회 실패 되돌아옴)는 사장이 "매번 묻기"를 골라서 뺀다.
+    - 대화 공유 relay 정지·복구는 hejo에 relay가 없어 뺀다.
+    - 토큰 연결 창·`UpdateCredential`은 공개 저장소라 뺀다.
+    - `update-feed` 가지 게시는 공개 저장소에서는 자산 공개 주소로 받을 수 있어서 뺀다. 별도 가지에 원격 쓰기도 생기지 않는다.
+    - live 확인 스모크 훅도 뺀다.
+- **바꾸는 것:**
+  - 주소: 피드는 `https://github.com/<저장소>/releases/latest/download/appcast.xml`, 압축은 `https://github.com/<저장소>/releases/download/v<버전>/hejo-<버전>-arm64.zip`이다. `UpdateRelease.allows`는 이 압축 주소·버전·크기·`installationType=application`·노트 없음·델타 없음을 확인한다.
+  - 저장소 이름은 Info.plist `HejoUpdateRepository`에서 읽는다. 공개판 기본값은 공개 저장소다. 개인 계정 이름을 코드 상수로 넣지 않는다.
+  - 설치 완료는 macOS 알림 센터가 아니라 펫 말풍선으로 알린다(사장 선택).
+  - 메뉴: 설정… / 흐린 버전 줄 / 업데이트 확인… / 구분선 / 종료.
+  - 일반 탭에 "업데이트 알림 받기"를 둔다.
+  - (31판) 수동 업데이트: 메뉴와 일반 탭 버튼이 ddots `checkNow`(수동 확인 = `check(manual: true)`) 하나를 부른다. 자동 확인이 찾은 릴리스는 이 Mac 메모리에 들고 있다가, 메뉴 제목과 일반 탭의 "업데이트" 버튼을 바꾸는 데만 쓴다(새 영구 원본 없음). 그 버튼은 `begin(release, manual: true, consented: true)`(ddots 알림 창의 "업데이트"와 같은 경로)다.
+- **빌드:**
+  - `app/scripts/build.sh`가 고정 지문의 Sparkle을 `.build`에 받아 검증한다(ddots `fetch_sparkle.sh`).
+  - `-F … -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks`로 링크한다. `Contents/Frameworks`에 넣고, Sparkle 안의 XPC·Autoupdate·Updater를 같은 인증서로 서명한 뒤 앱을 서명한다.
+  - Sparkle LICENSE를 Resources에 넣는다.
+  - 시험(`app/scripts/test.sh`)은 네트워크 없이 돈다. 릴리스 해석·허용 검사·묻기 창 문구·하루 쉬기·버전 비교를 순수 함수로 시험한다.
+- **배포 도구 `install/hejo-ship`(ddots `release_update.py`를 hejo에 맞춤):**
+  - `setup`: 키를 만들고 공개 키를 Info.plist에 넣는다. 기존 키와 다르면 멈춘다.
+  - `prepare`: 깨끗한 트리와 공개본 트리가 같은지 확인하고, 압축·재검증·서명 뒤 `prepared.json`을 쓴다. 원격 쓰기는 0이다.
+  - `publish --approve-commit`: 사장이 직접 실행한다. ddots 순서 그대로 초안 → 자산 확인 → appcast 서명·업로드 → 공개·latest다. 기존 태그와 릴리스는 바꾸지 않는다.
+  - `BuildInfo.json`에 소스 트리 해시를 넣는다. 공개본 커밋 트리와 같아야 `prepare`가 통과한다.
+- **규칙·위험:**
+  - 고위험: 모든 Mac에 실행 파일을 보내는 공급망 경로다. EdDSA 검증, 고정 지문 Sparkle, 사장만 공개, 기존 태그 불변으로 줄인다.
+  - 앱이 서버보다 앞설 수 있다. 통신 규격 v1 하위 호환을 배포 조건으로 하고, "옛 문 + 새 앱" 시험을 둔다.
+  - 이미 깔린 0.1.0은 업데이트 기능이 없어 한 번은 손으로 설치한다.
+  - 비밀 키를 잃으면 새 키로 바꿔야 하고, 그러면 모든 Mac에서 한 번 손으로 설치해야 한다. setup이 백업 방법을 출력한다.
+- **롤백:**
+  - 잘못된 릴리스가 나가면 사장이 GitHub에서 그 릴리스를 초안으로 되돌린다. 그러면 latest가 이전 릴리스로 돌아간다.
+  - 이미 바뀐 Mac은 이전 버전 zip을 손으로 설치한다. 같은 버전 번호는 다시 쓰지 않는다.
+
+## 12. ddots와 같게 맞추기 2차(33판, REQ-HF-36~41)
+
+- **기준과 읽는 법**
+  - 기준표는 `ddots-inventory.md` 2판이다. 행마다 ddots 근거 줄이 기대값이다.
+  - 구현 담당은 TASK마다 그 TASK 행이 가리키는 ddots 함수 전체와 그 함수가 부르는 코드를 읽는다. 그리고 `copy-review.md`에 행 ID별로 대응을 적는다: ddots 함수 → hejo 클래스, 상수, 뺀 것과 이유.
+  - 행 요약과 코드가 다르면 코드를 따르고 보고서에 적는다.
+- **왜 다시 하는가**
+  - 8판은 화면을 "같은 크기·간격·색·글꼴·애니메이션의 AppKit으로 옮긴다"고 했다. 그러나 규칙 코드(`SlackController`·`SlackThreads`·`SlackModel`)는 "가져오지 않음"으로 두고 명세 문장으로 다시 만들었다.
+  - 그 결과 규칙·수치·움직임이 빠지거나 계획 담당 값으로 바뀌었다(2판 §0-1·§0-3).
+  - 33판부터는 규칙도 ddots 함수를 옮긴다. 데이터 원본만 Slack 대신 문·허브다.
+- **규칙 계층(TASK-36·37)**
+  - 읽음
+    - 방 읽음 `read:<방>`과 스레드 읽음 `thread:<키>`는 기존 회원 상태 키(REQ-HF-26)를 그대로 쓴다. 새 원본은 없다.
+    - 방에 들어가면 `read:<방>`을 그 방 최신 글 seq로 올린다. 종 울린 스레드는 `thread:` 값을 올리지 않아 남긴다.
+    - 처음 보는 방: 이 Mac이 그 방 값을 처음 만날 때 허브 값도 없으면, 그때 최신 seq로 값을 만든다.
+  - 안 읽은 수
+    - 글의 **처음 seq**(post를 만든 프레임)로 센다. edit·state·delete 프레임 seq로는 세지 않는다.
+    - 생각 중 줄(ThreadTools 정규식)은 뺀다.
+  - 종·질문·버튼
+    - ddots `SlackThreads.notices`·`pendingPosts`·`requestsApproval`·`ReplyButtonPolicy`를 앱 쪽 순수 함수로 옮긴다.
+    - 문(gate)의 `reply_state`는 그대로 입력으로 쓴다.
+    - 글자로 하는 승인 요청 판정은 앱 표시(질문 수·종·펫)에만 쓰고, 문 기록은 바꾸지 않는다.
+  - 보내는 중 글
+    - `ConversationModel`에 이 Mac 메모리 전용 대기 글(클라이언트 msg id 키)을 둔다.
+    - 문이 같은 id를 기록하면 대기 글을 지우고 기록 글로 바꾼다. 실패하면 대기 글을 지우고 기존 보내지 못한 글 목록으로 옮긴다.
+    - 기록장·허브에는 쓰지 않는다(조회용 상태).
+- **사이드바(TASK-38)**
+  - 구조: `NSTableView`를 유지하되 `reloadData`로 여닫지 않는다.
+    - 행마다 안정된 id(`home`, `section:<id>`, `stack`, `room:<id>`, `divider:<n>`, `add`, `blank`)를 둔다.
+    - 이전 목록과 새 목록의 차이로 `removeRows`·`insertRows(.effectFade)`·`moveRow`를 `NSAnimationContext.runAnimationGroup(duration 0.24, timing easeInEaseOut)` 안에서 부른다.
+    - 남는 행은 셀을 다시 만들지 않고 값만 바꾼다.
+  - 레일: 셀 조각 대신 표 위 겹 층에 구획마다 `CAShapeLayer` 하나를 둔다. 경로 높이를 같은 시간·곡선으로 보간한다.
+  - 색: 머리 글자색·배지·신호 점은 `CABasicAnimation` 0.24로 바꾼다. 선택 상자는 옛 셀 상자 opacity 1→0, 새 셀 상자 0→1을 `CASpringAnimation(damping·stiffness를 SwiftUI response 0.34·dampingFraction 0.88에서 환산)`으로 바꾼다.
+  - 동작 줄이기(`NSWorkspace.accessibilityDisplayShouldReduceMotion`)면 duration 0이다.
+- **카드·목록(TASK-39·40):** 카드 엔진(`NativeThreadCard`·`TextLayout`)은 이미 ddots와 같다. 바꾸는 곳은 카드에 넣는 내용(`ConversationView.threadContent`·`postPieces`)과 hosted 조각을 옮긴 AppKit 보기(답 버튼·파일 타일·작업 줄·체크리스트)다. 스크롤은 ddots `NativeThreadList.performScroll`·`eased`·`glide`·`keep`을 옮긴다.
+- **펫·창(TASK-41)**
+  - 이미 복사된 `dragged(by:)`와 `GenieView.blurredImage`를 연결한다.
+  - `PetBubbleMotion`(지수 추종)은 ddots `PetLayout.swift`에서 옮긴다.
+  - 접힌 말풍선은 펼친 대화창과 같은 유리 보기(`NSGlassEffectView`, 없으면 `NSVisualEffectView`) + 덮개 0.35 + 모서리 20이다.
+- **설정(TASK-42·43)**
+  - 설정 창은 탭마다 `NSScrollView`다.
+  - 대화창 모양 값(테마·불투명도·글씨·내 말풍선 색)은 ddots처럼 이 Mac에만 둔다(`hejo-local.json`). `ChatStyle`이 읽어 카드·작성기·패널에 적용한다.
+  - (34판 정정) 다른 Mac과 맞추기: 이 Mac 변경은 1.5초 묶음으로 보낸다. 받기는 허브의 대기 요청(`GET /v1/me/state?wait=<마지막 판>` — 바뀐 것이 생기면 바로, 없으면 25초 뒤 빈 응답)으로 바로 받는다. 기존 30초 받기 경로는 대기 요청을 모르는 허브와의 하위 호환으로만 남기고, 허브가 대기 요청을 지원하면 쓰지 않는다. 대기 요청은 한 번에 하나다.
+- **새 기능 칸(TASK-44~47)**: 모두 사장 Mac(관제 화면) 칸이다. 문·허브·Hermes 설정은 바꾸지 않는다.
+
+  | 다루는 것 | 원본·쓰는 곳 | 쓰기 주체 | 수명 |
+  |---|---|---|---|
+  | 받은·보낸 파일 사본(REQ-HF-37) | 다운로드 폴더(사용자 다운로드) | 앱(사장이 열거나 보낼 때) | 사장이 지울 때까지 |
+  | 대화창 모양 값(REQ-HF-38) | `hejo-local.json` | 앱 | Mac별 영구 |
+  | 옆 창 탭·방문 기록(REQ-HF-39) | `WKWebsiteDataStore` 기본 저장소, 비밀 첨부는 비영구 저장소 | 앱 | ddots와 같음 |
+  | 캘린더(REQ-HF-40) | macOS 캘린더(EventKit) 읽기만 | — | 저장 없음 |
+  | 작업 목록(REQ-HF-41) | 읽기: `~/.codex/sessions`, `~/.claude/projects`. 쓰기: 앱 지원 폴더의 훅 상태 파일, 사장이 누를 때만 각 CLI 설정 파일에 훅 줄(백업·영수증 `hejo/hooks-receipt.json`) | 앱 | 연결 해제 때 원래 설정으로 되돌림 |
+
+- **SwiftUI:** ddots의 캘린더·옆 창·작업 목록·설정 화면은 SwiftUI다. hejo는 예외 없이 AppKit으로 옮긴다(NFR-HF-03, 아래 예외 목록에 더하지 않음). 옆 창은 `WKWebView`(AppKit)다.
+- **대안**
+  - (기각) ddots SwiftUI 화면을 `NSHostingView`로 그대로 넣기: 빠르지만 NFR-HF-03·AGENTS 규칙에 어긋나고, Slack 모델에 묶인 상태 객체를 끊어 내야 해서 결국 다시 짜야 한다.
+  - (기각) 차이마다 따로 덧대기: 이번 누락의 원인이므로 쓰지 않는다. ddots 함수 단위로 옮긴다.
+- **위험·롤백**
+  - 읽음 규칙 변경으로 첫 실행 때 안 읽은 수가 크게 줄어든다. 의도된 결과(ddots와 같음)다.
+  - 회원 상태 키 형식은 바꾸지 않아 이전 앱과 섞여도 깨지지 않는다.
+  - 작업 목록 훅은 사장 Mac의 다른 앱 설정을 바꾸므로 백업·영수증·연결 해제를 필수로 둔다.
+  - 각 TASK는 앱만 바꾸므로 이전 버전 zip으로 되돌린다.
+
+### 12-1. 34판 보강(2.1판, REQ-HF-42 문)
+
+- **칸:** 문(공항 시설). Hermes 본체는 고치지 않는다. 쓰는 것은 플랫폼 어댑터 공개 계약뿐이다: `splits_long_messages`, `send_image`·`send_voice`·`send_video`, 수신 문맥, 단추 낱말표.
+- **I01 문맥:**
+  - 세션이 없는 1:1 스레드에 답이 오면, 25판 분기 문맥 함수(`context.py`)를 재사용해 `[이전 스레드 대화]`를 붙인다.
+  - "세션이 있다"는 판정은 Hermes가 수신 때 넘기는 세션 정보(Slack 어댑터가 쓰는 같은 판정)를 따른다. 문이 따로 세션 표를 만들지 않는다.
+- **I02·I03 나누기:**
+  - 문이 `send` 안에서 바이트 한도로 나눈다. 줄 경계를 먼저 쓰고, 넘으면 글자 경계에서 나눈다.
+  - 조각마다 보통 `message` 기록이 된다. 규격은 바꾸지 않는다.
+  - 스트리밍 편집이 한도를 넘으면 마지막 조각에서 이어 쓴다. 이 처리는 Slack 어댑터의 나누기 규칙을 따른다.
+- **I04·I05 단추:**
+  - 낱말은 Hermes 공식 지역 낱말표에서 읽는다.
+  - 결과 줄과 단추 비우기는 기존 `edit`(buttons 빈 목록)로 기록한다.
+- **I06 첨부:** 기존 직원 발송 파일 등록 경로(TASK-03b)를 쓴다. 링크 사진 받기에는 크기 한도와 시간 제한을 둔다.
+- **시험:** 가짜 Hermes 게이트웨이로 정기 보고 5,000자·한글 3만 자, 세션 없는 스레드 답, 기본 단추 누름 두 번, 링크 사진·음성 파일을 재현한다.

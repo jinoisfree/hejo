@@ -17,7 +17,6 @@ struct ProfileAvatar: Equatable {
         } else {
             NSBezierPath(roundedRect: rect, xRadius: corner, yRadius: corner).addClip()
         }
-            color.setFill(); rect.fill()
             if let image {
                 let scale=max(rect.width/image.size.width,rect.height/image.size.height)
                 let size=CGSize(width:image.size.width*scale,height:image.size.height*scale)
@@ -25,6 +24,7 @@ struct ProfileAvatar: Equatable {
                 image.draw(in:destination,from:.zero,operation:.sourceOver,fraction:1,respectFlipped:true,hints:[.interpolation:NSImageInterpolation.high])
                 NSGraphicsContext.restoreGraphicsState();return
             }
+            color.setFill(); rect.fill()
             let attributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: rect.height * 0.6, weight: .medium), .foregroundColor: foreground]
             let text = Self.initial(name) as NSString, size = text.size(withAttributes: attributes)
             text.draw(at: NSPoint(x: rect.midX-size.width/2, y: rect.midY-size.height/2), withAttributes: attributes)
