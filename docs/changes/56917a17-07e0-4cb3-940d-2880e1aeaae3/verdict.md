@@ -1,3 +1,23 @@
+## 검증 판정: TASK-50 team-kit 사장 대화 판정에 hejo 포함 (2026-11-18)
+
+1. **판정:** 부분 완료(고위험 상한). 패치는 통과, 인계 수준 2/2. 운영 적용·실물(수준 3)이 남는다. 차단 결함 없음.
+   - 패치 `.build/task50/team-kit.patch` sha256 `70597129…2398`(직접 재계산 일치), 15개 파일. hejo 커밋 `96e221c`는 보고 두 파일뿐, public `1dfda64` 불변.
+2. **검증 조건:** 교차 모델(구현 codex gpt-6.1-sol, 검토 Claude Opus 5.5).
+3. **직접 확인:**
+   - 패치 본문 전체를 읽었다. 새 `lib/hermes_owner_chat.py`의 `OWNER_CHAT_PLATFORMS = {slack, photon, hejo}` 한 곳으로 26개 판정을 바꿨다. 각 판정의 chat_id·user_id·배경·역할·계정 범위 검사는 그대로 남았다.
+   - `write_policy.owner_chat`: hejo는 `user == 'owner'`만 통과(문이 내는 유일한 신원, `gate/adapter.py:649·662`).
+   - 원래 문제 줄 `mail/__init__.py:540`이 바뀌었고, 재현 시험 `test_mail_other_account_read_reproduction`이 slack·photon·hejo × 배경 플래그 3종 × 빈 chat_id를 덮는다.
+   - team-delegation의 `lib`은 team-kit `lib` 전체 링크라 새 모듈을 같이 본다.
+   - 운영 원본에 `patch -p1 --dry-run` 종료 0, 운영 원본에 새 파일 없음(미적용).
+   - 로그: `full.log` 5024 passed·5 skipped, `mutations.json` hejo 제거·배경 검사 제거 둘 다 검출, 정상 0.
+4. **설계 적합성(4.2):** D50-01(hejo 대화 = 사장 대화, 배경 거절 유지)과 보완 62 분류 원칙을 따른다. 라우터 ingress·사용량·연결 점검 등 플랫폼 전용 코드는 유지하고 이유를 `classification.md`에 적었다.
+5. **D50-02(사장 결정 필요, 결함 아님):** Slack 원문 증명에 묶인 기능은 hejo에서 아직 안 된다(`d50-02.json` 재현).
+   - 기다림 작업(`wait_jobs` owner_slack_thread_required), 요청 원문 증명(`request_source`·`work_guidance`·`learning`·`memory_live`), 금고 백업 승인 버튼(`vault_backup_approval`), 개인 조회 인증(`mail_read.authorize`), Notion 대화 연결.
+   - 이것들은 Slack API로 원문을 다시 확인하는 구조라 hejo 기록장으로 증명하는 새 설계가 필요하다(TASK-51 후보).
+6. **남은 것:** 운영 적용(백업 → patch → team-kit 시험 → 재시작, 계획 담당+사장), hejo에서 다른 계정 메일 읽기 실물, D50-02 결정.
+
+---
+
 ## 검증 판정: 보완 61 — 0.2.0 공개 후보 재생성 (2026-11-18)
 
 1. **판정:** 보완 61 완료. 차단 결함·지적 없음. 제품 코드 변경 없음(실행 커밋 `7c8ae5d`는 impl-report 10줄).
