@@ -63,6 +63,7 @@ import AppKit
         let snapshot = monitor.poll(now: now)
         try check(snapshot.tasks.first?.state == .responded, "out of order event rejected")
         try check(snapshot.connections.allSatisfy { !$0.available }, "missing connection not zero success")
+        try check(snapshot.connections.allSatisfy{$0.detail == "기록 폴더에 접근할 수 없음"},"AT98 unavailable detail uses the original Monitor words only")
         // A build being put through its UI checks, like the conversation share, is not a pet in the installed one's way
         // A hook's event file is taken away a day after its last change
         let events = root.appendingPathComponent("hook-events-\(UUID().uuidString)")

@@ -34,6 +34,7 @@ import AppKit
     view.layoutSubtreeIfNeeded();try check(view.taskButtons.count == 3,"AT98 task rows")
     try check(view.scroll.frame.minY == 243 && view.taskButtons.map{$0.frame.height} == [66,66,66] && view.taskButtons.map{$0.frame.minY} == [0,74,148],"AT98 original dashboard row geometry")
     try check(view.filter.frame == CGRect(x:424,y:209,width:260,height:24),"AT98 source filter geometry at 710pt")
+    try check([view.refreshButton,view.previewButton,view.hooksButton].map{$0.font?.pointSize} == [13,13,13] && [view.refreshButton,view.previewButton,view.hooksButton].map{$0.frame.size} == [CGSize(width:69,height:24),CGSize(width:96,height:24),CGSize(width:125,height:24)],"AT98 source bordered footer buttons measure 13pt and 24pt high")
     let stableRow=view.taskButtons[0];model.onChange?();try check(view.taskButtons[0] === stableRow,"AT98 periodic refresh preserves native control identity")
     var selected:String?,hooks=0,refresh=0,preview=0,paused=0
     model.onSelect={selected=$0;model.selectedID=$0;model.onChange?()};model.onHooks={hooks+=1};model.onRefresh={refresh+=1};model.onPreview={preview+=1};model.onPause={paused+=1}

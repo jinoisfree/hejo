@@ -2057,3 +2057,17 @@ TASK-46 최종 확인: 마지막 입력 199개를 동결한 전체 검사와 집
 - 구현자 인계 상태: 배정 코드·자체 시험은 수준 2 통과, 필요한 수준 3의 실제 설정 연결/해제·실제 작업 창 결합은 미실행. 독립 검토·운영 수락이 남는다. 소유 파일만 commit-only하며 최종 커밋·깨끗한 작업 트리·고정 public·입력/그림 대조는 `.build/task47/final-verification.json`을 따른다.
 
 - 정적 진단 처분: 새 monitor 캡처의 Swift 6 Sendable 경고는 현재 Swift 5 빌드에서 관측됐다. 가변 모니터는 전용 직렬 큐에서만 poll하고 main의 monitorBusy가 중복을 막는다. UI에는 값 스냅샷만 넘기는 의도된 소유 경계로 분류했고 경고를 억제하지 않았다. 나머지 기존 actor/미사용 변수 진단은 범위 밖 부채로 남겼다.
+
+
+## 보완 60 구현·자체 시험: N47-01·02
+
+- 착수 기준 `41644e8b50e1968a78e0f89a7d87b9b42a21c2e8`. 기존 TASK-47 기록은 당시 이력으로 보존한다. 계획 담당이 정정한 AT-98에 따라 Dashboard의 ‘연결 안 됨 · ’ 앞붙임을 제거하고 Monitor의 detail 원문만 그린다. 사용 가능 여부의 teal/gray 점은 그대로다. 감시·훅·상태·저장·문·허브 계약 변경은 없다.
+- 아래 세 단추는 AppKit rounded 기본 13pt로 맞췄다. 원본 Dashboard의 같은 SwiftUI 구성을 별도 실행한 결과 새로고침 69×24, 동작 미리보기 96×24, 승인 알림 연결 안내 125×24pt이며 제품과 같다. AT-98에는 글꼴·세 크기 실측 단언을, Monitor 시험에는 ‘기록 폴더에 접근할 수 없음’ 원문 단언을 추가했다. 실측 자료는 evidence/HEJO-FOUNDATION/task47-footer-metrics.json이다.
+- 집중 컴파일·실행은 `.build/n47/focused.py` 종료 0, AT-HF-98 MONITOR/APP PASS·APP_TEST_OK다. 원본 단추 분리 실측 compile/run은 각각 종료 0이며 `.build/n47/button-reference.log`에 있다. 이후 검증과 최종 커밋은 아래 최종 기록과 `.build/n47/final-verification.json`을 따른다.
+- 실물 훅 연결/해제·실제 작업 창·물리 입력기·VoiceOver는 미실행이며 필요/도달 증거 수준은 3/2다. 실제 CLI 설정은 내용 접근 없이 lstat 메타데이터만, 실제 다운로드는 이름만 대조한다. 실제 내용 SHA 불변을 주장하지 않는다. 운영 반영은 보완 60의 계획 담당+사장 점검에 남긴다.
+
+### 보완 60 최종 검증
+
+- `.build/n47/frozen.py` 종료 0: foundation9_runner hejo 245 passed(test_install·허브 포함), 앱 전체·기존 통신·훅 9개 통과. 집중 3회 모두 종료 0이며 실행 중 입력 214개 불변이다. 실제 CLI 설정 lstat 메타데이터·실제 다운로드 이름 불변 단언도 통과했다. 로그는 `.build/n47/final-foundation.log`·`frozen-progress.json`·`app-focused-01.log`~`03.log`다.
+- `.build/n47/post_checks.py` 종료 0: 최종 제품·원본의 일반/고정/빈 목록 캡처 여섯 개를 다시 만들고 직접 비교했다. 원본 세 그림은 이전과 바이트가 같고 제품 세 그림은 두 지적을 반영한다. 단추 글자 크기·높이는 원본 분리 실측과 같으며 ‘기록 폴더에 접근할 수 없음’ 앞에 새 낱말이 없다. 기존 AppKit 기본 단추 바탕·선택 구획의 플랫폼 차이는 그대로 문서화했다. PNG 유효성·원본 불변·codesign deep/strict 통과, 운영 앱 전체·픽셀 동일 비교를 주장하지 않는다.
+- `.build/n47/finalize.py`의 checks·commit·verify가 정적 검사와 소유 파일 commit-only·커밋/입력/그림 대조를 맡는다. 실제 결과와 전체 커밋은 `.build/n47/final-checks.json`·`commit-result.json`·`final-verification.json`을 따른다. public 후보 고정, 운영 홈·앱 사본·공용 릴리스·운영 허브·본체/ddots·원격·실제 발송·비밀 파일 접근은 없다. 계획 담당의 N47-01·02 검토와 보완 60 수준 3 실물 수락은 남긴다.

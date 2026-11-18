@@ -74,9 +74,9 @@ import AppKit
         scroll.frame = CGRect(x: 26, y: model.warning == nil ? 243 : 267, width: bounds.width-52, height: max(50, bounds.height-footer-(model.warning == nil ? 243 : 267)))
         rows.frame = CGRect(x: 0, y: 0, width: scroll.contentSize.width, height: max(scroll.contentSize.height, CGFloat(taskButtons.count)*74))
         for (i, button) in taskButtons.enumerated() { button.frame = CGRect(x: 0, y: CGFloat(i)*74, width: rows.bounds.width, height: 66) }
-        refreshButton.font = .systemFont(ofSize: 10); refreshButton.sizeToFit(); refreshButton.frame.origin = CGPoint(x: bounds.width-26-refreshButton.frame.width, y: bounds.height-81)
-        previewButton.font = .systemFont(ofSize: 10); previewButton.sizeToFit(); previewButton.frame.origin = CGPoint(x: 26, y: bounds.height-50)
-        hooksButton.font = .systemFont(ofSize: 10); hooksButton.sizeToFit(); hooksButton.frame.origin = CGPoint(x: previewButton.frame.maxX+8, y: bounds.height-50)
+        refreshButton.font = .systemFont(ofSize: 13); refreshButton.sizeToFit(); refreshButton.frame.origin = CGPoint(x: bounds.width-26-refreshButton.frame.width, y: bounds.height-81)
+        previewButton.font = .systemFont(ofSize: 13); previewButton.sizeToFit(); previewButton.frame.origin = CGPoint(x: 26, y: bounds.height-50)
+        hooksButton.font = .systemFont(ofSize: 13); hooksButton.sizeToFit(); hooksButton.frame.origin = CGPoint(x: previewButton.frame.maxX+8, y: bounds.height-50)
     }
     override func draw(_ dirtyRect: NSRect) {
         NSColor(srgbRed: 0.95, green: 0.96, blue: 0.93, alpha: 1).setFill(); bounds.fill()
@@ -96,7 +96,7 @@ import AppKit
             let dot = CGRect(x: 26, y: y+4, width: 5, height: 5)
             (connection.available ? NSColor.systemTeal : .systemGray).setFill(); NSBezierPath(ovalIn: dot).fill()
             DashboardInk.text(connection.provider.name, at: CGPoint(x: 37, y: y), size: 10, weight: .medium)
-            DashboardInk.text((connection.available ? "" : "연결 안 됨 · ")+connection.detail, at: CGPoint(x: connection.provider == .codex ? 74 : 103, y: y), size: 10, color: .secondaryLabelColor)
+            DashboardInk.text(connection.detail, at: CGPoint(x: connection.provider == .codex ? 74 : 103, y: y), size: 10, color: .secondaryLabelColor)
             y += 20
         }
         DashboardInk.text("이 Mac의 최근 기록 · 응답 종료는 작업 성공을 뜻하지 않습니다.", at: CGPoint(x: 26, y: bounds.height-75), size: 10, color: .secondaryLabelColor)
