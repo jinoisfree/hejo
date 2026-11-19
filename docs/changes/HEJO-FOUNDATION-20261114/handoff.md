@@ -1666,3 +1666,11 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
 - **검증:** hejo foundation9_runner 0·scan_private 0, team-kit 전체 tests 0(게이트웨이 Python), 운영 원본 dry-run 0. 앱 변경 없음.
 - **금지:** 보완 62·63과 같다(운영 원본·~/.hermes·재시작·운영 저장소 커밋·비밀 파일·대화 본문·실제 발송·본체·ddots). public 갱신은 하지 않는다(문 변경 공개는 다음 공개판에서).
 - **보고(result):** hejo 커밋, team-kit 패치·sha256, 시험·돌연변이·dry-run, TASK-53으로 넘길 메모. 운영 적용(공용 릴리스 갱신 + team-kit 패치 + 재시작)은 계획 담당+사장.
+
+## 보완 지시 65 (TASK-52 검토 뒤, N52-01, 2026-11-19)
+
+- TASK-52 코드는 통과했다(`5fb0407`, team-kit 패치 sha256 `660142a0…6ee5`). 전체 검증만 AT-96 하나로 막혔다.
+- **N52-01(시험 결함):** `app/Tests/WebPaneTests.swift:70-72`가 13번째 탭을 연 뒤 `pause(0.3)` 하고 바로 `tabScroll.contentView.bounds.minX>0`을 단언한다. 단독 실행은 3/3 통과(계획 담당 재현), 전체 실행 부하에서 스크롤이 늦어 실패한다.
+  - 수정: 고정 쉼 대신 `try await waitFor{ tabScroll.contentView.bounds.minX>0 }`(기존 waitFor, 최대 3초 정도)로 바꾸고 같은 단언 문구를 유지한다. 제품 코드는 바꾸지 않는다. 다른 고정 pause 뒤 화면 단언이 같은 파일에 더 있으면 같은 방식으로 함께 고친다(목록을 보고에 적는다).
+- **검증:** 같은 커밋으로 `foundation9_runner hejo` 종료 0을 **연속 2회**, scan_private 0. team-kit 패치는 바뀌지 않으므로 다시 돌리지 않는다(sha256만 재확인).
+- **금지:** 보완 64와 같다. git commit --only, result.

@@ -1,3 +1,18 @@
+## 검증 판정: TASK-52 hejo 사장 인증·원문 증명 (2026-11-19)
+
+1. **판정:** 부분 완료. 코드(`5fb0407` 문 + team-kit 패치 sha256 `660142a0…6ee5`, 12파일)는 통과. 필수 전체 검증(foundation9_runner hejo)이 AT-96 시험 하나로 종료 1이라 N52-01을 고친 뒤 완료한다.
+2. **검증 조건:** 교차 모델(구현 codex gpt-6.1-sol, 검토 Claude Opus 5.5).
+3. **직접 확인:**
+   - `gate/adapter.py` diff 전체: 수신 `build_source(..., message_id=msg_id)`, 공개 `owner_message`는 role=owner·thread·chat 일치·1:1 employee=profile·방은 살아 있는 방+`_meta.recipients`에 profile 포함만 통과. `journal.message()`는 행 전체 deepcopy라 `_meta`가 남는다(`gate/journal.py:171-184`). forwarder는 자기 `_owner_profile`로 기본 문에 묻는다.
+   - team-kit `hermes_owner_chat.py`: `authenticated_owner`는 Slack·photon 기존 owner 검사를 호출자에게서 받고 hejo는 owner+chat, 배경 플래그·background review 거절. `current_owner_message`는 환경값만이 아니라 TASK-49의 ContextVar 수신 사건(`hermes_reply/plugin.py:326-330,508-528`)과 PROFILE·CHAT·THREAD·MESSAGE_ID가 모두 일치할 때만 문에 묻고, 응답도 다시 대조한다. 같은 루프 스레드에서 부르면 None(실패 폐쇄).
+   - 로그: full 5058 passed, 돌연변이 3종(사용자 검사·방 수신자·DB content 대체) 검출, dry-run 0.
+   - **AT-96:** 앱 소스는 바뀌지 않았다. 계획 담당이 같은 바이너리로 `web_pane_fixture.py`를 3회 단독 실행 → 3회 모두 `WEB_FIXTURE_PASS`. `WebPaneTests.swift:70-72`가 고정 0.3초 쉰 뒤 탭 줄 스크롤을 단언해 부하가 걸린 전체 실행에서 늦게 끝나는 시험 결함이다(제품 결함 아님).
+4. **설계 적합성(4.2):** D51-01·보완 64를 따른다. 원문은 문 공개 `owner_message`로만 얻고 세션 DB content·문 내부 import를 쓰지 않는다. 프로젝트 영수증·학습 보고 위치·다 항목은 유지.
+5. **N52-01(시험, 비차단 제품/차단 검증):** AT-96 탭 스크롤 단언을 `waitFor`(최대 3초)로 바꾼다. 보완 65.
+6. **TASK-53 메모:** 구현 담당 지적대로 `learning.source`가 hejo를 받게 되면서 `wait_jobs` list/cancel·prune 입구가 hejo 사장 대화에서 열린다. 사장이 자기 대기 작업을 보거나 취소하는 것이라 권한상 문제는 아니나, Slack 출처 작업을 hejo에서 다룰 때 결과 전달 위치가 맞는지 TASK-53에서 확인한다.
+
+---
+
 ## 검증 판정: TASK-51 D50-02 조사 (2026-11-19)
 
 1. **판정:** 완료(조사 단계). 코드 변경 없음, 커밋 `4eb68a1`은 impl-report 10줄.
