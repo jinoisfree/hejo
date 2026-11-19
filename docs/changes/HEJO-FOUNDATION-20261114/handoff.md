@@ -1701,3 +1701,14 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
   - 수정: 원인 위치에 맞게 문에서 고친다(Hermes 본체 수정 금지). 설정 문제라면 설치 도우미 쪽으로.
   - 시험: 보조 프로필(forwarder)과 기본 프로필 각각, 도구 진행 글이 1개 이상 나오고(편집 갱신 포함) 최종 답이 간 뒤 진행 글이 기록장에서 지워지고 최종 답은 남음. 실패한 차례는 남김(기존 규칙).
 - **공통:** 운영 기록은 읽기만(게이트웨이 로그·설정 키 이름). 대화 본문·비밀 파일 열지 않음. 운영 원본·`~/.hermes` 변경·재시작 금지. team-kit 변경은 TASK-52·53 패치 위 별도 패치 `.build/n52-02/team-kit.patch`. 검증: foundation9_runner hejo 0, team-kit tests 전체 0, 운영 원본에 52→53→N52-02 순서 dry-run 0, 돌연변이(세션 증명 제거 → 다른 세션 msg_id 통과 검출, 진행 글 정리 제거 검출). git commit --only, result. 운영 적용은 계획 담당+사장.
+
+## 보완 지시 68 (보완 67 운영 적용 뒤 실물, N34-03, 2026-11-19)
+
+- **N52-02 해결 확인:** 17:11 사장 실물에서 `team_learn` 오류 로그가 없고, 보조 프로필의 `learning/rules.json`이 17:11:45에 갱신됐다(내용은 열지 않음).
+- **N34-03(차단): 진행 글이 여전히 남는다.** 보완 67(gate `518d67f`) 운영 적용(15:09) 뒤에도 같은 1:1 스레드에서 재현.
+  - 기록장(글 종류·시각만 확인): seq 89 직원 진행 글 생성(08:11:41Z) → seq 90·91 같은 글 edit(마지막 `final`) → seq 92 최종 답(08:11:55Z). **delete 기록 없음.** `gateway.log`에도 삭제·정리 흔적 없음(`[Hejo] Sending response (588 chars) to <보조 프로필>`만).
+  - 따라서 보완 67 시험(`gate/tests/test_progress.py`의 보조 프로필 갈래)은 실제 경로를 재현하지 못했다. 그 시험은 `_run_agent_schedule_bubble_cleanup`·콜백을 직접 불렀다.
+  - 확인할 곳(Hermes 읽기만): 정리 등록 `run_turn.py:4182-4219`(호출 4418), 차례 끝 조기 pop `run_turn.py:3840`(`_pop_post_delivery_callback(adapter, session_key, generation)` — 배경 검토 알림용이지만 같은 칸을 비움), base 최종 전달 뒤 `base.py:4611-4621 _fire_post_delivery_callback`(generation을 interrupt_event에서 읽음), `run_turn.py:3113-3123`(`_delivery_adapter_for(source)`), 진행 글 ID 기록 `run_turn_runner.py:597-603`. 등록 시점·pop 시점·세션 키·generation 중 어디서 어긋나는지 실제 값으로 기록한다.
+  - **재현 시험 필수:** 임시 HERMES_HOME에서 실제 `GatewayRunner` 차례 경로(문 수신 → `handle_message` → 배경 처리 → 가짜 모델의 도구 호출로 진행 글 생성·편집 → 최종 답 전달 → post-delivery)를 기본·보조 프로필 각각 돌려, 최종 답 뒤 진행 글 delete가 기록장에 남음을 보인다. 수정 전 문으로는 이 시험이 실패해야 한다(실패 로그 보존).
+  - 수정은 문에서(Hermes 본체 수정 금지). 원인이 본체 순서 문제라 문으로 못 고치면 고치지 말고 근거와 함께 보고(D34-03).
+- **공통:** 운영 기록은 종류·시각·키 이름만 읽기, 대화 본문·비밀 금지, 운영·재시작 금지. 검증: foundation9_runner hejo 0, 돌연변이(정리 경로 제거 시 새 실경로 시험 실패). team-kit은 바꾸지 않는다. git commit --only, result.
