@@ -73,6 +73,8 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
         if target is None or not target.is_connected:
             log.error("hejo_primary_unavailable")
             return SendResult(success=False, error="hejo_primary_unavailable")
+        if method == "owner_message":
+            return await target.owner_message(self._owner_profile, chat_id, *args)
         if method == "edit_message":
             if target.journal.room_id({"type":"edit","msg_id":args[0]}) in target.journal.deleted_rooms:
                 log.warning("room_deleted_drop")
@@ -498,6 +500,27 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             if self._edit_tasks.get(msg_id) is asyncio.current_task():
                 self._edit_tasks.pop(msg_id, None)
 
+    async def owner_message(self, profile, chat_id, thread_id, msg_id):
+        """Read an owner's original message only within this employee's delivery scope."""
+        if self.forwarder:
+            result = await self._forward("owner_message", thread_id, msg_id, chat_id=chat_id)
+            return result if isinstance(result, dict) else None
+        message = self.journal.message(msg_id)
+        if not message or message.get("role") != "owner" or message.get("thread") != thread_id:
+            return None
+        room = message.get("room")
+        actual_chat = "room:" + room if room else message.get("employee")
+        if not profile or chat_id != actual_chat:
+            return None
+        if room:
+            if (room not in self.journal.rooms or room in self.journal.deleted_rooms
+                    or profile not in message.get("_meta", {}).get("recipients", [])):
+                return None
+        elif message.get("employee") != profile:
+            return None
+        return {"msg_id": message["msg_id"], "text": message["text"], "chat_id": actual_chat,
+                "thread_id": message["thread"], "answer_to": message.get("answer_to"), "ts": message["ts"]}
+
     async def first_thread_message(self, chat_id, thread_id, *, metadata=None):
         """Return the first live message this employee wrote, never another speaker's.
 
@@ -646,7 +669,7 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
                 self.files.rollback(moved)
                 return
         async def deliver(target):
-            source = self.build_source(chat_id="room:"+room_id if room else employee, chat_type="dm", user_id="owner", thread_id=thread)
+            source = self.build_source(chat_id="room:"+room_id if room else employee, chat_type="dm", user_id="owner", thread_id=thread, message_id=msg_id)
             source.profile = target
             text = with_context(contexts.get(target, ""), frame["text"], "방 대화 — 받기 전 글") if room else frame["text"]
             text = with_context(branch, text, "이전 스레드 대화")
