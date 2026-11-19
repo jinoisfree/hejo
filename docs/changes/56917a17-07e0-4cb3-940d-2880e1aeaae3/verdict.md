@@ -1,3 +1,17 @@
+## 검증 판정: 보완 68 — N34-03 진행 글 정리 실경로 (2026-11-20)
+
+1. **판정:** 코드 통과, 수준 2/2. 운영 적용(공용 릴리스 갱신·재시작)과 보조 프로필 실물이 남는다. 지적 없음.
+   - 결과는 2026-11-19 20:58 커밋 `d5c9133`으로 끝나 있었으나 이 대화로 전달되지 않아 검토가 늦었다(사장 지적 뒤 확인).
+2. **검증 조건:** 교차 모델(구현 codex gpt-6.1-sol, 검토 Claude Opus 5.5).
+3. **직접 확인:**
+   - 원인(`impl-report` 보완 68 3항, `baseline-trace.json`): 실제 경로의 정리 어댑터는 수신한 **기본 문**이고, 기본 문 `delete_message`가 글 주인을 `default`로 고정해 보조 직원 글 삭제를 거절했다. 보완 67의 콜백 넘김은 이 경로를 지나지 않았다.
+   - 수정(`gate/adapter.py` diff): 수신 차례마다 ContextVar `_delivery_scope=(대상 직원, chat, thread)`를 설정하고 finally로 복원. 범위가 있으면 삭제는 그 직원·chat·thread의 role=employee 글만 허용. 영구 저장·wire·본체·team-kit 변경 없음.
+   - 시험: `test_gateway_progress.py`가 실제 `start_gateway`부터 post-delivery까지(가짜 모델만) 기본·보조 × 성공·실패 4경우. 수정 전 문으로 `baseline.log` 1 failed(보조 성공만 남음), 수정 뒤 `foundation9-n34-fixed.log` 1 passed, 경계 13 passed, 돌연변이(삭제 False 고정) 검출, foundation 257 passed.
+4. **설계 적합성(4.2):** 보완 68 그대로(실경로 재현 → 수정 전 실패 증명 → 문에서 수정). D34-03(본체 순서 문제) 아님.
+5. **운영 적용 범위:** 문 코드만(공용 릴리스 갱신 + 재시작). `d5c9133..HEAD`에는 gate·hub·schemas·install·config 변경이 없다.
+
+---
+
 ## 검증 판정: 보완 67 — N52-02 학습 세션 증명, N34-02 보조 프로필 진행 글 정리 (2026-11-19)
 
 1. **판정:** 코드 통과, 수준 2/2. 운영 적용·실물(사장 hejo에서 규칙 저장·진행 글 사라짐) 남음. 지적 없음.
