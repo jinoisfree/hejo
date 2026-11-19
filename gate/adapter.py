@@ -73,8 +73,8 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
         if target is None or not target.is_connected:
             log.error("hejo_primary_unavailable")
             return SendResult(success=False, error="hejo_primary_unavailable")
-        if method == "owner_message":
-            return await target.owner_message(self._owner_profile, chat_id, *args)
+        if method in {"owner_message", "employee_message"}:
+            return await getattr(target, method)(self._owner_profile, chat_id, *args)
         if method == "edit_message":
             if target.journal.room_id({"type":"edit","msg_id":args[0]}) in target.journal.deleted_rooms:
                 log.warning("room_deleted_drop")
@@ -520,6 +520,24 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             return None
         return {"msg_id": message["msg_id"], "text": message["text"], "chat_id": actual_chat,
                 "thread_id": message["thread"], "answer_to": message.get("answer_to"), "ts": message["ts"]}
+
+    async def employee_message(self, profile, chat_id, thread_id, msg_id):
+        """Read one live post written by this employee in the specified conversation."""
+        if self.forwarder:
+            result = await self._forward("employee_message", thread_id, msg_id, chat_id=chat_id)
+            return result if isinstance(result, dict) else None
+        message = self.journal.message(msg_id)
+        if (not profile or not message or message.get("role") != "employee"
+                or message.get("employee") != profile or message.get("thread") != thread_id):
+            return None
+        room = message.get("room")
+        actual_chat = "room:" + room if room else message.get("employee")
+        if chat_id != actual_chat:
+            return None
+        if room and (room not in self.journal.rooms or room in self.journal.deleted_rooms):
+            return None
+        return {"msg_id": message["msg_id"], "text": message["text"], "chat_id": actual_chat,
+                "thread_id": message["thread"], "employee": profile, "ts": message["ts"]}
 
     async def first_thread_message(self, chat_id, thread_id, *, metadata=None):
         """Return the first live message this employee wrote, never another speaker's.

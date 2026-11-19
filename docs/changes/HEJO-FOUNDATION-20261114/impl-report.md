@@ -2129,3 +2129,25 @@ TASK-46 최종 확인: 마지막 입력 199개를 동결한 전체 검사와 집
 - 남긴 pause 두 곳: 첨부 본문의 0.05초는 내용 도달 때 즉시 끝나는 기존 최대 50회 비동기 조회 루프다. 캡처의 0.3초는 외관 적용 뒤 그림을 채취하는 대기이며 화면 성공 단언이 아니다. 제품 코드·기대값·허용 오차·수락 문구·시험 건너뛰기 변경은 없다.
 - 소유 파일만 먼저 commit-only하여 같은 커밋을 고정하고 foundation9_runner hejo를 연속 두 번 실행한다. 실행 전후 커밋·입력 불변, 각 종료값·로그와 개인값 검사 결과는 추적하지 않는 .build/n52-01/final-verification.json에 기록한다. 이 문단은 실행 예정 범위를 적으며 통과 결과를 미리 주장하지 않는다. team-kit 시험·돌연변이·dry-run은 다시 실행하지 않고 기존 패치 SHA-256 660142a0533936ef78d30970209a5b81ea0c9c93ef34cf2db0c20cd87aa16ee5만 재확인한다.
 - 운영 원본·운영 홈·공용 릴리스·본체·ddots·public·원격은 변경하지 않는다. 실제 설정 내용·대화 본문·비밀 파일·실제 발송에 접근하지 않는다. 계획 담당이 고정 커밋의 두 전체 검사 결과를 확인한 뒤 TASK-52 전체 검증 보류 해제를 판정한다.
+
+
+## TASK-53 구현·자체 시험 — 보완 66
+
+1. 받은 설계: 보완 66, 기준 3305387ba0067da9f9b992d6d69e0d5e426cd8f3. 기존 문 공개 조회와 team-kit 업무 캡처·진단·대기 작업 책임 자리에 구현한다. 권한 경계의 인계 필요 수준은 2이며 운영 적용·실물 수준 3은 계획 담당+사장에게 남긴다. 이전 TASK-52·N52-01 기록은 당시 이력으로 보존한다.
+2. 시작 대조: 운영 team-kit 원본 660개 항목의 내용·권한·상대 링크가 TASK-52 착수 자료와 같았다. 읽기 전용 원본에서 만든 사본에 TASK-52 패치를 적용하고 검증된 TASK-52 사본과 일치함을 확인했다. 그 상태를 TASK-53 패치의 기준으로 보존했다. .build/task53/start.json·source-manifest.json.
+3. 문 변경: gate/adapter.py에 employee_message를 추가했다. 작성 직원·같은 chat/thread·살아 있는 글·살아 있는 방을 확인하고 복사본만 반환한다. forwarder는 기존 _forward에서 자기 직원으로 고정한다. gate/tests/test_employee_query.py가 정상·복사·다른 직원/대화/스레드·role·삭제·없는 ID·방·forwarder를 검사한다. wire·기록장 저장 형식·Hermes 본체 변경은 없다.
+4. team-kit 업무 캡처: 공용 answered_employee_message는 현재 사장 사건의 answer_to를 공개 직원 조회로 확인한다. _task_capture_owner_chat은 hejo 증명과 기존 work 역할을 함께 요구한다. work_capture는 source 원문·ID도 현재 사건과 대조하며 미확정 선택과 대상 불일치면 native 호출 전에 거절한다. hejo UUID는 사건 키로만 쓰고 전환 순서는 문이 준 실제 ts로 판정한다. Slack의 숫자 ts·DB 문맥 경로는 유지한다.
+5. 진단·대기: hejo 진단은 검증된 원문에서 platform/chat/thread/msg_id를 기록하고 Slack permalink를 해석하지 않는다. 대기 생성은 hejo 원문과 직원 홈을 확인하고 origin을 보존한다. hejo 목록·취소·prune은 같은 직원·대화·스레드의 작업만 다룬다. prompt의 전달 위치는 플랫폼별로 쓰며 조건 조회와 깨어난 실행은 계속 배경이다. 기존 profile별 cron 저장소·origin 전달을 재사용한다.
+6. 가짜 검증: 새 집중 22개와 문 조회 2개, 실제 짝맺기·버튼 누름의 원문 결합과 방 대표가 아닌 직원 전달자의 cron 전달 통합 2개, 기존 업무 캡처·등급 전환 33개가 각각 종료 0이었다. 실제 cron 전달 함수와 가짜 hejo·Slack 어댑터로 같은 대화 전달·실패 때 타 대상 발송 0을 검사했고, cron 작업의 delivery_failed·last_delivery_error 기록도 단언했다. 실제 메일·Slack·운영 문·세션 본문은 쓰지 않았다.
+7. 돌연변이: 정상 team-kit·문 사본은 각각 0, 직원 일치 검사 제거·origin Slack 고정·Slack 대체 대상 추가 사본은 각각 1로 검출했다. 마지막 변형은 실제 가짜 Slack 발송 관측으로 실패했다. 제품·운영 원본은 변형하지 않았다. .build/task53/mutations.json·mutation-*.log.
+8. 전체 검증·정적 검사·최종 커밋은 고정 입력의 결과 원본 .build/task53/final-verification.json을 따른다. team-kit 전체는 전달 실패 기록 단언을 더한 뒤 다시 실행하며 이전 통과 실행은 intermediate-before-delivery-record-full로 보존했다. 최초 집중 2개 실패는 시험의 플러그인 등록 대역 누락이었고 공개 등록 방식으로 보완했다. 시험 기대값·skip·허용 오차는 완화하지 않았다. airport-check는 기존 승인 기준선을 그대로 사용해 종료 0이었다.
+9. 패치 적용 순서: .build/task52/team-kit.patch → .build/task53/team-kit.patch. TASK-52 SHA-256 660142a0533936ef78d30970209a5b81ea0c9c93ef34cf2db0c20cd87aa16ee5. TASK-53 SHA-256 38a66b3a2248c223be13b92155455138c18decc3136906dcb708de62073ae8ad. TASK-52는 운영 원본에 dry-run 0, TASK-53은 그 동일 원본 사본에 TASK-52를 적용한 뒤 dry-run 0이다. 사본에 둘을 순서 적용한 결과가 최종 검증 사본과 일치한다. 운영 원본에는 적용하지 않았다. .build/task53/patch-result.json·해당 dry-run 로그.
+10. 운영 적용은 계획 담당+사장에게 남긴다. 문 공개 메서드가 늘었으므로 두 team-kit 패치만 적용해서는 충분하지 않으며 hejo-release로 공용 문 갱신과 두 패치를 함께 반영한 뒤 재시작 한 번이 필요하다. 이번 단계에서는 공용 릴리스·운영 홈·게이트웨이·운영 저장소·본체·ddots·public·원격을 바꾸지 않는다. 계획 담당이 수준 2 근거와 실패 전송 경계를 검토한 뒤 운영 수락을 판단한다.
+
+
+### TASK-53 최종 검증
+
+- 문 전체: python3 .build/foundation9_runner.py hejo 종료 0. Python 250 passed(test_install·허브 포함), 앱 전체·통신·AT-96·훅 9개 통과. 실제 CLI 설정은 내용 접근 없이 lstat 메타데이터만, 실제 다운로드는 이름만 대조해 불변을 확인했다. .build/task53/final-foundation.log·foundation-result.json.
+- team-kit 전체: python3 .build/task53/frozen.py 종료 0. 게이트웨이 Python과 지정된 pytest/core PYTHONPATH로 5080 passed·5 skipped·58 subtests passed, 기존 escape SyntaxWarning 1개. 집중 22개도 종료 0이다. 제품·시험 입력 770개는 고정 뒤 불변이다. .build/task53/full.log·full-result.json·frozen-team.json·focused.log.
+- 추가 회귀: 문 조회 2개·짝맺기/버튼/방 cron 전달 통합 2개·기존 업무 캡처/등급 전환 33개 각각 종료 0. 로그는 .build/foundation9-task53-gate.log·foundation9-task53-integration.log·foundation9-task53-legacy.log다. 가짜 원문·세션·공급자·로컬 문만 사용했다.
+- 세 돌연변이, airport-check, 두 패치 순서 dry-run은 앞선 항목의 실제 결과와 해당 JSON을 따른다. 최종 개인값·훅·diff 검사와 소유 파일 네 개 commit-only, 커밋/입력/패치 대조·운영 원본 660개 불변·깨끗한 main·public 고정의 실제 결과는 .build/task53/final-checks.json·commit-result.json·final-verification.json에 남긴다. 인계 필요/도달 증거 수준은 2/2이며 운영 적용·실물·비설계자 검토는 미실행이다.

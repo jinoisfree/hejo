@@ -795,3 +795,14 @@ AT-90의 “따라 읽은 스트림이 완료 후에도 펼침” fixture는 여
 - request_source의 프로젝트 영수증 생산·채널·scope 규칙은 Slack 전용으로 보존했다. hejo 일반 원문과 섞거나 별도 프로젝트 저장소를 만들지 않았다. hejo steer/redirect는 검증된 사건에 결합되지 않아 근거를 공급하지 않는다. 단순 승인 글 학습·배경 학습은 계속 거절한다. 학습 보고 전송 위치는 바꾸지 않았다.
 - TASK-53 메모: linked_work의 선택 대상과 Decimal ts 비교, diagnosis_records의 Slack DM/permalink, wait_jobs의 Slack 정규식·origin 예약 전달은 그대로다. linked_work·diagnosis의 명시적 플랫폼 제한과 wait_jobs.create의 Slack 형식 제한은 남아 있다. 다만 wait_jobs.handle의 list/cancel·prune은 공통 learning.source에만 사장 증명을 맡기므로, 이번 확장으로 hejo owner가 그 입구를 통과할 수 있다는 코드상 영향은 TASK-53에서 확인해야 한다(이번 실물 실행 없음). 현재 owner_context의 hejo 선택 결과 row_id는 None으로 두어 기존 DB 본문 기반 대상 추정을 사용하지 않는다. 임의 클릭 대상의 직원 글은 first_thread_message만으로 조회할 수 없으므로 answer_to의 대상 내용 증명도 TASK-53에서 별도 설계해야 한다. 금고 백업 승인·CCTV 지정 방·Slack 사용량 조회도 D51-01대로 유지한다.
 - 검증 원본은 .build/task52/의 focused.log·full.log·final-foundation.log·integration.log·mutations.json·airport.log·patch-result.json이다. 가짜 DB의 위조 Slack 헤더와 문 원문을 다르게 두어 원문 공급자 교체 변형이 검출되게 했다. 운영 본문·비밀·실제 발송·재시작을 시험하지 않았다. 새 권한 경계의 운영 수준 3과 비설계자 검토는 남는다.
+
+
+## TASK-53 원문·실행 경계 독해 — 보완 66
+
+- 기준 3305387ba0067da9f9b992d6d69e0d5e426cd8f3. TASK-52 패치를 적용한 임시 team-kit을 원본으로 삼았다. 칸은 기존 문 기록장 조회와 team-kit의 linked_work·diagnosis_records·wait_jobs다. 영구 원문·wire·권한 원본을 추가하지 않는다.
+- 문 employee_message는 owner_message와 같은 공개 비동기 방식이며, 살아 있는 직원 글을 작성 직원·chat·thread·msg_id로 한정한다. 전달자는 자기 직원으로 고정한다. team-kit answered_employee_message는 TASK-52의 현재 사장 사건 증명과 answer_to를 결합하고 응답의 직원·대화·스레드·ID를 재대조한다. 세션 DB 본문이나 가장 최근 직원 글로 대체하지 않는다.
+- 업무 캡처는 hejo에서 고른 사건 원문과 검증된 답 대상만 사용한다. Slack의 _answered_message DB 문맥·Decimal 메시지 시각 경로는 Slack 쪽에 남긴다. hejo 업무 전환의 중복 판정은 사건 ID, 순서 판정은 공개 owner_message의 실제 기록 시각을 쓰고 UUID를 숫자나 시각으로 해석하지 않는다. 기존 단계별 실행·미확정 쓰기 보류·원문 할 일 근거는 유지한다.
+- 진단 기록은 hejo 원문 공급자를 먼저 확인하며 Slack permalink로 가장한 글도 hejo 출처만 남긴다. Slack의 세션 종류 검사와 permalink 추출은 기존 경로에 남긴다. hejo 기록에는 platform·chat_id·thread_id·msg_id를 쓰고 Slack ts 필드는 비워 둔다.
+- 대기 작업은 hejo 현재 원문·실제 직원 홈을 확인한 뒤 origin의 platform·profile·chat·thread를 보존한다. Slack 채널·ts 정규식은 Slack 갈래 그대로다. hejo list/cancel·prune은 같은 origin만 다루고 다른 대화·직원 작업은 제외하거나 거절한다. 기존 profile별 cron 저장소와 deliver=origin을 재사용하며 다른 플랫폼 대체를 추가하지 않는다.
+- 본체 cron/scheduler_delivery.py의 origin 대상 해석·live adapter·standalone 실패 반환을 읽고 가짜 문·Slack 어댑터로 실제 전달 함수를 호출했다. 같은 hejo 대상으로의 기존 standalone 시도와 다른 대상으로 보내는 것은 구별했다. 실패는 cron.jobs.mark_job_run의 last_status=delivery_failed·last_delivery_error로 기록함을 검사한다. scheduler.py의 cron 문맥은 플랫폼·chat 환경을 비우고 HERMES_CRON_SESSION을 설정한다. 조건 조회·예약 실행을 owner로 올리는 코드는 추가하지 않았다.
+- 원본 규칙 유지 근거는 기존 업무 캡처·등급 전환 33개 회귀와 team-kit 전체 시험, 새 가짜 사건·통합·세 돌연변이에 둔다. 운영 원문·실제 발송·운영 cron은 실행하지 않는다. 상세 로그·고정 입력과 최종 결과는 .build/task53/final-verification.json을 따른다.
