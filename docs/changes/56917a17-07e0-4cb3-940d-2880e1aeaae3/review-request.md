@@ -47,3 +47,9 @@
 - 지적마다: ID(IR-01…), 심각도(차단·비차단), TASK, 파일:줄, 실제 실패 시나리오(입력·상태 → 잘못된 결과), 근거(코드 인용 또는 실행 결과).
 - 확인했지만 문제없는 항목은 한 줄씩 적는다(무엇을 어떻게 봤는지).
 - 마지막에 TASK별 결론: 통과 / 지적 있음.
+
+## 추가 범위 (2026-11-20)
+
+- **문(gate) 최근 변경:** 사장 원문·직원 글 공개 조회 `owner_message`·`employee_message`, 수신 `source.message_id`, 보조 문 post-delivery 콜백, 차례별 삭제 범위 `_delivery_scope`(`gate/adapter.py`, 커밋 `5fb0407`·`8de89b9`·`518d67f`·`d5c9133`, 시험 `gate/tests/test_owner_query.py`·`test_employee_query.py`·`test_progress.py`·`test_gateway_progress.py`).
+- **team-kit 패치(운영 저장소 코드, 이 저장소 밖):** `.build/task50/team-kit.patch` → `.build/task52/team-kit.patch` → `.build/task53/team-kit.patch` → `.build/n52-02/team-kit.patch` 순서. 결정 근거는 `handoff.md` 보완 62~67, D50-01·D51-01. 실제 적용된 코드는 `~/.hermes/plugin-store/team-kit`(읽기만). 볼 것: hejo 대화를 사장 대화로 인정하면서 배경·예약 거절이 유지되는지, 원문·세션 증명이 가짜 글·다른 방·다른 세션으로 뚫리지 않는지, 대기 작업 결과가 다른 곳으로 새지 않는지.
+- 결과 파일은 검토자별로 `independent-review-<영역>.md`를 써도 된다.
