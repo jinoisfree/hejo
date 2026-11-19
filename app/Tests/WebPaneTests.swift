@@ -41,7 +41,10 @@ import WebKit
     let baseWidth=pet.pet.placement!.bubbleRect.width
     content.onOpenURL(page)
     try check(web.open && web.sliding && web.current?.loadedView==nil,"AT96 pane delays page creation until width settles")
-    await pause(0.12)
+    try await waitFor(3){
+        let width=pet.pet.placement!.bubbleRect.width
+        return width>baseWidth && width<pet.placementTarget!.bubbleRect.width && web.current?.loadedView==nil
+    }
     let middleWidth=pet.pet.placement!.bubbleRect.width
     try check(middleWidth>baseWidth && middleWidth<pet.placementTarget!.bubbleRect.width && web.current?.loadedView==nil,"AT96 opening uses an intermediate frame with deferred WebKit geometry")
     try await waitFor(10){web.current?.title=="합성 페이지" && !web.sliding}
@@ -67,8 +70,8 @@ import WebKit
     try check(pet.panel.performKeyEquivalent(with:command(13)) && web.tabs.count==2,"AT96 command W closes current tab")
     for _ in 0..<13 {web.newTab()}
     try check(web.tabs.count==12 && !web.tabs.contains(where:{$0===first}),"AT96 thirteenth tab evicts oldest")
-    await pause(0.3)
     let tabScroll=pet.pet.webPane!.subviews.compactMap{$0 as? NSScrollView}.first!
+    try await waitFor(3){tabScroll.contentView.bounds.minX>0}
     try check(tabScroll.contentView.bounds.minX>0,"AT96 newly selected tab scrolls into the strip")
     web.open(page);try await waitFor{web.current?.title=="합성 페이지"}
     // Navigation to a local download, not a gateway request. The server rejects any Authorization header.

@@ -2120,3 +2120,12 @@ TASK-46 최종 확인: 마지막 입력 199개를 동결한 전체 검사와 집
 9. hejo 전체 검증 **미통과·검토 보류**: foundation9_runner hejo 두 실행 모두 Python 248 passed(test_install·허브 포함) 뒤 기존 AT-96 ‘newly selected tab scrolls into the strip’ 단언으로 전체 종료 1이었다. 앱 소스는 기준 HEAD와 같고 원인은 이번 범위에서 확정하지 못했다. 단독 웹 시험은 처음 0이었으나 최신 실행도 같은 단언으로 1이었다. 앱 제품·기대값·시간 조건은 바꾸지 않았으며 범위 밖 수정 판단을 계획 담당에게 넘긴다. 두 전체 실패는 intermediate-foundation-01/02.log/json, 최신 단독 실패는 web-probe.log/json이다. 첫 단독 성공의 전체 원시 파일은 후속 실행으로 대체됐고 도구 출력에서 관측한 값/발췌만 intermediate-web-first-observation.json에 구별해 남겼다. 중복 앱 전용 빌드는 중단했다. 최종 foundation-result.json·final-foundation.log에는 실제 종료 1을 기록하며, 개별 통과를 전체 성공으로 합치지 않는다.
 10. 정적·최종 기록: 개인값·HEJO_PYTHON 지정 훅·diff 검사와 소유 파일만 commit-only한 전체 커밋, 운영 소스 불변·public 불변·깨끗한 main·패치/입력 대조는 .build/task52/final-checks.json·final-verification.json·checkpoint.json을 따른다. 운영 원본·운영 홈·공용 릴리스·운영 허브·재시작·운영 저장소 커밋/푸시·GitHub·비밀 파일·실제 대화 본문·실제 발송·본체/ddots 변경은 없다.
 11. TASK-53 메모: linked_work의 선택 대상·Decimal ts, diagnosis_records의 Slack DM/permalink, wait_jobs의 형식·cron origin 전달을 다음 설계에서 이식해야 한다. 해당 파일과 D51-01의 Slack 전용 세 경계는 바꾸지 않았다. 단, wait_jobs.handle의 list/cancel·prune은 공통 learning.source를 쓰므로 hejo 인증 입구를 통과할 수 있다는 코드상 영향을 TASK-53에서 확인해야 한다(이번 실행 없음). 임의 answer_to 대상 직원 글의 내용 증명은 first_thread_message만으로 충분하지 않아 후속 설계가 필요하다. 운영 적용은 새 문 공개 메서드가 있는 릴리스와 team-kit 패치를 함께 검토·반영하고 계획 담당+사장이 재시작·실물 확인한다. 공개 메서드가 없는 옛 문에서는 원문 공급자가 실패 폐쇄한다.
+
+
+## N52-01 시험 대기 보완 — 보완 65
+
+- 착수 기준 948f4dfacbec86b0baa71fb45f54687966bdaa25. TASK-52 코드 검토를 통과한 제품·권한 판정과 team-kit 패치는 변경하지 않는다. 이번 변경은 WebPaneTests.swift의 화면 관측 시점과 이 보고뿐이다. 기존 TASK-52의 전체 검사 실패 기록은 당시 이력으로 보존한다.
+- 변경 목록: (1) 탭 추가 뒤 고정 0.3초 대기를 기존 waitFor(3)의 스크롤 위치 조건으로 교체했다. `AT96 newly selected tab scrolls into the strip` 단언 문구와 minX>0 조건은 유지한다. (2) 옆 창을 열 때 고정 0.12초 대기를 기존 waitFor(3)의 중간 폭·WebKit 미생성 조건으로 교체했다. 시작보다 크고 목표보다 작은 프레임이라는 기존 단언을 유지하며 완성 프레임으로 대체하지 않는다.
+- 남긴 pause 두 곳: 첨부 본문의 0.05초는 내용 도달 때 즉시 끝나는 기존 최대 50회 비동기 조회 루프다. 캡처의 0.3초는 외관 적용 뒤 그림을 채취하는 대기이며 화면 성공 단언이 아니다. 제품 코드·기대값·허용 오차·수락 문구·시험 건너뛰기 변경은 없다.
+- 소유 파일만 먼저 commit-only하여 같은 커밋을 고정하고 foundation9_runner hejo를 연속 두 번 실행한다. 실행 전후 커밋·입력 불변, 각 종료값·로그와 개인값 검사 결과는 추적하지 않는 .build/n52-01/final-verification.json에 기록한다. 이 문단은 실행 예정 범위를 적으며 통과 결과를 미리 주장하지 않는다. team-kit 시험·돌연변이·dry-run은 다시 실행하지 않고 기존 패치 SHA-256 660142a0533936ef78d30970209a5b81ea0c9c93ef34cf2db0c20cd87aa16ee5만 재확인한다.
+- 운영 원본·운영 홈·공용 릴리스·본체·ddots·public·원격은 변경하지 않는다. 실제 설정 내용·대화 본문·비밀 파일·실제 발송에 접근하지 않는다. 계획 담당이 고정 커밋의 두 전체 검사 결과를 확인한 뒤 TASK-52 전체 검증 보류 해제를 판정한다.
