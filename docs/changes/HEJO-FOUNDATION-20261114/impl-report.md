@@ -2096,3 +2096,13 @@ TASK-46 최종 확인: 마지막 입력 199개를 동결한 전체 검사와 집
 9. D50-02 후보: wait_jobs의 Slack 정규식/알림, 원문 증명에 의존한 work_capture·선택·workspace/관리 학습, Slack 블록 승인 수신, Notion conversation 및 Slack 단일 플랫폼 인증 경계. 네 경로의 hejo 거절/미처리를 가짜 입력으로 재현해 `d50-02.json`에 남겼으며 해당 코드는 고치지 않았다. 분류표를 보고 계획 담당이 후속 계약을 판단해야 한다.
 10. 중간 실행: 단독 team-kit 사본 첫 전체 검사는 형제 플러그인·스키마·프로필 문맥 누락으로 53 failed·4967 passed·9 skipped였다. 이후 동일 제품/시험 코드를 완전한 임시 문맥에서 실행해 해소했다. 첫 원시 로그는 다음 실행 때 대체됐고 요약은 `intermediate-first-full.json`에 남겼다. 초기 집중 실패는 새 대역 속성/호출 이름 누락과 Kanban 프로세스 문맥 보완으로 해소했으며 제품 판정은 완화하지 않았다. 기존 file_drop_readers의 escape 경고는 이번 변경과 무관해 억제하지 않았다.
 11. 최종 검토 초점: hejo 문 인증을 신뢰하는 범위와 user_id=owner 확인, 사장 기록 필터와 플랫폼 전용 동작 분류, 원래 배경 예외 보존, D50-02 미지원 경계를 봐 달라. hejo 커밋에는 이 보고와 copy-review만 넣는다. public·운영 원본/저장소 본문·게이트웨이·본체/ddots·실제 메일·Slack은 바꾸지 않는다. 최종 커밋·입력/패치 지문·원본 불변은 `.build/task50/final-verification.json`·`checkpoint.json`을 따른다.
+
+
+## TASK-51 조사·제안 — 보완 63
+
+- 받은 범위: 기준 `58b52ae56ba54ed885f11bbd5c21b83622749d01`, TASK-50 운영 적용 뒤의 D50-02 읽기 전용 조사다. 제품·운영 코드와 계약은 바꾸지 않았다. 구현자 판단은 조사 인계이며, 후속 설계·권한 확대·운영 수락은 계획 담당에게 남긴다. 기존 TASK-50 보고는 당시 실행 이력으로 보존한다.
+- 상세 원본은 추적하지 않는 `.build/task51/survey.md`다. 이전 분류의 D50-02 28행·23개 함수 묶음을 현 운영 소스와 다시 대조했다. 항목마다 사장에게 주는 기능, Slack 증명 사실과 생산자/소비자, hejo 증명 출처의 코드 줄, 제안과 위조 차단 위험을 적었다. 전수 대응은 `candidate-coverage.json`에 있다.
+- 제안은 공용 사장 인증으로 가능한 업무 안내·메일 읽기·Notion 대화 키, 문 원문 증명이 필요한 학습·기억·업무 선택·대기 작업, 현재 Slack 전용으로 남길 백업 질문 승인·지정 방 제한·Slack 사용량 조회로 구분했다. 선택 스킬·workspace의 단순 신원 판정과 원문 검증 소비자를 구별했고, native_tools 후보는 블록 승인 대신 실제 사용량 원장 조회라는 점을 정정했다. 제안은 구현 지시나 새 승인으로 취급하지 않는다.
+- 문 기록장에는 전처리 전 사장 글과 답 버튼의 answer_to가 있으나 공개 first_thread_message는 직원 글만 조회한다. team-kit이 내부 기록장을 가져오지 않고 현재 사건·방·스레드·직원 수신 범위에 묶인 공개 원문 조회를 쓰는 방안을 제안했다. DB 전송 ID와 환경 MESSAGE_ID의 생산 경로도 구별했다. 일반 hejo source 생성에는 message_id/scope_id를 넣지 않아 현재 환경 ID를 보장할 수 없다는 코드상 빈틈과, 이를 후속 가짜 수신 시험으로 확인할 필요를 기록했다. 실제 turn 환경 탐침은 하지 않았다.
+- 운영 세션 DB 6개를 immutable 읽기 전용·query_only로 열었다. WAL이 비어 있음을 먼저 요구했고 본문·실제 식별자 값 대신 열 이름과 집계만 조회했다. hejo 세션 16개는 chat/thread NULL·공백 0개, user 행 23개는 platform_message_id NULL·공백 0개였다. 전체 message 행 87개 중 해당 ID NULL은 64개이므로 모든 행을 사장 요청 증거로 볼 수 없다. 조회 전후 DB/WAL/SHM 크기·mtime·inode는 같았다. 실행과 집계 원본은 `db_metadata.py`·`db-metadata.json`·`db-metadata.log`다.
+- 검증은 조사 범위 대응·지문·문서 개인값/훅/diff 검사로 한정했다. 제품 코드가 같으므로 앱·전체 team-kit 시험·돌연변이는 실행하지 않았다. 운영 소스 파일/링크 660개 대조와 실제 검사 종료값, 소유 보고 파일만 commit-only한 커밋·깨끗한 작업 트리·public 불변은 `.build/task51/final-checks.json`·`final-verification.json`을 따른다. 대화 본문·비밀 파일·실제 메일·Slack·재시작·운영 변경·원격 작업은 없다. 권한 경계 구현과 실물 증거는 미완료다.
