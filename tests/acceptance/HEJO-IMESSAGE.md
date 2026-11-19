@@ -1,6 +1,6 @@
 # HEJO-IMESSAGE 수락 시험 명세
 
-- 소유: 기획설계. 1판(2026-11-19). 기대값 근거: [spec.md](../../docs/changes/HEJO-IMESSAGE-20261119/spec.md) 요구와 [design.md](../../docs/changes/HEJO-IMESSAGE-20261119/design.md) 3~7절.
+- 소유: 기획설계. 2판(2026-11-19, 계획 검증 1회차 반영). 기대값 근거: [spec.md](../../docs/changes/HEJO-IMESSAGE-20261119/spec.md) 요구와 [design.md](../../docs/changes/HEJO-IMESSAGE-20261119/design.md) 3~7절.
 - 상태: 모두 "명세 완료 · 코드 미작성 · 미실행 · 미검토". 코드는 구현 담당이 `tests/acceptance/test_imessage.py`(문), `app/Tests/`(앱), team-kit 시험 폴더(안내원)에 옮기며 기대값·합격 기준을 바꾸지 않는다. 바꿔야 한다고 판단되면 멈추고 보고한다.
 - 공통 환경: 임시 `HERMES_HOME`, 가짜 명부(기본 프로필 `default`와 프로필 `alpha`, `beta`; 표시 이름 `Alpha`, `Beta`; `alpha` 별칭 `al`), 단체방 `G`(제목 `Team`, 구성원 `alpha`·`beta`, 대표 `alpha`), 실제 Hermes 모듈 import, 문 어댑터 단독 또는 기존 대역 러너. 증거 수준은 표시가 없으면 2.
 - **가짜 아이메시지 어댑터 `F`:** 문 이름 `photon`, `MAX_MESSAGE_LENGTH = 100`, `handle_message`(원래 처리기, 호출 기록), `send(chat_id, content, reply_to=None, metadata=None)`(호출 기록, `im-out-1`, `im-out-2`… id를 차례로 돌려줌, 실패 주입 가능), `_is_sender_authorized`(기본 `None`, 값 주입 가능). 문이 등록한 공장을 `F`에 적용해 감싼다.
@@ -18,7 +18,7 @@
 | AT-HI-04 | 01.AC-04 | 활성 상태에서 `imessage_unpair{id:"u1"}` | `imessage_status{ref:"u1", paired:false, enabled:false, room:"alpha"}`, 이후 `chat-A` 글은 원래 처리기 1회·기록장 불변 |
 | AT-HI-05 | 01.AC-05 | 짝지은 뒤 새 코드를 받아 `chat-B`/`user-B`에서 보냄 | 이후 `chat-B` 글만 차지, `chat-A` 글은 통과 |
 | AT-HI-06 | 01.AC-06 | 공장을 적용하지 않은 채 `imessage_pair{id:"p2"}`, `imessage{id:"q1"}` | `error{ref:"p2", code:"imessage_unavailable"}`, `imessage.json`에 코드 없음. 조회는 `imessage_status{ref:"q1", platform_ready:false}` |
-| AT-HI-07 | 01.AC-07, NFR-04 | AT-HI-01·10·20 뒤 로그 캡처, 앱이 받은 모든 프레임, 기록장 파일, `imessage.json` 검색 | 코드 평문·`chat-A`·`user-A`가 로그·프레임·기록장에 0건(기록장의 `imessage:im-in-*`는 허용), `imessage.json` 권한 0600이고 코드 평문 0건, 로그에 시험 본문 0건 |
+| AT-HI-07 | 01.AC-07, NFR-04 | 앱1·앱2(둘 다 기능 `imessage`) 연결. 앱1이 코드를 받아 짝짓고(AT-HI-01), AT-HI-12(본문 `hello`)·AT-HI-20·AT-HI-22(본문 `pong`)를 실행. 그 뒤 로그 캡처, 앱별로 받은 모든 프레임, 기록장 파일, `imessage.json`·`settings.json`·`sent.jsonl`을 검색 | 코드 평문: 앱1이 받은 `imessage_code` 1개에만 있고 앱2 프레임·로그·기록장·세 파일에 0건. `chat-A`·`user-A`: `imessage.json`에만 있고 모든 프레임·로그·기록장·나머지 두 파일에 0건. 본문 `hello`·`pong`: 기록장 `message` 행과 앱 `message` 프레임, `F.send` 인자에만 있고 로그·`imessage_status`·`error` 프레임·세 파일에 0건. `imessage.json` 권한 0600 |
 | AT-HI-08 | 02.AC-01 | `imessage_save{id:"s1", enabled:true, room:"alpha", reports:["G"]}` → 문 어댑터 끊고 다시 연결 → `imessage{id:"q2"}` | 저장 직후 두 앱 모두 같은 `imessage_status`(요청한 앱만 `ref:"s1"`), 재연결 뒤 조회 값 동일, `settings.json` 권한 0600 |
 | AT-HI-09 | 02.AC-02·03 | (a) `room:"nobody"` (b) `reports:["G","G"]` (c) `reports:["nobody"]` (d) 짝 없이 `enabled:true` | (a)~(c) `error(invalid_imessage)`, (d) `error(imessage_unpaired)`. 넷 다 `settings.json` 바이트 불변, 방송 0 |
 | AT-HI-10 | 02.AC-04 | 기능 `imessage` 없는 앱3 연결 뒤 저장·짝짓기 | 앱3이 받은 `imessage_status`·`imessage_code` 0건 |
@@ -37,7 +37,8 @@
 | AT-HI-23 | 05.AC-02 | `reports:["G"]`. (a) 대역이 스레드 없이 `send(chat_id="room:G", "report", metadata{hermes_profile:"beta"})` (b) 앱이 `G`에 새 스레드로 글 → `alpha`가 `done` 답 | (a) 본문 `[Team · Beta] report`, `reply_to` 없음 (b) 본문 `[Team · Alpha] done`, `reply_to` 없음. 사장 글 발신 0 |
 | AT-HI-24 | 05.AC-03 | `reports:[]`. 앱이 `alpha`에 글 → `alpha` 답 | 정착 뒤 `F.send` 0회 |
 | AT-HI-25 | 05.AC-04 | 폰 스레드에서 대역이 `send_typing` → `send("생각 중…")` → `send("p", metadata{expect_edits:True})` → `edit_message`×3 → `edit_message("final", finalize=True)` → 진행 글 `send("tool")` → `delete_message(tool)` → `stop_typing` | 정착 뒤 `F.send` 정확히 1회, 본문 `[Alpha] final`. `stop_typing` 전에는 `F.send` 0회 |
-| AT-HI-26 | 05.AC-06·07 | 폰 스레드에서 한글 포함 250자 글 답 → 문 재연결 → `im-out-3`에 답장 | `F.send` 3회(각 본문 ≤ 100자, 이어 붙이면 `[Alpha] ` + 원문과 같음, 모두 `reply_to == "im-in-1"`), `sent.jsonl` 3줄이 같은 hejo 글 id. 재연결 뒤 답장이 같은 스레드에 추가 |
+| AT-HI-42 | 05.AC-12 | 폰 스레드에서 (a) 실패한 차례: `send_typing` → 진행 글 `send("tool")` → `send("failed")` → `stop_typing`(삭제 없음) (b) 삭제 실패: `send_typing` → `send("tool")` → `send("final")` → `stop_typing` → 기록장 쓰기 실패를 주입한 채 `delete_message(tool)`(거짓 반환) (c) 늦은 삭제: (b)와 같되 실패 주입 없이 정착 뒤에 `delete_message(tool)` | (a) 정착 뒤 `F.send` 2회, 순서대로 `[Alpha] tool`, `[Alpha] failed` (b) `F.send` 2회 `[Alpha] tool`, `[Alpha] final` (c) 정착 시점에 `F.send` 2회, 늦은 삭제 뒤 추가 `F.send` 0회·오류 없음. 세 경우 모두 기록장·앱 프레임은 기능이 없을 때와 같음 |
+| AT-HI-26 | 05.AC-06·07 | 폰 스레드에서 원문 `"가"×125 + "a"×125`(250자, 줄바꿈 없음, UTF-8로 500바이트)로 답 → 문 재연결 → `im-out-3`에 답장. 따로, 원문 `"가"×60 + "\n" + "나"×60`(121자)으로 답 | 첫 글: 이름표 포함 258자이므로 `F.send` 정확히 3회, 본문 길이(`len`) 100·100·58, 이어 붙이면 `[Alpha] ` + 원문과 같음, 셋 다 `reply_to == "im-in-1"`, `sent.jsonl` 3줄이 같은 hejo 글 id. 재연결 뒤 답장이 같은 스레드에 추가. 둘째 글: 이름표 포함 129자, `F.send` 2회, 첫 통은 줄바꿈으로 끝나는 69자·둘째 통 60자, 이어 붙이면 이름표 + 원문 |
 | AT-HI-27 | 05.AC-08 | 폰 스레드에서 (a) `metadata.hejo_buttons` 2개(`A`, `B`) 글 `pick` (b) 기본 승인 버튼 글 `ok?` (c) 첨부 `r.txt` 1개에 캡션 없는 글 | (a) `[Alpha] pick\n선택: A / B` (b) `[Alpha] ok?\n(이 선택은 hejo 앱에서 눌러 주세요)` (c) `[Alpha] 📎 r.txt (hejo 앱에서 열기)` |
 | AT-HI-28 | 05.AC-09 | `F.send` 실패 주입 뒤 폰 스레드 답, 이어서 실패 해제 뒤 두 번째 답 | 첫 글: 시도 1회·재시도 0·`sent.jsonl` 0줄·로그 1줄(본문·식별자 없음). 두 번째 글은 정상 발신. 두 글 모두 앱 프레임·기록장 행은 정상 |
 | AT-HI-29 | 05.AC-10 | (a) 폰 스레드 답을 기록한 직후(정착 전) 문 재연결 (b) `enabled:false` 저장 뒤 폰 스레드 답 (c) 연결 해제 뒤 답 | 세 경우 모두 `F.send` 0회 |
