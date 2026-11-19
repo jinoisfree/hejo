@@ -68,6 +68,19 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
     def forwarder(self):
         return getattr(self, "_owner_profile", None) not in {None, "default"}
 
+    def register_post_delivery_callback(self, session_key, callback, *, generation=None):
+        # Ingress and final delivery belong to the primary even for a multiplexed turn.
+        if self.forwarder:
+            if _primary is not None:
+                _primary.register_post_delivery_callback(session_key, callback, generation=generation)
+            return
+        return super().register_post_delivery_callback(session_key, callback, generation=generation)
+
+    def pop_post_delivery_callback(self, session_key, *, generation=None):
+        if self.forwarder:
+            return _primary.pop_post_delivery_callback(session_key, generation=generation) if _primary is not None else None
+        return super().pop_post_delivery_callback(session_key, generation=generation)
+
     async def _forward(self, method, *args, metadata=None, chat_id=None, **kwargs):
         target = _primary
         if target is None or not target.is_connected:

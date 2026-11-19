@@ -806,3 +806,13 @@ AT-90의 “따라 읽은 스트림이 완료 후에도 펼침” fixture는 여
 - 대기 작업은 hejo 현재 원문·실제 직원 홈을 확인한 뒤 origin의 platform·profile·chat·thread를 보존한다. Slack 채널·ts 정규식은 Slack 갈래 그대로다. hejo list/cancel·prune은 같은 origin만 다루고 다른 대화·직원 작업은 제외하거나 거절한다. 기존 profile별 cron 저장소와 deliver=origin을 재사용하며 다른 플랫폼 대체를 추가하지 않는다.
 - 본체 cron/scheduler_delivery.py의 origin 대상 해석·live adapter·standalone 실패 반환을 읽고 가짜 문·Slack 어댑터로 실제 전달 함수를 호출했다. 같은 hejo 대상으로의 기존 standalone 시도와 다른 대상으로 보내는 것은 구별했다. 실패는 cron.jobs.mark_job_run의 last_status=delivery_failed·last_delivery_error로 기록함을 검사한다. scheduler.py의 cron 문맥은 플랫폼·chat 환경을 비우고 HERMES_CRON_SESSION을 설정한다. 조건 조회·예약 실행을 owner로 올리는 코드는 추가하지 않았다.
 - 원본 규칙 유지 근거는 기존 업무 캡처·등급 전환 33개 회귀와 team-kit 전체 시험, 새 가짜 사건·통합·세 돌연변이에 둔다. 운영 원문·실제 발송·운영 cron은 실행하지 않는다. 상세 로그·고정 입력과 최종 결과는 .build/task53/final-verification.json을 따른다.
+
+
+## 보완 67 원인·수정 독해 — N52-02·N34-02
+
+- 착수 기준 8b4e188f40bbab8af9b16a65f09c6e841aa5641e. 운영 team-kit은 이미 TASK-52·53이 적용된 상태이며, 임시 사본의 시작 항목 662개가 검증된 TASK-53 사본과 같았다. 운영 로그 본문·대화·설정 내용은 열지 않고 인계된 오류와 코드 경로를 대조했다.
+- 세션 ID 원인: gateway/session_context.py:81-105·173-179는 ContextVar 값을 우선하며 명시적인 빈 값도 os.environ보다 우선한다. AIAgent의 세션 ID와 도구 registry에 넘기는 session_id가 정상이어도 별도 도구 스레드의 환경 값은 비거나 다른 대체값일 수 있다. 실제 gate 수신 → GatewayRunner._set_session_env → agent turn 스레드 → Hermes execute_tool_calls_sequential의 executor → model_tools/registry → 등록된 learning.learn 경로에서 이를 재현했다. 모델 API만 가짜로 만들고 도구 dispatcher·executor·핸들러는 실제 구현을 썼다.
+- 수정 전 사본은 같은 시험에서 정상 저장 경우가 Current owner session does not match로 실패했다. 수정본은 현재 사건의 공개 원문을 먼저 확인한 뒤 session_id·role=user·platform_message_id가 일치하는 비압축 행의 id만 읽는다. 본문은 읽지 않는다. 학습·진단·보고 상태와 hejo 기억 문맥이 공용 증명을 사용한다. 기억 문맥은 hejo에서 현재 user 행이 아직 없으면 제공하지 않으며, 이 문맥을 쓰기 승인으로 대신하지 않는다.
+- 진행 글 원인: 문 receive는 기본 어댑터의 handle_message로 모든 프로필을 받는다. Hermes run_turn.py:3113-3123·4186-4216는 해당 프로필 전달 어댑터의 delete_message를 확인하고 그 어댑터에 정리를 등록한다. 반면 base.py:4611-4621·4782의 전달 완료는 기본 어댑터에서 pop한다. 예전 보조 어댑터의 콜백 보관함과 달랐다. 문에서 등록·pop을 기본 어댑터의 기존 보관함에 모았으며 세션 키·generation·콜백 연결·오래된 generation 거절은 본체 기본 구현을 그대로 쓴다.
+- run_turn_runner.py:111-124는 send/edit 결과의 같은 message_id도 추적한다. 새 회귀는 실제 기본 어댑터의 background 처리·최종 전달·post-delivery fire를 실행하고, 기본/보조 프로필의 진행 글 둘과 편집 결과를 공식 추적 함수에 넣는다. 성공 때 진행 글 삭제·최종 답 유지, 실패 차례의 글 유지, 오래된 generation 미소비를 확인했다. 본체·설정 변경은 없다.
+- 현재 운영 원본의 새 패치 dry-run과 임시 사본의 TASK-52→53→N52-02 순서 검사 모두 0이다. 과거 상태 복원·순서 적용은 임시 사본에서만 했다. 운영 원본의 반복 적용·역적용·재시작은 실행하지 않았다. 최종 시험·패치 지문·커밋은 .build/n52-02/final-verification.json을 따른다.

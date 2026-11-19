@@ -2151,3 +2151,22 @@ TASK-46 최종 확인: 마지막 입력 199개를 동결한 전체 검사와 집
 - team-kit 전체: python3 .build/task53/frozen.py 종료 0. 게이트웨이 Python과 지정된 pytest/core PYTHONPATH로 5080 passed·5 skipped·58 subtests passed, 기존 escape SyntaxWarning 1개. 집중 22개도 종료 0이다. 제품·시험 입력 770개는 고정 뒤 불변이다. .build/task53/full.log·full-result.json·frozen-team.json·focused.log.
 - 추가 회귀: 문 조회 2개·짝맺기/버튼/방 cron 전달 통합 2개·기존 업무 캡처/등급 전환 33개 각각 종료 0. 로그는 .build/foundation9-task53-gate.log·foundation9-task53-integration.log·foundation9-task53-legacy.log다. 가짜 원문·세션·공급자·로컬 문만 사용했다.
 - 세 돌연변이, airport-check, 두 패치 순서 dry-run은 앞선 항목의 실제 결과와 해당 JSON을 따른다. 최종 개인값·훅·diff 검사와 소유 파일 네 개 commit-only, 커밋/입력/패치 대조·운영 원본 660개 불변·깨끗한 main·public 고정의 실제 결과는 .build/task53/final-checks.json·commit-result.json·final-verification.json에 남긴다. 인계 필요/도달 증거 수준은 2/2이며 운영 적용·실물·비설계자 검토는 미실행이다.
+
+
+## 보완 67 구현·자체 시험 — N52-02·N34-02
+
+1. 받은 범위: 기준 8b4e188f40bbab8af9b16a65f09c6e841aa5641e, 운영에서 발견한 세션 증명·보조 프로필 진행 글 정리 두 결함이다. 기존 문 어댑터와 team-kit 원문 증명·학습 책임 자리만 바꾼다. 운영 원본에는 TASK-52·53이 이미 적용돼 있고 새 패치는 그 위의 차이다. 기존 보고와 당시 자체 시험은 이력으로 보존한다.
+2. N52-02: 공용 current_owner_message_in_session은 TASK-52의 현재 사건·공개 원문 증명 뒤, 지정된 세션의 같은 platform_message_id인 살아 있는 비압축 user 행 id를 조회한다. 환경 HERMES_SESSION_ID 대조와 세션 DB 본문 읽기는 없다. learning.hejo_source가 이를 쓰고 diagnosis_records·report_status·memory_live의 같은 환경 ID 대조도 교체했다. request_source·owner_context·paseo_authority는 기존 학습 원문 공급자를 통해 이 증명을 받는다. hejo 기억 문맥은 user 행이 저장되기 전이면 제공하지 않는 쪽으로 일치시켰다. 다른 플랫폼 경로는 유지한다.
+3. 실제 실행 경로: 가짜 홈의 보조 프로필 1:1 수신 사건을 GatewayRunner 환경으로 넘기고 실제 AIAgent·Hermes 도구 executor·공개 registry에 등록한 team-kit 핸들러를 실행했다. 도구 스레드가 turn 스레드·이벤트 루프 스레드와 다르고, 도구 환경 ID는 빈 값·핸들러 session_id는 정상 값인 것을 단언했다. 원문 ID가 그 세션에 속할 때만 규칙 저장 성공, 다른 세션 행·배경은 저장 0이다. 모델 API는 대역이며 실제 모델 호출·운영 기록은 사용하지 않았다. .build/n52-02/test_executor.py·.build/foundation9-n52-02-executor.log.
+4. 수정 전 대조: 동일 executor 시험을 TASK-52·53 적용 상태의 수정 전 사본으로 실행하면 정상 경우가 기존 오류로 실패(종료 1, 1 failed·2 passed)했다. 수정본은 3 passed·종료 0이다. 추가 집중은 7 passed, 기존 보고 상태 포함 통합 31 passed다. .build/foundation9-n52-02-executor-before.log·foundation9-n52-02-executor.log·foundation9-n52-02-parity.log, .build/n52-02/focused.log. 최초 시험 정리 코드의 등록 해제 메서드 오기는 dispose로 고쳤고 중간 로그를 별도로 보존했다.
+5. N34-02: 기본 어댑터가 수신·최종 전달을 소유하므로 보조 어댑터의 post-delivery 등록·pop을 기본 보관함으로 연결했다. 기본 세션 키·generation 검증·동일 generation의 콜백 연결은 본체 원래 구현이 담당한다. cleanup_progress 설정이나 Hermes 본체는 바꾸지 않았다. 진행 글 send 둘·edit 결과를 공식 추적 함수에 넣은 뒤 실제 base 처리와 최종 전달을 실행했다. 기본/보조 성공은 진행 글 삭제·최종 답 유지, 실패 차례는 진행 글 유지이며 오래된 generation은 콜백을 소비하지 않는다. 기존 진행 시험을 포함해 11 passed·종료 0이다. .build/foundation9-n34-02.log.
+6. 돌연변이: 정상 team-kit·문 사본 각각 0, 세션 SQL 조건 제거 사본 1(다른 세션의 메시지가 통과함을 검출), 보조 어댑터 콜백 등록 전달 제거 사본 1(진행 글이 남음)이다. 운영 원본·검증 제품은 변형하지 않았다. .build/n52-02/mutations.json·mutation-*.log. airport-check도 기준선 변경 없이 종료 0이다.
+7. 패치 .build/n52-02/team-kit.patch, SHA-256 1e79f11406addad51b6c8514db2f3d1a61c992168eabfae1fa93bc9c06df77f6. 전체 계보 순서는 .build/task52/team-kit.patch → .build/task53/team-kit.patch → 이 패치다. 임시 사본에서 과거 지문과 같은 시작 상태를 재구성해 순서 dry-run·적용을 모두 0으로 확인했고 최종 검증 사본과 같다. 이미 52·53이 적용된 현재 운영 원본에도 이 패치 dry-run 0이다. 운영에 52·53을 반복 적용하거나 역적용하지 않았다. .build/n52-02/patch-result.json·해당 로그.
+8. 전체 검증·개인값 검사·소유 파일 commit-only의 최종 결과는 아래와 .build/n52-02/final-verification.json을 따른다. 고정 입력은 771개다. 필요/도달 증거 수준 2/2의 코드·가짜 통합 인계이며, 운영 반영·실물 재확인·비설계자 검토는 계획 담당+사장에게 남긴다. 공용 문 갱신과 새 team-kit 패치 후 승인된 재시작이 필요하다. 이번 실행은 운영 홈·공용 릴리스·본체·ddots·public·원격을 바꾸거나 재시작하지 않는다. 실제 대화 본문·비밀 파일·실제 발송 접근도 없다.
+
+
+### 보완 67 최종 검증
+
+- python3 .build/foundation9_runner.py hejo 종료 0: Python 254 passed(test_install·허브 포함), 앱 전체·통신·AT-96·훅 9개 통과. 실제 CLI 설정 lstat 메타데이터·실제 다운로드 폴더 이름 불변 단언 통과. .build/n52-02/final-foundation.log·foundation-result.json.
+- python3 .build/n52-02/run_tests.py full 종료 0: 게이트웨이 Python과 지정 pytest/core PYTHONPATH로 5087 passed·5 skipped·58 subtests passed, 기존 SyntaxWarning 1개. 집중 7개·실제 executor 통합 3개·보고 상태 통합 31개·진행 표시 회귀 11개도 각각 종료 0이다. 수정 전 executor 대조는 의도된 종료 1이며 정상 경우에 기존 오류를 재현했다.
+- 세션 증명 제거·보조 콜백 전달 제거 돌연변이는 각각 정상 사본 0·변형 사본 1로 검출했다. airport-check와 전체 순서/현재 운영 원본 dry-run은 모두 0이다. 고정 제품·시험 입력 771개 불변과 커밋·패치 지문 일치, 운영 원본 662개 항목·public 불변의 최종 대조는 .build/n52-02/final-verification.json·checkpoint.json에 남긴다. 운영 원본은 현재 TASK-52·53 상태 그대로이며 추가 패치 적용·공용 문 갱신·재시작·실물 재확인은 미실행이다.
