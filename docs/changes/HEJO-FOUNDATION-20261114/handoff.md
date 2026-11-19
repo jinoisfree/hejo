@@ -1686,3 +1686,18 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
   4. 시험: 항목마다 Slack 불변, hejo 정상, 가짜(다른 방·다른 직원 글을 answer_to로·삭제·없는 ID·배경) 거절. 돌연변이: answer_to 직원 일치 검사 제거, wait_jobs origin을 Slack으로 고정, 전달 실패 시 대체 전송.
 - **검증:** (문을 고쳤다면) foundation9_runner hejo 0·scan_private 0. team-kit 전체 tests 0(게이트웨이 Python), 운영 원본에 TASK-52 → TASK-53 순서 dry-run 0.
 - **금지:** 보완 64와 같다. 패치는 `.build/task53/team-kit.patch`. result에 두 패치 적용 순서와 sha256을 적는다.
+
+## 보완 지시 67 (운영 실물 결함 2건, 2026-11-19)
+
+사장이 TASK-52·53 운영 적용 뒤 hejo 1:1(직원: 보조 프로필)에서 "앞으로 첫 3줄은 전체 내용의 요약을 해줘"라고 했다. 결과 두 가지가 틀렸다.
+
+- **N52-02(차단, team-kit):** 직원이 `team_learn`을 불렀으나 `{"ok": false, "error": "Current owner session does not match."}`(게이트웨이 로그 2026-11-19 14:15:27). 메모리 갱신만 되고 학습 규칙은 저장되지 않았다.
+  - 위치: TASK-52 패치의 `learning.hejo_source`(운영 `lib/hermes_team_services/learning.py:208`) `env('HERMES_SESSION_ID','') != session_id`.
+  - 가설(확인 필요): 도구 실행 문맥에서 `HERMES_SESSION_ID`가 task-local 값이 아니라 `os.environ` 대체값(같은 프로세스의 다른 프로필·세션 값)이거나 비어 있다. Hermes `gateway/session_context.py:81-105` 참고.
+  - 수정 방향: 이 대조를 빼거나, 세션 일치는 이미 하는 DB 조회(`session_id` + `platform_message_id == 현재 문 msg_id`인 user 행 존재)로 증명한다. 그 행이 없으면 지금처럼 실패. 다른 hejo 원문 소비자(owner_context·paseo_authority·memory_live·request_source·work_capture·wait_jobs)에 같은 `HERMES_SESSION_ID` 대조가 있으면 함께 고친다.
+  - 시험: 지금의 가짜 시험은 두 값을 같게 꾸며 통과했다. **실제 Hermes 도구 실행 경로**(게이트웨이 turn → 도구 executor 스레드 → team-kit 핸들러)로 보조 프로필 hejo 1:1에서 `team_learn` 규칙 저장이 성공함을 보이는 시험을 넣는다. 다른 세션의 msg_id·배경은 여전히 거절.
+- **N34-02(차단, 문 또는 설정):** 진행 표시 글(스킬 읽는 중·team_learn…·메모리 업데이트 중)이 최종 답 뒤에도 따로 남았다. hejo 설정은 `display.platforms.hejo.cleanup_progress: true`(프로필 설정 확인됨)이고 TASK-34 시험 `gate/tests/test_progress.py:101-120`은 **기본 문(primary)**만 덮는다.
+  - 확인할 곳: 보조 프로필은 forwarder 문으로 보낸다. Hermes `run_turn.py:3113-3123`(`delete_message` 재정의 확인), `run_turn_runner.py:111-120·900-911`(진행 글 ID 기록 — 상태 글을 편집으로 갱신할 때 첫 ID만 기록되는지), `run_turn.py:4186-4200`(`register_post_delivery_callback`), base의 `pop_post_delivery_callback` 호출 경로가 forwarder 문에서도 같은 세션 키·generation으로 이어지는지.
+  - 수정: 원인 위치에 맞게 문에서 고친다(Hermes 본체 수정 금지). 설정 문제라면 설치 도우미 쪽으로.
+  - 시험: 보조 프로필(forwarder)과 기본 프로필 각각, 도구 진행 글이 1개 이상 나오고(편집 갱신 포함) 최종 답이 간 뒤 진행 글이 기록장에서 지워지고 최종 답은 남음. 실패한 차례는 남김(기존 규칙).
+- **공통:** 운영 기록은 읽기만(게이트웨이 로그·설정 키 이름). 대화 본문·비밀 파일 열지 않음. 운영 원본·`~/.hermes` 변경·재시작 금지. team-kit 변경은 TASK-52·53 패치 위 별도 패치 `.build/n52-02/team-kit.patch`. 검증: foundation9_runner hejo 0, team-kit tests 전체 0, 운영 원본에 52→53→N52-02 순서 dry-run 0, 돌연변이(세션 증명 제거 → 다른 세션 msg_id 통과 검출, 진행 글 정리 제거 검출). git commit --only, result. 운영 적용은 계획 담당+사장.
