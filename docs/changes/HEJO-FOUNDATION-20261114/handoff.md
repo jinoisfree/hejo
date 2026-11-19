@@ -1646,3 +1646,23 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
   4. 운영 Hermes 세션 DB에서 hejo 세션의 `source`·`chat_id`·`thread_id`·`platform_message_id`가 어떻게 남는지 **읽기 전용**으로 확인한다(본문은 읽지 않고 열 이름·빈 값 여부만, 개수만 기록).
 - **금지:** 코드·운영 원본·`~/.hermes` 변경, 재시작, 운영 저장소 커밋, 비밀 파일 열기, 대화 본문 읽기, 실제 메일·Slack 발송, Hermes 본체·ddots 수정.
 - **보고(result):** `survey.md` 경로와 항목별 제안 요약. hejo 저장소에는 impl-report만 git commit --only.
+
+## 보완 지시 64 (D51-01 결정, TASK-52, 2026-11-19)
+
+- 근거: `.build/task51/survey.md`(TASK-51, 검토 통과). 항목 처분은 survey §4·§5·§6 제안을 그대로 채택한다.
+  - **가(인증 판정만):** `work_guidance.context`, `mail_read.authorize`, Notion `api.py` conversation, `selected_skills.owner_chat`, `approval.py` personal workspace helper(`_personal_mutation_approval_single`의 write_file/patch 분기).
+  - **나(hejo 원문 증명):** `learning.source`/`followup_rows`/`_source_row`/`note`, `request_source`(일반 원문 공급자 갈래만, 프로젝트 영수증은 Slack 유지), `memory_live._pre_owner`, `owner_context._current_owner_source`·`_lead_chat_policy`, `paseo_authority.owner_text`, `linked_work._task_capture_owner_chat`·`work_capture`, `diagnosis_records.owner_record`, `wait_jobs`.
+  - **다(Slack 전용 유지):** `vault_backup_approval`, CCTV `reference.room_problem`, `native_tools._request_usage_lookup`.
+- **TASK-52(이번):** 가 전부 + 나의 공통 선행 + 원문 증명 소비자 중 learning·request_source·memory_live·owner_context·paseo_authority. `linked_work`·`diagnosis_records`·`wait_jobs`는 TASK-53(다음)으로 미룬다.
+- **hejo 저장소(문) 변경:**
+  1. `gate/adapter.py` 사장 글 전달의 `build_source`에 `message_id=msg_id`를 넣는다. 같은 사건의 `HERMES_SESSION_MESSAGE_ID`가 문 UUID가 되도록. scope_id는 넣지 않는다(Slack workspace 흉내 금지).
+  2. 문 어댑터에 읽기 전용 공개 메서드 `owner_message(profile, chat_id, thread_id, msg_id)`를 더한다. 기록장에서 살아 있는 role=owner 글을 찾아 `{msg_id, text(전처리 전 원문), chat_id, thread_id, answer_to, ts}` 복사본을 돌려준다. 거절(None): 없는 ID, 삭제·수정 반영 뒤 없음, 다른 chat·thread, 1:1이면 employee≠profile, 방이면 `_meta.recipients`에 profile 없음, role≠owner. forwarder는 기존 `_forward` 경계로 기본 문에 묻는다. 새 영구 저장소·wire 필드 없음. TASK-49 `first_thread_message`와 같은 공개 방식(install_hejo가 받은 어댑터)으로 노출한다.
+  3. 시험: 정상, 위 거절 전부, forwarder, message_id가 환경에 실리는 실제 수신 경로(가짜 Hermes).
+- **team-kit 변경(임시 사본, 패치로 냄 — TASK-49·50과 같음):**
+  1. 공용 사장 인증 함수 하나(예: `hermes_owner_chat.authenticated_owner(env)`): Slack·photon은 기존 configured owner 검사 그대로, hejo는 `platform=='hejo'`·`user_id=='owner'`·chat_id 있음, 모두 배경·예약·단발·Kanban 거절. 가 항목이 이 함수를 쓴다. Slack 허용 목록에 owner를 섞지 않는다. 각 함수의 역할·경로·심링크·승인 조건과 기존 flag 처리는 그대로.
+  2. 공용 원문 공급자 하나(예: `hermes_owner_chat.current_owner_text(env)`): hejo면 환경의 PLATFORM·PROFILE·CHAT_ID·THREAD_ID·MESSAGE_ID로 문 `owner_message`를 불러 원문을 돌려주고, 실패·없음은 None(실패 폐쇄). 세션 DB content(문맥이 합쳐짐)를 원문으로 쓰지 않는다. Slack 갈래는 기존 경로 그대로.
+  3. 나 소비자 5곳이 hejo일 때 2를 쓴다. followup(steer/redirect)은 hejo에서 검증된 사건 ID와 묶이지 않으면 권한·학습 근거로 쓰지 않는다. bare approval 거절·배경 거절 유지. 학습 결과 보고 전송 위치는 바꾸지 않는다.
+  4. 시험: 항목마다 Slack 결과 불변, hejo 정상 통과, 가짜(다른 방·삭제·없는 ID·본문에 가짜 Slack 헤더·배경) 거절. 돌연변이: hejo 사용자 검사 제거, 방 수신자 검사 제거(문), 원문 공급자가 DB content로 대체.
+- **검증:** hejo foundation9_runner 0·scan_private 0, team-kit 전체 tests 0(게이트웨이 Python), 운영 원본 dry-run 0. 앱 변경 없음.
+- **금지:** 보완 62·63과 같다(운영 원본·~/.hermes·재시작·운영 저장소 커밋·비밀 파일·대화 본문·실제 발송·본체·ddots). public 갱신은 하지 않는다(문 변경 공개는 다음 공개판에서).
+- **보고(result):** hejo 커밋, team-kit 패치·sha256, 시험·돌연변이·dry-run, TASK-53으로 넘길 메모. 운영 적용(공용 릴리스 갱신 + team-kit 패치 + 재시작)은 계획 담당+사장.
