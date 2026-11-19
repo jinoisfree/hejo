@@ -1674,3 +1674,15 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
   - 수정: 고정 쉼 대신 `try await waitFor{ tabScroll.contentView.bounds.minX>0 }`(기존 waitFor, 최대 3초 정도)로 바꾸고 같은 단언 문구를 유지한다. 제품 코드는 바꾸지 않는다. 다른 고정 pause 뒤 화면 단언이 같은 파일에 더 있으면 같은 방식으로 함께 고친다(목록을 보고에 적는다).
 - **검증:** 같은 커밋으로 `foundation9_runner hejo` 종료 0을 **연속 2회**, scan_private 0. team-kit 패치는 바뀌지 않으므로 다시 돌리지 않는다(sha256만 재확인).
 - **금지:** 보완 64와 같다. git commit --only, result.
+
+## 보완 지시 66 (TASK-53, 2026-11-19)
+
+- TASK-52는 수준 2 통과(`5fb0407`·`fb779ef`, team-kit 패치 `.build/task52/team-kit.patch` sha256 `660142a0…6ee5`). 운영에는 아직 적용하지 않았다. **TASK-53 사본은 운영 원본 + TASK-52 패치 위에서 만들고, TASK-53 패치는 그 위에 얹는 별도 패치로 낸다.** 운영 적용은 두 패치를 순서대로 한 번에 한다.
+- 처분 근거: `.build/task51/survey.md` §4.1, §5의 linked_work·diagnosis_records 행. 원문 증명은 TASK-52의 `hermes_owner_chat.current_owner_message`·`authenticated_owner`만 쓴다.
+- **할 일(team-kit):**
+  1. `linked_work._task_capture_owner_chat`·`work_capture`: hejo에서 현재 사장 원문(TASK-52)과 답한 직원 글을 결합한다. 직원 글은 `answer_to`(D36-01)가 가리키는 글이 같은 chat·thread의 그 직원 글일 때만 인정한다. 이를 위해 문 공개 조회가 필요하면 `first_thread_message`처럼 범위를 좁힌 읽기 전용 메서드(예: `employee_message(profile, chat_id, thread_id, msg_id)` — 그 profile이 쓴 살아 있는 글만)를 hejo 저장소에 추가한다. hejo UUID를 Decimal ts로 바꾸거나 시각처럼 비교하지 않는다(`work_capture.py:322-335`는 Slack 갈래에만). 미확정 선택은 실행 0 유지.
+  2. `diagnosis_records.owner_record`: hejo 요청이면 출처를 `platform=hejo`·chat·thread·문 msg_id로 남긴다. Slack permalink 파서는 Slack 자료일 때만. hejo 값을 Slack ts 필드에 넣지 않는다.
+  3. `wait_jobs`: create에 hejo 갈래 — 원문 증명 뒤 origin을 `platform=hejo`·대상 profile·chat·thread로 보존(Slack 채널·ts 정규식은 Slack 갈래에만). 결과 전달이 hejo 대화로 가는지 Hermes cron 전달 경로(`CORE/cron/scheduler_delivery.py`)를 가짜 문으로 시험하고, 실패 때 다른 방이나 Slack으로 대신 보내지 않는다(전달 실패 기록). prompt의 'Slack' 하드코딩 문구는 플랫폼에 맞게. 조건 확인 실행은 계속 배경이며 owner 권한으로 올리지 않는다. list/cancel·prune이 hejo에서 열리는 것은 사장 본인 작업이므로 허용하되, 다른 profile·다른 대화의 작업은 기존 규칙대로 거절됨을 시험한다.
+  4. 시험: 항목마다 Slack 불변, hejo 정상, 가짜(다른 방·다른 직원 글을 answer_to로·삭제·없는 ID·배경) 거절. 돌연변이: answer_to 직원 일치 검사 제거, wait_jobs origin을 Slack으로 고정, 전달 실패 시 대체 전송.
+- **검증:** (문을 고쳤다면) foundation9_runner hejo 0·scan_private 0. team-kit 전체 tests 0(게이트웨이 Python), 운영 원본에 TASK-52 → TASK-53 순서 dry-run 0.
+- **금지:** 보완 64와 같다. 패치는 `.build/task53/team-kit.patch`. result에 두 패치 적용 순서와 sha256을 적는다.
