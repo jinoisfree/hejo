@@ -2170,3 +2170,21 @@ TASK-46 최종 확인: 마지막 입력 199개를 동결한 전체 검사와 집
 - python3 .build/foundation9_runner.py hejo 종료 0: Python 254 passed(test_install·허브 포함), 앱 전체·통신·AT-96·훅 9개 통과. 실제 CLI 설정 lstat 메타데이터·실제 다운로드 폴더 이름 불변 단언 통과. .build/n52-02/final-foundation.log·foundation-result.json.
 - python3 .build/n52-02/run_tests.py full 종료 0: 게이트웨이 Python과 지정 pytest/core PYTHONPATH로 5087 passed·5 skipped·58 subtests passed, 기존 SyntaxWarning 1개. 집중 7개·실제 executor 통합 3개·보고 상태 통합 31개·진행 표시 회귀 11개도 각각 종료 0이다. 수정 전 executor 대조는 의도된 종료 1이며 정상 경우에 기존 오류를 재현했다.
 - 세션 증명 제거·보조 콜백 전달 제거 돌연변이는 각각 정상 사본 0·변형 사본 1로 검출했다. airport-check와 전체 순서/현재 운영 원본 dry-run은 모두 0이다. 고정 제품·시험 입력 771개 불변과 커밋·패치 지문 일치, 운영 원본 662개 항목·public 불변의 최종 대조는 .build/n52-02/final-verification.json·checkpoint.json에 남긴다. 운영 원본은 현재 TASK-52·53 상태 그대로이며 추가 패치 적용·공용 문 갱신·재시작·실물 재확인은 미실행이다.
+
+## 보완 68 구현·자체 시험 — N34-03
+
+1. 받은 설계: handoff.md 보완 68, 기준 a9270ce4e6d52506013450996e43ebcc6b97b816. 고위험(동시 차례·글 삭제 범위)으로 판단, 필요/도달 증거 수준 2/2. 구현자 판단은 수준 2 검증 후 검토 인계이며 운영 실물 수락을 대신하지 않는다.
+2. 수정 전 재현: 실제 GatewayRunner와 가짜 모델로 기본/보조 정상·실패 차례 네 개를 실행했다. 기본 성공은 삭제되고 보조 성공만 남아 시험 종료 1이었다. .build/n34-03/baseline.log·baseline-trace.json·baseline.json. 최초 가짜 모델의 편집 대기 구성 오류는 intermediate-model-wait.log로 분리했으며 제품 결함 재현으로 세지 않는다.
+3. 원인: 실제 _delivery_adapter_for는 수신 기본 문을 선택했다. 키·generation 1·수집 ID·콜백 등록/실행은 정상이고, 기본 문 delete_message의 default 직원 고정 검사에서 보조 직원 글만 False였다. 일반 차례에는 run_turn.py:3840의 조기 pop이 없었다. 보완 67의 전달자 콜백 시험은 이 소유권 경로를 지나지 않아 통과했다. 세부 독해와 실제 가짜 사건 값은 copy-review.md 보완 68과 위 trace에 둔다.
+4. 원래 책임 자리의 변경: gate/adapter.py의 receive가 확정한 대상·chat·thread를 차례별 ContextVar로 전달하고 finally로 복원한다. 삭제 함수는 상속받은 해당 범위의 같은 직원·대화·스레드·role=employee만 허용한다. 직접 호출의 기존 소유권 규칙은 유지한다. 영구 원본·wire·허브·본체·team-kit·설정 변경은 없다. 새 문맥은 기존 수신 사건의 일시적 파생값이며 차례 사이를 공유하지 않는다.
+5. 시험: gate/tests/test_gateway_progress.py는 실제 start_gateway부터 post-delivery까지 실행한다. 임시 홈의 가짜 모델만 대체하고 등록·정리 함수 직접 호출은 하지 않는다. 기본/보조 각각 성공은 편집 두 번 뒤 최종 답 다음 delete, 실패는 진행 글 유지다. gate/tests/test_progress.py는 동시에 처리하는 1:1/단체방에서 다른 직원·대화·스레드·owner 거절과 범위 복원을 더한다. 기존 전달자·오래된 generation 시험은 유지한다.
+6. 집중 검증: 수정 후 실제 차례 네 경우 종료 0(.build/foundation9-n34-fixed.log), 기존·새 삭제 경계 13개 종료 0(.build/foundation9-n34-boundary.log). 초기 경계 시험의 불완전한 가짜 명부 항목은 실제 가짜 명부 형태를 재사용해 해소했다. 수락 조건·skip·허용 오차는 바꾸지 않았다.
+7. 돌연변이: 정리 삭제 함수를 False로 고정한 임시 사본은 새 GatewayRunner 시험에서 기본·보조 성공 글이 남아 종료 1로 검출됐다. 제품 입력 불변, .build/n34-03/mutation.json·mutation.log. 최초 사본의 스키마 파일 누락 실패는 intermediate-mutation-missing-schema.*로 분리했고 검출 근거에 포함하지 않는다.
+8. 실행 도중 HEAD에 보완 69 계획 문서 세 개만 추가됐다(f288d0334e5f283ee0f0b740e643ee138617f453). 제품·시험 입력은 같아 기존 변경을 보존하고 자기 파일만 커밋한다. 첫 전체 실행은 사용자 중단으로 앱 빌드 중 종료 결과를 얻지 못해 interrupted-full/에 보존했고 통과 근거로 쓰지 않는다. 전체 시험·개인값·훅·커밋의 최종 근거는 .build/n34-03/final-verification.json에 기록한다. 고정 입력과 전체 실행 원본은 inputs.json·foundation.log·foundation-result.json에 둔다. 운영 홈·원본·재시작·공용 릴리스·public·원격·실제 발송·운영 본문·비밀 접근은 실행하지 않았다. team-kit 패치도 만들지 않는다.
+9. 미검증/추가 검토: 실제 서버의 보조 1:1에서 동일한 edit→최종 답→delete 실물 확인이 남는다. 계획 담당은 수신 범위의 task 상속과 복원, 실제 전달 어댑터가 기본 문인 점, 다른 직원/스레드 삭제 거절을 특히 검토한다. 기존 공용 릴리스 갱신·재시작은 승인된 운영 단계에서만 한다. 본체 순서 문제로 차단된 D34-03은 재현되지 않았다.
+
+### 보완 68 최종 검증
+
+- python3 .build/n34-03/frozen.py 종료 0: 내부 python3 .build/foundation9_runner.py hejo 종료 0, Python 257 passed(test_install·허브 포함), 앱 전체·통신·WebKit·훅 9개 통과. 실제 CLI 설정 내용은 열지 않은 lstat 메타데이터·실제 다운로드 폴더 이름 불변 단언을 통과했다. 제품·시험 입력 222개 불변. .build/n34-03/foundation.log·foundation-result.json. 기존 Swift 경고는 코드 무변경으로 유지했으며 억제하지 않았다.
+- python3 .build/n34-03/mutation.py 종료 0: 정리 경로 제거 사본의 실제 GatewayRunner 시험은 종료 1, 기본·보조 모두 진행 글이 남아 검출됐다. 수정 전 원본 문은 같은 시험에서 보조만 실패했고, 정상 수정본은 네 차례 모두 기대 동작이다. 각 경우의 키·generation·ID·행 순서와 결과는 baseline-trace.json·fixed-trace.json·mutation-trace.json에 둔다.
+- 개인값 검사·HEJO_PYTHON 지정 pre-commit·diff, 소유 파일 5개 commit-only와 커밋된 입력 대조의 실제 종료 결과는 .build/n34-03/final-checks.json·commit-result.json·final-verification.json을 따른다. 운영 적용·재시작·실물 확인·public 갱신·푸시는 실행하지 않았다.

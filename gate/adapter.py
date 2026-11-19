@@ -2,6 +2,7 @@
 import asyncio
 from datetime import datetime, timezone
 from dataclasses import replace
+from contextvars import ContextVar
 import mimetypes
 import logging
 import json
@@ -23,6 +24,10 @@ from .rooms import RoomCommands, recipients
 
 log = logging.getLogger(__name__)
 _primary = None
+# The primary is the transport for routed profiles too. Background delivery and
+# its scheduled callbacks inherit the admitted event's scope, not the listener's
+# default profile. No process-global current employee or second message store.
+_delivery_scope = ContextVar("hejo_delivery_scope", default=None)
 REPLY_STATES = {"asked", "answered", "closed"}
 
 
@@ -455,6 +460,11 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
 
     async def delete_message(self, chat_id, message_id):
         owner = getattr(self, "_owner_profile", None) or "default"
+        scope = _delivery_scope.get() if not self.forwarder else None
+        if scope is not None:
+            owner, scoped_chat, scoped_thread = scope
+            if chat_id != scoped_chat:
+                return False
         target = _primary if self.forwarder else self
         if target is None or not target.is_connected:
             return False
@@ -462,6 +472,7 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
         async with target._edit_lock:
             message = target.journal.message(message_id)
             if (not message or message.get("role") != "employee" or message.get("employee") != owner
+                    or (scope is not None and message.get("thread") != scoped_thread)
                     or ("room:"+message["room"] if message.get("room") else message["employee"]) != address):
                 return False
             task = target._edit_tasks.pop(message_id, None)
@@ -713,10 +724,14 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
                     context = conversation_lines(history, names, limit=50, characters=16000, line_characters=2000)
                     if context:
                         restored = "[이전 스레드 대화]\n" + context
-            await self.handle_message(MessageEvent(text=text, source=source, user_id="owner", message_id=msg_id,
-                channel_context=restored,
-                raw_message=raw or frame, media_urls=[entry["path"] for entry in registrations],
-                media_types=[entry["mime"] for entry in registrations]))
+            token = _delivery_scope.set((target, source.chat_id, thread))
+            try:
+                await self.handle_message(MessageEvent(text=text, source=source, user_id="owner", message_id=msg_id,
+                    channel_context=restored,
+                    raw_message=raw or frame, media_urls=[entry["path"] for entry in registrations],
+                    media_types=[entry["mime"] for entry in registrations]))
+            finally:
+                _delivery_scope.reset(token)
         await asyncio.gather(*(deliver(target) for target in targets))
 
     async def send_typing(self, chat_id, metadata=None):

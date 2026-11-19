@@ -193,3 +193,57 @@ async def test_ingress_final_delivery_cleans_edited_progress_on_owning_adapter(g
         assert key not in gate._post_delivery_callbacks and key not in sender._post_delivery_callbacks
     finally:
         if forwarded:await sender.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('room', [False, True], ids=['dm', 'room'])
+async def test_concurrent_ingress_cleanup_preserves_employee_chat_thread_and_owner(gate, client, monkeypatch, room):
+    """Transport sharing never grants another profile, thread, or owner message deletion."""
+    monkeypatch.setenv('HEJO_ALLOWED_USERS', 'owner')
+    employees = {row['id']: row for row in gate.employees()}
+    monkeypatch.setattr(gate, 'employees', lambda: [
+        {**employees['alpha'], 'id': 'default'}, employees['beta']])
+    entered, finished, outcomes, retained = set(), asyncio.Event(), [], {}
+    both = asyncio.Event()
+
+    async def handle(event):
+        profile, thread = event.source.profile, event.source.thread_id
+        chat = event.source.chat_id
+        own = await gate.send(chat, 'own progress', metadata={'thread_id': thread, 'hermes_profile': profile})
+        other = await gate.send(chat, 'other thread', metadata={'thread_id': str(uuid.uuid4()), 'hermes_profile': profile})
+        retained[profile] = other.message_id
+        entered.add(profile)
+        if len(entered) == 2:
+            both.set()
+        await asyncio.wait_for(both.wait(), 3)
+        foreign = 'beta' if profile == 'default' else 'default'
+        outcomes.append((
+            await gate.delete_message(chat if room else foreign, retained[foreign]),
+            await gate.delete_message(chat, other.message_id),
+            await gate.delete_message(chat, event.message_id),
+            await gate.delete_message(chat, own.message_id)))
+        if len(outcomes) == 2:
+            finished.set()
+        return 'final answer'
+
+    gate.set_message_handler(handle)
+    ws, _ = await client.pair(features=['rooms'])
+    room_chat = None
+    if room:
+        await ws.send_json({'v': 1, 'type': 'room_save', 'title': 'Fixture',
+                            'members': ['default', 'beta'], 'lead': 'default'})
+        frame = await client.read(ws)
+        room_id = frame['room']['id']
+        room_chat = 'room:' + room_id
+        await client.send(ws, employee='default', room=room_id, text='@default @beta fixture request')
+    else:
+        await client.send(ws, employee='default')
+        await client.send(ws, employee='beta')
+    await asyncio.wait_for(finished.wait(), 5)
+    assert outcomes == [(False, False, False, True)] * 2
+    assert all(gate.journal.message(mid) for mid in retained.values())
+    # The receive task's scope is reset; the listener alone cannot delete beta's text.
+    assert not await gate.delete_message(room_chat or 'beta', retained['beta'])
+    async with asyncio.timeout(3):
+        while gate._active_sessions:
+            await asyncio.sleep(0.01)

@@ -816,3 +816,13 @@ AT-90의 “따라 읽은 스트림이 완료 후에도 펼침” fixture는 여
 - 진행 글 원인: 문 receive는 기본 어댑터의 handle_message로 모든 프로필을 받는다. Hermes run_turn.py:3113-3123·4186-4216는 해당 프로필 전달 어댑터의 delete_message를 확인하고 그 어댑터에 정리를 등록한다. 반면 base.py:4611-4621·4782의 전달 완료는 기본 어댑터에서 pop한다. 예전 보조 어댑터의 콜백 보관함과 달랐다. 문에서 등록·pop을 기본 어댑터의 기존 보관함에 모았으며 세션 키·generation·콜백 연결·오래된 generation 거절은 본체 기본 구현을 그대로 쓴다.
 - run_turn_runner.py:111-124는 send/edit 결과의 같은 message_id도 추적한다. 새 회귀는 실제 기본 어댑터의 background 처리·최종 전달·post-delivery fire를 실행하고, 기본/보조 프로필의 진행 글 둘과 편집 결과를 공식 추적 함수에 넣는다. 성공 때 진행 글 삭제·최종 답 유지, 실패 차례의 글 유지, 오래된 generation 미소비를 확인했다. 본체·설정 변경은 없다.
 - 현재 운영 원본의 새 패치 dry-run과 임시 사본의 TASK-52→53→N52-02 순서 검사 모두 0이다. 과거 상태 복원·순서 적용은 임시 사본에서만 했다. 운영 원본의 반복 적용·역적용·재시작은 실행하지 않았다. 최종 시험·패치 지문·커밋은 .build/n52-02/final-verification.json을 따른다.
+
+## 보완 68 실제 차례 독해 — N34-03
+
+- 보완 67의 진행 글 설명은 콜백 전달자 경계 시험의 근거였다. 실제 GatewayRunner의 전달 어댑터 선택·소유권 검사를 끝까지 검증한 설명으로 사용하지 않는다. 이번 수정 전 재현은 .build/n34-03/baseline.log·baseline-trace.json에 보존했다.
+- 본체 gateway/authz_mixin.py:285-310의 _delivery_adapter_for는 수신 출처가 있으면 수신 어댑터를 먼저 돌려준다. 실제 다중 프로필 GatewayRunner에서 hejo 수신·진행 글·정리 등록·최종 전달은 모두 기본 문을 사용했다. 기본 문이 보조 프로필의 글을 보내는 것은 metadata.hermes_profile로 이미 지원한다. 그러나 delete_message는 어댑터 소유 프로필을 default로 고정해 그 보조 직원 글을 거절했다.
+- 실제 값: 기본·보조 각각 프로필을 포함한 같은 session key와 generation 1로 등록·fire·pop이 이어졌으며 pop 결과는 callable이었다. 진행 글 ID도 정상 수집됐다. 기본 삭제는 True, 보조 삭제는 False였다. 원인은 콜백 유실이나 generation 불일치가 아니다. run_turn.py:3840은 대기 후속 차례 앞 첫 답 전달 경로이고, 이번 일반 차례에서는 호출되지 않았다. 4182-4219 등록과 base.py:4611-4621 fire의 순서도 뒤집히지 않았다. 가짜 사건의 전체 키·ID·순서는 위 JSON에 남겼다.
+- 기존 문 receive의 확정된 수신 대상·chat·thread를 ContextVar로 차례에 전달한다. handle_message가 생성하는 background task와 본체 safe_schedule_threadsafe가 예약하는 정리 작업은 이 문맥을 상속한다. receive는 finally로 자신의 값을 복원한다. 별도 기록장·새 wire·영구 원본은 없고, 두 차례가 공유하는 전역 현재 직원 값도 없다.
+- 기본 문 delete_message는 이 수신 범위가 있을 때만 해당 직원·대화·스레드의 살아 있는 employee 글을 지운다. 범위 밖 직접 호출의 기존 기본/전달자 소유권 규칙과 role 검사는 유지한다. 임의의 다른 chat·thread나 owner 글은 허용하지 않는다. 본체나 team-kit 변경은 없다.
+- 새 시험은 별도 가짜 홈에서 실제 start_gateway와 연결·문 짝맺기·웹소켓 수신·handle_message·GatewayRunner·executor·TurnRunner·진행 큐·편집·최종 답·post-delivery를 실행한다. 가짜 모델은 실제 진행 콜백을 부르고 실제 전송·편집 완료를 기다린다. 관측 래퍼는 원래 함수를 그대로 호출하며 정리 등록·pop·fire를 직접 호출하지 않는다. 파일/DB/소켓 audit는 가짜 홈 밖 쓰기·비밀 파일·외부 접속을 거절한다.
+- 기본/보조 성공 차례는 진행 글 message→edit(non-final)→edit(final)→최종 답 message→진행 글 delete 순서이며, 실패 차례 두 개는 진행 글을 남긴다. 별도 동시 1:1/단체방 시험으로 직원·대화·스레드·owner 보존과 수신 범위 복원을 확인한다. 운영 실물과 수준 3 수락은 계획 담당+사장에게 남는다.
