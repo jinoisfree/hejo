@@ -1633,3 +1633,16 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
   4. 게이트웨이 Python과 `PYTHONPATH=~/.local/share/hermes-pytest:$HOME/.hermes/hermes-agent`로 team-kit `tests` 전체 종료 0. 패치 `.build/task50/team-kit.patch`(sha256 기록), 운영 원본에 `patch -p1 --dry-run` 통과.
 - **금지:** 운영 원본 team-kit·`~/.hermes` 변경, 게이트웨이 재시작, 운영 저장소 커밋·푸시, Hermes 본체·ddots 수정, 비밀 파일 열기, 실제 메일 읽기·Slack 발송.
 - **보고(result):** 분류표, 패치·sha256, 시험·돌연변이 결과, dry-run 결과, D50-02 후보. 운영 적용·재시작·실물(hejo에서 다른 계정 메일 읽기)은 계획 담당+사장이 한다.
+
+## 보완 지시 63 (TASK-51 조사: D50-02, 2026-11-19)
+
+- TASK-50은 운영에 적용됐다(R020.md 5절). 사장이 D50-02 진행을 승인했다.
+- **D50-02:** Slack 원문 증명에 묶여 hejo에서 안 되는 기능. `.build/task50/d50-02.json`, `classification.md`의 'D50-02 후보' 행이 목록이다(`wait_jobs`, `request_source`·`work_guidance`·`learning`·`memory_live`, `vault_backup_approval`, `mail_read.authorize`, Notion 대화 연결).
+- **이번 단계는 조사·제안만 한다(코드 변경 없음).** 계획 담당이 결과로 설계를 정한 뒤 구현을 따로 지시한다.
+- **할 일(실행 담당):** 운영 원본 team-kit(TASK-50 적용됨)을 읽기만 하고, 항목마다 `.build/task51/survey.md`에 적는다.
+  1. 기능이 사장에게 무엇을 해 주는지(한 줄), 어떤 Slack 사실을 증명하는지(사장 user_id, 채널·스레드, 원문 글자, 버튼 sender 등)와 그 증명 출처(Slack API·로컬 저장소·세션 DB).
+  2. hejo에서 같은 사실을 증명할 출처가 있는지: 문 세션 환경값(`HERMES_SESSION_*`, `MESSAGE_ID`), 문 기록장(journal)·공개 조회 메서드(TASK-49 `first_thread_message` 같은 것), hejo 버튼 누름 기록(`answer_to`, D36-01). 문 코드 줄을 근거로 적는다.
+  3. 제안: (가) 공용 판정만으로 됨, (나) hejo 증명 함수 추가(문 공개 메서드 필요 여부 포함), (다) Slack 전용 유지가 맞음. 이유와 위험(가짜 사장 글을 막는 원래 목적이 유지되는지)을 적는다.
+  4. 운영 Hermes 세션 DB에서 hejo 세션의 `source`·`chat_id`·`thread_id`·`platform_message_id`가 어떻게 남는지 **읽기 전용**으로 확인한다(본문은 읽지 않고 열 이름·빈 값 여부만, 개수만 기록).
+- **금지:** 코드·운영 원본·`~/.hermes` 변경, 재시작, 운영 저장소 커밋, 비밀 파일 열기, 대화 본문 읽기, 실제 메일·Slack 발송, Hermes 본체·ddots 수정.
+- **보고(result):** `survey.md` 경로와 항목별 제안 요약. hejo 저장소에는 impl-report만 git commit --only.
