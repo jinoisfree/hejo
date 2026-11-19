@@ -104,7 +104,15 @@
 
 | 지적 | 등급 | 처분 | 이유와 조치 |
 |---|---|---|---|
-| PR54-01 AT-101에 id만·service만 일치 검색, 앞뒤 공백이 있는 비어 있지 않은 검색어, not_connected·needs_reconnect 제외가 없음 | 차단 | 수용 | 사실 확인: 종전 시험 자료는 이름·account 검색과 unknown·off 제외만 관측해, id·service를 찾지 않거나 공백을 빼지 않거나 "연결 안 됨"을 연결로 치는 구현도 통과했다. 조치: 시험 자료를 9줄로 늘려 `q-idonly`(id만 일치, not_connected), `r`(service `svc-only-token`만 일치, needs_reconnect)을 넣고 "idonly"·"svc-only"·"  xai  " 검색과 연결된 것만 켬의 제외 목록을 기대값으로 적었다(8번). |
+| PR54-01 AT-101에 id만·service만 일치 검색, 앞뒤 공백이 있는 비어 있지 않은 검색어, not_connected·needs_reconnect 제외가 없음 | 차단 | 수용 | 사실 확인: 종전 시험 자료는 이름·account 검색과 unknown·off 제외만 관측해, id·service를 찾지 않거나 공백을 빼지 않거나 "연결 안 됨"을 연결로 치는 구현도 통과했다. 조치: 시험 자료를 연결 10개로 늘려 `q-idonly`(id만 일치, not_connected), `r`(service `svc-only-token`만 일치, needs_reconnect)을 넣고 "idonly"·"svc-only"·"  xai  " 검색과 연결된 것만 켬의 제외 목록을 기대값으로 적었다(8번). |
 | PR54-02 TestMain.swift 변경 허용이 사용자 범위(두 파일)와 어긋남 | 차단 | 수용 | 사실 확인: `app/Tests/TestMain.swift`의 `--task32-capture` 갈래가 이미 `connectionsTests(outputDirectory:)`를 부른다. 조치: 9번 범위를 두 파일로 통일하고 TestMain 변경 허용을 지웠다. 사진은 기존 출력 경로에서 더한다. |
 | PR54-03 검색어·켬 상태의 칸·원본·쓰기 주체·수명 점검표 연결과 롤백 절차 없음 | 권고 | 수용 | 조치: 4번에 점검표 한 줄(관제 화면 · ConnectionsModel 메모리 · 앱(사장 조작) · 앱 종료 때 소멸)을, 6번에 롤백(구현 커밋 하나 revert, 이관 없음)을 적었다. |
 | PR54-04 사진 저장 외에 조작 반영·상세 화면 숨김·접근성 이름 확인 절차와 합격 기준 없음 | 권고 | 수용 | 조치: 8번 "화면 확인"에 사진 두 장(목록 `task54-hejo.png`, 상세 `task54-detail.png`)의 합격 기준, 바인딩·접근성 이름의 코드 확인을 적었다. 실제 손 조작은 사장 실물(선택)로 남긴다 — SwiftUI 화면의 자동 조작 시험 장치가 이 저장소에 없어 새로 만들지 않는다(범위 두 파일 유지). |
+
+### TASK-54 계획 검증 2회차 — APPROVED
+
+검증 대상 계획 지문 `3ba7225b2385a90b1dd7232d1e93ef4bcc8f33def33255411a51f59c33552c53`. 판정 APPROVED(권고 1). 계획(요구·시험 입력·기대값·범위)은 그대로 유지한다.
+
+| 지적 | 등급 | 처분 | 이유와 조치 |
+|---|---|---|---|
+| PR54-05 시험 자료 개수 표기 "9줄"이 실제 나열(account 7·tool 2·channel 1 = 10개)과 다름 | 권고 | 수용 | 사실 확인: 나열은 10개이고 입력·기대값·요약 알약(4·2·3, off 1개는 세지 않음)은 서로 맞다. 조치: handoff 보완 69 8번과 위 PR54-01 처분의 개수 표기만 "연결 10개"로 고쳤다. 시험 내용은 바꾸지 않았다. |

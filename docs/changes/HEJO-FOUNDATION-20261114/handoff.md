@@ -1724,7 +1724,7 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
 6. 위험도: 일반(화면 기능 추가, 계약·저장·권한 변경 없음). 필요한 증거 수준 2(가짜 문서로 모델·화면 시험) + 화면 사진. 실서버 눈 확인은 사장(선택). 롤백: TASK-54 구현 커밋 하나만 `git revert`한다(저장 값·규격·서버 변경이 없어 자료 이관·되돌림 절차 없음).
 7. 변경 성격: 의미 변경(줄 순서가 문 순서 → 이름순). 비교: 시험 기대값.
 8. 수락 시험 AT-101(`app/Tests/ConnectionsTests.swift`에 더함, 코드 미작성 — 기대값은 아래가 원본):
-   - 가짜 직원 1명, 연결 9줄(묶음 · id · 이름 · service · state):
+   - 가짜 직원 1명, 연결 10개(account 7·tool 2·channel 1; 묶음 · id · 이름 · service · state):
      - account · `e` · "anthropic" · `anthropic` · unknown (소문자 시작 — 대소문자 무시 확인)
      - account · `a` · "Google AI Studio" · `gemini` · unknown
      - account · `c` · "Google AI Studio" · `gemini` · connected (같은 이름 두 줄 — 실물 사진과 같음)
