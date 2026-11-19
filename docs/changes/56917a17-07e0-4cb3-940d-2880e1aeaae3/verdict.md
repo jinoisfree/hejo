@@ -1,3 +1,16 @@
+## 검증 판정: TASK-53 업무 캡처·진단·대기 작업 hejo 원문 증명 (2026-11-19)
+
+1. **판정:** 부분 완료(고위험 상한). 코드 통과, 인계 수준 2/2. TASK-52·53 운영 적용과 실물(수준 3)이 남는다. 지적 없음.
+2. **검증 조건:** 교차 모델(구현 codex gpt-6.1-sol, 검토 Claude Opus 5.5).
+3. **직접 확인:**
+   - `gate/adapter.py` diff(`3305387..8de89b9`): `employee_message`는 role=employee·employee=profile·thread·chat 일치·살아 있는 방만 통과, forwarder는 자기 `_owner_profile`로 고정.
+   - team-kit 패치 sha256 `38a66b3a…e8ad`(재계산 일치), 6파일. `answered_employee_message`는 TASK-52 현재 사장 원문의 `answer_to`만 따라가고 응답의 직원·msg·chat·thread를 다시 대조. `work_capture`는 hejo에서 UUID를 Decimal로 쓰지 않고 원문 ts로 순서를 잡으며 Slack 워터마크와 분리. `wait_jobs`는 hejo origin(platform·profile·chat·thread)을 저장하고 목록·취소·prune을 같은 origin으로 제한, Slack 정규식은 Slack 갈래에만.
+   - 로그: team-kit full 5080 passed, foundation 250 passed·APP_TEST_FAILED 없음, 돌연변이 3종(origin Slack 고정·Slack 대체 전송·직원 일치 제거) 모두 검출, 두 패치 순서 dry-run 0.
+4. **설계 적합성(4.2):** 보완 66과 D51-01을 따른다. 원문·직원 글은 문 공개 조회로만, 다른 방·Slack 대체 전송 없음. hejo에서는 같은 대화에서 건 대기 작업만 보이는 보수적 선택(Slack에서 건 작업은 Slack에서 관리)이다.
+5. **남은 것:** 운영 적용(공용 릴리스 갱신 — 문 코드 변경 포함, team-kit 패치 TASK-52 → TASK-53, 재시작, 계획 담당+사장) 뒤 실물: hejo에서 메일 읽기·학습 규칙 말하기·답 버튼으로 업무 지정·대기 작업 걸기.
+
+---
+
 ## 검증 판정: N52-01 AT-96 시험 대기 (2026-11-19)
 
 1. **판정:** N52-01 완료. TASK-52는 인계 수준 2 통과, 고위험이라 운영 적용·실물(수준 3) 뒤 완료.
