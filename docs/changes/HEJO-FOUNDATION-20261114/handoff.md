@@ -1719,20 +1719,41 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
 1. 공식 문서: [spec.md](spec.md) REQ-HF-32.AC-05(이번 원본), AC-01(화면 구성 유지), [tasks.md](tasks.md) TASK-54, design 6절 SwiftUI 예외(도구 연결 창, 이미 등재).
 2. 요구: AC-05 그대로. 정상 = 묶음 안 이름순, 검색어 포함 줄만, 켜면 연결됨만. 경계 = 빈 검색어·공백만은 필터 없음, 빈 묶음 숨김, 모두 비면 "맞는 연결이 없어요".
 3. 유지할 계약: 문 요청 프레임·규격·`AgentConnectionDocument` 해독 검사, 요약 알약·요약 점 계산(`AgentConnectionProfile.summary`), 버튼은 문이 준 `actions`만, 비밀값 입력 창·재확인 흐름, 창 크기(760×560, 최소 760×500 — SettingsTests). ddots에는 이 기능이 없으므로 ddots 대조 대상이 아니다(사장 선택 차이로 둔다).
-4. 책임·흐름: 보이는 줄 고르기(정렬·검색·필터)는 `ConnectionsModel` 한 곳이 맡고, `ConnectionsView`는 그 결과만 그린다. 검색어·켜고 끄기 값은 모델의 메모리 값이다(저장 없음).
+4. 책임·흐름: 보이는 줄 고르기(정렬·검색·필터)는 `ConnectionsModel` 한 곳이 맡고, `ConnectionsView`는 그 결과만 그린다. 검색어·켜고 끄기 값은 모델의 메모리 값이다(저장 없음). 점검표(ARCHITECTURE 8절): 칸 = 관제 화면(사장 Mac 앱), 원본 = `ConnectionsModel` 메모리 한 곳, 쓰기 주체 = 앱(사장이 검색칸·켜고 끄기를 조작할 때만), 수명 = 앱 종료 때 사라짐. 두 번째 원본·동기화 없음.
 5. 기존 경로 판정: `ConnectionsView` 본문의 묶음별 `agent.connections.filter{$0.group...}` → **교체**(모델의 보이는 줄 함수로). 같은 계산을 뷰에 남기지 않는다. 그 밖은 유지.
-6. 위험도: 일반(화면 기능 추가, 계약·저장·권한 변경 없음). 필요한 증거 수준 2(가짜 문서로 모델·화면 시험) + 화면 사진. 실서버 눈 확인은 사장(선택).
+6. 위험도: 일반(화면 기능 추가, 계약·저장·권한 변경 없음). 필요한 증거 수준 2(가짜 문서로 모델·화면 시험) + 화면 사진. 실서버 눈 확인은 사장(선택). 롤백: TASK-54 구현 커밋 하나만 `git revert`한다(저장 값·규격·서버 변경이 없어 자료 이관·되돌림 절차 없음).
 7. 변경 성격: 의미 변경(줄 순서가 문 순서 → 이름순). 비교: 시험 기대값.
 8. 수락 시험 AT-101(`app/Tests/ConnectionsTests.swift`에 더함, 코드 미작성 — 기대값은 아래가 원본):
-   - 가짜 직원 1명, 연결(묶음·이름·id·state): account `b`/"xAI"/connected, account `a`/"Google AI Studio"/unknown, account `c`/"Google AI Studio"/connected(같은 이름 두 줄 — 실물 사진과 같음), account `e`/"anthropic"/unknown(소문자 시작 — 대소문자 무시 확인), account `d`/"NOUS_BASE_URL"/unknown·`account` 값 "시험 계정", tool `t2`/"웹 검색"/connected, tool `t1`/"브라우저"/off, channel `ch`/"hejo"/connected.
-   - 필터 없음: account 묶음 순서 = `e`,`a`,`c`,`d`,`b`(anthropic이 대문자 G보다 앞 = 대소문자 무시, 같은 이름 Google AI Studio는 id순 a→c, 그 다음 NOUS_BASE_URL, xAI). tool = 브라우저(`t1`), 웹 검색(`t2`).
-   - 검색 "GOOGLE" → account `a`,`c`만, tool·channel 묶음 없음. 검색 "  " → 필터 없음과 같음. 검색 "시험 계정" → `d`만(account로 찾음). 검색 "저장된" → 아무것도 없음(설명은 찾지 않음) → 빈 안내 문구 상태.
-   - 연결된 것만 켬 → account `c`,`b`, tool `t2`, channel `ch`. 켬 + 검색 "google" → `c`만.
-   - 직원을 바꿨다 돌아와도 검색어·켬 유지. 요약 알약 개수는 필터와 무관하게 연결됨 4·확인 안 됨 3.
+   - 가짜 직원 1명, 연결 9줄(묶음 · id · 이름 · service · state):
+     - account · `e` · "anthropic" · `anthropic` · unknown (소문자 시작 — 대소문자 무시 확인)
+     - account · `a` · "Google AI Studio" · `gemini` · unknown
+     - account · `c` · "Google AI Studio" · `gemini` · connected (같은 이름 두 줄 — 실물 사진과 같음)
+     - account · `r` · "Mistral" · `svc-only-token` · needs_reconnect
+     - account · `d` · "NOUS_BASE_URL" · `key` · unknown, `account` 값 "시험 계정"
+     - account · `q-idonly` · "Perplexity" · `pplx` · not_connected
+     - account · `b` · "xAI" · `xai` · connected
+     - tool · `t1` · "브라우저" · `browser` · off / tool · `t2` · "웹 검색" · `web` · connected
+     - channel · `ch` · "hejo" · `hejo` · connected
+     - 문서에는 위와 다른 순서(예: b, q-idonly, a, r, c, d, e, t2, t1, ch)로 넣는다.
+   - 필터 없음: account = `e`,`a`,`c`,`r`,`d`,`q-idonly`,`b`(anthropic이 대문자 G보다 앞 = 대소문자 무시, 같은 이름은 id순 a→c). tool = `t1`,`t2`. channel = `ch`.
+   - 검색(연결된 것만 끔):
+     - "GOOGLE" → `a`,`c`만, tool·channel 묶음 없음(이름, 대소문자 무시)
+     - "시험 계정" → `d`만(account로만 일치)
+     - "idonly" → `q-idonly`만(id로만 일치) [PR54-01]
+     - "svc-only" → `r`만(service로만 일치) [PR54-01]
+     - "  xai  " → `b`만(앞뒤 공백을 뺀 뒤 찾음. 공백을 빼지 않으면 0줄) [PR54-01]
+     - "  " → 필터 없음과 같음
+     - "저장된" → 0줄(설명은 찾지 않음) → 빈 안내 상태
+   - 연결된 것만 켬 → account `c`,`b`, tool `t2`, channel `ch`. unknown(`e`,`a`,`d`)·off(`t1`)·needs_reconnect(`r`)·not_connected(`q-idonly`)가 모두 빠진다 [PR54-01]. 켬 + "google" → `c`만. 켬 + "idonly" → 0줄.
+   - 직원을 바꿨다 돌아와도 검색어·켬 유지. 요약 알약 개수는 필터와 무관하게 연결됨 4·다시 연결 필요 2·확인 안 됨 3.
    - 필터 중에도 `frames`에 새 요청이 생기지 않음(검색·켜고 끄기는 문에 보내지 않음).
-   - 화면 사진: 기존 `task32-hejo.png` 출력 옆에 검색어를 넣은 상태 `task54-hejo.png`를 남긴다(출력 폴더 인자 있을 때만).
-   - 상태: 명세 완료 / 코드 미작성 / 미실행 / 독립 검토 없음(일반, 사전 검토 불요 — 화면 내 국소 기능).
-9. 범위: `app/Sources/ConnectionsWindow.swift`, `app/Tests/ConnectionsTests.swift`(+ 필요하면 `TestMain.swift` 출력 연결). 금지: 문(`gate/`)·규격·허브·ddots·운영 공항. 직원 목록 정렬·중복 연결(같은 이름 여러 줄) 정리는 범위 밖. 선행: 없음(보완 68은 `gate/`만이라 파일 겹침 없음 — 커밋은 `git commit --only`로 자기 파일만). 병렬 갈래: 없음(갈래 3개 미만: 한 파일 한 논리 변경).
+   - 화면 확인 [PR54-04] — 기존 `--task32-capture` 출력 경로(출력 폴더 인자 있을 때만)에서 사진 두 장을 더 남긴다. 계획 담당이 최종 검토 때 사진과 코드를 직접 본다.
+     - `task54-hejo.png`: 검색어 "google", 연결된 것만 끔, 상세 닫힘. 합격 = 요약 알약 줄 아래·첫 묶음 위에 검색칸("google" 표시)과 "연결된 것만"이 보이고, 목록은 "계정과 서비스" 묶음의 Google AI Studio 두 줄뿐이며, 요약 알약은 4·2·3 그대로.
+     - `task54-detail.png`: 같은 상태에서 `detail`을 `c`로 연 화면. 합격 = 검색칸·켜고 끄기가 보이지 않음.
+     - 조작 반영: 화면이 모델의 검색어·켬 값에 직접 묶여 있음(검색칸·켜고 끄기의 바인딩이 모델 값)을 코드로 확인하고, 위 사진이 모델 값대로 그려졌는지로 확인한다. 실제 손 조작 확인은 사장 실물(선택)이다.
+     - 접근성: 검색칸 접근성 이름 "연결 검색", 켜고 끄기 접근성 이름 "연결된 것만"이 코드에 지정돼 있음(계획 담당이 코드 확인).
+   - 상태: 명세 완료 / 코드 미작성 / 미실행 / 계획 검증 1회차 BLOCKED(PR54-01~04) 반영 — [plan-review.md](plan-review.md) 36판.
+9. 범위: `app/Sources/ConnectionsWindow.swift`, `app/Tests/ConnectionsTests.swift` 두 파일뿐이다. `TestMain.swift`는 고치지 않는다(`--task32-capture`가 이미 `connectionsTests(outputDirectory:)`를 부름, PR54-02). 금지: 문(`gate/`)·규격·허브·ddots·운영 공항. 직원 목록 정렬·중복 연결(같은 이름 여러 줄) 정리는 범위 밖. 선행: 없음(보완 68은 `gate/`만이라 파일 겹침 없음 — 커밋은 `git commit --only`로 자기 파일만). 병렬 갈래: 없음(갈래 3개 미만: 한 파일 한 논리 변경).
 10. 미확정: 없음.
 11. 사용자 확인: 사장 지시로 범위 확정. "알파벳순"은 이름 오름차순(한글 이름은 macOS 표준 비교 순서)으로 해석했다.
 - **검증:** `bash app/scripts/test.sh` 0(AT-HF-83·AT-101 포함), `python3 scripts/scan_private.py` 0, 돌연변이 1개(정렬 제거 시 AT-101 실패) 기록. 결과는 impl-report.md에 "TASK-54 — 보완 69" 절로, `git commit --only`, result.
