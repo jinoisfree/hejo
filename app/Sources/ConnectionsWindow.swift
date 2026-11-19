@@ -9,6 +9,8 @@ import LocalAuthentication
     private var refreshAgain=false
     @Published var selected:String?
     @Published var detail:String?
+    @Published var searchText=""
+    @Published var connectedOnly=false
     @Published var loading=false
     @Published var notice=""
     @Published var fields:[AgentActionReply.Field]=[]
@@ -36,6 +38,20 @@ import LocalAuthentication
     var roster:[AgentConnectionProfile] {let current=people();return (current.isEmpty ? document?.agents ?? []:current).map{known[$0.profile] ?? $0}}
     var agent:AgentConnectionProfile? {selected.flatMap{known[$0]} ?? (selected==nil ? document?.agents.first:nil)}
     var item:AgentConnectionItem? {agent?.connections.first{$0.id==detail}}
+    var visibleGroups:[(id:String,title:String,items:[AgentConnectionItem])] {
+        let query=searchText.trimmingCharacters(in:.whitespacesAndNewlines)
+        let items=(agent?.connections ?? []).filter { item in
+            (!connectedOnly || item.state == .connected) &&
+            (query.isEmpty || [item.label,item.id,item.service,item.account ?? ""].contains{$0.localizedStandardContains(query)})
+        }.sorted { lhs,rhs in
+            let order=lhs.label.localizedStandardCompare(rhs.label)
+            return order == .orderedSame ? lhs.id < rhs.id:order == .orderedAscending
+        }
+        return [("account","계정과 서비스"),("tool","도구"),("mac","Mac 권한 (서버)"),("channel","대화 채널")].compactMap { id,title in
+            let rows=items.filter{$0.group.rawValue==id}
+            return rows.isEmpty ? nil:(id:id,title:title,items:rows)
+        }
+    }
     func refresh() async {
         guard !loading else{refreshAgain=true;return};loading=true
         defer{loading=false;if refreshAgain{refreshAgain=false;Task{await self.refresh()}}}
@@ -162,7 +178,6 @@ import LocalAuthentication
 struct ConnectionsView:View {
     @ObservedObject var model:ConnectionsModel
     private var card:Color{Color(nsColor:.controlBackgroundColor)}
-    private let groups=[("account","계정과 서비스"),("tool","도구"),("mac","Mac 권한 (서버)"),("channel","대화 채널")]
     var body:some View {
         HStack(spacing:0){
             VStack(alignment:.leading,spacing:8){
@@ -180,9 +195,14 @@ struct ConnectionsView:View {
                     if !model.code.isEmpty{Text(model.code).textSelection(.enabled);if let url=model.loginURL{Link("동의 페이지 열기",destination:url)}}
                     HStack(spacing:8){summary(agent,[.connected],"연결됨",.green);summary(agent,[.needsReconnect,.notConnected],"다시 연결 필요",.yellow);summary(agent,[.unknown],"확인 안 됨",.gray)}
                     if let item=model.item{detail(item,agent)}else{
-                        ForEach(groups,id:\.0){group,title in
-                            let items=agent.connections.filter{$0.group.rawValue==group}
-                            if !items.isEmpty{VStack(alignment:.leading,spacing:6){Text(title).font(.caption.weight(.semibold)).foregroundColor(.secondary);VStack(spacing:0){ForEach(items){item in row(item);if item.id != items.last?.id{Divider().padding(.leading,12)}}}.background(card).cornerRadius(10)}}
+                        HStack(spacing:12){
+                            TextField("연결 검색",text:$model.searchText).textFieldStyle(.roundedBorder).accessibilityLabel("연결 검색")
+                            Toggle("연결된 것만",isOn:$model.connectedOnly).toggleStyle(.checkbox).fixedSize().accessibilityLabel("연결된 것만")
+                        }
+                        let groups=model.visibleGroups
+                        if groups.isEmpty{Text("맞는 연결이 없어요").font(.callout).foregroundColor(.secondary)}
+                        ForEach(groups,id:\.id){group in
+                            VStack(alignment:.leading,spacing:6){Text(group.title).font(.caption.weight(.semibold)).foregroundColor(.secondary);VStack(spacing:0){ForEach(group.items){item in row(item);if item.id != group.items.last?.id{Divider().padding(.leading,12)}}}.background(card).cornerRadius(10)}
                         }
                     }
                 }else{Text(model.loading ? "연결 상태를 확인하는 중":"아직 연결 상태가 없어요");Button("새로 확인"){Task{await model.refresh()}}}
