@@ -57,7 +57,7 @@
 | TASK-51 | D50-02 조사(보완 63): Slack 원문 증명 기능의 hejo 증명 출처·가/나/다 제안 | 보완 63 | `.build/task51/survey.md` | TASK-50 | 일반 · 조사 | 완료(4eb68a1) |
 | TASK-52 | hejo 사장 인증·원문 증명(D51-01, 보완 64): 문 source.message_id·공개 `owner_message`, team-kit 공용 인증(가 5곳)·원문 공급자와 learning·request_source·memory_live·owner_context·paseo_authority | 보완 64 | `H/gate/`, 운영 저장소 사본 team-kit(패치 `.build/task52/team-kit.patch`) | TASK-51 | 고위험(권한 경계) · 인계 2 / 최종 3 | 대기 |
 | TASK-53 | 원문 증명 나머지(보완 64): linked_work 업무 캡처·diagnosis_records·wait_jobs(hejo origin 예약 전달) | 보완 64 | 운영 저장소 사본 team-kit | TASK-52 | 고위험 · 인계 2 / 최종 3 | 대기 |
-| TASK-54 | 에이전트 연결 창 검색·이름순 정렬·연결된 것만 보기(36판, 2026-11-19 사장 지시, 보완 69) | HF-32.AC-05 / AT-101 | `H/app/Sources/ConnectionsWindow.swift`, `H/app/Tests/ConnectionsTests.swift` | TASK-32 | 일반 · 2 | 구현·자체 시험 완료, [검토 대기](impl-report-task54.md) |
+| TASK-54 | 에이전트 연결 창 검색·이름순 정렬·연결된 것만 보기(36판, 2026-11-19 사장 지시, 보완 69) | HF-32.AC-05 / AT-101 | `H/app/Sources/ConnectionsWindow.swift`, `H/app/Tests/ConnectionsTests.swift` | TASK-32 | 일반 · 2 | 완료(0a88644; [보고](impl-report-task54.md), verdict TASK-54 2차. 실서버 눈 확인은 사장 선택) |
 | TASK-09 | 운영 설치·실기기 검증(9판: AT-56 수동 포함): 운영 공항에 설치, 사장 확인 뒤 게이트웨이 재시작, 노트북 페어링·대화·버튼·첨부·예약 보고, 지연 측정, 제거·복원 확인 | 전체 / AT-22(3), AT-26, AT-31(4) | 운영 설정(설치 도우미 경유), `H/evidence/` | TASK-02~08, 10~12 | 고위험 · 4 | 부분 완료(19차: 공항 설치·실물 완료, 노트북·눈 확인은 사장과) |
 
 ## 병렬 갈래
