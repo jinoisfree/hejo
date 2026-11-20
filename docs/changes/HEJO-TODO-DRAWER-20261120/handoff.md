@@ -6,7 +6,7 @@
 
 ```text
 [설계 인계: HEJO-TODO-DRAWER TASK-02~04 / team-kit·문·앱]
-0. 기준: 제품 코드 기준 63cbe2a(이 저장소 main), 운영 저장소 7ae2b013 / spec·design·tasks·수락 시험 1판 /
+0. 기준: 제품 코드 기준 63cbe2a(이 저장소 main), 운영 저장소 7ae2b013 / spec·design·tasks·수락 시험 2판(spec·수락 시험은 보완 지시 1에서 3판) /
    작성 2026-11-20, 2판(계획 검증 1회차 반영, plan-review.md) / 승인: 사장 결정 5개(brainstorm.md) + 계획 승인 대기(이 plan) / 운영 모드: 연합개발(교차 모델 기본)
 1. 공식 문서: docs/ARCHITECTURE.md, AGENTS.md, docs/changes/HEJO-TODO-DRAWER-20261120/{brainstorm,spec,design,tasks}.md,
    tests/acceptance/HEJO-TODO-DRAWER.md. team-kit은 <운영 저장소>/AGENTS.md와 ./airport-check 규칙.
@@ -65,7 +65,7 @@
 | TD-06 | AT-TD-36 |
 | NFR-TD-01 | AT-TD-10(응답 허용 필드)·15(로그), 개인값 검사 |
 | NFR-TD-02 | AT-TD-14·18·19 |
-| NFR-TD-03 | AT-TD-37 |
+| NFR-TD-03 | AT-TD-37·42 |
 | TD-07 | M1·M2(TASK-05), TASK-06 |
 
 ## 구현 담당 보고
@@ -81,3 +81,30 @@
 - `bash scripts/test.sh`
 - `python3 scripts/scan_private.py`. 둘 다 Hermes venv 파이썬(`~/.hermes/installs/*/environments/*/venv/bin/python`, `HEJO_PYTHON`)으로 실행한다. 시스템 python3에서는 `scan_error`로 실패한다.
 - `HD` 쪽은 `./airport-check`.
+
+## 보완 지시 1 — 기준 통합과 V-1·V-2 (검증 1차, [verdict.md](verdict.md))
+
+- 기준
+  - 구현 브랜치 `role-workflow/7-833b7c8b` @ `5b8ffba`, 통합할 기준은 merge 시점의 최신 로컬 `main`(검증 1차 작성 중 `961ea80` → `f0ca282`로 전진, 둘 다 HEJO-CONN-MANAGE 커밋). merge-tree로 본 충돌은 `gate/server.py` 한 곳뿐이다.
+  - spec 3판(NFR-TD-03 명확화), 수락 시험 3판(AT-TD-42 추가). 그 밖의 설계·수락 기대값은 2판과 같다.
+- 할 일
+  1. **V-3 통합**: 구현 worktree에서 로컬 `main`을 merge한다(merge 커밋, rebase·force 금지).
+     - `gate/server.py` 연결 종료 `finally`의 충돌은 두 줄을 모두 남긴다: `self.admin_connections.disconnected(conn.device_id)`와 `deadline_waiters` 취소·gather.
+     - 다른 충돌이 생기거나 두 작업의 의도 판단이 필요하면 멈추고 보고한다.
+     - 계획 담당 checkout의 미커밋 HEJO-CONN-MANAGE 변경(`app/Sources/Connection*.swift` 등)은 건드리지 않는다.
+  2. **V-1**: 칸 투영(`drawerSnapshot` 계산·`todoDrawer.show`)은 칸이 보일 때(열림 ∧ 채팅 펼침)만 한다. 닫혀 있거나 접혀 있을 때 1초 tick과 `refresh`에서 모든 방 `notices`를 계산하지 않는다. 보이게 되는 순간에는 한 번 계산해 최신 상태로 그린다.
+  3. **V-2**: 마감 요청 조건을 "열림 선호 ∧ 채팅 펼침"으로 한다(NFR-TD-03 3판).
+     - 채팅을 접으면 주기 요청이 멈춘다.
+     - 펼칠 때 열림이면 한 번 요청하고 주기를 다시 시작한다.
+     - 앱을 시작할 때 채팅이 접혀 있으면 요청하지 않는다.
+     - 열림 선호(`todoDrawerOpen`)의 저장·복원은 지금 그대로 둔다.
+  4. **AT-TD-42**를 `app/Tests/TodoDrawerTests.swift`에 추가한다. 기존 AT-TD 기대값은 바꾸지 않는다.
+- 검사(대상 = 최종 커밋)
+  - `TZ=Asia/Seoul bash scripts/test.sh` 전체.
+  - 문 `pytest gate/tests tests/acceptance`.
+  - `scan_private.py`(Hermes venv).
+  - `git diff --check`.
+  - `git merge-base --is-ancestor main <최종 커밋>` 종료 0(보고 시점의 로컬 `main` 해시를 함께 적는다).
+  - 실제 시간에 기대는 기존 시험(예: AT92)이 부하로 흔들리면 부하 없이 다시 실행하고, 두 결과를 모두 기록한다.
+- 보고: `impl-report.md`에 "보완 1" 절을 덧붙인다(merge 커밋, 충돌 해결 내용, 바꾼 파일, 시험 명령·종료 코드·로그 경로). team-kit worktree는 바꿀 것이 없다.
+- 금지: 기존과 같다(운영 공항·재시작·운영 team-kit 원본·비밀 파일·Hermes 본체·ddots·실제 메시지·git push). TASK-05·06은 하지 않는다.
