@@ -491,6 +491,7 @@ class GateServer:
         finally:
             if conn:
                 self.connections.discard(conn)
+                self.admin_connections.disconnected(conn.device_id)
                 if conn.sender is not None and not conn.sender.done():
                     conn.sender.cancel()
                     await asyncio.gather(conn.sender, return_exceptions=True)
