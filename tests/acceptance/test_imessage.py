@@ -23,6 +23,7 @@ class Phone(BasePlatformAdapter):
     def __init__(self):
         super().__init__(PlatformConfig(enabled=True), Platform('hejo'))
         self.calls, self.originals = [], []
+        self.typing_calls, self.operations = [], []
         self.failure = False
         self._mark_connected()
 
@@ -31,7 +32,16 @@ class Phone(BasePlatformAdapter):
 
     async def send(self, chat_id, content, reply_to=None, metadata=None):
         self.calls.append((chat_id, content, reply_to))
+        self.operations.append(('send', chat_id))
         return SendResult(success=not self.failure, message_id=f'im-out-{len(self.calls)}')
+
+    async def send_typing(self, chat_id, metadata=None):
+        self.typing_calls.append(('send_typing', chat_id))
+        self.operations.append(('send_typing', chat_id))
+
+    async def stop_typing(self, chat_id):
+        self.typing_calls.append(('stop_typing', chat_id))
+        self.operations.append(('stop_typing', chat_id))
 
     async def connect(self):
         return True
@@ -393,8 +403,8 @@ def settle(gate):
     return wait
 
 
-async def phone_thread(gate, runner, client, ws, phone):
-    await activate(client, ws, phone)
+async def phone_thread(gate, runner, client, ws, phone, room='alpha'):
+    await activate(client, ws, phone, room=room)
     await phone.handle_message(phone.event())
     row = (await client.until(ws, 'message'))[-1]
     await wait_for_turns(runner, 1)
@@ -858,3 +868,205 @@ async def test_at_hi_44_corrupt_connection_files_preserve_app(gate, runner, clie
         _delivery_scope.reset(token)
     await settle()
     if file != 'sent.jsonl': assert not phone.calls
+
+
+async def typing_requests_done(gate):
+    async with asyncio.timeout(1):
+        while gate.imessage._typing_tasks:
+            await asyncio.gather(*tuple(gate.imessage._typing_tasks))
+
+
+@pytest.mark.parametrize('room', ['alpha', G])
+async def test_at_hi_45_phone_typing_each_notification(gate, runner, client, phone, room):
+    if room == G:
+        await group(gate)
+    ws, _ = await client.pair(features=['imessage', 'rooms'])
+    thread = await phone_thread(gate, runner, client, ws, phone, room=room)
+    await typing_requests_done(gate)
+    phone.typing_calls.clear()
+    chat = 'room:' + room if room == G else room
+    for _ in range(3):
+        await gate.send_typing(chat, {'thread_id': thread, 'hermes_profile': 'alpha'})
+    await typing_requests_done(gate)
+    assert phone.typing_calls == [('send_typing', 'chat-A')] * 3
+
+
+async def test_at_hi_46_app_threads_never_phone_typing(gate, runner, client, phone):
+    ws, _ = await client.pair(features=['imessage'])
+    await activate(client, ws, phone)
+    await client.send(ws)
+    thread = (await client.until(ws, 'message'))[-1]['thread']
+    await wait_for_turns(runner, 1)
+    await typing_requests_done(gate)
+    phone.typing_calls.clear()
+    for reports in [[], ['alpha']]:
+        await request(client, ws, 'imessage_save', enabled=True, room='alpha', reports=reports)
+        await gate.send_typing('alpha', {'thread_id': thread})
+        await gate.stop_typing('alpha', {'thread_id': thread})
+        await typing_requests_done(gate)
+    assert phone.typing_calls == []
+
+
+@pytest.mark.parametrize('case', ['disabled', 'unpaired', 'disconnected'])
+async def test_at_hi_47_unavailable_phone_no_typing(gate, runner, client, phone, case):
+    ws, _ = await client.pair(features=['imessage'])
+    thread = await phone_thread(gate, runner, client, ws, phone)
+    await typing_requests_done(gate)
+    if case == 'disabled':
+        await request(client, ws, 'imessage_save', enabled=False, room='alpha', reports=[])
+    elif case == 'unpaired':
+        await request(client, ws, 'imessage_unpair')
+    else:
+        phone._mark_disconnected()
+    phone.typing_calls.clear()
+    await gate.send_typing('alpha', {'thread_id': thread})
+    await typing_requests_done(gate)
+    assert phone.typing_calls == []
+
+
+@pytest.mark.parametrize('answer', [True, False])
+async def test_at_hi_48_stop_once_after_answer_or_empty(gate, runner, client, phone, settle, answer):
+    ws, _ = await client.pair(features=['imessage'])
+    thread = await phone_thread(gate, runner, client, ws, phone)
+    await typing_requests_done(gate)
+    phone.operations.clear()
+    await gate.send_typing('alpha', {'thread_id': thread})
+    await typing_requests_done(gate)
+    if answer:
+        await gate.send('alpha', 'answer', metadata={'thread_id': thread})
+    await gate.stop_typing('alpha', {'thread_id': thread})
+    await settle()
+    await typing_requests_done(gate)
+    expected = ['send_typing', 'send', 'stop_typing'] if answer else ['send_typing', 'stop_typing']
+    assert phone.operations == [(method, 'chat-A') for method in expected]
+    await gate.stop_typing('alpha', {'thread_id': thread})
+    await typing_requests_done(gate)
+    assert phone.operations == [(method, 'chat-A') for method in expected]
+
+
+async def test_at_hi_49_other_phone_thread_keeps_typing(gate, runner, client, phone):
+    ws, _ = await client.pair(features=['imessage'])
+    first = await phone_thread(gate, runner, client, ws, phone)
+    await phone.handle_message(phone.event(mid='im-in-2'))
+    second = (await client.until(ws, 'message'))[-1]['thread']
+    await wait_for_turns(runner, 2)
+    async with asyncio.timeout(3):
+        while gate._active_sessions:
+            await asyncio.sleep(0.01)
+    assert first != second
+    await typing_requests_done(gate)
+    phone.typing_calls.clear()
+    for thread in [first, second]:
+        await gate.send_typing('alpha', {'thread_id': thread})
+    await typing_requests_done(gate)
+    await gate.stop_typing('alpha', {'thread_id': first})
+    await typing_requests_done(gate)
+    assert phone.typing_calls == [('send_typing', 'chat-A')] * 2
+    await gate.stop_typing('alpha', {'thread_id': second})
+    await typing_requests_done(gate)
+    assert phone.typing_calls == [('send_typing', 'chat-A')] * 2 + [('stop_typing', 'chat-A')]
+
+
+@pytest.mark.parametrize('case', ['raises', 'hangs'])
+async def test_at_hi_50_typing_failures_do_not_block(gate, runner, client, phone, settle, monkeypatch, caplog, case):
+    ws, _ = await client.pair(features=['imessage'])
+    thread = await phone_thread(gate, runner, client, ws, phone)
+    await typing_requests_done(gate)
+    started, stopped = asyncio.Event(), asyncio.Event()
+    blocker = asyncio.Event()
+    async def request_typing(chat, event):
+        event.set()
+        if case == 'raises':
+            raise RuntimeError(chat + ' private transport failure')
+        await blocker.wait()
+    async def start(chat, metadata=None):
+        await request_typing(chat, started)
+    async def stop(chat):
+        await request_typing(chat, stopped)
+    monkeypatch.setattr(phone, 'send_typing', start)
+    monkeypatch.setattr(phone, 'stop_typing', stop)
+    await asyncio.wait_for(gate.send_typing('alpha', {'thread_id': thread}), 1)
+    assert (await client.until(ws, 'typing'))[-1]['on'] is True
+    await asyncio.wait_for(started.wait(), 1)
+    assert (await gate.send('alpha', 'answer', metadata={'thread_id': thread})).success
+    await asyncio.wait_for(gate.stop_typing('alpha', {'thread_id': thread}), 1)
+    assert (await client.until(ws, 'typing'))[-1]['on'] is False
+    await settle()
+    await asyncio.wait_for(stopped.wait(), 1)
+    assert phone.calls == [('chat-A', '[Alpha] answer', 'im-in-1')]
+    assert 'chat-A' not in caplog.text and 'private transport failure' not in caplog.text
+    if case == 'raises':
+        await typing_requests_done(gate)
+        assert caplog.text.count('imessage_typing_failed') == 2
+    tasks = tuple(gate.imessage._typing_tasks)
+    await asyncio.wait_for(gate.imessage.close(), 1)
+    assert not gate.imessage._typing_tasks and not gate.imessage._typing_keys
+    assert all(task.done() for task in tasks)
+
+
+async def test_at_hi_51_typing_changes_no_persistent_contract(gate, runner, client, phone, settle):
+    ws, _ = await client.pair(features=['imessage'])
+    thread = await phone_thread(gate, runner, client, ws, phone)
+    await typing_requests_done(gate)
+    bridge = gate.imessage
+    files = [bridge.vault.path / 'imessage.json', bridge.settings_store.path / 'settings.json',
+             Path(imessage.__file__).resolve().parent.parent / 'schemas/hejo-wire-v1.json']
+    before = [path.read_bytes() for path in files]
+    kinds = {row['type'] for row in gate.journal.records}
+    phone.calls.clear()
+    await gate.send_typing('alpha', {'thread_id': thread})
+    await gate.send('alpha', 'answer', metadata={'thread_id': thread})
+    await gate.stop_typing('alpha', {'thread_id': thread})
+    await settle()
+    await typing_requests_done(gate)
+    assert phone.calls == [('chat-A', '[Alpha] answer', 'im-in-1')]
+    assert [path.read_bytes() for path in files] == before
+    assert {row['type'] for row in gate.journal.records} == kinds
+
+
+@pytest.mark.parametrize('action', ['disable', 'unpair', 'replace'])
+async def test_phone_typing_reset_stops_once(gate, runner, client, phone, action):
+    ws, _ = await client.pair(features=['imessage'])
+    thread = await phone_thread(gate, runner, client, ws, phone)
+    await gate.send_typing('alpha', {'thread_id': thread})
+    await typing_requests_done(gate)
+    phone.typing_calls.clear()
+    if action == 'disable':
+        await request(client, ws, 'imessage_save', enabled=False, room='alpha', reports=[])
+    elif action == 'unpair':
+        await request(client, ws, 'imessage_unpair')
+    else:
+        await pair_phone(client, ws, phone, chat='chat-B', user='user-B')
+    await typing_requests_done(gate)
+    assert phone.typing_calls == [('stop_typing', 'chat-A')]
+    assert not gate.imessage._typing_keys
+    await gate.stop_typing('alpha', {'thread_id': thread})
+    await typing_requests_done(gate)
+    assert phone.typing_calls == [('stop_typing', 'chat-A')]
+
+
+async def test_phone_typing_waits_for_inflight_answer(gate, runner, client, phone, settle, monkeypatch):
+    ws, _ = await client.pair(features=['imessage'])
+    thread = await phone_thread(gate, runner, client, ws, phone)
+    await typing_requests_done(gate)
+    phone.typing_calls.clear()
+    entered, release = asyncio.Event(), asyncio.Event()
+    original = phone.send
+    async def delayed_send(*args, **kwargs):
+        entered.set()
+        await release.wait()
+        return await original(*args, **kwargs)
+    monkeypatch.setattr(phone, 'send', delayed_send)
+    await gate.send_typing('alpha', {'thread_id': thread})
+    await gate.send('alpha', 'answer', metadata={'thread_id': thread})
+    await gate.stop_typing('alpha', {'thread_id': thread})
+    await asyncio.wait_for(entered.wait(), 1)
+    # A following turn can stop while the previous answer is still in transport.
+    await gate.send_typing('alpha', {'thread_id': thread})
+    await gate.stop_typing('alpha', {'thread_id': thread})
+    await typing_requests_done(gate)
+    assert phone.typing_calls == [('send_typing', 'chat-A')] * 2
+    release.set()
+    await settle()
+    await typing_requests_done(gate)
+    assert phone.typing_calls == [('send_typing', 'chat-A')] * 2 + [('stop_typing', 'chat-A')]
