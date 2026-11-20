@@ -71,3 +71,5 @@ HERMES_DISABLE_LAZY_INSTALLS=1 python -m gate.tests.gateway_delivery
 Hermes `/branch`나 세션 DB를 우회하지 않으므로 도구 호출 기록·`/resume` 계보는 복제하지 않는다.
 `metadata.hejo_checklist`는 message/edit의 선택 checklist 필드로 전달한다.
 정확한 필드와 한도는 [통신 규격](../schemas/hejo-wire-v1.json)을 따른다.
+
+`deadlines`는 team-kit의 `hermes-deadlines list --json`을 읽기 전용으로 실행하며, 문 전체의 진행 중 실행 하나를 공유한다.
