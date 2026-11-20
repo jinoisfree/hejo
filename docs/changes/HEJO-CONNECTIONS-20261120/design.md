@@ -85,7 +85,7 @@
 ### 4.1 시놀로지 값 찾기 (REQ-HC-04.AC-01·02·06)
 - 새 함수(위치는 `synology_setup.py` 또는 `app_setup.py`, 구현 담당 선택) `discover(root, profile)` → 후보 목록 `[{api_base?, link_host?, username?, source}]`. 읽기만 한다.
 - **후보 하나는 한 연결에서 온 값 묶음이다.** 주소 두 개와 아이디는 같은 출처의 같은 연결에서만 가져오고, 서로 다른 연결의 값을 섞지 않는다(PR-05 반영).
-- 출처와 우선순위. 앞 단계에서 후보가 하나라도 나오면 다음 단계는 보지 않는다.
+- 출처와 우선순위. 앞 단계에서 후보가 하나라도 나오면 다음 단계는 보지 않는다. 이 우선순위는 **주소**를 고르는 규칙이다. 자기 초안의 주소가 완전할 때 같은 주소 묶음의 다른 출처에서 아이디만 보완하는 예외는 아래 경우별 동작표의 첫 행(AT-HC-52(나))을 따른다.
   0. 이 직원 자신의 초안(금고 `app_setup`)이나 이전 설정 값. 지금 동작 그대로이며 있으면 그 값만 쓴다.
   1. 같은 `HERMES_HOME`의 다른 직원 중 시놀로지가 **연결됨**인 직원. 주소는 기존 `legacy_values`·금고 `apps`에서 읽는 같은 경로, 아이디는 그 직원 `.env`의 아이디 이름 값만 읽는다(비밀번호 이름은 읽지 않는다). 직원마다 후보 하나. 진행 중 초안은 출처로 쓰지 않는다.
   2. 서버 사용자의 Synology Drive Client 자료(`~/Library/Application Support/SynologyDrive/data/db/sys.sqlite`를 `mode=ro`로). 연결 표의 행마다 후보 하나: 그 행의 사용자 이름과 QuickConnect ID. ID가 행에 없으면 같은 폴더 `log/daemon.log`의 `<…>.<ID>.direct.quickconnect.to`에서 찾되, 로그에 ID가 하나뿐일 때만 그 행에 붙인다. `link_host = <ID>.quickconnect.to`. `api_base`는 Drive Client 자료에서 정책에 맞는 주소 전체를 찾을 수 있을 때만 만든다. [가정] 만들 수 없으면 그 후보는 부분 후보가 된다(아래 분류). 구현 담당이 확인해 impl-report에 쓴다. 이름 해석용 외부 요청은 하지 않는다.
