@@ -159,9 +159,9 @@ import SwiftUI
     try check(model.showingInput && model.fields.map(\.id)==["user","password"] && !model.busy,"AT-HC-25 waiting opens login stage")
     try check(model.values==["user":"synthetic-user"] && model.fields.last?.secure==true,"AT-HC-25 only nonsecret defaults survive the stage transition")
     try check(model.item?.primaryAction?.label=="이어서 하기" && frames.contains{$0["action"] as? String=="app_connect"},"AT-HC-28 supplied label and resume frame")
-    let before=frames.count;model.confirmUndo={false};await model.perform("app_undo")
+    let before=frames.count;model.confirmUndo={_ in false};await model.perform("app_undo")
     try check(frames.count==before,"AT-HC-28 declined reset sends nothing")
-    model.confirmUndo={true};await model.perform("app_undo")
+    model.confirmUndo={_ in true};await model.perform("app_undo")
     try check(frames.last?["action"] as? String=="app_undo","AT-HC-28 confirmed reset sends app_undo")
     model.close()
 
@@ -197,5 +197,20 @@ import SwiftUI
     if let alert {window.window.endSheet(alert,returnCode:.alertSecondButtonReturn)}
     let accepted=await confirmation.value
     try check(accepted==false,"AT-HC-26 cancellation resolves asynchronously")
+    // V-3: perform the action from both row states and inspect the actual AppKit alert.
+    func descendants(_ view:NSView)->[NSView] {[view]+view.subviews.flatMap{descendants($0)}}
+    for (state,label,title) in [("unknown","처음부터 다시","이 연결을 처음부터 다시 할까요?"),("connected","되돌리기","마지막 연결 변경을 되돌릴까요?")] {
+        live.send={_ in ["document":["schema":"hermes-connections/1","checked_at":"2026-01-01T00:00:00Z","agents":[["profile":"alpha","display_name":"직원 A","connections":[row("app:synthetic",state:state,actions:[["id":"app_undo","label":label,"primary":false]])]]]] ]}
+        await live.refresh();live.detail="app:synthetic"
+        let undo=Task{await live.perform("app_undo")};await pause(0.1)
+        let sheet=window.window.attachedSheet
+        let views=sheet?.contentView.map{descendants($0)} ?? []
+        let labels=views.compactMap{($0 as? NSTextField)?.stringValue}
+        let buttons=views.compactMap{($0 as? NSButton)?.title}
+        let correct=sheet != nil && labels.contains(title) && buttons.contains(label)
+        if let sheet {window.window.endSheet(sheet,returnCode:.alertSecondButtonReturn)}
+        await undo.value
+        try check(correct,"V-3 \(state) undo confirmation matches the row action")
+    }
     live.close();window.window.close();print("AT-HC-20~29 APP PASS")
 }

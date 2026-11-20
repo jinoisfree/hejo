@@ -142,3 +142,45 @@
 TASK-04 대상 커밋은 `1c0ea8a5a6d7247c3e62e46fec4307c145baefc6`, 브랜치는 `hejo-connections-20261120`이다. 운영 저장소 HEAD에서 만든 worktree이며 실제 위치는 추적하지 않는 `AGENTS.local.md`에 있다. 검증 로그 사본은 그 worktree의 추적하지 않는 `.build/HEJO-CONNECTIONS/`에도 있다. 운영 main과 실행본은 수정하지 않았다. 기존 실행 파일·시험 10개 모두 착수 SHA-256 불변을 다시 확인했다.
 
 TASK-02 대상 커밋은 `33814a7d9dc3831ba808981f73051886fee0ef49`다. TASK-03은 이 보고서의 최종 갱신과 함께 만든 앱 커밋을 검토한다(이 보고서를 담은 hejo HEAD). 그 커밋은 이전 TASK-02 위에 있고 제품 변경은 앱 3개 소스와 연결 시험뿐이다. 전체 로그는 위 추적하지 않는 경로에 보존했다. 푸시나 원격 포함은 확인·실행하지 않았다.
+
+## 보완 1
+
+### 받은 지시와 변경
+
+기준은 hejo `4d377d689f39fbbf80abafdb18dc90be54d2429b`의 보완 지시 1·design 4판 4.1·수락 시험 명세 4판(AT-HC-53·54), team-kit worktree `1c0ea8a5a6d7247c3e62e46fec4307c145baefc6`다. 위험도 고위험, 필요 증거 수준 2다. 아래 자체 시험 기준으로 보완 구현을 마쳤으며 독립 재검토를 요청한다. 앞 절의 3판 기준 설명 중 자기 초안 우선순위와 후보 번호 라벨은 이번 4판 구현으로 대체된다.
+
+- **V-1:** `synology_setup.prepare()`에서 자기 주소 두 개가 함께 검사를 통과할 때만 우선 출처로 쓴다. 틀리거나 불완전하면 기존 다른 직원→Drive 후보 순서를 따른다. 완전 후보 하나는 주소 두 칸을 교체하고, 여럿은 고르기, 완전 후보가 없으면 부분 후보가 제공하는 칸→검사를 통과한 자기 칸→빈 칸 순서다. 바뀐 주소에는 이전 로그인 선택을 재사용하지 않는다. `app_connect.py`의 기존 `stage_values`로 주소 완료·교체를 기록해 처음 초안 이전 상태로 되돌릴 수 있다. 자동 교체 로그인 `hint`와 여러 후보의 `input_error`는 설계 문장 그대로다. 사람이 직접 주소를 제출한 경우에는 자동 교체 안내를 붙이지 않는다.
+- **V-2:** 같은 후보 고르기 경로에서 `link_host · 아이디`(아이디 없으면 `link_host`)를 표시하고 같은 라벨에는 출처 꼬리말을 붙인다. 옵션은 불투명 id와 라벨만 전달하며 비밀번호·직원 식별자를 넣지 않는다.
+- **V-3:** `ConnectionsModel.perform()`이 선택한 줄의 `app_undo` 동작 라벨을 기존 확인 창에 전달한다. 진행 중은 제목·버튼이 “처음부터 다시”, 연결됨은 “마지막 연결 변경을 되돌릴까요?”·“되돌리기”다. 기존 AppKit 비동기 sheet와 취소 동작을 유지한다.
+
+책임 자리·공개 계약·저장 형식·칸 배치는 그대로다. 설계와 달라진 점, 새 임시 제품 코드, 범위 밖 구조 변경은 없다. 후보 표시 helper는 기존 고르기 옵션을 만드는 책임만 맡는다. 수정한 두 시설은 연결 CLI가 호출마다 import하며, 이번에는 앞 TASK-04의 게이트웨이 import 파일 `files.py`를 더 고치지 않았다.
+
+### 시험과 증거
+
+team-kit `tests/test_connections_screen.py`에 AT-HC-53(가~다) 3사례와 AT-HC-54 1사례를 옮겼다. 각각 틀린 초안→비밀번호만 입력·초기 상태 undo, 후보 선택·오류 안내, 부분 칸 채움·주소 미완료, 후보 라벨·출처·비밀 무노출을 보호한다. 3판의 “틀린 자기 초안은 다른 출처를 조회하지 않음” 시험은 승인된 4판과 반대여서 AT-HC-53으로 교체했다. AT-HC-50의 후보 번호·아이디 숨김 기대도 승인된 라벨 규칙으로 바꿨다. 수락 시험 명세·spec·design은 수정하지 않았고 skip/xfail을 더하지 않았다.
+
+앱 시험 한 사례에서 진행 중·연결됨 두 줄의 실제 `perform(app_undo)`를 실행하고, 실제 AppKit 확인 sheet의 제목과 버튼을 검사하고 취소한다. 모델 확인 대역으로 문구 검사를 대신하지 않았다.
+
+| 검사 | 실제 결과 | 로그(hejo 기준) |
+|---|---|---|
+| 새 team-kit 시험 초회 | 종료 1, 37 통과·2 실패. 새 시험에서 기존 단계 상태 계약에 없는 `current`를 가정했다. `wait()` 계약인 사용자 입력 필요 여부로 단계 검사를 바로잡음 | `.build/connections-supplement1/team-initial.log` |
+| 관련 27개 시험 파일 + AT-HC-53·54, 임시 HOME/HERMES_HOME | 종료 0, 451 통과(새 화면 시험 39사례 포함) | `.build/connections-supplement1/run-team.log`, `run-team.json` |
+| V-1 mutation: 자기 값이 한 칸이라도 있으면 우선 출처로 되돌림 | pytest 종료 1, AT-HC-53(가)가 주소 칸으로 돌아가 실패. 실행 스크립트 종료 0, 원본 바이트 복구 확인 뒤 위 451개 실행 | `.build/connections-supplement1/mutation.log`, `mutation.json`, `mutation.py` |
+| `airport-check --snapshot <worktree>` | 종료 0, boundary 382·document 0·compartments 0. 커밋 훅에서도 같은 검사 통과, 기준선 변경 없음 | `.build/connections-supplement1/run-airport.log`, `run-airport.json` |
+| `HEJO_PYTHON=<게이트웨이 Python> bash scripts/test.sh` | 종료 0. Python 381개·게이트웨이 수명주기·앱 빌드/서명·AppKit(새 V-3 포함)·네트워크 전체 통과 | `.build/connections-supplement1/run-full.log`, `run-full.json` |
+| 같은 Python으로 `scripts/scan_private.py` | 종료 0, 개인값 검사 통과 | `.build/connections-supplement1/run-scan.log`, `run-scan.json` |
+| 운영 홈 주소 복구 읽기 전용 시뮬레이션 | 종료 0. 아래 제한 참조 | `.build/connections-supplement1/read-only-simulation.log`, `read-only-simulation.py` |
+
+위 27개 파일의 정확한 목록·실행 Python·cwd는 `run-team.json`, 전체 검사의 실행 환경은 추적하지 않는 `.build/connections-env.sh`와 `run.py`에 있다. 검사한 제품·시험 파일 SHA-256은 `tested-inputs.json`에 있다. 원래 확인한 운영 원본 10개 파일의 SHA-256도 이전 착수 기록과 다시 일치했다. 앱 컴파일의 기존 동시성·미사용 값 경고와 WebKit 실행 진단은 남아 있으나 검사 실패는 없고 이 변경 경로의 새 경고는 없다.
+
+### 운영 읽기 확인과 제한
+
+운영 홈에서 `prepare()`와 자격 입력 칸 생성만 호출했다. 감사 hook으로 파일 쓰기·삭제·이름 변경·프로세스 실행·네트워크와 비밀 파일 열기를 차단했고, 비밀 파일을 여는 아이디 조회는 비활성화했다. 두 주소가 모두 정책 밖인 초안 1개·완전 후보 1개를 확인했으며, 메모리에서 후보 주소로 교체·`address` 완료·로그인 입력 칸 `user`/`password`로 이어졌다. 금고 파일의 실행 전후 digest가 같았다. 주소·아이디·직원 식별자는 출력하거나 복사하지 않았다. 운영 초안 저장·`app connect`는 호출하지 않았다.
+
+따라서 운영 주소 복구와 로그인 단계까지의 형태는 읽기 확인했지만, **실제 아이디 미리 채움·비밀번호만 사람이 넣는 운영 첫 응답 전체는 확인하지 않았다.** `.env` 열기 금지를 지키기 위해 아이디 조회를 끈 영향이다. 해당 계약은 가짜 자료의 AT-HC-53(가)로 확인했다. 첫 시도는 감사 hook이 Python의 `token` 소스 모듈까지 비밀 파일로 분류해 차단했고, 소스 확장자를 구분한 뒤 위 제한을 유지한 채 통과했다. 운영 연결 자체·로그인·폴더·서버 적용·M1~M7은 후속 작업이다. 도달 증거 수준은 2이며 운영 적용 검증을 주장하지 않는다.
+
+### 검토 대상과 다음 작업
+
+team-kit 대상은 worktree 브랜치 `hejo-connections-20261120`의 `fe697e3b5a0805ec9ab80f63b2fcf9d3f3e53573`(부모 `1c0ea8a5`)이며 수정 경로는 시설 `synology_setup.py`·`app_connect.py`와 시험 `test_connections_screen.py`다. 앱 대상은 이 절을 담은 hejo main 커밋(부모 `4d377d6`)이며 `ConnectionsWindow.swift`·`ConnectionsTests.swift`와 이 보고서만 바뀐다. 로컬 worktree 위치는 `AGENTS.local.md`를 따른다. 증거 사본은 worktree의 추적하지 않는 `.build/HEJO-CONNECTIONS/supplement1/`에도 보존한다.
+
+독립 재검토에서는 AT-HC-53(가)의 기존 undo 원점 보존, 부분 후보 우선 칸 채움, 실제 AppKit 확인 문구 두 상태를 확인해 달라. 새 범위 밖 부채는 없다. 운영 원본·운영 main·직원 B 초안·Hermes 본체·ddots는 수정하지 않았고 sync·재시작·버전·공개·설치 교체·푸시는 실행하지 않았다. 다음은 보완 1 재검토이며 TASK-05 이후는 별도 지시 범위다.

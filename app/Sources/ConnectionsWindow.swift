@@ -31,7 +31,7 @@ import Combine
     var send:([String:Any]) async throws->[String:Any]
     var confirm:() async ->Bool
     var confirmRestart:() async ->Bool = {false}
-    var confirmUndo:() async ->Bool = {false}
+    var confirmUndo:(String) async ->Bool = {_ in false}
     var privacy:(Bool)->Void={_ in}
     var avatar:(String)->ProfileAvatar={_ in ProfileAvatar()}
     private var pendingAction:String?
@@ -116,7 +116,7 @@ import Combine
         busy=true;defer{busy=false}
         let requested=verb=="secret_set" && !submitted ? "secret_guide":verb
         let read=["secret_guide","check","check_all","oauth_guide","mcp_login"].contains(requested)
-        if requested=="app_undo" {guard await confirmUndo() else{return}}
+        if requested=="app_undo" {guard await confirmUndo(target.actions?.first{$0.id=="app_undo"}?.label ?? "되돌리기") else{return}}
         if !read {guard await authenticated() else{return}}
         if requested=="gateway_restart" || (submitted && values["resume"]=="gateway_restart") {
             guard await confirmRestart() else{return}
@@ -207,7 +207,10 @@ import Combine
         window.delegate=self
         window.contentView=NSHostingView(rootView:ConnectionsView(model:model))
         model.confirmRestart={ [weak self] in await self?.ask("에이전트를 다시 시작할까요?",text:"모든 에이전트가 잠시(약 1분) 응답을 멈춰요. 처리 중인 대화가 있으면 시작하지 않아요.",button:"다시 시작") ?? false }
-        model.confirmUndo={ [weak self] in await self?.ask("이 연결을 처음부터 다시 할까요?",text:"이 연결에서 저장한 값을 이전으로 되돌려요.",button:"처음부터 다시") ?? false }
+        model.confirmUndo={ [weak self] label in
+            let title=label=="처음부터 다시" ? "이 연결을 처음부터 다시 할까요?":"마지막 연결 변경을 되돌릴까요?"
+            return await self?.ask(title,text:"이 연결에서 저장한 값을 이전으로 되돌려요.",button:label) ?? false
+        }
         inputObservation=model.$showingInput.removeDuplicates().sink{ [weak self] active in
             // Published sends before assignment; apply presentation on the next main-loop turn.
             Task { @MainActor in self?.presentInput(active) }
