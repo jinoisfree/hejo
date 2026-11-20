@@ -145,3 +145,18 @@
   6. 실패하면 롤백(코드 롤백 절) 실행 뒤 로그 확인까지 하고 보고한다.
 - **금지(추가):** `bash app/scripts/build.sh`, 설치된 앱 사본 교체, `config/google-oauth-secret.json` 열기, 버전 올리기, `hejo-publish`·`hejo-ship` 실행, `hejo-install` 설치 실행. 그 밖은 보완 지시 3의 금지와 같다.
 - **보고:** `impl-report.md` "TASK-07" 절과 `evidence/HEJO-IMESSAGE/TASK-07.md` 갱신 — 절차별 명령·종료 코드, 재시작 시각, 로그 확인 결과, 롤백 실행 여부.
+
+## 보완 지시 5: TASK-07b 앱 0.2.1 공개 후보 준비 (2026-11-20, 사용자 결정)
+
+- **사용자 결정(2026-11-20):** 앱 0.2.1 공개 준비를 이 작업에서 한다. 마지막 공개(publish)와 푸시 승인은 사장이 한다. 판정: [verdict.md](verdict.md) 5차 — 부분 완료.
+- **선례:** HEJO-FOUNDATION `handoff.md`의 "보완 지시 61(0.2.0 공개 후보 재생성)"과 그 검토 기록(`docs/changes/56917a17-07e0-4cb3-940d-2880e1aeaae3/verdict.md`의 0.2.0 공개 절). 그 절차를 0.2.1·빌드 3으로 그대로 따른다. 다른 점만 아래에 적는다.
+- **들어가는 것:** 지금 `main` 전체. 아이메시지 화면(이 작업)과 HEJO-FOUNDATION TASK-55·56의 앱 변경이 함께 나간다(둘 다 검토 통과, R020 9절이 0.2.1로 묶도록 정함).
+- **할 일:**
+  1. 버전을 0.2.1·빌드 3으로 올린다(`app/Resources/Info.plist`와 버전을 고정해 둔 시험·문서가 있으면 함께). 한 커밋. 제품 동작 코드는 바꾸지 않는다.
+  2. 지금 로컬 `public`(0.2.0 `1dfda64`)은 그대로 부모로 쓴다. `install/hejo-publish`로 `main` HEAD 트리의 새 `public` 커밋을 만든다. 새 `public` 트리 = `main` HEAD 트리, 개인 이력 미포함, 공개본 개인값 검사 통과를 확인한다.
+  3. 같은 트리로 앱을 빌드하고 `install/hejo-ship prepare`로 `.build/release-0.2.1/` 준비물을 만든다. 기본 빌드가 `config/google-oauth-secret.json`을 입력으로 읽는 것은 사용자가 허용했다 — 그 값을 직접 열거나 출력·기록하지 않는다. 기존 키체인 서명 키를 다시 쓰고 새 키를 만들지 않는다. 압축을 풀어 `codesign --verify --deep --strict`와 업데이트 서명을 다시 확인한다.
+  4. 같은 트리에서 검증: `bash scripts/test.sh` 종료 0, 개인값 검사 종료 0, 선례 4번의 공개 전 검증 가운데 지금도 있는 것(설치 시험, 옛 문과 새 앱 연결 시험, 실제 다운로드 폴더·CLI 설정 불변 확인). 옛 문에 새 앱이 붙었을 때 아이메시지 구역이 "서버가 지원하지 않음"으로 보이는지(AT-HI-37)도 이 검증에 포함된다.
+  5. 0.2.0 → 0.2.1 업데이트가 이어지는지: 준비물의 버전·빌드가 설치본(0.2.0·2)보다 크고 업데이트 서명 키가 0.2.0과 같은지 확인한다.
+- **보고할 것:** 버전 올림 커밋, 새 `public` 전체 커밋, 준비물 경로, 사장용 공개 명령 한 줄(`install/hejo-ship publish --approve-commit <새 public 커밋> --prepared .build/release-0.2.1/prepared.json`), 푸시 대상 `{repository, remote: github, branch: main, commit: <새 public 커밋>}`, 검증 명령·종료 코드. `impl-report.md` "TASK-07b" 절.
+- **금지:** GitHub 조회·쓰기(ls-remote 포함), `publish`·`gh release`·push, `main` 개인 이력 push, 설치된 앱 사본 교체, 공용 릴리스 폴더·운영 홈 변경, 게이트웨이 재시작, 비밀 값 열람·출력, 실제 아이메시지·Slack 발송, spec·design·수락 명세 수정, 제품 동작 코드 변경.
+- **위험·증거:** 고위험(공개 배포물). 증거 수준 2(같은 트리 전체 시험 + 준비물 서명 검증). 실제 공개·업데이트 설치(수준 4)는 사장 실행 뒤.
