@@ -1,6 +1,6 @@
 # 구현 인계: HEJO-CONN-MANAGE-20261120
 
-> 최신 상태: 2차 지시(`e96ca98`)의 TASK-02(wait_jobs.py 제외)·03·04 구현·자체 시험을 마쳤다. TASK-02b는 기준 불일치로 대기한다. 아래 1차 보류 기록은 이력이며 현재 TASK별 결과와 미검증 범위는 2차 절을 따른다.
+> 최신 판단: **부분 구현·설계 보완 검토 대기**. 2차 배정 코드와 명세 시험은 통과했으나 최종 생산자 자료 대조에서 앱 파생 줄 중복을 확인했다(문서 끝 GAP). TASK-02b도 기준 불일치로 대기한다. 아래 각 단계 완료 기록은 해당 범위와 시험에 한정한다.
 
 ## 판단 상태
 
@@ -62,7 +62,7 @@
 
 [확인] 보완 인계 `e96ca98`에 따라 재개했다. 작업 기준은 같은 커밋이며 기존 제품 변경은 없었다.
 
-- 구현자 판단: **TASK-03 구현·자체 시험 완료**(제품의 최종 완료 판정 아님).
+- 구현자 판단: TASK-03 계획의 명세 시험은 통과했다. 최종 생산자 자료 대조의 추가 GAP으로 전체 목표 충족 판정은 보류한다(문서 끝).
 - 변경: `gate/connection_manager.py`에서 `settings`·`committed` 공개 필드, 연결된 앱의 설정 바꾸기 라벨, 조건부 계정 줄 합치기와 확인 전달, `change` 전달, 기기별 보안 칸 누적과 세션 경계를 구현했다. 설정 표시 값은 공개하되 보안 입력 값은 기존 거부 원칙을 유지한다.
 - `gate/connection_runtime.py`는 `--change`와 `account connect|disconnect|undo`의 고정 인자를 검증한다. 계정 저장 뒤 재개는 계정 변경을 다시 실행하지 않고 기존 다시 시작 작업으로 간다.
 - `gate/server.py`의 소켓 종료 지점에서 해당 기기의 보호 목록을 비운다. 이는 인계서의 기기 연결 끊김 정리를 위한 실제 호출자 변경이다. 새 창 닫힘 프레임·저장 형식은 추가하지 않았다.
@@ -175,7 +175,7 @@ TASK-02 커밋: `5e6c81cc173042e879bacf1b7f0fb766ba8494fd`. 게이트웨이가 i
 
 - TASK-02: `5e6c81cc173042e879bacf1b7f0fb766ba8494fd`, 개발 worktree의 `hejo-conn-manage-20261120` 브랜치. TASK-02b는 포함하지 않는다.
 - TASK-03: `961ea80fb455a3a49f22a2fac9e4f225b35d6ffa`, hejo `main`.
-- TASK-04: 앱 세 파일과 이 최종 보고서를 담는 별도 커밋으로 인계한다. 전체 해시는 인계 상태 블록에서 확인한다.
+- TASK-04: `f06d8b292fafb29f5542621e97728d76f95e7e98`, hejo `main`. 이후 보고서만 보강한 커밋은 인계 상태 블록에서 확인한다.
 - 배정 범위 필요/도달 증거 수준: 2/2. TASK-02b·운영 적용·실물 확인·독립 검토는 남아 있다.
 - 로컬 재현 환경: `source .build/conn-manage-env.sh`로 이번 worktree lib를 먼저 사용한다. 예전 `connections-env.sh`만 쓰면 이전 작업 worktree가 먼저 잡히므로 새 환경 파일을 사용한다.
 - 다른 작업의 `docs/changes/HEJO-TODO-DRAWER-20261120/impl-report.md`가 미추적으로 생겼으며 수정·스테이징하지 않았다.
@@ -184,3 +184,24 @@ TASK-02 커밋: `5e6c81cc173042e879bacf1b7f0fb766ba8494fd`. 게이트웨이가 i
 추가 대역 화면 캡처: `app/.build/app-tests --task32-capture <임시 출력 폴더>` 종료 0, 검사 중 코드 지문 동일. 로그는 `.build/conn-manage-evidence/app-capture.log`, 생성 파일은 `ui/conn-manage-list.png`·`ui/conn-manage-settings.png`(같은 증거 폴더 아래)다. 운영 화면 캡처가 아니다.
 
 최종 개인값 검사: gateway Python `scripts/scan_private.py` 종료 0, 지적 0. 실제 owner 입력과 비교하는 정식 검사이며 기준선·예외를 늘리지 않았다. 로그는 `.build/conn-manage-evidence/private-final.log`와 `.log.json`이다.
+
+
+## 최종 자체 점검 추가 GAP — 앱 파생 Mac 줄 중복
+
+**판단: 보류(구현 규칙 2절, 설계·시험 입력 보완 필요).** 제품 코드를 임의로 더 고치지 않고 계획 담당에게 넘긴다. 기존 명세 시험 통과와 이 추가 관측을 구분한다.
+
+### 발견 사실과 근거
+
+- [확인] team-kit `hermes_facility/connections.py`의 `inventory()`는 명부에 명시적 앱 장착이 있으면 `id: app-<bundle>`, `group: mac`, `verified_by: team_registry` 행을 더 만든다. 이는 이번 변경 전에도 있던 생산자 경로이며, 계약상 `status` 출력의 행 자체는 유지해야 한다.
+- [확인] `discovery.installed_apps()`의 같은 서비스 `links`에는 계정 행과 이 파생 Mac 행이 모두 들어간다.
+- [확인] design 4절과 현재 문 구현의 통합 조건은 `group == account`다. 그 조건대로 계정 행을 합쳐도 파생 Mac 행은 남는다.
+- [확인] 임시 가짜 홈과 가짜 명령으로 실제 생산자 모양(시놀로지 계정 행 + 파생 Mac 행 + 연결된 앱)을 문 `document()`에 넣었다. 결과는 `team:app-com.synology.CloudStation`와 `app:com.synology.CloudStation` 두 행이다. 시놀로지 한 줄 목표(M1와 원래 목표)의 충족을 선언할 수 없다.
+- 기존 AT-CM-21 입력은 계정 행과 앱 행만 주므로 이 생산자 사례를 잡지 못한다. 시험 명세·기대값·설계 본문은 수정하지 않았다.
+
+진단 명령은 hejo에서 환경 파일을 읽고 gateway Python으로 `.build/conn-manage-evidence/probe-derived-row.py`를 실행하는 것이다. 프로세스 종료는 0(진단 수행 성공)이지만 `oneRowCriterionMet: false`이므로 **제품 기준은 실패**다. 원문·대상 코드 지문은 `derived-row-gap.log`·`.log.json`, 관측 값은 `derived-row-gap.json`(모두 같은 증거 폴더)이다. 실제 운영 상태 명령이나 관리 서비스를 호출하지 않았다.
+
+### 계획 담당이 판단할 선택지와 권고
+
+권고: `status` 생산자의 기존 계약은 유지하고, 문에서 실제 앱과 같은 직원·같은 연결 키의 파생 `team:app-*` 행을 통합하는 조건을 설계에 보완한다. AT-CM-21에도 실제 생산자 3행 입력을 포함하도록 계획 담당이 수락 시험 명세를 보완한 뒤 구현 지시를 준다. 설치만 된 앱과 다른 직원 행을 숨기지 않는 경계도 함께 확정해야 한다.
+
+원래 계획의 계정 행 통합 범위를 구현자가 임의로 확대하지 않았다. 배정된 나머지 코드와 검증 근거는 커밋했고, 계속할 수 있는 제품 변경은 이 보완 판단 및 TASK-02b 기준 일치 뒤다. 운영 적용·실물 확인·푸시는 여전히 미실행이다.
