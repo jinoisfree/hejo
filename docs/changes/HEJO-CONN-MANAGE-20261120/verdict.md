@@ -56,3 +56,30 @@
 
 ### 범위 밖 관찰 (보고만)
 - 첫 화면 캡처의 "메모"·"캘린더" 두 줄은 앱 줄과 Mac 권한 줄(`notes_read`·`calendar_read`)이다. 권한 줄에는 권한 요청·시스템 설정 동작이 따로 있어 이번 합치기 규칙(같은 연결)에 넣지 않았다. 원하면 별도 작업 후보.
+
+## 3차 (2026-11-20) — 부분 완료(TASK-02~04 통과, TASK-02b 대기, 운영 적용 전)
+
+- 대상: hejo `131e47f`(TASK-03 보완 1), 이전 통과분 `961ea80`·`f06d8b2`, 운영 저장소 worktree `5e6c81cc`(변경 없음 확인).
+- 판정: V-3 해소. **TASK-02(wait_jobs 제외)·TASK-03·TASK-04 검토 통과.** 작업 전체는 부분 완료다. 남은 것은 TASK-02b(V-1, 환경 차이)와 TASK-05~07(운영 적용·공개·사장 확인)이다.
+
+### 직접 확인한 것
+| 항목 | 결과 |
+|---|---|
+| 변경 | [확인] `131e47f`는 `gate/connection_manager.py`(+11/-4), `tests/acceptance/test_conn_manage.py`(AT-CM-21b), impl-report만 바꿨다. team-kit worktree는 `5e6c81cc` 그대로다 |
+| 설계 4판 4절 | [확인] 같은 직원 표(`items`)에서 `team:app-<connection_key>`이고 `reason == APP_CONNECTED`일 때만 합친다. `CONFIG_DRIFT`는 남는다. 직접 확인 기록은 계정 줄과 같은 규칙으로 앱 줄에 쓴다. 파생 줄만 합칠 때는 `check` 동작을 붙이지 않는다 |
+| 시험 | [확인] `v3-gate.log` 193 passed, `v3-product-full.log` 404 passed(`bash scripts/test.sh`). `v3-mutation-drift.log`: 드리프트 합치기 변이에서 AT-CM-21b가 실패(1 failed)로 잡음. `v3-red.log`는 수정 전 실패 기록 |
+| 생산자 진단 | [확인] `v3-derived-row.log` `observedCount: 1`, `oneRowCriterionMet: true`. 끝의 `result` 문구("GAP…")는 진단 스크립트의 고정 문자열이라 판정에 쓰지 않는다(보고서 설명과 같음) |
+| 작업 트리 | [확인] hejo `git status` 깨끗 |
+| TASK-02b | [확인] 운영 저장소 HEAD의 `wait_jobs.py` `bf1dd909…` ≠ 실행본 `441a8501…`. 대기 유지 |
+
+### 설계 적합성(4.2)
+설계 4판과 일치한다. 책임 위치는 문 한 곳이고, team-kit `status` 출력은 그대로다.
+
+### 남은 조건
+| ID | 내용 | 원인 | 조치 |
+|---|---|---|---|
+| V-1 | TASK-02b(Google 끈 직원의 대기 작업 `wait_jobs.account`) | 환경 차이(다른 작업 미커밋) | 운영 저장소 HEAD와 실행본이 같아진 뒤(매일 자동 기록 커밋 등) 진행 |
+| — | TASK-05 서버 적용, TASK-06 0.2.3 공개 준비, TASK-07 사장 확인 M1~M5 | 계획된 다음 단계 | 사장 결정(아래) 뒤 진행 |
+
+### 사장 결정이 필요한 것
+TASK-02b 없이 서버에 먼저 적용하면, Google을 해제한 직원도 **대기 작업(기다렸다가 메일 확인하기)** 경로에서는 Google을 계속 쓸 수 있다(spec REQ-CM-02.AC-07 일부 미충족). 선택지: (가) TASK-02b 기준이 맞을 때까지 기다렸다가 함께 적용(권고) (나) 지금 TASK-05를 적용하고 Google 해제는 TASK-02b 적용 전까지 쓰지 않기.
