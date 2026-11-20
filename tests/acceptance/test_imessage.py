@@ -703,3 +703,18 @@ async def test_transport_readiness_and_queries_do_not_create_settings(gate, clie
     assert not (await request(client, ws))['platform_ready']
     assert (await request(client, ws, 'imessage_pair'))['code'] == 'imessage_unavailable'
     assert gate.imessage.private()['code'] is None
+
+
+async def test_mixed_button_guidance_and_disconnected_outbound(gate, runner, client, phone, settle):
+    ws, _ = await client.pair(features=['imessage'])
+    thread = await phone_thread(gate, runner, client, ws, phone)
+    phone.MAX_MESSAGE_LENGTH = 1000
+    await gate.send('alpha', 'pick', metadata={'thread_id': thread,
+        'hejo_buttons': [{'label': 'A', 'style': 'default'}],
+        '_hejo_native_buttons': [{'label': 'approve', 'kind': 'approval', 'style': 'primary'}]})
+    await settle()
+    assert phone.calls == [('chat-A', '[Alpha] pick\n선택: A\n(이 선택은 hejo 앱에서 눌러 주세요)', 'im-in-1')]
+    phone.calls.clear(); phone._mark_disconnected()
+    await gate.send('alpha', 'not ready', metadata={'thread_id': thread})
+    await settle()
+    assert not phone.calls

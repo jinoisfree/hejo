@@ -162,7 +162,7 @@ class IMessage:
         row = self.adapter.journal.message(msg_id)
         settings, pair = self.settings(), self.private()["pair"]
         parent = self.phone_parent(key)
-        if (not row or thinking(row["text"]) or not pair or not settings["enabled"] or _photon is None
+        if (not row or thinking(row["text"]) or not pair or not settings["enabled"] or not platform_ready()
                 or key[0] not in {r[0] for r in self.rooms()} or not (parent or key[0] in settings["reports"])):
             return
         names = {e["id"]: e["name"] for e in self.adapter.employees()}
@@ -172,11 +172,11 @@ class IMessage:
             label = group["title"] + " · " + label
         text = f"[{label}] " + row["text"]
         buttons = row.get("buttons", [])
-        if buttons:
-            if all(b["kind"] == "reply" for b in buttons):
-                text += "\n선택: " + " / ".join(b["label"] for b in buttons)
-            else:
-                text += "\n(이 선택은 hejo 앱에서 눌러 주세요)"
+        replies = [b["label"] for b in buttons if b["kind"] == "reply"]
+        if replies:
+            text += "\n선택: " + " / ".join(replies)
+        if any(b["kind"] != "reply" for b in buttons):
+            text += "\n(이 선택은 hejo 앱에서 눌러 주세요)"
         for file in row.get("files", []):
             text += ("\n" if row["text"] or buttons or not text.endswith("] ") else "") + f"📎 {file['name']} (hejo 앱에서 열기)"
         try:
