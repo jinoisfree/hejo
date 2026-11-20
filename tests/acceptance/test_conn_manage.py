@@ -96,6 +96,71 @@ async def test_cm21_23b_merge_only_granted_or_pending_or_off(manager, category, 
 
 
 @pytest.mark.asyncio
+async def test_cm21b_producer_rows_merge_per_profile_and_connection_key(manager):
+    """Real producer-shaped rows collapse once; drift and other profiles stay visible."""
+    bundle = 'com.synology.CloudStation'
+    manager.employees = lambda: [{'id': 'alpha', 'name': '직원 A'}, {'id': 'beta', 'name': '직원 B'}]
+    manager.team.rows = [
+        account('synology'),
+        account('app-'+bundle, group='mac', reason='APP_CONNECTED', verified_by='team_registry'),
+        account('app-other-key', group='mac', reason='APP_CONNECTED', verified_by='team_registry'),
+        account('app-drift-key', group='mac', reason='CONFIG_DRIFT', verified_by='team_registry'),
+        account('app-unmatched-key', group='mac', reason='APP_CONNECTED', verified_by='team_registry')]
+    manager.team.apps['connected'] = [
+        app(bundle, connection_key=bundle, links=[{'profile': 'alpha', 'connection': 'synology'},
+                                                 {'profile': 'alpha', 'connection': 'app-'+bundle}]),
+        app('other-bundle', connection_key='other-key'),
+        app('drift-bundle', connection_key='drift-key')]
+    original = manager.team.run
+    beta_apps = []
+    async def run(command, **kwargs):
+        result = await original(command, **kwargs)
+        if command == 'status':
+            result['agents'].append({'profile': 'beta', 'connections': [
+                account('app-'+bundle, group='mac', reason='APP_CONNECTED', verified_by='team_registry')]})
+        elif command == 'apps':
+            result['agents'].append({'profile': 'beta', 'connected': beta_apps})
+        return result
+    manager.team.run = run
+    doc = await manager.document()
+    alpha, beta = [{r['id']: r for r in a['connections']} for a in doc['agents']]
+    assert 'app:'+bundle in alpha
+    assert 'team:synology' not in alpha and 'team:app-'+bundle not in alpha
+    assert 'app:other-key' in alpha and 'team:app-other-key' not in alpha
+    assert 'team:app-drift-key' in alpha and 'app:drift-key' in alpha
+    assert 'team:app-unmatched-key' in alpha
+    assert 'team:app-'+bundle in beta  # Alpha's app cannot consume Beta's row.
+    assert any(a['id'] == 'check' for a in alpha['app:'+bundle]['actions'])
+    assert all(a['id'] != 'check' for a in alpha['app:other-key']['actions'])
+    beta_apps.append(app(bundle, connection_key=bundle))
+    beta_doc = await manager.document('beta')
+    beta_ids = {r['id'] for r in beta_doc['agents'][0]['connections']}
+    assert 'app:'+bundle in beta_ids and 'team:app-'+bundle not in beta_ids
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('category', ['connected', 'connectable', 'unavailable'])
+@pytest.mark.parametrize('verified_by', ['team_registry', 'direct_check'])
+async def test_cm21b_derived_row_always_merges_and_preserves_direct_check(manager, category, verified_by):
+    """Derived matches do not need account links or a grant; they never add check."""
+    manager.team.rows = [account('app-synthetic', group='mac', state='unknown', reason='APP_CONNECTED',
+                                 checked_at='2026-01-01T00:00:00Z', verified_by=verified_by)]
+    manager.team.apps[category] = [app(connection_key='synthetic')]
+    result = await rows(manager)
+    assert 'team:app-synthetic' not in result
+    item = result['app:synthetic']
+    assert all(a['id'] != 'check' for a in item['actions'])
+    assert (await manager.perform('device', frame('check', reauth=False)))['reason'] == 'invalid_action'
+    assert not any(c[0] == 'check' for c in manager.team.calls)
+    if verified_by == 'direct_check':
+        assert {k: item[k] for k in ('state', 'reason', 'checked_at', 'verified_by')} == {
+            'state': 'unknown', 'reason': 'APP_CONNECTED', 'checked_at': '2026-01-01T00:00:00Z',
+            'verified_by': 'direct_check'}
+    else:
+        assert item['state'] == ('connected' if category == 'connected' else 'unknown')
+
+
+@pytest.mark.asyncio
 async def test_cm24_change_option_not_stdin(manager):
     manager.team.apps['connected'] = [app(settings=[{'step': 'values', 'label': '쓸 곳', 'value': '1개'}])]
     await manager.perform('device', frame(values={'change': 'values'}))
