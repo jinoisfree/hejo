@@ -1,6 +1,6 @@
 # HEJO-IMESSAGE 수락 시험 명세
 
-- 소유: 기획설계. 2판(2026-11-19, 계획 검증 1회차 반영). 기대값 근거: [spec.md](../../docs/changes/HEJO-IMESSAGE-20261119/spec.md) 요구와 [design.md](../../docs/changes/HEJO-IMESSAGE-20261119/design.md) 3~7절.
+- 소유: 기획설계. 3판(2026-11-20, 구현 검토 1차 반영: AT-HI-11·19·31·34 보강, AT-HI-43·44 추가). 기대값 근거: [spec.md](../../docs/changes/HEJO-IMESSAGE-20261119/spec.md) 요구와 [design.md](../../docs/changes/HEJO-IMESSAGE-20261119/design.md) 3~7절.
 - 상태: 모두 "명세 완료 · 코드 미작성 · 미실행 · 미검토". 코드는 구현 담당이 `tests/acceptance/test_imessage.py`(문), `app/Tests/`(앱), team-kit 시험 폴더(안내원)에 옮기며 기대값·합격 기준을 바꾸지 않는다. 바꿔야 한다고 판단되면 멈추고 보고한다.
 - 공통 환경: 임시 `HERMES_HOME`, 가짜 명부(기본 프로필 `default`와 프로필 `alpha`, `beta`; 표시 이름 `Alpha`, `Beta`; `alpha` 별칭 `al`), 단체방 `G`(제목 `Team`, 구성원 `alpha`·`beta`, 대표 `alpha`), 실제 Hermes 모듈 import, 문 어댑터 단독 또는 기존 대역 러너. 증거 수준은 표시가 없으면 2.
 - **가짜 아이메시지 어댑터 `F`:** 문 이름 `photon`, `MAX_MESSAGE_LENGTH = 100`, `handle_message`(원래 처리기, 호출 기록), `send(chat_id, content, reply_to=None, metadata=None)`(호출 기록, `im-out-1`, `im-out-2`… id를 차례로 돌려줌, 실패 주입 가능), `_is_sender_authorized`(기본 `None`, 값 주입 가능). 문이 등록한 공장을 `F`에 적용해 감싼다.
@@ -22,7 +22,7 @@
 | AT-HI-08 | 02.AC-01 | `imessage_save{id:"s1", enabled:true, room:"alpha", reports:["G"]}` → 문 어댑터 끊고 다시 연결 → `imessage{id:"q2"}` | 저장 직후 두 앱 모두 같은 `imessage_status`(요청한 앱만 `ref:"s1"`), 재연결 뒤 조회 값 동일, `settings.json` 권한 0600 |
 | AT-HI-09 | 02.AC-02·03 | (a) `room:"nobody"` (b) `reports:["G","G"]` (c) `reports:["nobody"]` (d) 짝 없이 `enabled:true` | (a)~(c) `error(invalid_imessage)`, (d) `error(imessage_unpaired)`. 넷 다 `settings.json` 바이트 불변, 방송 0 |
 | AT-HI-10 | 02.AC-04 | 기능 `imessage` 없는 앱3 연결 뒤 저장·짝짓기 | 앱3이 받은 `imessage_status`·`imessage_code` 0건 |
-| AT-HI-11 | 02.AC-05 | `room:"G"`, `reports:["G","alpha"]` 저장 뒤 (a) `room_delete` G (b) 새 홈에서 같은 저장 뒤 `room_archive` G | 두 경우 모두 조회가 `room:null`, `reports:["alpha"]` |
+| AT-HI-11 | 02.AC-05 | `room:"G"`, `reports:["G","alpha"]` 저장 뒤 (a) `room_delete` G (b) 새 홈에서 같은 저장 뒤 `room_archive` G. 기능 `imessage` 앱 2개가 연결된 상태 | 두 경우 모두 조회가 `room:null`, `reports:["alpha"]`. (3판) 삭제·보관 직후 두 앱 모두 `ref` 없는 `imessage_status{room:null, reports:["alpha"]}`를 1개씩 받음 |
 | AT-HI-12 | 03.AC-01 | 활성. `chat-A`에서 `hello`(id `im-in-1`) | 기록장에 사장 글 1행(`employee:"alpha"`, `room` 없음, 새 `thread`, `text:"hello"`, `client_msg_id:"imessage:im-in-1"`), 앱이 그 `message` 수신, 대역 처리기가 받은 이벤트 1개(`source.platform` hejo, `chat_id:"alpha"`, `profile:"alpha"`, `user_id:"owner"`, `thread_id` = 그 스레드), `F` 원래 처리기 0회 |
 | AT-HI-13 | 03.AC-02 | 연결된 방 `G`. (a) `hi` (b) `@Beta hi` | (a) 받는 직원 `alpha`만 (b) `beta`만. 행에 `room:"G"` |
 | AT-HI-14 | 03.AC-03 | AT-HI-12 뒤 `alpha`가 답(정착 뒤 `im-out-1`로 발신됨). 연결된 방을 `beta`로 바꾼 뒤 (a) `im-out-1`에 답장 (b) `im-in-1`에 답장 (c) 연결된 방을 `null`로 저장하고 `im-out-1`에 답장 | 세 글 모두 `alpha` 방의 AT-HI-12 스레드에 사장 글로 추가, `beta` 방 행 0 |
@@ -30,7 +30,7 @@
 | AT-HI-16 | 03.AC-06 | (a) 짝 없음 (b) 짝 있고 `enabled:false` (c) 활성에서 `chat-B` 글 (d) 활성에서 `chat-G` 단체 대화방 글 (e) 활성에서 `chat-A`인데 발신자 `user-B` | 다섯 경우 모두 원래 처리기 1회(같은 객체, `source` 필드 불변), 기록장 불변, `F.send` 0회 |
 | AT-HI-17 | 03.AC-07 | 같은 id `im-in-1` 글을 두 번 | 사장 글 1행, 대역 처리기 이벤트 1개 |
 | AT-HI-18 | 03.AC-08 | (a) `media_urls` 있는 글 `look` (b) `media_urls`만 있고 본문 빈 글 (c) 탭백 이벤트(`raw_message.content.type == "reaction"`) | (a) `look` 1행 + 안내 1회 (b) 행 0 + 안내 1회 (c) 행 0, `F.send` 0회, 원래 처리기 0회 |
-| AT-HI-19 | 03.AC-09 | (a) 기록장 쓰기 실패 주입 (b) 한도(`text_bytes`)를 넘는 본문 | 두 경우 모두 행 0, 대역 처리기 이벤트 0, 안내 1회, 예외 없이 다음 글 정상 처리 |
+| AT-HI-19 | 03.AC-09 | (a) 기록장 쓰기 실패 주입 (b) 한도(`text_bytes`)를 넘는 본문 (c) (3판) `receive()`가 `RuntimeError`를 내도록 주입 | 세 경우 모두 행 0, 대역 처리기 이벤트 0, 안내 1회, `F`의 원래 처리기 0회, 예외가 `F.handle_message` 밖으로 나오지 않음, 다음 글 정상 처리. (c)는 로그 1줄(본문·식별자 없음) |
 | AT-HI-20 | 04.AC-01·02 | 활성(연결된 방 `alpha`). `/방` → `/방 N`(N = 목록에서 `Beta` 줄의 번호) → `/방 al` → `/방 team` | `/방`: 안내 1회. 줄마다 `번호. 이름`이고 번호는 1부터 이어지며, 직원 줄 순서 = `employees()` 순서, 그 뒤 단체방 제목순(`Team`이 모든 직원 줄 뒤). 현재 방 `Alpha`가 표시됨. `/방 N`: 설정 `room:"beta"`, 앱에 `imessage_status{room:"beta"}`, 안내 1회. `/방 al`: `alpha`. `/방 team`: `G`. 네 번 모두 기록장 불변·원래 처리기 0회 |
 | AT-HI-21 | 04.AC-03·04 | (a) `/방 9` (b) `/방 nobody` (c) 단체방 제목을 `Alpha`로 하나 더 만든 뒤 `/방 alpha` (d) `enabled:false`에서 `/방` | (a)~(c) 설정 불변, 목록 안내 1회씩 (d) 원래 처리기 1회, `F.send` 0회 |
 | AT-HI-22 | 05.AC-01·05 | AT-HI-12 뒤 대역이 `send_typing` → `send(chat_id="alpha", "pong", thread)` → `stop_typing`. 정착 뒤 확인 | `F.send` 1회: 대상 `chat-A`, 본문 `[Alpha] pong`, `reply_to == "im-in-1"`. `sent.jsonl`에 `im-out-1` ↔ 그 글 id 1줄 |
@@ -43,10 +43,12 @@
 | AT-HI-28 | 05.AC-09 | `F.send` 실패 주입 뒤 폰 스레드 답, 이어서 실패 해제 뒤 두 번째 답 | 첫 글: 시도 1회·재시도 0·`sent.jsonl` 0줄·로그 1줄(본문·식별자 없음). 두 번째 글은 정상 발신. 두 글 모두 앱 프레임·기록장 행은 정상 |
 | AT-HI-29 | 05.AC-10 | (a) 폰 스레드 답을 기록한 직후(정착 전) 문 재연결 (b) `enabled:false` 저장 뒤 폰 스레드 답 (c) 연결 해제 뒤 답 | 세 경우 모두 `F.send` 0회 |
 | AT-HI-30 | 05.AC-11, NFR-03 | 같은 앱 글·직원 답 순서를 (a) 공장 미적용 (b) 활성 + 폰 보고 방 두 홈에서 실행 | 기록장 행(seq·msg_id·ts 제외 필드)과 앱이 받은 프레임 종류·순서·본문이 같음 |
-| AT-HI-31 | 06.AC-01 | `claims_external`을 (a) 활성 + `chat-A`/`user-A` 1:1 (b) `chat-B` (c) `enabled:false` (d) 대기 코드와 같은 글 (e) 대기 코드와 다른 글 (f) 단체 대화방으로 부름. 전후 `imessage.json`·`settings.json`·기록장 비교 | (a)(d) `True`, 나머지 `False`. 파일 바이트 불변, `F.send` 0회 |
+| AT-HI-31 | 06.AC-01 | `claims_external`을 (a) 활성 + `chat-A`/`user-A` 1:1 (b) `chat-B` (c) `enabled:false` (d) 대기 코드와 같은 글 (e) 대기 코드와 다른 글 (f) 단체 대화방 (g) (3판) 대기 코드와 같은 글인데 `F._is_sender_authorized`가 `False` (h) (3판) 활성 `chat-A`에서 이미 쓴 코드와 같은 글 (i) (3판) 활성 `chat-A`에서 만료된 코드와 같은 글로 부름. 전후 `imessage.json`·`settings.json`·기록장 비교 | (a)(d) `True`, 나머지 `False`. 파일 바이트 불변, `F.send` 0회 |
+| AT-HI-43 | 01.AC-08 | 활성(연결된 방 `alpha`). 앱이 새 코드 C2를 받아 `chat-A`에서 보내 다시 짝지음. 그 뒤 `chat-A`/`user-A`에서 (a) C2를 새 글 id로 다시 보냄 (b) 새 코드 C3를 받고 시계를 +601초 한 뒤 C3를 보냄. 이어서 (c) 보통 글 `hi` | (a)(b) 각각 `F`의 원래 처리기 1회(같은 이벤트 객체), 기록장 행 증가 0, 대역 처리기 이벤트 0, `F.send` 0회, 앱이 받은 `message` 0개, 짝 정보 불변. (c) `alpha` 방에 사장 글 1행(활성 유지 확인). AT-HI-32의 두 감싸기 순서 모두에서 (a)의 가짜 안내원 분류 1회 |
+| AT-HI-44 | NFR-05 | (a) `sent.jsonl`에 유효 줄 2개 사이에 깨진 줄 1개를 넣고 문 `connect()` (b) `settings.json`을 깨진 JSON으로 바꾸고 `connect()` 뒤 활성이던 `chat-A` 글과 앱 글 (c) `imessage.json`을 깨진 JSON으로 바꾸고 같은 절차 | 세 경우 모두 `connect()` 참, 앱 글 → 직원 답 왕복 정상. (a) 유효 줄 2개의 아이메시지 id에 대한 답장이 원래 스레드로 감, 깨진 줄은 파일에 그대로. (b)(c) `chat-A` 글은 원래 처리기 1회·기록장 불변, `F.send` 0회 |
 | AT-HI-32 | 06.AC-04 (hejo 쪽) | `F`를 (a) hejo 공장 → 가짜 안내원 감싸기 (b) 그 반대 순서로 감쌈. 가짜 안내원은 `claims_external`이 참이면 원래 처리기를 부르고 아니면 "분류" 횟수를 올린 뒤 원래 처리기를 부름. 활성에서 `chat-A` 글과 `chat-B` 글 | 두 순서 모두: `chat-A` 글은 hejo 사장 글 1행·분류 0회, `chat-B` 글은 분류 1회·맨 안쪽 원래 처리기 1회 |
 | AT-HI-33 | 06.AC-02·03 (team-kit 쪽) | team-kit 시험에서 가짜 러너에 가짜 hejo 어댑터를 (a) 참 (b) 거짓 (c) 메서드 없음 (d) 예외 (e) hejo 어댑터 없음으로 두고 photon 이벤트를 넣음. `route_event`·소유권 저장소 호출 기록 | (a) `route_event` 0회, 원래 처리기 1회, `source.profile` 불변 (b)~(e) `route_event` 1회로 기존 결과와 같음. Slack 이벤트는 hejo 답과 무관하게 기존 결과 |
-| AT-HI-34 | 06.AC-03 | team-kit 기존 시험 전체 | 고치지 않고 통과 |
+| AT-HI-34 | 06.AC-03 | (3판) team-kit 기존 시험 전체를 양보 코드 적용 전과 후에 같은 환경으로 한 번씩 실행 | 기존 시험 파일 변경 0건. 적용 후의 실패 시험 집합이 적용 전과 같고(새 실패 0건), 통과 수가 줄지 않음. 적용 전부터 실패하는 시험은 이름과 원인을 보고한다(2026-11-20 계획 담당 확인: 운영 프로필 자료 길이를 재는 `test_all_profile_prompt_budget.py`의 1건이 무수정 원본에서도 실패) |
 | AT-HI-35 | 07.AC-01·03 | 앱 시험: 상태 모델에 `imessage_status`(미연결 → 코드 → 연결됨 → 방 변경)를 차례로 넣고 설정 구역 뷰의 표시 값 확인 | 상태 글·코드·남은 시간·스위치·방 선택이 프레임 값과 같고, `paired:true` 수신 시 코드 영역이 사라짐 |
 | AT-HI-36 | 07.AC-02 | 앱 시험: 1:1 방과 단체방의 방 메뉴 항목과 체크, 항목 선택 시 나가는 프레임 | 두 항목 존재, 체크가 상태와 같음, 선택 시 `imessage_save`의 `room`/`reports`가 기대 값(켜면 추가, 다시 고르면 제거·`room:null`) |
 | AT-HI-37 | 07.AC-04·05 | 앱 시험: (a) 조회에 `error(unexpected_frame)` (b) `platform_ready:false` (c) `hello` 프레임 | (a) "서버가 지원하지 않음", 메뉴 두 항목 없음 (b) 안내 표시·코드 받기 꺼짐 (c) `features`에 `imessage` 포함 |
