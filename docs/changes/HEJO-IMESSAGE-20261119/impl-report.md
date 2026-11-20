@@ -309,3 +309,38 @@ install/hejo-ship publish --approve-commit 363bcc021aff018ff0e62e1d2265717939bf6
 푸시 대상은 hejo 저장소의 `github` 원격 `main` 브랜치, 커밋 `363bcc021aff018ff0e62e1d2265717939bf61c8`이다. 실제 저장소 경로를 포함한 대상은 인계 상태 블록에 적는다. 로컬 main은 푸시 대상이 아니다. 검토 통과 뒤 사장이 플러그인 화면에서 별도로 승인한다.
 
 남은 일: 계획 담당이 버전 커밋·공개 계보/트리·준비물/서명·시험 원본을 검토한다. 통과 뒤 사장 public 푸시 승인·publish → 앱 자동 업데이트 설치 → 비설계자 검토 → TASK-08 M1~M8. 운영 저장소 푸시 대상의 원격 포함 여부 확인은 이번 GitHub 조회 금지 범위에서 수행하지 않았다.
+
+
+## TASK-09: 폰의 작성 중 표시 (2026-11-20)
+
+- 받은 설계: handoff 보완 지시 6, spec 4판 REQ-HI-09, design 6.1절, AT-HI-45~51. 착수 HEAD `3cc6773cc4edc85bd2f8c75094aada8f6b8c40d6`, 작업 트리 깨끗. 판단 상태: **구현·자체 시험 완료, 계획 담당 검토 대기**. 위험도 보통, 필요·도달 증거 수준 2(실제 Hermes 모듈·임시 홈·가짜 photon 어댑터).
+- 구현 커밋: `05107d59a23c27a4dea946c566b00d7e3df81696`. 시험 관측 보강 커밋: `b5f8549a218bbcf9b827e155cbfa5f6c1239f870`(AT-HI-50의 준비 프레임을 먼저 비우는 2행만). 제품 변경은 `gate/imessage.py`·`gate/adapter.py` 두 파일이며, 시험은 `tests/acceptance/test_imessage.py`다. 기존 시험 기대값은 그대로 두고 가짜 어댑터 호출 기록과 폰 스레드 도우미의 기본값을 유지한 선택 인수만 더했다.
+- 흐름: 전달자가 아닌 hejo send_typing 경로에서 방/직원·스레드 열쇠를 bridge에 알린다. 짝·켜짐·photon 연결·phone_parent 조건이 맞으면 메모리 집합에 넣고 별도 작업으로 send_typing을 요청한다. 차례가 꺼지고 pending 발신까지 끝나 집합이 비는 순간 stop_typing을 한 번 요청한다. 앱 시작 보고 스레드에는 표시를 요청하지 않는다. 폰 글이 있는 스레드를 앱에서 이어도 phone_parent 조건은 유지된다.
+- 생명주기: 연결 끄기·짝 해제·짝 교체 때 이전 대화창 표시를 정지하고 집합을 비운다. close는 정착 작업과 표시 요청 작업을 취소·회수한다. 예외는 식별자 없는 고정 경고 `imessage_typing_failed`만 남긴다. 표시용 글·자체 갱신 타이머·새 저장 파일·새 프레임은 없다.
+- 정착 작업은 마지막 답을 실제 전송하는 동안에도 pending 항목을 유지한다. 그 사이 같은 스레드의 다음 차례가 끝나도 정지가 발신 완료보다 먼저 가지 않게 하기 위한 구현 상세다. 설계와 달라진 요구·계약·구조는 없다. 짝 교체 정리와 발신 중 경합을 추가 시험했다.
+
+| 수락 시험 | 실제 결과 |
+|---|---|
+| AT-HI-45 | 1:1·단체방 두 경우 각각 알림 3번 → 짝 대화창 시작 3번 |
+| AT-HI-46 | 앱 시작 스레드는 폰 보고 스위치 전후 모두 시작·정지 0건 |
+| AT-HI-47 | 끄기·짝 해제·photon 미연결 세 경우 시작 0건 |
+| AT-HI-48 | 답 있음: 시작→답 send→정지, 답 없음: 시작→정지. 정지 각각 1번·중복 호출 없음 |
+| AT-HI-49 | 폰 스레드 두 개 중 첫 종료는 정지 0건, 마지막 종료는 1건 |
+| AT-HI-50 | 시작·정지의 예외/무기한 지연 각각에서 호출자 1초 이내 반환·앱 typing on/off·답 발신 정상. 대화창 id/예외 본문 로그 없음. close 후 요청 작업 회수 |
+| AT-HI-51 | send는 답 한 건뿐. 기록장 레코드 종류·설정·금고·규격 파일 바이트 불변 |
+| 추가 생명주기·경합 | 끄기·해제·짝 교체 각 정지 1번과 집합 정리, 전송 중인 답이 끝나기 전 정지 없음 |
+
+| 검증 명령·대상 | 종료 코드·실제 결과 | 로컬 증거(`.build/HEJO-IMESSAGE/task09/` 기준) |
+|---|---|---|
+| Hermes venv pytest `tests/acceptance/test_imessage.py` (임시 HERMES_HOME) | 최초 0·65 passed, 전송 중 경합 시험 추가 후 최종 0·66 passed | `focused.log/.exit`, `focused-final.log/.exit` |
+| AT-HI-50 관측 경계 보강 뒤 같은 집중 시험 | 0·66 passed, b5f8549 기준. 제품 코드 동일 확인 | `focused-final-observation.log`, `focused-final-observation.json` |
+| pending 검사 제거 mutation, AT-HI-48 실행 | 변이 1(1 failed·1 passed), 원복 0(2 passed). 원래 바이트 복구 확인 | `mutation.log`, `mutation-restored.log`, `mutation.json` |
+| Hermes venv `bash scripts/test.sh` (임시 HERMES_HOME·실제 Hermes 모듈·가짜 명부) | 0, Python 341 passed(기존 325+새 16), 임시 게이트웨이 배달·앱 전체/통신·훅 9개 통과. 검증 변경본 05107d5·작업 트리 불변 | `full.log/.exit`, `full.json` |
+| Hermes venv `scripts/scan_private.py` (임시 HERMES_HOME) | 0 | `private-final.log/.exit`, `final-check.json` |
+| 본체 `git rev-parse HEAD`·`git status --porcelain` 전후 대조 | 0, HEAD `ebb026eef8e800e1b7471ed147b7287e878f8aa4` 동일, 양쪽 status 출력 없음 | `before.json`, `final-check.json` |
+| 기준과 app/schemas/config/install/scripts·spec/design/수락 명세 diff | 0, 변경 없음. public 363bcc0 그대로 | `final-check.json` |
+| 최종 보고 포함 개인값 검사·`git diff --check` | 각각 0 | `private-report.log/.exit`, 최종 diff 직접 확인 |
+
+- 전체 시험 뒤 변경은 AT-HI-50 관측 경계 두 줄과 이 보고뿐이다. 제품 코드는 전체 시험 대상과 같고, 바뀐 시험 파일은 66개 전부 재실행했다. 앱 전체 시험은 이 시험 전용 보강 뒤 반복하지 않았다.
+- 검증 명령에 포함된 시험용 앱 빌드만 실행했다. 앱 소스·버전 변경, 별도 배포 빌드·설치, hejo-publish/ship, 공용 릴리스 갱신, 게이트웨이 재시작, 운영 홈 변경, team-kit·본체·photon 수정, 실제 아이메시지/Slack 발송, git push는 하지 않았다. 기존 Swift 경고는 그대로다.
+- 서버에는 아직 TASK-09 코드를 적용하지 않았다. 실제 폰 기본 애니메이션 M9는 미검증이다. 다음은 계획 담당의 TASK-09 검토 → 별도 TASK-10 적용 허가 → 사장 M9다. 비설계자 검토 주체 결정과 ARCHITECTURE 반영은 계획 담당에게 남긴다. 공개 브랜치와 배포 후보는 다시 만들지 않았고 이번 단계의 새 푸시 대상은 없다.
