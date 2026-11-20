@@ -92,3 +92,49 @@
 - 독립 검토 요청: 활성 코드 재사용/만료의 권위 판정 우선순위, 코드 비노출 범위, 방 삭제/보관 뒤 상태 전파, 정착 작업 취소/전송 순서, 선택 기능 오류의 대화 경로 분리. 방 삭제/보관 뒤 새 상태 방송은 현재 소스에서 직접 연결되어 있지 않아 추가 검토가 필요하다(이 경계의 추가 실행은 미실행).
 - 새 범위 밖 제품 변경 없음. 운영 게이트웨이 재시작/reload, 릴리스 설치, 설치된 앱 교체, 실제 아이메시지/Slack 발송, git push는 하지 않았다. TASK-07/08 및 근간 반영은 미실행.
 - 다음 담당: 이 문서의 두 ‘보류’ 절과 실제 코드/로그를 읽고 보완 설계와 전체 시험 환경을 확정한 뒤 구현을 다시 인계한다. TASK-05 후보는 실행 원본에 남아 있지 않으므로 승인된 보완에서 candidate 두 파일을 복원해야 한다. 원래 목표는 앱/폰에서 바꿀 수 있는 연결 방 하나와 그 방 직원의 폰 답장이다.
+
+
+## 보완 1: 구현 검토 1차 반영 (2026-11-20)
+
+- 최신 판단: **배정된 보완 구현·자체 시험 완료, 계획 담당 재검토 대기**. 앞 절의 V-1~V-5 보류는 이 절의 보완 결과로 갱신한다. TASK-05 운영 저장소 반영은 여전히 사용자 결정 대기이며 제품 최종 완료가 아니다.
+- 실제 착수 HEAD: `5bd360b6973d9f2cb15eaabc57e2d582f1263604`(`main`, 변경 없음). 인계된 3판 및 verdict 1차와 일치했다. 코드 커밋: `e23a9312d979be6e8c21e8101a7e8af605345aff`. 아래 시험의 소스 3개 SHA-256이 이 커밋과 같음을 확인했다(`supplement1/full.json`).
+- 근거 문서: handoff의 보완 지시 1, spec/design/수락 시험 3판. 명세·설계·수락 시험 문서와 기록장 형식 변경 없음. 계획에서 달라진 제품 동작·공개 계약 없음. 이번 문서 커밋은 이 보고와 tasks 상태 칸만 포함한다.
+
+### 지적별 변경
+
+| 지적 | 고친 위치와 결과 | 수락 증거 |
+|---|---|---|
+| V-1·V-2 | `gate/imessage.py`의 `claims_external`: 남은 코드 해시 일치를 활성 짝보다 먼저 판정하고 쓰임·만료·실제 문의 발신자 허용 검사를 포함. `attach_photon`은 이 답만 사용하며 별도 허용 검사 제거. 코드 이력·모양 추측·원래 처리기 우회 호출 없음 | AT-HI-31 보강, AT-HI-43 신규. 두 감싸기 순서에서 쓰인·만료·허용 거부 코드는 같은 이벤트로 원래 처리기·가짜 안내원 분류 각 1회, 기록·직원 이벤트·발신·앱 message 0, 이어지는 보통 글 정상 |
+| V-3 | `IMessage._load_sent`: 손상 줄을 건너뛰고 뒤의 유효 줄도 색인. 덜 쓰인 꼬리만 절단, 완결된 손상 중간 줄 보존. `_private`·`_settings`는 JSON/구조/읽기 오류에 안전한 비활성 값을 사용하며 손상 연결 파일이면 모든 외부 글 통과·발신 차단 | AT-HI-44 신규: 세 파일 각각 손상 뒤 실제 `connect()` 성공, 앱 사장 글·직원 답 정상. 유효 sent 대응 두 개 모두 원래 스레드로 답장 |
+| V-4 | `gate/rooms.py`의 `RoomCommands.room_command`: 방 기록 전후 실효 상태를 비교하고 달라졌을 때 상태 방송 | AT-HI-11 보강: 삭제·보관 각각 두 앱에 ref 없는 상태 1개, 조회 결과도 일치 |
+| V-5 | `attach_photon`의 차지한 글 처리 경계: 예상 밖 예외를 잡아 종류만 로그 한 줄, 실패 안내, 원래 처리기로 재전달하지 않음 | AT-HI-19 보강: 기록장 실패·크기 초과·RuntimeError 각각 행/직원 이벤트/원래 처리기 0, 안내 1, 다음 글 정상. RuntimeError 본문·식별자 로그 노출 0 |
+| V-6 | team-kit 기존 시험은 그대로 두고 임시 HOME/HERMES_HOME에서 후보 적용 전후 전체 시험 비교. 원래 운영 자료 길이 문제를 고치지 않음 | AT-HI-33 집중 17개 통과, AT-HI-34 실패 집합 동일·통과 수 감소 없음. 아래 환경 한계 참조 |
+
+### 실행한 검증과 로그
+
+공통 환경은 Hermes venv `HEJO_PYTHON`, 실제 Hermes 본체 모듈, 임시 `HERMES_HOME`/`HERMES_ROOT`, 가짜 아이메시지 어댑터다. 전체 hejo 시험에는 실제 team-kit 라이브러리도 사용했다. 로그 접두어는 추적하지 않는 `.build/HEJO-IMESSAGE/supplement1/`다.
+
+| 명령 | 실제 결과 | 로그 |
+|---|---|---|
+| `"$HEJO_PYTHON" -m pytest tests/acceptance/test_imessage.py -q -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function` | 첫 실행 종료 1(49 passed, 1 failed). 시험 코드에서 기존 방 삭제 프레임 이름을 잘못 적음. 기존 `room_deleted` 이름으로 바로잡은 뒤 종료 0, 50 passed | `focused.log`, `focused-final.log` |
+| 위 명령에 `-k at_hi_43`, 쓰인 코드 반환만 False → True로 변이 | pytest 종료 1, 두 감싸기 순서 모두 실패(2 failed). 유효 코드 발급·짝짓기를 통과한 뒤 재사용 경계에서 실패함. finally로 원복 후 같은 명령 종료 0, 2 passed | `mutation.py`, `mutation.log`, `mutation.json`, `mutation-restored.log` |
+| `bash scripts/test.sh` | 종료 0. Python 325 passed(기존 warning 1), 실제 임시 게이트웨이 배달, 앱 빌드·서명·단위/화면(AT-HI-35~37)·통신 회귀, hooks 9개 통과. 실제 CLI 설정은 내용 없이 메타데이터만 확인, Downloads 이름 불변 | `full.log`, `full.json` |
+| `"$HEJO_PYTHON" scripts/scan_private.py` | 코드 변경본 종료 0. 임시 홈 사용, 운영 명부·금고를 읽지 않음. 문서 추가 뒤 최종 결과는 `private-final.exit`에 기록 | `private-code.log`, `private-code.exit`, `private-final.log`, `private-final.exit` |
+| `"$HEJO_PYTHON" .build/HEJO-IMESSAGE/supplement1/team-compare.py`(로컬 증거 실행기) | 종료 0. 아래 전후 비교·집중 시험·원복 검증을 모두 확인 | `team-run.log`, `team-comparison.json` |
+| `git diff --check` | 종료 0 | 별도 파일 없음 |
+
+### TASK-05 전후 비교와 원복
+
+- `.build/HEJO-IMESSAGE/team-kit-candidate/`의 `lib/hermes_router/ingress.py`와 새 `tests/test_router_hejo_imessage.py` 두 파일만 실행 원본에 임시 적용했다. 적용 전에 원본 바이트를 보관하고 finally에서 그대로 복구했다.
+- 같은 임시 HOME·HERMES_HOME, 같은 Python·의존성·기존 시험 파일로 `"$HEJO_PYTHON" -m pytest tests -q -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function --junitxml=...`를 전후 한 번씩 실행했다. 기존 team-kit conftest의 명부·금고·정책 fixture를 사용하고 운영 홈 연결은 만들지 않았다. 기존 시험의 skip/xfail/기대값을 바꾸지 않았다.
+- 적용 전: 종료 1, **30 failed, 4894 passed, 64 skipped, 1 error, 58 subtests passed**(`team-before.log`/`.xml`). 집중 시험: 종료 0, **17 passed**(`team-focused.log`/`.xml`). 적용 후: 종료 1, **30 failed, 4911 passed, 64 skipped, 1 error, 58 subtests passed**(`team-after.log`/`.xml`). JUnit의 실패+오류 시험 이름 집합 31건이 동일하고 새 실패 0, 기존 통과 감소 0이다. 전체 통과를 주장하지 않는다.
+- 환경 한계: 운영 자료·운영 도구를 임시 HOME에 복사하거나 연결하지 않아 프로필 config/SOUL·문서 도구·유지보수 스크립트 등에 의존하는 시험이 양쪽에서 동일하게 실패/생략됐다. 특히 `test_all_profile_prompt_budget.py::test_current_profiles_worst_context_with_dynamic_deadline`는 설정 자료 없음으로 실패했으며, 기획 담당이 확인한 운영 자료 길이 7771 > 7600 실패를 이번에 다시 측정한 것은 아니다. 모든 실패 이름과 원인은 위 로그/JUnit, 집합 비교는 `team-comparison.json`에 남겼다. 이번 증거는 격리 환경의 회귀 없음이며 운영 자료의 정상성 증거는 아니다.
+- 복구: ingress SHA-256 전후 `00b81caceb75aa7510cc18bf2f9709e8d6231790e8e0aa3091725469441fcec4` 동일, 새 시험 파일 없음. 실행기 `restored:true`. 후보·운영 저장소·실행 원본을 혼동하지 않는다. 운영 저장소 HEAD는 기존 `4f79decae030eb63f3f0f52e8c8517226748b876`, 변경 없음.
+- 추가 읽기 전용 비교: 운영 사본의 시험/ingress 224개 중 runtime의 `tests/test_hejo_work_wait.py`만 다르며, 이 파일은 작업 전 TASK-55 보관본과 동일했다. 이 작업은 해당 파일을 수정하지 않았다. 본체 HEAD·상태도 기존 그대로다. 상세 `protected-final.json`.
+- `./sync`, `./airport-check`, 운영 저장소 커밋은 하지 않았다. 기존 실패에 대한 사용자 결정이 있어야 진행한다.
+
+### 남은 일과 검토 요청
+
+- 계획 담당이 이 코드 커밋과 로그를 읽고 V-1~V-5 및 V-6의 격리 비교 한계를 재검토한다. 자체 시험은 독립 검토가 아니다.
+- TASK-05 운영 반영은 기존 실패를 먼저 고칠지/예외를 허용할지 사용자 결정 뒤 별도 지시가 필요하다. 운영 적용 TASK-07, 비설계자 검토, 폰 M1~M8의 TASK-08은 미실행이다.
+- 이번 범위에서 게이트웨이 재시작/reload, 릴리스 설치, 설치 앱 교체, 운영 설정·비밀 접근, 본체/photon/ddots 변경, 실제 아이메시지·Slack 발송, git push는 하지 않았다. 원래 목표는 앱과 폰에서 연결 방 하나를 바꾸며 그 방 직원이 답하는 기능이다.
