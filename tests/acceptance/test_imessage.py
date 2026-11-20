@@ -972,6 +972,8 @@ async def test_at_hi_50_typing_failures_do_not_block(gate, runner, client, phone
     ws, _ = await client.pair(features=['imessage'])
     thread = await phone_thread(gate, runner, client, ws, phone)
     await typing_requests_done(gate)
+    # Drain setup frames so the assertions observe this notification's app frames.
+    await request(client, ws)
     started, stopped = asyncio.Event(), asyncio.Event()
     blocker = asyncio.Event()
     async def request_typing(chat, event):
