@@ -201,3 +201,31 @@
 - hejo 제품 코드·spec/design/수락 명세 불변. 이번 hejo 변경은 이 보고와 tasks 상태 칸뿐이다. 기존 hejo 전체 시험을 반복하지 않았다(검토 2차 수락된 코드 그대로).
 - 운영 저장소 HANDOFF.md에 이 작업의 인계를 덧붙이고 기존 다른 작업 기록을 보존했다. 실제 아이메시지·Slack 발송, 본체/photon/ddots 변경, 릴리스 설치, 앱 사본 교체, git push는 하지 않았다.
 - 다음 담당: 문장 전후의 뜻·항목 보존, 해당 시험·정식 전체 시험, 두 운영 커밋의 자기 경로 및 후보 바이트 일치를 검토한다. 통과 뒤 TASK-07 → 비설계자 검토 → TASK-08 폰 M1~M8. 최종 완료·푸시 대상 승인은 그 뒤다.
+
+
+## TASK-07: 서버 적용 — 적용 전 준비 / 빌드 입력 계약 확인 대기 (2026-11-20)
+
+- 현재 판단: **미적용·확인 대기(20-implementation 2절 계약 충돌 보고)**. 보완 지시 3의 적용 전 기록·보존 사본·롤백 명령은 준비했다. 운영 릴리스·설치 앱·게이트웨이는 변경하지 않았다. AT-HI-40은 미실행, AT-HI-41은 빈 값 없는 롤백 명령 작성까지 완료이며 실제 롤백은 불필요했다.
+- 착수 hejo HEAD: `d0d1a58451c73a18c2af3dd545b76e34660e4666`, 깨끗한 작업 트리. `git diff --stat abf68d9 HEAD -- gate app schemas install scripts` 출력 0건. 운영 저장소 HEAD: `9e68b39bd8b51ee1205a011744ea7cf4a2b3e495`. 이전 작업의 미커밋 변경은 그대로 보존했다.
+- 공식 적용 전 기록·롤백: `evidence/HEJO-IMESSAGE/TASK-07.md`. 직전 RELEASE `25600732ef822ffea155cd26d31b7f23114ff29f`, team-kit 롤백 기준 `4f79decae030eb63f3f0f52e8c8517226748b876`, 앱 버전·빌드 두 종류와 홈 기준 보존 위치를 모두 적었다. 실제 로컬 경로는 추적 제외 `.build/HEJO-IMESSAGE/task07/paths.sh`에 0600으로 보관했다.
+
+### 확인이 필요한 빌드 계약
+
+- 보완 지시 3은 `bash app/scripts/build.sh`를 실행하도록 하면서 ‘운영 config.yaml·.env·비밀 파일 열기·쓰기’를 금지한다. 실제 빌드 스크립트는 Google 비밀 환경값이 없고 `HEJO_SKIP_GOOGLE_SECRET`가 1이 아니면 저장소의 `config/google-oauth-secret.json`을 읽는다. 파일 존재와 환경값 유무만 확인했으며 해당 파일의 내용은 열지 않았다.
+- 이 작업 환경은 해당 파일 존재·비밀 환경값 없음이다. 설치된 시스템 앱은 Google client ID/secret 키가 없고, 직전 공용 앱에는 두 키가 있다(키 유무만 기록, 값은 조회·출력하지 않음). 따라서 비밀 주입을 생략하는 선택도 공용 앱의 기존 Google 로그인 입력 유무를 바꾼다.
+- 필요한 결정: (권고) 기본 빌드 프로세스가 이 저장소 빌드 입력을 읽는 것만 허용할지, 또는 비밀 주입 없이 공용 앱을 교체하는 범위를 허용할지 명시한다. 직접 비밀값 조회·로그 출력은 하지 않는다. 이 범위를 확인하기 전에 릴리스를 먼저 갱신해 중간 상태를 만들지 않았다. 사용자에게 선택 질문을 제출했으며 응답 대기다.
+- 제품 코드·명세·수락 명세 수정이나 임의의 빌드 우회는 하지 않았다. 로그 확인·앱 화면 캡처는 적용·재시작 뒤의 단계라 아직 수행하지 않았다.
+
+### 실행과 증거
+
+| 명령/검사 | 실제 결과 | 기록 |
+|---|---|---|
+| `git status --porcelain`, `git diff --stat abf68d9 HEAD -- gate app schemas install scripts` | 종료 0, 착수 시 두 출력 모두 없음 | `.build/HEJO-IMESSAGE/task07/before.json` |
+| `git cat-file -e 25600732ef822ffea155cd26d31b7f23114ff29f^{commit}` | 종료 0, 직전 릴리스 커밋 객체 있음 | 같은 기록 |
+| `ditto`로 운영 shared/hejo·앱 두 사본 보존 | 세 번 모두 종료 0 | 홈 기준 `.paseo/task-artifacts/HEJO-IMESSAGE-20261119/TASK-07-before-d0d1a58` |
+| 보존 데이터 디렉터리·일반 파일 권한 검사 | 종료 0, 디렉터리 0700·파일 0600 | `before.json`과 보존 사본 |
+| `codesign --verify --deep --strict` (보존 앱 두 사본 각각) | 모두 종료 0 | `backup-system-signature.log/.exit`, `backup-release-signature.log/.exit` |
+| `git diff --check` | 종료 0 | 별도 로그 없음 |
+
+- 릴리스 갱신·앱 빌드·설치 사본 교체·최근 2분 차례 확인·게이트웨이 재시작·재시작 뒤 연결/오류 검증·스크린샷: **미실행**. 재시작 시각·캡처 경로는 없다. 롤백 실행 없음(운영 적용 없음).
+- 다음 행동: 빌드 입력의 금지 범위를 명확히 한 뒤 보완 지시 3의 적용 단계부터 진행한다. 재시작 전에는 최근 2분 직원 차례 없음 확인과 10분 대기 한도를 그대로 적용한다. 짝짓기·코드 발급·실제 아이메시지/Slack 발송·push 금지는 유지한다.
