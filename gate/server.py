@@ -507,6 +507,7 @@ class GateServer:
         finally:
             if conn:
                 self.connections.discard(conn)
+                self.admin_connections.disconnected(conn.device_id)
                 for waiter in tuple(conn.deadline_waiters):
                     waiter.cancel()
                 await asyncio.gather(*conn.deadline_waiters, return_exceptions=True)

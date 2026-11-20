@@ -1,6 +1,6 @@
 # HEJO-TODO-DRAWER 수락 시험 명세
 
-2판 · 2026-11-20(계획 검증 1회차 PR-01~04 반영, [plan-review.md](../../docs/changes/HEJO-TODO-DRAWER-20261120/plan-review.md)) · 명세 [spec.md](../../docs/changes/HEJO-TODO-DRAWER-20261120/spec.md) · 설계 [design.md](../../docs/changes/HEJO-TODO-DRAWER-20261120/design.md)
+3판 · 2026-11-20(3판: 검증 1차 V-2로 AT-TD-42 추가 / 2판: 계획 검증 1회차 PR-01~04 반영, [plan-review.md](../../docs/changes/HEJO-TODO-DRAWER-20261120/plan-review.md)) · 명세 [spec.md](../../docs/changes/HEJO-TODO-DRAWER-20261120/spec.md) · 설계 [design.md](../../docs/changes/HEJO-TODO-DRAWER-20261120/design.md)
 
 상태: 명세 완료 · 코드 미작성 · 미실행 · 독립 검토: 계획 검증 1회차 BLOCKED → 2판 반영, 재검증 대기.
 
@@ -58,6 +58,7 @@
 | AT-TD-35 | TD-02.AC-05 | 열림 상태에서 채팅 끌기로 왼쪽 끝 근처에 놓기 → 채팅 접기 → 다시 펼치기 | 놓인 뒤 덮기 모드. 접으면 칸이 보이지 않는다. 다시 펼치면 늘림·덮기를 다시 판정해 칸이 열린다 |
 | AT-TD-36 | TD-06.AC-01·02 | 열기 → 저장된 `hejo-local.json` 확인 → 새 컨트롤러 | `todoDrawerOpen`(이름은 구현 자유) 참. 새 컨트롤러에서 채팅을 펼치면 열린다. `MemberState`의 변경 대기열에 새 키가 없다 |
 | AT-TD-37 | NFR-TD-03, TD-03.AC-06 | 가짜 문. 칸 닫힘 10분 / 열림 11분 / 열림 중 재연결 | 닫힘: `deadlines` 요청 0. 열림: 열 때 1 + 5분마다(5분·10분) = 3. 재연결 직후 1 추가 |
+| AT-TD-42 | NFR-TD-03 (3판), TD-02.AC-05 | 칸 열림 상태에서 채팅 접기 → 11분 경과(주기 확인 호출 포함) → 채팅 펼치기. 또 열림 선호가 저장된 상태로 새 컨트롤러를 만들고 채팅을 접은 채 둔다 | 접힌 11분 동안 `deadlines` 요청 0. 펼친 직후 요청 1. 접힌 채로 시작한 새 컨트롤러는 펼치기 전까지 요청 0 |
 | AT-TD-38 | 회귀 | `leading` 0인 `PetPlacement` | 기존 `PetWindowTests`·`WebPaneTests` 기대값이 그대로다. `bash scripts/test.sh` 앱 부분이 전부 통과한다 |
 
 ## 운영·사장 확인 (수동)
