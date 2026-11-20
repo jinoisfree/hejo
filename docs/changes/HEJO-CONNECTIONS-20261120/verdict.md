@@ -102,3 +102,28 @@
 6. **기획설계로 넘긴 것:** 없음.
 7. **미검증 범위:** M1~M7(0.2.2 설치 뒤). 0.2.1 앱은 새 문에 붙어도 실패를 여전히 "관리 기능 꺼짐"으로 표시한다(TASK-06에서 해소).
 8. **남은 조건:** TASK-06(handoff "보완 지시 3"), TASK-07.
+
+## 검증 판정: HEJO-CONNECTIONS-20261120 — 4차 (TASK-06 0.2.2 공개 후보)
+
+1. **판정: 부분 완료.** 공개 후보 준비(TASK-06의 에이전트 몫)는 통과했다. 남은 것은 사장만 할 수 있는 일(공개 커밋 푸시 승인 → 공개 명령 → 각 Mac 업데이트 설치)과 TASK-07(M1~M7, 현재 명세 반영)이다.
+2. **검증 조건:** 교차 모델. 검토 대상은 hejo main `ee75b74`(버전), `5dfda09`(보고서만), 로컬 `public` `0cc0828d949d4efb2bf7e98b6f7548508b0a5797`, 준비물 `.build/release-0.2.2/`.
+3. **설계 적합성(4.2):** handoff 보완 지시 3과 선례(HEJO-IMESSAGE 보완 지시 5) 그대로다. REQ-HC-07.AC-01 중 준비물·공개 스냅샷 부분을 충족한다. 공개 자체는 사장 몫이다.
+4. **직접 확인한 것(증거 수준 2):**
+   - 버전 커밋 `ee75b74`는 `app/Resources/Info.plist`와 `tests/acceptance/test_ship.py`의 버전 단언만 바꿨다. `5dfda09`는 `impl-report.md`만 바꿨다.
+   - `public` = `0cc0828`, 부모 `363bcc0`(0.2.1), 트리 `441ad36` = `ee75b74`의 트리. HEJO-IMESSAGE 작성 중 표시 커밋 `05107d5`가 `ee75b74`의 조상이다.
+   - 공개 트리를 임시 worktree로 꺼내 `scan_private.py --repo` 종료 0.
+   - 준비물: `prepared.json`의 commit·tree·버전 0.2.2·빌드 4가 위와 일치한다. 압축 SHA-256 `46e9cae4…87a85`가 기록값과 같다.
+   - 압축을 새 임시 폴더에 풀어 `codesign --verify --deep --strict` 통과, 앱 안 버전 0.2.2·4.
+   - 별도 코드(`cryptography` Ed25519)로 업데이트 서명 검증 통과.
+   - 공개 키가 설치된 0.2.1 앱의 `SUPublicEDKey`와 같다(0.2.1·3 → 0.2.2·4 연속성).
+   - `hejo-ship publish`는 공개 커밋이 원격 `main`과 같아야 실행된다(`install/hejo-ship` publish 함수). 그래서 푸시 승인이 공개 명령보다 먼저다.
+   - 다시 돌리지 않은 것: `bash scripts/test.sh`. 2차에서 `20adc4d` 기준으로 직접 종료 0을 확인했고, 그 뒤 제품 코드 변경은 없다(버전 값만 바뀜). 구현 담당 로그는 같은 트리에서 종료 0이다. 옛 문 + 새 앱 연결 시험과 앱 시험 3회 반복은 구현 담당 로그만 읽었다.
+5. **지적:** 없음.
+6. **기획설계로 넘긴 것:** 없음.
+7. **미검증 범위:** 실제 공개, 자동 업데이트 설치, M1~M7(실물), 운영 아이디 미리 채움(M5), 직원 A의 400 원인(M2).
+8. **남은 조건(순서):**
+   1. 사장의 푸시 승인(`public` `0cc0828` → github `main`)
+   2. 사장의 공개 명령: 서버의 hejo 저장소 폴더에서 `install/hejo-ship publish --approve-commit 0cc0828d949d4efb2bf7e98b6f7548508b0a5797 --prepared .build/release-0.2.2/prepared.json`
+   3. 각 Mac 업데이트 설치
+   4. M1~M7
+   5. 현재 명세 반영
