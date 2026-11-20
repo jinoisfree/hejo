@@ -10,7 +10,7 @@ from gateway.config import Platform, PlatformConfig
 from gateway.platforms.base import BasePlatformAdapter, SendResult
 from gateway.platforms.event import MessageEvent
 from gate import imessage
-from gate.tests.support import airport, registered, gate, runner, client
+from gate.tests.support import airport, registered, gate, runner, client, wait_for_turns
 
 pytestmark = pytest.mark.asyncio
 # G is the acceptance document's symbolic group; wire room ids use the existing UUID contract.
@@ -59,6 +59,7 @@ def phone(registered, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def named_roster(gate, monkeypatch):
+    monkeypatch.setenv("HEJO_ALLOWED_USERS", "owner")
     original = gate.employees
     def employees():
         return [{**e, 'name': {'alpha': 'Alpha', 'beta': 'Beta'}.get(e['id'], e['name']),
@@ -68,7 +69,10 @@ def named_roster(gate, monkeypatch):
 
 async def request(client, ws, kind='imessage', **fields):
     await ws.send_json({'v': 1, 'type': kind, 'id': 'request', **fields})
-    return await client.read(ws)
+    while True:
+        reply = await client.read(ws)
+        if reply.get('ref') == 'request':
+            return reply
 
 
 async def pair_phone(client, ws, phone, **fields):
@@ -232,3 +236,122 @@ async def test_photon_dispatch_uses_instance_handler_and_authorizer(gate, phone,
     assert len(events) == 1 and events[0].text == 'hello'
     native.set_authorization_check(lambda user, kind, chat: False)
     assert native._is_sender_authorized('user-A', 'dm', 'chat-A') is False
+
+
+async def test_at_hi_12_13_17_normal_dm_group_and_duplicate(gate, runner, client, phone):
+    await group(gate)
+    ws, _ = await client.pair(features=['imessage', 'rooms'])
+    await activate(client, ws, phone)
+    event = phone.event()
+    await phone.handle_message(event)
+    row = await client.read(ws)
+    assert row['role'] == 'owner' and row['employee'] == 'alpha' and 'room' not in row
+    assert row['text'] == 'hello' and row['client_msg_id'] == 'imessage:im-in-1'
+    await wait_for_turns(runner, 1)
+    e = runner.events[0]
+    assert e.source.platform.value == 'hejo' and e.source.chat_id == 'alpha'
+    assert e.source.profile == 'alpha' and e.source.user_id == 'owner' and e.source.thread_id == row['thread']
+    await phone.handle_message(event)
+    assert len([r for r in gate.journal.records if r['type'] == 'message']) == 1 and len(runner.events) == 1 and not phone.originals
+    await request(client, ws, 'imessage_save', enabled=True, room=G, reports=[])
+    for text, expected, mid in [('hi', 'alpha', 'im-in-2'), ('@Beta hi', 'beta', 'im-in-3')]:
+        await phone.handle_message(phone.event(text, mid=mid))
+        row = (await client.until(ws, 'message'))[-1]
+        await wait_for_turns(runner, 2 if mid == 'im-in-2' else 3)
+        assert row['room'] == G and runner.events[-1].source.profile == expected
+    assert len(runner.events) == 3
+
+
+@pytest.mark.parametrize('case', ['unpaired', 'disabled', 'chat', 'group', 'user'])
+async def test_at_hi_16_passthrough(gate, runner, client, phone, case):
+    ws, _ = await client.pair(features=['imessage'])
+    if case != 'unpaired':
+        await activate(client, ws, phone)
+    if case == 'disabled':
+        await request(client, ws, 'imessage_save', enabled=False, room='alpha', reports=[])
+    event = phone.event(chat='chat-B' if case == 'chat' else 'chat-A', kind='group' if case == 'group' else 'dm',
+                        user='user-B' if case == 'user' else 'user-A')
+    source = replace(event.source)
+    await phone.handle_message(event)
+    assert phone.originals == [event] and phone.originals[0] is event
+    assert event.source == source and not phone.calls and gate.journal.head == 0 and not runner.events
+
+
+async def test_at_hi_18_19_attachment_reaction_and_receive_failure(gate, runner, client, phone):
+    from gate.journal import HejoJournalError
+    from gate.server import LIMITS
+    ws, _ = await client.pair(features=['imessage'])
+    await activate(client, ws, phone)
+    await phone.handle_message(phone.event('look', media_urls=['fixture.png']))
+    assert (await client.read(ws))['text'] == 'look'
+    await wait_for_turns(runner, 1)
+    assert len(phone.calls) == 1
+    for text, raw, expected in [('', None, 1), ('reaction', {'content': {'type': 'reaction'}}, 0)]:
+        phone.calls.clear()
+        await phone.handle_message(phone.event(text, raw_message=raw, media_urls=['fixture.png'], mid='im-in-2'))
+        assert len(phone.calls) == expected and gate.journal.head == 1
+    phone.calls.clear()
+    with patch.object(gate.journal, 'append', side_effect=HejoJournalError('fixture failure')):
+        await phone.handle_message(phone.event('failure', mid='im-in-3'))
+    assert (await client.until(ws, 'error'))[-1]['code'] == 'journal_write_failed'
+    assert len(phone.calls) == 1 and len(runner.events) == 1 and gate.journal.head == 1
+    phone.calls.clear()
+    await phone.handle_message(phone.event('a' * (LIMITS['text_bytes'] + 1), mid='im-in-4'))
+    assert len(phone.calls) == 1 and len(runner.events) == 1 and gate.journal.head == 1
+    await phone.handle_message(phone.event('next', mid='im-in-5'))
+    assert (await client.until(ws, 'message'))[-1]['text'] == 'next'
+    await wait_for_turns(runner, 2)
+
+
+async def test_at_hi_20_21_room_commands(gate, client, phone):
+    await group(gate)
+    ws, _ = await client.pair(features=['imessage', 'rooms'])
+    await activate(client, ws, phone)
+    await phone.handle_message(phone.event('/방'))
+    listing = phone.calls[-1][1]
+    expected = ['default', 'Alpha', 'Beta', 'Team']
+    assert listing == '연결된 방: Alpha\n' + '\n'.join(f'{n}. {name}' for n, name in enumerate(expected, 1))
+    for choice, room in [('3', 'beta'), ('al', 'alpha'), ('team', G)]:
+        before = len(phone.calls)
+        await phone.handle_message(phone.event('/방 ' + choice))
+        assert (await client.read(ws))['room'] == room and len(phone.calls) == before + 1
+    before = gate.imessage.settings()
+    for choice in ['9', 'nobody']:
+        n = len(phone.calls)
+        await phone.handle_message(phone.event('/방 ' + choice))
+        assert gate.imessage.settings() == before and len(phone.calls) == n + 1
+    await gate.journal.append({'v': 1, 'type': 'room', 'room': {**gate.journal.rooms[G], 'title': 'Alpha'}})
+    await phone.handle_message(phone.event('/방 alpha'))
+    assert gate.imessage.settings() == before
+    assert not phone.originals and not [r for r in gate.journal.records if r['type'] == 'message']
+    await request(client, ws, 'imessage_save', enabled=False, room='alpha', reports=[])
+    phone.calls.clear()
+    e = phone.event('/방')
+    await phone.handle_message(e)
+    assert phone.originals == [e] and not phone.calls
+
+
+@pytest.mark.parametrize('outer', ['hejo', 'reception'])
+async def test_at_hi_32_wrapper_order(gate, runner, client, phone, outer):
+    # Rebuild only the fake transport's handler chain, preserving the production factory.
+    phone.handle_message = Phone.handle_message.__get__(phone)
+    phone._hejo_imessage_wrapped = False
+    classifications = []
+    def reception():
+        original = phone.handle_message
+        async def handle(e):
+            if not gate.claims_external(e): classifications.append(e)
+            return await original(e)
+        phone.handle_message = handle
+    if outer == 'hejo': reception()
+    imessage.attach_photon(None, phone)
+    if outer == 'reception': reception()
+    ws, _ = await client.pair(features=['imessage'])
+    await activate(client, ws, phone)
+    await phone.handle_message(phone.event())
+    assert (await client.read(ws))['text'] == 'hello'
+    await wait_for_turns(runner, 1)
+    assert len(runner.events) == 1 and not classifications
+    other = phone.event(chat='chat-B')
+    await phone.handle_message(other)
+    assert classifications == [other] and phone.originals == [other]

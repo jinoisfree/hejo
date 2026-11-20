@@ -709,7 +709,7 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             for row in self.journal.records:
                 if row.get("role") == "owner" and row.get("client_msg_id") == frame["client_msg_id"]:
                     await conn.send(self.server.project(row, conn))
-                    return
+                    return True
             targets = ([employee] if frame.get('targeted') else recipients(frame["text"], room, self.employees())) if room else [employee]
             if not set(targets) <= known:
                 await self.server.error("unknown_employee", frame.get("id"), conn)
@@ -760,6 +760,7 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             finally:
                 _delivery_scope.reset(token)
         await asyncio.gather(*(deliver(target) for target in targets))
+        return True
 
     async def send_typing(self, chat_id, metadata=None):
         if self.forwarder:

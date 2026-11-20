@@ -35,7 +35,6 @@ def attach_photon(native, adapter):
             return await bridge.receive_external(event)
         return await original(event)
 
-    adapter._hejo_imessage_original = original
     adapter.handle_message = handle
     adapter._hejo_imessage_wrapped = True
 
@@ -157,8 +156,80 @@ class IMessage:
             await self.notice(event.source.chat_id, "연결됐어요")
             await self.publish()
             return
-        # TASK-03 supplies the admitted message path.
-        return await self.original_external(event)
+        raw = event.raw_message if isinstance(event.raw_message, dict) else {}
+        if (raw.get("content") or {}).get("type") == "reaction":
+            return
+        text = event.text.strip()
+        if text == "/방" or text.startswith("/방 "):
+            await self.room_command(event, text[2:].strip())
+            return
+        if event.media_urls:
+            await self.notice(event.source.chat_id, "첨부는 아직 hejo 앱에서만 보낼 수 있어요")
+        if not event.text:
+            return
+        target = self.reply_thread(event.reply_to_message_id)
+        room, thread = target if target else (self.settings()["room"], None)
+        if room is None:
+            await self.notice(event.source.chat_id, "연결된 방이 없어요. /방으로 골라 주세요")
+            return
+        from .server import LIMITS
+        if len(event.text.encode()) > LIMITS["text_bytes"] or not event.message_id:
+            await self.notice(event.source.chat_id, "지금은 받지 못했어요")
+            return
+        group = self.adapter.journal.rooms.get(room)
+        frame = {"employee": group["lead"] if group else room, "thread": thread,
+                 "text": event.text, "client_msg_id": "imessage:" + event.message_id,
+                 **({"room": room} if group else {})}
+        reply = ExternalReply(self, event.source.chat_id)
+        try:
+            received = await self.adapter.receive(frame, reply)
+        except ValueError:
+            received = False
+        if not received and not reply.failed:
+            await reply.send({"type": "error"})
 
-    async def original_external(self, event):
-        return await _photon._hejo_imessage_original(event)
+    def reply_thread(self, im_id):
+        if not im_id:
+            return None
+        journal = self.adapter.journal
+        msg_id = next((row["msg_id"] for row in journal.records if row.get("client_msg_id") == "imessage:" + im_id), None)
+        msg_id = msg_id or getattr(self, "sent", {}).get(im_id)
+        key = journal.message_threads.get(msg_id)
+        if (not key or not journal.message(msg_id) or key in journal.deleted_threads
+                or key[0] not in {room[0] for room in self.rooms()}):
+            return None
+        return key
+
+    async def room_command(self, event, choice):
+        rooms = self.rooms()
+        selected = []
+        if choice.isdecimal():
+            number = int(choice)
+            selected = rooms[number - 1:number] if number > 0 else []
+        elif choice:
+            selected = [r for r in rooms if choice.casefold() in {name.casefold() for name in r[2]}]
+        if len(selected) == 1:
+            settings = self.settings()
+            settings["room"] = selected[0][0]
+            with self.settings_store.locked():
+                self.settings_store.write("settings.json", settings)
+            await self.publish()
+            await self.notice(event.source.chat_id, "연결된 방: " + selected[0][1])
+        else:
+            current = next((r[1] for r in rooms if r[0] == self.settings()["room"]), "없음")
+            listing = "연결된 방: " + current + "\n" + "\n".join(f"{n}. {r[1]}" for n, r in enumerate(rooms, 1))
+            await self.notice(event.source.chat_id, listing)
+
+
+class ExternalReply:
+    """The receive() response endpoint for the phone; journal acknowledgements stay in the app."""
+    features = {"rooms"}
+
+    def __init__(self, bridge, chat_id):
+        self.bridge, self.chat_id = bridge, chat_id
+        self.failed = False
+
+    async def send(self, frame):
+        if frame["type"] == "error":
+            self.failed = True
+            await self.bridge.notice(self.chat_id, "지금은 받지 못했어요")
