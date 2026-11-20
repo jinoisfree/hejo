@@ -7,7 +7,7 @@ import UniformTypeIdentifiers
     let todoDrawer=TodoDrawerView(frame:.zero)
     var onToggleDrawer:(()->Void)?
     private(set) var drawerSelectedID:String?
-    func setDrawerOpen(_ open:Bool) {controller.setDrawerOpen(open);refresh()}
+    func setDrawerState(open:Bool,chatExpanded:Bool) {controller.setDrawerState(open:open,chatExpanded:chatExpanded)}
     func selectDrawerCard(_ card:TodoDrawerModel.Card) {
         drawerSelectedID=card.id
         if let id=card.messageID,let key=card.key {
@@ -191,12 +191,12 @@ import UniformTypeIdentifiers
     }
     required init?(coder:NSCoder) { fatalError() }
     deinit { if let appearanceObserver {NotificationCenter.default.removeObserver(appearanceObserver)};islandTimer?.invalidate();streamTimer?.invalidate();workspaceTimer?.invalidate() }
-    func tickIsland() {
+    func tickIsland(updateDrawer:Bool=true) {
         island.show(islandModel.snapshot())
         let second=Int(controller.clock().timeIntervalSince1970)
         if second != noticeSecond {
             noticeSecond=second
-            todoDrawer.show(controller.drawerSnapshot,filter:controller.drawerFilter,selected:drawerSelectedID)
+            if updateDrawer && controller.drawerVisible {todoDrawer.show(controller.drawerSnapshot,filter:controller.drawerFilter,selected:drawerSelectedID)}
             if let room=controller.model.selected?.employee,controller.model.notices(room) != shownNotices {refresh()}
         }
         if let until=highlightUntil, until<=islandModel.now { highlightUntil=nil;highlightedMessageID=nil;refresh() }
@@ -643,8 +643,9 @@ import UniformTypeIdentifiers
         notice.stringValue=controller.notice
         refreshWorkspaceBars();scheduleSearch()
         var islandInput=controller.islandInput;islandInput.drawerOpen=controller.drawerOpen
-        islandModel.update(islandInput);tickIsland()
-        todoDrawer.show(controller.drawerSnapshot,filter:controller.drawerFilter,selected:drawerSelectedID); onUnread?(model.visibleUnreadTotal)
+        islandModel.update(islandInput);tickIsland(updateDrawer:false)
+        if controller.drawerVisible {todoDrawer.show(controller.drawerSnapshot,filter:controller.drawerFilter,selected:drawerSelectedID)}
+        onUnread?(model.visibleUnreadTotal)
         reportOpenHeight()
         startWorkspaceMotion();needsLayout=true; needsDisplay=true
     }

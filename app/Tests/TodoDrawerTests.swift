@@ -1,6 +1,6 @@
 import AppKit
 
-/// AT-TD-20..41: real projection, pill input, native panel geometry and request cadence.
+/// AT-TD-20..42: real projection, pill input, native panel geometry and request cadence.
 @MainActor func todoDrawerTests(resourceDirectory:URL) async throws {
     let home=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer{try? FileManager.default.removeItem(at:home)}
@@ -160,5 +160,49 @@ import AppKit
     let last=requests.last!["id"] as! String
     controller.receive(["type":"error","ref":last,"code":"invalid_frame"])
     try check(!controller.todoDrawer.available,"AT-TD-24 old gate error routed by request ref")
-    print("AT-TD-20..41 MODEL, INPUT, WINDOW, REQUEST PASS")
+    // AT-TD-42: native folding and restored preference must suppress outgoing requests.
+    pet.collapseChat();await pause(0.01);requests=[]
+    for _ in 0..<11 {now.addTimeInterval(60);controller.pollDeadlines();await pause(0.01)}
+    controller.receive(["type":"welcome","employees":[]]);await pause(0.01)
+    try check(pet.drawerOpen && !controller.drawerVisible && requests.isEmpty,"AT-TD-42 folded eleven minutes and reconnect send nothing")
+    pet.showChat();await pause(0.01)
+    try check(controller.drawerVisible && requests.count==1,"AT-TD-42 unfolding open preference requests exactly once")
+    now.addTimeInterval(299);controller.pollDeadlines();await pause(0.01)
+    try check(requests.count==1,"AT-TD-42 unfolding restarts five minute period")
+    now.addTimeInterval(1);controller.pollDeadlines();await pause(0.01)
+    try check(requests.count==2,"AT-TD-42 first new period requests once")
+    let restoredStore=try LocalStore(directory:home)
+    let restoredController=try testConversation(client:GateClient(store:restoredStore,credentials:MemoryCredentials()))
+    restoredController.clock={now}
+    var restoredRequests:[[String:Any]]=[]
+    restoredController.deadlineSender={restoredRequests.append($0)}
+    let restoredView=ConversationView(controller:restoredController,clipboardArea:home.appendingPathComponent("restored-clipboard"))
+    let restoredPet=PetController(store:restoredStore,atlas:try SpriteAtlas(resourceDirectory:resourceDirectory))
+    restoredPet.displays=pet.displays;restoredPet.reducedMotion={true}
+    restoredPet.pet.installConversation(restoredView);restoredPet.installDrawer(restoredView)
+    restoredPet.placePet(at:CGPoint(x:650,y:700))
+    restoredController.receive(["type":"welcome","employees":[]])
+    for _ in 0..<11 {now.addTimeInterval(60);restoredController.pollDeadlines();await pause(0.01)}
+    try check(restoredPet.drawerOpen && !restoredPet.chatExpanded && !restoredController.drawerVisible && restoredRequests.isEmpty,"AT-TD-42 restored open preference starts folded without requests")
+    restoredPet.showChat();await pause(0.01)
+    try check(restoredController.drawerVisible && restoredRequests.count==1,"AT-TD-42 restored drawer requests once on first unfolding")
+    restoredPet.panel.orderOut(nil);restoredController.client.stop()
+    // V-1: hidden refresh/tick must not rebuild cards or request their pictures.
+    let originalAvatar=view.todoDrawer.avatar
+    var avatarReads=0
+    view.todoDrawer.avatar={employee in avatarReads+=1;return originalAvatar(employee)}
+    pet.setDrawerOpen(false)
+    controller.todoDrawer.receive(["available":true,"items":rows,"failed":[]])
+    view.refresh();now.addTimeInterval(1);view.tickIsland()
+    try check(avatarReads==0,"V-1 closed drawer does not project changed cards on refresh or tick")
+    pet.setDrawerOpen(true)
+    try check(avatarReads>0,"V-1 opening projects latest cards immediately")
+    pet.collapseChat();avatarReads=0
+    controller.todoDrawer.receive(["available":true,"items":Array(rows.prefix(1)),"failed":[]])
+    view.refresh();now.addTimeInterval(1);view.tickIsland()
+    try check(avatarReads==0,"V-1 folded drawer does not project changed cards on refresh or tick")
+    pet.showChat()
+    try check(avatarReads>0,"V-1 unfolding projects latest cards immediately")
+    view.todoDrawer.avatar=originalAvatar
+    print("AT-TD-20..42 MODEL, INPUT, WINDOW, REQUEST PASS")
 }

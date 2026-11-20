@@ -20,27 +20,31 @@ struct ConversationFailedSend: Identifiable {
     let todoDrawer = TodoDrawerModel()
     var drawerFilter = TodoDrawerModel.Filter.all
     private(set) var drawerOpen = false
+    private var drawerChatExpanded = false
+    var drawerVisible: Bool { drawerOpen && drawerChatExpanded }
     private var deadlineRequestedAt: Date?
     private var deadlineRefs = Set<String>()
     var deadlineSender: (([String:Any]) async throws -> Void)?
     var drawerSnapshot: TodoDrawerModel.Snapshot { todoDrawer.snapshot(model,filter:drawerFilter,now:clock()) }
-    func setDrawerOpen(_ open: Bool) {
-        guard drawerOpen != open else{return}
-        drawerOpen=open
-        if open { requestDeadlines() }
+    func setDrawerState(open: Bool, chatExpanded: Bool) {
+        guard drawerOpen != open || drawerChatExpanded != chatExpanded else{return}
+        let wasVisible=drawerVisible
+        drawerOpen=open;drawerChatExpanded=chatExpanded
+        if drawerVisible && !wasVisible { requestDeadlines() }
         onChange?()
     }
     func pollDeadlines() {
-        guard drawerOpen else{return}
+        guard drawerVisible else{return}
         if deadlineRequestedAt.map({clock().timeIntervalSince($0)>=300}) ?? true {requestDeadlines()}
     }
     func requestDeadlines() {
-        guard drawerOpen else{return}
+        guard drawerVisible else{return}
         deadlineRequestedAt=clock()
         let ref=UUID().uuidString.lowercased();deadlineRefs.insert(ref)
         let frame:[String:Any]=["v":1,"type":"deadlines","id":ref]
         Task { [weak self] in
             guard let self else{return}
+            guard self.drawerVisible else {self.deadlineRefs.remove(ref);return}
             do {if let sender=self.deadlineSender {try await sender(frame)}else{try await self.client.send(frame)}}
             catch {self.deadlineRefs.remove(ref);self.todoDrawer.receive(["available":true,"reason":"command_failed"]);self.onChange?()}
         }

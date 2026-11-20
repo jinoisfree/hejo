@@ -25,14 +25,14 @@ final class PetController: NSObject {
     static let drawerDuration: TimeInterval = 0.25
     private var drawerSlideActive = false
     private(set) var drawerOpen = false
-    var onDrawerChanged: ((Bool)->Void)?
+    private var onDrawerStateChanged: ((Bool,Bool)->Void)?
     func toggleDrawer(){setDrawerOpen(!drawerOpen)}
     func setDrawerOpen(_ open:Bool) {
         guard drawerOpen != open else{return}
         drawerOpen=open
         try? store.update{$0.todoDrawerOpen=open}
         pet.drawerOpen=open
-        onDrawerChanged?(open)
+        onDrawerStateChanged?(open,chatExpanded)
         guard let target=placementTarget else{return}
         drawerSlideActive=chatExpanded && !reducedMotion()
         if drawerSlideActive {bubbleMotion.slideWidth(now:clock(),duration:Self.drawerDuration)}
@@ -41,8 +41,8 @@ final class PetController: NSObject {
     @MainActor func installDrawer(_ view:ConversationView) {
         pet.installDrawer(view.todoDrawer)
         view.onToggleDrawer={ [weak self] in self?.toggleDrawer() }
-        onDrawerChanged={ [weak view] open in view?.setDrawerOpen(open) }
-        view.setDrawerOpen(drawerOpen)
+        onDrawerStateChanged={ [weak view] open,expanded in view?.setDrawerState(open:open,chatExpanded:expanded) }
+        view.setDrawerState(open:drawerOpen,chatExpanded:chatExpanded)
     }
     private(set) var chatExpanded = false
     private(set) var placementTarget: PetPlacement?
@@ -225,6 +225,7 @@ final class PetController: NSObject {
         chatExpanded=expanded;panel.chatExpanded=expanded
         // Capture the closing picture before folding the model, or keep the current picture on reversal.
         if !expanded && !continuing {pet.captureGenie()}
+        onDrawerStateChanged?(drawerOpen,expanded)
         onExpansionChanged?(expanded)
         placePet(at:reopeningAnchor ?? old.anchorOrigin)
         guard let target=placementTarget else{return}
