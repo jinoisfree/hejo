@@ -84,7 +84,8 @@ final class UpdateHTTP: URLProtocol {
     let window = PetSettingsWindow(); window.onAppUpdate = { app.checkNow() }; window.updateAppUpdates(app)
     try check(window.updateAvailable.stringValue == "새 버전 0.2.1이 있어요" && window.updateButton.title == "업데이트", "AT84 settings cached action")
     window.updateButton.performClick(nil); app.checkNow()
-    try check(installer.begins == 1 && requests == 1 && alerts.count == 1 && !app.canCheck, "AT84 cached explicit consent starts once")
+    try await waitFor {installer.begins == 1}
+    try check(requests == 2 && alerts.count == 1 && !app.canCheck, "AT84 cached explicit consent revalidates release and starts once")
     app.stop(); try check(installer.stopped, "AT84 stop cancels update discovery")
     alerts = []; let absent = AppUpdate(defaults:defaults,client:client(),installer:UpdateTestInstaller(),installed:{false},present:{ alerts.append($0); return .alertFirstButtonReturn })
     absent.start(); absent.checkNow()

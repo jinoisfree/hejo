@@ -54,10 +54,14 @@ struct ConversationFailedSend: Identifiable {
             };return nil
         }
     }
+    var imessageRooms: [IMessageRoom] {
+        model.employees.map { IMessageRoom(id: $0.id, title: $0.name) } +
+        model.groups.values.filter { $0.archived != true }.sorted { $0.title < $1.title }.map { IMessageRoom(id: $0.id, title: $0.title) }
+    }
     private var makingRoom=false
     private var reopeningRoom:String?
-    func sendFields(_ key:ConversationKey)->[String:Any] {
-        if let room=model.groups[key.employee] {return ["employee":room.lead ?? room.members[0],"room":room.id]}
+    func sendFields(_ key:ConversationKey,recipient:String?=nil)->[String:Any] {
+        if let room=model.groups[key.employee] {var fields:[String:Any]=["employee":recipient ?? room.lead ?? room.members[0],"room":room.id];if recipient != nil {fields["targeted"]=true};return fields}
         return ["employee":key.employee]
     }
     func roomCommand(_ kind:String,room:Room?=nil,title:String?=nil,description:String?=nil,members:[String]?=nil,lead:String?=nil,archived:Bool?=nil) async {
@@ -136,7 +140,12 @@ struct ConversationFailedSend: Identifiable {
     var onChange: (() -> Void)?
     var onConnectionsFrame: (([String:Any])->Void)?
     var onRevealThread: ((ConversationKey)->Void)?
-    private(set) var stopped = Set<ConversationKey>()
+    private var stoppedTargets:[ConversationKey:String]=[:]
+    var stopped:Set<ConversationKey> {Set(stoppedTargets.keys)}
+    private func controlRecipient(_ key:ConversationKey,working:Bool=false)->String {
+        if working,let writer=model.typingPeople[key]?.keys.sorted().first {return writer}
+        return stoppedTargets[key] ?? model.timeline(key).last(where:{$0.role != "owner"})?.speaker ?? key.employee
+    }
     private(set) var interruptions: [ConversationKey:Date] = [:]
     private(set) var branching: [ConversationKey:Date] = [:]
     private(set) var deleting = Set<ConversationKey>()
@@ -186,18 +195,20 @@ struct ConversationFailedSend: Identifiable {
         do { try await client.send(["v":1,"type":"thread_delete","id":UUID().uuidString.lowercased(),"room":key.employee,"thread":key.thread]) }
         catch {deleting.remove(key);transferFailed(error)}
     }
-    @discardableResult func sendText(_ text:String,key:ConversationKey) async -> Bool {
+    @discardableResult func sendText(_ text:String,key:ConversationKey,recipient:String?=nil) async -> Bool {
         guard canSend else {transferFailed(GateFailure.notConnected);return false}
-        if text != "/stop" {return await transmit(key,draft:ConversationDraft(text:text))}
+        let target=recipient ?? controlRecipient(key,working:text=="/stop")
+        if let room=model.groups[key.employee],!room.members.contains(target) {transferFailed(GateFailure.notConnected);return false}
+        if text != "/stop" {return await transmit(key,draft:ConversationDraft(text:text),recipient:target)}
         let id=UUID().uuidString.lowercased()
-        do {try await client.send(["v":1,"type":"send","id":id,"thread":key.thread,"client_msg_id":id,"text":text].merging(sendFields(key)){$1})}
+        do {try await client.send(["v":1,"type":"send","id":id,"thread":key.thread,"client_msg_id":id,"text":text].merging(sendFields(key,recipient:target)){$1})}
         catch {transferFailed(error);return false}
         onChange?();return true
     }
 
     func stop(_ key:ConversationKey) async {
         guard !stopped.contains(key),canSend else{return}
-        stopped.insert(key);if !(await sendText("/stop",key:key)) {stopped.remove(key)}
+        stoppedTargets[key]=controlRecipient(key,working:true);if !(await sendText("/stop",key:key,recipient:stoppedTargets[key])) {stoppedTargets.removeValue(forKey:key)}
     }
     private(set) var transferFailure: IslandFailure? { didSet { onChange?() } }
     private(set) var stateFailure: IslandFailure? { didSet { onChange?() } }
@@ -232,6 +243,7 @@ struct ConversationFailedSend: Identifiable {
             self?.stateFailure = failed ? IslandFailure(message: "화면 상태를 맞추지 못했어요", firstWords: "") : nil
         }
         model.memberState.onUnpinned = { [weak self] count in self?.notice = "고정 자리 5개를 넘어 \(count)개의 고정을 풀었어요." }
+        client.imessage.onChange = { [weak self] in self?.onChange?() }
         client.onFrame = { [weak self] frame in self?.receive(frame) }
         timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             Task { @MainActor in
@@ -263,7 +275,7 @@ struct ConversationFailedSend: Identifiable {
             }
         }
         if frame["type"] as? String == "welcome", replicaAddress != client.store.settings.address {
-            prepareDraftAddress();model.resetReplica();newPostIDs=[];followup=nil;transferFailure=nil;bubbleProblems=[:];uploads=[:];activeUploads=[:];stopped=[];interruptions=[:];branching=[:];deleting=[];confirmingDelete=[:];checklistSelections=[:];replicaAddress = client.store.settings.address
+            prepareDraftAddress();model.resetReplica();newPostIDs=[];followup=nil;transferFailure=nil;bubbleProblems=[:];uploads=[:];activeUploads=[:];stoppedTargets=[:];interruptions=[:];branching=[:];deleting=[];confirmingDelete=[:];checklistSelections=[:];replicaAddress = client.store.settings.address
         }
         let previousRooms=Set(model.groups.keys)
         do { try model.apply(frame) } catch { notice = "대화 기록을 읽지 못했어요. 다시 연결해 주세요." }
@@ -281,7 +293,7 @@ struct ConversationFailedSend: Identifiable {
             if (frame["branch_from"] as? [String:Any])?["thread"] is String,client.replayComplete {
                 model.select(key);onRevealThread?(key)
             }
-            if frame["role"] as? String == "owner",frame["text"] as? String != "/stop" { stopped.remove(key) }
+            if frame["role"] as? String == "owner",frame["text"] as? String != "/stop" { stoppedTargets.removeValue(forKey:key) }
             if frame["role"] as? String == "employee" { interruptions[key]=nil }
             if frame["role"] as? String == "employee",followup==key,!ThreadTools.thinking(frame["text"] as? String ?? "") {
                 followup=nil
@@ -291,7 +303,7 @@ struct ConversationFailedSend: Identifiable {
         }
         if frame["scope"] as? String == "thread",let room=frame["room"] as? String,let thread=frame["thread"] as? String {
             let key=ConversationKey(employee:room,thread:thread)
-            bubbleProblems[key]=nil;pending=pending.filter{$0.value.workspace != replicaAddress || $0.value.key != key};deleting.remove(key);stopped.remove(key);interruptions[key]=nil
+            bubbleProblems[key]=nil;pending=pending.filter{$0.value.workspace != replicaAddress || $0.value.key != key};deleting.remove(key);stoppedTargets.removeValue(forKey:key);interruptions[key]=nil
             if followup==key {followup=nil}
             checklistSelections=checklistSelections.filter{model.messages[$0.key] != nil}
         }
@@ -427,9 +439,9 @@ struct ConversationFailedSend: Identifiable {
         drafts[source]=ConversationDraft()
         _=await transmit(target,draft:outgoing,place:source)
     }
-    private func transmit(_ key:ConversationKey,draft:ConversationDraft,bubble:Bool=false,place:ConversationKey?=nil) async ->Bool {
+    private func transmit(_ key:ConversationKey,draft:ConversationDraft,bubble:Bool=false,place:ConversationKey?=nil,recipient:String?=nil) async ->Bool {
         let id = UUID().uuidString.lowercased(), address = client.store.settings.address, epoch = client.connectionEpoch
-        let destination=sendFields(key)
+        let destination=sendFields(key,recipient:recipient ?? (bubble ? controlRecipient(key,working:true):nil))
         if model.timeline(key).isEmpty {composeRevision+=1;followup=nil;newPostIDs.insert(id)}
         let attempt=PendingSend(key:key,draft:draft,bubble:bubble,workspace:replicaAddress,shown:model.selectionIdentity,newPost:model.timeline(key).isEmpty,at:clock(),revision:composeRevision,place:place ?? key)
         pending[id]=attempt;notice="";onChange?()
@@ -447,7 +459,7 @@ struct ConversationFailedSend: Identifiable {
             try await client.send(["v":1, "type":"send", "id":id, "thread":key.thread,
                                    "text":draft.text.trimmingCharacters(in:.whitespacesAndNewlines), "client_msg_id":id, "files":uploaded.map(\.fileID)].merging(destination){$1})
             model.markThreadRead(key)
-            stopped.remove(key);if canInterrupt(key) {interruptions[key]=clock()}
+            stoppedTargets.removeValue(forKey:key);if canInterrupt(key) {interruptions[key]=clock()}
         } catch {
             pending[id] = nil;newPostIDs.remove(id)
             let reason=transferMessage(error)

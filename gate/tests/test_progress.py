@@ -142,3 +142,108 @@ async def test_room_stop_and_delete_do_not_touch_other_employee(gate,client):
         assert await second.delete_message(chat,beta.message_id)
         assert gate.journal.message(alpha.message_id) is not None
     finally:await second.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('forwarded',[False,True],ids=['primary','forwarder'])
+@pytest.mark.parametrize('failed',[False,True],ids=['success','failed'])
+async def test_ingress_final_delivery_cleans_edited_progress_on_owning_adapter(gate,monkeypatch,forwarded,failed):
+    """The primary receives the turn; cleanup registered by its profile adapter fires after final delivery."""
+    from gateway.run_turn import GatewayTurnMixin
+    from gateway.run_turn_runner import TurnRunner
+    from gateway.platforms.base import MessageEvent
+    monkeypatch.setenv('HEJO_ALLOWED_USERS','owner')
+    sender=gate;chat='default';profile='default';ids=[]
+    if forwarded:
+        sender=HejoAdapter(gate.config);sender.set_owner_profile('beta');assert await sender.connect()
+        chat=profile='beta'
+    thread=str(uuid.uuid4())
+    source=gate.build_source(chat_id=chat,chat_type='dm',user_id='owner',thread_id=thread)
+    source.profile=profile
+    key=gate._source_session_key(source)
+    async def handle(event):
+        guard=gate._active_sessions[key];guard._hermes_run_generation=7
+        ctx=SimpleNamespace(_cleanup_progress=True,_cleanup_msg_ids=[],session_key=key,source=source,run_generation=7)
+        tracker=TurnRunner(None,ctx)
+        for text in ('first tool progress','second tool progress'):
+            sent=await sender.send(chat,text,metadata={'thread_id':thread})
+            tracker._track_progress_result(sent);ids.append(sent.message_id)
+        edited=await sender.edit_message(chat,ids[0],'updated tool progress',finalize=False)
+        tracker._track_progress_result(edited)
+        GatewayTurnMixin._run_agent_schedule_bubble_cleanup(None,{'failed':failed},sender,ctx)
+        # A stale generation must not consume this turn's callback.
+        assert gate.pop_post_delivery_callback(key,generation=6) is None
+        return 'final answer'
+    gate.set_message_handler(handle)
+    try:
+        await gate.handle_message(MessageEvent(text='fake request',source=source,user_id='owner',message_id=str(uuid.uuid4())))
+        async def completed():
+            while key in gate._active_sessions or not ids:await asyncio.sleep(0.01)
+            if not failed:
+                while any(gate.journal.message(mid) for mid in ids):await asyncio.sleep(0.01)
+        await asyncio.wait_for(completed(),5)
+        finals=[row for row in gate.journal.records if row.get('text')=='final answer' and row.get('employee')==profile]
+        assert len(finals)==1 and gate.journal.message(finals[0]['msg_id'])['text']=='final answer'
+        if failed:
+            assert all(gate.journal.message(mid) for mid in ids)
+            assert gate.journal.message(ids[0])['text']=='updated tool progress'
+        else:
+            assert all(gate.journal.message(mid) is None for mid in ids)
+            assert set(row['msg_id'] for row in gate.journal.records if row['type']=='delete')==set(ids)
+        assert key not in gate._post_delivery_callbacks and key not in sender._post_delivery_callbacks
+    finally:
+        if forwarded:await sender.disconnect()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('room', [False, True], ids=['dm', 'room'])
+async def test_concurrent_ingress_cleanup_preserves_employee_chat_thread_and_owner(gate, client, monkeypatch, room):
+    """Transport sharing never grants another profile, thread, or owner message deletion."""
+    monkeypatch.setenv('HEJO_ALLOWED_USERS', 'owner')
+    employees = {row['id']: row for row in gate.employees()}
+    monkeypatch.setattr(gate, 'employees', lambda: [
+        {**employees['alpha'], 'id': 'default'}, employees['beta']])
+    entered, finished, outcomes, retained = set(), asyncio.Event(), [], {}
+    both = asyncio.Event()
+
+    async def handle(event):
+        profile, thread = event.source.profile, event.source.thread_id
+        chat = event.source.chat_id
+        own = await gate.send(chat, 'own progress', metadata={'thread_id': thread, 'hermes_profile': profile})
+        other = await gate.send(chat, 'other thread', metadata={'thread_id': str(uuid.uuid4()), 'hermes_profile': profile})
+        retained[profile] = other.message_id
+        entered.add(profile)
+        if len(entered) == 2:
+            both.set()
+        await asyncio.wait_for(both.wait(), 3)
+        foreign = 'beta' if profile == 'default' else 'default'
+        outcomes.append((
+            await gate.delete_message(chat if room else foreign, retained[foreign]),
+            await gate.delete_message(chat, other.message_id),
+            await gate.delete_message(chat, event.message_id),
+            await gate.delete_message(chat, own.message_id)))
+        if len(outcomes) == 2:
+            finished.set()
+        return 'final answer'
+
+    gate.set_message_handler(handle)
+    ws, _ = await client.pair(features=['rooms'])
+    room_chat = None
+    if room:
+        await ws.send_json({'v': 1, 'type': 'room_save', 'title': 'Fixture',
+                            'members': ['default', 'beta'], 'lead': 'default'})
+        frame = await client.read(ws)
+        room_id = frame['room']['id']
+        room_chat = 'room:' + room_id
+        await client.send(ws, employee='default', room=room_id, text='@default @beta fixture request')
+    else:
+        await client.send(ws, employee='default')
+        await client.send(ws, employee='beta')
+    await asyncio.wait_for(finished.wait(), 5)
+    assert outcomes == [(False, False, False, True)] * 2
+    assert all(gate.journal.message(mid) for mid in retained.values())
+    # The receive task's scope is reset; the listener alone cannot delete beta's text.
+    assert not await gate.delete_message(room_chat or 'beta', retained['beta'])
+    async with asyncio.timeout(3):
+        while gate._active_sessions:
+            await asyncio.sleep(0.01)

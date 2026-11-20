@@ -48,7 +48,7 @@ class Connections:
         self.secrets=SecretTransactions(home,self.admin);self.team=TeamKit(home)
         self.audit=ActionJournal(home);self.jobs=RestartJobs(home,self.admin,snapshot=snapshot)
         self.snapshot=snapshot;self.sessions={}
-        self.documents={}
+        self.documents={};self.input_fields={}
 
     def profiles(self):return {p['id']:p for p in self.employees()}
 
@@ -155,6 +155,18 @@ class Connections:
         special=verb in {'secret_guide','secret_undo'} and item and any(a['id']=='secret_set' for a in item['actions'])
         if not item or not (special or any(a['id']==verb for a in item['actions']) or verb=='check_all'):
             return {'outcome':'refused','reason':'invalid_action'}
+        form=(device,profile,connection)
+        def secure_fields(value):
+            if isinstance(value,dict):
+                result={f['id'] for f in value.get('fields',[]) if isinstance(f,dict) and f.get('secure') is True and isinstance(f.get('id'),str)}
+                for child in value.values(): result.update(secure_fields(child))
+                return result
+            if isinstance(value,list): return set().union(*(secure_fields(child) for child in value)) if value else set()
+            return set()
+        protected=secure_fields(item) | self.input_fields.get(form,set())
+        if connection.startswith('key:') and verb=='secret_set': protected.add('value')
+        if connection.startswith('catalog:') and verb=='catalog_install': protected.update(values)
+        secrets=tuple(v for key,v in values.items() if key in protected and isinstance(v,str))
         try:
             reply=await self.execute(device,profile,connection,verb,values,item)
         except ConnectionFailure as error:
@@ -162,12 +174,13 @@ class Connections:
             reply={'outcome':'failed','reason':reason}
         finally:
             frame.pop('values',None)
-        reply=public(reply,tuple(v for v in values.values() if isinstance(v,str)))
+        self.input_fields[form]=secure_fields(reply)
+        reply=public(reply,secrets)
         outcome=reply.get('outcome','done')
         if outcome not in {'done','pending','partial','unknown','timeout','failed','refused','needs_user','waiting'}:raise ConnectionFailure('invalid_response')
         self.audit.append(device=device,profile=profile,connection=connection,action=verb,outcome=outcome)
         if reply.get('reason')=='write_partial':reply['instruction']='저장이 중간에 멈췄어요. 서버에서 이 키를 확인해 주세요'
-        return server_words(public(reply,tuple(v for v in values.values() if isinstance(v,str))))
+        return server_words(public(reply,secrets))
 
     async def execute(self, device, profile, connection, verb, values, item):
         kind,_,name=connection.partition(':')
@@ -218,23 +231,27 @@ class Connections:
             required=entry.get('required_env',[])
             if required and not values:return {'outcome':'done','reason':'OK','fields':[{'id':e['name'],'label':e.get('prompt') or e['name'],'secure':True} for e in required]}
             changed=[]
-            for field in required:
-                key=field['name']
-                if not values.get(key):continue
-                result=await self.secrets.save(profile,key,values[key])
-                if result['outcome']!='done':
-                    for old in reversed(changed):
-                        undone=await self.secrets.undo(profile,old)
-                        if undone['outcome']!='done':result={'outcome':'partial','reason':'write_partial'}
-                    return result
-                changed.append(key)
+            async def rollback(result):
+                partial=result.get('reason')=='write_partial'
+                for old in reversed(changed):
+                    try:
+                        if (await self.secrets.undo(profile,old))['outcome']!='done':partial=True
+                    except Exception:
+                        partial=True
+                return {'outcome':'partial','reason':'write_partial'} if partial else result
+            try:
+                for field in required:
+                    key=field['name']
+                    if not values.get(key):continue
+                    result=await self.secrets.save(profile,key,values[key])
+                    if result['outcome']!='done':return await rollback(result)
+                    changed.append(key)
+            except Exception:
+                return await rollback({'outcome':'failed','reason':'CONNECTIONS_READ_FAILED'})
             try:
                 reply=await self.admin.request('POST','/api/mcp/catalog/install',profile=profile,body={'name':name,'enable':True,'env':{}})
             except ConnectionFailure:
-                partial=False
-                for key in reversed(changed):
-                    if (await self.secrets.undo(profile,key))['outcome']!='done':partial=True
-                return {'outcome':'partial' if partial else 'failed','reason':'write_partial' if partial else 'WRITE_FAILED'}
+                return await rollback({'outcome':'failed','reason':'WRITE_FAILED'})
             return {'outcome':'done','reason':'OK','instruction':'서버에서 설치가 진행돼요. 새로 확인을 눌러 결과를 확인해 주세요' if reply.get('background') else '설치했어요. 새로 확인해 주세요'}
         if kind=='tool' and verb in {'enable','disable'}:
             await self.admin.request('PUT','/api/tools/toolsets/'+quote(name,safe=''),profile=profile,body={'enabled':verb=='enable'})

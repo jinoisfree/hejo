@@ -148,7 +148,11 @@ struct ConversationThread: Identifiable {
         let sections=decoded("layout:sections",SidebarLayout.defaults)
         if !sections.isEmpty { var ids=Set<String>();layout.sections=sections.filter { !$0.id.isEmpty && ids.insert($0.id).inserted } }
         if layout.sections.isEmpty { layout.sections=SidebarLayout.defaults }
+        for index in layout.sections.indices {
+            if let open=memberState.value("layout:section-open:"+layout.sections[index].id) {layout.sections[index].open = open == "1"}
+        }
         layout.stack=decoded("layout:stack",SidebarLayout.Stack())
+        if let open=memberState.value("layout:section-open:stack") {layout.stack.open = open == "1"}
         for (key,entry) in memberState.items {
             if key.hasPrefix("zone:"),let value=entry.v { layout.zones[String(key.dropFirst(5))]=value }
             if key.hasPrefix("pin:"),let value=entry.v,let slot=Int(value),(1...5).contains(slot) { layout.pins[String(key.dropFirst(4))]=slot }
@@ -165,16 +169,38 @@ struct ConversationThread: Identifiable {
         layout.items.insert(.init(id:HomeRoom.id,name:store.settings.petName,kind:.home,members:memberIDs,latest:Double(posts.map(\.latestSeq).max() ?? 0),unread:scope.reduce(0){$0+unread(employee:$1)},questions:notices(HomeRoom.id).filter(\.questions).reduce(0){$0+$1.messages.count},alerts:notices(HomeRoom.id).filter{!$0.questions}.reduce(0){$0+$1.messages.count},muted:home.settings.muted==true,picture:homePicture),at:0)
         return layout
     }
+    private func layoutData<T:Encodable>(_ value:T,key:String)->Data? {
+        guard let raw=try? JSONEncoder().encode(value) else {return nil}
+        if key == "layout:sections",var rows=(try? JSONSerialization.jsonObject(with:raw)) as? [[String:Any]] {
+            for index in rows.indices {rows[index].removeValue(forKey:"open")}
+            return try? JSONSerialization.data(withJSONObject:rows,options:[.sortedKeys])
+        }
+        if key == "layout:stack",var row=(try? JSONSerialization.jsonObject(with:raw)) as? [String:Any] {
+            row.removeValue(forKey:"open");return try? JSONSerialization.data(withJSONObject:row,options:[.sortedKeys])
+        }
+        return raw
+    }
     private func saveLayout<T:Encodable>(_ key:String,_ value:T) {
-        if let data=try? JSONEncoder().encode(value),let json=String(data:data,encoding:.utf8) {
+        // Before changing definitions, preserve each legacy open flag in its own key.
+        if key == "layout:sections" || key == "layout:stack" { migrateSectionOpen() }
+        if let data=layoutData(value,key:key),let json=String(data:data,encoding:.utf8) {
             guard data.count<=4096 else { memberState.onFailure?(true);return }
             changeState([key:json])
         }
     }
+    private func migrateSectionOpen() {
+        let layout=sidebar
+        var values:[String:String?]=[:]
+        for section in layout.sections where memberState.items["layout:section-open:"+section.id] == nil {
+            values["layout:section-open:"+section.id]=section.open ? "1":"0"
+        }
+        if memberState.items["layout:section-open:stack"] == nil {values["layout:section-open:stack"]=layout.stack.open ? "1":"0"}
+        changeState(values)
+    }
     func toggleSection(_ id:String?) {
-        var layout=sidebar
-        if let id,let index=layout.sections.firstIndex(where:{$0.id==id}) { layout.sections[index].open.toggle();saveLayout("layout:sections",layout.sections) }
-        else if id==nil { layout.stack.open.toggle();saveLayout("layout:stack",layout.stack) }
+        let layout=sidebar
+        if let id,let section=layout.sections.first(where:{$0.id==id}) {changeState(["layout:section-open:"+id:section.open ? "0":"1"])}
+        else if id==nil {changeState(["layout:section-open:stack":layout.stack.open ? "0":"1"])}
     }
     func addSection() {
         var sections=sidebar.sections
@@ -193,9 +219,10 @@ struct ConversationThread: Identifiable {
         let layout=sidebar
         guard layout.sections.count>1,layout.sections.contains(where:{$0.id==id}),let first=layout.sections.first(where:{$0.id != id}) else { return }
         let remaining=layout.sections.filter{$0.id != id}
-        guard let data=try? JSONEncoder().encode(remaining),let value=String(data:data,encoding:.utf8) else { return }
+        guard let data=layoutData(remaining,key:"layout:sections"),let value=String(data:data,encoding:.utf8) else { return }
         var changes:[String:String?]=["layout:sections":value]
         for (room,zone) in layout.zones where zone==id { changes["zone:"+room]=first.id }
+        migrateSectionOpen();changes["layout:section-open:"+id] = .some(nil)
         changeState(changes)
     }
     func move(_ id:String,to section:String) { if sidebar.canMove(id,to:section) { changeState(["zone:"+id:section]) } }
@@ -217,6 +244,7 @@ struct ConversationThread: Identifiable {
         loadingRecords = false
         memberState.onChange = { [weak self] in
             guard let self else { return }
+            if !self.replaying {self.seedUnseenRooms()}
             if self.isHome {
                 if let key=self.selected,key.employee != HomeRoom.id,!self.homeScope.contains(key.employee) {self.selectHome(notify:false)}
             } else if let current = self.selected?.employee, self.hidden.contains(current) {
@@ -378,6 +406,7 @@ struct ConversationThread: Identifiable {
     func toggleCheck(_ id:String,line:Int,original:Bool,body:String?=nil) {changeState([checkKey(id,line,body:body):check(id,line:line,original:original,body:body) ? "0":"1"])}
     /// The first completed replay is the boundary between existing history and new arrivals.
     private func seedUnseenRooms() {
+        guard memberState.account.isEmpty || memberState.hasFetched else {return}
         var values:[String:String?]=[:]
         for room in rooms where memberState.items["read:"+room.id]==nil {
             let seen=memberState.items.keys.contains{$0.hasPrefix("thread:"+room.id+"/")}

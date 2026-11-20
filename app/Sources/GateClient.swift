@@ -21,6 +21,11 @@ struct ReconnectDelay {
     mutating func reset() { attempt = 0 }
 }
 @MainActor final class GateClient {
+    static let features = ["rooms", "imessage"]
+    lazy var imessage = IMessageState { [weak self] frame in
+        guard let self else { throw GateFailure.notConnected }
+        try await self.send(frame)
+    }
     static let maxFrameBytes = 1_048_576
     let store: LocalStore
     private let credentials: GateCredentialStore
@@ -93,6 +98,7 @@ struct ReconnectDelay {
     func stop() {
         generation += 1; worker?.cancel(); worker = nil
         socket?.cancel(with: .goingAway, reason: nil); socket = nil; pairCode = nil; signInFields = nil; token = nil
+        imessage.reset()
         backoff.reset(); welcomed = false; syncing = false; replayComplete = false
     }
     private func connectLoop(run: Int) async {
@@ -115,7 +121,7 @@ struct ReconnectDelay {
                     ws.cancel(with: .goingAway, reason: nil)
                 }
                 defer { deadline.cancel() }
-                var hello: [String: Any] = ["v": 1, "type": "hello", "device_name": store.settings.deviceName, "app_version": AppIdentity.version, "since": store.settings.applied, "features":["rooms"]]
+                var hello: [String: Any] = ["v": 1, "type": "hello", "device_name": store.settings.deviceName, "app_version": AppIdentity.version, "since": store.settings.applied, "features":Self.features]
                 if let pairCode { hello["pair_code"] = pairCode } else if let signInFields { hello.merge(signInFields) { $1 } } else { hello["token"] = token! }
                 try await ws.send(.string(Self.encoded(hello)))
                 while !Task.isCancelled && run == generation {
@@ -128,7 +134,7 @@ struct ReconnectDelay {
                 }
             } catch {
                 guard run == generation, !Task.isCancelled else { return }
-                welcomed = false
+                welcomed = false; imessage.reset()
                 if socket?.closeCode.rawValue == 1009 { status = .tooLarge }
                 if error is GateFailure { // Durable storage/protocol failures must not spin on reconnect.
                     if case GateFailure.storage = error { status = .storageError; return }
@@ -159,6 +165,7 @@ struct ReconnectDelay {
             welcomed = true; connectionEpoch += 1; replayComplete = false; backoff.reset(); status = .connected
         case "pair_rejected": pairCode = nil; signInFields = nil; rejection = frame["reason"] as? String; status = .wrongCode; return false
         case "auth_rejected":
+            guard frame["reason"] as? String == "revoked" else {throw GateFailure.protocolError}
             let keychain = credentials, account = store.settings.credentialAccount
             await Task.detached { keychain.delete(account: account) }.value
             if let run, run != generation { return false }
@@ -182,6 +189,10 @@ struct ReconnectDelay {
                 do { try store.append(frame) } catch { throw GateFailure.storage }
             }
         }
+        if type == "welcome" {
+            imessage.reset()
+            if socket != nil { Task { await imessage.query() } }
+        } else if imessage.receive(frame) { return true }
         onFrame?(frame); return true
     }
     func authorizedRequest(components: [String], query: [URLQueryItem] = []) throws -> URLRequest {

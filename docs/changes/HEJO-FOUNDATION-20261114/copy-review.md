@@ -776,3 +776,57 @@ AT-90의 “따라 읽은 스트림이 완료 후에도 펼침” fixture는 여
 - 수정 범위는 Dashboard와 관련 앱 시험·보고·동일 상태 캡처뿐이다. 감시·훅·문·허브·기록장·로컬 저장 계약은 바꾸지 않는다.
 
 - 보완 뒤 일반/고정/빈 목록을 같은 상태로 재캡처해 직접 비교했다. detail 원문과 세 단추의 13pt·24pt 표시를 확인했고, 나머지 기본 제어 외관 차이는 기존 화면 문서대로다. 실행·서명·메타데이터 보호 결과는 impl-report의 보완 60 최종 검증과 `.build/n47/`에 있다.
+
+
+## TASK-50 — 사장 대화 판정과 플랫폼 전용 경계
+
+- 보완 62/D50-01에 따라 운영 원본은 읽기만 하고 임시 사본에서 작업했다. 생성 캐시를 제외한 658개 파일/상대 링크의 본문·권한·대상을 시작 때 대조했다. TASK-49의 install_hejo가 포함된 원본을 기준으로 한다.
+- 비시험 Python·shell·JS·Swift를 조사했다. 집합/튜플/목록/사전 47곳과 단일 플랫폼·SQL 문자열까지 원본 기준 146행의 파일:줄·뜻·처분을 `.build/task50/classification.md`에 기록했다. 루트 별칭 링크와 lib 실제 파일은 중복 수정하지 않는다.
+- 바꾼 것은 사장 대화/기록 원본을 고르는 26개 표현식이다. 경량 공용 모듈 hermes_owner_chat의 OWNER_CHAT_PLATFORMS에 slack·photon·hejo를 두고, 배경·계정·역할·요청 원문 검사는 각 기존 책임 자리에 남겼다. pending route의 기존 bluebubbles만 별도 합집합으로 보존한다. SQL IN도 같은 상수의 값과 자리표시자로 묶는다. CHANNEL_LABEL·라우터 ingress·사용량·연결 인증·설정 조립·재시작 경로는 바꾸지 않는다.
+- hejo의 쓰기 소유자 확인은 문이 보증하는 user_id=owner를 쓴다. forwarder 프로필에는 별도 api_human_users가 없으므로 Slack 설정 키를 요구하지 않는다. 기존 Slack/iMessage 설정 소유자 검증과 배경·빈 대화 거절은 그대로다. 전송 태그를 고르는 함수는 그 자체로 소유권 증명이 아니며 기존 호출자의 역할·범위·배경 검사를 대체하지 않는다.
+- D50-02: wait_jobs의 Slack 채널/스레드 정규식, 원문 증명/선택·workspace·관리 학습, Slack 블록 승인, Notion 되돌림 문맥 등의 경계는 이번 패치로 풀지 않았다. 실제 hejo 가짜 입력에서 wait_jobs=owner_slack_thread_required, 원문 증명=not_slack, 백업 승인 runner 호출 0, Notion conversation=None을 확인했다. 상세·추가 후보는 분류표와 `.build/task50/d50-02.json`이다.
+- 실제 메일 읽기·발송과 운영 적용은 하지 않았다. 바뀐 판정은 실제 함수를 호출하는 194개 집중 경우로 검사했고, 실행 줄 추적으로 공용 집합을 소비하는 모든 위치를 확인했다. 결과와 패치 지문은 impl-report 및 `.build/task50/` 근거를 따른다.
+
+## TASK-52 — 보완 64 원문 증명·인증 경계
+
+- 기준 b6d4e23dd11182a29cc81f88a6286979729e14c7. TASK-51 조사는 당시 이력으로 보존한다. 문 원문은 기존 Journal이 원본이며 읽기 전용 owner_message만 공개했다. 전달된 profile·chat·thread·msg_id와 role=owner·실제 방 수신자를 검사한다. forwarder는 기본 문으로 가되 자기 profile로 고정한다. source.message_id에 문 UUID를 넣고 scope_id는 만들지 않았다. wire·새 영구 원본·공개 가지 변경은 없다.
+- team-kit은 운영 원본 660항목의 본문·모드·링크 대조가 같은 임시 사본에서만 고쳤다. 공용 인증의 legacy_owner 콜백은 각 호출자의 기존 Slack/photon 증명을 그대로 받는다. 업무 안내의 learning.owners, 메일의 configured api_human_users, workspace의 video_job owner 비교를 보존했다. 원래 별도 owner 목록을 검사하지 않던 Notion·선택 스킬에 새 목록을 추정해 넣지는 않았다. 각 호출자가 원래 허용하던 legacy 플랫폼·역할·경로·심링크·승인·flag 처리는 남기고 hejo는 정확한 owner와 chat, 배경 거절을 공용 함수에서 검사한다.
+- 공용 원문 공급자는 install_hejo의 현재 adapter/event/loop 결합과 task-local 환경을 대조한 뒤 공개 owner_message만 호출한다. 같은 루프에서 동기적으로 기다리거나 옛 문에 메서드가 없거나 조회가 실패하면 None이다. DB content·모델 인자·Slack 헤더 모양·저장된 문맥은 대체 근거가 아니다. 학습은 검증된 원문을 쓰고, 기존 도구 결과 순서 비교에 필요한 숫자 messages.id만 동일 사건의 platform_message_id로 읽는다. 문 UUID를 DB 행 번호처럼 비교하지 않으며 이 메타데이터는 원문 증명 원본이 아니다.
+- request_source의 프로젝트 영수증 생산·채널·scope 규칙은 Slack 전용으로 보존했다. hejo 일반 원문과 섞거나 별도 프로젝트 저장소를 만들지 않았다. hejo steer/redirect는 검증된 사건에 결합되지 않아 근거를 공급하지 않는다. 단순 승인 글 학습·배경 학습은 계속 거절한다. 학습 보고 전송 위치는 바꾸지 않았다.
+- TASK-53 메모: linked_work의 선택 대상과 Decimal ts 비교, diagnosis_records의 Slack DM/permalink, wait_jobs의 Slack 정규식·origin 예약 전달은 그대로다. linked_work·diagnosis의 명시적 플랫폼 제한과 wait_jobs.create의 Slack 형식 제한은 남아 있다. 다만 wait_jobs.handle의 list/cancel·prune은 공통 learning.source에만 사장 증명을 맡기므로, 이번 확장으로 hejo owner가 그 입구를 통과할 수 있다는 코드상 영향은 TASK-53에서 확인해야 한다(이번 실물 실행 없음). 현재 owner_context의 hejo 선택 결과 row_id는 None으로 두어 기존 DB 본문 기반 대상 추정을 사용하지 않는다. 임의 클릭 대상의 직원 글은 first_thread_message만으로 조회할 수 없으므로 answer_to의 대상 내용 증명도 TASK-53에서 별도 설계해야 한다. 금고 백업 승인·CCTV 지정 방·Slack 사용량 조회도 D51-01대로 유지한다.
+- 검증 원본은 .build/task52/의 focused.log·full.log·final-foundation.log·integration.log·mutations.json·airport.log·patch-result.json이다. 가짜 DB의 위조 Slack 헤더와 문 원문을 다르게 두어 원문 공급자 교체 변형이 검출되게 했다. 운영 본문·비밀·실제 발송·재시작을 시험하지 않았다. 새 권한 경계의 운영 수준 3과 비설계자 검토는 남는다.
+
+
+## TASK-53 원문·실행 경계 독해 — 보완 66
+
+- 기준 3305387ba0067da9f9b992d6d69e0d5e426cd8f3. TASK-52 패치를 적용한 임시 team-kit을 원본으로 삼았다. 칸은 기존 문 기록장 조회와 team-kit의 linked_work·diagnosis_records·wait_jobs다. 영구 원문·wire·권한 원본을 추가하지 않는다.
+- 문 employee_message는 owner_message와 같은 공개 비동기 방식이며, 살아 있는 직원 글을 작성 직원·chat·thread·msg_id로 한정한다. 전달자는 자기 직원으로 고정한다. team-kit answered_employee_message는 TASK-52의 현재 사장 사건 증명과 answer_to를 결합하고 응답의 직원·대화·스레드·ID를 재대조한다. 세션 DB 본문이나 가장 최근 직원 글로 대체하지 않는다.
+- 업무 캡처는 hejo에서 고른 사건 원문과 검증된 답 대상만 사용한다. Slack의 _answered_message DB 문맥·Decimal 메시지 시각 경로는 Slack 쪽에 남긴다. hejo 업무 전환의 중복 판정은 사건 ID, 순서 판정은 공개 owner_message의 실제 기록 시각을 쓰고 UUID를 숫자나 시각으로 해석하지 않는다. 기존 단계별 실행·미확정 쓰기 보류·원문 할 일 근거는 유지한다.
+- 진단 기록은 hejo 원문 공급자를 먼저 확인하며 Slack permalink로 가장한 글도 hejo 출처만 남긴다. Slack의 세션 종류 검사와 permalink 추출은 기존 경로에 남긴다. hejo 기록에는 platform·chat_id·thread_id·msg_id를 쓰고 Slack ts 필드는 비워 둔다.
+- 대기 작업은 hejo 현재 원문·실제 직원 홈을 확인한 뒤 origin의 platform·profile·chat·thread를 보존한다. Slack 채널·ts 정규식은 Slack 갈래 그대로다. hejo list/cancel·prune은 같은 origin만 다루고 다른 대화·직원 작업은 제외하거나 거절한다. 기존 profile별 cron 저장소와 deliver=origin을 재사용하며 다른 플랫폼 대체를 추가하지 않는다.
+- 본체 cron/scheduler_delivery.py의 origin 대상 해석·live adapter·standalone 실패 반환을 읽고 가짜 문·Slack 어댑터로 실제 전달 함수를 호출했다. 같은 hejo 대상으로의 기존 standalone 시도와 다른 대상으로 보내는 것은 구별했다. 실패는 cron.jobs.mark_job_run의 last_status=delivery_failed·last_delivery_error로 기록함을 검사한다. scheduler.py의 cron 문맥은 플랫폼·chat 환경을 비우고 HERMES_CRON_SESSION을 설정한다. 조건 조회·예약 실행을 owner로 올리는 코드는 추가하지 않았다.
+- 원본 규칙 유지 근거는 기존 업무 캡처·등급 전환 33개 회귀와 team-kit 전체 시험, 새 가짜 사건·통합·세 돌연변이에 둔다. 운영 원문·실제 발송·운영 cron은 실행하지 않는다. 상세 로그·고정 입력과 최종 결과는 .build/task53/final-verification.json을 따른다.
+
+
+## 보완 67 원인·수정 독해 — N52-02·N34-02
+
+- 착수 기준 8b4e188f40bbab8af9b16a65f09c6e841aa5641e. 운영 team-kit은 이미 TASK-52·53이 적용된 상태이며, 임시 사본의 시작 항목 662개가 검증된 TASK-53 사본과 같았다. 운영 로그 본문·대화·설정 내용은 열지 않고 인계된 오류와 코드 경로를 대조했다.
+- 세션 ID 원인: gateway/session_context.py:81-105·173-179는 ContextVar 값을 우선하며 명시적인 빈 값도 os.environ보다 우선한다. AIAgent의 세션 ID와 도구 registry에 넘기는 session_id가 정상이어도 별도 도구 스레드의 환경 값은 비거나 다른 대체값일 수 있다. 실제 gate 수신 → GatewayRunner._set_session_env → agent turn 스레드 → Hermes execute_tool_calls_sequential의 executor → model_tools/registry → 등록된 learning.learn 경로에서 이를 재현했다. 모델 API만 가짜로 만들고 도구 dispatcher·executor·핸들러는 실제 구현을 썼다.
+- 수정 전 사본은 같은 시험에서 정상 저장 경우가 Current owner session does not match로 실패했다. 수정본은 현재 사건의 공개 원문을 먼저 확인한 뒤 session_id·role=user·platform_message_id가 일치하는 비압축 행의 id만 읽는다. 본문은 읽지 않는다. 학습·진단·보고 상태와 hejo 기억 문맥이 공용 증명을 사용한다. 기억 문맥은 hejo에서 현재 user 행이 아직 없으면 제공하지 않으며, 이 문맥을 쓰기 승인으로 대신하지 않는다.
+- 진행 글 원인: 문 receive는 기본 어댑터의 handle_message로 모든 프로필을 받는다. Hermes run_turn.py:3113-3123·4186-4216는 해당 프로필 전달 어댑터의 delete_message를 확인하고 그 어댑터에 정리를 등록한다. 반면 base.py:4611-4621·4782의 전달 완료는 기본 어댑터에서 pop한다. 예전 보조 어댑터의 콜백 보관함과 달랐다. 문에서 등록·pop을 기본 어댑터의 기존 보관함에 모았으며 세션 키·generation·콜백 연결·오래된 generation 거절은 본체 기본 구현을 그대로 쓴다.
+- run_turn_runner.py:111-124는 send/edit 결과의 같은 message_id도 추적한다. 새 회귀는 실제 기본 어댑터의 background 처리·최종 전달·post-delivery fire를 실행하고, 기본/보조 프로필의 진행 글 둘과 편집 결과를 공식 추적 함수에 넣는다. 성공 때 진행 글 삭제·최종 답 유지, 실패 차례의 글 유지, 오래된 generation 미소비를 확인했다. 본체·설정 변경은 없다.
+- 현재 운영 원본의 새 패치 dry-run과 임시 사본의 TASK-52→53→N52-02 순서 검사 모두 0이다. 과거 상태 복원·순서 적용은 임시 사본에서만 했다. 운영 원본의 반복 적용·역적용·재시작은 실행하지 않았다. 최종 시험·패치 지문·커밋은 .build/n52-02/final-verification.json을 따른다.
+
+## 보완 68 실제 차례 독해 — N34-03
+
+- 보완 67의 진행 글 설명은 콜백 전달자 경계 시험의 근거였다. 실제 GatewayRunner의 전달 어댑터 선택·소유권 검사를 끝까지 검증한 설명으로 사용하지 않는다. 이번 수정 전 재현은 .build/n34-03/baseline.log·baseline-trace.json에 보존했다.
+- 본체 gateway/authz_mixin.py:285-310의 _delivery_adapter_for는 수신 출처가 있으면 수신 어댑터를 먼저 돌려준다. 실제 다중 프로필 GatewayRunner에서 hejo 수신·진행 글·정리 등록·최종 전달은 모두 기본 문을 사용했다. 기본 문이 보조 프로필의 글을 보내는 것은 metadata.hermes_profile로 이미 지원한다. 그러나 delete_message는 어댑터 소유 프로필을 default로 고정해 그 보조 직원 글을 거절했다.
+- 실제 값: 기본·보조 각각 프로필을 포함한 같은 session key와 generation 1로 등록·fire·pop이 이어졌으며 pop 결과는 callable이었다. 진행 글 ID도 정상 수집됐다. 기본 삭제는 True, 보조 삭제는 False였다. 원인은 콜백 유실이나 generation 불일치가 아니다. run_turn.py:3840은 대기 후속 차례 앞 첫 답 전달 경로이고, 이번 일반 차례에서는 호출되지 않았다. 4182-4219 등록과 base.py:4611-4621 fire의 순서도 뒤집히지 않았다. 가짜 사건의 전체 키·ID·순서는 위 JSON에 남겼다.
+- 기존 문 receive의 확정된 수신 대상·chat·thread를 ContextVar로 차례에 전달한다. handle_message가 생성하는 background task와 본체 safe_schedule_threadsafe가 예약하는 정리 작업은 이 문맥을 상속한다. receive는 finally로 자신의 값을 복원한다. 별도 기록장·새 wire·영구 원본은 없고, 두 차례가 공유하는 전역 현재 직원 값도 없다.
+- 기본 문 delete_message는 이 수신 범위가 있을 때만 해당 직원·대화·스레드의 살아 있는 employee 글을 지운다. 범위 밖 직접 호출의 기존 기본/전달자 소유권 규칙과 role 검사는 유지한다. 임의의 다른 chat·thread나 owner 글은 허용하지 않는다. 본체나 team-kit 변경은 없다.
+- 새 시험은 별도 가짜 홈에서 실제 start_gateway와 연결·문 짝맺기·웹소켓 수신·handle_message·GatewayRunner·executor·TurnRunner·진행 큐·편집·최종 답·post-delivery를 실행한다. 가짜 모델은 실제 진행 콜백을 부르고 실제 전송·편집 완료를 기다린다. 관측 래퍼는 원래 함수를 그대로 호출하며 정리 등록·pop·fire를 직접 호출하지 않는다. 파일/DB/소켓 audit는 가짜 홈 밖 쓰기·비밀 파일·외부 접속을 거절한다.
+- 기본/보조 성공 차례는 진행 글 message→edit(non-final)→edit(final)→최종 답 message→진행 글 delete 순서이며, 실패 차례 두 개는 진행 글을 남긴다. 별도 동시 1:1/단체방 시험으로 직원·대화·스레드·owner 보존과 수신 범위 복원을 확인한다. 운영 실물과 수준 3 수락은 계획 담당+사장에게 남는다.
+
+## TASK-55·56 보완 대조
+
+전달 대상·인증·읽음 경계는 [TASK-55](copy-review-task55.md), 동기화·첨부·비밀번호 및 오류 문구는 [TASK-56](copy-review-task56.md)을 따른다.

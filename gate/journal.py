@@ -26,6 +26,7 @@ class Journal:
         self.fd = None
         self.message_threads = {}
         self.deleted_threads = {}
+        self.deleted_messages = set()
         self.rooms, self.deleted_rooms = {}, {}
 
     def open(self):
@@ -81,10 +82,13 @@ class Journal:
         self.records, self.head = records, previous
         self.message_threads, self.deleted_threads = {}, {}
         self.rooms, self.deleted_rooms = {}, {}
+        self.deleted_messages = set()
         for row in records:
             self._index(row)
 
     def _index(self, row):
+        if row["type"] == "delete" and row.get("scope") != "thread":
+            self.deleted_messages.add(row["msg_id"])
         if row["type"] == "room":
             self.rooms[row["room"]["id"]] = row["room"]
         if row["type"] == "room_delete":
@@ -100,7 +104,7 @@ class Journal:
 
     def hidden(self, row):
         key = self.message_threads.get(row.get("msg_id"))
-        return key in self.deleted_threads or (key is not None and key[0] in self.deleted_rooms)
+        return row.get("msg_id") in self.deleted_messages or key in self.deleted_threads or (key is not None and key[0] in self.deleted_rooms)
 
     def room_id(self, row):
         if row["type"] == "room":
@@ -135,7 +139,9 @@ class Journal:
                 row["_meta"] = internal
             data = (json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n").encode()
             month = datetime.now(timezone.utc).strftime("%Y-%m")
+            month = max([month] + [p.stem for p in self.path.glob("????-??.jsonl")])
             path = self.path / (month + ".jsonl")
+            created = not path.exists()
             fd, before = None, None
             try:
                 fd = os.open(path, os.O_CREAT | os.O_RDWR | os.O_APPEND, 0o600)
@@ -144,6 +150,10 @@ class Journal:
                     raise OSError("short journal write")
                 # os.write is unbuffered; fsync is the commit boundary.
                 os.fsync(fd)
+                if created:
+                    directory = os.open(self.path, os.O_RDONLY)
+                    try: os.fsync(directory)
+                    finally: os.close(directory)
             except OSError as exc:
                 if fd is not None and before is not None:
                     try:

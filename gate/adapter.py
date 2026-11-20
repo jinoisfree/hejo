@@ -2,6 +2,7 @@
 import asyncio
 from datetime import datetime, timezone
 from dataclasses import replace
+from contextvars import ContextVar
 import mimetypes
 import logging
 import json
@@ -23,6 +24,10 @@ from .rooms import RoomCommands, recipients
 
 log = logging.getLogger(__name__)
 _primary = None
+# The primary is the transport for routed profiles too. Background delivery and
+# its scheduled callbacks inherit the admitted event's scope, not the listener's
+# default profile. No process-global current employee or second message store.
+_delivery_scope = ContextVar("hejo_delivery_scope", default=None)
 REPLY_STATES = {"asked", "answered", "closed"}
 
 
@@ -43,6 +48,7 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
 
     def __init__(self, config):
         super().__init__(config, Platform("hejo"))
+        self.imessage = None
         self.journal = None
         self.files = None
         self._file_cleanup_task = None
@@ -68,11 +74,26 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
     def forwarder(self):
         return getattr(self, "_owner_profile", None) not in {None, "default"}
 
+    def register_post_delivery_callback(self, session_key, callback, *, generation=None):
+        # Ingress and final delivery belong to the primary even for a multiplexed turn.
+        if self.forwarder:
+            if _primary is not None:
+                _primary.register_post_delivery_callback(session_key, callback, generation=generation)
+            return
+        return super().register_post_delivery_callback(session_key, callback, generation=generation)
+
+    def pop_post_delivery_callback(self, session_key, *, generation=None):
+        if self.forwarder:
+            return _primary.pop_post_delivery_callback(session_key, generation=generation) if _primary is not None else None
+        return super().pop_post_delivery_callback(session_key, generation=generation)
+
     async def _forward(self, method, *args, metadata=None, chat_id=None, **kwargs):
         target = _primary
         if target is None or not target.is_connected:
             log.error("hejo_primary_unavailable")
             return SendResult(success=False, error="hejo_primary_unavailable")
+        if method in {"owner_message", "employee_message", "latest_employee_message"}:
+            return await getattr(target, method)(self._owner_profile, chat_id, *args)
         if method == "edit_message":
             if target.journal.room_id({"type":"edit","msg_id":args[0]}) in target.journal.deleted_rooms:
                 log.warning("room_deleted_drop")
@@ -98,6 +119,8 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             self.files = FileStore(get_hermes_home(), self.journal)
             self.files.cleanup()
             self.auth = AuthStore(get_hermes_home())
+            from .imessage import IMessage
+            self.imessage = IMessage(self, get_hermes_home())
             self.server = GateServer(self)
             await self._finish_thread_deletions()
             self.cleanup_rooms()
@@ -118,6 +141,9 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
         _primary = self
         self._file_cleanup_task = asyncio.create_task(self._cleanup_files())
         return True
+
+    def claims_external(self, event):
+        return bool(self.imessage and self.imessage.claims_external(event))
 
     async def _register(self):
         """Tell the hub which port this member's gate serves; retried until the hub answers."""
@@ -144,6 +170,8 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
         if self.forwarder:
             self._mark_disconnected()
             return
+        if self.imessage:
+            await self.imessage.close()
         if self._register_task:
             self._register_task.cancel()
             await asyncio.gather(self._register_task, return_exceptions=True)
@@ -181,7 +209,9 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
                 await self.server.error("journal_write_failed")
                 raise
             await self.server.broadcast(saved)
-            return saved
+        if self.imessage:
+            self.imessage.recorded(saved)
+        return saved
 
     def _validate_frame(self, frame):
         candidate = dict(frame, v=1, seq=self.journal.head + 1)
@@ -305,6 +335,8 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             content = native_buttons.plain_labels(content)
         chunks = split_text(content, LIMITS["text_bytes"])
         employee = metadata.get("hermes_profile") or (self.journal.rooms.get(chat_id[5:], {}).get("lead", "default") if chat_id.startswith("room:") else chat_id)
+        if room and employee not in self.journal.rooms[room]['members']:
+            return SendResult(success=False, error='room_member_required')
         thread = metadata.get("thread_id")
         if not thread and reply_to:
             previous = self.journal.message(reply_to)
@@ -440,6 +472,11 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
 
     async def delete_message(self, chat_id, message_id):
         owner = getattr(self, "_owner_profile", None) or "default"
+        scope = _delivery_scope.get() if not self.forwarder else None
+        if scope is not None:
+            owner, scoped_chat, scoped_thread = scope
+            if chat_id != scoped_chat:
+                return False
         target = _primary if self.forwarder else self
         if target is None or not target.is_connected:
             return False
@@ -447,6 +484,7 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
         async with target._edit_lock:
             message = target.journal.message(message_id)
             if (not message or message.get("role") != "employee" or message.get("employee") != owner
+                    or (scope is not None and message.get("thread") != scoped_thread)
                     or ("room:"+message["room"] if message.get("room") else message["employee"]) != address):
                 return False
             task = target._edit_tasks.pop(message_id, None)
@@ -497,6 +535,60 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
         finally:
             if self._edit_tasks.get(msg_id) is asyncio.current_task():
                 self._edit_tasks.pop(msg_id, None)
+
+    async def owner_message(self, profile, chat_id, thread_id, msg_id):
+        """Read an owner's original message only within this employee's delivery scope."""
+        if self.forwarder:
+            result = await self._forward("owner_message", thread_id, msg_id, chat_id=chat_id)
+            return result if isinstance(result, dict) else None
+        message = self.journal.message(msg_id)
+        if not message or message.get("role") != "owner" or message.get("thread") != thread_id:
+            return None
+        room = message.get("room")
+        actual_chat = "room:" + room if room else message.get("employee")
+        if not profile or chat_id != actual_chat:
+            return None
+        if room:
+            if (room not in self.journal.rooms or room in self.journal.deleted_rooms
+                    or profile not in message.get("_meta", {}).get("recipients", [])):
+                return None
+        elif message.get("employee") != profile:
+            return None
+        return {"msg_id": message["msg_id"], "text": message["text"], "chat_id": actual_chat,
+                "thread_id": message["thread"], "answer_to": message.get("answer_to"), "ts": message["ts"]}
+
+    async def employee_message(self, profile, chat_id, thread_id, msg_id):
+        """Read one live post written by this employee in the specified conversation."""
+        if self.forwarder:
+            result = await self._forward("employee_message", thread_id, msg_id, chat_id=chat_id)
+            return result if isinstance(result, dict) else None
+        message = self.journal.message(msg_id)
+        if (not profile or not message or message.get("role") != "employee"
+                or message.get("employee") != profile or message.get("thread") != thread_id):
+            return None
+        room = message.get("room")
+        actual_chat = "room:" + room if room else message.get("employee")
+        if chat_id != actual_chat:
+            return None
+        if room and (room not in self.journal.rooms or room in self.journal.deleted_rooms):
+            return None
+        return {"msg_id": message["msg_id"], "text": message["text"], "chat_id": actual_chat,
+                "thread_id": message["thread"], "employee": profile, "ts": message["ts"]}
+
+    async def latest_employee_message(self, profile, chat_id, thread_id, before_msg_id):
+        """Last live employee post preceding a verified owner event in this scope."""
+        if self.forwarder:
+            return await self._forward('latest_employee_message', thread_id, before_msg_id, chat_id=chat_id)
+        if await self.owner_message(profile, chat_id, thread_id, before_msg_id) is None:
+            return None
+        boundary = self.journal.message(before_msg_id)['seq']
+        for row in reversed(self.journal.records):
+            if row['type'] != 'message' or row['seq'] >= boundary:
+                continue
+            post = await self.employee_message(profile, chat_id, thread_id, row['msg_id'])
+            if post and post['text'].strip():
+                return post
+        return None
 
     async def first_thread_message(self, chat_id, thread_id, *, metadata=None):
         """Return the first live message this employee wrote, never another speaker's.
@@ -589,6 +681,7 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
         if handler and await handler(click):
             return
         await self.receive({"employee": click["employee"], "thread": click["thread"],
+                            "targeted": True,
                             "text": click["label"], "client_msg_id": str(uuid.uuid4()),
                             "id": frame.get("id"), "answer_to": click["msg_id"], **({"room":click["room"]} if click.get("room") else {})}, conn,
                            raw={"_hermes_button": {"label": click["label"], "message_id": click["msg_id"],
@@ -606,6 +699,9 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             if room_id and not room:
                 await self.server.error("room_not_found", frame.get("id"), conn)
                 return
+            if room and employee not in room['members']:
+                await self.server.error('room_member_required', frame.get('id'), conn)
+                return
             known = {e["id"] for e in self.employees()}
             if employee not in known:
                 await self.server.error("unknown_employee", frame.get("id"), conn)
@@ -617,8 +713,8 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             for row in self.journal.records:
                 if row.get("role") == "owner" and row.get("client_msg_id") == frame["client_msg_id"]:
                     await conn.send(self.server.project(row, conn))
-                    return
-            targets = recipients(frame["text"], room, self.employees()) if room else [employee]
+                    return True
+            targets = ([employee] if frame.get('targeted') else recipients(frame["text"], room, self.employees())) if room else [employee]
             if not set(targets) <= known:
                 await self.server.error("unknown_employee", frame.get("id"), conn)
                 return
@@ -646,7 +742,7 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
                 self.files.rollback(moved)
                 return
         async def deliver(target):
-            source = self.build_source(chat_id="room:"+room_id if room else employee, chat_type="dm", user_id="owner", thread_id=thread)
+            source = self.build_source(chat_id="room:"+room_id if room else employee, chat_type="dm", user_id="owner", thread_id=thread, message_id=msg_id)
             source.profile = target
             text = with_context(contexts.get(target, ""), frame["text"], "방 대화 — 받기 전 글") if room else frame["text"]
             text = with_context(branch, text, "이전 스레드 대화")
@@ -659,11 +755,16 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
                     context = conversation_lines(history, names, limit=50, characters=16000, line_characters=2000)
                     if context:
                         restored = "[이전 스레드 대화]\n" + context
-            await self.handle_message(MessageEvent(text=text, source=source, user_id="owner", message_id=msg_id,
-                channel_context=restored,
-                raw_message=raw or frame, media_urls=[entry["path"] for entry in registrations],
-                media_types=[entry["mime"] for entry in registrations]))
+            token = _delivery_scope.set((target, source.chat_id, thread))
+            try:
+                await self.handle_message(MessageEvent(text=text, source=source, user_id="owner", message_id=msg_id,
+                    channel_context=restored,
+                    raw_message=raw or frame, media_urls=[entry["path"] for entry in registrations],
+                    media_types=[entry["mime"] for entry in registrations]))
+            finally:
+                _delivery_scope.reset(token)
         await asyncio.gather(*(deliver(target) for target in targets))
+        return True
 
     async def send_typing(self, chat_id, metadata=None):
         if self.forwarder:
@@ -714,6 +815,8 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
                     log.warning("thread_deleted_drop")
                     continue
                 await self.server.broadcast({"v": 1, "type": "typing", "employee": employee, "thread": thread, "on": False, **({"room":room} if room else {})})
+            if self.imessage:
+                self.imessage.wake((room or chat_id, thread))
 
     async def get_chat_info(self, chat_id):
         if self.forwarder:
@@ -741,12 +844,15 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
         path = self.validate_media_delivery_path(file_path)
         if path is None:
             return SendResult(success=False, error="invalid_file")
+        try:
+            info = await self.files.copy(employee, path, file_name)
+        except (OSError, ValueError):
+            return SendResult(success=False, error="attachment_send_failed")
         async with self.files.lock:
             if room in self.journal.deleted_rooms:
                 log.warning("room_deleted_drop")
                 return SendResult(success=False, error="room_deleted_drop")
             try:
-                info = await self.files.copy(employee, path, file_name)
                 descriptors, moved = self.files.promote(employee, [info["file_id"]])
                 registrations = self.files.registration(employee, "employee", descriptors)
                 result = await self.send(chat_id, caption or "", reply_to, {

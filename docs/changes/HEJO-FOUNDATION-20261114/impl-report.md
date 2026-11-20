@@ -2081,3 +2081,114 @@ TASK-46 최종 확인: 마지막 입력 199개를 동결한 전체 검사와 집
 - 같은 트리의 foundation9_runner hejo(test_install 포함), 전체 앱 실행 3회, aeaa652 옛 문과 새 앱의 실제 루프백 짝맺기·송수신을 검사한다. 모든 실행은 가짜 홈·명부·세션·설정·임시 다운로드·로컬 웹/문만 쓴다. 실제 CLI 설정은 lstat만, 실제 다운로드 폴더는 이름만 대조하며 실제 내용 SHA 불변을 주장하지 않는다.
 - hejo-ship prepare는 기존 키체인 키를 재사용한다. 새 키 생성·비밀 키 출력/내보내기·setup은 실행하지 않는다. 압축을 다시 풀어 codesign deep/strict·실행 파일 지문·Sparkle 서명을 검사한다. 기존 Sparkle 고정 캐시를 사용해 외부 다운로드를 하지 않는다.
 - 이번 단계는 로컬 공개 후보·배포 준비와 자체 검증(필요/도달 수준은 최종 근거 기준)이다. 사장 public 푸시 승인·publish, aeaa652 기준 새 롤백 백업, 운영 허브/문·team-kit 반영·TASK-23·실물 훅 연결/해제·두 Mac 자동 업데이트·비설계자 검토는 수행하지 않는다. 고위험 운영 수락 완료를 주장하지 않는다. 운영 홈·공용 릴리스·본체/ddots는 바꾸지 않는다.
+
+
+## TASK-50 구현·자체 시험 — 보완 62
+
+1. 받은 설계: handoff 보완 62, 기준 c554077f6ba1dc1513deb08683f425cb933fdd1b. 고위험(권한), 인계 필요/도달 2/2이며 운영 실물 수준 3은 계획 담당+사장에게 남긴다. 구현자 판단은 패치·자체 시험 완료, D50-02 경계와 운영 수락은 미완료다.
+2. 책임 배치: team-kit 공용 라이브러리의 경량 플랫폼 집합을 기존 governance·execution·mail·회상 소비자가 참조한다. 새 권한 원본·hejo 규격·문·Hermes 본체 변경은 없다. 기존 메일 계정/프로필·배경·승인/범위 경계는 유지하고 사장 대화 전송에 hejo만 추가했다.
+3. 변경본: `.build/task50/team-kit.patch`, 15개 파일. SHA-256 `70597129d464c9dd94193482828038de85d6db1d76d644ec6dad14991dbf2398`. 분류표 `.build/task50/classification.md`(146행, 원본 기준 줄 번호), 변경 표현식 목록 `changed-predicates.json`. 운영 원본과 같은 658개 항목을 대조했고 root 별칭 링크는 그대로 보존했다.
+4. 시험 경계: 가짜 홈·설정·명부·SQLite 기록·메일 공급자만 썼다. Mail 다른 계정 읽기는 실제 `_gmail_direct`의 문제 분기를 호출해 허용 때만 가짜 읽기 공급자에 도달하고, 예약·배경·빈 chat_id면 호출 0임을 단언한다. 다른 권한 함수도 Slack/hejo 동일 결과와 원래 거절을 검사한다. 대화 태그·기록 필터와 실제 쓰기 권한은 구분했다.
+5. 집중 검증: 게이트웨이 Python으로 `run_tests.py focused` 종료 0, 194 passed. 원본 메일 공급자·앱·외부 서비스는 호출하지 않았다. 실행 줄 추적도 종료 0이며 공용 집합 소비 27개 줄(26개 교체 표현식 및 공용 상수/SQL 바인딩을 포함)이 실행됨을 확인했다. `focused.log`·`predicate-coverage.json`·`predicate-coverage.log`.
+6. 전체 검증: `run_tests.py full` 종료 0, 5024 passed·5 skipped·58 subtests passed, 기존 SyntaxWarning 1개. 환경은 게이트웨이 Python과 요구된 pytest/core PYTHONPATH다. 임시 운영 저장소 worktree의 형제 플러그인·스키마·프로필 소스 문맥을 갖췄으며 team-kit 사본만 변경했다. `.build/task50/full.log`·`full-result.json`. 시험의 skip·기대값·허용 오차는 바꾸지 않았다.
+7. 돌연변이: `mutate.py` 종료 0. 별도 정상 사본은 0, 공용 집합에서 hejo 제거 사본은 1, Mail 배경 검사 제거 사본도 1로 재현 시험에 검출했다. 제품/운영 원본은 변형하지 않았다. `mutations.json`·`baseline.log`·`missing-hejo.log`·`missing-background.log`.
+8. 정적/적용 확인: 임시 worktree의 `airport-check --snapshot` 종료 0, baseline 증가/재생성 없이 PASS. 운영 원본에 `patch -p1 --dry-run` 종료 0이며 적용은 하지 않았다. `airport.log`·`airport-result.json`·`patch-dry-run.log`·`patch-result.json`. 실제 적용·재시작·메일 실물은 미실행이다.
+9. D50-02 후보: wait_jobs의 Slack 정규식/알림, 원문 증명에 의존한 work_capture·선택·workspace/관리 학습, Slack 블록 승인 수신, Notion conversation 및 Slack 단일 플랫폼 인증 경계. 네 경로의 hejo 거절/미처리를 가짜 입력으로 재현해 `d50-02.json`에 남겼으며 해당 코드는 고치지 않았다. 분류표를 보고 계획 담당이 후속 계약을 판단해야 한다.
+10. 중간 실행: 단독 team-kit 사본 첫 전체 검사는 형제 플러그인·스키마·프로필 문맥 누락으로 53 failed·4967 passed·9 skipped였다. 이후 동일 제품/시험 코드를 완전한 임시 문맥에서 실행해 해소했다. 첫 원시 로그는 다음 실행 때 대체됐고 요약은 `intermediate-first-full.json`에 남겼다. 초기 집중 실패는 새 대역 속성/호출 이름 누락과 Kanban 프로세스 문맥 보완으로 해소했으며 제품 판정은 완화하지 않았다. 기존 file_drop_readers의 escape 경고는 이번 변경과 무관해 억제하지 않았다.
+11. 최종 검토 초점: hejo 문 인증을 신뢰하는 범위와 user_id=owner 확인, 사장 기록 필터와 플랫폼 전용 동작 분류, 원래 배경 예외 보존, D50-02 미지원 경계를 봐 달라. hejo 커밋에는 이 보고와 copy-review만 넣는다. public·운영 원본/저장소 본문·게이트웨이·본체/ddots·실제 메일·Slack은 바꾸지 않는다. 최종 커밋·입력/패치 지문·원본 불변은 `.build/task50/final-verification.json`·`checkpoint.json`을 따른다.
+
+
+## TASK-51 조사·제안 — 보완 63
+
+- 받은 범위: 기준 `58b52ae56ba54ed885f11bbd5c21b83622749d01`, TASK-50 운영 적용 뒤의 D50-02 읽기 전용 조사다. 제품·운영 코드와 계약은 바꾸지 않았다. 구현자 판단은 조사 인계이며, 후속 설계·권한 확대·운영 수락은 계획 담당에게 남긴다. 기존 TASK-50 보고는 당시 실행 이력으로 보존한다.
+- 상세 원본은 추적하지 않는 `.build/task51/survey.md`다. 이전 분류의 D50-02 28행·23개 함수 묶음을 현 운영 소스와 다시 대조했다. 항목마다 사장에게 주는 기능, Slack 증명 사실과 생산자/소비자, hejo 증명 출처의 코드 줄, 제안과 위조 차단 위험을 적었다. 전수 대응은 `candidate-coverage.json`에 있다.
+- 제안은 공용 사장 인증으로 가능한 업무 안내·메일 읽기·Notion 대화 키, 문 원문 증명이 필요한 학습·기억·업무 선택·대기 작업, 현재 Slack 전용으로 남길 백업 질문 승인·지정 방 제한·Slack 사용량 조회로 구분했다. 선택 스킬·workspace의 단순 신원 판정과 원문 검증 소비자를 구별했고, native_tools 후보는 블록 승인 대신 실제 사용량 원장 조회라는 점을 정정했다. 제안은 구현 지시나 새 승인으로 취급하지 않는다.
+- 문 기록장에는 전처리 전 사장 글과 답 버튼의 answer_to가 있으나 공개 first_thread_message는 직원 글만 조회한다. team-kit이 내부 기록장을 가져오지 않고 현재 사건·방·스레드·직원 수신 범위에 묶인 공개 원문 조회를 쓰는 방안을 제안했다. DB 전송 ID와 환경 MESSAGE_ID의 생산 경로도 구별했다. 일반 hejo source 생성에는 message_id/scope_id를 넣지 않아 현재 환경 ID를 보장할 수 없다는 코드상 빈틈과, 이를 후속 가짜 수신 시험으로 확인할 필요를 기록했다. 실제 turn 환경 탐침은 하지 않았다.
+- 운영 세션 DB 6개를 immutable 읽기 전용·query_only로 열었다. WAL이 비어 있음을 먼저 요구했고 본문·실제 식별자 값 대신 열 이름과 집계만 조회했다. hejo 세션 16개는 chat/thread NULL·공백 0개, user 행 23개는 platform_message_id NULL·공백 0개였다. 전체 message 행 87개 중 해당 ID NULL은 64개이므로 모든 행을 사장 요청 증거로 볼 수 없다. 조회 전후 DB/WAL/SHM 크기·mtime·inode는 같았다. 실행과 집계 원본은 `db_metadata.py`·`db-metadata.json`·`db-metadata.log`다.
+- 검증은 조사 범위 대응·지문·문서 개인값/훅/diff 검사로 한정했다. 제품 코드가 같으므로 앱·전체 team-kit 시험·돌연변이는 실행하지 않았다. 운영 소스 파일/링크 660개 대조와 실제 검사 종료값, 소유 보고 파일만 commit-only한 커밋·깨끗한 작업 트리·public 불변은 `.build/task51/final-checks.json`·`final-verification.json`을 따른다. 대화 본문·비밀 파일·실제 메일·Slack·재시작·운영 변경·원격 작업은 없다. 권한 경계 구현과 실물 증거는 미완료다.
+
+## TASK-52 구현·자체 시험 — 보완 64
+
+1. 받은 설계: 보완 64·D51-01, 기준 b6d4e23dd11182a29cc81f88a6286979729e14c7. 권한 경계의 코드·가짜 통합 증거를 인계하되 필수 전체 검증은 AT-96 실패로 보류한다. 운영 적용·실물 수준 3과 독립 검토는 계획 담당+사장에게 남긴다. 이전 TASK-51 조사는 당시 이력으로 보존한다.
+2. 문 변경: gate/adapter.py의 수신 build_source에 같은 사건의 message_id를 넣고 scope_id는 넣지 않았다. owner_message는 기존 기록장의 살아 있는 owner 글을 현재 profile·chat·thread·msg_id와 실제 방 수신자에 한정해 복사해 반환한다. forwarder는 기존 경계에서 자기 profile로 고정한다. wire·영구 저장소·Hermes 본체 변경은 없다. gate/tests/test_owner_query.py가 정상 복사·거절·삭제·방·forwarder·실제 게이트웨이 환경 바인딩을 검사한다.
+3. team-kit 변경: 운영 원본 660항목과 같음을 대조한 임시 사본에서 가 5곳에 공용 인증을 연결했다. 기존 configured owner 검사는 각 legacy 콜백에 보존했고, 원래 별도 목록을 검사하지 않던 소비자는 기존 판정을 유지한다. hejo는 owner·chat와 배경 거절을 공용 함수로 검사한다. 역할·경로·심링크·승인·원래 flag 처리는 남겼다. 공용 원문 공급자는 install_hejo의 현재 adapter/event/loop와 환경을 결합하고 공개 owner_message만 호출하며 실패는 None이다. DB content·모델 인자·Slack 헤더 모양으로 대체하지 않는다.
+4. 원문 소비자: learning·request_source 일반 원문·memory_live·owner_context·paseo_authority가 hejo 원문을 재사용한다. 프로젝트 영수증과 학습 보고 전송 위치는 Slack 경로 그대로다. 검증된 사건에 묶이지 않은 hejo steer/redirect는 학습·선택 근거를 공급하지 않으며, bare approval·배경도 계속 거절한다. 학습 소비자가 숫자 행 순서를 쓰므로 공개 원문 증명 뒤 동일 전송 ID의 messages.id만 메타데이터로 읽는다. 문 UUID를 숫자 행 번호로 쓰지 않는다. owner_context의 hejo 선택은 원문과 전송 ID만 주고 row_id=None으로 두어 TASK-53의 기존 DB 본문 대상 추정을 열지 않는다.
+5. 제출 패치: .build/task52/team-kit.patch, 12개 파일. SHA-256 660142a0533936ef78d30970209a5b81ea0c9c93ef34cf2db0c20cd87aa16ee5. 새 저장소나 문 내부 import는 없다. 운영 원본에 patch -p1 --dry-run 종료 0, 실제 적용은 하지 않았다. patch-result.json·patch-dry-run.log.
+6. team-kit 최종 검증: 게이트웨이 Python과 지정된 pytest/core PYTHONPATH, 가짜 홈·설정·세션 DB만 사용했다. 집중 32 passed, 전체 5058 passed·5 skipped·58 subtests passed, 각각 종료 0. 기존 file_drop_readers escape SyntaxWarning 1개는 범위 밖 진단으로 보존했다. 검사 중 최종 canonical 입력 565개는 불변이다. focused.log·full.log·full-result.json·verification-inputs.json. 임시 운영 저장소 문맥에서 airport-check --snapshot 종료 0, 기준선 증가/재생성 없이 PASS(줄이기 가능 4건 안내만). airport.log·airport-result.json.
+7. 돌연변이: 정상 team-kit/문 사본 각각 0, hejo 사용자 검사 제거·방 수신자 검사 제거·원문 공급자를 DB content로 대체한 사본은 각각 1로 검출했다. 컴파일/수집 실패가 아닌 해당 권한·원문 단언 실패를 확인했다. mutations.json과 mutation-*.log. 원본은 변형하지 않았다.
+8. 문·결합 시험: 문 집중 3 passed(종료 0). 새 문과 수정 team-kit의 install_hejo를 실제 가짜 루프백 수신에 연결해 worker가 공개 조회로 같은 문 UUID·원문을 받는 별도 시험 1 passed(종료 0). 게이트웨이 자체의 환경 바인딩 메서드를 사용했다. integration.log·integration-result.json, .build/foundation9-task52-gate.log.
+9. hejo 전체 검증 **미통과·검토 보류**: foundation9_runner hejo 두 실행 모두 Python 248 passed(test_install·허브 포함) 뒤 기존 AT-96 ‘newly selected tab scrolls into the strip’ 단언으로 전체 종료 1이었다. 앱 소스는 기준 HEAD와 같고 원인은 이번 범위에서 확정하지 못했다. 단독 웹 시험은 처음 0이었으나 최신 실행도 같은 단언으로 1이었다. 앱 제품·기대값·시간 조건은 바꾸지 않았으며 범위 밖 수정 판단을 계획 담당에게 넘긴다. 두 전체 실패는 intermediate-foundation-01/02.log/json, 최신 단독 실패는 web-probe.log/json이다. 첫 단독 성공의 전체 원시 파일은 후속 실행으로 대체됐고 도구 출력에서 관측한 값/발췌만 intermediate-web-first-observation.json에 구별해 남겼다. 중복 앱 전용 빌드는 중단했다. 최종 foundation-result.json·final-foundation.log에는 실제 종료 1을 기록하며, 개별 통과를 전체 성공으로 합치지 않는다.
+10. 정적·최종 기록: 개인값·HEJO_PYTHON 지정 훅·diff 검사와 소유 파일만 commit-only한 전체 커밋, 운영 소스 불변·public 불변·깨끗한 main·패치/입력 대조는 .build/task52/final-checks.json·final-verification.json·checkpoint.json을 따른다. 운영 원본·운영 홈·공용 릴리스·운영 허브·재시작·운영 저장소 커밋/푸시·GitHub·비밀 파일·실제 대화 본문·실제 발송·본체/ddots 변경은 없다.
+11. TASK-53 메모: linked_work의 선택 대상·Decimal ts, diagnosis_records의 Slack DM/permalink, wait_jobs의 형식·cron origin 전달을 다음 설계에서 이식해야 한다. 해당 파일과 D51-01의 Slack 전용 세 경계는 바꾸지 않았다. 단, wait_jobs.handle의 list/cancel·prune은 공통 learning.source를 쓰므로 hejo 인증 입구를 통과할 수 있다는 코드상 영향을 TASK-53에서 확인해야 한다(이번 실행 없음). 임의 answer_to 대상 직원 글의 내용 증명은 first_thread_message만으로 충분하지 않아 후속 설계가 필요하다. 운영 적용은 새 문 공개 메서드가 있는 릴리스와 team-kit 패치를 함께 검토·반영하고 계획 담당+사장이 재시작·실물 확인한다. 공개 메서드가 없는 옛 문에서는 원문 공급자가 실패 폐쇄한다.
+
+
+## N52-01 시험 대기 보완 — 보완 65
+
+- 착수 기준 948f4dfacbec86b0baa71fb45f54687966bdaa25. TASK-52 코드 검토를 통과한 제품·권한 판정과 team-kit 패치는 변경하지 않는다. 이번 변경은 WebPaneTests.swift의 화면 관측 시점과 이 보고뿐이다. 기존 TASK-52의 전체 검사 실패 기록은 당시 이력으로 보존한다.
+- 변경 목록: (1) 탭 추가 뒤 고정 0.3초 대기를 기존 waitFor(3)의 스크롤 위치 조건으로 교체했다. `AT96 newly selected tab scrolls into the strip` 단언 문구와 minX>0 조건은 유지한다. (2) 옆 창을 열 때 고정 0.12초 대기를 기존 waitFor(3)의 중간 폭·WebKit 미생성 조건으로 교체했다. 시작보다 크고 목표보다 작은 프레임이라는 기존 단언을 유지하며 완성 프레임으로 대체하지 않는다.
+- 남긴 pause 두 곳: 첨부 본문의 0.05초는 내용 도달 때 즉시 끝나는 기존 최대 50회 비동기 조회 루프다. 캡처의 0.3초는 외관 적용 뒤 그림을 채취하는 대기이며 화면 성공 단언이 아니다. 제품 코드·기대값·허용 오차·수락 문구·시험 건너뛰기 변경은 없다.
+- 소유 파일만 먼저 commit-only하여 같은 커밋을 고정하고 foundation9_runner hejo를 연속 두 번 실행한다. 실행 전후 커밋·입력 불변, 각 종료값·로그와 개인값 검사 결과는 추적하지 않는 .build/n52-01/final-verification.json에 기록한다. 이 문단은 실행 예정 범위를 적으며 통과 결과를 미리 주장하지 않는다. team-kit 시험·돌연변이·dry-run은 다시 실행하지 않고 기존 패치 SHA-256 660142a0533936ef78d30970209a5b81ea0c9c93ef34cf2db0c20cd87aa16ee5만 재확인한다.
+- 운영 원본·운영 홈·공용 릴리스·본체·ddots·public·원격은 변경하지 않는다. 실제 설정 내용·대화 본문·비밀 파일·실제 발송에 접근하지 않는다. 계획 담당이 고정 커밋의 두 전체 검사 결과를 확인한 뒤 TASK-52 전체 검증 보류 해제를 판정한다.
+
+
+## TASK-53 구현·자체 시험 — 보완 66
+
+1. 받은 설계: 보완 66, 기준 3305387ba0067da9f9b992d6d69e0d5e426cd8f3. 기존 문 공개 조회와 team-kit 업무 캡처·진단·대기 작업 책임 자리에 구현한다. 권한 경계의 인계 필요 수준은 2이며 운영 적용·실물 수준 3은 계획 담당+사장에게 남긴다. 이전 TASK-52·N52-01 기록은 당시 이력으로 보존한다.
+2. 시작 대조: 운영 team-kit 원본 660개 항목의 내용·권한·상대 링크가 TASK-52 착수 자료와 같았다. 읽기 전용 원본에서 만든 사본에 TASK-52 패치를 적용하고 검증된 TASK-52 사본과 일치함을 확인했다. 그 상태를 TASK-53 패치의 기준으로 보존했다. .build/task53/start.json·source-manifest.json.
+3. 문 변경: gate/adapter.py에 employee_message를 추가했다. 작성 직원·같은 chat/thread·살아 있는 글·살아 있는 방을 확인하고 복사본만 반환한다. forwarder는 기존 _forward에서 자기 직원으로 고정한다. gate/tests/test_employee_query.py가 정상·복사·다른 직원/대화/스레드·role·삭제·없는 ID·방·forwarder를 검사한다. wire·기록장 저장 형식·Hermes 본체 변경은 없다.
+4. team-kit 업무 캡처: 공용 answered_employee_message는 현재 사장 사건의 answer_to를 공개 직원 조회로 확인한다. _task_capture_owner_chat은 hejo 증명과 기존 work 역할을 함께 요구한다. work_capture는 source 원문·ID도 현재 사건과 대조하며 미확정 선택과 대상 불일치면 native 호출 전에 거절한다. hejo UUID는 사건 키로만 쓰고 전환 순서는 문이 준 실제 ts로 판정한다. Slack의 숫자 ts·DB 문맥 경로는 유지한다.
+5. 진단·대기: hejo 진단은 검증된 원문에서 platform/chat/thread/msg_id를 기록하고 Slack permalink를 해석하지 않는다. 대기 생성은 hejo 원문과 직원 홈을 확인하고 origin을 보존한다. hejo 목록·취소·prune은 같은 직원·대화·스레드의 작업만 다룬다. prompt의 전달 위치는 플랫폼별로 쓰며 조건 조회와 깨어난 실행은 계속 배경이다. 기존 profile별 cron 저장소·origin 전달을 재사용한다.
+6. 가짜 검증: 새 집중 22개와 문 조회 2개, 실제 짝맺기·버튼 누름의 원문 결합과 방 대표가 아닌 직원 전달자의 cron 전달 통합 2개, 기존 업무 캡처·등급 전환 33개가 각각 종료 0이었다. 실제 cron 전달 함수와 가짜 hejo·Slack 어댑터로 같은 대화 전달·실패 때 타 대상 발송 0을 검사했고, cron 작업의 delivery_failed·last_delivery_error 기록도 단언했다. 실제 메일·Slack·운영 문·세션 본문은 쓰지 않았다.
+7. 돌연변이: 정상 team-kit·문 사본은 각각 0, 직원 일치 검사 제거·origin Slack 고정·Slack 대체 대상 추가 사본은 각각 1로 검출했다. 마지막 변형은 실제 가짜 Slack 발송 관측으로 실패했다. 제품·운영 원본은 변형하지 않았다. .build/task53/mutations.json·mutation-*.log.
+8. 전체 검증·정적 검사·최종 커밋은 고정 입력의 결과 원본 .build/task53/final-verification.json을 따른다. team-kit 전체는 전달 실패 기록 단언을 더한 뒤 다시 실행하며 이전 통과 실행은 intermediate-before-delivery-record-full로 보존했다. 최초 집중 2개 실패는 시험의 플러그인 등록 대역 누락이었고 공개 등록 방식으로 보완했다. 시험 기대값·skip·허용 오차는 완화하지 않았다. airport-check는 기존 승인 기준선을 그대로 사용해 종료 0이었다.
+9. 패치 적용 순서: .build/task52/team-kit.patch → .build/task53/team-kit.patch. TASK-52 SHA-256 660142a0533936ef78d30970209a5b81ea0c9c93ef34cf2db0c20cd87aa16ee5. TASK-53 SHA-256 38a66b3a2248c223be13b92155455138c18decc3136906dcb708de62073ae8ad. TASK-52는 운영 원본에 dry-run 0, TASK-53은 그 동일 원본 사본에 TASK-52를 적용한 뒤 dry-run 0이다. 사본에 둘을 순서 적용한 결과가 최종 검증 사본과 일치한다. 운영 원본에는 적용하지 않았다. .build/task53/patch-result.json·해당 dry-run 로그.
+10. 운영 적용은 계획 담당+사장에게 남긴다. 문 공개 메서드가 늘었으므로 두 team-kit 패치만 적용해서는 충분하지 않으며 hejo-release로 공용 문 갱신과 두 패치를 함께 반영한 뒤 재시작 한 번이 필요하다. 이번 단계에서는 공용 릴리스·운영 홈·게이트웨이·운영 저장소·본체·ddots·public·원격을 바꾸지 않는다. 계획 담당이 수준 2 근거와 실패 전송 경계를 검토한 뒤 운영 수락을 판단한다.
+
+
+### TASK-53 최종 검증
+
+- 문 전체: python3 .build/foundation9_runner.py hejo 종료 0. Python 250 passed(test_install·허브 포함), 앱 전체·통신·AT-96·훅 9개 통과. 실제 CLI 설정은 내용 접근 없이 lstat 메타데이터만, 실제 다운로드는 이름만 대조해 불변을 확인했다. .build/task53/final-foundation.log·foundation-result.json.
+- team-kit 전체: python3 .build/task53/frozen.py 종료 0. 게이트웨이 Python과 지정된 pytest/core PYTHONPATH로 5080 passed·5 skipped·58 subtests passed, 기존 escape SyntaxWarning 1개. 집중 22개도 종료 0이다. 제품·시험 입력 770개는 고정 뒤 불변이다. .build/task53/full.log·full-result.json·frozen-team.json·focused.log.
+- 추가 회귀: 문 조회 2개·짝맺기/버튼/방 cron 전달 통합 2개·기존 업무 캡처/등급 전환 33개 각각 종료 0. 로그는 .build/foundation9-task53-gate.log·foundation9-task53-integration.log·foundation9-task53-legacy.log다. 가짜 원문·세션·공급자·로컬 문만 사용했다.
+- 세 돌연변이, airport-check, 두 패치 순서 dry-run은 앞선 항목의 실제 결과와 해당 JSON을 따른다. 최종 개인값·훅·diff 검사와 소유 파일 네 개 commit-only, 커밋/입력/패치 대조·운영 원본 660개 불변·깨끗한 main·public 고정의 실제 결과는 .build/task53/final-checks.json·commit-result.json·final-verification.json에 남긴다. 인계 필요/도달 증거 수준은 2/2이며 운영 적용·실물·비설계자 검토는 미실행이다.
+
+
+## 보완 67 구현·자체 시험 — N52-02·N34-02
+
+1. 받은 범위: 기준 8b4e188f40bbab8af9b16a65f09c6e841aa5641e, 운영에서 발견한 세션 증명·보조 프로필 진행 글 정리 두 결함이다. 기존 문 어댑터와 team-kit 원문 증명·학습 책임 자리만 바꾼다. 운영 원본에는 TASK-52·53이 이미 적용돼 있고 새 패치는 그 위의 차이다. 기존 보고와 당시 자체 시험은 이력으로 보존한다.
+2. N52-02: 공용 current_owner_message_in_session은 TASK-52의 현재 사건·공개 원문 증명 뒤, 지정된 세션의 같은 platform_message_id인 살아 있는 비압축 user 행 id를 조회한다. 환경 HERMES_SESSION_ID 대조와 세션 DB 본문 읽기는 없다. learning.hejo_source가 이를 쓰고 diagnosis_records·report_status·memory_live의 같은 환경 ID 대조도 교체했다. request_source·owner_context·paseo_authority는 기존 학습 원문 공급자를 통해 이 증명을 받는다. hejo 기억 문맥은 user 행이 저장되기 전이면 제공하지 않는 쪽으로 일치시켰다. 다른 플랫폼 경로는 유지한다.
+3. 실제 실행 경로: 가짜 홈의 보조 프로필 1:1 수신 사건을 GatewayRunner 환경으로 넘기고 실제 AIAgent·Hermes 도구 executor·공개 registry에 등록한 team-kit 핸들러를 실행했다. 도구 스레드가 turn 스레드·이벤트 루프 스레드와 다르고, 도구 환경 ID는 빈 값·핸들러 session_id는 정상 값인 것을 단언했다. 원문 ID가 그 세션에 속할 때만 규칙 저장 성공, 다른 세션 행·배경은 저장 0이다. 모델 API는 대역이며 실제 모델 호출·운영 기록은 사용하지 않았다. .build/n52-02/test_executor.py·.build/foundation9-n52-02-executor.log.
+4. 수정 전 대조: 동일 executor 시험을 TASK-52·53 적용 상태의 수정 전 사본으로 실행하면 정상 경우가 기존 오류로 실패(종료 1, 1 failed·2 passed)했다. 수정본은 3 passed·종료 0이다. 추가 집중은 7 passed, 기존 보고 상태 포함 통합 31 passed다. .build/foundation9-n52-02-executor-before.log·foundation9-n52-02-executor.log·foundation9-n52-02-parity.log, .build/n52-02/focused.log. 최초 시험 정리 코드의 등록 해제 메서드 오기는 dispose로 고쳤고 중간 로그를 별도로 보존했다.
+5. N34-02: 기본 어댑터가 수신·최종 전달을 소유하므로 보조 어댑터의 post-delivery 등록·pop을 기본 보관함으로 연결했다. 기본 세션 키·generation 검증·동일 generation의 콜백 연결은 본체 원래 구현이 담당한다. cleanup_progress 설정이나 Hermes 본체는 바꾸지 않았다. 진행 글 send 둘·edit 결과를 공식 추적 함수에 넣은 뒤 실제 base 처리와 최종 전달을 실행했다. 기본/보조 성공은 진행 글 삭제·최종 답 유지, 실패 차례는 진행 글 유지이며 오래된 generation은 콜백을 소비하지 않는다. 기존 진행 시험을 포함해 11 passed·종료 0이다. .build/foundation9-n34-02.log.
+6. 돌연변이: 정상 team-kit·문 사본 각각 0, 세션 SQL 조건 제거 사본 1(다른 세션의 메시지가 통과함을 검출), 보조 어댑터 콜백 등록 전달 제거 사본 1(진행 글이 남음)이다. 운영 원본·검증 제품은 변형하지 않았다. .build/n52-02/mutations.json·mutation-*.log. airport-check도 기준선 변경 없이 종료 0이다.
+7. 패치 .build/n52-02/team-kit.patch, SHA-256 1e79f11406addad51b6c8514db2f3d1a61c992168eabfae1fa93bc9c06df77f6. 전체 계보 순서는 .build/task52/team-kit.patch → .build/task53/team-kit.patch → 이 패치다. 임시 사본에서 과거 지문과 같은 시작 상태를 재구성해 순서 dry-run·적용을 모두 0으로 확인했고 최종 검증 사본과 같다. 이미 52·53이 적용된 현재 운영 원본에도 이 패치 dry-run 0이다. 운영에 52·53을 반복 적용하거나 역적용하지 않았다. .build/n52-02/patch-result.json·해당 로그.
+8. 전체 검증·개인값 검사·소유 파일 commit-only의 최종 결과는 아래와 .build/n52-02/final-verification.json을 따른다. 고정 입력은 771개다. 필요/도달 증거 수준 2/2의 코드·가짜 통합 인계이며, 운영 반영·실물 재확인·비설계자 검토는 계획 담당+사장에게 남긴다. 공용 문 갱신과 새 team-kit 패치 후 승인된 재시작이 필요하다. 이번 실행은 운영 홈·공용 릴리스·본체·ddots·public·원격을 바꾸거나 재시작하지 않는다. 실제 대화 본문·비밀 파일·실제 발송 접근도 없다.
+
+
+### 보완 67 최종 검증
+
+- python3 .build/foundation9_runner.py hejo 종료 0: Python 254 passed(test_install·허브 포함), 앱 전체·통신·AT-96·훅 9개 통과. 실제 CLI 설정 lstat 메타데이터·실제 다운로드 폴더 이름 불변 단언 통과. .build/n52-02/final-foundation.log·foundation-result.json.
+- python3 .build/n52-02/run_tests.py full 종료 0: 게이트웨이 Python과 지정 pytest/core PYTHONPATH로 5087 passed·5 skipped·58 subtests passed, 기존 SyntaxWarning 1개. 집중 7개·실제 executor 통합 3개·보고 상태 통합 31개·진행 표시 회귀 11개도 각각 종료 0이다. 수정 전 executor 대조는 의도된 종료 1이며 정상 경우에 기존 오류를 재현했다.
+- 세션 증명 제거·보조 콜백 전달 제거 돌연변이는 각각 정상 사본 0·변형 사본 1로 검출했다. airport-check와 전체 순서/현재 운영 원본 dry-run은 모두 0이다. 고정 제품·시험 입력 771개 불변과 커밋·패치 지문 일치, 운영 원본 662개 항목·public 불변의 최종 대조는 .build/n52-02/final-verification.json·checkpoint.json에 남긴다. 운영 원본은 현재 TASK-52·53 상태 그대로이며 추가 패치 적용·공용 문 갱신·재시작·실물 재확인은 미실행이다.
+
+## 보완 68 구현·자체 시험 — N34-03
+
+1. 받은 설계: handoff.md 보완 68, 기준 a9270ce4e6d52506013450996e43ebcc6b97b816. 고위험(동시 차례·글 삭제 범위)으로 판단, 필요/도달 증거 수준 2/2. 구현자 판단은 수준 2 검증 후 검토 인계이며 운영 실물 수락을 대신하지 않는다.
+2. 수정 전 재현: 실제 GatewayRunner와 가짜 모델로 기본/보조 정상·실패 차례 네 개를 실행했다. 기본 성공은 삭제되고 보조 성공만 남아 시험 종료 1이었다. .build/n34-03/baseline.log·baseline-trace.json·baseline.json. 최초 가짜 모델의 편집 대기 구성 오류는 intermediate-model-wait.log로 분리했으며 제품 결함 재현으로 세지 않는다.
+3. 원인: 실제 _delivery_adapter_for는 수신 기본 문을 선택했다. 키·generation 1·수집 ID·콜백 등록/실행은 정상이고, 기본 문 delete_message의 default 직원 고정 검사에서 보조 직원 글만 False였다. 일반 차례에는 run_turn.py:3840의 조기 pop이 없었다. 보완 67의 전달자 콜백 시험은 이 소유권 경로를 지나지 않아 통과했다. 세부 독해와 실제 가짜 사건 값은 copy-review.md 보완 68과 위 trace에 둔다.
+4. 원래 책임 자리의 변경: gate/adapter.py의 receive가 확정한 대상·chat·thread를 차례별 ContextVar로 전달하고 finally로 복원한다. 삭제 함수는 상속받은 해당 범위의 같은 직원·대화·스레드·role=employee만 허용한다. 직접 호출의 기존 소유권 규칙은 유지한다. 영구 원본·wire·허브·본체·team-kit·설정 변경은 없다. 새 문맥은 기존 수신 사건의 일시적 파생값이며 차례 사이를 공유하지 않는다.
+5. 시험: gate/tests/test_gateway_progress.py는 실제 start_gateway부터 post-delivery까지 실행한다. 임시 홈의 가짜 모델만 대체하고 등록·정리 함수 직접 호출은 하지 않는다. 기본/보조 각각 성공은 편집 두 번 뒤 최종 답 다음 delete, 실패는 진행 글 유지다. gate/tests/test_progress.py는 동시에 처리하는 1:1/단체방에서 다른 직원·대화·스레드·owner 거절과 범위 복원을 더한다. 기존 전달자·오래된 generation 시험은 유지한다.
+6. 집중 검증: 수정 후 실제 차례 네 경우 종료 0(.build/foundation9-n34-fixed.log), 기존·새 삭제 경계 13개 종료 0(.build/foundation9-n34-boundary.log). 초기 경계 시험의 불완전한 가짜 명부 항목은 실제 가짜 명부 형태를 재사용해 해소했다. 수락 조건·skip·허용 오차는 바꾸지 않았다.
+7. 돌연변이: 정리 삭제 함수를 False로 고정한 임시 사본은 새 GatewayRunner 시험에서 기본·보조 성공 글이 남아 종료 1로 검출됐다. 제품 입력 불변, .build/n34-03/mutation.json·mutation.log. 최초 사본의 스키마 파일 누락 실패는 intermediate-mutation-missing-schema.*로 분리했고 검출 근거에 포함하지 않는다.
+8. 실행 도중 HEAD에 보완 69 계획 문서 세 개만 추가됐다(f288d0334e5f283ee0f0b740e643ee138617f453). 제품·시험 입력은 같아 기존 변경을 보존하고 자기 파일만 커밋한다. 첫 전체 실행은 사용자 중단으로 앱 빌드 중 종료 결과를 얻지 못해 interrupted-full/에 보존했고 통과 근거로 쓰지 않는다. 전체 시험·개인값·훅·커밋의 최종 근거는 .build/n34-03/final-verification.json에 기록한다. 고정 입력과 전체 실행 원본은 inputs.json·foundation.log·foundation-result.json에 둔다. 운영 홈·원본·재시작·공용 릴리스·public·원격·실제 발송·운영 본문·비밀 접근은 실행하지 않았다. team-kit 패치도 만들지 않는다.
+9. 미검증/추가 검토: 실제 서버의 보조 1:1에서 동일한 edit→최종 답→delete 실물 확인이 남는다. 계획 담당은 수신 범위의 task 상속과 복원, 실제 전달 어댑터가 기본 문인 점, 다른 직원/스레드 삭제 거절을 특히 검토한다. 기존 공용 릴리스 갱신·재시작은 승인된 운영 단계에서만 한다. 본체 순서 문제로 차단된 D34-03은 재현되지 않았다.
+
+### 보완 68 최종 검증
+
+- python3 .build/n34-03/frozen.py 종료 0: 내부 python3 .build/foundation9_runner.py hejo 종료 0, Python 257 passed(test_install·허브 포함), 앱 전체·통신·WebKit·훅 9개 통과. 실제 CLI 설정 내용은 열지 않은 lstat 메타데이터·실제 다운로드 폴더 이름 불변 단언을 통과했다. 제품·시험 입력 222개 불변. .build/n34-03/foundation.log·foundation-result.json. 기존 Swift 경고는 코드 무변경으로 유지했으며 억제하지 않았다.
+- python3 .build/n34-03/mutation.py 종료 0: 정리 경로 제거 사본의 실제 GatewayRunner 시험은 종료 1, 기본·보조 모두 진행 글이 남아 검출됐다. 수정 전 원본 문은 같은 시험에서 보조만 실패했고, 정상 수정본은 네 차례 모두 기대 동작이다. 각 경우의 키·generation·ID·행 순서와 결과는 baseline-trace.json·fixed-trace.json·mutation-trace.json에 둔다.
+- 개인값 검사·HEJO_PYTHON 지정 pre-commit·diff, 소유 파일 5개 commit-only와 커밋된 입력 대조의 실제 종료 결과는 .build/n34-03/final-checks.json·commit-result.json·final-verification.json을 따른다. 운영 적용·재시작·실물 확인·public 갱신·푸시는 실행하지 않았다.
+
+## 비설계자 검토 보완 TASK-55·56
+
+TASK-55의 구현·시험·호환 경계는 [별도 보고](impl-report-task55.md), TASK-56은 [별도 보고](impl-report-task56.md)에 기록했다. TASK-55를 먼저 커밋한 뒤 TASK-56을 별도 변경으로 진행했다. 운영 적용과 공개판 갱신은 하지 않았다.

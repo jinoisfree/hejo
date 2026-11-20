@@ -1,3 +1,4 @@
+from legacy_feature_fixture import reject_imessage
 """AT82 real loopback sends; a fake gateway rejects one message after receiving it."""
 import asyncio
 import json
@@ -32,6 +33,7 @@ async def main():
             async for item in ws:
                 if item.type!=web.WSMsgType.TEXT:continue
                 frame=json.loads(item.data);validator.validate(frame)
+                if await reject_imessage(ws, frame):continue
                 if frame['type']=='pong':continue
                 assert frame['type']=='send' and frame['employee']=='alpha' and frame['thread']==THREAD
                 assert frame.get('files',[])==[]

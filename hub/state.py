@@ -6,6 +6,7 @@ import math
 import os
 from pathlib import Path
 import tempfile
+import time
 import uuid
 
 from .store import Rejected
@@ -96,9 +97,11 @@ class MemberStateStore:
 
     def patch(self, member, items):
         validate(items)
+        ceiling = time.time() + 300
+        items = {key: {**entry, "at": min(entry["at"], ceiling)} for key, entry in items.items()}
         with self.locked(member) as path:
             doc = self.read(path)
-            merged = dict(doc["items"])
+            merged = {key: {**entry, "at": min(entry["at"], ceiling)} for key, entry in doc["items"].items()}
             for key, entry in items.items():
                 if wins(key, entry, merged.get(key)):
                     merged[key] = entry

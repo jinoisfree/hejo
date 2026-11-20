@@ -1,3 +1,4 @@
+from legacy_feature_fixture import reject_imessage
 """AT88 real WebSocket acknowledgement/failure boundaries, with no external messaging."""
 import asyncio,json,os,subprocess,sys,tempfile,uuid
 from pathlib import Path
@@ -27,6 +28,7 @@ async def main():
             async for item in ws:
                 if item.type!=web.WSMsgType.TEXT:continue
                 frame=json.loads(item.data);validator.validate(frame)
+                if await reject_imessage(ws, frame):continue
                 if frame['type']=='pong':continue
                 if frame['type']=='sync':
                     await emit('sync_done',ref=frame.get('id','sync'),through=0 if capture else len(records),head_seq=0 if capture else len(records),more=False);continue

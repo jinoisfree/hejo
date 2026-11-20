@@ -220,6 +220,7 @@ import UniformTypeIdentifiers
             menu.addItem(RoomActionItem("사진 바꾸기…") { [weak self] in self?.choosePicture(kind:"employee",id:employee) })
             if person.avatarCustom==true { menu.addItem(RoomActionItem("사진 지우기") { [weak self] in Task { _=await self?.controller.changePicture(kind:"employee",id:employee,url:nil) } }) }
         }
+        IMessageMenus.append(to: menu, room: employee, state: controller.client.imessage)
         menu.addItem(RoomActionItem("목록에서 빼기") { model.hide(employee) })
         return menu
     }
@@ -967,7 +968,7 @@ import UniformTypeIdentifiers
         let pending=controller.model.assessment(message.key).buttons.contains(message.id)
         if let checklist=controller.checklistSelection(message),pending {
             pieces.append(.accessory(id:message.id+":checklist",height:ReplyChecklistView.height(checklist.items,width:max(1,bounds.width-sidebarWidth-36-43),selected:Set(checklist.selected)),view:{ [weak self] in
-                let choices=ReplyChecklistView(checklist,changed:{ [weak self] selected in self?.controller.selectChecklist(message,selected:selected) }) { [weak self] text in Task {await self?.controller.sendText(text,key:message.key)} }
+                let choices=ReplyChecklistView(checklist,changed:{ [weak self] selected in self?.controller.selectChecklist(message,selected:selected) }) { [weak self] text in Task {await self?.controller.sendText(text,key:message.key,recipient:message.speaker)} }
                 return MessageAccessory(choices,limit:10000)
             }))
         }
@@ -989,7 +990,7 @@ import UniformTypeIdentifiers
                         if !message.buttons.isEmpty {Task {await self.controller.click(message.buttons[index],message:message)}}
                         else if word=="확인" {self.controller.model.confirm(message)}
                         else if word=="의견" {self.window?.makeFirstResponder(self.editor.editor)}
-                        else {Task {await self.controller.sendText(word,key:message.key)}}
+                        else {Task {await self.controller.sendText(word,key:message.key,recipient:message.speaker)}}
                     }
                     stack.addArrangedSubview(button)
                 }

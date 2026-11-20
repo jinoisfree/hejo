@@ -1,3 +1,151 @@
+## 검증 판정: TASK-55·56 비설계자 검토 지적 수정 (2026-11-20)
+
+1. **판정:** 코드 통과, 수준 2/2. 지적 없음. 운영 적용·0.2.1 앱 공개·실물이 남는다.
+   - TASK-55 `cb6ce3b`(18파일), TASK-56 `db2ca1c`(23파일), team-kit 패치 `.build/task55/team-kit.patch` sha256 `82bc5703…31bc8`(재계산 일치, TASK-56은 team-kit 변경 없음).
+2. **검증 조건:** 교차 모델(구현 codex gpt-6.1-sol, 검토 Claude Opus 5.5). 지적 출처는 Fable 5.2 비설계자 검토.
+3. **직접 확인:**
+   - IR-01: 문은 `targeted` 제어 전송이면 recipients 대신 지정 직원에게 보내되, 같은 변경에서 방 구성원이 아니면 `room_member_required`로 거절(IR-S06). 일반 글은 기존 대표 규칙 유지.
+   - IR-S02: 허브 네트워크·5xx 실패는 거절이 아니라 `hub_unavailable`, 기존 연결은 마지막 성공 확인부터 300초 유예, 명시 폐기는 즉시. 앱은 `revoked`일 때만 자격 삭제(impl-report-task55).
+   - IRT-04: `latest_employee_message`는 사장 글 seq 이전의 같은 직원·대화·스레드 살아 있는 글만, 먼저 `owner_message`로 사장 글 범위를 증명.
+   - 로그: foundation TASK-55 266 passed·TASK-56 275 passed(앱 포함), team-kit full 5139 passed, 돌연변이 지적별(IR-01·S01·S02·S06·S10·IRT-01~04·S03·S04·S05·S07·S08·S09·S11 등) 모두 검출, 운영 원본 dry-run 0.
+4. **설계 적합성(4.2):** 보완 70·71 그대로. 새 영구 원본 없음. wire는 `send.targeted` 선택 필드 하나(옛 앱 그대로 받음, 옛 문은 새 필드를 닫힌 실패) → **배포 순서: 서버(문) 먼저, 앱 0.2.1 나중.** 영수증 v2는 읽을 때 축소 저장(옛 설치 도우미로 되돌림 불가 — 운영 적용 때 영수증 백업 필수). D56-01은 `docs/ARCHITECTURE.md`에 기록.
+5. **남은 것:** 운영 적용(공용 릴리스·hejo-install(영수증 v2 이전)·team-kit 패치·허브와 게이트웨이 재시작), 0.2.1 앱 공개 준비(버전 올림·public·prepare — 실행 담당), 사장 실물.
+
+---
+
+## 검증 판정: 비설계자 검토 처분 (2026-11-20)
+
+1. **검토:** 사장 지시로 설계·구현에 참여하지 않은 새 검토자 3명(Fable 5.2, 설계자 Opus와 다른 모델)이 `review-request.md`대로 읽기 전용 검토. 결과 `independent-review-server.md`(차단 2·비차단 9), `independent-review-app.md`(차단 1·비차단 5), `independent-review-teamkit.md`(차단 0·비차단 4).
+2. **계획 담당 재확인(차단 3건은 코드로 직접):**
+   - IR-01: `app/Sources/ConversationController.swift:59-61` 단체방 `sendFields`가 대표를 넣고, `/stop`은 `sendText`로 보내져 문 `rooms.py:28` `recipients()`가 @ 없으면 대표에게만 준다 → 일하는 다른 직원은 멈추지 않음. **수용(차단).**
+   - IR-S01: `gate/connection_manager.py:220-230` 여러 키 설치에서 `secrets.save`가 `ConnectionFailure`를 던지면 앞서 쓴 키를 되돌리지 않고 빠져나간다. **수용(차단, 29판 D9 위반).**
+   - IR-S02: `gate/hub.py:44-47` 허브 접속 실패도 `AuthRejected("unknown")`, `server.py:236-242` 재확인에서 연결을 끊고, 캐시 30초가 지나면 재접속이 `auth_rejected` → 앱 `GateClient.swift:161-163`이 저장 자격을 지운다 → 허브 재시작·장애로 로그아웃. **수용(차단).**
+   - IR-02 `ConversationModel.swift:380-387` 허브 상태 받기 전 낡은 사본으로 읽음 심기 → 모든 Mac 안 읽음 0. **수용(이번 묶음).**
+   - IRT-01(대기열 글 원문 증명 실패), IRT-03(`paseo_authority`의 `HERMES_SESSION_ID` 대조 남음 — 보완 67 누락, 계획 담당 지시 누락 아님·실행 누락) **수용(이번 묶음).**
+   - IRT-04(hejo에서 글로 쓴 범위 선택 거절): ddots와 다르고 사장이 고른 차이가 아니다 → ddots대로 **수용(이번 묶음).**
+   - IR-S06(방 구성원이 아닌 직원의 방 글쓰기), IRT-02(대기 작업이 만든 스레드 밖에서 안 보임·cron 남음), IR-S10(영수증에 설치 전 config 전문, 비밀값 포함 가능) **수용(이번 묶음).**
+   - IR-03·04·05·06, IR-S03·04·05·07·08·09·11, 범위 밖 메모(직원 첨부 격리 속성, 기호 포함 비밀번호 저장 생략, 허브 http): **보류(다음 묶음 TASK-56 후보).** 모두 닫힌 실패·가용성·드문 시계 문제로 이번 차단 수정과 분리한다.
+3. **판정:** 비설계자 검토 완료, 결과 '지적 있음'. 고위험 TASK(21·24·25·32, 50·52·53)는 보완 70 수정·운영 적용·실물 뒤 완료 판정. TASK-20(문 쪽)·TASK-22·TASK-33 업데이트 경로·위조 차단·배경 거절·Slack 전용 경계는 검토자가 문제없음을 보고했다.
+
+---
+
+## 검증 판정: 보완 68 — N34-03 진행 글 정리 실경로 (2026-11-20)
+
+1. **판정:** 코드 통과, 수준 2/2. 운영 적용(공용 릴리스 갱신·재시작)과 보조 프로필 실물이 남는다. 지적 없음.
+   - 결과는 2026-11-19 20:58 커밋 `d5c9133`으로 끝나 있었으나 이 대화로 전달되지 않아 검토가 늦었다(사장 지적 뒤 확인).
+2. **검증 조건:** 교차 모델(구현 codex gpt-6.1-sol, 검토 Claude Opus 5.5).
+3. **직접 확인:**
+   - 원인(`impl-report` 보완 68 3항, `baseline-trace.json`): 실제 경로의 정리 어댑터는 수신한 **기본 문**이고, 기본 문 `delete_message`가 글 주인을 `default`로 고정해 보조 직원 글 삭제를 거절했다. 보완 67의 콜백 넘김은 이 경로를 지나지 않았다.
+   - 수정(`gate/adapter.py` diff): 수신 차례마다 ContextVar `_delivery_scope=(대상 직원, chat, thread)`를 설정하고 finally로 복원. 범위가 있으면 삭제는 그 직원·chat·thread의 role=employee 글만 허용. 영구 저장·wire·본체·team-kit 변경 없음.
+   - 시험: `test_gateway_progress.py`가 실제 `start_gateway`부터 post-delivery까지(가짜 모델만) 기본·보조 × 성공·실패 4경우. 수정 전 문으로 `baseline.log` 1 failed(보조 성공만 남음), 수정 뒤 `foundation9-n34-fixed.log` 1 passed, 경계 13 passed, 돌연변이(삭제 False 고정) 검출, foundation 257 passed.
+4. **설계 적합성(4.2):** 보완 68 그대로(실경로 재현 → 수정 전 실패 증명 → 문에서 수정). D34-03(본체 순서 문제) 아님.
+5. **운영 적용 범위:** 문 코드만(공용 릴리스 갱신 + 재시작). `d5c9133..HEAD`에는 gate·hub·schemas·install·config 변경이 없다.
+
+---
+
+## 검증 판정: 보완 67 — N52-02 학습 세션 증명, N34-02 보조 프로필 진행 글 정리 (2026-11-19)
+
+1. **판정:** 코드 통과, 수준 2/2. 운영 적용·실물(사장 hejo에서 규칙 저장·진행 글 사라짐) 남음. 지적 없음.
+2. **검증 조건:** 교차 모델(구현 codex gpt-6.1-sol, 검토 Claude Opus 5.5).
+3. **직접 확인:**
+   - `gate/adapter.py`(`8b4e188..518d67f`): 보조(forwarder) 문의 `register/pop_post_delivery_callback`을 기본 문 보관함으로 넘긴다. 수신·최종 전달을 기본 문이 맡기 때문에 콜백이 그곳에서 꺼내져야 진행 글이 지워진다. 세션 키는 프로필마다 달라 섞이지 않는다.
+   - team-kit 패치 `.build/n52-02/team-kit.patch` sha256 `1e79f114…77f6`(재계산 일치), 7파일. 새 `current_owner_message_in_session`은 공개 원문 증명 뒤 `session_id`+`role=user`+`platform_message_id=문 msg_id`인 비압축 행 존재로 세션을 증명(본문 안 읽음, query_only). 환경 `HERMES_SESSION_ID` 대조는 학습·진단·보고 상태·기억 문맥에서 모두 빠졌다.
+   - 로그: 실제 executor 경로 시험 수정본 3 passed / 수정 전 1 failed(운영 오류 재현), 진행 글 11 passed, team-kit full 5087 passed, foundation 254 passed, 돌연변이 2종(세션 증명 제거·보조 콜백 전달 제거) 검출.
+4. **설계 적합성(4.2):** 보완 67 방향 그대로. 원문은 문 공개 조회, 세션은 DB 행 존재로만 증명하고 Hermes 본체는 바꾸지 않았다.
+5. **원인 분류:** N52-02는 시험이 실제 실행 경로를 흉내 내지 못한 것(계획 단계에서 실제 경로 시험을 요구하지 않음 — 계획 담당 몫). N34-02는 TASK-34 시험이 기본 문만 덮은 것.
+
+---
+
+## 검증 판정: TASK-53 업무 캡처·진단·대기 작업 hejo 원문 증명 (2026-11-19)
+
+1. **판정:** 부분 완료(고위험 상한). 코드 통과, 인계 수준 2/2. TASK-52·53 운영 적용과 실물(수준 3)이 남는다. 지적 없음.
+2. **검증 조건:** 교차 모델(구현 codex gpt-6.1-sol, 검토 Claude Opus 5.5).
+3. **직접 확인:**
+   - `gate/adapter.py` diff(`3305387..8de89b9`): `employee_message`는 role=employee·employee=profile·thread·chat 일치·살아 있는 방만 통과, forwarder는 자기 `_owner_profile`로 고정.
+   - team-kit 패치 sha256 `38a66b3a…e8ad`(재계산 일치), 6파일. `answered_employee_message`는 TASK-52 현재 사장 원문의 `answer_to`만 따라가고 응답의 직원·msg·chat·thread를 다시 대조. `work_capture`는 hejo에서 UUID를 Decimal로 쓰지 않고 원문 ts로 순서를 잡으며 Slack 워터마크와 분리. `wait_jobs`는 hejo origin(platform·profile·chat·thread)을 저장하고 목록·취소·prune을 같은 origin으로 제한, Slack 정규식은 Slack 갈래에만.
+   - 로그: team-kit full 5080 passed, foundation 250 passed·APP_TEST_FAILED 없음, 돌연변이 3종(origin Slack 고정·Slack 대체 전송·직원 일치 제거) 모두 검출, 두 패치 순서 dry-run 0.
+4. **설계 적합성(4.2):** 보완 66과 D51-01을 따른다. 원문·직원 글은 문 공개 조회로만, 다른 방·Slack 대체 전송 없음. hejo에서는 같은 대화에서 건 대기 작업만 보이는 보수적 선택(Slack에서 건 작업은 Slack에서 관리)이다.
+5. **남은 것:** 운영 적용(공용 릴리스 갱신 — 문 코드 변경 포함, team-kit 패치 TASK-52 → TASK-53, 재시작, 계획 담당+사장) 뒤 실물: hejo에서 메일 읽기·학습 규칙 말하기·답 버튼으로 업무 지정·대기 작업 걸기.
+
+---
+
+## 검증 판정: N52-01 AT-96 시험 대기 (2026-11-19)
+
+1. **판정:** N52-01 완료. TASK-52는 인계 수준 2 통과, 고위험이라 운영 적용·실물(수준 3) 뒤 완료.
+2. **검증 조건:** 교차 모델(구현 codex gpt-6.1-sol, 검토 Claude Opus 5.5).
+3. **직접 확인:** `fb779ef` diff — 시험 파일만, `pause(0.12)`·`pause(0.3)`을 같은 조건의 `waitFor(3)`로 바꾸고 기존 단언은 그대로 남김. `n52-01/foundation-01.log`·`02.log` 각각 248 passed, `APP_TEST_FAILED` 0건, 실제 다운로드 이름 불변. team-kit 패치 sha256 `660142a0…6ee5` 그대로.
+4. **설계 적합성(4.2):** 제품 코드 무변경, 보완 65 범위 그대로.
+5. **다음:** TASK-53(보완 66). 운영 적용은 TASK-52·53을 함께 한 번에 한다(재시작 1회).
+
+---
+
+## 검증 판정: TASK-52 hejo 사장 인증·원문 증명 (2026-11-19)
+
+1. **판정:** 부분 완료. 코드(`5fb0407` 문 + team-kit 패치 sha256 `660142a0…6ee5`, 12파일)는 통과. 필수 전체 검증(foundation9_runner hejo)이 AT-96 시험 하나로 종료 1이라 N52-01을 고친 뒤 완료한다.
+2. **검증 조건:** 교차 모델(구현 codex gpt-6.1-sol, 검토 Claude Opus 5.5).
+3. **직접 확인:**
+   - `gate/adapter.py` diff 전체: 수신 `build_source(..., message_id=msg_id)`, 공개 `owner_message`는 role=owner·thread·chat 일치·1:1 employee=profile·방은 살아 있는 방+`_meta.recipients`에 profile 포함만 통과. `journal.message()`는 행 전체 deepcopy라 `_meta`가 남는다(`gate/journal.py:171-184`). forwarder는 자기 `_owner_profile`로 기본 문에 묻는다.
+   - team-kit `hermes_owner_chat.py`: `authenticated_owner`는 Slack·photon 기존 owner 검사를 호출자에게서 받고 hejo는 owner+chat, 배경 플래그·background review 거절. `current_owner_message`는 환경값만이 아니라 TASK-49의 ContextVar 수신 사건(`hermes_reply/plugin.py:326-330,508-528`)과 PROFILE·CHAT·THREAD·MESSAGE_ID가 모두 일치할 때만 문에 묻고, 응답도 다시 대조한다. 같은 루프 스레드에서 부르면 None(실패 폐쇄).
+   - 로그: full 5058 passed, 돌연변이 3종(사용자 검사·방 수신자·DB content 대체) 검출, dry-run 0.
+   - **AT-96:** 앱 소스는 바뀌지 않았다. 계획 담당이 같은 바이너리로 `web_pane_fixture.py`를 3회 단독 실행 → 3회 모두 `WEB_FIXTURE_PASS`. `WebPaneTests.swift:70-72`가 고정 0.3초 쉰 뒤 탭 줄 스크롤을 단언해 부하가 걸린 전체 실행에서 늦게 끝나는 시험 결함이다(제품 결함 아님).
+4. **설계 적합성(4.2):** D51-01·보완 64를 따른다. 원문은 문 공개 `owner_message`로만 얻고 세션 DB content·문 내부 import를 쓰지 않는다. 프로젝트 영수증·학습 보고 위치·다 항목은 유지.
+5. **N52-01(시험, 비차단 제품/차단 검증):** AT-96 탭 스크롤 단언을 `waitFor`(최대 3초)로 바꾼다. 보완 65.
+6. **TASK-53 메모:** 구현 담당 지적대로 `learning.source`가 hejo를 받게 되면서 `wait_jobs` list/cancel·prune 입구가 hejo 사장 대화에서 열린다. 사장이 자기 대기 작업을 보거나 취소하는 것이라 권한상 문제는 아니나, Slack 출처 작업을 hejo에서 다룰 때 결과 전달 위치가 맞는지 TASK-53에서 확인한다.
+
+---
+
+## 검증 판정: TASK-51 D50-02 조사 (2026-11-19)
+
+1. **판정:** 완료(조사 단계). 코드 변경 없음, 커밋 `4eb68a1`은 impl-report 10줄.
+2. **검증 조건:** 교차 모델(구현 codex gpt-6.1-sol, 검토 Claude Opus 5.5).
+3. **직접 확인:** `survey.md` 147줄 전체를 읽었다. 핵심 주장 하나를 코드로 재확인했다: `gate/adapter.py:649`의 `build_source`에 `message_id`가 없고(Hermes `base.py:4916-4924`는 받는 인자가 있음), msg_id는 `MessageEvent.message_id`(:662)로만 간다. 세션 DB 조사는 집계만(본문·식별자 값 없음), immutable·query_only로 했다.
+4. **설계 적합성(4.2):** 보완 63 범위(읽기 전용·제안만)를 지켰다. D50-01의 배경 거절 유지, 가짜 사장 글 차단 목적을 항목마다 따졌다. 이전 분류의 잘못된 요약(Notion·native_tools·approval helper)을 바로잡았다.
+5. **결정:** 보완 64(D51-01)로 가/나/다를 확정하고 TASK-52·53으로 나눈다.
+
+---
+
+## 검증 판정: TASK-50 team-kit 사장 대화 판정에 hejo 포함 (2026-11-18)
+
+1. **판정:** 부분 완료(고위험 상한). 패치는 통과, 인계 수준 2/2. 운영 적용·실물(수준 3)이 남는다. 차단 결함 없음.
+   - 패치 `.build/task50/team-kit.patch` sha256 `70597129…2398`(직접 재계산 일치), 15개 파일. hejo 커밋 `96e221c`는 보고 두 파일뿐, public `1dfda64` 불변.
+2. **검증 조건:** 교차 모델(구현 codex gpt-6.1-sol, 검토 Claude Opus 5.5).
+3. **직접 확인:**
+   - 패치 본문 전체를 읽었다. 새 `lib/hermes_owner_chat.py`의 `OWNER_CHAT_PLATFORMS = {slack, photon, hejo}` 한 곳으로 26개 판정을 바꿨다. 각 판정의 chat_id·user_id·배경·역할·계정 범위 검사는 그대로 남았다.
+   - `write_policy.owner_chat`: hejo는 `user == 'owner'`만 통과(문이 내는 유일한 신원, `gate/adapter.py:649·662`).
+   - 원래 문제 줄 `mail/__init__.py:540`이 바뀌었고, 재현 시험 `test_mail_other_account_read_reproduction`이 slack·photon·hejo × 배경 플래그 3종 × 빈 chat_id를 덮는다.
+   - team-delegation의 `lib`은 team-kit `lib` 전체 링크라 새 모듈을 같이 본다.
+   - 운영 원본에 `patch -p1 --dry-run` 종료 0, 운영 원본에 새 파일 없음(미적용).
+   - 로그: `full.log` 5024 passed·5 skipped, `mutations.json` hejo 제거·배경 검사 제거 둘 다 검출, 정상 0.
+4. **설계 적합성(4.2):** D50-01(hejo 대화 = 사장 대화, 배경 거절 유지)과 보완 62 분류 원칙을 따른다. 라우터 ingress·사용량·연결 점검 등 플랫폼 전용 코드는 유지하고 이유를 `classification.md`에 적었다.
+5. **D50-02(사장 결정 필요, 결함 아님):** Slack 원문 증명에 묶인 기능은 hejo에서 아직 안 된다(`d50-02.json` 재현).
+   - 기다림 작업(`wait_jobs` owner_slack_thread_required), 요청 원문 증명(`request_source`·`work_guidance`·`learning`·`memory_live`), 금고 백업 승인 버튼(`vault_backup_approval`), 개인 조회 인증(`mail_read.authorize`), Notion 대화 연결.
+   - 이것들은 Slack API로 원문을 다시 확인하는 구조라 hejo 기록장으로 증명하는 새 설계가 필요하다(TASK-51 후보).
+6. **남은 것:** 운영 적용(백업 → patch → team-kit 시험 → 재시작, 계획 담당+사장), hejo에서 다른 계정 메일 읽기 실물, D50-02 결정.
+
+---
+
+## 검증 판정: 보완 61 — 0.2.0 공개 후보 재생성 (2026-11-18)
+
+1. **판정:** 보완 61 완료. 차단 결함·지적 없음. 제품 코드 변경 없음(실행 커밋 `7c8ae5d`는 impl-report 10줄).
+2. **검증 조건:** 교차 모델(구현 codex gpt-6.1-sol, 검토 Claude Opus 5.5).
+3. **계획 담당 직접 확인:**
+   - public `1dfda649f14483acc5dd90f1f363e63904805b43`, 부모 `f90bf08`(0.1.0), 공개 계보 4커밋. `cd1b995`는 public 조상이 아니다(개인 이력 미포함).
+   - 트리: public = main(`7c8ae5d`) = `1886a991…`, `git diff public main` 없음.
+   - 보존: `archive/public-0.2.0-before-parity` = `f716bdf`, `archive/task33-before-n33-01` = `09157e9`.
+   - 작성자: 이전 공개본과 같은 GitHub noreply 이름만 사용.
+   - 준비물 `.build/release-0.2.0/`: zip SHA256 `3f856009…bf47`이 prepared.json과 같다. 새 임시 폴더에 풀어 `codesign --verify --deep --strict` 통과, 버전 0.2.0·빌드 2, BuildInfo tree `1886a991…`·dirty false.
+   - 서명 키: 앱 SUPublicEDKey = prepared publicKey = 이전 후보(n33-01) publicKey. 기존 키 재사용이 맞다.
+   - 로그 직접 확인: final-foundation `OK`·실제 CLI 설정 lstat 불변·실제 다운로드 이름 불변, legacy-aeaa652 `AT84_OLD_GATE_NEW_APP_PASS`·1 passed, app-repeat 1~3 모두 `APP_TEST_OK`, offline-gh는 로컬 캐시만(network false), final-verification remoteCalls/remoteWrites 0.
+4. **설계 적합성(4.2):** 보완 61 절차(보존→hejo-publish 스냅샷→prepare→같은 트리 검증)와 REQ-HF-33(사장만 publish, 에이전트 원격 쓰기 금지), D33-01(옛 문 aeaa652 호환)을 따른다. 운영 홈·공용 릴리스·본체·ddots 변경 없음.
+5. **참고:** 이 판정 문서 커밋 뒤 main은 public보다 문서만 앞선다. 공개본 재생성은 필요 없다.
+6. **작업 56917a17 전체:** 부분 완료. 남은 것은 모두 사장 승인·실행이다.
+   - public `1dfda64` → github main 푸시 승인(플러그인 화면)
+   - 사장 publish: `install/hejo-ship publish --approve-commit 1dfda649f14483acc5dd90f1f363e63904805b43 --prepared .build/release-0.2.0/prepared.json`
+   - 0.2.x 운영 반영(계획 담당+사장): aeaa652 기준 새 롤백 백업, 문·허브 갱신, team-kit 패치, 게이트웨이 재시작, 실물 점검(보완 49·57·60, TASK-47 훅, TASK-23)
+   - 비설계자 검토 여부
+
+---
+
 ## 검증 판정: N47-01·02와 33·34판 구현 마감 현황 (2026-11-18)
 
 1. **N47-01·02 판정:** 완료(`db2b51e9c76a0e7805e04bd920b2afc9f0a4b53b`, 파일 10개). 차단 결함과 지적은 없다.

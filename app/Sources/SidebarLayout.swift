@@ -7,8 +7,24 @@ struct SidebarLayout {
         var name: String = ""
         var open = false
         var picture: String?
+        init(id:String,name:String="",open:Bool=false,picture:String?=nil) {self.id=id;self.name=name;self.open=open;self.picture=picture}
+        enum CodingKeys:String,CodingKey {case id,name,open,picture}
+        init(from decoder:Decoder) throws {
+            let c=try decoder.container(keyedBy:CodingKeys.self)
+            id=try c.decode(String.self,forKey:.id);name=try c.decodeIfPresent(String.self,forKey:.name) ?? ""
+            open=try c.decodeIfPresent(Bool.self,forKey:.open) ?? false;picture=try c.decodeIfPresent(String.self,forKey:.picture)
+        }
     }
-    struct Stack: Codable, Equatable { var name = ""; var open = false; var picture: String? }
+    struct Stack: Codable, Equatable {
+        var name = ""; var open = false; var picture: String?
+        init(name:String="",open:Bool=false,picture:String?=nil) {self.name=name;self.open=open;self.picture=picture}
+        enum CodingKeys:String,CodingKey {case name,open,picture}
+        init(from decoder:Decoder) throws {
+            let c=try decoder.container(keyedBy:CodingKeys.self)
+            name=try c.decodeIfPresent(String.self,forKey:.name) ?? "";open=try c.decodeIfPresent(Bool.self,forKey:.open) ?? false
+            picture=try c.decodeIfPresent(String.self,forKey:.picture)
+        }
+    }
     struct Item: Equatable {
         enum Kind { case home, group, direct }
         var id: String, name: String

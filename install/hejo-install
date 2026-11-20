@@ -285,15 +285,20 @@ def write_config(path, document, mode, prune=None):
             target = keys
             if not new_present:
                 for depth in range(1, len(keys)):
+                    keep, ancestor = lookup(document, keys[:depth])
+                    if keep and isinstance(ancestor, dict) and not ancestor:
+                        target = keys[:depth]
+                        break
                     if lookup(base, keys[:depth])[0] and not lookup(document, keys[:depth])[0]:
                         target = keys[:depth]
                         break
-            text = edit_once(text, target, deepcopy(new) if new_present else MISSING)
+            target_present, target_value = lookup(document, target)
+            text = edit_once(text, target, deepcopy(target_value) if target_present else MISSING)
             parent = expected
             for key in target[:-1]:
                 parent = parent.setdefault(key, {})
-            if new_present:
-                parent[target[-1]] = plain(new) if target == keys else plain(lookup(document, target)[1])
+            if target_present:
+                parent[target[-1]] = plain(target_value)
             else:
                 parent.pop(target[-1], None)
         # Hermes reads YAML 1.1: compare what Hermes itself sees, and the round-trip view of the result.
@@ -303,7 +308,24 @@ def write_config(path, document, mode, prune=None):
     return text
 
 
+def compact_receipt(receipt):
+    receipt["version"] = 2
+    for config in receipt.get("configs", {}).values():
+        original = yaml_load(config.get("before", ""))
+        owned = CommentedMap()
+        for keys in CONFIG_KEYS:
+            restore_key(owned, original, keys)
+            for depth in range(1, len(keys)):
+                present, ancestor = lookup(original, keys[:depth])
+                if present and isinstance(ancestor, dict) and not ancestor:
+                    assign(owned, keys[:depth], ancestor)
+        config["before"] = yaml_dump(owned)
+        config.pop("written", None)
+    return receipt
+
+
 def save_receipt(home, receipt):
+    compact_receipt(receipt)
     atomic_write(safe_path(home, "hejo/install-receipt.json"),
                  json.dumps(receipt, ensure_ascii=False, indent=2) + "\n")
 
@@ -314,8 +336,12 @@ def load_receipt(home):
         return None
     _, text, _ = read_config(path)
     receipt = json.loads(text)
-    if receipt.get("version") != 1:
+    if receipt.get("version") not in {1, 2}:
         raise ValueError("unsupported receipt")
+    original = json.dumps(receipt, ensure_ascii=False)
+    compact_receipt(receipt)
+    if json.dumps(receipt, ensure_ascii=False) != original:
+        save_receipt(home, receipt)
     return receipt
 
 
@@ -390,7 +416,7 @@ def plan(home, port=None):
                 receipt["targets"].append(target)
     # Ensure every before value is serializable before changing anything.
     json.dumps(receipt)
-    return receipt
+    return compact_receipt(receipt)
 
 
 def replace_link(path, target):
@@ -433,7 +459,7 @@ def apply(home, receipt, target):
         if present != target["existed"] or value != target["before"]:
             raise RuntimeError("config changed during install")
         assign(document, target["keys"], target["after"])
-        receipt["configs"][target["file"]]["written"] = write_config(path, document, mode)
+        write_config(path, document, mode)
 
 
 def restore_config(home, receipt, targets, force):
@@ -454,15 +480,11 @@ def restore_config(home, receipt, targets, force):
     owned_remaining = any(item.get("owner_may_change") and item["file"] == file
                                and item["state"] in {"applied", "removing"} for item in receipt["targets"])
     original = yaml_load(cfg["before"])
-    same_owned = all(lookup(original, keys) == lookup(document, keys) for keys in OWNED_KEYS)
-    if not conflicts and not owned_remaining and same_owned and text == cfg["written"]:
-        if cfg["existed"]:
-            atomic_write(path, cfg["before"], cfg["mode"])
-        else:
-            path.unlink(missing_ok=True)
+    for target in selected:
+        restore_key(document, original, target["keys"])
+    if not cfg["existed"] and not document and not conflicts and not owned_remaining:
+        path.unlink(missing_ok=True)
     else:
-        for target in selected:
-            restore_key(document, original, target["keys"])
         write_config(path, document, mode)
     for target in selected:
         target["state"] = "pending"
@@ -525,9 +547,6 @@ def remove_home_channels(home, receipt, targets):
                     target["state"] = "applied"
                     save_receipt(home, receipt)
                     raise
-                config = receipt["configs"][target["file"]]
-                if text == config["written"]:
-                    config["written"] = written
                 target["state"] = "removed"
             else:
                 target["state"] = "released"
@@ -624,6 +643,38 @@ def restore(home, receipt, *, uninstall=False, force=False):
     return conflicts
 
 
+def remove_unreceipted_platform(home):
+    """Recover only the exact generated platform block; no receipt means no other ownership proof."""
+    import ipaddress
+    from hermes_cli.profiles import get_profile_dir, list_profile_names
+    conflicts = []
+    for profile in list_profile_names():
+        path = Path(get_profile_dir(profile)).resolve() / "config.yaml"
+        if not path.is_relative_to(home): raise ValueError("choose the primary Hermes home")
+        _, text, mode = read_config(path)
+        document = yaml_load(text)
+        present, block = lookup(document, CONFIG_KEYS[1])
+        if not present: continue
+        expected = deepcopy(FORWARDER if path.parent != home else PRIMARY)
+        if path.parent == home and isinstance(block, dict) and isinstance(block.get("extra"), dict):
+            extra = block["extra"]
+            addresses = extra.get("listen")
+            port = extra.get("port")
+            valid = type(port) is int and port in PORTS and isinstance(addresses, list) and addresses[:1] == ["127.0.0.1"] and len(addresses) in {1, 2}
+            try:
+                valid = valid and (len(addresses) == 1 or ipaddress.ip_address(addresses[1]) in ipaddress.ip_network("100.64.0.0/10"))
+            except (ValueError, TypeError): valid = False
+            if valid: expected["extra"].update(port=port, listen=addresses)
+        if block != expected:
+            conflicts.append(path.relative_to(home).as_posix())
+            continue
+        restore_key(document, {}, CONFIG_KEYS[1])
+        write_config(path, document, mode)
+    for file in conflicts: print(f"preserved_owner_change {file}#gateway.platforms.hejo")
+    print("platform_only_cleanup; no receipt, other settings and files preserved")
+    return 2 if conflicts else 0
+
+
 def run(home, *, check=False, uninstall=False, uninstall_home_channel=False, force=False, port=None):
     receipt = load_receipt(home)
     missing = set()
@@ -674,8 +725,7 @@ def run(home, *, check=False, uninstall=False, uninstall_home_channel=False, for
         return 1 if failed else 0
     if uninstall:
         if not receipt:
-            print("not_installed")
-            return 0
+            return remove_unreceipted_platform(home)
         admin_removed = admin_support.remove(home, receipt, save_receipt)
         conflicts = restore(home, receipt, uninstall=True, force=force)
         if not admin_removed: conflicts.append("hejo/admin.json")

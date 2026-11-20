@@ -37,3 +37,96 @@ enum SettingsPages {
         return scroll
     }
 }
+
+/// Native controls read the same server state used by both kinds of room menu.
+@MainActor final class IMessageSettingsSection: NSView {
+    override var isFlipped: Bool { true }
+    let status = NSTextField(labelWithString: "서버 연결 전")
+    let code = NSTextField(labelWithString: "")
+    let remaining = NSTextField(labelWithString: "")
+    let problem = NSTextField(wrappingLabelWithString: "")
+    let pair = NSButton(title: "연결 코드 받기", target: nil, action: nil)
+    let copy = NSButton(title: "복사", target: nil, action: nil)
+    var copyPasteboard: NSPasteboard = .general
+    let unpair = NSButton(title: "연결 해제", target: nil, action: nil)
+    let enabled = NSButton(checkboxWithTitle: "아이메시지 연결 켜기", target: nil, action: nil)
+    let rooms = NSPopUpButton(frame: .zero, pullsDown: false)
+    private weak var model: IMessageState?
+    private var choices: () -> [IMessageRoom] = { [] }
+    private var roomIDs: [String?] = []
+    private var timer: Timer?
+    init() {
+        super.init(frame: NSRect(x: 24, y: 0, width: 340, height: 300))
+        let title = NSTextField(labelWithString: "아이메시지")
+        title.font = .systemFont(ofSize: 14, weight: .semibold)
+        let hint = NSTextField(wrappingLabelWithString: "이 코드를 서버의 아이메시지 번호로 보내세요. 방의 ‘폰으로 보고 받기’를 켜면 앱에서 시작한 대화의 답도 폰으로 옵니다.")
+        hint.font = .systemFont(ofSize: 12); hint.textColor = .secondaryLabelColor
+        let views: [(NSView, NSRect)] = [
+            (title, NSRect(x: 0, y: 0, width: 320, height: 22)),
+            (status, NSRect(x: 0, y: 30, width: 330, height: 22)),
+            (pair, NSRect(x: 0, y: 58, width: 140, height: 30)),
+            (unpair, NSRect(x: 150, y: 58, width: 110, height: 30)),
+            (code, NSRect(x: 0, y: 94, width: 160, height: 24)),
+            (remaining, NSRect(x: 170, y: 94, width: 95, height: 24)),
+            (copy, NSRect(x: 270, y: 90, width: 60, height: 30)),
+            (enabled, NSRect(x: 0, y: 126, width: 330, height: 26)),
+            (rooms, NSRect(x: 0, y: 160, width: 330, height: 28)),
+            (hint, NSRect(x: 0, y: 200, width: 330, height: 54)),
+            (problem, NSRect(x: 0, y: 258, width: 330, height: 40))]
+        for (view, rect) in views { view.frame = rect; addSubview(view) }
+        code.font = .monospacedSystemFont(ofSize: 18, weight: .medium)
+        copy.target = self; copy.action = #selector(copyCode)
+        pair.target = self; pair.action = #selector(pairPhone)
+        unpair.target = self; unpair.action = #selector(unpairPhone)
+        enabled.target = self; enabled.action = #selector(changeEnabled)
+        rooms.target = self; rooms.action = #selector(changeRoom)
+        refresh()
+        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.refreshCode() }
+        }
+    }
+    required init?(coder: NSCoder) { fatalError() }
+    deinit { timer?.invalidate() }
+    func bind(_ model: IMessageState, rooms: @escaping () -> [IMessageRoom]) {
+        self.model = model; choices = rooms; refresh()
+    }
+    func refresh() {
+        status.stringValue = model?.statusText ?? "서버 연결 전"
+        let supported = model?.support == .supported
+        pair.isEnabled = supported && model?.platformReady == true
+        unpair.isEnabled = supported && model?.paired == true
+        enabled.isEnabled = supported && model?.paired == true
+        enabled.state = model?.enabled == true ? .on : .off
+        rooms.removeAllItems(); rooms.addItem(withTitle: "연결된 방 없음"); roomIDs = [nil]
+        for choice in choices() { rooms.addItem(withTitle: choice.title); roomIDs.append(choice.id) }
+        rooms.selectItem(at: roomIDs.firstIndex(where: { $0 == model?.room }) ?? 0)
+        rooms.isEnabled = supported
+        problem.stringValue = model?.problem ?? ""
+        refreshCode()
+    }
+    private func refreshCode() {
+        let seconds = model?.remaining ?? 0
+        code.isHidden = seconds == 0 || model?.code == nil
+        remaining.isHidden = code.isHidden; copy.isHidden = code.isHidden; copy.isEnabled = !code.isHidden
+        code.stringValue = code.isHidden ? "" : model?.code ?? ""
+        remaining.stringValue = "\(seconds)초 남음"
+    }
+    @objc private func copyCode() {
+        guard let model, model.remaining > 0, let code = model.code else { return }
+        copyPasteboard.clearContents(); copyPasteboard.setString(code, forType: .string)
+    }
+    @objc private func pairPhone() { Task { await model?.requestCode() } }
+    @objc private func unpairPhone() { Task { await model?.unpair() } }
+    @objc private func changeEnabled() {
+        guard let model else { return }
+        let value = enabled.state == .on
+        refresh() // Wait for the gate's acknowledgement before displaying a changed setting.
+        Task { await model.save(enabled: value, room: model.room, reports: model.reports) }
+    }
+    @objc private func changeRoom() {
+        guard let model, roomIDs.indices.contains(rooms.indexOfSelectedItem) else { return }
+        let value = roomIDs[rooms.indexOfSelectedItem]
+        refresh()
+        Task { await model.save(enabled: model.enabled, room: value, reports: model.reports) }
+    }
+}

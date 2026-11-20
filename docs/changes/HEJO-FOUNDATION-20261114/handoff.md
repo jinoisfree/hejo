@@ -1616,3 +1616,183 @@ TASK-02~08·10~12가 끝났다(17·18차). TASK-09는 운영 공항을 바꾸고
 - **그다음(계획 담당+사장):**
   - 사장이 화면에서 public 푸시를 승인하고 publish를 실행한다.
   - 0.2.x 운영 반영(보완 49·57·60, TASK-23 점검표)을 한다.
+
+## 보완 지시 62 (TASK-50, 0.2.0 운영 반영 뒤 발견, 2026-11-18)
+
+- **문제(운영 재현):** 사장이 hejo에서 직원에게 메일 확인을 시키자 `MAIL_APP_OWNER_CHAT_REQUIRED`로 거절했다. 서버에서 Mail 앱은 정상이다(사장 확인).
+  - 원인: 운영 team-kit `lib/hermes_packs/mail/__init__.py:540`이 `HERMES_SESSION_PLATFORM`이 `{"slack","photon"}`일 때만 사장 대화로 본다. 같은 판정이 team-kit 곳곳(비시험 약 100곳: `hermes_governance/approval.py`·`write_policy.py`·`owner_context.py`·`request_approvals.py`·`browser.py`, `hermes_execution/personal_roles.py`·`personal_scopes.py`, `hermes_packs/mail/full_mail_tools.py`, `linked_work/`, `diagnosis/`, `hermes_team_services/conversation_recall.py`·`wait_jobs.py` 등)에 글자로 박혀 있다.
+  - ddots는 Slack 위에서 돌아 이 판정을 통과했다. hejo는 새 플랫폼 `hejo`라 빠졌다.
+- **D50-01(계획 담당 결정, 근거):** hejo 대화는 사장 대화다. 문은 `allowed_users: ["owner"]`이고 짝맺은 사장 기기만 붙으며, 모든 사건의 `user_id`가 `"owner"`다(`gate/adapter.py:649·662`). 허브 회원은 각자 자기 서버의 문을 쓴다. 따라서 Slack 사장 대화가 받는 권한을 hejo 1:1·단체방·스레드도 똑같이 받는다. 배경·예약 거절은 그대로 둔다.
+- **할 일(실행 담당, TASK-49와 같은 방식):**
+  1. 운영 원본 `~/.hermes/plugin-store/team-kit`을 읽기만 하고, 임시 사본(`.build/task50/`)에서 고친다. 시작 때 사본과 운영 원본이 범위 안에서 같은지 대조한다(운영 원본에는 TASK-49 패치가 이미 들어가 있다).
+  2. team-kit 비시험 코드에서 `slack`·`photon`(·`bluebubbles`) 글자 집합을 모두 찾아 표로 분류한다(`.build/task50/classification.md`: 파일:줄, 뜻, 처분).
+     - **사장 대화 판정**(사장이 직접 시킨 대화인지·승인 버튼을 받을 수 있는지·사장 대화 기록인지): 한 곳의 공용 상수/함수(예: `OWNER_CHAT_PLATFORMS`)로 바꾸고 `hejo`를 넣는다.
+     - **플랫폼 전용**(Slack 인증·연결 점검·CHANNEL_LABEL·라우터 ingress·사용량 집계·설정 조립·게이트웨이 재시작·iMessage 채널): 바꾸지 않는다. 바꾸지 않은 이유를 표에 적는다.
+     - 판단이 어려운 곳(예: `wait_jobs.py:272` `owner_slack_thread_required`, 승인 흐름이 Slack 전용 블록을 보내는 곳)은 hejo에서 실제로 무엇이 일어나는지 확인해 적는다. hejo로 보내면 깨지는 곳은 고치지 말고 D50-02로 보고한다.
+  3. 시험: 바뀐 판정마다 `HERMES_SESSION_PLATFORM=hejo`(chat_id·user_id `owner`·thread 포함)가 Slack과 같은 결과를 내는 시험, 배경·예약·빈 chat_id는 여전히 거절하는 시험. 메일 앱 다른 계정 읽기(`mail/__init__.py:540`) 재현 시험을 꼭 넣는다. 돌연변이(공용 상수에서 hejo 빼기, 배경 검사 빼기) 각각 잡힘을 보인다.
+  4. 게이트웨이 Python과 `PYTHONPATH=~/.local/share/hermes-pytest:$HOME/.hermes/hermes-agent`로 team-kit `tests` 전체 종료 0. 패치 `.build/task50/team-kit.patch`(sha256 기록), 운영 원본에 `patch -p1 --dry-run` 통과.
+- **금지:** 운영 원본 team-kit·`~/.hermes` 변경, 게이트웨이 재시작, 운영 저장소 커밋·푸시, Hermes 본체·ddots 수정, 비밀 파일 열기, 실제 메일 읽기·Slack 발송.
+- **보고(result):** 분류표, 패치·sha256, 시험·돌연변이 결과, dry-run 결과, D50-02 후보. 운영 적용·재시작·실물(hejo에서 다른 계정 메일 읽기)은 계획 담당+사장이 한다.
+
+## 보완 지시 63 (TASK-51 조사: D50-02, 2026-11-19)
+
+- TASK-50은 운영에 적용됐다(R020.md 5절). 사장이 D50-02 진행을 승인했다.
+- **D50-02:** Slack 원문 증명에 묶여 hejo에서 안 되는 기능. `.build/task50/d50-02.json`, `classification.md`의 'D50-02 후보' 행이 목록이다(`wait_jobs`, `request_source`·`work_guidance`·`learning`·`memory_live`, `vault_backup_approval`, `mail_read.authorize`, Notion 대화 연결).
+- **이번 단계는 조사·제안만 한다(코드 변경 없음).** 계획 담당이 결과로 설계를 정한 뒤 구현을 따로 지시한다.
+- **할 일(실행 담당):** 운영 원본 team-kit(TASK-50 적용됨)을 읽기만 하고, 항목마다 `.build/task51/survey.md`에 적는다.
+  1. 기능이 사장에게 무엇을 해 주는지(한 줄), 어떤 Slack 사실을 증명하는지(사장 user_id, 채널·스레드, 원문 글자, 버튼 sender 등)와 그 증명 출처(Slack API·로컬 저장소·세션 DB).
+  2. hejo에서 같은 사실을 증명할 출처가 있는지: 문 세션 환경값(`HERMES_SESSION_*`, `MESSAGE_ID`), 문 기록장(journal)·공개 조회 메서드(TASK-49 `first_thread_message` 같은 것), hejo 버튼 누름 기록(`answer_to`, D36-01). 문 코드 줄을 근거로 적는다.
+  3. 제안: (가) 공용 판정만으로 됨, (나) hejo 증명 함수 추가(문 공개 메서드 필요 여부 포함), (다) Slack 전용 유지가 맞음. 이유와 위험(가짜 사장 글을 막는 원래 목적이 유지되는지)을 적는다.
+  4. 운영 Hermes 세션 DB에서 hejo 세션의 `source`·`chat_id`·`thread_id`·`platform_message_id`가 어떻게 남는지 **읽기 전용**으로 확인한다(본문은 읽지 않고 열 이름·빈 값 여부만, 개수만 기록).
+- **금지:** 코드·운영 원본·`~/.hermes` 변경, 재시작, 운영 저장소 커밋, 비밀 파일 열기, 대화 본문 읽기, 실제 메일·Slack 발송, Hermes 본체·ddots 수정.
+- **보고(result):** `survey.md` 경로와 항목별 제안 요약. hejo 저장소에는 impl-report만 git commit --only.
+
+## 보완 지시 64 (D51-01 결정, TASK-52, 2026-11-19)
+
+- 근거: `.build/task51/survey.md`(TASK-51, 검토 통과). 항목 처분은 survey §4·§5·§6 제안을 그대로 채택한다.
+  - **가(인증 판정만):** `work_guidance.context`, `mail_read.authorize`, Notion `api.py` conversation, `selected_skills.owner_chat`, `approval.py` personal workspace helper(`_personal_mutation_approval_single`의 write_file/patch 분기).
+  - **나(hejo 원문 증명):** `learning.source`/`followup_rows`/`_source_row`/`note`, `request_source`(일반 원문 공급자 갈래만, 프로젝트 영수증은 Slack 유지), `memory_live._pre_owner`, `owner_context._current_owner_source`·`_lead_chat_policy`, `paseo_authority.owner_text`, `linked_work._task_capture_owner_chat`·`work_capture`, `diagnosis_records.owner_record`, `wait_jobs`.
+  - **다(Slack 전용 유지):** `vault_backup_approval`, CCTV `reference.room_problem`, `native_tools._request_usage_lookup`.
+- **TASK-52(이번):** 가 전부 + 나의 공통 선행 + 원문 증명 소비자 중 learning·request_source·memory_live·owner_context·paseo_authority. `linked_work`·`diagnosis_records`·`wait_jobs`는 TASK-53(다음)으로 미룬다.
+- **hejo 저장소(문) 변경:**
+  1. `gate/adapter.py` 사장 글 전달의 `build_source`에 `message_id=msg_id`를 넣는다. 같은 사건의 `HERMES_SESSION_MESSAGE_ID`가 문 UUID가 되도록. scope_id는 넣지 않는다(Slack workspace 흉내 금지).
+  2. 문 어댑터에 읽기 전용 공개 메서드 `owner_message(profile, chat_id, thread_id, msg_id)`를 더한다. 기록장에서 살아 있는 role=owner 글을 찾아 `{msg_id, text(전처리 전 원문), chat_id, thread_id, answer_to, ts}` 복사본을 돌려준다. 거절(None): 없는 ID, 삭제·수정 반영 뒤 없음, 다른 chat·thread, 1:1이면 employee≠profile, 방이면 `_meta.recipients`에 profile 없음, role≠owner. forwarder는 기존 `_forward` 경계로 기본 문에 묻는다. 새 영구 저장소·wire 필드 없음. TASK-49 `first_thread_message`와 같은 공개 방식(install_hejo가 받은 어댑터)으로 노출한다.
+  3. 시험: 정상, 위 거절 전부, forwarder, message_id가 환경에 실리는 실제 수신 경로(가짜 Hermes).
+- **team-kit 변경(임시 사본, 패치로 냄 — TASK-49·50과 같음):**
+  1. 공용 사장 인증 함수 하나(예: `hermes_owner_chat.authenticated_owner(env)`): Slack·photon은 기존 configured owner 검사 그대로, hejo는 `platform=='hejo'`·`user_id=='owner'`·chat_id 있음, 모두 배경·예약·단발·Kanban 거절. 가 항목이 이 함수를 쓴다. Slack 허용 목록에 owner를 섞지 않는다. 각 함수의 역할·경로·심링크·승인 조건과 기존 flag 처리는 그대로.
+  2. 공용 원문 공급자 하나(예: `hermes_owner_chat.current_owner_text(env)`): hejo면 환경의 PLATFORM·PROFILE·CHAT_ID·THREAD_ID·MESSAGE_ID로 문 `owner_message`를 불러 원문을 돌려주고, 실패·없음은 None(실패 폐쇄). 세션 DB content(문맥이 합쳐짐)를 원문으로 쓰지 않는다. Slack 갈래는 기존 경로 그대로.
+  3. 나 소비자 5곳이 hejo일 때 2를 쓴다. followup(steer/redirect)은 hejo에서 검증된 사건 ID와 묶이지 않으면 권한·학습 근거로 쓰지 않는다. bare approval 거절·배경 거절 유지. 학습 결과 보고 전송 위치는 바꾸지 않는다.
+  4. 시험: 항목마다 Slack 결과 불변, hejo 정상 통과, 가짜(다른 방·삭제·없는 ID·본문에 가짜 Slack 헤더·배경) 거절. 돌연변이: hejo 사용자 검사 제거, 방 수신자 검사 제거(문), 원문 공급자가 DB content로 대체.
+- **검증:** hejo foundation9_runner 0·scan_private 0, team-kit 전체 tests 0(게이트웨이 Python), 운영 원본 dry-run 0. 앱 변경 없음.
+- **금지:** 보완 62·63과 같다(운영 원본·~/.hermes·재시작·운영 저장소 커밋·비밀 파일·대화 본문·실제 발송·본체·ddots). public 갱신은 하지 않는다(문 변경 공개는 다음 공개판에서).
+- **보고(result):** hejo 커밋, team-kit 패치·sha256, 시험·돌연변이·dry-run, TASK-53으로 넘길 메모. 운영 적용(공용 릴리스 갱신 + team-kit 패치 + 재시작)은 계획 담당+사장.
+
+## 보완 지시 65 (TASK-52 검토 뒤, N52-01, 2026-11-19)
+
+- TASK-52 코드는 통과했다(`5fb0407`, team-kit 패치 sha256 `660142a0…6ee5`). 전체 검증만 AT-96 하나로 막혔다.
+- **N52-01(시험 결함):** `app/Tests/WebPaneTests.swift:70-72`가 13번째 탭을 연 뒤 `pause(0.3)` 하고 바로 `tabScroll.contentView.bounds.minX>0`을 단언한다. 단독 실행은 3/3 통과(계획 담당 재현), 전체 실행 부하에서 스크롤이 늦어 실패한다.
+  - 수정: 고정 쉼 대신 `try await waitFor{ tabScroll.contentView.bounds.minX>0 }`(기존 waitFor, 최대 3초 정도)로 바꾸고 같은 단언 문구를 유지한다. 제품 코드는 바꾸지 않는다. 다른 고정 pause 뒤 화면 단언이 같은 파일에 더 있으면 같은 방식으로 함께 고친다(목록을 보고에 적는다).
+- **검증:** 같은 커밋으로 `foundation9_runner hejo` 종료 0을 **연속 2회**, scan_private 0. team-kit 패치는 바뀌지 않으므로 다시 돌리지 않는다(sha256만 재확인).
+- **금지:** 보완 64와 같다. git commit --only, result.
+
+## 보완 지시 66 (TASK-53, 2026-11-19)
+
+- TASK-52는 수준 2 통과(`5fb0407`·`fb779ef`, team-kit 패치 `.build/task52/team-kit.patch` sha256 `660142a0…6ee5`). 운영에는 아직 적용하지 않았다. **TASK-53 사본은 운영 원본 + TASK-52 패치 위에서 만들고, TASK-53 패치는 그 위에 얹는 별도 패치로 낸다.** 운영 적용은 두 패치를 순서대로 한 번에 한다.
+- 처분 근거: `.build/task51/survey.md` §4.1, §5의 linked_work·diagnosis_records 행. 원문 증명은 TASK-52의 `hermes_owner_chat.current_owner_message`·`authenticated_owner`만 쓴다.
+- **할 일(team-kit):**
+  1. `linked_work._task_capture_owner_chat`·`work_capture`: hejo에서 현재 사장 원문(TASK-52)과 답한 직원 글을 결합한다. 직원 글은 `answer_to`(D36-01)가 가리키는 글이 같은 chat·thread의 그 직원 글일 때만 인정한다. 이를 위해 문 공개 조회가 필요하면 `first_thread_message`처럼 범위를 좁힌 읽기 전용 메서드(예: `employee_message(profile, chat_id, thread_id, msg_id)` — 그 profile이 쓴 살아 있는 글만)를 hejo 저장소에 추가한다. hejo UUID를 Decimal ts로 바꾸거나 시각처럼 비교하지 않는다(`work_capture.py:322-335`는 Slack 갈래에만). 미확정 선택은 실행 0 유지.
+  2. `diagnosis_records.owner_record`: hejo 요청이면 출처를 `platform=hejo`·chat·thread·문 msg_id로 남긴다. Slack permalink 파서는 Slack 자료일 때만. hejo 값을 Slack ts 필드에 넣지 않는다.
+  3. `wait_jobs`: create에 hejo 갈래 — 원문 증명 뒤 origin을 `platform=hejo`·대상 profile·chat·thread로 보존(Slack 채널·ts 정규식은 Slack 갈래에만). 결과 전달이 hejo 대화로 가는지 Hermes cron 전달 경로(`CORE/cron/scheduler_delivery.py`)를 가짜 문으로 시험하고, 실패 때 다른 방이나 Slack으로 대신 보내지 않는다(전달 실패 기록). prompt의 'Slack' 하드코딩 문구는 플랫폼에 맞게. 조건 확인 실행은 계속 배경이며 owner 권한으로 올리지 않는다. list/cancel·prune이 hejo에서 열리는 것은 사장 본인 작업이므로 허용하되, 다른 profile·다른 대화의 작업은 기존 규칙대로 거절됨을 시험한다.
+  4. 시험: 항목마다 Slack 불변, hejo 정상, 가짜(다른 방·다른 직원 글을 answer_to로·삭제·없는 ID·배경) 거절. 돌연변이: answer_to 직원 일치 검사 제거, wait_jobs origin을 Slack으로 고정, 전달 실패 시 대체 전송.
+- **검증:** (문을 고쳤다면) foundation9_runner hejo 0·scan_private 0. team-kit 전체 tests 0(게이트웨이 Python), 운영 원본에 TASK-52 → TASK-53 순서 dry-run 0.
+- **금지:** 보완 64와 같다. 패치는 `.build/task53/team-kit.patch`. result에 두 패치 적용 순서와 sha256을 적는다.
+
+## 보완 지시 67 (운영 실물 결함 2건, 2026-11-19)
+
+사장이 TASK-52·53 운영 적용 뒤 hejo 1:1(직원: 보조 프로필)에서 "앞으로 첫 3줄은 전체 내용의 요약을 해줘"라고 했다. 결과 두 가지가 틀렸다.
+
+- **N52-02(차단, team-kit):** 직원이 `team_learn`을 불렀으나 `{"ok": false, "error": "Current owner session does not match."}`(게이트웨이 로그 2026-11-19 14:15:27). 메모리 갱신만 되고 학습 규칙은 저장되지 않았다.
+  - 위치: TASK-52 패치의 `learning.hejo_source`(운영 `lib/hermes_team_services/learning.py:208`) `env('HERMES_SESSION_ID','') != session_id`.
+  - 가설(확인 필요): 도구 실행 문맥에서 `HERMES_SESSION_ID`가 task-local 값이 아니라 `os.environ` 대체값(같은 프로세스의 다른 프로필·세션 값)이거나 비어 있다. Hermes `gateway/session_context.py:81-105` 참고.
+  - 수정 방향: 이 대조를 빼거나, 세션 일치는 이미 하는 DB 조회(`session_id` + `platform_message_id == 현재 문 msg_id`인 user 행 존재)로 증명한다. 그 행이 없으면 지금처럼 실패. 다른 hejo 원문 소비자(owner_context·paseo_authority·memory_live·request_source·work_capture·wait_jobs)에 같은 `HERMES_SESSION_ID` 대조가 있으면 함께 고친다.
+  - 시험: 지금의 가짜 시험은 두 값을 같게 꾸며 통과했다. **실제 Hermes 도구 실행 경로**(게이트웨이 turn → 도구 executor 스레드 → team-kit 핸들러)로 보조 프로필 hejo 1:1에서 `team_learn` 규칙 저장이 성공함을 보이는 시험을 넣는다. 다른 세션의 msg_id·배경은 여전히 거절.
+- **N34-02(차단, 문 또는 설정):** 진행 표시 글(스킬 읽는 중·team_learn…·메모리 업데이트 중)이 최종 답 뒤에도 따로 남았다. hejo 설정은 `display.platforms.hejo.cleanup_progress: true`(프로필 설정 확인됨)이고 TASK-34 시험 `gate/tests/test_progress.py:101-120`은 **기본 문(primary)**만 덮는다.
+  - 확인할 곳: 보조 프로필은 forwarder 문으로 보낸다. Hermes `run_turn.py:3113-3123`(`delete_message` 재정의 확인), `run_turn_runner.py:111-120·900-911`(진행 글 ID 기록 — 상태 글을 편집으로 갱신할 때 첫 ID만 기록되는지), `run_turn.py:4186-4200`(`register_post_delivery_callback`), base의 `pop_post_delivery_callback` 호출 경로가 forwarder 문에서도 같은 세션 키·generation으로 이어지는지.
+  - 수정: 원인 위치에 맞게 문에서 고친다(Hermes 본체 수정 금지). 설정 문제라면 설치 도우미 쪽으로.
+  - 시험: 보조 프로필(forwarder)과 기본 프로필 각각, 도구 진행 글이 1개 이상 나오고(편집 갱신 포함) 최종 답이 간 뒤 진행 글이 기록장에서 지워지고 최종 답은 남음. 실패한 차례는 남김(기존 규칙).
+- **공통:** 운영 기록은 읽기만(게이트웨이 로그·설정 키 이름). 대화 본문·비밀 파일 열지 않음. 운영 원본·`~/.hermes` 변경·재시작 금지. team-kit 변경은 TASK-52·53 패치 위 별도 패치 `.build/n52-02/team-kit.patch`. 검증: foundation9_runner hejo 0, team-kit tests 전체 0, 운영 원본에 52→53→N52-02 순서 dry-run 0, 돌연변이(세션 증명 제거 → 다른 세션 msg_id 통과 검출, 진행 글 정리 제거 검출). git commit --only, result. 운영 적용은 계획 담당+사장.
+
+## 보완 지시 68 (보완 67 운영 적용 뒤 실물, N34-03, 2026-11-19)
+
+- **N52-02 해결 확인:** 17:11 사장 실물에서 `team_learn` 오류 로그가 없고, 보조 프로필의 `learning/rules.json`이 17:11:45에 갱신됐다(내용은 열지 않음).
+- **N34-03(차단): 진행 글이 여전히 남는다.** 보완 67(gate `518d67f`) 운영 적용(15:09) 뒤에도 같은 1:1 스레드에서 재현.
+  - 기록장(글 종류·시각만 확인): seq 89 직원 진행 글 생성(08:11:41Z) → seq 90·91 같은 글 edit(마지막 `final`) → seq 92 최종 답(08:11:55Z). **delete 기록 없음.** `gateway.log`에도 삭제·정리 흔적 없음(`[Hejo] Sending response (588 chars) to <보조 프로필>`만).
+  - 따라서 보완 67 시험(`gate/tests/test_progress.py`의 보조 프로필 갈래)은 실제 경로를 재현하지 못했다. 그 시험은 `_run_agent_schedule_bubble_cleanup`·콜백을 직접 불렀다.
+  - 확인할 곳(Hermes 읽기만): 정리 등록 `run_turn.py:4182-4219`(호출 4418), 차례 끝 조기 pop `run_turn.py:3840`(`_pop_post_delivery_callback(adapter, session_key, generation)` — 배경 검토 알림용이지만 같은 칸을 비움), base 최종 전달 뒤 `base.py:4611-4621 _fire_post_delivery_callback`(generation을 interrupt_event에서 읽음), `run_turn.py:3113-3123`(`_delivery_adapter_for(source)`), 진행 글 ID 기록 `run_turn_runner.py:597-603`. 등록 시점·pop 시점·세션 키·generation 중 어디서 어긋나는지 실제 값으로 기록한다.
+  - **재현 시험 필수:** 임시 HERMES_HOME에서 실제 `GatewayRunner` 차례 경로(문 수신 → `handle_message` → 배경 처리 → 가짜 모델의 도구 호출로 진행 글 생성·편집 → 최종 답 전달 → post-delivery)를 기본·보조 프로필 각각 돌려, 최종 답 뒤 진행 글 delete가 기록장에 남음을 보인다. 수정 전 문으로는 이 시험이 실패해야 한다(실패 로그 보존).
+  - 수정은 문에서(Hermes 본체 수정 금지). 원인이 본체 순서 문제라 문으로 못 고치면 고치지 말고 근거와 함께 보고(D34-03).
+- **공통:** 운영 기록은 종류·시각·키 이름만 읽기, 대화 본문·비밀 금지, 운영·재시작 금지. 검증: foundation9_runner hejo 0, 돌연변이(정리 경로 제거 시 새 실경로 시험 실패). team-kit은 바꾸지 않는다. git commit --only, result.
+
+## 보완 지시 69 (TASK-54, 에이전트 연결 창 검색·정렬·연결된 것만, 2026-11-19)
+
+0. 기준: base `a9270ce4e6d52506013450996e43ebcc6b97b816` / spec 36판 / 승인: 사장 지시(2026-11-19, 화면 사진과 함께 "검색·알파벳순 정렬·연결된 것만 보기") / 연합개발.
+1. 공식 문서: [spec.md](spec.md) REQ-HF-32.AC-05(이번 원본), AC-01(화면 구성 유지), [tasks.md](tasks.md) TASK-54, design 6절 SwiftUI 예외(도구 연결 창, 이미 등재).
+2. 요구: AC-05 그대로. 정상 = 묶음 안 이름순, 검색어 포함 줄만, 켜면 연결됨만. 경계 = 빈 검색어·공백만은 필터 없음, 빈 묶음 숨김, 모두 비면 "맞는 연결이 없어요".
+3. 유지할 계약: 문 요청 프레임·규격·`AgentConnectionDocument` 해독 검사, 요약 알약·요약 점 계산(`AgentConnectionProfile.summary`), 버튼은 문이 준 `actions`만, 비밀값 입력 창·재확인 흐름, 창 크기(760×560, 최소 760×500 — SettingsTests). ddots에는 이 기능이 없으므로 ddots 대조 대상이 아니다(사장 선택 차이로 둔다).
+4. 책임·흐름: 보이는 줄 고르기(정렬·검색·필터)는 `ConnectionsModel` 한 곳이 맡고, `ConnectionsView`는 그 결과만 그린다. 검색어·켜고 끄기 값은 모델의 메모리 값이다(저장 없음). 점검표(ARCHITECTURE 8절): 칸 = 관제 화면(사장 Mac 앱), 원본 = `ConnectionsModel` 메모리 한 곳, 쓰기 주체 = 앱(사장이 검색칸·켜고 끄기를 조작할 때만), 수명 = 앱 종료 때 사라짐. 두 번째 원본·동기화 없음.
+5. 기존 경로 판정: `ConnectionsView` 본문의 묶음별 `agent.connections.filter{$0.group...}` → **교체**(모델의 보이는 줄 함수로). 같은 계산을 뷰에 남기지 않는다. 그 밖은 유지.
+6. 위험도: 일반(화면 기능 추가, 계약·저장·권한 변경 없음). 필요한 증거 수준 2(가짜 문서로 모델·화면 시험) + 화면 사진. 실서버 눈 확인은 사장(선택). 롤백: TASK-54 구현 커밋 하나만 `git revert`한다(저장 값·규격·서버 변경이 없어 자료 이관·되돌림 절차 없음).
+7. 변경 성격: 의미 변경(줄 순서가 문 순서 → 이름순). 비교: 시험 기대값.
+8. 수락 시험 AT-101(`app/Tests/ConnectionsTests.swift`에 더함, 코드 미작성 — 기대값은 아래가 원본):
+   - 가짜 직원 1명, 연결 10개(account 7·tool 2·channel 1; 묶음 · id · 이름 · service · state):
+     - account · `e` · "anthropic" · `anthropic` · unknown (소문자 시작 — 대소문자 무시 확인)
+     - account · `a` · "Google AI Studio" · `gemini` · unknown
+     - account · `c` · "Google AI Studio" · `gemini` · connected (같은 이름 두 줄 — 실물 사진과 같음)
+     - account · `r` · "Mistral" · `svc-only-token` · needs_reconnect
+     - account · `d` · "NOUS_BASE_URL" · `key` · unknown, `account` 값 "시험 계정"
+     - account · `q-idonly` · "Perplexity" · `pplx` · not_connected
+     - account · `b` · "xAI" · `xai` · connected
+     - tool · `t1` · "브라우저" · `browser` · off / tool · `t2` · "웹 검색" · `web` · connected
+     - channel · `ch` · "hejo" · `hejo` · connected
+     - 문서에는 위와 다른 순서(예: b, q-idonly, a, r, c, d, e, t2, t1, ch)로 넣는다.
+   - 필터 없음: account = `e`,`a`,`c`,`r`,`d`,`q-idonly`,`b`(anthropic이 대문자 G보다 앞 = 대소문자 무시, 같은 이름은 id순 a→c). tool = `t1`,`t2`. channel = `ch`.
+   - 검색(연결된 것만 끔):
+     - "GOOGLE" → `a`,`c`만, tool·channel 묶음 없음(이름, 대소문자 무시)
+     - "시험 계정" → `d`만(account로만 일치)
+     - "idonly" → `q-idonly`만(id로만 일치) [PR54-01]
+     - "svc-only" → `r`만(service로만 일치) [PR54-01]
+     - "  xai  " → `b`만(앞뒤 공백을 뺀 뒤 찾음. 공백을 빼지 않으면 0줄) [PR54-01]
+     - "  " → 필터 없음과 같음
+     - "저장된" → 0줄(설명은 찾지 않음) → 빈 안내 상태
+   - 연결된 것만 켬 → account `c`,`b`, tool `t2`, channel `ch`. unknown(`e`,`a`,`d`)·off(`t1`)·needs_reconnect(`r`)·not_connected(`q-idonly`)가 모두 빠진다 [PR54-01]. 켬 + "google" → `c`만. 켬 + "idonly" → 0줄.
+   - 직원을 바꿨다 돌아와도 검색어·켬 유지. 요약 알약 개수는 필터와 무관하게 연결됨 4·다시 연결 필요 2·확인 안 됨 3.
+   - 필터 중에도 `frames`에 새 요청이 생기지 않음(검색·켜고 끄기는 문에 보내지 않음).
+   - 화면 확인 [PR54-04] — 기존 `--task32-capture` 출력 경로(출력 폴더 인자 있을 때만)에서 사진 두 장을 더 남긴다. 계획 담당이 최종 검토 때 사진과 코드를 직접 본다.
+     - `task54-hejo.png`: 검색어 "google", 연결된 것만 끔, 상세 닫힘. 합격 = 요약 알약 줄 아래·첫 묶음 위에 검색칸("google" 표시)과 "연결된 것만"이 보이고, 목록은 "계정과 서비스" 묶음의 Google AI Studio 두 줄뿐이며, 요약 알약은 4·2·3 그대로.
+     - `task54-detail.png`: 같은 상태에서 `detail`을 `c`로 연 화면. 합격 = 검색칸·켜고 끄기가 보이지 않음.
+     - 조작 반영: 화면이 모델의 검색어·켬 값에 직접 묶여 있음(검색칸·켜고 끄기의 바인딩이 모델 값)을 코드로 확인하고, 위 사진이 모델 값대로 그려졌는지로 확인한다. 실제 손 조작 확인은 사장 실물(선택)이다.
+     - 접근성: 검색칸 접근성 이름 "연결 검색", 켜고 끄기 접근성 이름 "연결된 것만"이 코드에 지정돼 있음(계획 담당이 코드 확인).
+   - 상태: 명세 완료 / 코드 미작성 / 미실행 / 계획 검증 1회차 BLOCKED(PR54-01~04) 반영 — [plan-review.md](plan-review.md) 36판.
+9. 범위: `app/Sources/ConnectionsWindow.swift`, `app/Tests/ConnectionsTests.swift` 두 파일뿐이다. `TestMain.swift`는 고치지 않는다(`--task32-capture`가 이미 `connectionsTests(outputDirectory:)`를 부름, PR54-02). 금지: 문(`gate/`)·규격·허브·ddots·운영 공항. 직원 목록 정렬·중복 연결(같은 이름 여러 줄) 정리는 범위 밖. 선행: 없음(보완 68은 `gate/`만이라 파일 겹침 없음 — 커밋은 `git commit --only`로 자기 파일만). 병렬 갈래: 없음(갈래 3개 미만: 한 파일 한 논리 변경).
+10. 미확정: 없음.
+11. 사용자 확인: 사장 지시로 범위 확정. "알파벳순"은 이름 오름차순(한글 이름은 macOS 표준 비교 순서)으로 해석했다.
+- **검증:** `bash app/scripts/test.sh` 0(AT-HF-83·AT-101 포함), `python3 scripts/scan_private.py` 0, 돌연변이 1개(정렬 제거 시 AT-101 실패) 기록. 결과 보고는 구현 worktree의 새 파일 `docs/changes/HEJO-FOUNDATION-20261114/impl-report-task54.md`에 쓴다(1차 보류 뒤 정정: `impl-report.md` 끝에는 보완 68이 같은 때 절을 더하고 있어, 같은 자리에 덧붙이면 미커밋 변경이 섞이고 병합 충돌이 난다. 형식은 20-implementation 8절 그대로). `impl-report.md`는 고치지 않는다. 개인값 검사는 기본 python3에 `ruamel`이 없으면 종료 2(scan_error)이므로 Hermes Python(`HEJO_PYTHON`)으로 돌린다(verdict 23차 관찰). `git commit --only`, result.
+
+## 보완 지시 70 (TASK-55, 비설계자 검토 수용 지적, 2026-11-20)
+
+근거: `docs/changes/56917a17-07e0-4cb3-940d-2880e1aeaae3/independent-review-{server,app,teamkit}.md`와 verdict.md '비설계자 검토 처분'. 각 지적의 재현 방법·파일:줄은 보고서를 따른다. 지적마다 **수정 전 실패 시험 → 수정 → 통과**를 남긴다.
+
+- **IR-01(앱+문, 차단):** 단체방에서 중지·되돌리기·기본 답 버튼·체크리스트 답이 **그 스레드에서 일하는/질문한 직원**에게 가야 한다. ddots 동작(`<운영 저장소>/ddots` 해당 코드 읽기만)을 먼저 확인하고 맞춘다. 사장 결정 2026-11-16(이름 안 부른 일반 답장은 대표)은 일반 글에만 적용되며 제어 명령·버튼 답에는 적용하지 않는다. 문 버튼 누름 경로의 방 라우팅도 같이 본다.
+- **IR-S01(문, 차단):** 카탈로그 여러 키 설치에서 `secrets.save`가 예외를 던져도 앞서 쓴 키를 공식 경로로 되돌리고, 되돌림 실패는 `write_partial`(29판 D9).
+- **IR-S02(문+앱, 차단):** 허브 접속 실패는 거절이 아니다. 문은 허브 토큰 재확인이 네트워크 실패면 연결을 유지하고(마지막 성공 확인 기준, 상한은 설계해 보고), 새 연결이면 재시도 가능한 별도 이유로 거절한다. 앱은 `revoked`일 때만 저장 자격을 지운다. wire 이유 값을 더하면 `schemas/hejo-wire-v1.json`과 옛 앱 호환을 함께 확인.
+- **IR-02(앱):** 허브 회원 상태를 처음 받기 전에는 '처음 보는 방' 읽음을 심지 않는다.
+- **IR-S06(문):** 방 구성원이 아닌 직원의 방 글쓰기 거절.
+- **IR-S10(설치 도우미):** 영수증에 설치 전 config 전문을 남기지 않는다(키 단위 되돌림에 필요한 값만). 기존 영수증 이전 경로 포함.
+- **team-kit(TASK-52·53·N52-02 위 별도 패치 `.build/task55/team-kit.patch`):**
+  - IRT-01: 대기열로 들어간 사장 글도 그 글 자신의 수신 사건으로 원문 증명(이전 차례 바인딩 상속 금지). 실제 Hermes 대기열 경로 시험.
+  - IRT-03: `paseo_authority`의 `HERMES_SESSION_ID` 대조를 N52-02 방식(DB user 행 + 문 msg_id)으로.
+  - IRT-04: hejo에서 글로 쓴 범위 선택도 ddots/Slack처럼 받는다. 대상은 같은 스레드의 그 직원 최신 살아 있는 글(문 공개 조회로 증명, 필요하면 범위 좁힌 공개 메서드 추가).
+  - IRT-02: hejo 대기 작업 목록·취소·정리를 같은 직원(profile)의 hejo 대화 전체로 넓히고, 끝난 대기는 cron을 정리. 다른 직원·Slack 작업은 계속 분리.
+- **보류(이번에 하지 않음):** IR-03·04·05·06, IR-S03·04·05·07·08·09·11, 범위 밖 메모 3건 → 다음 묶음.
+- **검증:** foundation9_runner hejo 0(앱 포함), team-kit tests 전체 0(게이트웨이 Python), 운영 원본에 새 패치 dry-run 0, 돌연변이(지적별 핵심 검사 제거 시 실패) 표, scan_private 0. 앱 변경이 있으므로 버전은 0.2.1로 올리지 말고 그대로 두며 공개판은 계획 담당이 따로 정한다.
+- **금지:** 운영 원본·`~/.hermes` 변경, 재시작, 운영 저장소 커밋·푸시, 비밀 파일·대화 본문, 실제 발송, Hermes 본체·ddots 수정, public 갱신. git commit --only, result.
+
+## 보완 지시 71 (TASK-56, 비설계자 검토 보류분 진행 — 사장 지시 2026-11-20)
+
+- 사장이 보류분도 진행하라고 했다. **TASK-55를 먼저 끝내 커밋한 뒤 같은 흐름에서 TASK-56을 이어서** 하고, result는 둘을 함께 보고한다(운영 적용은 한 번). TASK-56 team-kit 변경이 생기면 `.build/task56/team-kit.patch`(TASK-55 패치 위).
+- 근거는 `independent-review-{server,app}.md`의 각 항목(재현 방법·파일:줄). 항목마다 수정 전 실패 시험 → 수정 → 통과.
+- **앱**
+  - IR-03: 허브 rev가 로컬보다 작으면(허브 복원·재가입) 서버 문서를 새 기준으로 받아들이고 아직 안 보낸 로컬 변경만 다시 보낸다. 대기 루프 성공 경로에도 최소 간격.
+  - IR-04·IR-S11: 허브가 클라이언트 `at`을 서버 시각 + 허용 오차(예: 5분)로 상한 처리하고, 앱은 쓰기가 무시되면 조용히 버리지 않고 다시 받는다.
+  - IR-05: 구획 접힘을 `layout:sections` 배열에서 떼어 구획별 키로 둔다(옛 값 이전 포함). 구획 추가·이름은 배열 그대로.
+  - IR-06: '업데이트 설치…'가 낡은 릴리스 정보로 실패하면 다시 확인한 뒤 진행(닫힌 실패는 유지).
+  - 범위 밖 메모: 직원이 보낸 첨부를 열거나 저장할 때 `com.apple.quarantine` 붙이기; 기호가 들어간 비밀번호도 저장(못 하면 조용히 넘기지 말고 알림).
+- **문·허브·설치**
+  - IR-S03: 업로드 본문은 `files.lock` 밖에서 임시 파일로 받은 뒤 짧게 잠가 등록.
+  - IR-S04: 방송은 연결별 보내기 시간 상한(넘으면 그 연결만 끊음), 퐁이 오지 않는 연결은 끊음. `_publish_lock`을 오래 잡지 않는다.
+  - IR-S05: 되돌아온 비밀값 검사는 `secure` 칸 값에만.
+  - IR-S07: 낱개 삭제된 글의 첨부는 내려받기 거절, `FileStore.cleanup`이 정리.
+  - IR-S08: 기록장 파일은 벽시계 달이 아니라 마지막 파일·seq 순서로 고른다(시계가 뒤로 가도 시작 실패 없음).
+  - IR-S09: 영수증 없이 `--uninstall`이면 설치 도우미가 쓴 모양과 같은 `gateway.platforms.hejo`만 지우고, 다르면 지우지 않고 알린다(종료 코드로 구분).
+  - 허브 `http`: 허브는 루프백·Tailscale(WireGuard 암호화)에서만 듣으므로 바꾸지 않는다. 이 이유를 `docs/ARCHITECTURE.md` 또는 설계 문서의 허브 절에 한 줄 적는다(새 결정 D56-01).
+- **검증·금지:** 보완 70과 같다. 앱 버전은 그대로(공개판 번호는 계획 담당이 정함). git commit --only, TASK-55·56 별도 커밋.

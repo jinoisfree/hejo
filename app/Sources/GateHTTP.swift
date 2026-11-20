@@ -1,5 +1,6 @@
 import Foundation
 import UniformTypeIdentifiers
+import Darwin
 
 struct DownloadFileStore {
     var root: URL
@@ -103,6 +104,11 @@ enum OutgoingFileProblem:Error,Equatable {
         self.client = client
         session = URLSession(configuration: .ephemeral, delegate: GateRedirectPolicy(), delegateQueue: nil)
     }
+    static func quarantine(_ url:URL) throws {
+        let value=Data("0083;\(String(Int(Date().timeIntervalSince1970),radix:16));hejo;".utf8)
+        let result=value.withUnsafeBytes {setxattr(url.path,"com.apple.quarantine",$0.baseAddress,value.count,0,0)}
+        if result != 0 {throw NSError(domain:NSPOSIXErrorDomain,code:Int(errno))}
+    }
     private static func validate(_ file: MessageFile) throws {
         guard UUID(uuidString: file.fileID) != nil, (1...255).contains(file.name.count), !file.name.contains(where: { "/\\\0".contains($0) }),
               file.name != ".", file.name != "..", (0...maxFileBytes).contains(file.size) else { throw FileTransferFailure.invalidFile }
@@ -170,12 +176,12 @@ enum OutgoingFileProblem:Error,Equatable {
                 $0["file_id"] as? String==file.fileID && $0["name"] as? String==file.name && $0["size"] as? Int==file.size
             }
         }
-        if registered,FileManager.default.fileExists(atPath:target.path) {return (target,nil)}
+        if registered,FileManager.default.fileExists(atPath:target.path) {try Self.quarantine(target);return (target,nil)}
         let wasRegistered=client.store.hasFile(file.fileID)
         let cached=try await download(file,employee:employee)
         let data=try await Task.detached {try Data(contentsOf:cached)}.value
         if wasRegistered && !client.store.hasFile(file.fileID) {throw FileTransferFailure.unavailable}
-        do {return (try downloads.save(data,room:employee,name:file.name,date:date,id:file.fileID),nil)
+        do {let saved=try downloads.save(data,room:employee,name:file.name,date:date,id:file.fileID);try Self.quarantine(saved);return (saved,nil)
         } catch {return (cached,"파일을 저장하지 못했어요. \(error.localizedDescription)")}
     }
     func keepSent(_ urls:[URL], date:Date) async {
@@ -203,6 +209,7 @@ enum OutgoingFileProblem:Error,Equatable {
             let target = destination.appendingPathComponent(file.name)
             try data.write(to: target, options: .atomic)
             try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: target.path)
+            try Self.quarantine(target)
             return target
     }
 }

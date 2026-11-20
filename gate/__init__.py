@@ -26,6 +26,8 @@ def parse_target(ref):
 
 
 def register(ctx):
+    from .imessage import attach_photon
+    ctx.register_platform_handler("photon", attach_photon)
     ctx.register_platform(
         name="hejo", label="hejo", adapter_factory=create_adapter,
         check_fn=check_requirements, allowed_users_env="HEJO_ALLOWED_USERS",

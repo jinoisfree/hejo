@@ -28,10 +28,12 @@ struct StateDocument: Codable, Equatable {
     var push: (([String: StateEntry]) async throws -> StateDocument)?
     private(set) var timer: Timer?
     private var syncing = false
+    private var needsReconcile = false
     private var sendTimer: Timer?
     private var receiver: Task<Void, Never>?
     private(set) var waitingSupported = false
     private var generation = 0
+    private(set) var hasFetched = false
     private(set) var connected = false
     var account: String { store.settings.stateAccount ?? "" }
     var document: StateDocument { store.settings.memberStates?[account] ?? StateDocument() }
@@ -95,7 +97,7 @@ struct StateDocument: Codable, Equatable {
             $0.pendingState?.removeValue(forKey: "")
             $0.readSeq = nil; $0.pinnedEmployees = nil; $0.mutedEmployees = nil; $0.hiddenEmployees = nil
         }
-        generation += 1; onChange?()
+        hasFetched=false; generation += 1; onChange?()
         if releasedPins > 0 { onUnpinned?(releasedPins) }
     }
     func configure(hub: HubClient, token: String) {
@@ -114,11 +116,12 @@ struct StateDocument: Codable, Equatable {
                     do {
                         let (remote, supported) = try await wait(revision)
                         guard let self, self.generation == epoch, !Task.isCancelled else { return }
-                        try self.accept(remote)
+                        try self.accept(remote, requestedRevision:revision)
                         self.waitingSupported = supported
                         guard supported else { return } // Old hub: preserve thirty-second polling.
                         self.timer?.invalidate(); self.timer = nil
                         self.onFailure?(false)
+                        try await Task.sleep(nanoseconds: 1_500_000_000)
                     } catch {
                         guard let self, self.generation == epoch, !Task.isCancelled else { return }
                         self.onFailure?(true)
@@ -135,7 +138,7 @@ struct StateDocument: Codable, Equatable {
         }
     }
     func disconnect() {
-        connected = false; generation += 1; timer?.invalidate(); timer = nil
+        hasFetched = false; connected = false; generation += 1; timer?.invalidate(); timer = nil
         sendTimer?.invalidate(); sendTimer = nil; receiver?.cancel(); receiver = nil
         waitingSupported = false; fetch = nil; push = nil
     }
@@ -153,10 +156,13 @@ struct StateDocument: Codable, Equatable {
     func set(_ values: [String: String?], at: Double = Date().timeIntervalSince1970) throws {
         let dev = store.settings.stateDevice ?? UUID().uuidString.lowercased()
         var edits: [String: StateEntry] = [:]
+        var rejected=false
         for (key, value) in values {
             let entry = StateEntry(v: value, at: at, dev: dev)
             if Self.wins(key, entry, items[key]) { edits[key] = entry }
+            else if !Self.isRead(key),entry.v != items[key]?.v {rejected=true}
         }
+        if rejected {needsReconcile=true;onFailure?(true);Task { [weak self] in await self?.sync() }}
         guard !edits.isEmpty else { return }
         let queued = Self.merge(pending, edits)
         try store.update {
@@ -166,37 +172,53 @@ struct StateDocument: Codable, Equatable {
         onChange?(); scheduleSend()
     }
     /// GET gives a complete snapshot on a changed revision, or no items at the same revision.
-    private func accept(_ remote: StateDocument, sent: [String: StateEntry] = [:]) throws {
+    private func accept(_ remote: StateDocument, requestedRevision:Int, sent: [String: StateEntry] = [:]) throws {
+        let first = !hasFetched;hasFetched=true
         var queue = pending
-        for (key, entry) in sent where queue[key] == entry { queue[key] = nil }
-        let next = remote.rev > document.rev ? remote : document
-        if next != document || queue != pending { try persist(document: next, pending: queue) }
+        for (key, entry) in sent where queue[key] == entry {
+            queue[key] = nil
+            if !Self.isRead(key),remote.items[key]?.v != entry.v { needsReconcile = true }
+        }
+        let next = remote.rev > document.rev || (remote.rev < document.rev && requestedRevision == document.rev) ? remote : document
+        if next != document || queue != pending { try persist(document: next, pending: queue) } else if first {onChange?()}
     }
     func sync() async {
         guard !syncing, let fetch, let push else { return }
         syncing = true; let epoch = generation
         defer { syncing = false }
         do {
-            let remote = try await fetch(document.rev)
+            let revision=document.rev
+            let remote = try await fetch(revision)
             guard epoch == generation else { return }
-            try accept(remote)
+            try accept(remote,requestedRevision:revision)
             while !pending.isEmpty {
-                let sent = pending
+                let sent = pending, revision=document.rev
                 let response = try await push(sent)
                 guard epoch == generation else { return }
-                try accept(response, sent: sent)
+                try accept(response,requestedRevision:revision,sent:sent)
             }
-            onFailure?(false)
+            if needsReconcile {
+                let revision=document.rev
+                let fresh = try await fetch(nil)
+                guard epoch == generation else { return }
+                try accept(fresh,requestedRevision:revision); needsReconcile = false; onFailure?(true)
+            } else { onFailure?(false) }
         } catch { if epoch == generation { onFailure?(true) } }
     }
     private func flush() async {
         guard !syncing, let push, !pending.isEmpty else { return }
-        syncing = true; let epoch = generation; let sent = pending
+        syncing = true; let epoch = generation; let sent = pending, revision=document.rev
         defer { syncing = false }
         do {
             let response = try await push(sent)
             guard epoch == generation else { return }
-            try accept(response, sent: sent); onFailure?(false)
+            try accept(response,requestedRevision:revision,sent:sent)
+            if needsReconcile, let fetch {
+                let revision=document.rev
+                let fresh = try await fetch(nil)
+                guard epoch == generation else { return }
+                try accept(fresh,requestedRevision:revision); needsReconcile = false; onFailure?(true)
+            } else { onFailure?(false) }
         } catch { if epoch == generation { onFailure?(true) } }
     }
     /// Capture this Mac before fetching other Mac keys; absent local layout keys become tombstones.
@@ -206,9 +228,10 @@ struct StateDocument: Codable, Equatable {
         defer { syncing = false }
         let local = items.filter { Self.isLayout($0.key) }
         do {
+            let revision=document.rev
             let remote = try await fetch(nil)
             guard epoch == generation else { throw HubClient.Failure.unreachable }
-            try accept(remote)
+            try accept(remote,requestedRevision:revision)
             var values = Dictionary<String, String?>()
             for key in Set(remote.items.keys).union(local.keys) where Self.isLayout(key) { values[key] = .some(local[key]?.v) }
             try set(values)

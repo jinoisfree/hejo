@@ -12,6 +12,7 @@ from .auth import AuthRejected, digest
 log = logging.getLogger(__name__)
 HUB_FILE = "hub.json"
 CACHE_SECONDS = 30
+OUTAGE_GRACE_SECONDS = 300
 
 
 class HubLink:
@@ -35,7 +36,7 @@ class HubLink:
             async with session.post(self.url + path, json=body, headers={"Authorization": "Gate " + self.key}) as response:
                 return response.status, await response.json(content_type=None)
 
-    async def verify(self, token, fresh=False):
+    async def verify(self, token, fresh=False, *, allow_cached=False):
         """Device id of a hub-issued token for this gate's member; AuthRejected otherwise."""
         key = digest(token)
         cached = self.cache.get(key)
@@ -44,7 +45,11 @@ class HubLink:
         try:
             status, body = await self.call("/v1/gate/verify", {"token": token})
         except (aiohttp.ClientError, TimeoutError, ValueError):
-            raise AuthRejected("unknown") from None
+            status, body = 503, None
+        if status >= 500 or status == 429:
+            if allow_cached and cached and self.clock() - cached[1] <= OUTAGE_GRACE_SECONDS:
+                return cached[0]
+            raise AuthRejected("hub_unavailable")
         if status != 200 or not isinstance(body, dict) or not body.get("device_id"):
             self.cache.pop(key, None)
             raise AuthRejected("revoked" if isinstance(body, dict) and body.get("error") == "revoked" else "unknown")
