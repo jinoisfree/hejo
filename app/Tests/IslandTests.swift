@@ -103,6 +103,7 @@ private func islandMessage(_ seq:Int,_ key:ConversationKey = islandA,asked:Bool=
     let ui=ConversationView(controller:controller,clipboardArea:directory.appendingPathComponent("clipboard"),islandModel:uiModel)
     ui.island.reduceMotion={true}
     let pet=PetController(store:client.store,atlas:try SpriteAtlas(resourceDirectory:resourceDirectory));pet.reducedMotion={true}
+    defer{disposeDrawerFixture(pet,controller,ui)}
     pet.preferredChatSize=CGSize(width:760,height:500);pet.pet.installConversation(ui);pet.installDrawer(ui);controller.deadlineSender={_ in};pet.showChat();pet.pet.layoutSubtreeIfNeeded();ui.layoutSubtreeIfNeeded()
     try check(ui.island.frame.minX == ui.sidebarWidth+12 && ui.island.frame.height == 30 && ui.heading.frame.minX == ui.island.frame.maxX+12,"AT53 island placed beside logo and title follows it")
     let owner=ui.island.partRects.first { $0.0.kind == .owner }!.1

@@ -1,5 +1,17 @@
 import AppKit
 
+/// Drawer fixtures own native windows and may outlive their test through AppKit callbacks.
+/// Detach their views and stop the client before the next animation test runs.
+@MainActor func disposeDrawerFixture(_ pet:PetController,_ controller:ConversationController,_ view:ConversationView) {
+    pet.reducedMotion={true}
+    pet.setDrawerOpen(false)
+    pet.pet.animationsAllowed=false
+    pet.web?.unload()
+    view.removeFromSuperview();view.todoDrawer.removeFromSuperview()
+    pet.panel.makeFirstResponder(nil);pet.panel.contentView=nil;pet.panel.close()
+    controller.client.stop()
+}
+
 /// AT-TD-20..42: real projection, pill input, native panel geometry and request cadence.
 @MainActor func todoDrawerTests(resourceDirectory:URL) async throws {
     let home=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -30,11 +42,11 @@ import AppKit
     try check(snapshot.urgent[0].badge=="D+1" && snapshot.urgent[1].badge=="D-DAY" && snapshot.urgent[1].time=="오늘 18시까지" && snapshot.rest[0].badge=="D-4" && snapshot.rest[0].time=="11월 24일까지","AT-TD-22 calendar labels")
     let view=ConversationView(controller:controller,clipboardArea:home.appendingPathComponent("clipboard"),islandModel:IslandModel(clock:{now}))
     let pet=PetController(store:store,atlas:try SpriteAtlas(resourceDirectory:resourceDirectory))
+    defer{disposeDrawerFixture(pet,controller,view)}
     var visible=CGRect(x:0,y:0,width:1440,height:900)
     pet.displays={ [PetDisplay(frame:visible,visible:visible)] };pet.reducedMotion={true}
     pet.pet.installConversation(view);pet.installDrawer(view)
     pet.placePet(at:CGPoint(x:650,y:700));pet.showChat();view.refresh();view.layoutSubtreeIfNeeded()
-    defer{pet.web?.unload();pet.panel.orderOut(nil);client.stop()}
     var requests:[[String:Any]]=[]
     controller.deadlineSender={requests.append($0)}
     func settle(){pet.stepPlacement();view.layoutSubtreeIfNeeded()}
@@ -50,6 +62,7 @@ import AppKit
     controller.drawerFilter = .deadline;pet.toggleDrawer();pet.toggleDrawer();pet.toggleDrawer()
     try check(controller.drawerSnapshot.urgent.count+controller.drawerSnapshot.rest.count==4 && controller.drawerFilter == .deadline,"AT-TD-21 reopen retains deadline filter")
     let fresh=try testConversation(client:GateClient(store:try LocalStore(directory:home.appendingPathComponent("fresh")),credentials:MemoryCredentials()))
+    defer{fresh.client.stop()}
     try check(fresh.drawerFilter == .all,"AT-TD-21 new controller starts at all")
     controller.drawerFilter = .all
     let question=snapshot.urgent.first{$0.messageID==q1}!
@@ -86,6 +99,7 @@ import AppKit
     let stateKeys=store.settings.pendingState
     try check(store.settings.todoDrawerOpen==true,"AT-TD-36 persisted local state")
     let reopened=PetController(store:try LocalStore(directory:home),atlas:try SpriteAtlas(resourceDirectory:resourceDirectory))
+    defer{reopened.pet.animationsAllowed=false;reopened.panel.contentView=nil;reopened.panel.close()}
     reopened.displays=pet.displays;reopened.reducedMotion={true};reopened.showChat()
     try check(reopened.drawerOpen && reopened.pet.drawerOpen && store.settings.pendingState==stateKeys,"AT-TD-36 restore and member state unchanged")
     reopened.panel.orderOut(nil)
@@ -121,6 +135,7 @@ import AppKit
     try await emptyController.client.receive(["v":1,"type":"welcome","employees":[]])
     let emptyView=ConversationView(controller:emptyController,clipboardArea:emptyHome.appendingPathComponent("clipboard"))
     let emptyPet=PetController(store:emptyStore,atlas:try SpriteAtlas(resourceDirectory:resourceDirectory));emptyPet.displays={ [PetDisplay(frame:visible,visible:visible)] };emptyPet.reducedMotion={true}
+    defer{disposeDrawerFixture(emptyPet,emptyController,emptyView)}
     emptyPet.pet.installConversation(emptyView);emptyPet.installDrawer(emptyView);emptyPet.placePet(at:CGPoint(x:650,y:700));emptyPet.showChat();emptyView.layoutSubtreeIfNeeded()
     let emptyFrame=emptyPet.panel.frame
     emptyView.island.activate(at:CGPoint(x:10,y:15));emptyView.layoutSubtreeIfNeeded()
@@ -178,6 +193,7 @@ import AppKit
     restoredController.deadlineSender={restoredRequests.append($0)}
     let restoredView=ConversationView(controller:restoredController,clipboardArea:home.appendingPathComponent("restored-clipboard"))
     let restoredPet=PetController(store:restoredStore,atlas:try SpriteAtlas(resourceDirectory:resourceDirectory))
+    defer{disposeDrawerFixture(restoredPet,restoredController,restoredView)}
     restoredPet.displays=pet.displays;restoredPet.reducedMotion={true}
     restoredPet.pet.installConversation(restoredView);restoredPet.installDrawer(restoredView)
     restoredPet.placePet(at:CGPoint(x:650,y:700))
