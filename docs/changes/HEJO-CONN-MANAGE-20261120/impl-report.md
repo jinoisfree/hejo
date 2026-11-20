@@ -1,6 +1,6 @@
 # 구현 인계: HEJO-CONN-MANAGE-20261120
 
-> 최신 판단: **부분 구현·설계 보완 검토 대기**. 2차 배정 코드와 명세 시험은 통과했으나 최종 생산자 자료 대조에서 앱 파생 줄 중복을 확인했다(문서 끝 GAP). TASK-02b도 기준 불일치로 대기한다. 아래 각 단계 완료 기록은 해당 범위와 시험에 한정한다.
+> 최신 판단: **3차 TASK-03 보완 구현·자체 시험 완료, 독립 검토 대기**. V-3의 앱 파생 줄 중복은 design 4판대로 보완했고 진단 한 줄 기준을 통과했다(문서 끝 3차 구현). TASK-02b는 기준 불일치로 대기한다. 아래 이전 단계와 GAP은 당시 기록이며, 최종 제품 완료·운영 적용·푸시 완료를 뜻하지 않는다.
 
 ## 판단 상태
 
@@ -205,3 +205,36 @@ TASK-02 커밋: `5e6c81cc173042e879bacf1b7f0fb766ba8494fd`. 게이트웨이가 i
 권고: `status` 생산자의 기존 계약은 유지하고, 문에서 실제 앱과 같은 직원·같은 연결 키의 파생 `team:app-*` 행을 통합하는 조건을 설계에 보완한다. AT-CM-21에도 실제 생산자 3행 입력을 포함하도록 계획 담당이 수락 시험 명세를 보완한 뒤 구현 지시를 준다. 설치만 된 앱과 다른 직원 행을 숨기지 않는 경계도 함께 확정해야 한다.
 
 원래 계획의 계정 행 통합 범위를 구현자가 임의로 확대하지 않았다. 배정된 나머지 코드와 검증 근거는 커밋했고, 계속할 수 있는 제품 변경은 이 보완 판단 및 TASK-02b 기준 일치 뒤다. 운영 적용·실물 확인·푸시는 여전히 미실행이다.
+
+## 3차 구현 — TASK-03 보완 1 (V-3)
+
+받은 기준은 `729eee3317e8cea2dc5f8119271696977c0f8563`의 design 4판 4절·수락 시험 4판 AT-CM-21b·handoff 3차 지시다. 착수 때 작업 트리는 깨끗했고, 읽기 전용 인계 상태와 문서의 V-3·V-1을 대조했다. 위험도 고위험, 필요 증거 수준 2이며, 본 절은 구현자의 자체 시험 기록이다.
+
+### 변경과 이유
+
+- `gate/connection_manager.py`의 기존 `document()` 합치기 자리에 같은 직원의 `team:app-<connection_key>`와 `APP_CONNECTED` 조건을 더했다. 앱 분류·계정 링크 유무와 관계없이 같은 연결을 합친다. `CONFIG_DRIFT`와 다른 연결 키의 줄은 남긴다. 직원별 목록 안에서 처리하므로 다른 직원의 줄을 지우지 않는다.
+- 계정 줄과 파생 줄의 직접 확인 기록을 같은 복사 경로로 통합했다. `config`·`team_registry`는 앱의 연결 상태를 덮지 않으며, 직접 확인의 `state`·`reason`·`checked_at`·`verified_by`를 앱 줄에 반영한다. 계정과 파생 줄 모두 직접 확인 기록이 있으면 같은 앱 연결의 파생 줄 기록을 마지막에 반영한다.
+- 기존 계정 줄을 합칠 때만 `check`를 붙이고 계정 id로 전달한다. 파생 줄만 합칠 때는 확인 동작·전달 경로를 만들지 않는다. team-kit `status` 생산자와 앱 코드는 변경하지 않았다. 공개 계약·저장 형식·설계 변경, 별도 칸·임시 제품 코드 없음. 되돌릴 때는 이 보완 커밋의 표시 규칙과 시험만 되돌리며 영속 자료 이관은 없다.
+- `tests/acceptance/test_conn_manage.py`에 AT-CM-21b 7사례를 옮겼다. 실제 생산자 형태의 시놀로지 계정+파생+앱 한 줄, 다른 앱의 연결 키, 불일치 줄·다른 직원 보존, beta 앱 유무에 따른 독립 판단, 세 앱 분류의 항상 합치기, 직접 확인 기록, 파생 줄만 있는 경우 확인 요청 거절을 관측한다. 수락 시험 명세·기준은 수정하지 않았다.
+
+### 자체 시험과 증거
+
+모든 경로는 로컬 `.build/conn-manage-evidence/` 아래다. 명령 앞에서 hejo 루트의 `source .build/conn-manage-env.sh`를 적용했다. 로그의 `.log.json`에는 실제 명령·종료 코드·착수 커밋·검사한 변경 코드의 지문·검사 중 불변 여부가 있다.
+
+| 검사 | 실제 결과 | 로그 |
+|---|---|---|
+| 수정 전 `pytest tests/acceptance/test_conn_manage.py -k cm21b -q` | 종료 1, 새 7사례 모두 실패(기존 결함 검출) | `v3-red.log` |
+| `pytest tests/acceptance/test_conn_manage.py tests/acceptance/test_connections_screen.py gate/tests -q -o asyncio_default_fixture_loop_scope=function -p no:cacheprovider` | 종료 0, 193 passed(AT-CM-20~28·23b 포함) | `v3-gate.log` |
+| 진단 `probe-derived-row.py` 재실행 | 종료 0, 관측 id `app:com.synology.CloudStation` 하나, `observedCount:1`, `oneRowCriterionMet:true` | `v3-derived-row.log` |
+| Mutation: 합치기 조건에 `CONFIG_DRIFT`를 의도적으로 허용 후 AT-CM-21b 실행 | 기대한 종료 1, 해당 보존 단정에서 1 failed·6 passed. 원본 코드로 복원 | `v3-mutation-drift.log` |
+| `bash scripts/test.sh` 전체 재실행 | 종료 0, 문·수락 시험 404 passed, 격리 게이트웨이 전달·앱 빌드/서명·앱/네트워크 대역·훅 9개 끝까지 통과 | `v3-product-full.log` |
+
+[확인] 검사 중 변경 코드 불변. 기존 pytest 경고 1개와 Swift 컴파일 경고는 남아 있으며 이번에 기준·예외를 늘리지 않았다. 필요/도달 증거 수준은 2/2(가짜 홈·가짜 team-kit/관리 서비스 대역 통합)다. 최종 개인값 정적 분석의 실제 종료 코드와 지적은 `v3-private.log`·`.log.json` 및 인계 상태 블록으로 확인한다. 검사한 코드와 별도 커밋 본문의 일치 대조는 `v3-final-evidence.json`에 남긴다. 검토 대상은 hejo `main`의 이 보완 커밋이며 전체 해시는 최종 상태 블록에 적는다.
+
+진단 스크립트는 수정하지 않았다. 이 스크립트의 `result` 문자열은 과거 GAP 설명으로 고정돼 있으므로 결과 판정은 실제 `observedIds`·`observedCount`·`oneRowCriterionMet`로 한다. 과거 실패는 `derived-row-gap.log`, 이번 관측은 `v3-derived-row.log`로 구분한다(스크립트가 `derived-row-gap.json`을 최신 관측으로 덮어쓴다).
+
+### TASK-02b와 남은 범위
+
+**대기(기준 불일치).** 읽기 전용 재확인에서 운영 저장소 HEAD는 `7ae2b0138725ad7cde44d4842950d2ffb7cc99b8`, `wait_jobs.py` 기준 sha256은 `bf1dd9097a537b7f7999af93398b97386f6c3a24e3acc441b960b25bafd1ec83`, 실행본은 `441a8501a4cefc146115bab154b5e939c8d59cd2e1d27d46661562a4f561a21d`다. 명령 실행 종료 0, 일치 판정 false(`v3-task02b.json`). 파일 수정·반입·merge·TASK-02b 시험은 하지 않았다.
+
+추가 설계 차이·범위 밖 부채 없음. 이번 제품 변경은 문과 수락 시험 코드뿐이고, 본 보고서는 구현 인계 의무에 따라 이어 쓴 것이다. 운영 적용·실물 M1~M5·최종 독립 검토·푸시는 미실행이다. 다음 검토자는 같은 직원·키·reason 경계와 파생 줄 직접 확인 반영, 계정 check 전달의 보존을 우선 확인한다.

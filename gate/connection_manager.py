@@ -188,6 +188,9 @@ class Connections:
                         for app in rows(group.get(category,[])):
                             progress=mapping(app.get('progress') or {});actions=[]
                             settings=rows(app.get('settings',[]))
+                            connection_key=app.get('connection_key',app['bundle_id'])
+                            derived=next((r for r in items if r['id']=='team:app-'+connection_key
+                                and r.get('reason')=='APP_CONNECTED'),None)
                             linked=next((r for link in rows(app.get('links',[])) for r in items
                                 if link.get('profile')==identifier and r['id']=='team:'+link.get('connection','')
                                 and r.get('group')=='account' and (category=='connected' or progress or r.get('state')=='off')),None)
@@ -195,15 +198,17 @@ class Connections:
                                 actions.append(action('app_connect','이어서 하기' if progress.get('next') else '설정 바꾸기' if category=='connected' else '연결',True))
                             if category=='connected':actions.append(action('app_disconnect','해제'))
                             if progress.get('undo_until'):actions.append(action('app_undo','되돌리기' if category=='connected' else '처음부터 다시'))
-                            item=row('app:'+app.get('connection_key',app['bundle_id']),app['name'],'mac',state='connected' if category=='connected' else 'unknown',actions=actions,description=app.get('can_do',''))
+                            item=row('app:'+connection_key,app['name'],'mac',state='connected' if category=='connected' else 'unknown',actions=actions,description=app.get('can_do',''))
                             item['rules']=app.get('rules',[]);item['next']=progress.get('next')
                             item['settings']=public(settings)
                             if linked:
                                 merged.add(linked['id']);checks[(identifier,item['id'])]=linked['id'].split(':',1)[1]
                                 item['actions'].append(action('check','확인',category=='connected' and not settings and not progress.get('next')))
-                                if linked.get('verified_by') not in {None,'config','team_registry'}:
+                            if derived:merged.add(derived['id'])
+                            for source in (linked,derived):
+                                if source and source.get('verified_by') not in {None,'config','team_registry'}:
                                     for key in ('state','reason','checked_at','verified_by'):
-                                        if key in linked:item[key]=linked[key]
+                                        if key in source:item[key]=source[key]
                             if category=='unavailable':item['hidden_by_default']=True
                             part_items.append(item)
                     items=[r for r in items if r['id'] not in merged]+part_items
