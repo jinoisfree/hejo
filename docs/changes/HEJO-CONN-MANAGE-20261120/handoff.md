@@ -5,7 +5,7 @@
 ```text
 [설계 인계: HEJO-CONN-MANAGE TASK-02~04 / team-kit·문·앱]
 0. 기준: 제품 코드 기준 63cbe2a(이 저장소 main) / 계획 문서 기준은 이 인계서를 담은 커밋 / <운영 저장소> 7ae2b013 /
-   spec 2판·design 2판·수락 시험 명세 2판·tasks 2판 2026-11-20(계획 검증 1회차 BLOCKED 7건 반영, plan-review.md) /
+   spec 3판·design 3판·수락 시험 명세 3판·tasks 3판 2026-11-20(계획 검증 1회차 7건·2회차 3건 반영, plan-review.md) /
    승인 상태: 사장 브레인스토밍 결정(brainstorm.md) 기반, 계획 검증 켬(재검증 대기) / 운영 모드: 연합개발(교차 모델 + 계획 검증)
    <운영 저장소>는 매일 자동 기록 커밋으로 움직인다. 착수 때 HEAD를 impl-report에 적는다.
 1. 공식 문서: docs/ARCHITECTURE.md, AGENTS.md, docs/changes/HEJO-CONN-MANAGE-20261120/{brainstorm,spec,design,tasks}.md,
@@ -16,7 +16,7 @@
    설정 바꾸기는 기존 연결 단계를 저장 값으로 다시 열어 고른 단계를 반드시 열고, 마지막 저장 전까지 서버에 아무것도 쓰지 않는다. 시놀로지·Notion 계정 줄은 앱 줄로 합친다.
    지문·암호 확인 뒤에도 연결 창이 앞에 남는다.
 3. 유지할 기존 계약: 문↔앱 성공 프레임 모양(새 필드 settings만 추가), 기존 줄 id·동작 id(새 동작 account_connect·
-   account_disconnect·account_undo 추가, app_connect 라벨만 바뀜. 새 응답 필드: settings, 계정 줄 off 상태), connection_result outcome 값 목록, public() 허용 원칙,
+   account_disconnect·account_undo 추가, app_connect 라벨만 바뀜. 새 응답 필드: settings, committed, 계정 줄 off 상태), connection_result outcome 값 목록, public() 허용 원칙,
    team-kit status·apps 읽기 전용, app connect/disconnect/undo 트랜잭션·되돌리기 규칙, 비밀값 표준 입력, 재확인(reauth) 규칙,
    team-kit status 출력의 줄(합치기는 문 표시에서만), 처음 연결·다시 연결의 입력 초안(stage_values) 동작, Hermes 본체 무수정, ddots 무수정.
 4. 책임과 흐름: design 1절. 동작·설정 단계·꺼짐 칸은 team-kit 한 곳(단계 표 design 2.1, 꺼짐 칸 표 design 3.1), 줄 합치기는 문
@@ -27,7 +27,7 @@
    롤백: 이 저장소 커밋 되돌림. team-kit·team-delegation은 운영 원본을 바꾸지 않으므로(worktree 브랜치) 그 브랜치를 버리면 된다.
 7. 변경 성격: 의미 변경(동작·라벨·흐름·꺼짐 칸 추가). 보존 비교: AT-CM-16·27·37 회귀, `bash scripts/test.sh` 전체,
    꺼짐 칸이 없는 지금 설정에서 등록·호출이 같음(AT-CM-12 켜짐 대조).
-8. 수락 시험: tests/acceptance/HEJO-CONN-MANAGE.md AT-CM-01~18, 40~43, 20~28·23b, 30~38(사장 확인 M1~M5는 TASK-05~07).
+8. 수락 시험: tests/acceptance/HEJO-CONN-MANAGE.md AT-CM-01~18·14b, 40~44, 20~28·23b, 30~38(사장 확인 M1~M5는 TASK-05~07).
    AC↔시험 연결표는 같은 파일 끝. 상태: 명세 완료·코드 미작성·미실행·계획 검증 재검토 대기.
    기대값 출처: spec 요구, design 2~5절. 기대값·합격 기준을 바꾸지 말고, 바꿔야 하면 멈추고 보고.
 9. 작업 범위: tasks.md TASK-02·03·04 영향 파일. TASK마다 별도 커밋(이 저장소는 git commit --only), impl-report.md에 TASK별 절.
@@ -41,6 +41,8 @@
    커밋본이 다를 수 있으니 sha256 확인 결과를 반드시 적고 다르면 멈추고 보고. team-kit 최상위의 같은 이름 파일(예: team-kit/
    wait_jobs.py)은 lib 파일을 싣는 껍데기인지 확인하고 실제 코드 위치만 고친다. 게이트웨이 환경 Python과 임시 HERMES_HOME으로
    시험한다. 게이트웨이가 import하는 바뀐 파일은 보고에 적는다. --rebaseline 금지.
+   AT-CM-14b(본체 소비자)는 실행 못 하면 [미실행]으로 적고 통과로 세지 않는다. 바꾸기 세션은 committed 응답에서 끝나고 재개는 resume만
+   보낸다(design 2.2, PR-08).
    TASK-04 첫 단계: 확인 창 뒤 창이 사라지는 것을 이 Mac에서 재현(암호 입력 창도 같은 시스템 확인 창)하고 원인·재현 절차를
    impl-report에 쓴 뒤 고친다(design 5절 [제안]). 설명되지 않으면 멈추고 보고.
    금지 범위:

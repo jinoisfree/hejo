@@ -17,3 +17,17 @@
 | PR-07 | 권고 | 수용 | [확인] 1판은 CM-02.AC-04·05의 앱 쪽, CM-06, team-kit 출력의 비밀값 검사가 구체 시험에 이어지지 않았고, 계정 기록의 칸이 표에 없었다. Google Drive 미확인은 G4를 막는 조건이었다. Google 미확인은 이번에 본체 코드를 읽기만 해서 해소했다: [확인] Drive·Sheets·Docs는 본체 스킬 `google-workspace`(`skills/productivity/google-workspace/SKILL.md`), 본체가 직원 홈 `config.yaml`의 `skills.disabled`를 지킨다(`agent/skill_utils.py:261-273`). | spec 칸 표(계정 기록·스킬 표시·세션 값), AT-CM-17(앱 해제 실패·되돌리기), AT-CM-18(출력·로그·기록 파일 비밀값), M5(공개 준비), 수락 시험 명세 끝 AC↔시험 연결표, design 3절 [확인]·[확인된 한계](토큰 파일 직접 읽기까지 막는 경계는 아님), handoff 10항(착수 차단 해소) |
 
 반박한 지적과 보류한 지적은 없다.
+
+## 2회차 (2026-11-20)
+
+- 대상: 계획 2판(커밋 `fc959cc`), planHash `7bbed3ac3756c66252b3f6a96375d2222901b3f725881ce6862e287943f49460`
+- 판정: BLOCKED(차단 1, 권고 2)
+- 처리: 3건 모두 수용. 3판(spec·design·수락 시험 명세·tasks·handoff)에 반영.
+
+| ID | 등급 | 처리 | 확인한 사실과 이유 | 반영 위치 |
+|---|---|---|---|---|
+| PR-08 | 차단 | 수용 | [확인] 앱은 후속 `next` 단계도 같은 동작으로 제출하고(`app/Sources/ConnectionsWindow.swift:133-136,161-166`), team-kit은 값이 있으면 `pending`을 거짓으로 보고(`app_connect.py:515`) 다시 `transact`한다(`:639-640`). 2판은 "완료·실패까지 값을 모아 다시 보냄"이라 저장 뒤 재개 때 다시 저장되어 되돌리기 기준이 바뀐 값으로 덮일 수 있었다. | design 2.2 "저장 전과 저장 후": `transact` 성공 응답에 `committed: true`(새 공개 필드), 앱은 그때 모은 값·`change`를 지우고 재개는 `resume`만, team-kit은 `--change`+`--resume`을 거절. design 5절, spec REQ-CM-03.AC-05, AT-CM-44(저장→다시 시작 대기→재개→완료→되돌리기, 재개 중 `transact` 0회, 되돌리기 전 바이트 유지), AT-CM-38(재개 프레임에 `change`·비밀번호 없음) |
+| PR-09 | 권고 | 수용 | [확인] 앱의 창 닫기는 앱 안 상태만 지우고(`ConnectionsWindow.swift:97-101,113`), 문에 알리는 계약은 없다. 문 보호 목록 열쇠는 `(device, profile, connection)`이고 응답마다 덮어쓴다(`gate/connection_manager.py:247,258`). 목록에는 칸 id만 있어 창 닫힘 알림 없이도 다음 요청 경계로 정리할 수 있다. | design 2.2 "문 보호 목록의 세션 경계"(누적 조건, 비움 조건: 새 세션 시작·`change` 없음·`committed`·실패/거절·기기 끊김, 진행 중 요청은 시작 때 계산한 가림 유지), AT-CM-28을 (가)~(사)로 확장 |
+| PR-10 | 권고 | 수용 | [확인] 2판 AT-CM-14는 본체 함수를 못 부르면 설정 목록 검사로 대신하게 해, 설정 검사(증거 수준 2)와 본체 소비자 확인을 섞었다. M4는 메일 요청만 관측했다. | AT-CM-14는 설정 파일 기대값만, 새 AT-CM-14b(본체 `get_disabled_skill_names`를 가짜 홈으로 실행, 못 하면 `[미실행]`이고 통과로 세지 않음), M4에 그 직원 홈 기준 스킬 목록 읽기 확인 추가(없으면 기록하고 메일 답만으로 통과 처리 안 함), AC↔시험 표, handoff 9항 |
+
+반박한 지적과 보류한 지적은 없다.
