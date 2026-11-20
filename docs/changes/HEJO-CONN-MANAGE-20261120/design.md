@@ -1,6 +1,6 @@
 # HEJO-CONN-MANAGE 설계
 
-3판 · 2026-11-20(계획 검증 1·2회차 반영, [plan-review.md](plan-review.md)) · 명세 [spec.md](spec.md). 약어: `H` 이 저장소, `HD` `<운영 저장소>`, `TKL` 실행 중인 team-kit 원본(`<HOME>/plugin-store/team-kit/lib`). 칸 배치는 spec 첫 절.
+4판 · 2026-11-20(계획 검증 1·2회차, 구현 검증 2차 V-3 반영, [plan-review.md](plan-review.md)) · 명세 [spec.md](spec.md). 약어: `H` 이 저장소, `HD` `<운영 저장소>`, `TKL` 실행 중인 team-kit 원본(`<HOME>/plugin-store/team-kit/lib`). 칸 배치는 spec 첫 절.
 
 ## 1. 책임과 흐름
 
@@ -109,7 +109,8 @@
   2. 그 앱이 그 직원에게 실제로 걸려 있다: 앱 항목이 `connected` 무리에 있거나, `progress`가 있거나(진행 중), 계정 줄이 `off`이다(앱 해제로 꺼진 경우. 다시 켜는 길이 앱 줄의 "연결" 하나가 되게).
   - 조건 2를 못 채우면(설치만 된 미연결 앱 + 켜진 옛 계정 줄) 두 줄을 모두 지금처럼 둔다.
 - 합칠 때 그 계정 줄(`team:<id>`)을 표에서 빼고 앱 줄에 합친다. 합칠 때 앱 줄에 `check` 동작("확인", 연결됨이면 주 동작 아님)을 붙이고, 계정 줄의 확인 기록(`state`·`reason`·`checked_at`·`verified_by`)이 "직접 확인"이면 앱 줄 상태 표시에 그대로 쓴다.
-- 앱 줄의 `check`는 문이 `team.run('check', connection=<합친 계정 줄 id>)`로 넘긴다(새 명령 없음).
+- **앱 파생 줄(V-3).** team-kit `status`는 명부에 앱이 장착된 직원마다 `id: app-<연결 키>`, `group: mac`, `verified_by: team_registry`, `reason: APP_CONNECTED`(설정과 명부가 어긋나면 `CONFIG_DRIFT`) 줄을 따로 만든다([확인] `connections.py` `inventory()`). 이 줄은 앱 줄과 같은 연결이다. 문은 같은 직원의 앱 항목 `connection_key`와 `team:app-<그 키>`가 같고 `reason`이 `APP_CONNECTED`이면 그 줄을 앱 줄에 합친다(위 조건 2와 관계없이 항상. 같은 연결이므로). 파생 줄에 직접 확인 기록(`verified_by`가 `config`·`team_registry`가 아님)이 있으면 계정 줄과 같은 규칙으로 앱 줄 상태 표시에 쓴다. `CONFIG_DRIFT` 줄은 문제 표시이므로 합치지 않고 그대로 둔다. 다른 직원의 줄, 연결 키가 다른 줄은 건드리지 않는다.
+- 앱 줄의 `check`는 문이 `team.run('check', connection=<합친 계정 줄 id>)`로 넘긴다(새 명령 없음). 합친 계정 줄이 없고 파생 줄만 합쳤으면 `check` 동작을 새로 붙이지 않는다(지금 파생 줄에도 동작이 없음).
 - 계정 줄의 "비밀번호 바꾸기"(`secret_set`)는 합친 줄에서는 설정 바꾸기의 `login` 단계로 대신한다(통합). 합치지 않은 옛 설정 줄에서는 그대로 남는다.
 - 합치기는 화면 표의 표시 규칙이라 문 한 곳에만 둔다. team-kit `status`의 줄 자체는 바꾸지 않는다(다른 소비자: `docs/연결-상태.md`의 상태 명령 출력 유지).
 

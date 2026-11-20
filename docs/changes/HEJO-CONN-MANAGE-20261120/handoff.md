@@ -85,3 +85,16 @@
   응답 시점까지 조건이 안 되면 TASK-02b는 "대기(기준 불일치)"로 보고하고 나머지 결과를 result로 낸다.
 - 위험도·증거 수준·금지 범위·수락 시험 기대값은 1차 지시와 같다.
 ```
+
+## 3차 지시 (2026-11-20, 검증 2차 [verdict.md](verdict.md) V-3)
+
+```text
+[보완 인계: HEJO-CONN-MANAGE TASK-03 보완 1]
+- 원인: 설계·계약 오류(요구 불변). design 3판 4절이 team-kit status의 앱 파생 줄(app-<연결 키>, group mac)을 빠뜨렸다.
+- 할 일: design 4판 4절 "앱 파생 줄" 규칙대로 gate/connection_manager.py의 줄 합치기를 보완한다. 수락 시험 명세 4판 AT-CM-21b를
+  tests/acceptance/test_conn_manage.py에 옮기고, 실제 생산자 진단(.build/conn-manage-evidence/probe-derived-row.py)을 다시 돌려
+  oneRowCriterionMet:true를 보고한다. 기존 AT-CM-20~28·23b와 bash scripts/test.sh 전체 재실행.
+- 범위: 이 저장소 gate/와 tests/acceptance/만. team-kit·앱 변경 없음(status 출력 유지). 별도 커밋(git commit --only).
+- TASK-02b: 2차 지시의 시작 조건 그대로(아직 불일치면 '대기(기준 불일치)'로 보고).
+- 위험도 고위험, 증거 수준 2, 금지 범위는 1차 지시 9항 그대로.
+```

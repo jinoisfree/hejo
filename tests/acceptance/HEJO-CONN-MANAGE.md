@@ -1,6 +1,6 @@
 # HEJO-CONN-MANAGE 수락 시험 명세
 
-3판 · 2026-11-20(계획 검증 1·2회차 반영) · 명세 [spec.md](../../docs/changes/HEJO-CONN-MANAGE-20261120/spec.md), 설계 [design.md](../../docs/changes/HEJO-CONN-MANAGE-20261120/design.md).
+4판 · 2026-11-20(계획 검증 1·2회차, 구현 검증 2차 V-3 반영) · 명세 [spec.md](../../docs/changes/HEJO-CONN-MANAGE-20261120/spec.md), 설계 [design.md](../../docs/changes/HEJO-CONN-MANAGE-20261120/design.md).
 상태: 명세 완료 · 코드 미작성 · 미실행 · 독립 검토: 계획 검증 1회차 BLOCKED → 2판, 2회차 BLOCKED → 3판 반영, 재검증 대기. 기대값 출처: spec 요구와 design 2~5절. 구현 담당이 코드로 옮기며 기대값·합격 기준을 바꾸지 않는다(바꿔야 하면 멈추고 보고).
 
 공통: 임시 `HERMES_HOME`, 가짜 직원 `alpha`·`beta`, 가짜 주소·가짜 아이디·가짜 토큰 문자열, 가짜 team-kit 명령(문 시험), 가짜 문서(앱 시험). 실제 토큰·직원 id·주소·경로 금지. "바이트 그대로"는 실행 전후 sha256 비교.
@@ -40,6 +40,7 @@
 |---|---|---|---|
 | AT-CM-20 | CM-01.AC-01, design 2.4 | 가짜 `apps`: alpha 연결됨 앱 A(`settings` 2개), 연결됨 앱 B(`settings` 없음, 합칠 계정 줄 없음), 연결 가능 앱 C | A 주 동작 `app_connect` "설정 바꾸기", 다른 동작에 `app_disconnect` "해제". B 주 동작 없음, "해제" 있음. C 주 동작 "연결". 어떤 줄에도 "범위 바꾸기" 라벨 없음. A 줄에 `settings`가 그대로 전달됨 |
 | AT-CM-21 | CM-04.AC-01 | 가짜 `status`에 alpha `synology`(group account, 직접 확인 기록 있음)·`notion` 줄, 가짜 `apps`에 alpha 시놀로지 앱(연결됨, `links`에 alpha `synology`)·Notion 앱(연결됨, `links`에 alpha `notion`) | 표에 `team:synology`·`team:notion` 없음. 두 앱 줄에 `check` "확인", 시놀로지 앱 줄 상태는 계정 줄의 직접 확인 결과(`verified_by` 포함) |
+| AT-CM-21b | CM-04.AC-01, design 4절 앱 파생 줄(V-3) | 실제 생산자 모양: 가짜 `status`에 alpha `synology`(account) + `app-com.synology.CloudStation`(group mac, `APP_CONNECTED`, `team_registry`) + 다른 앱 `app-<다른 키>`(`APP_CONNECTED`) + `app-<세 번째 키>`(`CONFIG_DRIFT`), beta에도 `app-com.synology.CloudStation`. 가짜 `apps`에 alpha 시놀로지 앱(연결됨, `links`에 계정 줄과 파생 줄)·다른 앱(연결됨) | alpha 표: 시놀로지 관련 줄은 `app:com.synology.CloudStation` 하나(`team:synology`·`team:app-com.synology.CloudStation` 없음). 다른 앱도 `app:` 줄 하나. `CONFIG_DRIFT` 줄은 남음. beta 표의 파생 줄은 beta 앱 항목 기준으로만 판단(alpha 처리로 사라지지 않음). 파생 줄에 직접 확인 기록을 넣은 경우 앱 줄 `verified_by`가 그 값 |
 | AT-CM-22 | CM-04.AC-01 | AT-CM-21 표에서 시놀로지 앱 줄 `check` 요청 | 가짜 team-kit에 `check --profile alpha --connection synology` 한 번 |
 | AT-CM-23 | CM-04.AC-02 | 실제 `apps` 모양: alpha에게 시놀로지 앱이 `connectable`(설치만, `progress` 없음)이고 `links`에 alpha `synology`(켜짐) 있음 | `team:synology` 줄과 앱 줄 둘 다 있음, 계정 줄 동작 지금 그대로 |
 | AT-CM-23b | CM-04.AC-01 | (가) 앱 `connectable` + `progress` 있음 + `links` 켜진 계정 줄 (나) 앱 `connectable` + `links`의 계정 줄 `off` | 둘 다 계정 줄 없음, 앱 줄 하나((나)의 주 동작 "연결") |
@@ -92,7 +93,7 @@
 | CM-03.AC-03 | AT-CM-03, 44 |
 | CM-03.AC-04 | AT-CM-06, 42, 28, 38 |
 | CM-03.AC-05 | AT-CM-03, 44, 38 |
-| CM-04.AC-01 | AT-CM-21, 22, 23b |
+| CM-04.AC-01 | AT-CM-21, 21b, 22, 23b, M1 |
 | CM-04.AC-02 | AT-CM-23 |
 | CM-05.AC-01 | AT-CM-35, M3 |
 | CM-05.AC-02 | AT-CM-36 |
