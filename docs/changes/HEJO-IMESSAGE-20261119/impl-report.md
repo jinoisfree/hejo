@@ -250,3 +250,24 @@
 
 - 현재 RELEASE는 배포 대상 커밋이다. 게이트웨이 재시작 시각·재시작 이후 연결/오류 확인·캡처 경로는 아직 없다. 실행 중 게이트웨이는 이전 코드이며 다음 재시작 때 갱신 코드를 읽는다. 허브 재시작·짝짓기·코드 발급·실제 발송·push는 미실행이다. 실패가 없어 코드 롤백은 실행하지 않았다.
 - 다음 행동: 앱 범위 답변을 확인하고, 서버만이면 보완 지시 4의 3번부터 최신 처리 중 차례 0 확인 → 게이트웨이 재시작 → 로그 검증. 릴리스·설치 상태 점검은 반복하지 않는다. 앱까지면 현재 공개 배포 계약과의 차이를 계획 담당이 먼저 정리해야 한다. 이전 TASK-07 준비 절의 ‘보완 지시 3 재개’ 안내는 이 절로 대체한다.
+
+
+## TASK-07: 보완 지시 4 서버 적용·자체 검증 완료 (2026-11-20)
+
+- 받은 설계·허가: handoff 보완 지시 4, verdict 4차. 사용자 답변 ‘보완 지시 4대로 서버만 적용’으로 앞 절의 범위 대기를 해소했다. 앱 빌드 입력 읽기 허용은 사용하지 않았다. 판단 상태: **이번 서버 적용 범위 완료·계획 담당 검토 대기**. 위험도 고위험(운영), 필요·도달 증거 수준 3.
+- 재개 HEAD `154b8aa0b04e9ec34ffa66b9db2dd10bd5180a0b`, 작업 트리 깨끗. 이미 배포된 대상 `ea31736b0f6eaa1a14d39099cc853f33e2b2c6ae`와 제품 코드는 같으며 두 착수 조건 diff는 모두 0건이다. 앞 절에서 끝난 릴리스 갱신·설치 상태 점검은 반복하지 않았다.
+- 적용 전 기록·보존 위치·빈 값 없는 코드 롤백 명령·이번 관측 원본은 `evidence/HEJO-IMESSAGE/TASK-07.md`를 따른다. 제품 구조·기록장 형식 변경은 없다. 설치된 앱을 교체하지 않았고 허브도 재시작하지 않았다.
+
+| 명령·검사 | 실제 결과 | 로컬 증거(`.build/HEJO-IMESSAGE/task07/` 기준) |
+|---|---|---|
+| gateway_state + PID + 갱신 시각 확인 | 종료 0, active_agents 0·running·PID 생존·갱신 120초 미만 | `restart-before.json` |
+| `hermes --profile default gateway restart` | 종료 0, UTC 04:32:05.756 요청·04:32:08.463 종료 | `restart-command.log/.exit`, `restart-command.json` |
+| `python3 .build/HEJO-IMESSAGE/task07/verify-restart.py` | 종료 0, 새 시작 UTC 04:32:23.433·릴리스 갱신 뒤·PID 교체·runtime running | `post-restart.json`, `verify-restart.exit` |
+| 같은 검사의 연결·로그 대조 | hejo 6·Slack 6·photon 1 connected, 새 오류·역추적·경고·아이메시지 실패·처리기 연결 실패 각 0 | `post-restart.json`, 식별자 없는 `connections.log` |
+| team-kit 실행 원본·운영 작업본·커밋 대조 및 hejo 코드 diff | 종료 0, 자기 세 파일 동일·운영 HEAD 불변·hejo 제품 및 hub/install/config 무변경 | `source-final.json` |
+| Hermes venv Python `scripts/scan_private.py` (임시 HERMES_HOME) | 종료 0 | `private-final.log/.exit` |
+| `git diff --check` | 종료 0 | 최종 diff 직접 확인 |
+
+- AT-HI-40의 서버 부분 통과(최종 관측 UTC 04:34:49, 새 시작 뒤 약 146초). 앱의 platform_ready/paired 화면은 새 앱 공개 뒤 확인해야 하므로 통과로 주장하지 않는다. 실제 아이메시지·Slack 발송은 하지 않았다. AT-HI-41은 사전 롤백 절차만 준비했으며 실패가 없어 롤백 실행은 없음.
+- 비밀·운영 설정 직접 조회, Hermes 본체/photon/ddots 변경, 앱 빌드·교체·버전 올림·공개, 허브 재시작, 짝짓기·코드 발급·push는 미실행이다. 기존 다른 작업 변경을 보존했다.
+- 다음 담당: evidence와 실제 로컬 로그·RELEASE·게이트웨이 상태를 확인해 TASK-07을 검토한다. 이미 적용한 릴리스·재시작은 반복하지 않는다. 이후 TASK-07b 앱 0.2.1 공개 준비의 사용자 결정 → 비설계자 검토 → TASK-08 폰 M1~M8. 제품 최종 완료와 푸시 승인은 아직 아니다.
