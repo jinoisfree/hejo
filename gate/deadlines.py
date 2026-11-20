@@ -116,13 +116,28 @@ class Deadlines:
             return {'available': True, 'reason': reason}
         finally:
             try:
-                if proc is not None and proc.returncode is None:
-                    try: proc.terminate()
-                    except ProcessLookupError: pass
-                    try: await asyncio.wait_for(proc.wait(), .2)
-                    except TimeoutError:
-                        try: proc.kill()
-                        except ProcessLookupError: pass
-                        await proc.wait()
+                if proc is not None:
+                    cleanup = asyncio.create_task(self._reap(proc))
+                    try: await asyncio.shield(cleanup)
+                    except asyncio.CancelledError:
+                        await cleanup
+                        raise
             finally:
                 self._running = None
+
+    @staticmethod
+    async def _reap(proc):
+        # Drain the pipe as well as wait: a full stdout pipe otherwise prevents
+        # asyncio's subprocess transport from completing even after kill.
+        async def drain_and_wait():
+            while await proc.stdout.read(65536):
+                pass
+            await proc.wait()
+        if proc.returncode is None:
+            try: proc.terminate()
+            except ProcessLookupError: pass
+        try: await asyncio.wait_for(drain_and_wait(), .2)
+        except TimeoutError:
+            try: proc.kill()
+            except ProcessLookupError: pass
+            await drain_and_wait()

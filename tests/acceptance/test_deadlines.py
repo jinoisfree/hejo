@@ -143,3 +143,15 @@ async def test_at_td_19(gate, client, airport):
     await gate.disconnect()
     assert task.cancelled()
     gone(pids(airport)[0])
+
+
+@pytest.mark.asyncio
+async def test_at_td_12_continuous_stdout_is_reaped(tmp_path):
+    command(tmp_path, "import os,signal\nfrom pathlib import Path\n"
+        "Path(os.environ['HERMES_HOME'],'pids').write_text(str(os.getpid()))\n"
+        "signal.signal(signal.SIGTERM,signal.SIG_IGN)\n"
+        "while True: os.write(1,b'x'*65536)\n")
+    reader = Deadlines(tmp_path)
+    result = await asyncio.wait_for(reader.list(), 3)
+    assert result == {'available':True,'reason':'invalid_response'}
+    gone(pids(tmp_path)[0])
