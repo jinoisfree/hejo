@@ -184,3 +184,84 @@ team-kit `tests/test_connections_screen.py`에 AT-HC-53(가~다) 3사례와 AT-H
 team-kit 대상은 worktree 브랜치 `hejo-connections-20261120`의 `fe697e3b5a0805ec9ab80f63b2fcf9d3f3e53573`(부모 `1c0ea8a5`)이며 수정 경로는 시설 `synology_setup.py`·`app_connect.py`와 시험 `test_connections_screen.py`다. 앱 대상은 이 절을 담은 hejo main 커밋(부모 `4d377d6`)이며 `ConnectionsWindow.swift`·`ConnectionsTests.swift`와 이 보고서만 바뀐다. 로컬 worktree 위치는 `AGENTS.local.md`를 따른다. 증거 사본은 worktree의 추적하지 않는 `.build/HEJO-CONNECTIONS/supplement1/`에도 보존한다.
 
 독립 재검토에서는 AT-HC-53(가)의 기존 undo 원점 보존, 부분 후보 우선 칸 채움, 실제 AppKit 확인 문구 두 상태를 확인해 달라. 새 범위 밖 부채는 없다. 운영 원본·운영 main·직원 B 초안·Hermes 본체·ddots는 수정하지 않았고 sync·재시작·버전·공개·설치 교체·푸시는 실행하지 않았다. 다음은 보완 1 재검토이며 TASK-05 이후는 별도 지시 범위다.
+
+
+## TASK-05 서버 적용
+
+### 적용 전 롤백 기록 (먼저 작성)
+
+보완 지시 2·design 7.2·검토 2차를 기준으로 적용한다. 위험도 고위험, 필요 증거 수준 3. TASK-02~04 및 보완 1의 제품 변경·검사를 반복하지 않는다. 아래는 적용 전에 확인한 실제 값이다. `<HOME>`은 Hermes 홈, `$HOME`은 macOS 사용자 홈이다. 개인 홈 이름과 절대 경로는 쓰지 않는다.
+
+- 대상 문 커밋: `1c6b3e2f18a3e3ceb24f01eeda8bcb042c4582a3`. 적용 전 공용 `RELEASE`: `95074cbafda3a5e16d1fd2e9a580b24abe667021`. 공용 릴리스 위치: `$HOME/../Shared/hejo`.
+- 적용 전 `gateway.status` 런타임: pid `15798`, start_time 지문 `179515476080`(macOS epoch 센티초), 시작 `2026-11-20T06:06:00.800000+00:00`. 진행 중 에이전트 0·active_work 없음.
+- team-kit 대상: worktree `fe697e3b5a0805ec9ab80f63b2fcf9d3f3e53573`. 실행본 `<HOME>/plugin-store/team-kit/`. 운영 저장소 main HEAD: `9e68b39bd8b51ee1205a011744ea7cf4a2b3e495`. 운영 문서가 기준 `9e68b39b`와 바이트 일치하고 이번 12개 경로에 다른 미커밋 변경이 없음을 확인했다.
+- 보관 폴더: `$HOME/.cache/hejo-connections-task05-cf0fk2hu`. 실제 생성됨, 모드 `0700`. 목록·되돌리기 스크립트를 먼저 두었고, 실행본은 다음 교체 단계에서 이 폴더의 `team-kit/`에 보관하고 SHA-256 확인 후 교체한다. 원본은 아래 표다.
+
+| 실행본 경로(`<HOME>/plugin-store/team-kit/` 아래) | 적용 전 SHA-256 |
+|---|---|
+| `lib/hermes_facility/app_connect.py` | `4598709c56f52eed69eaa66079f2313365ec681371d7becc1d67bfa5fcb18849` |
+| `lib/hermes_facility/app_setup.py` | `f1dd31b34c8087da0ea7faafa94c5b5f705e11c6403407ad5d99b17b39ee8124` |
+| `lib/hermes_facility/connection_guides.py` | `15347bda0b8a0c5becb2695e52086b8b703ffeb5c0552ba14efecccfd13b903a` |
+| `lib/hermes_facility/connection_secrets.py` | `841f51fb79855776ecd67f91c83e136ec55d7fc555be17175bccf5d345a43277` |
+| `lib/hermes_facility/synology_setup.py` | `58d6bc483e0090cb9889cfde3b132c3ae8525934de78bb57da1a5e04bd33a189` |
+| `lib/hermes_packs/files_docs/files.py` | `fb306ff396ee1e0d8832d2c3f80a38ff0ce6bf1c8c54ca0f5a21acb4d5a250e7` |
+| `tests/test_app_connect.py` | `39fc5f7556e602a3e997fab0c3a90276bb20ba925a83c0a83a6cef20b8d8c18c` |
+| `tests/test_connection_guides.py` | `b13e395d4e3176b499528e74f05a45d36cd7a9b6525dcde35de4745dcae4bf17` |
+| `tests/test_connections_screen.py` | 없음(새 파일, 롤백 때 제거) |
+| `tests/test_connections_secret.py` | `8e46d7a65280a5fe2931dffbbc54c1d262281eb6777722337412aafbc7fbe5b5` |
+| `tests/test_synology_app_connect.py` | `e718d6054647b004e5e5882f8f55ba730b3af89c78228f56f199f98649914c47` |
+
+되돌리기는 다음 순서다. 실행본 보관본은 계속 움직이는 운영 저장소 커밋 대신 위 파일별 SHA-256을 기준으로 한다. 복원 스크립트는 모든 보관본을 먼저 검사하고 같은 디렉터리 임시 파일→이름 바꾸기로 복원한다.
+
+```sh
+python3 "$HOME/.cache/hejo-connections-task05-cf0fk2hu/restore-team-kit.py"
+"$HOME/.hermes/bin/hermes-connections" status --json
+"$HOME/.hermes/bin/hermes-connections" apps --json
+# 문 적용 뒤 복구가 필요할 때만, 기록한 이전 릴리스를 별도 worktree로 꺼낸다.
+git -C "$HOME/paseo-work/hermes-hejo" worktree add --detach "$HOME/.cache/hejo-connections-task05-cf0fk2hu/gate-rollback" 95074cbafda3a5e16d1fd2e9a580b24abe667021
+"$HOME/.cache/hejo-connections-task05-cf0fk2hu/gate-rollback/install/hejo-release"
+"$HOME/.hermes/bin/hermes-connections" gateway restart --json
+# 앱은 이번에 바꾸지 않으므로 복원 대상 없음.
+```
+
+복원 읽기 명령의 값은 화면에 출력하지 않고 종료 코드·JSON 여부·개수만 남긴다. 재시작은 위 명령만 쓰며 BUSY일 때 강제하지 않는다. 운영 적용 결과는 아래에 이어 기록한다.
+
+
+### TASK-05 적용 결과와 관측
+
+자체 판단: **서버 적용 완료, 독립 검토 대기.** 필요·도달 증거 수준은 3이다. 아래 명령은 실제 운영 실행본·공용 릴리스·게이트웨이에 실행했다. 기존 대역 시험 결과를 운영 실행 증거로 대신하지 않았다.
+
+1. 파일 11개(lib 6·tests 5)를 다시 SHA-256 대조했다. 기존 10개는 착수 기준과 일치하고 새 파일 1개는 없었다. 전부 0700 보관 폴더에 복사·검사한 뒤 각 실행본과 같은 폴더에 임시 파일을 쓰고 이름 바꾸기로 교체했다. 교체 뒤 11개 모두 `fe697e3b`의 바이트와 일치했다. `files.py`는 게이트웨이가 import하므로 아래 재시작으로 함께 적용됐고, 나머지 시설은 CLI가 호출마다 읽는다.
+2. 교체 직후 실제 `status`·`apps`가 성공했다. 각각 직원 6명이며 앱 목록은 설치 앱 80개·서비스 1개다. 응답 원문·계정·주소는 로그에 남기지 않았다. 금고는 교체 전후 digest가 같았다.
+3. 운영 main에서 `./sync`가 1589개 파일을 수집했고 토큰 경고는 없었다. 기존 미커밋 13개 경로를 사전 보관·바이트 대조했고 수집 후에도 모두 같아 복원할 파일이 없었다. `docs/연결-상태.md`는 기준 `9e68b39b`와 같음을 다시 확인하고 worktree 판으로 반영했다. `./airport-check`도 통과했다.
+4. 운영 저장소 커밋은 `7ae2b0138725ad7cde44d4842950d2ffb7cc99b8`(부모 `9e68b39b`)다. team-kit 11개·운영 연결 문서 1개만 `git commit --only`로 커밋했고 모두 검토 worktree 판과 일치한다. 기존 13개 변경의 바이트·Git 상태를 보존했다. `./sync`가 추가로 모은 owner 사본 1개는 이 커밋에 넣지 않고 미커밋으로 남겼다.
+5. `install/hejo-release` 기본 대상으로 문을 적용했다. 공용 `RELEASE`는 `1c6b3e2f18a3e3ceb24f01eeda8bcb042c4582a3`, 공용 `gate/` 19개 파일(시험·캐시 제외)이 그 커밋과 정확히 같다. 적용 전 릴리스의 `gate/`도 기록한 이전 커밋과 같음을 확인했다. 이 보고서를 담은 후속 커밋은 보고서만 바꾸며, 이미 적용한 릴리스를 다시 실행하지 않는다.
+6. 지정된 `hermes-connections gateway restart --json`만 한 번 실행했다. 종료 0, `outcome=done`, `reason=OK`, 채널 7개 재연결이다. BUSY가 없어 10분 대기·재시도는 하지 않았다. 새 pid `31964`, start_time 지문 `179516510456`, 시작 UTC `2026-11-20T08:58:24.560000+00:00`으로 이전 pid·시작과 다르다. 공식 런타임은 살아 있고 최신이며 hejo 6개 행 모두 새 pid·시작 지문의 `connected`다.
+7. `gateway.log`의 새 `Starting Hermes Gateway...` 표식 뒤 `✓ hejo connected` 6개를 확인했다(서버 시각 17:58:42~17:58:45). 포트 바인딩 주소를 직접 쓰는 전용 로그 줄은 현재 구현에 없으므로, 같은 새 pid가 TCP `47820`을 LISTEN하는 것을 `lsof` 종료 0으로 대조했다. 직원 식별자·주소가 있는 원문 대신 사건·시각만 증거에 남겼다. 실제 채널·문 연결은 확인했으므로 복구 조건에 해당하지 않았으며 운영 롤백은 실행하지 않았다.
+8. 재시작 뒤 `status`·`apps`도 종료 0·JSON·직원 6명·앱 80개와 서비스 1개를 다시 확인했다. 실행본 SHA-256·릴리스도 그대로다. 운영 금고가 재시작 전 sync 사본과 같음을 digest로 확인했다. 직원 B 초안은 읽기 명령으로만 접했으며 `app connect`·undo·연결 상태 쓰기는 하지 않았다.
+
+### TASK-05 실행 기록
+
+로그는 모두 이 저장소 기준 `.build/connections-task05/`에 있다. 실제 값이 있는 CLI 원문·sync 출력 경로는 복사하지 않고 종료 코드·JSON 여부·개수·검사 결과만 기록했다. 보관 폴더의 `evidence/`에도 같은 기록을 보존한다.
+
+| 명령·검사 | 실제 종료 코드·결과 | 로그 |
+|---|---|---|
+| 런타임·기준 SHA-256·운영 main/문서·자기 경로 사전 검사 | 0, 진행 중 0·기존 10개 일치·새 파일 1개 없음 | `preflight.log`, `preflight.json` |
+| 보관·이름 바꾸기 교체·교체 SHA-256 | 0, 11개 일치·보관본 검증·금고 불변 | `apply-team.log`, `team-applied.json` |
+| 실행본 `hermes-connections status --json`, `apps --json` | 각각 0, JSON·직원 수 확인 | `after-team.log`, `after-team.json` |
+| 운영 main `./sync` | 0, 1589개·토큰 경고 없음·기존 13개 변경 보존 | `sync.log` |
+| 운영 main `./airport-check` | 0, boundary 381·document 0·compartments 0, 기준선 변경 없음 | `airport.log` |
+| 운영 main `git commit --only` 초회 | 1. 새 시험 파일이 Git에 아직 등록되지 않은 pathspec 오류. 읽기용 `--dry-run`에서도 같은 오류를 확인했다. 제품·읽기·토큰 검사의 실패는 아니며 HEAD는 그대로였다 | `operations-commit-initial.log`, `commit-preflight.log` |
+| 새 자기 시험 파일만 `git add` 후 운영 main `git commit --only` | 0, 위 운영 커밋·12개 자기 경로만·검토본 일치 | `operations-commit.log`, `operations-recorded.json`, `operations-preserved.json` |
+| `install/hejo-release` | 0, RELEASE·gate 19개 일치 | `release.log`, `release.json` |
+| `hermes-connections gateway restart --json` | 0, 첫 시도 done·채널 7개 재연결 | `restart-command.log`, `restart-1.json` |
+| 새 런타임·hejo 로그·문 포트·실행본 검사 | 0, 새 pid·hejo 6개 연결·LISTEN | `post-check.log`, `runtime-after.json`, `hejo-log-proof.json`, `applied-inputs.json` |
+| 재시작 뒤 `status --json`, `apps --json` | 각각 0, JSON·직원 수 확인 | `after-restart.log`, `after-restart.json` |
+| 운영 금고·기존 미커밋 보존 검사 | 0, sync 전후 기존 변경과 재시작 전후 금고 일치 | `state-preservation.json`, `operations-preserved.json` |
+| 같은 게이트웨이 Python으로 `scripts/scan_private.py` | 0, 최종 보고서 개인값 검사 통과 | `scan-private.log` |
+
+### TASK-05 남은 범위와 검토 요청
+
+서버 적용·CLI 읽기·게이트웨이 재연결은 실제 실행으로 확인했다. 앱 사본·버전·공개·푸시는 실행하지 않았고 Hermes 본체·ddots를 고치지 않았다. spec·design·수락 시험 명세도 바꾸지 않았다. 문 제품 코드는 이미 검토한 대상과 같으므로 전체 대역/앱 시험은 반복하지 않았고, 보고서 개인값 검사도 통과했다.
+
+M1~M7, 운영 아이디 자동 채움(M5), 직원 A의 오류 원인 로그(M2)는 남아 있다. 새 앱 설치 전 0.2.1 화면의 옛 오류 문구는 남는다는 인계 조건도 그대로다. 포트 바인딩 전용 로그의 부재를 연결 실패와 혼동하지 않도록 hejo 시작 사건·같은 pid의 수신·공식 런타임을 함께 검토해 달라. 다음은 TASK-05 적용 근거의 독립 검토, 그 뒤 별도 지시로 TASK-06 0.2.2 준비다.
