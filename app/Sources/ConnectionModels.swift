@@ -20,8 +20,12 @@ struct AgentConnectionDocument: Codable {
 struct AgentConnectionProfile: Codable, Identifiable {
     let profile: String, display_name: String
     let connections: [AgentConnectionItem]
+    struct Unread: Codable { let part: String; var reason: String? = nil }
+    var unread: [Unread]? = nil
     var id: String { profile }
-    var summary: String {
+    var summary: String { summary(includingHidden: false) }
+    func summary(includingHidden: Bool) -> String {
+        let connections=connections.filter{includingHidden || $0.hidden_by_default != true}
         if connections.contains(where: { $0.state == .needsReconnect || $0.state == .notConnected }) { return "다시 연결 필요" }
         return !connections.isEmpty && connections.allSatisfy { $0.state == .connected || $0.state == .off } ? "연결됨" : "확인 안 됨"
     }
@@ -47,6 +51,7 @@ struct AgentConnectionItem: Codable, Identifiable {
     let scope: Account?, reconnect: Account?
     let capabilities: [String], rules: [String]
     /// Added by the Hermes command; absent in output from older commands, which then offer no buttons.
+    var hidden_by_default: Bool? = nil
     var fields:[AgentActionReply.Field]? = nil
     var next:ConnectionNext? = nil
     var connect_kind: String? = nil
@@ -181,7 +186,7 @@ enum ConnectionSentence {
             case "TIMEOUT", "NETWORK": return fail(action.hasPrefix("secret") ? "서비스 응답이 없어 저장하지 않았어요." : "응답을 받지 못했어요. 잠시 뒤 다시 해 주세요.")
             case "RATE_LIMITED", "SERVER_ERROR", "CHECK_FAILED": return fail("서비스가 제한 중이라 확인하지 못했어요. 잠시 뒤 다시 해 주세요.")
             case "write_partial": return fail("저장이 중간에 멈췄어요. 서버에서 이 키를 확인해 주세요")
-            case "admin_unavailable": return fail("서버의 관리 기능이 꺼져 있어요")
+            case "admin_unavailable": return fail("서버의 관리 기능에 닿지 못했어요")
             case "WRITE_FAILED": return fail("저장하지 못했어요. 기존 값은 그대로예요.")
             case "NAME_NOT_ALLOWED": return fail("이 연결은 화면에서 값을 바꿀 수 없어요.")
             case "NO_UNDO", "EXPIRED": return fail("되돌릴 수 있는 시간이 지났어요.")
@@ -256,6 +261,8 @@ struct ConnectionNext:Codable {
     struct Option:Codable,Identifiable {let id:String,label:String;var disabled:Bool?;var selected:Bool?}
     let kind:String
     var fields:[AgentActionReply.Field]?
+    var selected:[String]?
+    var input_error:String?
     var options:[Option]?
     var guide:AgentActionReply.Guide?
     var hint:String?

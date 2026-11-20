@@ -3,6 +3,7 @@
 ## 받은 범위와 현재 상태
 
 - 설계: [handoff.md](handoff.md), design 3판과 계획 검토 3회차 APPROVED(`2776ab1`). 제품 기준 `1ca3f27`, 운영 저장소 기준 `9e68b39bd8b51ee1205a011744ea7cf4a2b3e495`.
+- 구현자 판단: TASK-02~04 범위 구현·자체 시험 완료, 독립 검토 대기. 운영 적용·최종 완료 판정은 하지 않았다.
 - 연합개발 구현·자체 시험, 고위험, 필요 증거 수준 2. 모든 갈래를 구현 담당이 직접 처리한다. 최종 독립 검토와 운영 적용은 별도다.
 - 이번 범위는 TASK-02~04. 버전·배포·설치·재시작·운영 초안 변경·푸시는 범위 밖이다.
 
@@ -27,11 +28,33 @@
 
 ## TASK-03 앱
 
-[진행] 수정 전 개발 시험 도구로 재현 중. 결과 확인 전 앱 제품 코드는 변경하지 않았다.
+[확인] 수정 전 개발 시험 도구(`.build/connections-repro/`)로 가짜 표·주소 응답·로그인 응답(아이디/비밀번호·7단계 안내)을 실제 ConnectionsWindow/NSHostingView에 넣었다. 주소 제출 자체는 `waiting` 다음 단계가 열린 채 유지됐다. 따라서 시설 저장 실패나 `waiting` 응답을 완료로 오인한 것이 원인이라는 증거는 없다.
+
+연결 창을 기존 AppDelegate와 같은 높은 층(시험에서는 26)에 둔 뒤 기본 확인 창을 띄우면 alert 층은 8이며 뒤에 가렸다. `NSApp.modalWindow != nil`인 채 `show()`를 다시 불러도 모달은 풀리지 않았다. 첫 탐침에서 주 actor Task로 모달을 끝내려 한 것도 진행되지 않아 샘플로 `NSAlert.runModal → NSApplication.runModalForWindow` 대기를 확인하고 시험 프로세스만 종료했다. 이후 common runloop Timer로 끝내는 탐침은 종료 0으로 같은 현상을 확인했다. 창이 다시 안 열리는 재현 가능한 원인은 앱 전체 모달과 창 층의 충돌이다.
+
+입력 sheet를 가려지게 한 상태와 요청 중 닫힘도 주입했다. 기존 `onDisappear`와 `onDismiss`가 같은 입력 정리를 중복 수행하고, 다음 단계 값도 이전 주소 값을 남긴다. 단순 `waiting`만으로 원래 운영 증상의 자발적인 창 닫힘은 재현하지 못했다. 운영 당시의 OS 인증창 사건은 미관측으로 남긴다. 수정은 design 3.3에 정한 창 층·sheet 확인·단일 닫힘 처리·요청 중 다음 단계 복원을 원래 창 소유자에서 수행한다.
+
+증거: `.build/connections-evidence/task03-reproduction3.log`(종료 0), `task03-dismiss-race.log`(종료 0), `task03-repro-sample.txt`(첫 모달 대기 샘플). 재현 빌드 1~2차는 시험 helper 누락·잘못된 소수 리터럴로 실패했고, 고친 3~6차 산출물만 실행했다. 실제 서버나 운영 입력값은 사용하지 않았다.
+
+### TASK-03 변경과 자체 시험
+
+- `ConnectionModels.swift`: `unread`·`hidden_by_default` 해석, 숨긴 줄을 제외한 직원 요약, 다음 단계의 선택·입력 오류 필드.
+- `ConnectionsWindow.swift`: 표 읽기 이유별 회색 문장과 직원별 마지막 표 보존, 입력 오류 상태 분리, 숨김 토글과 목록·개수·직원 점의 같은 필터. 필드의 일반 값만 미리 채우며 이전 단계의 주소·비밀번호 입력은 다음 단계에 남기지 않는다.
+- 입력 표시의 소유자는 기존 `ConnectionsWindow`다. SwiftUI `.sheet`와 중복 `onDisappear`/`onDismiss` 정리를 제거하고 AppKit `beginSheet`/`endSheet` 한 경로로 교체했다. 화면 내용은 기존 SwiftUI 예외 화면을 유지했다. 입력 창은 긴 안내·옵션을 스크롤하고 저장 버튼은 아래에 고정한다. 임시 호환 경로나 새 저장 원본은 없다.
+- 인증·확인은 `.normal` 층, 다시 시작·처음부터 다시 확인은 `beginSheetModal`을 사용한다. `AppDelegate.swift`의 창 층 갱신도 창 소유자의 인증·sheet 상태를 따른다. `show()`는 보이지 않는 sheet를 정리하고 창을 앞으로 가져오며, 요청 중 닫힘 뒤 도착한 다음 단계는 다시 표시한다. 인증 중에도 busy를 먼저 세워 중복 요청을 막는다.
+- `ConnectionsTests.swift`: AT-HC-20~28의 가짜 프레임·실제 AppKit sheet 통합과 AT-HC-29 기존 시험. 새 시험은 표 보존·오류 분리·숨김·입력 단계 전환·요청 중 닫힘·sheet 확인·거절 시 무송신을 보호한다.
+- 의미 변경은 design 3절 안이다. 내부 표시 소유권을 AppKit으로 옮긴 것은 design 3.3의 구현 선택이며 새 화면이나 구조 변경이 아니다.
+
+| 실행 | 실제 결과 | 로그 |
+|---|---|---|
+| `bash app/scripts/test.sh` (게이트웨이 Python·임시 Hermes 홈) | 종료 0, AT-HC-20~29 및 기존 앱·네트워크 시험 통과, 실제 CLI 설정 메타데이터·Downloads 이름 불변 | `.build/connections-evidence/task03-app-first-pass.log` |
+| 로그인 다음 단계만 강제로 닫는 별도 소스 사본 mutation | 종료 1, `AT-HC-25 waiting opens login stage`가 검출. 제품 원본은 변경하지 않음 | `.build/connections-evidence/task03-mutation.log` |
+
+필요/도달 증거 수준은 2다. 정확한 운영 OS 인증 사건은 앞 재현 절의 미관측 범위이고, 운영 M5·M6 확인은 TASK-05 뒤다. 롤백은 앱 TASK 커밋 되돌림이며 운영 앱 사본은 바꾸지 않았다.
 
 ## TASK-04 team-kit
 
-[진행] 운영 저장소의 실제 착수 HEAD는 위 기준과 같다. 그 HEAD에서 `hejo-connections-20261120` worktree 브랜치를 만들었다. 로컬 위치는 `AGENTS.local.md`에 기록한다. 다른 작업의 main 변경은 보존한다.
+[확인] 구현·요청 범위 자체 시험 완료. 운영 저장소의 실제 착수 HEAD는 위 기준과 같다. 그 HEAD에서 `hejo-connections-20261120` worktree 브랜치를 만들었다. 로컬 위치는 `AGENTS.local.md`에 기록한다. 다른 작업의 main 변경은 보존한다.
 
 운영 실행본과 기준 사본의 SHA-256 일치(모두 확인):
 
@@ -45,3 +68,77 @@
 | `lib/hermes_packs/files_docs/files.py` | `fb306ff396ee1e0d8832d2c3f80a38ff0ce6bf1c8c54ca0f5a21acb4d5a250e7` |
 
 원본 기록: `.build/connections-evidence/task04-baseline.json`. 운영 원본 교체·sync·restart는 하지 않았다.
+
+### TASK-04 변경과 의미
+
+- `synology_setup.py`: 다른 직원 연결·Drive Client에서 후보를 읽기 전용으로 찾는다. 한 연결의 주소·아이디 묶음을 유지하고 동일한 묶음만 합친다. 자기 초안·이전 설정을 먼저 쓰고, 자기 주소가 완전한 경우에만 같은 주소 묶음의 유일한 다른 출처 아이디를 보완한다. 무효 초안은 다른 출처를 조사하지 않고 주소 단계로 돌린다. 여러 완전 후보는 기존 계정 고르기 프레임과 불투명 id로 클릭 선택한다. 직접 넣기도 같은 주소 입력으로 이어진다.
+- `files.py`: 기존 `nas_settings`의 주소 조건을 `address_problems`로 추출했다. 주소 단계와 파일 기능이 같은 규칙을 쓴다. 형식 밖 칸은 초안·응답에 넣지 않으며 두 주소가 함께 통과할 때만 `address`를 기록한다.
+- `app_setup.py`·`app_connect.py`: 일반 칸의 아이디만 미리 채우고 비밀번호는 복사하지 않는다. 주소 수정 시 출처가 달라진 아이디와 이전 로그인 선택은 버린다. 잘못된 주소는 주소 단계로 돌아가고, Obsidian은 존재하는 보관함을 클릭으로 고르게 한다. 초안·비밀·되돌리기는 기존 `stage_values`/`undo`만 쓴다. 새 금고 키·진행 기록 형식·outcome·action id를 추가하지 않았다.
+- `connection_guides.py`·`connection_secrets.py`: 기존 안내·라벨을 그 자리에서 교체했다. `docs/연결-상태.md`의 아이디 미리 채우지 않기 결정을 승인된 새 기준으로 바꾸었다.
+- 기존 시험 조정: 가짜 홈의 서버 사용자 HOME도 격리하고, 엄격한 NAS 주소 정책에 맞는 가짜 host를 썼다. 완전한 자기 주소는 주소 입력 대신 로그인으로 넘어가는 새 의미를 반영했다. 줄인 안내의 새 순서·칸 이름만 맞췄고, 기존 비밀 보호·저장·복원·범위 기대값은 유지했다. 요구·수락 시험 명세·spec·design은 변경하지 않았다.
+
+운영 Drive 자료는 `connection_table`의 칸 이름만 확인했다. 주소·아이디 값은 시험·문서에 옮기지 않았다. 발견기는 허용된 주소·사용자 이름 칸만 SELECT하고 세션·프록시 비밀·키 칸은 선택하지 않는다. SQLite는 `mode=ro`로 열고 명시적으로 닫는다. 정책에 맞는 전체 주소가 자료에 있으면 완전 후보, QuickConnect ID만 있으면 부분 후보가 된다. 운영 자료가 현재 완전 후보를 제공하는지는 미확인이다. 외부 이름 해석 요청은 없다.
+
+### 안내 전후(현재 단계의 guide 항목 수)
+
+| 연결 | 이전 → 이후 | 사람이 넣는 값·나머지 동작 |
+|---|---|---|
+| 시놀로지 완전 후보 하나 | 7 → 로그인 1 | 비밀번호, 아이디 미리 채움 |
+| 시놀로지 완전 후보 여럿 | 7 → 후보 선택 1 / 로그인 1 | 후보 클릭 뒤 비밀번호 |
+| 시놀로지 부분 후보 하나 | 7 → 주소 2 / 로그인 1 | 빠진 주소·비밀번호 |
+| 시놀로지 부분 후보 여럿 | 7 → 주소 2 / 로그인 1 | 서로 다른 주소 칸·필요하면 아이디·비밀번호 |
+| 시놀로지 자기 초안 완전 | 7 → 로그인 1 | 아이디 후보 없으면 아이디·비밀번호 |
+| 시놀로지 후보 없음 | 7 → 주소 2 / 로그인 1 | 주소 두 개·아이디·비밀번호 |
+| Obsidian 찾음 / 못 찾음 | 2 → 1 / 2 | 클릭 / 보관함 폴더 하나 |
+| Slack 봇 | 7 → 5 | 봇·앱 로그인 열쇠 두 개, 앱 만들기 열기·설정 복사 |
+| ddots Slack | 5 → 3 | 로그인 열쇠 하나, 열기·복사 |
+| Notion | 4 → 3 | 로그인 열쇠 하나, 발급 페이지 열기 |
+| X | 3 → 3 | 쿠키 두 개, 로그인 열기·쿠키 이름 복사 |
+| Instagram | 2 → 2 | 로그인 열쇠 하나, 발급 페이지 열기 |
+| Mac 앱(메일로 실측 시험) | 1 → 1 | 계정·범위·권한 클릭 |
+
+### TASK-04 증거와 제한
+
+새 `tests/test_connections_screen.py`는 AT-HC-40~47·49~52와 후보/수동 선택 경계를 실제 시설·CLI에 대한 36사례로 옮겼다. AT-HC-48은 기존 연결·앱·시놀로지·조립·플러그인 host 시험을 함께 실행했다. 비밀번호 이름 무조회, 조회 파일 불변, 실제 초안 작성→undo 뒤 자기 몫 제거·다른 직원/키 바이트 보존, 안내 판정표의 칸·단계·열기/복사를 검사한다. 기존 시험을 skip/xfail로 바꾸지 않았다.
+
+| 실행 | 실제 결과 | 로그(hejo 저장소 기준) |
+|---|---|---|
+| 관련 시험 초회 | 종료 1, 97 통과·8 실패. 엄격 주소 검증용 가짜 정책·host, 옛 안내 순서 가정 보완 | `.build/connections-evidence/task04-initial.log` |
+| 새 시험 통합 초회 | 종료 1, 111 통과·19 실패. 잘못 붙은 else와 가짜 profile.yaml 누락, 부분 후보 저장 시점을 고침 | `.build/connections-evidence/task04-targeted-fail.log` |
+| 연결·앱·시놀로지·조립 관련 27개 시험 파일 | 종료 0, 448 통과 | `.build/connections-evidence/run-team.log`, 명령·cwd는 같은 이름 JSON |
+| 주소 검사에서 잘못된 api_base 허용 mutation | 시험 종료 1, AT-HC-43이 검출. 별도 프로세스 주입, 제품 원본 불변 | `.build/connections-evidence/task04-mutation.log` |
+| `airport-check --snapshot <worktree>` | 종료 0, boundary 382·document 0·compartments 0, 기준선 증가 없음 | `.build/connections-evidence/run-airport.log` |
+
+추가 탐색으로 team-kit 전부도 임시 HOME에서 돌렸으나 종료 1(4993 통과·61 skip·29 실패·1 error, 58 subtests)였다. 운영 프로필·소스 도우미·문서 변환 전용 Python을 실제 사용자 HOME에서 찾는 기존 시험들이 임시 HOME과 맞지 않았다. 이 중 이번 변경으로 칸 이름이 바뀐 Notion 기대값은 수정했다. 연결 소스 도우미 시험은 worktree의 코드 파일만 임시 홈에 연결해 위 448개에 포함했다. 그 밖의 운영 프로필/문서 처리 시험을 임시 운영 값으로 재작성하거나 실제 사용자 홈으로 전환하지 않았다. 확장 전체 통과는 주장하지 않는다. 원본 로그는 `.build/connections-evidence/task04-broad-environment-fail.log`/JSON이다. 이 추가 실행은 요청 범위 AT-HC-48의 연결 회귀 통과와 구별해 검토해 달라.
+
+바꾼 시설 가운데 `files.py`는 team-kit `__init__.py`의 파일 도구 로더가 게이트웨이에서 import한다. 나머지 다섯 파일은 connections CLI의 `app`/`secret` 명령과 그 내부 import 경로다(`connections.py`, `app_connect.py`, `app_setup.py`). CLI는 호출마다 새 프로세스지만 파일 도구의 게이트웨이 모듈 캐시는 별개이므로 TASK-05의 한가할 때 재시작 판단을 유지한다. 이번에는 운영 교체·sync·재시작을 하지 않았다.
+
+## 검토·후속 작업
+
+- 설계와의 목표·계약 차이: 없음. 내부 AppKit 표시 소유권 정리와 기존 프레임을 이용한 후보/보관함 고르기는 구현 세부다. 확장 team-kit 전체 시험의 환경 불일치는 위 제한으로 별도 보고한다.
+- 제거 조건 있는 임시 제품 코드: 없음. 재현·mutation·실행 환경 스크립트와 로그는 추적하지 않는 `.build/`에만 있다.
+- 미검증: 운영 적용·실물 M1~M7, 실제 현재 Drive 자료의 완전 후보 여부, 당시 운영 인증창의 정확한 닫힘 사건. 직원 B 초안은 그대로이고 사장이 고친 화면에서 이어 간다.
+- 범위 밖 부채: 기존 문서의 Hermes 본체 묶음 설정 400과 만료 앱 undo 기록 정리는 그대로다. team-kit 확장 전체 시험에는 운영 HOME 의존이 남아 있다.
+- 검토 요청: 자기 초안의 아이디 보완 예외, 부분 후보를 주소 완료로 기록하지 않는 조건, AppKit 닫힘 completion의 창 identity 검사, 표 조회 무쓰기, 실패 이유·로그의 비밀 무노출을 직접 확인해 달라. 운영 자발적 닫힘을 완전히 재현했다는 주장으로 읽지 말아 달라.
+- 다음은 계획 담당의 실제 코드·시험 근거 검토다. TASK-05~07, 버전 변경·배포·설치·재시작·푸시는 이번 구현 범위 밖이다.
+
+### 추가 수정 시험 파일의 착수 SHA-256
+
+| team-kit 상대 파일 | 기준 SHA-256(실행본과 일치) |
+|---|---|
+| `tests/test_app_connect.py` | `39fc5f7556e602a3e997fab0c3a90276bb20ba925a83c0a83a6cef20b8d8c18c` |
+| `tests/test_synology_app_connect.py` | `e718d6054647b004e5e5882f8f55ba730b3af89c78228f56f199f98649914c47` |
+| `tests/test_connection_guides.py` | `b13e395d4e3176b499528e74f05a45d36cd7a9b6525dcde35de4745dcae4bf17` |
+| `tests/test_connections_secret.py` | `8e46d7a65280a5fe2931dffbbc54c1d262281eb6777722337412aafbc7fbe5b5` |
+
+## 최종 자체 검사와 검토 대상
+
+| 명령 | 실제 결과 | 로그(hejo 기준) |
+|---|---|---|
+| `HEJO_PYTHON=<게이트웨이 Python> bash scripts/test.sh` (기존 시험 의존 경로·worktree team-kit lib·임시 Hermes 홈) | 종료 0. Python 381개·실제 게이트웨이 대역 수명주기·앱 빌드/서명·AppKit/네트워크 시험 통과 | `.build/connections-evidence/run-full.log`, `run-full.json` |
+| `HEJO_PYTHON`과 같은 Python으로 `scripts/scan_private.py` | 종료 0, 개인값 검사 통과 | `.build/connections-evidence/final-scan.log` |
+| `app/.build/app-tests --task32-capture <임시 증거 폴더>` | 종료 0. 기존 연결·필터와 AT-HC-20~29 통과. 화면 배치 직접 확인 | `.build/connections-evidence/task03-capture.log`, `ui/task54-hejo.png` |
+
+TASK-04 대상 커밋은 `1c0ea8a5a6d7247c3e62e46fec4307c145baefc6`, 브랜치는 `hejo-connections-20261120`이다. 운영 저장소 HEAD에서 만든 worktree이며 실제 위치는 추적하지 않는 `AGENTS.local.md`에 있다. 검증 로그 사본은 그 worktree의 추적하지 않는 `.build/HEJO-CONNECTIONS/`에도 있다. 운영 main과 실행본은 수정하지 않았다. 기존 실행 파일·시험 10개 모두 착수 SHA-256 불변을 다시 확인했다.
+
+TASK-02 대상 커밋은 `33814a7d9dc3831ba808981f73051886fee0ef49`다. TASK-03은 이 보고서의 최종 갱신과 함께 만든 앱 커밋을 검토한다(이 보고서를 담은 hejo HEAD). 그 커밋은 이전 TASK-02 위에 있고 제품 변경은 앱 3개 소스와 연결 시험뿐이다. 전체 로그는 위 추적하지 않는 경로에 보존했다. 푸시나 원격 포함은 확인·실행하지 않았다.

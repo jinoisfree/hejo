@@ -46,6 +46,7 @@ import SwiftUI
     }
     print("AT-HF-83 APP PASS")
     try await connectionFilteringTests(outputDirectory:outputDirectory)
+    try await connectionsScreenTests()
 }
 
 /// AT-101: the visible groups follow AC-05 without changing the full document or sending filter requests.
@@ -111,4 +112,90 @@ import SwiftUI
         await pause(0.5);try capture("task54-detail.png")
     }
     print("AT-101 APP PASS")
+}
+
+/// AT-HC-20~28 use fake management frames and real AppKit sheet ownership.
+@MainActor private func connectionsScreenTests() async throws {
+    func row(_ id:String,hidden:Bool=false,state:String="unknown",actions:[[String:Any]]=[])->[String:Any] {
+        var item:[String:Any] = ["id":id,"service":"app","label":"시험 연결","group":"mac","state":state,"reason":"CONFIG_ONLY","checked_at":"2026-01-01T00:00:00Z","capabilities":[],"rules":[],"actions":actions]
+        if hidden {item["hidden_by_default"]=true};return item
+    }
+    let actions:[[String:Any]] = [["id":"app_connect","label":"이어서 하기","primary":true],["id":"app_undo","label":"처음부터 다시","primary":false]]
+    func document(unread:Bool=true)->[String:Any] {
+        var agent:[String:Any] = ["profile":"alpha","display_name":"직원 A","connections":[row("app:synthetic",actions:actions),row("hidden1",hidden:true,state:"not_connected"),row("hidden2",hidden:true),row("hidden3",hidden:true)]]
+        if unread {agent["unread"]=[["part":"toolset_config","reason":"admin_failed"]]}
+        return ["schema":"hermes-connections/1","checked_at":"2026-01-01T00:00:00Z","agents":[agent]]
+    }
+    var failure:String?,disconnected=false,frames:[[String:Any]]=[]
+    var stage=0
+    let model=ConnectionsModel(send:{frame in
+        frames.append(frame)
+        if disconnected {throw GateFailure.notConnected}
+        if frame["type"] as? String=="connections" {
+            if let failure {return ["reply":["outcome":"failed","reason":failure]]}
+            return ["document":document()]
+        }
+        stage += 1
+        let fields:[[String:Any]] = stage==1 ? [["id":"api_base","label":"서버 주소","secure":false],["id":"link_host","label":"파일 주소","secure":false]] : [["id":"user","label":"아이디","secure":false,"value":"synthetic-user"],["id":"password","label":"비밀번호","secure":true,"value":"must-not-prefill"]]
+        return ["reply":["outcome":"waiting","next":["kind":"secret_set","fields":fields,"guide":[["n":1,"text":"비밀번호를 넣어 주세요."]]]]]
+    },confirm:{true})
+    await model.refresh();model.detail="app:synthetic"
+    try check(model.readNotice=="일부 항목을 읽지 못했어요(도구 설정)" && model.agent?.connections.count==4,"AT-HC-20 unread preserves rows with a separate notice")
+    failure="admin_failed";await model.refresh()
+    try check(model.agent?.connections.count==4 && model.readNotice.contains("마지막으로 확인한 내용이에요") && model.readNotice.contains("연결 상태를 읽지 못했어요. 서버 기록에 이유를 남겼어요"),"AT-HC-21 last known rows survive failure")
+    for (reason,text) in [("admin_unavailable","서버의 관리 기능에 닿지 못했어요"),("too_large","연결 상태를 읽지 못했어요. 서버 기록에 이유를 남겼어요"),("timeout","서버에 연결되지 않았어요")] {
+        failure=reason;await model.refresh();try check(model.readNotice.contains(text),"AT-HC-22 reason \(reason)")
+    }
+    disconnected=true;await model.refresh();try check(model.readNotice.contains("서버에 연결되지 않았어요"),"AT-HC-22 disconnected")
+    disconnected=false;failure=nil;await model.refresh()
+    try check(model.visibleGroups.flatMap(\.items).map(\.id)==["app:synthetic"] && model.listed(model.agent!).count==1 && model.agent?.summary=="확인 안 됨","AT-HC-24 default rows, count source and summary omit hidden entries")
+    model.includingHidden=true
+    try check(model.visibleGroups.flatMap(\.items).count==4 && model.listed(model.agent!).count==4 && model.agent?.summary(includingHidden:true)=="다시 연결 필요","AT-HC-24 toggle includes hidden rows and summary")
+    await model.perform("app_connect")
+    try check(model.showingInput && model.fields.map(\.id)==["api_base","link_host"],"AT-HC-25 address form")
+    failure="admin_failed";await model.refresh()
+    try check(model.inputError.isEmpty && model.showingInput,"AT-HC-23 refresh notice never becomes a red input error")
+    model.values=["api_base":"https://nas.example.invalid","link_host":"nas.example.invalid"];await model.submit()
+    try check(model.showingInput && model.fields.map(\.id)==["user","password"] && !model.busy,"AT-HC-25 waiting opens login stage")
+    try check(model.values==["user":"synthetic-user"] && model.fields.last?.secure==true,"AT-HC-25 only nonsecret defaults survive the stage transition")
+    try check(model.item?.primaryAction?.label=="이어서 하기" && frames.contains{$0["action"] as? String=="app_connect"},"AT-HC-28 supplied label and resume frame")
+    let before=frames.count;model.confirmUndo={false};await model.perform("app_undo")
+    try check(frames.count==before,"AT-HC-28 declined reset sends nothing")
+    model.confirmUndo={true};await model.perform("app_undo")
+    try check(frames.last?["action"] as? String=="app_undo","AT-HC-28 confirmed reset sends app_undo")
+    model.close()
+
+    let dir=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer{try? FileManager.default.removeItem(at:dir)}
+    let store=try LocalStore(directory:dir),controller=try testConversation(client:GateClient(store:store,credentials:MemoryCredentials()))
+    let window=ConnectionsWindow(controller:controller),live=window.model
+    var held:CheckedContinuation<[String:Any],Never>?
+    var actionCount=0
+    live.confirm={true}
+    live.send={frame in
+        if frame["type"] as? String=="connections" {return ["document":document(unread:false)]}
+        if frame["action"] as? String=="job_status" {return ["reply":["outcome":"done"]]}
+        actionCount += 1
+        if actionCount==2 {return await withCheckedContinuation{held=$0}}
+        return ["reply":["outcome":"waiting","next":["kind":"secret_set","fields":[["id":"api_base","label":"주소","secure":false]]]]]
+    }
+    await live.refresh();live.detail="app:synthetic";window.show();await live.perform("app_connect");await pause(0.1)
+    try check(window.window.attachedSheet != nil && NSApp.modalWindow==nil,"AT-HC-26 input is an attached AppKit sheet")
+    let request=Task{await live.submit()};await pause(0.05)
+    if let sheet=window.window.attachedSheet {window.window.endSheet(sheet)}
+    await pause(0.1)
+    held?.resume(returning:["reply":["outcome":"waiting","next":["kind":"secret_set","fields":[["id":"user","label":"아이디","secure":false],["id":"password","label":"비밀번호","secure":true]]]]])
+    await request.value;await pause(0.15)
+    try check(live.showingInput && live.fields.map(\.id)==["user","password"] && window.window.attachedSheet?.isVisible==true && !live.busy,"AT-HC-25 dismissal during a request still opens the next stage")
+    live.inputDismissed();await pause(0.1);window.show();await pause(0.1)
+    try check(window.window.isVisible && window.window.isKeyWindow && live.fields.isEmpty && !live.busy,"AT-HC-27 show after onDismiss clears input and remains usable")
+    // The production confirmation uses beginSheetModal; resolve the real alert via its parent sheet.
+    window.setPreferredLevel(NSWindow.Level(rawValue:26))
+    let confirmation=Task{await live.confirmRestart()};await pause(0.1)
+    let alert=window.window.attachedSheet
+    try check(alert != nil && NSApp.modalWindow==nil && window.window.level == .normal,"AT-HC-26 restart confirmation is a sheet at a visible level")
+    if let alert {window.window.endSheet(alert,returnCode:.alertSecondButtonReturn)}
+    let accepted=await confirmation.value
+    try check(accepted==false,"AT-HC-26 cancellation resolves asynchronously")
+    live.close();window.window.close();print("AT-HC-20~29 APP PASS")
 }

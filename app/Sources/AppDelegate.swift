@@ -330,7 +330,7 @@ import AppKit
         toolsWindow?.window.appearance=pet.panel.appearance
         toolsWindow?.show(profile:profile);updateConnectionsLevel()
     }
-    private func updateConnectionsLevel() { toolsWindow?.window.level = NSApp.isActive ? NSWindow.Level(rawValue:pet.panel.level.rawValue+1):.normal }
+    private func updateConnectionsLevel() { toolsWindow?.setPreferredLevel(NSApp.isActive ? NSWindow.Level(rawValue:pet.panel.level.rawValue+1):.normal) }
     func applicationDidResignActive(_ notification:Notification) { updateConnectionsLevel() }
     @objc private func showOptions() {
         if petSettings == nil {
