@@ -344,3 +344,25 @@ install/hejo-ship publish --approve-commit 363bcc021aff018ff0e62e1d2265717939bf6
 - 전체 시험 뒤 변경은 AT-HI-50 관측 경계 두 줄과 이 보고뿐이다. 제품 코드는 전체 시험 대상과 같고, 바뀐 시험 파일은 66개 전부 재실행했다. 앱 전체 시험은 이 시험 전용 보강 뒤 반복하지 않았다.
 - 검증 명령에 포함된 시험용 앱 빌드만 실행했다. 앱 소스·버전 변경, 별도 배포 빌드·설치, hejo-publish/ship, 공용 릴리스 갱신, 게이트웨이 재시작, 운영 홈 변경, team-kit·본체·photon 수정, 실제 아이메시지/Slack 발송, git push는 하지 않았다. 기존 Swift 경고는 그대로다.
 - 서버에는 아직 TASK-09 코드를 적용하지 않았다. 실제 폰 기본 애니메이션 M9는 미검증이다. 다음은 계획 담당의 TASK-09 검토 → 별도 TASK-10 적용 허가 → 사장 M9다. 비설계자 검토 주체 결정과 ARCHITECTURE 반영은 계획 담당에게 남긴다. 공개 브랜치와 배포 후보는 다시 만들지 않았고 이번 단계의 새 푸시 대상은 없다.
+
+## TASK-10: 작성 중 표시 서버 적용 (2026-11-20)
+
+- 받은 지시: handoff 보완 지시 7(절차는 보완 지시 4), verdict 8차 TASK-09 통과. 착수·배포 대상 HEAD `95074cbafda3a5e16d1fd2e9a580b24abe667021`, 제품 코드 `05107d59a23c27a4dea946c566b00d7e3df81696`. 착수 작업 트리 깨끗, ea31736 대비 문 두 파일만 변경·05107d5 대비 제품 변경 0건을 확인했다.
+- 판단 상태: **서버 적용·자체 검증 완료, 계획 담당 검토·사장 M9 대기**. 고위험(운영), 필요·도달 증거 수준 3. 설계와 달라진 점 없음. 제품 코드·수락 명세는 바꾸지 않았다.
+- 적용 전에 [TASK-10 증거](../../../evidence/HEJO-IMESSAGE/TASK-10.md)에 직전 RELEASE `ea31736b0f6eaa1a14d39099cc853f33e2b2c6ae`와 실행 경로 변수가 채워진 코드 롤백 절차를 작성했다. 데이터 복원·앱·team-kit 조치는 없다. 경로 변수는 추적 제외 파일에만 있다.
+
+| 절차별 명령·확인 | 종료 코드·실제 결과 | 로컬 증거(`.build/HEJO-IMESSAGE/task10/` 기준) |
+|---|---|---|
+| 착수 `git status --porcelain`, 지정된 두 `git diff` | 0, 작업 트리 깨끗·허가 범위 일치 | `before.json` |
+| `install/hejo-release` | 0, UTC 06:05:37.303 완료. RELEASE 대상 일치·시험/캐시 제외 gate 19개 파일과 파일 집합 동일 | `release.log/.exit`, `release.json` |
+| Hermes venv Python `<release>/install/hejo-install --check` | 0, 출력 없음. 설치 실행 안 함 | `install-check.log/.exit`, `install-check.json` |
+| 재시작 직전 runtime·PID 확인 | 0, active_agents 0·running·PID 생존·상태 갱신 약 9초 전 | `restart-before.json` |
+| `hermes --profile default gateway restart` | 0, UTC 06:05:58.463 요청·06:06:00.792 명령 종료 | `restart-command.log/.exit`, `restart-command.json` |
+| Hermes venv `verify-restart.py` | 0, UTC 06:08:25.386 관측·새 시작 뒤 약 129초. 새 시작 UTC 06:06:16.152(한국 시각 15:06:16.152)은 릴리스 갱신 뒤 | `post-restart.json`, `verify-restart.exit`, `connections.log` |
+| Hermes venv `scripts/scan_private.py` (임시 HERMES_HOME) | 0, 최종 보고·새 evidence 포함 | `private-final.log/.exit` |
+| `git diff --check`, 제품·명세 무변경 및 본체 HEAD/status 확인 | 0, 자기 보고 세 파일만 변경·본체 동일 | `final-source.json`, `diff-check.log/.exit` |
+
+- 연결 결과: hejo 기본 1·보조 5, Slack 기본 1·보조 5, photon 1. photon에 hejo native handler 연결 성공 로그 1건. 새 PID 생존·runtime running·세 문 connected를 확인했다. 재시작 전 로그 오프셋부터 새 ERROR/CRITICAL·역추적·WARNING·아이메시지 실패·처리기 연결 실패 각 0건이다. 기존 구간과 분리했으며 대화 본문·프로필 식별자는 보고에 옮기지 않았다.
+- 짝·설정 파일은 재시작 전후 수정 시각이 각각 같다. 내용은 열지 않았다. `post-restart.json`에 stat 비교 결과가 있다. 코드 롤백은 검증 실패가 없어 **미실행**이다.
+- 공개 브랜치는 `363bcc021aff018ff0e62e1d2265717939bf61c8` 그대로다. 이번 문 변경은 다음 공개 때 나가므로 이번 단계에서 새 푸시 대상을 만들지 않았다. 앱 빌드·버전·공개 준비/발행·사본 교체·허브 재시작·설치 적용·설정 변경·실제 발송·push는 실행하지 않았다. Hermes 본체 HEAD `ebb026eef8e800e1b7471ed147b7287e878f8aa4`·깨끗한 상태도 유지된다.
+- 실제 폰의 기본 작성 중 표시 M9는 미검증이다. 계획 담당이 증거·현재 RELEASE를 검토한 뒤 사장 M9와 비설계자 검토 주체 결정, ARCHITECTURE 반영을 이어간다. 이미 적용한 릴리스 갱신·재시작을 반복하지 않는다.

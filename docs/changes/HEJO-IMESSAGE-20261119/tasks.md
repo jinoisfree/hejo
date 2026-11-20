@@ -15,7 +15,7 @@
 | TASK-07b | (4차 추가) 앱 0.2.1 공개: 버전 올림, 공개용 스냅샷, 서명 준비, 사장 공개, 각 Mac 업데이트. HEJO-FOUNDATION TASK-55·56의 앱 변경과 함께 나간다 | HI-07, HI-08.AC-03의 전제 | `H/app/Resources/Info.plist`, 공개 절차 산출물 | TASK-07 | 고위험(공개) | 완료(verdict 7차): 사장 공개 v0.2.1 = 363bcc0, 업데이트 설치 |
 | TASK-08 | 실물 수락: 사장이 폰으로 M1~M8 확인, 결과를 verdict에 기록 | HI-08.AC-03 / M1~M8 | `H/docs/changes/HEJO-IMESSAGE-20261119/verdict.md` | TASK-07 | 고위험 · 4 | 통과(verdict 7차): 사장이 M1~M8 정상 작동 보고(2026-11-20) |
 | TASK-09 | (4판, 사용자 요청) 폰의 "작성 중" 표시: 폰 스레드 차례 동안 아이메시지 기본 표시 시작·정지 | HI-09 / AT-HI-45~51 | `H/gate/imessage.py`, `H/gate/adapter.py`, `H/tests/acceptance/test_imessage.py` | TASK-08 | 보통 · 2 | 검토 통과(verdict 8차, 05107d5) |
-| TASK-10 | (4판) TASK-09 서버 적용: 공용 릴리스 갱신·게이트웨이 재시작(보완 지시 4와 같은 절차, 별도 허가 지시 뒤에만), 사장 M9 | HI-09.AC-07 / M9 | 공용 릴리스 폴더, `H/evidence/HEJO-IMESSAGE/` | TASK-09 검토 통과 | 고위험(운영) · 3·4 | 인계(보완 지시 7) |
+| TASK-10 | (4판) TASK-09 서버 적용: 공용 릴리스 갱신·게이트웨이 재시작(보완 지시 4와 같은 절차, 별도 허가 지시 뒤에만), 사장 M9 | HI-09.AC-07 / M9 | 공용 릴리스 폴더, `H/evidence/HEJO-IMESSAGE/` | TASK-09 검토 통과 | 고위험(운영) · 3·4 | 서버 적용·자체 검증 완료(95074cb), 검토·M9 대기 |
 | (계획) | 검증 완료 뒤 현재 명세 반영: `ARCHITECTURE.md` 칸 표(금고·공용 창고의 "둘 것")와 4절에 아이메시지 문 한 줄 | — | `H/docs/ARCHITECTURE.md` | TASK-08 | 문서 | 대기 |
 
 ## 병렬 갈래
