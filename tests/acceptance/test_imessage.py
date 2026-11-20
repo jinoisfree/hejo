@@ -24,6 +24,7 @@ class Phone(BasePlatformAdapter):
         super().__init__(PlatformConfig(enabled=True), Platform('hejo'))
         self.calls, self.originals = [], []
         self.failure = False
+        self._mark_connected()
 
     async def handle_message(self, event):
         self.originals.append(event)
@@ -691,3 +692,14 @@ async def test_claim_exception_passes_original_unchanged(gate, client, phone):
     with patch.object(gate.imessage, 'claims_external', side_effect=ValueError('fixture')):
         await phone.handle_message(event)
     assert phone.originals == [event] and phone.originals[0] is event and gate.journal.head == 0
+
+
+async def test_transport_readiness_and_queries_do_not_create_settings(gate, client, phone):
+    ws, _ = await client.pair(features=['imessage'])
+    assert not gate.imessage.settings_store.path.exists()
+    assert (await request(client, ws))['platform_ready']
+    assert not gate.imessage.settings_store.path.exists()
+    phone._mark_disconnected()
+    assert not (await request(client, ws))['platform_ready']
+    assert (await request(client, ws, 'imessage_pair'))['code'] == 'imessage_unavailable'
+    assert gate.imessage.private()['code'] is None

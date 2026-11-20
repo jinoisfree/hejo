@@ -16,6 +16,10 @@ _photon = None
 SETTLE_SECONDS = 2.0
 
 
+def platform_ready():
+    return _photon is not None and getattr(_photon, "is_connected", True)
+
+
 def attach_photon(native, adapter):
     """Platform handler contract; resolve the primary at dispatch time, in either start order."""
     global _photon
@@ -207,8 +211,7 @@ class IMessage:
         self.sent[im_id] = msg_id
 
     def private(self):
-        with self.vault.locked():
-            return self.vault.read("imessage.json", {"pair": None, "code": None})
+        return self.vault.read("imessage.json", {"pair": None, "code": None})
 
     def rooms(self):
         employees = self.adapter.employees()
@@ -219,14 +222,13 @@ class IMessage:
             (r["id"], r["title"], [r["title"]]) for r in groups]
 
     def settings(self):
-        with self.settings_store.locked():
-            value = self.settings_store.read("settings.json", {"enabled": False, "room": None, "reports": []})
+        value = self.settings_store.read("settings.json", {"enabled": False, "room": None, "reports": []})
         available = {r[0] for r in self.rooms()}
         return {"enabled": value["enabled"], "room": value["room"] if value["room"] in available else None,
                 "reports": [r for r in value["reports"] if r in available]}
 
     def status(self, ref=None):
-        return {"v": 1, "type": "imessage_status", "platform_ready": _photon is not None,
+        return {"v": 1, "type": "imessage_status", "platform_ready": platform_ready(),
                 "paired": self.private()["pair"] is not None, **self.settings(),
                 **({"ref": ref} if ref is not None else {})}
 
@@ -245,7 +247,7 @@ class IMessage:
             await conn.send(self.status(ref))
             return
         if kind == "imessage_pair":
-            if _photon is None:
+            if not platform_ready():
                 await self.adapter.server.error("imessage_unavailable", ref, conn)
                 return
             code = secrets.token_urlsafe(9)
@@ -281,7 +283,7 @@ class IMessage:
                     and hmac.compare_digest(code["hash"], digest(event.text.strip())))
 
     def claims_external(self, event):
-        if not self.adapter.is_connected or _photon is None:
+        if not self.adapter.is_connected or not platform_ready():
             return False
         source = event.source
         if source is None or source.chat_type != "dm" or getattr(source.platform, "value", source.platform) != "photon":
