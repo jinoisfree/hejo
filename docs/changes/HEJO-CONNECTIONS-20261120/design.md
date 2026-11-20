@@ -1,6 +1,6 @@
 # HEJO-CONNECTIONS 설계
 
-1판 · 2026-11-20 · 명세 [spec.md](spec.md). 칸 표는 spec 첫 절. 저장소 약어: `H` = 이 저장소, `HD` = `<운영 저장소>`, `TKL` = 실행 중인 team-kit 원본(`<HOME>/plugin-store/team-kit`, `HD`의 사본은 `./sync`가 채움).
+2판 · 2026-11-20(계획 검토 1회차 반영, [plan-review.md](plan-review.md)) · 명세 [spec.md](spec.md). 칸 표는 spec 첫 절. 저장소 약어: `H` = 이 저장소, `HD` = `<운영 저장소>`, `TKL` = 실행 중인 team-kit 원본(`<HOME>/plugin-store/team-kit`, `HD`의 사본은 `./sync`가 채움).
 
 ## 1. 자료 흐름(바뀐 뒤)
 
@@ -32,6 +32,19 @@
 - 같은 자리에서 `log.warning("connections_failed type=%s profile=%s reason=%s", ...)`.
 - `perform()`의 `except ConnectionFailure` 매핑(`CONNECTIONS_READ_FAILED`로 뭉침)도 실제 이유 코드를 유지하고 같은 로그를 남긴다. `perform()` 안의 `await self.document(profile)`은 2.1로 부분 실패에 강해진다.
 - 계약 유지: 성공 프레임 모양, `connection_result.reply.outcome` 값 목록, `public()` 허용 필드 원칙(새 필드 `unread`, `part`, `hidden_by_default`만 추가).
+
+### 2.2a 관리 서비스 응답의 이유 구분 (계획 검토 PR-01 반영)
+- 이유는 실패가 생긴 자리인 `gate/connections.py` `AdminClient.request()`에서 정한다:
+  - `admin_unavailable`: `admin.json` 문제(없음·링크·권한·형식·값), 연결 거부·주소 오류 등 `OSError`(응답을 받기 전), 시간 초과.
+  - `admin_failed`(+상태): 2xx가 아닌 응답(지금 그대로).
+  - `invalid_response`: 2xx 응답인데 본문이 1MB를 넘거나(지금 그대로), JSON이 아니거나, 그 밖의 응답 해석 오류.
+- `admin.json`의 `json.loads`와 응답 본문의 `json.loads`를 같은 `except ValueError`로 묶지 않는다. 예외 문자열은 지금처럼 버린다.
+- 실제 클라이언트 경로로 시험한다: 루프백에 띄운 시험용 HTTP 서버(임시 포트, 임시 `admin.json`)가 200 + 잘못된 JSON, 200 + 1MB 초과, 500, 응답 지연(시간 초과), 닫힌 포트를 각각 돌려주고 `AdminClient`가 위 이유를 내는지 본다.
+
+### 2.2b 표 조회는 쓰지 않는다 (계획 검토 PR-02 반영)
+- 지금 `document()`는 값 있는 키마다 `SecretTransactions.undo_available()`을 부르고, 이 함수가 `purge()`로 만료된 되돌리기 파일을 지우며 잠금 파일을 만들 수 있다(`gate/connections.py:72-85`, `gate/auth.py:38`).
+- 바꾼 뒤: `undo_available()`은 되돌리기 파일을 읽기만 한다(지우기·잠금 파일 만들기 없음). 만료 기록은 "없음"으로 판정한다. 읽다가 파일이 사라지거나 반쯤 보이면 "없음".
+- 만료 기록을 지우는 주체는 지금처럼 문의 주기 작업(`gate/server.py:293-296`의 `secrets.purge()`)과 `save()`·`undo()` 시작 때의 `purge()` 둘뿐이다.
 
 ### 2.3 줄 줄이기 (REQ-HC-03)
 - 키 줄: `env` 항목 중 `is_set`이 참인 키 ∪ 그 직원의 **켜진** 도구 묶음 설정(`providers[].env_vars[].key`)에 나오는 키. 나머지 키는 줄을 만들지 않는다. 값 있는 키의 되돌리기 동작은 지금 그대로.
@@ -70,10 +83,16 @@
 ## 4. team-kit(`TKL/lib/hermes_facility`)
 
 ### 4.1 시놀로지 값 찾기 (REQ-HC-04.AC-01·02·06)
-- 새 함수(위치는 `synology_setup.py` 또는 `app_setup.py`, 구현 담당 선택) `discover(root, profile)` → `{api_base?, link_host?, username?, source}`. 읽기만 한다.
-  1. 같은 `HERMES_HOME`의 다른 직원 중 시놀로지가 **연결됨**인 직원의 주소(기존 `legacy_values`/금고 `apps`에서 읽는 같은 경로)와 그 직원 `.env`의 아이디 이름 값(아이디만. 비밀번호는 읽지 않는다).
-  2. 서버 사용자의 Synology Drive Client 자료(`~/Library/Application Support/SynologyDrive/data/db/sys.sqlite`를 `mode=ro`로): 연결 표의 사용자 이름, QuickConnect ID(연결 표에 없으면 같은 폴더 `log/daemon.log`에서 `<…>.<ID>.direct.quickconnect.to` 꼴). QuickConnect ID에서 `link_host = <ID>.quickconnect.to`. `api_base`는 Drive Client 자료에서 정책에 맞는 주소 전체를 찾을 수 있을 때만 만든다. [가정] 만들 수 없으면 `api_base`는 1번에서만 온다. 구현 담당이 확인해 impl-report에 쓴다. 이름 해석용 외부 요청은 하지 않는다.
-- 찾은 주소는 기존 `nas.settings`의 엄격 검사를 통과할 때만 쓴다. 둘 다 있으면 주소 단계를 건너뛰고(`setup_done`에 `address` 표시, 초안에 저장 — 기존 `stage_values` 경로) 로그인 단계로 간다. 아이디는 로그인 칸의 `value`로 미리 채운다(보안 칸 아님).
+- 새 함수(위치는 `synology_setup.py` 또는 `app_setup.py`, 구현 담당 선택) `discover(root, profile)` → 후보 목록 `[{api_base?, link_host?, username?, source}]`. 읽기만 한다.
+- **후보 하나는 한 연결에서 온 값 묶음이다.** 주소 두 개와 아이디는 같은 출처의 같은 연결에서만 가져오고, 서로 다른 연결의 값을 섞지 않는다(PR-05 반영).
+- 출처와 우선순위. 앞 단계에서 후보가 하나라도 나오면 다음 단계는 보지 않는다.
+  0. 이 직원 자신의 초안(금고 `app_setup`)이나 이전 설정 값. 지금 동작 그대로이며 있으면 그 값만 쓴다.
+  1. 같은 `HERMES_HOME`의 다른 직원 중 시놀로지가 **연결됨**인 직원. 주소는 기존 `legacy_values`·금고 `apps`에서 읽는 같은 경로, 아이디는 그 직원 `.env`의 아이디 이름 값만 읽는다(비밀번호 이름은 읽지 않는다). 직원마다 후보 하나. 진행 중 초안은 출처로 쓰지 않는다.
+  2. 서버 사용자의 Synology Drive Client 자료(`~/Library/Application Support/SynologyDrive/data/db/sys.sqlite`를 `mode=ro`로). 연결 표의 행마다 후보 하나: 그 행의 사용자 이름과 QuickConnect ID. ID가 행에 없으면 같은 폴더 `log/daemon.log`의 `<…>.<ID>.direct.quickconnect.to`에서 찾되, 로그에 ID가 하나뿐일 때만 그 행에 붙인다. `link_host = <ID>.quickconnect.to`. `api_base`는 Drive Client 자료에서 정책에 맞는 주소 전체를 찾을 수 있을 때만 만든다. [가정] 만들 수 없으면 그 후보는 `link_host`·아이디만 채우고, 주소 단계는 `api_base` 칸 하나만 남긴다. 구현 담당이 확인해 impl-report에 쓴다. 이름 해석용 외부 요청은 하지 않는다.
+- 같은 (api_base, link_host, username) 후보는 하나로 합친다. 정책 검사(`nas.settings`)를 통과하지 못한 후보는 버린다.
+- 남은 후보가 **하나**면 주소 단계를 건너뛴다(`setup_done`에 `address` 표시, 초안에 저장 — 기존 `stage_values` 경로). 그리고 로그인 단계로 가서 아이디를 로그인 칸의 `value`로 미리 채운다(보안 칸 아님).
+- 남은 후보가 **둘 이상**이면 주소 단계에서 후보를 클릭으로 고르게 한다(`options`. 라벨은 "NAS 주소 · 아이디" 꼴로 비밀값 없이). 고른 후보를 위처럼 저장한다. "직접 넣기"도 고를 수 있다.
+- 후보가 **없으면** 지금처럼 주소 단계에서 쉬운 문장으로 묻는다.
 - 로그인 단계 안내는 한두 문장: "시놀로지에 로그인할 비밀번호를 넣어 주세요. 아이디는 서버에서 찾아 채웠어요(다르면 고쳐 주세요)." 2단계 인증이 켜진 계정이면 기존 실패 안내(`TWO_FACTOR`)를 쉬운 말로.
 
 ### 4.2 주소 오류 바로잡기 (REQ-HC-04.AC-03)
@@ -86,18 +105,23 @@
 ### 4.4 안내 문장 (REQ-HC-04.AC-05)
 - 원본은 `connection_guides.py`, `app_setup.py`의 칸 이름, `app_connect.py`의 `HINTS`, `connection_secrets.py`의 칸 이름 — 그 자리에서 고친다(ddots도 같은 문장을 받는다. ddots 코드는 고치지 않는다).
 - 기준: (1) 사람이 해야 하는 일만 단계로 둔다 (2) 한 단계 한 문장, 쉬운 말 (3) 서버가 아는 값은 묻지 않는다 (4) 기술 용어는 쓰지 않거나 처음 한 번 풀어 쓴다(예: "토큰(로그인 열쇠 글자)") (5) 열 곳이 있으면 `open_url`, 복사할 값이 있으면 `copy`.
-- 연결별 판정(바꿀 문장은 구현 담당이 쓰고 impl-report에 전후 표):
+- 연결별 판정표. 이 표가 시험(AT-HC-46)과 검토의 기준이다(PR-04 반영). "사람이 넣는 칸"은 서버가 값을 찾은 경우다. "안내 단계 최대"는 지금 단계 수를 넘지 않는다. 바꿀 문장은 구현 담당이 쓰고 impl-report에 연결마다 전후 표를 남긴다.
 
-| 연결 | 사람만 할 수 있는 것 | 이번에 하는 것 |
-|---|---|---|
-| 시놀로지 | 비밀번호, 2단계 인증 | 4.1·4.2, 7단계 → 로그인·폴더 고르기 2~3단계 |
-| Obsidian | 없음(찾으면) | 4.3 |
-| Slack 직원 봇 | Slack 사이트에서 앱 설치·값 두 개 복사 | 문장만 쉽게, 단계 수는 실제로 필요한 만큼 |
-| ddots Slack | 같은 종류 | 문장만 |
-| Notion | 연결 비밀값 발급 | 문장만 |
-| X | 브라우저 쿠키 두 개 복사 | 문장만(어디를 누르는지 순서대로). 서버가 브라우저 쿠키를 읽는 방식은 범위 밖(보안 결정 필요) |
-| Instagram | Meta 장기 토큰 | 문장만 |
-| Mail·메모·캘린더·연락처 | 계정·범위 고르기(클릭), Mac 권한 허용 | 문장만 |
+| 연결 | 사람이 넣는 칸(이것만) | 미리 채우거나 클릭으로 끝나는 것 | 안내 단계 최대 | 사람만 할 수 있는 이유 |
+|---|---|---|---|---|
+| 시놀로지(후보 1개) | 비밀번호 | 주소 2개(건너뜀), 아이디(미리 채움), 폴더(클릭), 다시 시작(확인 클릭) | 3 | 비밀번호 |
+| 시놀로지(후보 여럿) | 비밀번호 | 후보 고르기(클릭), 나머지는 위와 같음 | 3 | 비밀번호 |
+| 시놀로지(후보 없음) | 주소 2개(또는 `api_base` 1개), 아이디, 비밀번호 | 폴더(클릭) | 4 | 서버가 주소를 모름 |
+| Obsidian(보관함 찾음) | 없음 | 보관함 고르기(클릭) | 1 | — |
+| Obsidian(못 찾음) | 보관함 폴더 | — | 2 | 서버가 보관함을 모름 |
+| Slack 직원 봇 | 값 2개(봇 값, 앱 값) | 매니페스트 열기(`open_url`)·복사(`copy`) | 지금 단계 수 이하 | Slack 사이트에서 사장이 설치·발급 |
+| ddots Slack | 값 1개 | 열기·복사 | 지금 단계 수 이하 | 같음 |
+| Notion | 값 1개 | 발급 페이지 열기 | 지금 단계 수 이하 | 사장이 발급 |
+| X | 값 2개(쿠키) | 로그인 페이지 열기 | 지금 단계 수 이하 | 브라우저 쿠키 자동 읽기는 범위 밖(보안 결정 필요) |
+| Instagram | 값 1개 | 발급 페이지 열기 | 지금 단계 수 이하 | 사장이 Meta에서 발급 |
+| Mail·메모·캘린더·연락처 | 없음 | 계정·범위 고르기(클릭), Mac 권한 허용(클릭) | 지금 단계 수 이하 | — |
+
+- 단계 하나는 사람의 행동 하나다("열기를 눌러 …에서 …를 누르세요"). 서버가 하는 일, 설명뿐인 단계는 단계로 세지 않는다.
 
 ### 4.5 바꾸지 않는 것
 - 목록 조회(`status`, `apps`)는 쓰지 않는다. 값 찾기도 읽기만.
@@ -110,6 +134,9 @@
 |---|---|---|
 | `document()` 직원별 통째 try | 교체 | 부분별 읽기로. 옛 `except ... if error.reason!='admin_unavailable':raise` 제거 |
 | `server.py` 실패를 `admin_unavailable`로 덮기 | 교체 | 실제 이유 전달 + 로그 |
+| `AdminClient`의 응답 JSON 오류를 `admin_unavailable`로 묶기 | 교체 | 2.2a. 응답 해석 오류는 `invalid_response` |
+| `undo_available()` 안의 `purge()`(표 조회 중 지우기) | 교체 | 2.2b. 읽기만, 정리는 주기 작업·`save`·`undo` |
+| team-kit을 실행 중 원본에서 바로 고치기 | 교체 | 7.1. `HD` worktree에서 만들고 TASK-05에서 보관본·확인과 함께 적용 |
 | 미설정 키 전체를 줄로 만들기 | 제거 | 사용 근거: 사장이 아무 키나 넣는 입구였으나 450줄 문제의 주원인. 켠 묶음이 필요로 하는 키는 남기므로 필요한 입력은 가능. 그 밖의 키는 서버 `hermes` 명령으로 |
 | 직원마다 `team.run('apps')` 반복 | 통합 | 한 번 읽어 나눠 씀 |
 | 앱 `refresh()` 실패 문장 하나 | 교체 | 이유별 문장, 표 유지 |
@@ -127,8 +154,21 @@
 ## 7. 위험·롤백·서버 적용
 
 - 위험도: 고위험. 근거: 비밀값을 받는 연결 흐름과 자격 값 찾기(아이디 미리 채우기, 다른 직원 금고 값 읽기), 운영 시설(team-kit은 실행 중인 원본) 변경, 공개.
-- 서버 적용(TASK-04): 직원이 일하지 않을 때(진행 중 턴 0, 기존 `gateway restart`의 BUSY 검사) 한다. 적용 전 롤백 절차를 impl-report에 먼저 적는다.
-  - 문: 적용 전 공용 릴리스의 `RELEASE` 커밋 기록 → `install/hejo-release` → 게이트웨이 재시작. 되돌리기: 기록한 커밋을 임시 worktree로 꺼내 `install/hejo-release` → 재시작.
-  - team-kit: `TKL`의 바뀐 파일은 명령이 부를 때마다 읽으므로 재시작 없이 적용된다(게이트웨이가 import하는 파일을 바꾸면 재시작 필요 — 구현 담당이 바뀐 파일마다 판정해 적는다). 되돌리기: `HD`의 직전 커밋 내용으로 `TKL` 파일 복원 → `./sync`.
-  - 앱: 적용 전 사본 보관 → 새 빌드로 교체. 되돌리기: 보관 사본 복원.
+### 7.1 team-kit은 운영 원본을 고치지 않고 만든다 (PR-03 반영)
+- TASK-04는 실행 중인 원본(`TKL`)을 고치지 않는다. 대신 `HD`에 임시 worktree를 만들고(착수 때 `HD` HEAD 기준, 브랜치 이름은 구현 담당), 그 worktree의 `hermes/plugin-store/team-kit`에서 고치고 시험한다. 시험은 게이트웨이 환경 Python과 임시 `HERMES_HOME`만 쓴다.
+- 착수 때 기준 일치를 확인한다. 바꿀 파일마다 `TKL` 실행본과 worktree 기준 파일의 sha256이 같아야 한다. 다르면(다른 작업이 실행본을 고쳤지만 아직 동기화 안 됨) 멈추고 보고한다.
+- TASK-04 결과물은 worktree 브랜치의 커밋과 바꿀 파일 목록이다. `HD` main, `./sync`, `TKL`은 건드리지 않는다. 운영 동작은 TASK-04 내내 그대로다.
+
+### 7.2 서버 적용 (TASK-05)
+- 직원이 일하지 않을 때 한다(진행 중 턴 0, 기존 `gateway restart`의 BUSY 검사). 적용 전 롤백 기록을 impl-report에 먼저 쓴다. 기록에는 명령마다 대상 경로·커밋·sha256을 채우고 빈 칸을 남기지 않는다.
+- **team-kit**
+  1. 바꿀 파일마다 `TKL`의 sha256이 TASK-04 착수 때 기록한 기준 값과 같은지 다시 확인한다. 다르면 멈추고 보고한다.
+  2. 바꿀 파일의 실행본을 그대로 보관한다(작업 문서 밖의 0700 임시 폴더, 경로와 sha256 기록). 이 보관본이 복원 기준이다. 계속 움직이는 `HD`의 "직전 커밋"을 복원 기준으로 쓰지 않는다.
+  3. 파일마다 임시 파일에 쓴 뒤 이름 바꾸기로 교체한다(반쯤 쓴 파일이 읽히지 않게).
+  4. 읽기 명령 `hermes-connections status --json`과 `apps --json`이 성공하는지 확인한다. 하나라도 실패하면 즉시 보관본으로 되돌리고 같은 확인을 다시 한 뒤 멈추고 보고한다.
+  5. 그다음 `HD`에서 `./sync` → `./airport-check` → `git commit --only`로 자기 경로만 커밋한다.
+  - 파일 사이 교체 간격 동안의 호출은 한가한 때를 골라 줄이고, 4번 확인으로 잡는다. 게이트웨이가 import하는 파일이 바뀌면 문 재시작 때 함께 적용된다(구현 담당이 파일마다 판정해 적는다).
+- **문:** 적용 전 공용 릴리스의 `RELEASE` 커밋을 기록 → `install/hejo-release` → 게이트웨이 재시작. 되돌리기는 기록한 커밋을 임시 worktree로 꺼내 `install/hejo-release` → 재시작.
+- **앱:** 적용 전 사본 보관 → 새 빌드로 교체. 되돌리기는 보관 사본 복원.
+- **복구 조건:** 재시작 뒤 채널 재연결이 확인되지 않거나, 연결 화면이 표를 하나도 못 받거나, `status`·`apps`가 실패하면 그 단계의 보관본으로 되돌린다.
 - 직원 B 초안은 건드리지 않는다. 사장이 고친 화면에서 이어 가거나 "처음부터 다시"를 고른다(M5).

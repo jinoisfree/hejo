@@ -7,8 +7,8 @@
 ```text
 [설계 인계: HEJO-CONNECTIONS TASK-02~04 / 문·앱·team-kit]
 0. 기준: base_commit: 이 인계서를 담은 커밋(이 저장소 main, 계획 문서만 추가, 부모 1ca3f27) / <운영 저장소> 9e68b39b /
-   spec·design·수락 시험 명세 1판·tasks 1판 2026-11-20 / 승인 상태: 사장 요청(2026-11-20) 기반, 계획 확인은 사장이 구현 담당을
-   고르는 것으로 한다 / 운영 모드: 연합개발(교차 모델, 계획 검증 없음)
+   spec·design·수락 시험 명세 2판·tasks 2판 2026-11-20(계획 검토 1회차 반영, plan-review.md) / 승인 상태: 사장 요청(2026-11-20) 기반, 계획 확인은 사장이 구현 담당을
+   고르는 것으로 한다 / 운영 모드: 연합개발(교차 모델 + 계획 검증, 1회차 BLOCKED 지적 6건 수용·반영, 재검증 대기)
    <운영 저장소>는 매일 자동 기록 커밋으로 움직인다. 착수 때 HEAD를 impl-report에 적는다.
 1. 공식 문서: docs/ARCHITECTURE.md, AGENTS.md, docs/changes/HEJO-CONNECTIONS-20261120/{spec,design,tasks}.md,
    tests/acceptance/HEJO-CONNECTIONS.md, <운영 저장소>/AGENTS.md, <운영 저장소>/docs/연결-상태.md. ADR 없음.
@@ -20,21 +20,25 @@
    저장 전 확인·되돌리기 규칙, Hermes 본체 무수정, ddots 무수정.
 4. 책임과 흐름: design 1절. 부분 실패 판단·로그는 문 Connections 하나, 실패 문장 선택은 앱 ConnectionsModel 하나,
    값 찾기·안내 문장은 team-kit 시설 하나.
-5. 기존 경로 판정: design 5절(교체 4, 제거 1, 통합 1, 유지 1, 결정 교체 1).
+5. 기존 경로 판정: design 5절(교체 7, 제거 1, 통합 1, 유지 1, 결정 교체 1).
 6. 위험도: 고위험(자격 값 찾기·비밀 입력 흐름·운영 시설 변경). 필요 증거 수준 2(임시 HERMES_HOME + 가짜 관리 서비스·가짜 명령,
    앱은 가짜 문서). 운영 적용(3)·실물(4)은 TASK-05~07.
-   롤백: 이 저장소 커밋 되돌림. team-kit은 바꾼 TKL 파일을 <운영 저장소> 직전 커밋 내용으로 복원 → ./sync.
+   롤백: 이 저장소 커밋 되돌림. team-kit은 이번 지시에서 운영 원본을 바꾸지 않으므로(worktree 브랜치) 그 브랜치를 버리면 된다.
+   운영 적용 때의 보관본·sha256 기반 롤백은 design 7.2(TASK-05).
 7. 변경 성격: 의미 변경(실패 처리·표시 줄·안내·흐름). 보존 비교: AT-HC-09·29·48 회귀, `bash scripts/test.sh` 전체.
-8. 수락 시험: tests/acceptance/HEJO-CONNECTIONS.md AT-HC-01~10, 20~29, 40~48. 상태: 명세 완료·코드 미작성·미실행·미검토.
+8. 수락 시험: tests/acceptance/HEJO-CONNECTIONS.md AT-HC-01~11, 20~29, 40~51. 상태: 명세 완료·코드 미작성·미실행·미검토.
    기대값 출처: spec 요구, design 2~4절. 기대값·합격 기준을 바꾸지 말고, 바꿔야 하면 멈추고 보고.
 9. 작업 범위: tasks.md TASK-02·03·04 영향 파일. TASK마다 별도 커밋, impl-report.md에 TASK별 절.
    병렬 갈래: 있음(tasks.md "병렬 갈래" — 문 / 앱 / team-kit).
    TASK-03 첫 단계: 멈춤 원인을 재현하고 impl-report에 원인·재현 절차를 쓴 뒤 고친다(design 3.3). 설명되지 않으면 멈추고 보고.
-   TASK-04 절차: TKL에서 고친다 → team-kit 시험(게이트웨이 환경 Python, <운영 저장소>/AGENTS.md 안내) → <운영 저장소>에서
-   ./sync → ./airport-check → git commit --only로 자기 경로만 커밋. 그 저장소에는 다른 작업의 미커밋 변경이 있다
-   (hermes_governance/paseo_authority.py, hermes_owner_chat.py, hermes_reply/plugin.py, hermes_team_services/wait_jobs.py,
-   tests/test_hejo_work_wait.py, tests/test_review55_hejo.py, 학습 파일). 건드리지 않는다. 같은 파일을 고쳐야 하면 멈추고 보고.
-   ./sync가 토큰 경고를 내면 커밋하지 않고 보고. --rebaseline 금지. TKL 변경 중 게이트웨이가 import하는 파일이 있으면 보고에 적는다.
+   TASK-04 절차(design 7.1): 실행 중 원본(TKL)은 고치지 않는다. <운영 저장소> HEAD로 임시 worktree를 만들고, 바꿀 파일마다
+   TKL 실행본과 worktree 기준 파일의 sha256이 같은지 확인해 impl-report에 적는다(다르면 멈추고 보고). worktree의
+   hermes/plugin-store/team-kit에서 고치고, 게이트웨이 환경 Python과 임시 HERMES_HOME으로 시험한다. 결과는 worktree 브랜치
+   커밋(바꿀 파일 목록·기준 sha256 포함 보고). <운영 저장소> main·./sync·TKL은 건드리지 않는다(TASK-05에서 적용).
+   그 저장소 main에는 다른 작업의 미커밋 변경이 있다(hermes_governance/paseo_authority.py, hermes_owner_chat.py,
+   hermes_reply/plugin.py, hermes_team_services/wait_jobs.py, 시험·학습 파일). 이번에 바꿀 파일과 겹치면 멈추고 보고.
+   바꾸는 파일 중 게이트웨이가 import하는 파일이 있으면 보고에 적는다. --rebaseline 금지.
+   TASK-02 추가 범위: gate/connections.py의 응답 해석 오류 구분(design 2.2a)과 undo_available 읽기 전용화(2.2b).
    금지 범위:
    - 게이트웨이 재시작, reload-plugins, install/hejo-release, 앱 사본 교체, 버전 올리기, hejo-publish·hejo-ship(모두 TASK-05·06).
    - 운영 ~/.hermes의 .env·auth.json·토큰 파일·hejo/admin.json 열기. 관리 서비스 직접 호출(토큰 필요).
@@ -47,7 +51,7 @@
     - [가정] 직원 A 실패는 instagram-dm 묶음 설정 400. 토큰 없이 확인 못 함. 고친 문의 로그로 TASK-05에서 확인(M2). 틀려도 이번 설계는
       부분 격리로 같은 증상을 막는다.
     - [가정] Drive Client 자료만으로 정책에 맞는 api_base 전체를 만들 수 있는지 모른다. 못 만들면 api_base는 다른 직원의 연결에서만
-      찾는다(AT-HC-41이 두 경우를 모두 다룸). 확인 결과를 impl-report에.
+      찾는다(AT-HC-41이 두 경우를 모두 다룸. 후보 규칙은 design 4.1, AT-HC-50·51). 확인 결과를 impl-report에.
     - [미확인] 앱 멈춤의 정확한 원인. TASK-03이 재현으로 확정.
     - [사장 승인 대상] 시놀로지 아이디 미리 채우기(2026-11-08 결정 교체, REQ-HC-04.AC-02). 사장이 이 계획을 보고 구현 담당을 고르면 승인으로 본다.
     - 함수 배치·내부 구조·문장 세부는 구현 담당이 정한다(design에 고정한 문장·라벨·필드 이름 제외).
@@ -58,7 +62,7 @@
 [인계 전 점검]
 - 현재 코드·계약·명세가 base_commit과 호환되는가? 예(계획 문서만 추가).
 - G1: 범위 안·밖, REQ·AC, 미확정 표시. G2: spec 1절 근거, design 5절 판정, 7절 롤백. G3: AC ↔ AT 연결(수락 시험 명세 표),
-  독립 검토는 계획 검증 꺼짐으로 최종 검토에서. G4: 위험도·롤백·TASK 연결·기준 커밋 있음.
+  독립 검토는 계획 검증 1회차 BLOCKED → 2판 반영, 재검증 대기. G4: 위험도·롤백·TASK 연결·기준 커밋 있음.
 ```
 
 ## AC ↔ 시험
@@ -67,12 +71,12 @@
 |---|---|
 | HC-01.AC-01~03 | AT-HC-01, 02, 04 |
 | HC-01.AC-04·05 | AT-HC-20, 21 |
-| HC-02 | AT-HC-03, 05, 10 |
+| HC-02 | AT-HC-03, 05, 10, 11 |
 | HC-03.AC-01·02 | AT-HC-06, 07 |
 | HC-03.AC-03·04 | AT-HC-24, M3 |
-| HC-04 | AT-HC-40~47 |
+| HC-04 | AT-HC-40~47, 50, 51 |
 | HC-05 | AT-HC-05, 22, 23, M4 |
-| HC-06 | AT-HC-08, 25~28, M5, M6 |
+| HC-06 | AT-HC-08, 25~28, 49, M5, M6 |
 | HC-07 | TASK-06, M7 |
 | NFR | AT-HC-10, 44, 47 |
 
