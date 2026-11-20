@@ -443,7 +443,9 @@ class GateServer:
                     await self.error(str(exc), getattr(exc, "ref", None), conn)
                     continue
                 try:
-                    if frame["type"] == "roster":
+                    if frame["type"] in {"imessage", "imessage_pair", "imessage_unpair", "imessage_save"}:
+                        await self.adapter.imessage.command(frame, conn)
+                    elif frame["type"] == "roster":
                         await conn.send({"v": 1, "type": "roster", "ref": frame["id"],
                                          "employees": self.adapter.employees()})
                     elif frame['type'] in {'connections','connection_action'}:

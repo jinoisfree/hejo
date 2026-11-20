@@ -77,6 +77,24 @@
     },
     {
       "$ref": "#/$defs/room_deleted"
+    },
+    {
+      "$ref": "#/$defs/imessage"
+    },
+    {
+      "$ref": "#/$defs/imessage_pair"
+    },
+    {
+      "$ref": "#/$defs/imessage_unpair"
+    },
+    {
+      "$ref": "#/$defs/imessage_save"
+    },
+    {
+      "$ref": "#/$defs/imessage_status"
+    },
+    {
+      "$ref": "#/$defs/imessage_code"
     }
   ],
   "$defs": {
@@ -568,7 +586,9 @@
           "type": "string",
           "minLength": 1
         },
-        "targeted": {"type": "boolean"},
+        "targeted": {
+          "type": "boolean"
+        },
         "employee": {
           "type": "string",
           "minLength": 1
@@ -1044,6 +1064,18 @@
         },
         {
           "$ref": "#/$defs/connection_action"
+        },
+        {
+          "$ref": "#/$defs/imessage"
+        },
+        {
+          "$ref": "#/$defs/imessage_pair"
+        },
+        {
+          "$ref": "#/$defs/imessage_unpair"
+        },
+        {
+          "$ref": "#/$defs/imessage_save"
         }
       ]
     },
@@ -1096,6 +1128,12 @@
         },
         {
           "$ref": "#/$defs/connection_result"
+        },
+        {
+          "$ref": "#/$defs/imessage_status"
+        },
+        {
+          "$ref": "#/$defs/imessage_code"
         }
       ]
     },
@@ -1562,6 +1600,187 @@
         "type",
         "ref",
         "reply"
+      ],
+      "additionalProperties": false
+    },
+    "imessage": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "imessage"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "imessage_pair": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "imessage_pair"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "imessage_unpair": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "imessage_unpair"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "imessage_save": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "imessage_save"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "room": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reports": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "id",
+        "enabled",
+        "room",
+        "reports"
+      ],
+      "additionalProperties": false
+    },
+    "imessage_status": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "imessage_status"
+        },
+        "ref": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "room": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reports": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "platform_ready": {
+          "type": "boolean"
+        },
+        "paired": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "enabled",
+        "room",
+        "reports",
+        "platform_ready",
+        "paired"
+      ],
+      "additionalProperties": false
+    },
+    "imessage_code": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "imessage_code"
+        },
+        "ref": {
+          "type": "string"
+        },
+        "code": {
+          "type": "string",
+          "minLength": 12,
+          "maxLength": 12
+        },
+        "expires_in": {
+          "const": 600
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "ref",
+        "code",
+        "expires_in"
       ],
       "additionalProperties": false
     }

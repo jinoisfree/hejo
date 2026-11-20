@@ -48,6 +48,7 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
 
     def __init__(self, config):
         super().__init__(config, Platform("hejo"))
+        self.imessage = None
         self.journal = None
         self.files = None
         self._file_cleanup_task = None
@@ -118,6 +119,8 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             self.files = FileStore(get_hermes_home(), self.journal)
             self.files.cleanup()
             self.auth = AuthStore(get_hermes_home())
+            from .imessage import IMessage
+            self.imessage = IMessage(self, get_hermes_home())
             self.server = GateServer(self)
             await self._finish_thread_deletions()
             self.cleanup_rooms()
@@ -138,6 +141,9 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
         _primary = self
         self._file_cleanup_task = asyncio.create_task(self._cleanup_files())
         return True
+
+    def claims_external(self, event):
+        return bool(self.imessage and self.imessage.claims_external(event))
 
     async def _register(self):
         """Tell the hub which port this member's gate serves; retried until the hub answers."""
