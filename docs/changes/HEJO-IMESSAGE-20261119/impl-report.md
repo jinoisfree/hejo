@@ -138,3 +138,66 @@
 - 계획 담당이 이 코드 커밋과 로그를 읽고 V-1~V-5 및 V-6의 격리 비교 한계를 재검토한다. 자체 시험은 독립 검토가 아니다.
 - TASK-05 운영 반영은 기존 실패를 먼저 고칠지/예외를 허용할지 사용자 결정 뒤 별도 지시가 필요하다. 운영 적용 TASK-07, 비설계자 검토, 폰 M1~M8의 TASK-08은 미실행이다.
 - 이번 범위에서 게이트웨이 재시작/reload, 릴리스 설치, 설치 앱 교체, 운영 설정·비밀 접근, 본체/photon/ddots 변경, 실제 아이메시지·Slack 발송, git push는 하지 않았다. 원래 목표는 앱과 폰에서 연결 방 하나를 바꾸며 그 방 직원이 답하는 기능이다.
+
+
+## 보완 2: 기존 길이 실패 해소와 TASK-05 반영 (2026-11-20)
+
+- 최신 판단: **TASK-05a·TASK-05 구현·자체 시험·운영 저장소 커밋 완료, 계획 담당 재검토 대기**. 앞 절의 사용자 결정 대기는 사용자의 ‘기존 실패 먼저 고치기’ 결정과 이 절의 결과로 갱신한다. 서버 적용·최종 제품 완료 판정은 아니다.
+- hejo 착수 HEAD: `18b350e1437b03aebebc0f2e66d7c2bb378438d1`. 운영 저장소 착수 HEAD: `4f79decae030eb63f3f0f52e8c8517226748b876`. 두 작업 트리는 착수 시 깨끗했다. hejo 제품 코드는 변경하지 않았다. 기존 보완 1의 검토 수락을 유지한다.
+- TASK-05a 커밋: `a6bb1e58d89d130e42e21852c1b06f24682d6c94` — `hermes/plugin-store/team-kit/lib/hermes_packs/notion/api.py` 한 파일만.
+- TASK-05 커밋: `9e68b39bd8b51ee1205a011744ea7cf4a2b3e495` — `hermes/plugin-store/team-kit/lib/hermes_router/ingress.py`, `hermes/plugin-store/team-kit/tests/test_router_hejo_imessage.py` 두 파일만. 실행 원본에서 고친 뒤 `./sync`로 수집했고, 모두 `git commit --only`로 나눴다. 두 커밋의 pre-commit 스냅샷 검사도 통과했다. source/commit 경로별 바이트 일치 확인.
+- 증거 수준 3: 정식 Hermes venv Python·실제 HOME의 운영 자료·기존 team-kit conftest fixture를 사용하는 시험이다. 이전 보완 1의 빈 임시 HOME 비교와 다르다. 명시된 기존 시험이 운영 자료를 읽는 것 외에 운영 설정·비밀 파일을 직접 열거나 바꾸지 않았다.
+
+### 원인 조사와 다듬기 범위
+
+- 직접 재현: `tests/test_all_profile_prompt_budget.py::test_current_profiles_worst_context_with_dynamic_deadline`의 대상 프로필 Slack 합계 **7771 > 7600**, 종료 1(1 failed, 7 passed).
+- `git log -p`·`git blame` 확인 결과, 선택한 Notion full API 안내문은 최근 두 커밋에서 늘어난 문구가 아니었다. 최근 운영 저장소 커밋 `4f79decae030eb63f3f0f52e8c8517226748b876`의 대상 프로필 학습 규칙 증가를 기존 `learning.rule_lines`·`GUIDANCE`의 순수 렌더 규칙으로 계산하면 `team-kit.learned`가 **843 → 1022(+179)**다. 현재 다른 구역을 고정한 계산상 이전 합계는 7592이고 현재 합계는 7771이다. 과거 전체 시험을 다시 실행한 수치는 아니다. ‘최근 고정 안내문 보강’이라는 초기 추정과 달리 학습 구역의 증가를 확인했다(`rules-history.log`, `history-sizes.json`).
+- 구현은 지시된 한 프로필의 안내문 다듬기 범위에서 **`team-kit.notion` full API 분기 한 구역**을 선택했다. 그 구역은 대상 프로필에만 실리며, 다른 프로필 15개 문맥의 전후 결과는 동일하다. 학습 규칙·입력·한도·시험·다른 안내문 분기·동작 코드는 변경하지 않았다.
+- 원본: 실행 중인 team-kit의 `lib/hermes_packs/notion/api.py::note`, `full_api` 분기. AST 비교로 이 분기의 문자열 상수 하나만 변경됐음을 확인했다(`source-check.json`). 문자열 상수는 구분 공백 포함 **917 → 745(-172)**, 실제 렌더된 안내문은 **901 → 729(-172)**, Slack 합계는 **7771 → 7599**다. 현재 상한까지 여유는 1자이며, 동적 학습 안내가 늘면 다시 길이를 확인해야 한다.
+- 아래는 바뀐 문장 원문을 모두 대응시킨 표다. 합친 문장은 한 행으로 묶었으며 행의 글자 수는 표시된 원문(끝 구분 공백 제외)의 Python `len`이다. `DB`는 데이터베이스의 약칭이다. API 이름·인수·지원 종류·승인·복원·동시 수정·확인 불가·배경 금지 항목은 유지했다. 매크로는 원본의 매크로 그대로 표시한다.
+
+| 구분 | 전 원문 (글자 수) | 후 원문 (글자 수) |
+|---|---|---|
+| 접근·승인 | `[Notion] 연결에 공유된 모든 페이지·표에서 생성은 즉시, 수정은 먼저 실행하고 후보고, 삭제만 도구 승인을 받는다.` (68) | `[Notion] 연결에 공유된 모든 페이지·표:생성 즉시·수정 후보고, 삭제만 도구 승인.` (50) |
+| API 도움·실행 | `api_help로 공식 문서 API 46개와 입력 스키마를 찾고 api(operation, params, body)로 실행한다. api_help(operation=이름)는 경로·쿼리 인수와 본문 형식, api_help(schema_ref=$ref)는 참조 형식을 보여준다.` (152) | `api_help:공식 API 46개·입력 스키마(operation=이름:경로·쿼리 인수·본문 형식;schema_ref=$ref:참조 형식). 실행:api(operation,params,body).` (109) |
+| 지원 종류·파일 첨부 | `페이지·데이터베이스·데이터 소스·모든 열 종류·보기·블록·마크다운·이동·댓글·파일 업로드를 지원한다. upload-file(file_path, part_number?, offset?, length?)은 PDF/PPTX/XLSX 등 파일을 첨부한다.` (138) | `페이지·DB·데이터 소스·모든 열 종류·보기·블록·마크다운·이동·댓글·파일 업로드(upload-file(file_path,part_number?,offset?,length?):PDF/PPTX/XLSX 등 첨부) 지원.` (121) |
+| 열 조회·수정 | `열은 retrieve-database로 data_sources를 찾은 뒤 retrieve-a-data-source/update-a-data-source를 쓴다.` (89) | `열:retrieve-database의 data_sources→retrieve-a-data-source/update-a-data-source.` (78) |
+| 기존 API | `기존 databases/schema/query/page/search/users/create/update/append/edit/batch/trash도 사용 가능하다.` (91) | `databases/schema/query/page/search/users/create/update/append/edit/batch/trash 지원.` (82) |
+| 수정·결과 보고 | `수정 전 원본을 읽고 요청한 부분만 바꾼다. report·verification·rollback_available·limitations를 확인해 바뀐 항목과 복원 가능 여부를 보고한다.` (103) | `원본부터 조회·요청분만 수정;report·verification·rollback_available·limitations 확인:변경 항목·복원 가능 여부 보고.` (88) |
+| 복원·삭제 승인 | `rollback은 같은 대화의 최근 변경을 30분 안 복원하며 이후 24시간 안에는 확인을 받는다. 복원이 삭제를 수반하면 승인을 받는다.` (77) | `rollback:같은 대화 최근 변경을 30분내 복원, 이후 24시간내 확인 후. 삭제 수반 시 승인.` (57) |
+| 동시 수정·미확인 작업 | `동시 수정은 덮어쓰지 않고, 미확인 쓰기·비동기 작업은 성공으로 보고하거나 반복하지 않는다.` (51) | `동시 수정 덮어쓰기·미확인 쓰기/비동기 작업 성공 보고·반복 금지.` (37) |
+| 복원 한계·배경 금지 | `API에서 복원 불가한 원본 첨부·댓글/보기 삭제 등은 제한을 보고한다. 예약·배경 쓰기는 차단한다.` (56) | `API 복원 불가(원본 첨부·댓글/보기 삭제 등)는 제한 보고;예약·배경 쓰기 금지.` (47) |
+| Notion 제한·스킬 | `Notion 자체의 연결 공유·권한·요금제 제한은 API 오류를 근거로 알린다. <<work_skill_prefix>>-notion 스킬을 참고한다.` (83) | `연결 공유·권한·요금제 제한은 API 오류 근거로 보고. <<work_skill_prefix>>-notion 스킬 참조.` (67) |
+
+### 시험·수집·검사
+
+로그 접두어는 추적하지 않는 `.build/HEJO-IMESSAGE/supplement2/`다. `HEJO_PYTHON`은 운영 저장소 안내의 게이트웨이 venv Python이며 `PYTHONPATH`에 pytest·본체를, `PATH`에 Node 경로를 붙였다. 기존 시험 파일은 수정하지 않았다.
+
+| 명령과 작업 위치 | 실제 결과 | 로그 |
+|---|---|---|
+| `"$HEJO_PYTHON" -m pytest <team-kit>/tests/test_all_profile_prompt_budget.py -q -s -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function` (hejo 작업 폴더) | 전 종료 1: 1 failed, 7 passed. 최종 후 종료 0: 8 passed. 이 시험은 실제 HOME에서 운영 자료를 읽으며 일반 경로의 HERMES_HOME/HERMES_ROOT만 임시로 지정했다. 중간 문구안도 종료 0이었고 연결 공유 범위를 재확인해 최종 후 시험을 다시 실행했다 | `budget-before.log/.exit`, `budget-after-draft.log/.exit`, `budget-after.log/.exit` |
+| `"$HEJO_PYTHON" -m pytest <team-kit>/tests -q -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function` (hejo 작업 폴더, 정식 HOME·기본 환경) | 종료 0, **5156 passed, 4 skipped, 58 subtests passed**. 새 AT-HI-33 파일의 17개 사례 포함, V-7 정식 전체 시험 충족. 임의 skip/xfail 없음 | `team-full.log`, `team-full.exit` |
+| `./sync` (운영 저장소) | 종료 0, 1588 files collected, 토큰 경고 없음. 커밋·푸시 옵션 없이 실행 | `sync.log`, `sync.exit` |
+| `./airport-check` (운영 저장소) | 종료 0. boundary 381, document/compartments 각 0, 조립 검사 3종 모두 통과. 기준선 증가 없음 | `airport-check.log`, `airport-check.exit` |
+| `git commit --only` (운영 저장소, 위에 적은 각 경로) | 두 번 모두 종료 0. 각 pre-commit snapshot boundary 382·document/compartments 통과. `git show --stat`로 한 파일/두 파일만 포함 확인 | `commit-05a.log`, `commit-05.log` |
+| `git diff --check` (운영 저장소, 자기 경로) | 종료 0 | 별도 파일 없음 |
+
+| 구역 | 수정 전 | 수정 후 |
+|---|---:|---:|
+| team-kit.files | 349 | 349 |
+| team-kit.notion | 901 | 729 |
+| team-kit.deadline_watch (시험이 넣는 상한) | 1800 | 1800 |
+| team-kit.tools | 1815 | 1815 |
+| team-kit.report-review | 540 | 540 |
+| team-kit.learning | 64 | 64 |
+| team-kit.learned | 1022 | 1022 |
+| team-kit.recall | 558 | 558 |
+| 구역 합계와 기존 프레임 비용을 합친 Slack 전체 | 7771 | 7599 |
+
+### 보존·남은 일
+
+- 정식 전체 시험은 기존 다른 작업의 실행 원본 변경도 포함하는 운영 소스에서 실행됐다. `./sync`는 그 변경과 자동 학습 자료도 수집했으며, 그 경로들은 커밋하지 않고 남겼다. 자기 세 경로에는 다른 작업과 겹치는 변경이 없음을 확인했다. 운영 저장소 전체가 깨끗하다고 주장하지 않는다. 다른 변경의 상세는 로컬 `final-state.json` 상태 목록에 남긴다.
+- 양보 코드는 이제 실행 원본과 운영 저장소 커밋에 있으며, 보완 1처럼 원복하지 않았다. 실행 중 게이트웨이는 재시작·reload하지 않았다. 실제 적용과 연결 확인은 TASK-07의 별도 지시가 필요하다.
+- hejo 제품 코드·spec/design/수락 명세 불변. 이번 hejo 변경은 이 보고와 tasks 상태 칸뿐이다. 기존 hejo 전체 시험을 반복하지 않았다(검토 2차 수락된 코드 그대로).
+- 운영 저장소 HANDOFF.md에 이 작업의 인계를 덧붙이고 기존 다른 작업 기록을 보존했다. 실제 아이메시지·Slack 발송, 본체/photon/ddots 변경, 릴리스 설치, 앱 사본 교체, git push는 하지 않았다.
+- 다음 담당: 문장 전후의 뜻·항목 보존, 해당 시험·정식 전체 시험, 두 운영 커밋의 자기 경로 및 후보 바이트 일치를 검토한다. 통과 뒤 TASK-07 → 비설계자 검토 → TASK-08 폰 M1~M8. 최종 완료·푸시 대상 승인은 그 뒤다.
