@@ -171,3 +171,13 @@
 - **금지:** 공용 릴리스 갱신, 게이트웨이 재시작, 운영 홈 변경, 앱 빌드·버전 올림·`hejo-publish`·`hejo-ship`, 실제 아이메시지·Slack 발송, git push, spec·design·수락 명세 수정(맞지 않으면 멈추고 보고). 서버 적용(TASK-10)은 계획 담당 검토 통과 뒤 별도 지시로만 한다.
 - **위험·증거:** 보통(문 내부, 저장·인증 무변경). 증거 수준 2.
 - **보고:** `impl-report.md` "TASK-09" 절 — 변경 파일, 구현 커밋, 시험별 결과, 검증 명령·종료 코드, 설계와 달라진 점.
+
+## 보완 지시 7: TASK-10 "작성 중" 표시 서버 적용 (2026-11-20)
+
+- **허가:** 이 지시는 AGENTS.md가 말하는 "인계서가 허가한 작업"이다. 사장이 2026-11-20에 "작성 중" 표시를 이 작업에서 이어서 추가하기로 정했고(게이트웨이 재시작 한 번 포함), TASK-09는 [verdict.md](verdict.md) 8차에서 검토를 통과했다. 허가 범위는 아래 절차뿐이다.
+- **대상 변경본:** hejo `main`의 이 지시를 담은 커밋. 착수 때 작업 트리가 깨끗하고, `git diff --stat ea31736 HEAD -- gate schemas hub install config`가 `gate/adapter.py`·`gate/imessage.py` 두 파일만 보이며, `git diff --stat 05107d5 HEAD -- gate app schemas install scripts hub config`가 0건인지 확인한다. 다른 변경이 섞여 있으면 멈추고 보고한다.
+- **절차:** 보완 지시 4의 절차 1~6을 그대로 따른다(공용 릴리스 갱신 → `RELEASE`·`gate/` 일치 확인 → 공용 릴리스의 `hejo-install --check` 종료 0 → 처리 중 차례 0 확인 → `hermes --profile default gateway restart` → 로그 확인). 적용 전 기록과 롤백 명령을 `evidence/HEJO-IMESSAGE/TASK-10.md`에 먼저 적는다(개인값·절대 경로 없이). 롤백 대상은 직전 릴리스 `ea31736b0f6eaa1a14d39099cc853f33e2b2c6ae`(임시 worktree에서 `install/hejo-release` 뒤 재시작)이며 데이터 조치는 없다.
+- **확인:** 새 게이트웨이 시작 시각이 릴리스 갱신 뒤, hejo(기본과 보조)·photon·Slack 문 연결, 아이메시지 처리기가 photon 문에 붙었다는 로그 한 줄, 재시작 이후 새 오류·역추적 0건. 재시작 뒤 아이메시지 짝과 설정이 그대로인지는 파일을 열지 않고 수정 시각이 재시작 전과 같은지로만 본다.
+- **금지:** 실제 아이메시지·Slack 발송, 짝짓기·코드 발급·설정 변경, 앱 빌드·버전 올림·`hejo-publish`·`hejo-ship`·publish, 설치된 앱 사본 교체, `hejo-install` 설치 실행, 허브 재시작, 운영 `config.yaml`·`.env`·비밀 파일 열기·쓰기, Hermes 본체·photon·team-kit 수정, 제품 코드 변경, git push, spec·design·수락 명세 수정. "에이전트 연결" 화면 문제는 다른 작업이므로 건드리지 않는다.
+- **위험·증거:** 고위험(운영). 증거 수준 3. 실물(M9)은 사장이 폰으로 한다.
+- **보고:** `impl-report.md` "TASK-10" 절과 `evidence/HEJO-IMESSAGE/TASK-10.md` — 절차별 명령·종료 코드, 재시작 시각, 로그 확인 결과, 롤백 실행 여부.
