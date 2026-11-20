@@ -265,3 +265,51 @@ git -C "$HOME/paseo-work/hermes-hejo" worktree add --detach "$HOME/.cache/hejo-c
 서버 적용·CLI 읽기·게이트웨이 재연결은 실제 실행으로 확인했다. 앱 사본·버전·공개·푸시는 실행하지 않았고 Hermes 본체·ddots를 고치지 않았다. spec·design·수락 시험 명세도 바꾸지 않았다. 문 제품 코드는 이미 검토한 대상과 같으므로 전체 대역/앱 시험은 반복하지 않았고, 보고서 개인값 검사도 통과했다.
 
 M1~M7, 운영 아이디 자동 채움(M5), 직원 A의 오류 원인 로그(M2)는 남아 있다. 새 앱 설치 전 0.2.1 화면의 옛 오류 문구는 남는다는 인계 조건도 그대로다. 포트 바인딩 전용 로그의 부재를 연결 실패와 혼동하지 않도록 hejo 시작 사건·같은 pid의 수신·공식 런타임을 함께 검토해 달라. 다음은 TASK-05 적용 근거의 독립 검토, 그 뒤 별도 지시로 TASK-06 0.2.2 준비다.
+
+
+## TASK-06 앱 0.2.2 공개 후보 준비
+
+받은 지시는 handoff 보완 지시 3과 HEJO-IMESSAGE 보완 지시 5의 선례다. 자체 판단은 **후보 준비·자체 검증 완료, 독립 재검토 대기**다. 고위험(공개 배포물), 필요·도달 증거 수준 2. 실제 공개·푸시·업데이트 설치·M1~M7은 미실행이다.
+
+### 후보와 준비물
+
+- 착수 main `92591ea1f9a2e1743f49b7010295c355033c5c3b`에서 버전 커밋 `ee75b74cb51fa28e28a505dc658672d8be2104a3`을 만들었다. `app/Resources/Info.plist`를 0.2.2·빌드 4로 올리고 `tests/acceptance/test_ship.py`의 현재 버전 단언 한 줄만 함께 바꿨다. 제품 동작 코드는 그대로다. 수락 명세·spec·design을 고치지 않았고 이전 작업의 버전 기록은 유지했다.
+- 공개 기준 main은 위 버전 커밋이다. 새 public `0cc0828d949d4efb2bf7e98b6f7548508b0a5797`, 부모 `363bcc021aff018ff0e62e1d2265717939bf61c8`, 트리 `441ad3633170807ccf6f06408ee5512c39acd012`다. 생성 당시 main/public 트리가 같고 기존 공개 계보에 정확히 한 커밋만 더해 개인 개발 이력은 들어가지 않았다. 이 보고서는 후속 문서 커밋이며 후보를 다시 만들지 않는다.
+- `install/hejo-publish`의 두 작성자 조회는 선례의 오프라인 gh 대역으로 기존 public 작성자 정보를 재사용했다. 두 호출 모두 `network:false`다. 원격 Git·실제 gh·curl/wget을 차단한 환경에서 진행했고 차단된 원격 시도도 없었다. GitHub 조회(ls-remote 포함)·게시·push는 실행하지 않았다.
+- `05107d59a23c27a4dea946c566b00d7e3df81696`의 작성 중 표시 코드가 포함됐다. 새 public의 `gate/adapter.py`·`gate/imessage.py`가 그 커밋과 바이트 단위로 같다. 공개 worktree 개인값 검사도 통과했다.
+- 준비물: `.build/release-0.2.2/prepared.json`, `.build/release-0.2.2/hejo-0.2.2-arm64.zip`. 압축 SHA-256은 `46e9cae4c5ec9edd1decedc2af8aa32614b0b9109e81808e83b1f65dc0c87a85`다. 앱의 BuildInfo는 위 트리·`dirty=false`이며 압축을 풀어 실행 파일 동일·버전·빌드·코드 서명·업데이트 서명을 다시 확인했다.
+- 기존 키체인 업데이트 키를 재사용했다. 새 키 생성·setup·키 내보내기는 하지 않았다. 준비물·압축 앱·이전 0.2.1 준비물·현재 설치본의 업데이트 공개 키가 같고, 설치본 0.2.1·빌드 3보다 버전과 빌드가 모두 크다. 허용된 기본 빌드 프로세스만 Google 비밀 입력을 읽었고 내용은 직접 열거나 출력·로그에 기록하지 않았다. 시험 빌드는 기존 절차대로 비밀 주입을 생략하고, 시험 뒤 같은 깨끗한 트리에서 배포용 기본 빌드를 다시 했다.
+
+### TASK-06 검증 기록
+
+대상은 위 public/트리이며, 명령·cwd·종료 코드·입력 트리 불변 여부는 `.build/release-0.2.2-work/`의 JSON에 있다. 아래 로그 이름도 그 폴더 기준이다.
+
+| 검증 명령·대상 | 실제 결과 | 로그 |
+|---|---|---|
+| `install/hejo-publish` (로컬 작성자 캐시 대역) | 0, 부모·트리 일치·개인 이력 배제·작성 중 코드 포함 | `publish-local.log`, `publish-local.exit`, `snapshot.json`, `offline-gh.jsonl` |
+| 같은 게이트웨이 Python `scripts/scan_private.py --repo <public-worktree>` | 0, 실제 공개 트리 검사 | `public-private.log`, `public-private.exit`, `public-private-final.log` |
+| `HEJO_PYTHON=<게이트웨이 Python> bash scripts/test.sh` (임시 HERMES_HOME·가짜 명부) | 0, Python 381개·게이트웨이 수명주기·앱/네트워크/훅 전체 통과. 설치 시험과 AT-HI-37 포함 | `full.log`, `tests-result.json` |
+| 같은 앱 시험 바이너리 반복 3회(각각 임시 홈) | 각각 0·APP_TEST_OK, 입력 트리 불변 | `app-repeat-1.log`~`app-repeat-3.log`, `verification-progress.json` |
+| 옛 문 `aeaa652` + 새 앱 `test_update_compat.py` (선례의 임시 시험 원본) | 0, 1 passed·AT84_OLD_GATE_NEW_APP_PASS, 실제 루프백 인증·통신·가짜 차례 | `legacy-aeaa652.log`, `tests-result.json` |
+| `bash app/scripts/build.sh` (기본 배포 빌드) | 0, 버전 0.2.2·4, BuildInfo 트리 일치·dirty false | `default-build.log`, `prepare-progress.json` |
+| 같은 게이트웨이 Python `install/hejo-ship prepare --output .build/release-0.2.2/` | 0, 공개 커밋·트리·버전·빌드·압축 지문 일치 | `prepare.log`, `final-verification.json` |
+| `ditto -x -k` 뒤 `codesign --verify --deep --strict <unpacked-app>` | 각각 0 | `extract.log`, `archive-codesign.log` |
+| Sparkle `sign_update --account <existing account> --verify <archive> <prepared public signature>` | 0, 기존 키 재사용 | `archive-sparkle.log` |
+| 별도 Python Ed25519 공개 키 검증·연속성·보존 검사 | 0, 압축 서명·SHA-256 검증, 설치본 메타데이터·운영 식별자 불변 | `independent-check.log`, `independent-check.json` |
+| 실제 CLI 설정 lstat·실제 다운로드 이름 전후/최종 검사 | 모두 0, 내용 미조회·메타데이터/이름 불변 | `settings-before/after/final.log`, `downloads-before/after/final.log` |
+| 같은 Python `scripts/scan_private.py` | 0, 후보 기준 main 검사 | `main-private.log` |
+| 같은 개인값 검사(후속 보고서 포함)·`git diff --check` | 각각 0 | `report-private.log`, 최종 diff 확인 |
+
+전체 검증 중 입력 커밋·트리를 바꾸지 않았다. 새 알고리즘·인증 조건을 바꾸지 않았으므로 추가 mutation은 하지 않았다. 기존 Swift 경고를 억제하거나 범위 밖 코드를 고치지 않았다. `final-verification.json`·`independent-check.json`이 준비물과 실제 검증 결과를 연결한다. 후속 보고서 개인값 검사와 최종 diff 검사도 통과했다.
+
+### TASK-06 운영 보존과 인계
+
+설치된 앱 사본은 교체하지 않았고 메타데이터도 그대로다. 공용 RELEASE `1c6b3e2f18a3e3ceb24f01eeda8bcb042c4582a3`와 게이트웨이 pid `31964`·시작 지문도 그대로다. 운영 홈·공용 릴리스·운영 저장소·Hermes 본체·ddots를 고치는 명령, 재시작, 실제 메시지 발송은 실행하지 않았다. 실제 공개·업데이트 설치와 M1~M7은 사장 실행 뒤 확인한다. GitHub의 현재 태그·브랜치는 조회하지 않았다.
+
+사장용 공개 명령(미실행, 검토·푸시 승인 뒤 사장이 서버에서 실행):
+
+```sh
+install/hejo-ship publish --approve-commit 0cc0828d949d4efb2bf7e98b6f7548508b0a5797 --prepared .build/release-0.2.2/prepared.json
+```
+
+푸시 대상은 이 저장소의 `github` 원격 `main` 브랜치, 커밋 `0cc0828d949d4efb2bf7e98b6f7548508b0a5797`(로컬 `public`)이다. 개인 이력이 있는 로컬 `main`은 푸시하지 않는다. 실제 저장소 경로는 인계 상태 블록에 적는다. 이 대상 기록은 푸시 승인이 아니며 독립 재검토 뒤 사장이 플러그인 화면에서 승인한다. 다음 담당은 후보·서명 근거를 재검토하고 TASK-07 실물 확인으로 이어 간다.
