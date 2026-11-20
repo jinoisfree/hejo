@@ -43,3 +43,17 @@ final class EmployeeMenuScroll: NSScrollView {
     override func mouseDown(with event:NSEvent) {if event.clickCount==2 {onBlankDoubleClick?();return};super.mouseDown(with:event)}
     override func menu(for event: NSEvent) -> NSMenu? { makeBlankMenu?() }
 }
+
+
+@MainActor enum IMessageMenus {
+    static func append(to menu: NSMenu, room: String, state: IMessageState) {
+        guard state.support == .supported else { return }
+        menu.addItem(.separator())
+        let connect = RoomActionItem("아이메시지 연결 방으로") { Task { await state.toggleRoom(room) } }
+        connect.state = state.room == room ? .on : .off
+        menu.addItem(connect)
+        let report = RoomActionItem("폰으로 보고 받기") { Task { await state.toggleReport(room) } }
+        report.state = state.reports.contains(room) ? .on : .off
+        menu.addItem(report)
+    }
+}

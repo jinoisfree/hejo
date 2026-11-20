@@ -32,7 +32,9 @@ final class MemoryCredentials: GateCredentialStore {
         Task { @MainActor in
             do {
                 let args = CommandLine.arguments
-                if args.contains("--review56-existing") {
+                if args.contains("--imessage") {
+                    try await imessageTests()
+                } else if args.contains("--review56-existing") {
                     try await review56Tests();try await memberStateTests();try await settingsTests();try await sidebarTests();try await updateTests()
                 } else if args.contains("--review56") {
                     try await review56Tests()
@@ -150,6 +152,7 @@ final class MemoryCredentials: GateCredentialStore {
         }
     }
     func unit() async throws {
+        try await imessageTests()
         try workMonitorTests();try await dashboardTests()
         try await calendarTests()
         try webAddressTests()

@@ -1,3 +1,4 @@
+from legacy_feature_fixture import receive_legacy
 """Temporary loopback gateway; no Hermes home or external service is consulted."""
 import asyncio
 import json
@@ -62,16 +63,16 @@ async def main():
                 await record(1)
                 await record(1)  # At-least-once duplicate must not be cached twice.
                 await record(3)  # The client must discard the gap and ask from applied=1.
-                sync = await ws.receive_json(); validate(sync)
+                sync = await receive_legacy(ws); validate(sync)
                 assert sync["type"] == "sync" and sync["since"] == 1
                 await record(2); await record(3)
                 await send(dict(type="sync_done", ref=sync["id"], through=3, more=True, head_seq=4))
-                sync = await ws.receive_json(); validate(sync)
+                sync = await receive_legacy(ws); validate(sync)
                 assert sync["type"] == "sync" and sync["since"] == 3
                 await record(4)
                 await send(dict(type="sync_done", ref=sync["id"], through=4, more=False, head_seq=4))
                 await send(dict(type="ping"))
-                pong = await ws.receive_json(); validate(pong); assert pong["type"] == "pong"
+                pong = await receive_legacy(ws); validate(pong); assert pong["type"] == "pong"
             else:
                 await send(dict(type="sync_done", ref="hello", through=4, more=False, head_seq=4))
             if phase == "too-large":
