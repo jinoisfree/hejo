@@ -1,3 +1,18 @@
+## 검증 판정: TASK-55·56 비설계자 검토 지적 수정 (2026-11-20)
+
+1. **판정:** 코드 통과, 수준 2/2. 지적 없음. 운영 적용·0.2.1 앱 공개·실물이 남는다.
+   - TASK-55 `cb6ce3b`(18파일), TASK-56 `db2ca1c`(23파일), team-kit 패치 `.build/task55/team-kit.patch` sha256 `82bc5703…31bc8`(재계산 일치, TASK-56은 team-kit 변경 없음).
+2. **검증 조건:** 교차 모델(구현 codex gpt-6.1-sol, 검토 Claude Opus 5.5). 지적 출처는 Fable 5.2 비설계자 검토.
+3. **직접 확인:**
+   - IR-01: 문은 `targeted` 제어 전송이면 recipients 대신 지정 직원에게 보내되, 같은 변경에서 방 구성원이 아니면 `room_member_required`로 거절(IR-S06). 일반 글은 기존 대표 규칙 유지.
+   - IR-S02: 허브 네트워크·5xx 실패는 거절이 아니라 `hub_unavailable`, 기존 연결은 마지막 성공 확인부터 300초 유예, 명시 폐기는 즉시. 앱은 `revoked`일 때만 자격 삭제(impl-report-task55).
+   - IRT-04: `latest_employee_message`는 사장 글 seq 이전의 같은 직원·대화·스레드 살아 있는 글만, 먼저 `owner_message`로 사장 글 범위를 증명.
+   - 로그: foundation TASK-55 266 passed·TASK-56 275 passed(앱 포함), team-kit full 5139 passed, 돌연변이 지적별(IR-01·S01·S02·S06·S10·IRT-01~04·S03·S04·S05·S07·S08·S09·S11 등) 모두 검출, 운영 원본 dry-run 0.
+4. **설계 적합성(4.2):** 보완 70·71 그대로. 새 영구 원본 없음. wire는 `send.targeted` 선택 필드 하나(옛 앱 그대로 받음, 옛 문은 새 필드를 닫힌 실패) → **배포 순서: 서버(문) 먼저, 앱 0.2.1 나중.** 영수증 v2는 읽을 때 축소 저장(옛 설치 도우미로 되돌림 불가 — 운영 적용 때 영수증 백업 필수). D56-01은 `docs/ARCHITECTURE.md`에 기록.
+5. **남은 것:** 운영 적용(공용 릴리스·hejo-install(영수증 v2 이전)·team-kit 패치·허브와 게이트웨이 재시작), 0.2.1 앱 공개 준비(버전 올림·public·prepare — 실행 담당), 사장 실물.
+
+---
+
 ## 검증 판정: 비설계자 검토 처분 (2026-11-20)
 
 1. **검토:** 사장 지시로 설계·구현에 참여하지 않은 새 검토자 3명(Fable 5.2, 설계자 Opus와 다른 모델)이 `review-request.md`대로 읽기 전용 검토. 결과 `independent-review-server.md`(차단 2·비차단 9), `independent-review-app.md`(차단 1·비차단 5), `independent-review-teamkit.md`(차단 0·비차단 4).
