@@ -44,8 +44,11 @@ def public_items(document):
                     raise ValueError('invalid_response')
                 datetime.fromisoformat(record['deadline_at'])
                 item['deadline_at'] = record['deadline_at']
-            source = urlsplit(record['source'])
-            if source.scheme in {'http', 'https'} and source.hostname:
+            try:
+                source = urlsplit(record['source'])
+            except ValueError:
+                source = None  # An ordinary source string need not be a valid URL.
+            if source is not None and source.scheme in {'http', 'https'} and source.hostname:
                 item['url'] = record['source']
             items.append(item)
     failed = []

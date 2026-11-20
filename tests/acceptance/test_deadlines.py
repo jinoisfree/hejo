@@ -60,7 +60,7 @@ async def test_at_td_10_13_15_16(tmp_path, caplog):
     assert 'deadlines_read items=3 failed=0' in caplog.text
     Draft202012Validator(SCHEMA).validate({'v':1,'type':'deadlines_status','ref':'test',**result})
     Draft202012Validator(SCHEMA).validate({'v':1,'type':'deadlines','id':'test'})
-    for source in ['ftp://example.invalid/x','javascript:alert(1)','https:missing']:
+    for source in ['ftp://example.invalid/x','javascript:alert(1)','https:missing','https://[']:
         doc = json.loads(json.dumps(DOCUMENT));doc['profiles']['default'][0]['source'] = source
         doc['failed'] = [{'profile':'alpha','reason':'deadline_state_corrupt'}]
         fake(tmp_path, doc)
