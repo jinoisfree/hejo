@@ -68,3 +68,20 @@
 - G1–G4: G1 spec REQ·AC·범위 밖·사장 결정 기록. G2 현황 근거(파일:줄), 칸 표, 기존 경로 판정. G3 AC↔AT 연결표(수락 시험 명세 끝), 계획 재검증 대기.
   G4 고위험 근거·롤백·운영 적용 절차 링크. 1판의 Google 미확인은 본체 읽기로 해소([확인] skill_utils.py:261-273).
 ```
+
+## 2차 지시 (2026-11-20, 검증 1차 [verdict.md](verdict.md) V-1·V-2)
+
+```text
+[보완 인계: HEJO-CONN-MANAGE TASK-02(wait_jobs.py 제외)·03·04, 이후 TASK-02b]
+- 원인: 환경 차이. <운영 저장소> main의 다른 작업 미커밋 변경으로 wait_jobs.py만 HEAD ≠ 실행본(bf1dd909… vs 441a8501…).
+  그 밖의 TASK-02 영향 파일 12개는 HEAD = 실행본(검증 1차에서 확인, 착수 때 다시 확인해 impl-report에 적을 것).
+- TASK-02: <운영 저장소> 현재 HEAD로 임시 worktree를 만들고 wait_jobs.py를 뺀 영향 파일로 진행한다. 바꿀 파일마다 HEAD = 실행본
+  sha256을 다시 확인하고 다르면 그 파일만 멈추고 보고한다. team-delegation __init__.py는 링크이므로 실제 파일
+  team-kit/lib/hermes_execution/__init__.py를 고친다(V-2). AT-CM-12(라)의 wait_jobs.account 부분은 TASK-02b로 넘긴다.
+- TASK-03·04: 변경 없음. 지금 진행.
+- TASK-02b 시작 조건: <운영 저장소> HEAD의 wait_jobs.py sha256 = 실행본 sha256(다른 작업의 커밋 또는 매일 자동 기록 커밋 뒤).
+  충족하면 worktree 브랜치에 <운영 저장소> main을 merge(이 작업 파일과 겹치지 않아야 함, 충돌이면 멈추고 보고) → 전체 TASK-02 시험
+  재실행 → wait_jobs.py 수정·시험. 이 작업 커밋에 다른 작업의 변경을 새로 넣지 않는다(merge로 들어온 그 작업 커밋만 조상).
+  응답 시점까지 조건이 안 되면 TASK-02b는 "대기(기준 불일치)"로 보고하고 나머지 결과를 result로 낸다.
+- 위험도·증거 수준·금지 범위·수락 시험 기대값은 1차 지시와 같다.
+```
