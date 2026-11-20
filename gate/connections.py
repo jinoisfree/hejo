@@ -23,7 +23,8 @@ class ConnectionFailure(Exception):
 
 class AdminClient:
     """The token stays on the server; redirects and non-loopback addresses are never used."""
-    def __init__(self, home):
+    def __init__(self, home, *, timeout=30):
+        self.timeout = timeout
         self.path = Path(home) / 'hejo' / 'admin.json'
 
     async def request(self, method, route, *, profile=None, body=None):
@@ -34,9 +35,12 @@ class AdminClient:
             port, token = settings['port'], settings['token']
             if type(port) is not int or not 1 <= port <= 65535 or not isinstance(token, str) or not token:
                 raise ConnectionFailure('admin_unavailable')
+        except (OSError, ValueError, KeyError, TypeError):
+            raise ConnectionFailure('admin_unavailable') from None
+        try:
             if not route.startswith('/api/') or '?' in route or '#' in route:
                 raise ConnectionFailure('invalid_action')
-            async with ClientSession(timeout=ClientTimeout(total=30), trust_env=False) as session:
+            async with ClientSession(timeout=ClientTimeout(total=self.timeout), trust_env=False) as session:
                 async with session.request(method, f'http://127.0.0.1:{port}'+route,
                         params={'profile':profile} if profile else None, json=body,
                         headers={'X-Hermes-Session-Token':token}, allow_redirects=False) as response:
@@ -48,7 +52,10 @@ class AdminClient:
                         raw.extend(part)
                         if len(raw) > 1_000_000:
                             raise ConnectionFailure('invalid_response')
-                    return json.loads(raw)
+                    try:
+                        return json.loads(raw)
+                    except (ValueError, UnicodeError, TypeError):
+                        raise ConnectionFailure('invalid_response') from None
         except ConnectionFailure:
             raise
         except (OSError, ValueError, KeyError, TypeError, asyncio.TimeoutError):
@@ -78,11 +85,11 @@ class SecretTransactions:
                     path.unlink()
 
     def undo_available(self,profile,key):
-        self.purge()
-        if not self.store.path.exists():return False
-        with self.store.locked():
+        try:
             saved=self.store.read(self.filename(profile,key),None)
-        return bool(saved and saved.get('until',0)>self.clock())
+            return bool(isinstance(saved,dict) and saved.get('until',0)>self.clock())
+        except (OSError,ValueError,TypeError):
+            return False
 
     async def previous(self, profile, key):
         try:

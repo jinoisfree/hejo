@@ -102,7 +102,7 @@ async def test_restart_uses_saved_expected_channels_and_new_identity(tmp_path):
 class CatalogAdmin(Admin):
     async def request(self,method,route,*,profile=None,body=None):
         if route=='/api/tools/toolsets':return [{'name':'memory','label':'기억','enabled':True}]
-        if route.endswith('/config'):return {'providers':[]}
+        if route.endswith('/config'):return {'providers':[{'name':'시험','env_vars':[{'key':'SYNTHETIC_KEY','is_set':bool(self.value)}]}]}
         if route=='/api/mcp/catalog':return {'entries':[]}
         if route=='/api/mcp/servers':return {'servers':[]}
         if route=='/api/providers/oauth':return {'providers':[]}

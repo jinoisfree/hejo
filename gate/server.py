@@ -456,9 +456,11 @@ class GateServer:
                             else:
                                 reply=await self.admin_connections.perform(conn.device_id,frame)
                                 await conn.send({'v':1,'type':'connection_result','ref':frame['id'],'reply':reply})
-                        except (ConnectionFailure,OSError,ValueError):
+                        except (ConnectionFailure,OSError,ValueError) as error:
+                            reason=error.reason if isinstance(error,ConnectionFailure) else 'invalid_response'
+                            log.warning('connections_failed type=%s profile=%s reason=%s',frame['type'],frame.get('profile','-'),reason)
                             await conn.send({'v':1,'type':'connection_result','ref':frame['id'],
-                                             'reply':{'outcome':'failed','reason':'admin_unavailable'}})
+                                             'reply':{'outcome':'failed','reason':reason}})
                         finally:
                             frame.pop('values',None)
                     elif frame["type"] == "sync":
