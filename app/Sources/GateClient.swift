@@ -159,6 +159,7 @@ struct ReconnectDelay {
             welcomed = true; connectionEpoch += 1; replayComplete = false; backoff.reset(); status = .connected
         case "pair_rejected": pairCode = nil; signInFields = nil; rejection = frame["reason"] as? String; status = .wrongCode; return false
         case "auth_rejected":
+            guard frame["reason"] as? String == "revoked" else {throw GateFailure.protocolError}
             let keychain = credentials, account = store.settings.credentialAccount
             await Task.detached { keychain.delete(account: account) }.value
             if let run, run != generation { return false }

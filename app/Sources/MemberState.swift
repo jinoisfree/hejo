@@ -32,6 +32,7 @@ struct StateDocument: Codable, Equatable {
     private var receiver: Task<Void, Never>?
     private(set) var waitingSupported = false
     private var generation = 0
+    private(set) var hasFetched = false
     private(set) var connected = false
     var account: String { store.settings.stateAccount ?? "" }
     var document: StateDocument { store.settings.memberStates?[account] ?? StateDocument() }
@@ -95,7 +96,7 @@ struct StateDocument: Codable, Equatable {
             $0.pendingState?.removeValue(forKey: "")
             $0.readSeq = nil; $0.pinnedEmployees = nil; $0.mutedEmployees = nil; $0.hiddenEmployees = nil
         }
-        generation += 1; onChange?()
+        hasFetched=false; generation += 1; onChange?()
         if releasedPins > 0 { onUnpinned?(releasedPins) }
     }
     func configure(hub: HubClient, token: String) {
@@ -135,7 +136,7 @@ struct StateDocument: Codable, Equatable {
         }
     }
     func disconnect() {
-        connected = false; generation += 1; timer?.invalidate(); timer = nil
+        hasFetched = false; connected = false; generation += 1; timer?.invalidate(); timer = nil
         sendTimer?.invalidate(); sendTimer = nil; receiver?.cancel(); receiver = nil
         waitingSupported = false; fetch = nil; push = nil
     }
@@ -167,10 +168,11 @@ struct StateDocument: Codable, Equatable {
     }
     /// GET gives a complete snapshot on a changed revision, or no items at the same revision.
     private func accept(_ remote: StateDocument, sent: [String: StateEntry] = [:]) throws {
+        let first = !hasFetched;hasFetched=true
         var queue = pending
         for (key, entry) in sent where queue[key] == entry { queue[key] = nil }
         let next = remote.rev > document.rev ? remote : document
-        if next != document || queue != pending { try persist(document: next, pending: queue) }
+        if next != document || queue != pending { try persist(document: next, pending: queue) } else if first {onChange?()}
     }
     func sync() async {
         guard !syncing, let fetch, let push else { return }

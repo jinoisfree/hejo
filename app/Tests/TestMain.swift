@@ -32,7 +32,11 @@ final class MemoryCredentials: GateCredentialStore {
         Task { @MainActor in
             do {
                 let args = CommandLine.arguments
-                if args.contains("--task47") {
+                if args.contains("--review55") {
+                    try await review55Tests()
+                } else if args.contains("--review55-network") {
+                    try await review55Network(args)
+                } else if args.contains("--task47") {
                     try workMonitorTests();try await dashboardTests()
                 } else if args.count>2 && args[1]=="--task47-capture" {
                     try workMonitorTests();try await dashboardTests(outputDirectory:URL(fileURLWithPath:args[2]))
@@ -251,6 +255,7 @@ final class MemoryCredentials: GateCredentialStore {
         try await typingTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await task17Tests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await updateTests()
+        try await review55Tests()
         try await memberStateTests()
         try await sidebarTests()
         try await cardTests()

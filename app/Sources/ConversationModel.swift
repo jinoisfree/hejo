@@ -217,6 +217,7 @@ struct ConversationThread: Identifiable {
         loadingRecords = false
         memberState.onChange = { [weak self] in
             guard let self else { return }
+            if !self.replaying {self.seedUnseenRooms()}
             if self.isHome {
                 if let key=self.selected,key.employee != HomeRoom.id,!self.homeScope.contains(key.employee) {self.selectHome(notify:false)}
             } else if let current = self.selected?.employee, self.hidden.contains(current) {
@@ -378,6 +379,7 @@ struct ConversationThread: Identifiable {
     func toggleCheck(_ id:String,line:Int,original:Bool,body:String?=nil) {changeState([checkKey(id,line,body:body):check(id,line:line,original:original,body:body) ? "0":"1"])}
     /// The first completed replay is the boundary between existing history and new arrivals.
     private func seedUnseenRooms() {
+        guard memberState.account.isEmpty || memberState.hasFetched else {return}
         var values:[String:String?]=[:]
         for room in rooms where memberState.items["read:"+room.id]==nil {
             let seen=memberState.items.keys.contains{$0.hasPrefix("thread:"+room.id+"/")}

@@ -218,23 +218,27 @@ class Connections:
             required=entry.get('required_env',[])
             if required and not values:return {'outcome':'done','reason':'OK','fields':[{'id':e['name'],'label':e.get('prompt') or e['name'],'secure':True} for e in required]}
             changed=[]
-            for field in required:
-                key=field['name']
-                if not values.get(key):continue
-                result=await self.secrets.save(profile,key,values[key])
-                if result['outcome']!='done':
-                    for old in reversed(changed):
-                        undone=await self.secrets.undo(profile,old)
-                        if undone['outcome']!='done':result={'outcome':'partial','reason':'write_partial'}
-                    return result
-                changed.append(key)
+            async def rollback(result):
+                partial=result.get('reason')=='write_partial'
+                for old in reversed(changed):
+                    try:
+                        if (await self.secrets.undo(profile,old))['outcome']!='done':partial=True
+                    except Exception:
+                        partial=True
+                return {'outcome':'partial','reason':'write_partial'} if partial else result
+            try:
+                for field in required:
+                    key=field['name']
+                    if not values.get(key):continue
+                    result=await self.secrets.save(profile,key,values[key])
+                    if result['outcome']!='done':return await rollback(result)
+                    changed.append(key)
+            except Exception:
+                return await rollback({'outcome':'failed','reason':'CONNECTIONS_READ_FAILED'})
             try:
                 reply=await self.admin.request('POST','/api/mcp/catalog/install',profile=profile,body={'name':name,'enable':True,'env':{}})
             except ConnectionFailure:
-                partial=False
-                for key in reversed(changed):
-                    if (await self.secrets.undo(profile,key))['outcome']!='done':partial=True
-                return {'outcome':'partial' if partial else 'failed','reason':'write_partial' if partial else 'WRITE_FAILED'}
+                return await rollback({'outcome':'failed','reason':'WRITE_FAILED'})
             return {'outcome':'done','reason':'OK','instruction':'서버에서 설치가 진행돼요. 새로 확인을 눌러 결과를 확인해 주세요' if reply.get('background') else '설치했어요. 새로 확인해 주세요'}
         if kind=='tool' and verb in {'enable','disable'}:
             await self.admin.request('PUT','/api/tools/toolsets/'+quote(name,safe=''),profile=profile,body={'enabled':verb=='enable'})

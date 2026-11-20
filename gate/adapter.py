@@ -91,7 +91,7 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
         if target is None or not target.is_connected:
             log.error("hejo_primary_unavailable")
             return SendResult(success=False, error="hejo_primary_unavailable")
-        if method in {"owner_message", "employee_message"}:
+        if method in {"owner_message", "employee_message", "latest_employee_message"}:
             return await getattr(target, method)(self._owner_profile, chat_id, *args)
         if method == "edit_message":
             if target.journal.room_id({"type":"edit","msg_id":args[0]}) in target.journal.deleted_rooms:
@@ -325,6 +325,8 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             content = native_buttons.plain_labels(content)
         chunks = split_text(content, LIMITS["text_bytes"])
         employee = metadata.get("hermes_profile") or (self.journal.rooms.get(chat_id[5:], {}).get("lead", "default") if chat_id.startswith("room:") else chat_id)
+        if room and employee not in self.journal.rooms[room]['members']:
+            return SendResult(success=False, error='room_member_required')
         thread = metadata.get("thread_id")
         if not thread and reply_to:
             previous = self.journal.message(reply_to)
@@ -563,6 +565,21 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
         return {"msg_id": message["msg_id"], "text": message["text"], "chat_id": actual_chat,
                 "thread_id": message["thread"], "employee": profile, "ts": message["ts"]}
 
+    async def latest_employee_message(self, profile, chat_id, thread_id, before_msg_id):
+        """Last live employee post preceding a verified owner event in this scope."""
+        if self.forwarder:
+            return await self._forward('latest_employee_message', thread_id, before_msg_id, chat_id=chat_id)
+        if await self.owner_message(profile, chat_id, thread_id, before_msg_id) is None:
+            return None
+        boundary = self.journal.message(before_msg_id)['seq']
+        for row in reversed(self.journal.records):
+            if row['type'] != 'message' or row['seq'] >= boundary:
+                continue
+            post = await self.employee_message(profile, chat_id, thread_id, row['msg_id'])
+            if post and post['text'].strip():
+                return post
+        return None
+
     async def first_thread_message(self, chat_id, thread_id, *, metadata=None):
         """Return the first live message this employee wrote, never another speaker's.
 
@@ -654,6 +671,7 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
         if handler and await handler(click):
             return
         await self.receive({"employee": click["employee"], "thread": click["thread"],
+                            "targeted": True,
                             "text": click["label"], "client_msg_id": str(uuid.uuid4()),
                             "id": frame.get("id"), "answer_to": click["msg_id"], **({"room":click["room"]} if click.get("room") else {})}, conn,
                            raw={"_hermes_button": {"label": click["label"], "message_id": click["msg_id"],
@@ -671,6 +689,9 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             if room_id and not room:
                 await self.server.error("room_not_found", frame.get("id"), conn)
                 return
+            if room and employee not in room['members']:
+                await self.server.error('room_member_required', frame.get('id'), conn)
+                return
             known = {e["id"] for e in self.employees()}
             if employee not in known:
                 await self.server.error("unknown_employee", frame.get("id"), conn)
@@ -683,7 +704,7 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
                 if row.get("role") == "owner" and row.get("client_msg_id") == frame["client_msg_id"]:
                     await conn.send(self.server.project(row, conn))
                     return
-            targets = recipients(frame["text"], room, self.employees()) if room else [employee]
+            targets = ([employee] if frame.get('targeted') else recipients(frame["text"], room, self.employees())) if room else [employee]
             if not set(targets) <= known:
                 await self.server.error("unknown_employee", frame.get("id"), conn)
                 return

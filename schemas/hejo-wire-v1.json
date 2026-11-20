@@ -568,6 +568,7 @@
           "type": "string",
           "minLength": 1
         },
+        "targeted": {"type": "boolean"},
         "employee": {
           "type": "string",
           "minLength": 1

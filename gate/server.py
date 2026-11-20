@@ -236,9 +236,11 @@ class GateServer:
                 for conn in tuple(self.connections):
                     if conn.hub_token is not None:
                         try:
-                            await self.adapter.hub.verify(conn.hub_token, fresh=True)
-                        except AuthRejected:
-                            revoked.append(conn)
+                            await self.adapter.hub.verify(conn.hub_token, fresh=True, allow_cached=True)
+                        except AuthRejected as exc:
+                            if exc.reason == 'hub_unavailable':
+                                await conn.ws.close(code=1001)
+                            else:revoked.append(conn)
             await asyncio.gather(*(conn.ws.close(code=1008) for conn in revoked))
             for conn in self.connections - set(revoked):
                 if ticks and ticks % 60 == 0:
@@ -316,14 +318,14 @@ class GateServer:
             raise FrameError("too_large", ref)
         return frame
 
-    async def authenticate(self, token):
+    async def authenticate(self, token, *, fresh=False):
         """(device id, hub token or None): this gate's own devices first, then the member's hub sign-ins."""
         try:
             return self.adapter.auth.authenticate(token), None
         except AuthRejected as exc:
             if exc.reason != "unknown" or not self.adapter.hub.enabled:
                 raise
-        return await self.adapter.hub.verify(token), token
+        return await self.adapter.hub.verify(token, fresh=fresh), token
 
     @staticmethod
     def peer(request):
@@ -365,8 +367,13 @@ class GateServer:
                 elif "pair_code" in hello:
                     device_id, token = auth.pair(hello["pair_code"], name)
                 else:
-                    device_id, hub_token = await self.authenticate(hello["token"])
+                    device_id, hub_token = await self.authenticate(hello["token"], fresh=True)
             except AuthRejected as exc:
+                if exc.reason == 'hub_unavailable':
+                    # Old apps treat unknown pre-welcome frames as retryable protocol
+                    # failures, preserving credentials; auth_rejected would erase them.
+                    await ws.send_json({'v':1,'type':'error','code':'hub_unavailable','ref':None})
+                    return ws
                 await ws.send_json({"v": 1, "type": "pair_rejected" if paired else "auth_rejected",
                                     "reason": exc.reason})
                 return ws
