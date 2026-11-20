@@ -2,6 +2,7 @@
 import asyncio
 from datetime import datetime, timezone
 import json
+import logging
 from pathlib import Path
 import re
 import uuid
@@ -10,8 +11,10 @@ from urllib.parse import quote
 from .connections import AdminClient, ConnectionFailure, SecretTransactions, MAX_VALUES_BYTES
 from .connection_runtime import ActionJournal, RestartJobs, TeamKit, runtime_snapshot, platform_entries
 
+log = logging.getLogger(__name__)
+
 DEVICE_PROVIDERS={'nous','openai-codex','minimax-oauth','xai-oauth'}
-PUBLIC_KEYS={'schema','checked_at','agents','profile','display_name','connections','id','service','label','reason','group','state','account','scope','reconnect','capabilities','rules','connect_kind','verified_by','expires_at','actions','primary','action','outcome','check','results','saved_names','restart_required','undo_until','url','instruction','fields','guide','n','text','open_url','copy','image','field','pattern','message','secure','last_restart_at','connected','missing','next','kind','steps','needs_user','hint','pane','target','resume_key','options','disabled','multi','needs_default','other_account','account_settings','input_error','app','role_hint','bundle_id','name','scanned_at','apps','features','applescript','app_intents','url_schemes','links','route','can_do','available','tools','connection_key','progress','connected','connectable','unavailable','server_path','mac_path','status','session_id','user_code','verification_url','poll_interval','expires_in','job','select_all','selected','scope','value','required'}
+PUBLIC_KEYS={'schema','checked_at','agents','profile','display_name','connections','id','service','label','reason','group','state','account','scope','reconnect','capabilities','rules','connect_kind','verified_by','expires_at','actions','primary','action','outcome','check','results','saved_names','restart_required','undo_until','url','instruction','fields','guide','n','text','open_url','copy','image','field','pattern','message','secure','last_restart_at','connected','missing','next','kind','steps','needs_user','hint','pane','target','resume_key','options','disabled','multi','needs_default','other_account','account_settings','input_error','app','role_hint','bundle_id','name','scanned_at','apps','features','applescript','app_intents','url_schemes','links','route','can_do','available','tools','connection_key','progress','connected','connectable','unavailable','server_path','mac_path','status','session_id','user_code','verification_url','poll_interval','expires_in','job','select_all','selected','scope','value','required','unread','part','hidden_by_default'}
 
 
 def public(value, secrets=()):
@@ -55,77 +58,155 @@ class Connections:
     async def document(self, profile=None):
         people=self.profiles()
         if profile is not None and profile not in people:raise ConnectionFailure('UNKNOWN_PROFILE')
-        agents=[];unavailable=False
-        team={}
-        if self.team.available:
-            raw=await self.team.run('status')
-            if raw.get('schema')!='hermes-connections/1':raise ConnectionFailure('invalid_response')
-            team={a['profile']:a for a in raw.get('agents',[]) if a.get('profile') in people}
+        agents=[];admin_results=[]
+        shared_failures={}
+
+        def failed(identifier, part, error, unread):
+            reason=error.reason if isinstance(error,ConnectionFailure) else 'invalid_response'
+            status=error.status if isinstance(error,ConnectionFailure) else None
+            unread.setdefault(part,{'part':part,'reason':reason})
+            log.warning("connections_part_failed profile=%s part=%s reason=%s status=%s",
+                        identifier,part,reason,status if status is not None else '-')
+
+        def mapping(value):
+            if not isinstance(value,dict):raise ConnectionFailure('invalid_response')
+            return value
+
+        def rows(value):
+            if not isinstance(value,list) or any(not isinstance(v,dict) for v in value):
+                raise ConnectionFailure('invalid_response')
+            return value
+
+        async def shared(command, schema):
+            if not self.team.available:return {}
+            try:
+                raw=mapping(await self.team.run(command))
+                if raw['schema']!=schema:raise ConnectionFailure('invalid_response')
+                return {a['profile']:a for a in rows(raw['agents']) if a['profile'] in people}
+            except (ConnectionFailure,KeyError,TypeError) as error:
+                shared_failures['team_status' if command=='status' else 'apps']=error
+                return {}
+
+        team=await shared('status','hermes-connections/1')
+        apps=await shared('apps','hermes-installed-apps/1')
         for identifier,person in people.items():
             if profile is not None and profile!=identifier:continue
-            items=[]
-            try:
-                tools=await self.admin.request('GET','/api/tools/toolsets',profile=identifier)
-                env=await self.admin.request('GET','/api/env',profile=identifier)
-                mcp=await self.admin.request('GET','/api/mcp/servers',profile=identifier)
-                oauth=await self.admin.request('GET','/api/providers/oauth',profile=identifier)
-                for tool in tools:
-                    name=tool['name'];enabled=tool.get('enabled') is True
-                    items.append(row('tool:'+name,tool.get('label') or name,'tool',state='unknown' if enabled else 'off',
-                        actions=[action('disable' if enabled else 'enable','끄기' if enabled else '켜기',True)],description=tool.get('description','')))
-                    config=await self.admin.request('GET','/api/tools/toolsets/'+quote(name,safe='')+'/config',profile=identifier)
-                    if config.get('has_category') is False:items[-1]['capabilities'].append('키 필요 없음')
-                    for provider in config.get('providers',[]):
-                        keys=provider.get('env_vars',[])
-                        items[-1]['capabilities'].append(provider['name']+': '+(', '.join(k['key']+(' — 키 저장됨(확인 안 함)' if k.get('is_set') else ' — 키 없음') for k in keys) if keys else '키 필요 없음'))
-                for key,info in env.items():
-                    present=info.get('is_set') is True
-                    items.append(row('key:'+key,info.get('provider_label') or key,reason='KEY_UNVERIFIED' if present else 'NO_TOKEN',
+            items=[];unread={}
+            for part,error in shared_failures.items():failed(identifier,part,error,unread)
+
+            async def read(part, route, build):
+                try:
+                    raw=await self.admin.request('GET',route,profile=identifier)
+                    value=build(raw)
+                except (ConnectionFailure,KeyError,TypeError) as error:
+                    failed(identifier,part,error,unread)
+                    admin_results.append(error.reason if isinstance(error,ConnectionFailure) else 'invalid_response')
+                    return None
+                admin_results.append(None)
+                return value
+
+            def tool_rows(raw):
+                return [(tool['name'],tool.get('enabled') is True,
+                         row('tool:'+tool['name'],tool.get('label') or tool['name'],'tool',
+                             state='unknown' if tool.get('enabled') is True else 'off',
+                             actions=[action('disable' if tool.get('enabled') is True else 'enable',
+                                             '끄기' if tool.get('enabled') is True else '켜기',True)],
+                             description=tool.get('description',''))) for tool in rows(raw)]
+
+            required=set()
+            for name,enabled,item in await read('toolsets','/api/tools/toolsets',tool_rows) or []:
+                items.append(item)
+                def config_details(raw):
+                    raw=mapping(raw);caps=[];keys=set()
+                    if raw.get('has_category') is False:caps.append('키 필요 없음')
+                    for provider in rows(raw['providers']):
+                        fields=rows(provider['env_vars'])
+                        keys.update(k['key'] for k in fields)
+                        caps.append(provider['name']+': '+(', '.join(k['key']+(' — 키 저장됨(확인 안 함)' if k.get('is_set') else ' — 키 없음') for k in fields) if fields else '키 필요 없음'))
+                    return caps,keys
+                config=await read('toolset_config','/api/tools/toolsets/'+quote(name,safe='')+'/config',config_details)
+                if config is not None:
+                    item['capabilities'].extend(config[0])
+                    if enabled:required.update(config[1])
+
+            def key_rows(raw):
+                result=[]
+                for key,info in mapping(raw).items():
+                    present=mapping(info)['is_set'] is True
+                    if not present and key not in required:continue
+                    result.append(row('key:'+key,info.get('provider_label') or key,reason='KEY_UNVERIFIED' if present else 'NO_TOKEN',
                         actions=[action('secret_set','키 바꾸기' if present else '연결',True)]+([action('secret_undo','되돌리기')] if self.secrets.undo_available(identifier,key) else []),
                         description='키 저장됨(확인 안 함)' if present else '키 없음'))
-                for server in mcp.get('servers',[]):
+                return result
+            items.extend(await read('env','/api/env',key_rows) or [])
+
+            def mcp_rows(raw):
+                result=[]
+                for server in rows(mapping(raw)['servers']):
                     name=server['name'];enabled=server.get('enabled',True)
-                    items.append(row('mcp:'+name,name,'tool',state='unknown' if enabled else 'off',
+                    result.append(row('mcp:'+name,name,'tool',state='unknown' if enabled else 'off',
                         actions=[action('check','시험',True),action('disable' if enabled else 'enable','끄기' if enabled else '켜기'),action('mcp_delete','삭제'),action('mcp_login','로그인 안내')]))
-                items.append(row('mcp','MCP 서버','tool',actions=[action('mcp_add','추가',True)]))
-                catalog=await self.admin.request('GET','/api/mcp/catalog',profile=identifier)
-                for entry in catalog.get('entries',[]):
+                result.append(row('mcp','MCP 서버','tool',actions=[action('mcp_add','추가',True)]))
+                return result
+            items.extend(await read('mcp','/api/mcp/servers',mcp_rows) or [])
+
+            def catalog_rows(raw):
+                result=[]
+                for entry in rows(mapping(raw)['entries']):
                     if entry.get('installed'):continue
-                    items.append(row('catalog:'+entry['name'],entry['name'],'tool',actions=[action('catalog_install','설치',True)],description=entry.get('description','')))
-                providers=oauth if isinstance(oauth,list) else oauth.get('providers',[])
-                for provider in providers:
+                    item=row('catalog:'+entry['name'],entry['name'],'tool',actions=[action('catalog_install','설치',True)],description=entry.get('description',''))
+                    item['hidden_by_default']=True;result.append(item)
+                return result
+            items.extend(await read('catalog','/api/mcp/catalog',catalog_rows) or [])
+
+            def oauth_rows(raw):
+                result=[]
+                for provider in rows(raw if isinstance(raw,list) else mapping(raw)['providers']):
                     name=provider['id'];external=provider.get('flow')=='external'
-                    items.append(row('oauth:'+name,provider.get('name') or provider.get('label') or name,
+                    result.append(row('oauth:'+name,provider.get('name') or provider.get('label') or name,
                         actions=[action('oauth_guide' if external else 'oauth_connect','서버 로그인 안내' if external else '다시 연결',True)],
                         description=('서버에서 '+provider.get('cli_command','공식 로그인 명령')+'을 실행해 주세요') if external else '브라우저에서 동의해 주세요'))
-            except ConnectionFailure as error:
-                if error.reason!='admin_unavailable':raise
-                unavailable=True
-            # Do not offer the official writer for an entry owned by the assembly command.
-            for item in team.get(identifier,{}).get('connections',[]):
-                item=public(item);item['id']='team:'+item['id'];items.append(item)
-            if self.team.available:
-                apps=await self.team.run('apps')
-                group=next((a for a in apps.get('agents',[]) if a.get('profile')==identifier),{})
-                for category in ('connected','connectable','unavailable'):
-                    for app in group.get(category,[]):
-                        actions=[]
-                        if category!='unavailable':actions.append(action('app_connect','범위 바꾸기' if category=='connected' else '연결',True))
-                        if category=='connected':actions.append(action('app_disconnect','해제'))
-                        if (app.get('progress') or {}).get('undo_until'):actions.append(action('app_undo','되돌리기'))
-                        item=row('app:'+app.get('connection_key',app['bundle_id']),app['name'],'mac',state='connected' if category=='connected' else 'unknown',actions=actions,description=app.get('can_do',''))
-                        item['rules']=app.get('rules',[]);item['next']=(app.get('progress') or {}).get('next');items.append(item)
-            state=self.snapshot()
-            if state:
-                for name,entry in platform_entries(state).items():
-                    if not name.startswith(identifier+':'):continue
-                    items.append(row('channel:'+name,name.split(':',1)[1],'channel',state='connected' if entry.get('state')=='connected' else 'unknown'))
+                return result
+            items.extend(await read('oauth','/api/providers/oauth',oauth_rows) or [])
+
+            if 'team_status' not in shared_failures:
+                try:
+                    part_items=[]
+                    for item in rows(team.get(identifier,{}).get('connections',[])):
+                        item=public(item);item['id']='team:'+item['id'];part_items.append(item)
+                    items.extend(part_items)
+                except (ConnectionFailure,KeyError,TypeError) as error:failed(identifier,'team_status',error,unread)
+            if 'apps' not in shared_failures:
+                try:
+                    part_items=[]
+                    group=mapping(apps.get(identifier,{}))
+                    for category in ('connected','connectable','unavailable'):
+                        for app in rows(group.get(category,[])):
+                            progress=mapping(app.get('progress') or {});actions=[]
+                            if category!='unavailable':actions.append(action('app_connect','이어서 하기' if progress.get('next') else '범위 바꾸기' if category=='connected' else '연결',True))
+                            if category=='connected':actions.append(action('app_disconnect','해제'))
+                            if progress.get('undo_until'):actions.append(action('app_undo','되돌리기' if category=='connected' else '처음부터 다시'))
+                            item=row('app:'+app.get('connection_key',app['bundle_id']),app['name'],'mac',state='connected' if category=='connected' else 'unknown',actions=actions,description=app.get('can_do',''))
+                            item['rules']=app.get('rules',[]);item['next']=progress.get('next')
+                            if category=='unavailable':item['hidden_by_default']=True
+                            part_items.append(item)
+                    items.extend(part_items)
+                except (ConnectionFailure,KeyError,TypeError) as error:failed(identifier,'apps',error,unread)
+            try:
+                part_items=[];state=self.snapshot()
+                if state:
+                    for name,entry in platform_entries(state).items():
+                        if not name.startswith(identifier+':'):continue
+                        part_items.append(row('channel:'+name,name.split(':',1)[1],'channel',state='connected' if entry.get('state')=='connected' else 'unknown'))
+                items.extend(part_items)
+            except (ConnectionFailure,KeyError,TypeError) as error:failed(identifier,'runtime',error,unread)
             items.append(row('gateway','게이트웨이','channel',actions=[action('gateway_restart','다시 시작',True)]))
             agent={'profile':identifier,'display_name':person['name'],'connections':items}
+            if unread:agent['unread']=list(unread.values())
             self.documents[identifier]=agent;agents.append(agent)
         result={'schema':'hermes-connections/1','checked_at':stamp(),'agents':agents}
-        if unavailable:
-            result['instruction']='서버의 관리 기능이 꺼져 있어요. 서버의 Hermes를 업데이트해 주세요(hermes update)'
+        if admin_results and all(reason=='admin_unavailable' for reason in admin_results):
+            result['instruction']='서버의 관리 기능에 닿지 못했어요. 읽은 항목만 보여 드려요.'
         # The official plugin inventory is the count source; no guessed provider list.
         from hermes_cli.plugins import get_plugin_manager
         failed=sum(bool(p.get('error')) for p in get_plugin_manager().list_plugins() if p.get('kind') in {'backend','model-provider','exclusive'})
@@ -170,8 +251,8 @@ class Connections:
         try:
             reply=await self.execute(device,profile,connection,verb,values,item)
         except ConnectionFailure as error:
-            reason=error.reason if error.reason in {'admin_unavailable','invalid_action','FORMAT_INVALID'} else 'CONNECTIONS_READ_FAILED'
-            reply={'outcome':'failed','reason':reason}
+            log.warning('connections_failed type=connection_action profile=%s reason=%s',profile,error.reason)
+            reply={'outcome':'failed','reason':error.reason}
         finally:
             frame.pop('values',None)
         self.input_fields[form]=secure_fields(reply)

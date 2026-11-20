@@ -68,6 +68,7 @@ class IMessage:
         self.settings_store.path = Path(home) / "shared" / "hejo" / "imessage"
         self.settle_seconds = SETTLE_SECONDS
         self.pending, self.changed, self.workers, self.wakes = {}, {}, {}, {}
+        self._typing_keys, self._typing_tasks = set(), set()
         self.sent = {}
         self.sent_path = self.settings_store.path / "sent.jsonl"
         self._load_sent()
@@ -101,12 +102,14 @@ class IMessage:
             log.warning("imessage_sent_read_failed")
 
     async def close(self):
-        tasks = tuple(self.workers.values())
+        self._typing_keys.clear()
+        tasks = (*self.workers.values(), *self._typing_tasks)
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
         self.workers.clear()
         self.pending.clear()
+        self._typing_tasks.clear()
 
     def recorded(self, row):
         if row["type"] not in {"message", "edit", "delete"}:
@@ -133,6 +136,40 @@ class IMessage:
         chat = "room:" + key[0] if key[0] in self.adapter.journal.rooms else key[0]
         return any(thread == key[1] for _, thread in self.adapter._typing_threads.get(chat, set()))
 
+    def _request_typing(self, method, chat_id):
+        phone = _photon
+
+        async def request():
+            try:
+                await getattr(phone, method)(chat_id)
+            except Exception:
+                log.warning("imessage_typing_failed")
+
+        task = asyncio.create_task(request())
+        self._typing_tasks.add(task)
+        task.add_done_callback(self._typing_tasks.discard)
+
+    def send_typing(self, key):
+        pair = self.private()["pair"]
+        if pair and self.settings()["enabled"] and platform_ready() and self.phone_parent(key):
+            self._typing_keys.add(key)
+            self._request_typing("send_typing", pair["chat_id"])
+
+    def stop_typing(self, key):
+        if key in self._typing_keys and not self.typing(key) and key not in self.pending:
+            self._typing_keys.remove(key)
+            if not self._typing_keys:
+                pair = self.private()["pair"]
+                if pair:
+                    self._request_typing("stop_typing", pair["chat_id"])
+
+    def clear_typing(self):
+        if self._typing_keys:
+            self._typing_keys.clear()
+            pair = self.private()["pair"]
+            if pair:
+                self._request_typing("stop_typing", pair["chat_id"])
+
     async def _settle(self, key):
         try:
             while key in self.pending:
@@ -146,16 +183,18 @@ class IMessage:
                     if self.typing(key):
                         break
                     msg_id = self.pending[key].pop(0)
-                    if not self.pending[key]:
-                        del self.pending[key]
                     try:
                         await self._send_message(msg_id, key)
                     except (OSError, ValueError):
                         log.warning("imessage_send_failed")
+                    finally:
+                        if not self.pending[key]:
+                            del self.pending[key]
         finally:
             self.workers.pop(key, None)
             self.wakes.pop(key, None)
             self.changed.pop(key, None)
+            self.stop_typing(key)
 
     def phone_parent(self, key):
         return next((row["client_msg_id"][len("imessage:"):] for row in reversed(self.adapter.journal.records)
@@ -287,6 +326,7 @@ class IMessage:
             await conn.send({"v": 1, "type": "imessage_code", "ref": ref, "code": code, "expires_in": PAIR_TTL})
             return
         if kind == "imessage_unpair":
+            self.clear_typing()
             with self.vault.locked():
                 self.vault.write("imessage.json", {"pair": None, "code": None})
             settings = self.settings()
@@ -302,6 +342,8 @@ class IMessage:
             if settings["enabled"] and not self.private()["pair"]:
                 await self.adapter.server.error("imessage_unpaired", ref, conn)
                 return
+            if not settings["enabled"]:
+                self.clear_typing()
         with self.settings_store.locked():
             self.settings_store.write("settings.json", settings)
         await self.publish(conn, ref)
@@ -344,6 +386,7 @@ class IMessage:
             private = self.private()
             pairing = self.pending_code(event, private)
             if pairing:
+                self.clear_typing()
                 private["pair"] = {"platform": "photon", "chat_id": event.source.chat_id,
                                    "user_id": event.source.user_id, "paired_at": self.clock()}
                 private["code"]["used"] = True

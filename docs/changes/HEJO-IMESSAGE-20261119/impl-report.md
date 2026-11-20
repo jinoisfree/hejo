@@ -271,3 +271,98 @@
 - AT-HI-40의 서버 부분 통과(최종 관측 UTC 04:34:49, 새 시작 뒤 약 146초). 앱의 platform_ready/paired 화면은 새 앱 공개 뒤 확인해야 하므로 통과로 주장하지 않는다. 실제 아이메시지·Slack 발송은 하지 않았다. AT-HI-41은 사전 롤백 절차만 준비했으며 실패가 없어 롤백 실행은 없음.
 - 비밀·운영 설정 직접 조회, Hermes 본체/photon/ddots 변경, 앱 빌드·교체·버전 올림·공개, 허브 재시작, 짝짓기·코드 발급·push는 미실행이다. 기존 다른 작업 변경을 보존했다.
 - 다음 담당: evidence와 실제 로컬 로그·RELEASE·게이트웨이 상태를 확인해 TASK-07을 검토한다. 이미 적용한 릴리스·재시작은 반복하지 않는다. 이후 TASK-07b 앱 0.2.1 공개 준비의 사용자 결정 → 비설계자 검토 → TASK-08 폰 M1~M8. 제품 최종 완료와 푸시 승인은 아직 아니다.
+
+
+## TASK-07b: 앱 0.2.1·빌드 3 공개 후보 준비 (2026-11-20)
+
+- 받은 설계: handoff 보완 지시 5, HEJO-FOUNDATION 보완 지시 61·그 검토 기록. 사용자 결정대로 이 작업에서 후보를 준비했다. 판단 상태: **후보 준비·자체 검증 완료, 계획 담당 검토 대기**. 고위험(공개 배포물), 필요·도달 증거 수준 2. 실제 공개·업데이트 설치·실물 동작은 미실행이다.
+- 착수 HEAD: `11dcd46302566e0d4cbff1023e2fe1b3b0316fa1`(작업 트리 깨끗). 버전 올림 커밋: `274f98f5f415fa71192b333d2c88e1299ed3898b`. 변경은 `app/Resources/Info.plist`의 0.2.1·빌드 3과 `tests/acceptance/test_ship.py`의 고정 버전 단언뿐이다. 제품 동작 코드·명세·수락 명세는 바꾸지 않았다.
+- 공개 기준 main: `274f98f5f415fa71192b333d2c88e1299ed3898b`. 새 public: `363bcc021aff018ff0e62e1d2265717939bf61c8`, 부모 `1dfda649f14483acc5dd90f1f363e63904805b43`(기존 0.2.0). 두 트리는 `f50e54126d4c57851fc0336a0583ad5a459cb660`로 동일하다. 기존 공개 계보에 정확히 한 커밋을 더했고 기준 main은 public의 조상이 아니다. 개인 개발 이력을 포함하지 않았다. 이 후속 보고와 tasks 상태는 별도 문서 커밋으로 남겨 공개 후보를 다시 만들지 않는다(0.2.0 선례와 같음).
+- `hejo-publish`의 작성자 조회는 선례의 오프라인 gh 대역으로 처리했다. 기존 public 작성자 정보를 로컬에서 재사용했으며 두 호출은 `network:false`다. 실제 gh·원격 Git·curl/wget 호출은 차단한 환경을 사용했고 차단 시도도 없었다. GitHub 조회·쓰기·push·publish는 하지 않았다.
+- 준비물: `.build/release-0.2.1/prepared.json`, `.build/release-0.2.1/hejo-0.2.1-arm64.zip`. 압축 SHA256 `a8ab74a9b1958576cf32fbc6d62d13cd7df519fc23a78c6b2f9bed308ed4bf14`. 압축을 풀어 codesign deep/strict·실행 파일 동일·BuildInfo tree 일치/dirty false·Sparkle 서명을 재확인했다. 기존 키체인 키를 재사용했으며 setup·새 키 생성·키 내보내기는 하지 않았다.
+- 업데이트 연속성: 준비물 0.2.1·3이 설치본 0.2.0·2보다 크다. 업데이트 공개 키는 준비물·압축 앱·0.2.0 준비물·현재 설치본이 모두 같다. 허용된 기본 빌드 프로세스만 Google 입력을 읽었으며 입력 값은 직접 열거나 출력·기록하지 않았다. 전체 시험의 앱 빌드는 원래 시험 절차대로 비밀 주입을 생략했고, 통과 뒤 같은 깨끗한 트리에서 기본 배포 빌드를 다시 했다.
+
+| 검증 명령·대상 | 실제 결과 | 로컬 로그(`.build/release-0.2.1-work/` 기준) |
+|---|---|---|
+| `install/hejo-publish` (선례의 로컬 작성자 캐시 대역) | 종료 0, public 생성·부모 및 트리 동일·개인 이력 배제 | `publish-local.log/.exit`, `snapshot.json`, `offline-gh.jsonl` |
+| Hermes venv Python `scripts/scan_private.py --repo <public-worktree>` (임시 HERMES_HOME) | 종료 0, 공개본 검사 | `public-private.log/.exit`, `public-private-final.log` |
+| `bash scripts/test.sh` (Hermes venv·임시 HERMES_HOME·실제 Hermes 모듈·가짜 명부) | 종료 0, Python 325 passed, 실제 임시 게이트웨이 배달·전체 앱/통신·훅 시험 통과. 설치 시험·AT-HI-37 포함 | `full.log`, `tests-result.json` |
+| 같은 전체 앱 시험 바이너리 반복 3회 (각각 임시 홈) | 각 종료 0·APP_TEST_OK, 입력 트리 불변 | `app-repeat-1.log`~`app-repeat-3.log`, `verification-progress.json` |
+| 옛 문 aeaa652 + 새 앱 `test_update_compat.py` (선례의 임시 시험 원본) | 종료 0, 1 passed·AT84_OLD_GATE_NEW_APP_PASS, 실제 루프백 인증·통신·가짜 차례 | `legacy-aeaa652.log`, `tests-result.json` |
+| `bash app/scripts/build.sh` (기본 빌드) | 종료 0, BuildInfo tree 동일·dirty false | `default-build.log`, `prepare-progress.json` |
+| Hermes venv Python `install/hejo-ship prepare --output .build/release-0.2.1/` | 종료 0, 대상 public/tree/버전/빌드/압축 지문 일치 | `prepare.log`, `final-verification.json` |
+| `ditto -x -k` 뒤 `codesign --verify --deep --strict <unpacked-app>` | 각각 종료 0 | `extract.log`, `archive-codesign.log` |
+| Sparkle `sign_update --account <existing account> --verify <archive> <prepared public signature>` | 종료 0 | `archive-sparkle.log` |
+| 실제 CLI 설정 lstat·실제 다운로드 이름 전후 검사 | 모두 종료 0, 내용 미조회·메타데이터/이름 불변 | `settings-before/after/final.log`, `downloads-before/after/final.log` |
+| Hermes venv Python `scripts/scan_private.py` (임시 HERMES_HOME) | 종료 0, 후보 기준 main 검사 | `main-private.log` |
+| 같은 개인값 검사 (후속 보고 문서 포함)·`git diff --check` | 각각 종료 0 | `report-private.log/.exit`, 최종 diff 직접 확인 |
+
+- 검증 기록 원본: `snapshot.json`, `tests-result.json`, `final-verification.json`. 준비 전후 동일 트리·깨끗한 작업 트리를 확인했다. 새 알고리즘·인증 조건을 바꾸지 않아 추가 mutation은 하지 않았다. 전체 시험의 기존 Swift 경고는 억제하거나 수정하지 않았다.
+- 공용 RELEASE는 `ea31736b0f6eaa1a14d39099cc853f33e2b2c6ae` 그대로이며 게이트웨이 PID도 TASK-07 검증 때와 같다. 설치된 앱 교체·공용 릴리스 갱신·운영 홈 변경·재시작·실제 발송은 하지 않았다. 운영 저장소는 이번 단계에서 변경하지 않았다.
+
+사장용 공개 명령(이번에는 실행하지 않음, 검토·승인 뒤 사장이 실행):
+
+```bash
+install/hejo-ship publish --approve-commit 363bcc021aff018ff0e62e1d2265717939bf61c8 --prepared .build/release-0.2.1/prepared.json
+```
+
+푸시 대상은 hejo 저장소의 `github` 원격 `main` 브랜치, 커밋 `363bcc021aff018ff0e62e1d2265717939bf61c8`이다. 실제 저장소 경로를 포함한 대상은 인계 상태 블록에 적는다. 로컬 main은 푸시 대상이 아니다. 검토 통과 뒤 사장이 플러그인 화면에서 별도로 승인한다.
+
+남은 일: 계획 담당이 버전 커밋·공개 계보/트리·준비물/서명·시험 원본을 검토한다. 통과 뒤 사장 public 푸시 승인·publish → 앱 자동 업데이트 설치 → 비설계자 검토 → TASK-08 M1~M8. 운영 저장소 푸시 대상의 원격 포함 여부 확인은 이번 GitHub 조회 금지 범위에서 수행하지 않았다.
+
+
+## TASK-09: 폰의 작성 중 표시 (2026-11-20)
+
+- 받은 설계: handoff 보완 지시 6, spec 4판 REQ-HI-09, design 6.1절, AT-HI-45~51. 착수 HEAD `3cc6773cc4edc85bd2f8c75094aada8f6b8c40d6`, 작업 트리 깨끗. 판단 상태: **구현·자체 시험 완료, 계획 담당 검토 대기**. 위험도 보통, 필요·도달 증거 수준 2(실제 Hermes 모듈·임시 홈·가짜 photon 어댑터).
+- 구현 커밋: `05107d59a23c27a4dea946c566b00d7e3df81696`. 시험 관측 보강 커밋: `b5f8549a218bbcf9b827e155cbfa5f6c1239f870`(AT-HI-50의 준비 프레임을 먼저 비우는 2행만). 제품 변경은 `gate/imessage.py`·`gate/adapter.py` 두 파일이며, 시험은 `tests/acceptance/test_imessage.py`다. 기존 시험 기대값은 그대로 두고 가짜 어댑터 호출 기록과 폰 스레드 도우미의 기본값을 유지한 선택 인수만 더했다.
+- 흐름: 전달자가 아닌 hejo send_typing 경로에서 방/직원·스레드 열쇠를 bridge에 알린다. 짝·켜짐·photon 연결·phone_parent 조건이 맞으면 메모리 집합에 넣고 별도 작업으로 send_typing을 요청한다. 차례가 꺼지고 pending 발신까지 끝나 집합이 비는 순간 stop_typing을 한 번 요청한다. 앱 시작 보고 스레드에는 표시를 요청하지 않는다. 폰 글이 있는 스레드를 앱에서 이어도 phone_parent 조건은 유지된다.
+- 생명주기: 연결 끄기·짝 해제·짝 교체 때 이전 대화창 표시를 정지하고 집합을 비운다. close는 정착 작업과 표시 요청 작업을 취소·회수한다. 예외는 식별자 없는 고정 경고 `imessage_typing_failed`만 남긴다. 표시용 글·자체 갱신 타이머·새 저장 파일·새 프레임은 없다.
+- 정착 작업은 마지막 답을 실제 전송하는 동안에도 pending 항목을 유지한다. 그 사이 같은 스레드의 다음 차례가 끝나도 정지가 발신 완료보다 먼저 가지 않게 하기 위한 구현 상세다. 설계와 달라진 요구·계약·구조는 없다. 짝 교체 정리와 발신 중 경합을 추가 시험했다.
+
+| 수락 시험 | 실제 결과 |
+|---|---|
+| AT-HI-45 | 1:1·단체방 두 경우 각각 알림 3번 → 짝 대화창 시작 3번 |
+| AT-HI-46 | 앱 시작 스레드는 폰 보고 스위치 전후 모두 시작·정지 0건 |
+| AT-HI-47 | 끄기·짝 해제·photon 미연결 세 경우 시작 0건 |
+| AT-HI-48 | 답 있음: 시작→답 send→정지, 답 없음: 시작→정지. 정지 각각 1번·중복 호출 없음 |
+| AT-HI-49 | 폰 스레드 두 개 중 첫 종료는 정지 0건, 마지막 종료는 1건 |
+| AT-HI-50 | 시작·정지의 예외/무기한 지연 각각에서 호출자 1초 이내 반환·앱 typing on/off·답 발신 정상. 대화창 id/예외 본문 로그 없음. close 후 요청 작업 회수 |
+| AT-HI-51 | send는 답 한 건뿐. 기록장 레코드 종류·설정·금고·규격 파일 바이트 불변 |
+| 추가 생명주기·경합 | 끄기·해제·짝 교체 각 정지 1번과 집합 정리, 전송 중인 답이 끝나기 전 정지 없음 |
+
+| 검증 명령·대상 | 종료 코드·실제 결과 | 로컬 증거(`.build/HEJO-IMESSAGE/task09/` 기준) |
+|---|---|---|
+| Hermes venv pytest `tests/acceptance/test_imessage.py` (임시 HERMES_HOME) | 최초 0·65 passed, 전송 중 경합 시험 추가 후 최종 0·66 passed | `focused.log/.exit`, `focused-final.log/.exit` |
+| AT-HI-50 관측 경계 보강 뒤 같은 집중 시험 | 0·66 passed, b5f8549 기준. 제품 코드 동일 확인 | `focused-final-observation.log`, `focused-final-observation.json` |
+| pending 검사 제거 mutation, AT-HI-48 실행 | 변이 1(1 failed·1 passed), 원복 0(2 passed). 원래 바이트 복구 확인 | `mutation.log`, `mutation-restored.log`, `mutation.json` |
+| Hermes venv `bash scripts/test.sh` (임시 HERMES_HOME·실제 Hermes 모듈·가짜 명부) | 0, Python 341 passed(기존 325+새 16), 임시 게이트웨이 배달·앱 전체/통신·훅 9개 통과. 검증 변경본 05107d5·작업 트리 불변 | `full.log/.exit`, `full.json` |
+| Hermes venv `scripts/scan_private.py` (임시 HERMES_HOME) | 0 | `private-final.log/.exit`, `final-check.json` |
+| 본체 `git rev-parse HEAD`·`git status --porcelain` 전후 대조 | 0, HEAD `ebb026eef8e800e1b7471ed147b7287e878f8aa4` 동일, 양쪽 status 출력 없음 | `before.json`, `final-check.json` |
+| 기준과 app/schemas/config/install/scripts·spec/design/수락 명세 diff | 0, 변경 없음. public 363bcc0 그대로 | `final-check.json` |
+| 최종 보고 포함 개인값 검사·`git diff --check` | 각각 0 | `private-report.log/.exit`, 최종 diff 직접 확인 |
+
+- 전체 시험 뒤 변경은 AT-HI-50 관측 경계 두 줄과 이 보고뿐이다. 제품 코드는 전체 시험 대상과 같고, 바뀐 시험 파일은 66개 전부 재실행했다. 앱 전체 시험은 이 시험 전용 보강 뒤 반복하지 않았다.
+- 검증 명령에 포함된 시험용 앱 빌드만 실행했다. 앱 소스·버전 변경, 별도 배포 빌드·설치, hejo-publish/ship, 공용 릴리스 갱신, 게이트웨이 재시작, 운영 홈 변경, team-kit·본체·photon 수정, 실제 아이메시지/Slack 발송, git push는 하지 않았다. 기존 Swift 경고는 그대로다.
+- 서버에는 아직 TASK-09 코드를 적용하지 않았다. 실제 폰 기본 애니메이션 M9는 미검증이다. 다음은 계획 담당의 TASK-09 검토 → 별도 TASK-10 적용 허가 → 사장 M9다. 비설계자 검토 주체 결정과 ARCHITECTURE 반영은 계획 담당에게 남긴다. 공개 브랜치와 배포 후보는 다시 만들지 않았고 이번 단계의 새 푸시 대상은 없다.
+
+## TASK-10: 작성 중 표시 서버 적용 (2026-11-20)
+
+- 받은 지시: handoff 보완 지시 7(절차는 보완 지시 4), verdict 8차 TASK-09 통과. 착수·배포 대상 HEAD `95074cbafda3a5e16d1fd2e9a580b24abe667021`, 제품 코드 `05107d59a23c27a4dea946c566b00d7e3df81696`. 착수 작업 트리 깨끗, ea31736 대비 문 두 파일만 변경·05107d5 대비 제품 변경 0건을 확인했다.
+- 판단 상태: **서버 적용·자체 검증 완료, 계획 담당 검토·사장 M9 대기**. 고위험(운영), 필요·도달 증거 수준 3. 설계와 달라진 점 없음. 제품 코드·수락 명세는 바꾸지 않았다.
+- 적용 전에 [TASK-10 증거](../../../evidence/HEJO-IMESSAGE/TASK-10.md)에 직전 RELEASE `ea31736b0f6eaa1a14d39099cc853f33e2b2c6ae`와 실행 경로 변수가 채워진 코드 롤백 절차를 작성했다. 데이터 복원·앱·team-kit 조치는 없다. 경로 변수는 추적 제외 파일에만 있다.
+
+| 절차별 명령·확인 | 종료 코드·실제 결과 | 로컬 증거(`.build/HEJO-IMESSAGE/task10/` 기준) |
+|---|---|---|
+| 착수 `git status --porcelain`, 지정된 두 `git diff` | 0, 작업 트리 깨끗·허가 범위 일치 | `before.json` |
+| `install/hejo-release` | 0, UTC 06:05:37.303 완료. RELEASE 대상 일치·시험/캐시 제외 gate 19개 파일과 파일 집합 동일 | `release.log/.exit`, `release.json` |
+| Hermes venv Python `<release>/install/hejo-install --check` | 0, 출력 없음. 설치 실행 안 함 | `install-check.log/.exit`, `install-check.json` |
+| 재시작 직전 runtime·PID 확인 | 0, active_agents 0·running·PID 생존·상태 갱신 약 9초 전 | `restart-before.json` |
+| `hermes --profile default gateway restart` | 0, UTC 06:05:58.463 요청·06:06:00.792 명령 종료 | `restart-command.log/.exit`, `restart-command.json` |
+| Hermes venv `verify-restart.py` | 0, UTC 06:08:25.386 관측·새 시작 뒤 약 129초. 새 시작 UTC 06:06:16.152(한국 시각 15:06:16.152)은 릴리스 갱신 뒤 | `post-restart.json`, `verify-restart.exit`, `connections.log` |
+| Hermes venv `scripts/scan_private.py` (임시 HERMES_HOME) | 0, 최종 보고·새 evidence 포함 | `private-final.log/.exit` |
+| `git diff --check`, 제품·명세 무변경 및 본체 HEAD/status 확인 | 0, 자기 보고 세 파일만 변경·본체 동일 | `final-source.json`, `diff-check.log/.exit` |
+
+- 연결 결과: hejo 기본 1·보조 5, Slack 기본 1·보조 5, photon 1. photon에 hejo native handler 연결 성공 로그 1건. 새 PID 생존·runtime running·세 문 connected를 확인했다. 재시작 전 로그 오프셋부터 새 ERROR/CRITICAL·역추적·WARNING·아이메시지 실패·처리기 연결 실패 각 0건이다. 기존 구간과 분리했으며 대화 본문·프로필 식별자는 보고에 옮기지 않았다.
+- 짝·설정 파일은 재시작 전후 수정 시각이 각각 같다. 내용은 열지 않았다. `post-restart.json`에 stat 비교 결과가 있다. 코드 롤백은 검증 실패가 없어 **미실행**이다.
+- 공개 브랜치는 `363bcc021aff018ff0e62e1d2265717939bf61c8` 그대로다. 이번 문 변경은 다음 공개 때 나가므로 이번 단계에서 새 푸시 대상을 만들지 않았다. 앱 빌드·버전·공개 준비/발행·사본 교체·허브 재시작·설치 적용·설정 변경·실제 발송·push는 실행하지 않았다. Hermes 본체 HEAD `ebb026eef8e800e1b7471ed147b7287e878f8aa4`·깨끗한 상태도 유지된다.
+- 실제 폰의 기본 작성 중 표시 M9는 미검증이다. 계획 담당이 증거·현재 RELEASE를 검토한 뒤 사장 M9와 비설계자 검토 주체 결정, ARCHITECTURE 반영을 이어간다. 이미 적용한 릴리스 갱신·재시작을 반복하지 않는다.

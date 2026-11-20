@@ -791,6 +791,8 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
                     continue
                 await self.server.broadcast({"v": 1, "type": "typing", "employee": employee,
                                              "thread": thread, "on": True, "ttl_seconds": 6, **({"room":room} if room else {})})
+            if self.imessage:
+                self.imessage.send_typing((room or chat_id, thread))
 
     async def stop_typing(self, chat_id, metadata=None):
         if self.forwarder:
@@ -815,8 +817,11 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
                     log.warning("thread_deleted_drop")
                     continue
                 await self.server.broadcast({"v": 1, "type": "typing", "employee": employee, "thread": thread, "on": False, **({"room":room} if room else {})})
-            if self.imessage:
+        if self.imessage:
+            room = chat_id[5:] if chat_id.startswith("room:") else None
+            for _, thread in sorted(stopping):
                 self.imessage.wake((room or chat_id, thread))
+                self.imessage.stop_typing((room or chat_id, thread))
 
     async def get_chat_info(self, chat_id):
         if self.forwarder:
