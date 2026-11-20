@@ -57,6 +57,8 @@ struct AgentConnectionItem: Codable, Identifiable {
     var connect_kind: String? = nil
     var verified_by: String? = nil
     var expires_at: String? = nil
+    struct Setting:Codable,Identifiable {let step:String,label:String,value:String;var id:String{step}}
+    var settings:[Setting]? = nil
     var actions: [ConnectionAction]? = nil
     /// The buttons are exactly what the command lists; the app never infers one from a state.
     func action(_ kind: ConnectionAction.Kind) -> ConnectionAction? { actions?.first { $0.kind == kind } }

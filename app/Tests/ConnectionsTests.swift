@@ -47,6 +47,7 @@ import SwiftUI
     print("AT-HF-83 APP PASS")
     try await connectionFilteringTests(outputDirectory:outputDirectory)
     try await connectionsScreenTests()
+    try await connectionManagementTests(outputDirectory:outputDirectory)
 }
 
 /// AT-101: the visible groups follow AC-05 without changing the full document or sending filter requests.
@@ -213,4 +214,113 @@ import SwiftUI
         try check(correct,"V-3 \(state) undo confirmation matches the row action")
     }
     live.close();window.window.close();print("AT-HC-20~29 APP PASS")
+}
+
+/// AT-CM-30~38: fake server frames with the real model, SwiftUI view and AppKit windows.
+@MainActor private func connectionManagementTests(outputDirectory:URL?) async throws {
+    let settings:[[String:Any]] = [["step":"address","label":"주소","value":"nas.example.invalid"],["step":"login","label":"로그인","value":"저장됨"],["step":"sync_root","label":"동기화 폴더","value":"synthetic-folder"]]
+    func document(_ settings:[[String:Any]],action:String="app_disconnect",identifier:String="app:synthetic")->[String:Any] {
+        ["schema":"hermes-connections/1","checked_at":"2026-01-01T00:00:00Z","agents":[["profile":"alpha","display_name":"직원 A","connections":[["id":identifier,"service":"synology","label":"시험 앱","group":"mac","state":"connected","reason":"CONFIG_ONLY","checked_at":"2026-01-01T00:00:00Z","capabilities":[],"rules":[],"settings":settings,"actions":[["id":"app_connect","label":"설정 바꾸기","primary":true],["id":action,"label":"해제","primary":false],["id":"app_undo","label":"되돌리기","primary":false]]]]]]]
+    }
+    var frames:[[String:Any]]=[],order:[String]=[],allow=false,focusCount=0,activeSettings=settings,disconnectText=""
+    var reply:[String:Any] = ["outcome":"done"]
+    let model=ConnectionsModel(send:{frame in
+        frames.append(frame)
+        return frame["type"] as? String=="connections" ? ["document":document(activeSettings)]:["reply":reply]
+    },confirm:{order.append("auth");return true})
+    model.restoreFocus={focusCount += 1}
+    model.confirmDisconnect={text in
+        disconnectText=text
+        order.append("ask");return allow
+    }
+    await model.refresh();model.detail="app:synthetic"
+    try check(model.item?.otherActions.map(\.label)==["해제","되돌리기"],"AT-CM-30 secondary menu labels use supplied actions")
+    if let outputDirectory {
+        let host=NSHostingView(rootView:ConnectionsView(model:model));host.frame=CGRect(x:0,y:0,width:880,height:640)
+        let preview=NSWindow(contentRect:host.frame,styleMask:[.borderless],backing:.buffered,defer:false)
+        preview.isReleasedWhenClosed=false;preview.contentView=host;preview.orderFrontRegardless()
+        for (detail,name) in [(String?.none,"conn-manage-list.png"),(String?.some("app:synthetic"),"conn-manage-settings.png")] {
+            model.detail=detail;await pause(0.2);host.layoutSubtreeIfNeeded()
+            let bitmap=host.bitmapImageRepForCachingDisplay(in:host.bounds)!;host.cacheDisplay(in:host.bounds,to:bitmap)
+            try bitmap.representation(using:.png,properties:[:])!.write(to:outputDirectory.appendingPathComponent(name))
+        }
+        preview.orderOut(nil)
+    }
+
+    let before=frames.count
+    await model.perform("app_disconnect")
+    try check(frames.count==before && order==["ask"] && disconnectText.contains("넣어 둔 값은 남아"),"AT-CM-31 declined disconnect sends nothing and skips reauthentication")
+    allow=true;order=[];await model.perform("app_disconnect")
+    try check(order==["ask","auth"] && frames.filter{$0["action"] as? String=="app_disconnect"}.count==1 && frames.first{$0["action"] as? String=="app_disconnect"}?["reauth"] as? Bool==true,"AT-CM-31 confirm then authenticate then disconnect")
+    let accountDocument=try AgentConnectionDocument.decode(JSONSerialization.data(withJSONObject:document(settings,action:"account_disconnect",identifier:"team:x")))
+    model.known["alpha"]=accountDocument.agents[0];model.detail="team:x";order=[]
+    reply=["outcome":"waiting","next":["kind":"gateway_restart"]]
+    await model.perform("account_disconnect")
+    try check(order==["ask","auth"] && frames.last?["connection"] as? String=="team:x" && frames.last?["action"] as? String=="account_disconnect","AT-CM-31 account disconnect frame follows confirmation")
+    order=[];model.confirmRestart={true};reply=["outcome":"done"];await model.submit()
+    try check(order==["auth"],"AT-CM-31 saved disconnect resumes without confirming the same mutation again")
+    model.detail="app:synthetic"
+    try check(model.item?.settings?.map(\.label)==["주소","로그인","동기화 폴더"],"AT-CM-32 current settings decode")
+    model.detail=nil;let count=frames.count
+    await model.perform("app_connect",item:model.agent!.connections[0])
+    try check(model.detail=="app:synthetic" && frames.count==count,"AT-CM-33 multiple settings opens detail without a request")
+    reply=["outcome":"waiting","next":["kind":"choose_sync_root","options":[["id":"one","label":"첫 폴더"]],"selected":["one"]]]
+    await model.change("sync_root")
+    try check(frames.last?["values"] as? [String:String]==["change":"sync_root"] && model.choices==["one"],"AT-CM-33 selected step frame")
+    model.closeInput()
+    activeSettings=[settings[2]];await model.refresh();model.detail="app:synthetic"
+    await model.perform("app_connect")
+    try check(frames.last?["values"] as? [String:String]==["change":"sync_root"],"AT-CM-33 single setting starts directly")
+    model.closeInput();activeSettings=settings;await model.refresh();model.detail="app:synthetic"
+    reply=["outcome":"waiting","next":["kind":"secret_set","fields":[["id":"api_base","label":"주소","secure":false]]]]
+    await model.change("address")
+    reply=["outcome":"waiting","next":["kind":"secret_set","fields":[["id":"password","label":"비밀번호","secure":true]]]]
+    model.values=["api_base":"https://nas.example.invalid"];await model.submit()
+    reply=["outcome":"waiting","next":["kind":"choose_scope","options":[["id":"a","label":"A"],["id":"b","label":"B"],["id":"c","label":"C"]],"selected":["a","c"]]]
+    model.values=["password":"synthetic-password"];await model.submit()
+    try check(model.choices==["a","c"],"AT-CM-34 selected option ids")
+    let accumulated=frames.last?["values"] as? [String:String]
+    try check(accumulated==["change":"address","api_base":"https://nas.example.invalid","password":"synthetic-password"],"AT-CM-38 every request carries all prior inputs")
+    reply=["outcome":"waiting","committed":true,"next":["kind":"gateway_restart"]]
+    await model.submit()
+    try check(model.changeValues.isEmpty && model.values.isEmpty,"AT-CM-38 committed immediately drops password and change")
+    model.confirmRestart={true};reply=["outcome":"done"];await model.submit()
+    let resume=frames.last{$0["type"] as? String=="connection_action"}?["values"] as? [String:String]
+    try check(resume==["resume":"gateway_restart"],"AT-CM-38 post-commit resume has no old inputs")
+    reply=["outcome":"waiting","next":["kind":"secret_set","fields":[["id":"password","label":"비밀번호","secure":true]]]]
+    await model.change("login");model.values=["password":"synthetic-abandoned-password"];model.closeInput()
+    try check(model.changeValues.isEmpty && model.values.isEmpty,"AT-CM-38 close wipes all inputs")
+    await model.change("login")
+    try check(frames.last?["values"] as? [String:String]==["change":"login"],"AT-CM-38 new session contains only change")
+    model.closeInput()
+    for accepted in [true,false] {
+        focusCount=0;model.confirm={accepted};reply=["outcome":"done"]
+        await model.perform("account_connect")
+        try check(focusCount==1,"AT-CM-35 reauthentication success and cancellation restore focus once")
+    }
+    model.close()
+
+    // Inject the inactive state at the confirmation boundary and exercise real AppKit key windows.
+    let dir=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer{try? FileManager.default.removeItem(at:dir)}
+    let store=try LocalStore(directory:dir),controller=try testConversation(client:GateClient(store:store,credentials:MemoryCredentials()))
+    let window=ConnectionsWindow(controller:controller),live=window.model
+    live.send={frame in frame["type"] as? String=="connections" ? ["document":document(settings)]:["reply":["outcome":"waiting","next":["kind":"secret_set","fields":[["id":"password","label":"비밀번호","secure":true]]]]]}
+    await live.refresh();live.detail="app:synthetic";window.show();await pause(0.1)
+    window.setPreferredLevel(NSWindow.Level(rawValue:26))
+    for withInput in [false,true] {
+        for accepted in [true,false] {
+            if withInput {live.confirm={true};await live.change("login");await pause(0.1)}
+            var simulatedActive=true,wasInactive=false,normalDuringConfirm=false
+            live.confirm={normalDuringConfirm=window.window.level == .normal;simulatedActive=false;wasInactive = !simulatedActive;return accepted}
+            var restores=0
+            live.restoreFocus={restores += 1;simulatedActive=true;window.restoreFocus()}
+            await live.perform("account_connect")
+            try await waitFor{let foremost=window.window.attachedSheet ?? window.window;return NSApp.isActive && foremost.isVisible && foremost.isKeyWindow}
+            try check(restores==1 && wasInactive && simulatedActive && normalDuringConfirm,"AT-CM-35 focus restored for sheet=\(withInput), accepted=\(accepted)")
+            live.closeInput();await pause(0.1)
+        }
+    }
+    live.close();window.window.close()
+    print("AT-CM-30~38 APP PASS")
 }

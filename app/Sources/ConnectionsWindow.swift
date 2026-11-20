@@ -32,6 +32,16 @@ import Combine
     var confirm:() async ->Bool
     var confirmRestart:() async ->Bool = {false}
     var confirmUndo:(String) async ->Bool = {_ in false}
+    var confirmDisconnect:(String) async ->Bool = {_ in false}
+    var restoreFocus:()->Void={}
+    private(set) var changeValues:[String:String]=[:]
+    private var changeSession:UUID?
+    private func clearChange(){changeValues=[:];changeSession=nil}
+    func change(_ step:String,item:AgentConnectionItem?=nil) async {
+        guard !busy,let target=item ?? self.item,target.settings?.contains(where:{$0.step==step})==true else{return}
+        closeInput();detail=target.id;changeSession=UUID();changeValues=["change":step]
+        await perform("app_connect",item:target,submitted:true)
+    }
     var privacy:(Bool)->Void={_ in}
     var avatar:(String)->ProfileAvatar={_ in ProfileAvatar()}
     private var pendingAction:String?
@@ -94,11 +104,11 @@ import Combine
         } catch GateFailure.notConnected {readFailures[key]=Self.readFailure("not_connected")}
         catch {readFailures[key]=Self.readFailure("invalid_response")}
     }
-    func closeInput(){values=[:];fields=[];guide=nil;next=nil;choices=[];defaultChoice="";pendingAction=nil;inputError="";showingInput=false;privacy(false)}
+    func closeInput(){clearChange();values=[:];fields=[];guide=nil;next=nil;choices=[];defaultChoice="";pendingAction=nil;inputError="";showingInput=false;privacy(false)}
     func inputDismissed(){
         showingInput=false
         if !busy {closeInput()}
-        else {values=[:];privacy(false)} // The in-flight frame owns its copy; its reply can open the next stage.
+        else {clearChange();values=[:];privacy(false)} // The in-flight frame owns its copy; its reply can open the next stage.
     }
     private func openInput(_ verb:String,fields:[AgentActionReply.Field],guide:AgentActionReply.Guide?,next:ConnectionNext?,error:String?) {
         self.fields=fields;self.guide=guide;self.next=next;pendingAction=verb
@@ -108,23 +118,40 @@ import Combine
         choices=Set((next?.options ?? []).filter{$0.disabled != true && ($0.selected==true || next?.selected?.contains($0.id)==true)}.map(\.id))
         defaultChoice="";inputError=error ?? "";showingInput=true;privacy(true)
     }
-    private func authenticated() async ->Bool {confirming=true;defer{confirming=false};return await confirm()}
+    private func authenticated() async ->Bool {confirming=true;defer{confirming=false;restoreFocus()};return await confirm()}
 
     func close(){polling?.cancel();polling=nil;closeInput()}
     func perform(_ verb:String,item:AgentConnectionItem?=nil,submitted:Bool=false) async {
         guard !busy,let agent,let target=item ?? self.item else{return}
+        if verb=="app_connect" && !submitted && target.primaryAction?.label=="설정 바꾸기" {
+            detail=target.id
+            if let settings=target.settings,settings.count==1 {await change(settings[0].step,item:target)}
+            return
+        }
         busy=true;defer{busy=false}
         let requested=verb=="secret_set" && !submitted ? "secret_guide":verb
         let read=["secret_guide","check","check_all","oauth_guide","mcp_login"].contains(requested)
+        if !submitted && ["app_disconnect","account_disconnect"].contains(requested) {
+            guard await confirmDisconnect("\(agent.display_name)의 \(target.label) 연결을 해제할까요? 넣어 둔 값은 남아 다시 연결할 때 그대로 써요.") else{return}
+        }
         if requested=="app_undo" {guard await confirmUndo(target.actions?.first{$0.id=="app_undo"}?.label ?? "되돌리기") else{return}}
         if !read {guard await authenticated() else{return}}
         if requested=="gateway_restart" || (submitted && values["resume"]=="gateway_restart") {
             guard await confirmRestart() else{return}
         }
         var frame:[String:Any]=["v":1,"type":"connection_action","profile":agent.profile,"connection":target.id,"action":requested,"reauth":!read]
-        if submitted {frame["values"]=values}
+        let session=changeSession
+        if submitted {
+            if session != nil {changeValues.merge(values){_,new in new};frame["values"]=changeValues}
+            else {frame["values"]=values}
+        }
         do {
-            let result=try await send(frame);let reply=result["reply"] as? [String:Any] ?? [:]
+            let result=try await send(frame)
+            if let session,session != changeSession{return}
+            let reply=result["reply"] as? [String:Any] ?? [:]
+            if reply["committed"] as? Bool==true || ["done","failed","refused"].contains(reply["outcome"] as? String ?? "") {
+                clearChange();values=[:]
+            }
             if let input=reply["fields"] {
                 let fields=try JSONDecoder().decode([AgentActionReply.Field].self,from:JSONSerialization.data(withJSONObject:input))
                 let guide=try reply["guide"].map{try JSONDecoder().decode(AgentActionReply.Guide.self,from:JSONSerialization.data(withJSONObject:$0))}
@@ -156,7 +183,7 @@ import Combine
             }
             if showingInput {inputError=notice}
             await refresh()
-        } catch {inputError="응답을 받지 못했어요. 잠시 뒤 다시 해 주세요.";if !showingInput{notice=inputError}}
+        } catch {clearChange();values=[:];inputError="응답을 받지 못했어요. 잠시 뒤 다시 해 주세요.";if !showingInput{notice=inputError}}
     }
     func submit() async {
         guard let verb=pendingAction else{return}
@@ -206,6 +233,8 @@ import Combine
         super.init();model.people={ [weak controller] in controller?.model.employees.map{AgentConnectionProfile(profile:$0.id,display_name:$0.name,connections:[])} ?? [] };model.avatar={ [weak controller] in controller?.avatar($0) ?? ProfileAvatar() };window.title="에이전트 연결";window.minSize=CGSize(width:760,height:500);window.isReleasedWhenClosed=false;window.center()
         window.delegate=self
         window.contentView=NSHostingView(rootView:ConnectionsView(model:model))
+        model.restoreFocus={ [weak self] in self?.restoreFocus() }
+        model.confirmDisconnect={ [weak self] text in await self?.ask("연결을 해제할까요?",text:text,button:"해제") ?? false }
         model.confirmRestart={ [weak self] in await self?.ask("에이전트를 다시 시작할까요?",text:"모든 에이전트가 잠시(약 1분) 응답을 멈춰요. 처리 중인 대화가 있으면 시작하지 않아요.",button:"다시 시작") ?? false }
         model.confirmUndo={ [weak self] label in
             let title=label=="처음부터 다시" ? "이 연결을 처음부터 다시 할까요?":"마지막 연결 변경을 되돌릴까요?"
@@ -255,12 +284,17 @@ import Combine
         }
     }
     private func ask(_ title:String,text:String,button:String) async ->Bool {
-        model.confirming=true;defer{model.confirming=false}
+        model.confirming=true;defer{model.confirming=false;model.restoreFocus()}
         let alert=NSAlert();alert.messageText=title;alert.informativeText=text
         alert.addButton(withTitle:button);alert.addButton(withTitle:"취소")
         return await withCheckedContinuation { continuation in
             alert.beginSheetModal(for:inputWindow ?? window){continuation.resume(returning:$0 == .alertFirstButtonReturn)}
         }
+    }
+    func restoreFocus(){
+        NSApp.activate(ignoringOtherApps:true)
+        window.makeKeyAndOrderFront(nil)
+        if let inputWindow {inputWindow.makeKeyAndOrderFront(nil)}
     }
     func windowShouldClose(_ sender:NSWindow)->Bool {
         if sender === inputWindow {window.endSheet(sender);return false}
@@ -333,7 +367,11 @@ struct ConnectionsView:View {
         }.buttonStyle(.plain).disabled(model.busy).accessibilityLabel("\(model.agent?.display_name ?? ""), \(item.label), \(action.label)")
     }
     private func row(_ item:AgentConnectionItem)->some View {
-        HStack(spacing:10){Button{model.detail=item.id}label:{HStack(spacing:10){tile(item.service);VStack(alignment:.leading,spacing:3){Text(item.label).font(.system(size:12,weight:.semibold));Text(item.account ?? item.explanation).font(.system(size:11)).foregroundColor(.secondary).lineLimit(1)}.frame(maxWidth:.infinity,alignment:.leading)}}.buttonStyle(.plain);pill(item.state);if let primary=item.primaryAction{button(primary,item)}else{Button("›"){model.detail=item.id}.buttonStyle(.plain).foregroundColor(.secondary)}}.padding(.horizontal,12).padding(.vertical,10)
+        HStack(spacing:10){Button{model.detail=item.id}label:{HStack(spacing:10){tile(item.service);VStack(alignment:.leading,spacing:3){Text(item.label).font(.system(size:12,weight:.semibold));Text(item.account ?? item.explanation).font(.system(size:11)).foregroundColor(.secondary).lineLimit(1)}.frame(maxWidth:.infinity,alignment:.leading)}}.buttonStyle(.plain);pill(item.state);if let primary=item.primaryAction{button(primary,item)}else{Button("›"){model.detail=item.id}.buttonStyle(.plain).foregroundColor(.secondary)}
+            if !item.otherActions.isEmpty {
+                Menu {ForEach(item.otherActions,id:\.id){action in Button(action.label){model.detail=item.id;Task{await model.perform(action.id,item:item)}}}}
+                    label:{Text("⋯").font(.title3)}.menuStyle(.borderlessButton).fixedSize().accessibilityLabel("다른 동작")
+            }}.padding(.horizontal,12).padding(.vertical,10)
     }
     private func pill(_ state: AgentConnectionItem.State) -> some View {
         let color: Color = state == .connected ? .green : state == .needsReconnect ? .yellow : state == .notConnected ? .red : .secondary
@@ -364,7 +402,10 @@ struct ConnectionsView:View {
         }.foregroundColor(spec.2).frame(width: size, height: size).background(spec.1).cornerRadius(6)
     }
     private func detail(_ item:AgentConnectionItem,_ agent:AgentConnectionProfile)->some View{
-        VStack(alignment:.leading,spacing:16){Button("‹ \(agent.display_name)"){model.detail=nil}.buttonStyle(.plain).foregroundColor(.blue);Text(item.label).font(.title2.bold());Text(item.explanation).font(.callout).padding(12).frame(maxWidth:.infinity,alignment:.leading).background(Color.yellow.opacity(0.13)).cornerRadius(8);Text("할 수 있는 일").font(.caption.weight(.semibold));ForEach(item.capabilities,id:\.self){Text($0).font(.callout)};Text("지키는 규칙").font(.caption.weight(.semibold));ForEach(item.rules,id:\.self){Text($0).font(.caption).foregroundColor(.secondary)};Text("할 수 있는 동작").font(.caption.weight(.semibold));HStack{ForEach(item.actions ?? [],id:\.id){button($0,item)}};Text(ConnectionTime.label(item.checked_at)).font(.caption).foregroundColor(.secondary)}
+        VStack(alignment:.leading,spacing:16){Button("‹ \(agent.display_name)"){model.detail=nil}.buttonStyle(.plain).foregroundColor(.blue);Text(item.label).font(.title2.bold());Text(item.explanation).font(.callout).padding(12).frame(maxWidth:.infinity,alignment:.leading).background(Color.yellow.opacity(0.13)).cornerRadius(8);Text("할 수 있는 일").font(.caption.weight(.semibold));ForEach(item.capabilities,id:\.self){Text($0).font(.callout)};Text("지키는 규칙").font(.caption.weight(.semibold));ForEach(item.rules,id:\.self){Text($0).font(.caption).foregroundColor(.secondary)};if let settings=item.settings,!settings.isEmpty {
+            Text("지금 설정").font(.caption.weight(.semibold))
+            ForEach(settings){setting in HStack{Text(setting.label);Text(setting.value).foregroundColor(.secondary);Spacer();Button("바꾸기"){Task{await model.change(setting.step,item:item)}}.disabled(model.busy)}}
+        };Text("할 수 있는 동작").font(.caption.weight(.semibold));HStack{ForEach(item.actions ?? [],id:\.id){button($0,item)}};Text(ConnectionTime.label(item.checked_at)).font(.caption).foregroundColor(.secondary)}
     }
 }
 

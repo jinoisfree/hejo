@@ -1,6 +1,6 @@
 # 구현 인계: HEJO-CONN-MANAGE-20261120
 
-> 최신 진행: 2차 지시(`e96ca98`)로 재개. 아래 1차 보류 기록은 이력이며 현재 TASK별 결과는 문서 끝의 2차 절을 따른다.
+> 최신 상태: 2차 지시(`e96ca98`)의 TASK-02(wait_jobs.py 제외)·03·04 구현·자체 시험을 마쳤다. TASK-02b는 기준 불일치로 대기한다. 아래 1차 보류 기록은 이력이며 현재 TASK별 결과와 미검증 범위는 2차 절을 따른다.
 
 ## 판단 상태
 
@@ -79,3 +79,108 @@
 | 요청 비밀값 필터 제거 mutation | 시험 종료 1(예상대로 검출), 원복 | `.build/conn-manage-evidence/mutation-reflected-secret-filter.log` |
 
 필요·도달 증거 수준은 2다. 운영 관리 서비스·실제 직원·메시지·게이트웨이는 사용하지 않았다. TASK-02·04 결과는 다음 절에 이어 기록한다.
+
+
+## 2차 구현 — TASK-02 team-kit (wait_jobs.py 제외)
+
+**배정 범위 구현·자체 시험 완료.** 운영 저장소 HEAD `7ae2b0138725ad7cde44d4842950d2ffb7cc99b8`에서 별도 worktree를 만들었다. 위치는 `AGENTS.local.md`의 TASK-02 항목, 브랜치는 `hejo-conn-manage-20261120`이다. 실행 원본과 운영 저장소 main의 다른 작업 파일은 고치지 않았다.
+
+### 착수 기준 확인
+
+각 파일의 기준과 실행본 sha256을 직접 비교했다. 표의 지문은 앞 12자리이며 전체 값은 `.build/conn-manage-evidence/task02-baselines.json`에 있다. 새 파일은 비교할 이전 실행본이 없다.
+
+| team-kit lib 상대 경로(시험은 tests/) | HEAD sha256 앞 12자리 | 실행본 비교 |
+|---|---|---|
+| `hermes_facility/app_connect.py` | `7457e18c6bee` | 일치 |
+| `hermes_facility/connections.py` | `9c27a65c01b7` | 일치 |
+| `hermes_facility/app_registry.py` | `b663c9f044c9` | 일치 |
+| `hermes_facility/app_setup.py` | `17834aa1382c` | 일치 |
+| `hermes_packs/mac_apps/discovery.py` | `47a56912f2d0` | 일치 |
+| `hermes_team_services/news_watch.py` | `0ad2cfe71ef1` | 일치 |
+| `hermes_team_services/personal_review.py` | `5a4f965533fb` | 일치 |
+| `hermes_team_services/morning_report.py` | `4fa29ae8ad2e` | 일치 |
+| `hermes_team_services/report_review.py` | `71b043dd68be` | 일치 |
+| `hermes_execution/personal_scopes.py` | `e0fd7e0581a1` | 일치 |
+| `hermes_packs/mail/mail_index.py` | `c657baa370e8` | 일치 |
+| `hermes_facility/connection_checks.py` | `4a1fa5db559c` | 일치 |
+| `hermes_execution/__init__.py` | `6fd73c1f44e4` | 일치 |
+| `hermes_facility/synology_setup.py` | `d48ce57783ce` | 일치 |
+| `hermes_team_services/wait_jobs.py` | `bf1dd9097a53` | 불일치·TASK-02b 대기 |
+| `tests/test_morning_report.py` | `d91eed049008` | 일치 |
+| `tests/test_news_watch.py` | `85d0cc68cf45` | 일치 |
+
+추가로 `hermes/schemas/connections-status.json`의 실행본·기준 일치를 확인했다(sha256 `d53a2e66f52efd988b9ac38374da7e55d37507763d7688d3602a7b96e859919d`). 최종 확인에서도 변경한 기존 코드·시험·스키마 16개의 실행본은 기준과 같았다(`live-final.json`).
+
+### 변경과 책임
+
+- `app_connect.py`: 기존 `steps_from`에 Notion 로그인 단계를 연결하고, 저장된 설정의 안전한 표시(`settings_for`), `--change`의 단계 강제 진입·저장 값 재사용·현재 옵션 미리 선택을 구현했다. 바꾸기 동안 `stage_values`와 진행 기록 만료 쓰기를 하지 않는다. 실제 저장 뒤에는 `committed: true`를 내고 재개와 바꾸기를 함께 받지 않는다. 저장 이후 어댑터 실패에도 저장 경계 표시는 유지한다.
+- `synology_setup.py`: 기존 실제 로그인·폴더 세션도 확인 기록을 저장한다는 점을 발견했다. 바꾸기 요청에만 메모리의 내부 `_change` 표시를 전달해 성공·인증 실패·통신 실패 기록 쓰기를 생략한다. 비밀값과 이 표시는 금고에 저장되지 않는다. 평소 연결·점검의 기록 경로는 유지한다. 실제 어댑터 + 가짜 NAS로 저장 전 지문 불변을 검증했다.
+- 같은 앱이 명부에 이미 있으면 명부의 기존 바이트를 사용하여 인용부호·주석까지 보존한다. 새 연결과 해제의 명부 변경은 기존 조립 규칙대로다.
+- `connections.py` 한 곳에 계정 서비스의 켜짐 칸·줄 id 표를 두었다. Google은 `gmail.enabled`와 해제가 추가한 스킬 표시, X는 기존 켜짐 칸, Instagram은 플러그인 목록을 사용한다. 상태·동작 목록과 새 `account` 명령도 이 원본을 따른다.
+- 새 `account_connect.py`: 직원 설정 하나만 칸 단위로 바꾸며, 기존 앱의 잠금·쓰기 전 기록·복구·원자 쓰기·10분 되돌리기·지문 충돌 거절을 공유한다. 별도 기록 형식은 만들지 않았다. 공통 writer와 선택 가능한 undo 경로는 `app_connect.py`에서 뽑았다.
+- `hermes_execution/__init__.py`는 team-delegation 링크의 실제 파일이다. Google 꺼짐 때 해당 도구 등록을 생략한다. `personal_scopes.install_mail`, `personal_review.mail`, `mail_index.run`, `news_watch.fetch_x`, Instagram을 직접 싣는 세 경로도 직원 설정을 따른다. 공유 토큰의 `token_home` 결정은 바꾸지 않았다.
+- `discovery.py`는 연결된 앱의 설정을 읽기 전용으로 제공한다. `app_registry.derived_settings`는 이미 Gmail 블록을 복사하므로 `enabled`·`off_added_skills`를 보존한다. 이 파일과 `app_setup.py`는 수정할 필요가 없었다.
+- 상태 스키마의 동작 id 열거형과 운영 저장소의 `docs/연결-상태.md`를 함께 갱신했다. 기존 시험 중 활성 목록이 없던 Instagram·X 가짜 홈은 새 활성 판정에 맞게 설정했다. 성공·실패 기대값은 유지하고, 기존 꺼짐 줄의 동작 검사는 승인된 `account_connect` 계약에 맞췄다.
+
+새 수락 시험 코드는 worktree `hermes/plugin-store/team-kit/tests/test_conn_management.py`다. AT-CM-01~18·14b·40~44의 배정 부분을 옮겼으며, AT-CM-12(라)의 `wait_jobs.account`는 아래 TASK-02b로 분리했다. 시험 명세·합격 기준은 수정하지 않았다.
+
+### TASK-02 검증
+
+| 명령/확인 | 실제 결과 | 로그(hejo 기준) |
+|---|---|---|
+| gateway Python `-m pytest hermes/plugin-store/team-kit/tests -q -o asyncio_default_fixture_loop_scope=function -p no:cacheprovider` (TASK-02 worktree) | 종료 0, 5214 passed·기존 4 skipped·경고 1·58 subtests passed, 검사 중 코드 지문 동일 | `.build/conn-manage-evidence/team-final.log` 및 `.log.json` |
+| 새 수락 시험 파일 집중 실행 | 종료 0, 24 passed | `.build/conn-manage-evidence/team-manage-final.log` |
+| 실제 NAS 어댑터·기존 NAS/연결 화면 회귀 | 종료 0, 69 passed(명부 인용부호 보존 보강 전, 해당 보강은 위 최종 전체 검사에 포함) | `.build/conn-manage-evidence/nas-real-adapter.log` |
+| team-delegation 기존 manifest·Google calendar·rollback 시험 | 종료 0, 39 passed | `.build/conn-manage-evidence/delegation.log` |
+| `./airport-check --snapshot .` (worktree) | 종료 0, boundary 382·document 0·compartments 0, 기준선 증가 없음 | `.build/conn-manage-evidence/airport-final.log` 및 `.log.json` |
+| NAS 저장 전 확인 기록 억제 제거 mutation | 시험 종료 1(검출), 원복 | `.build/conn-manage-evidence/mutation-nas-precommit-check-record.log` |
+| Google 등록 필터 제거 mutation | 시험 종료 1(검출), 원복 | `.build/conn-manage-evidence/mutation-google-tool-optout.log` |
+
+AT-CM-14b는 설정 배열 검사로 대체하지 않았다. 시험에서 가짜 홈을 `HERMES_HOME`으로 지정한 새 gateway Python 프로세스로 본체 `agent.skill_utils.get_disabled_skill_names()`를 직접 호출했다. 목록이 없던 경우와 JSON 배열 문자열 경우 모두 해제 뒤 스킬 포함·연결 뒤 원상태를 확인했다. 본체 수정은 없다. 일반 수락 증거 수준은 2이며 운영 적용·실물 증거로 보고하지 않는다.
+
+TASK-02 커밋: `5e6c81cc173042e879bacf1b7f0fb766ba8494fd`. 게이트웨이가 import하는 변경 원본은 위 lib 파일과 새 `account_connect.py`이며, 운영 반영은 하지 않았다. 임시 worktree 커밋을 버리면 개발 변경은 되돌릴 수 있고, 실제 교체·보관·복원 절차는 기존 handoff TASK-05가 담당한다.
+
+## 2차 구현 — TASK-02b
+
+**대기(기준 불일치).** 최종 읽기 확인에서도 운영 저장소 HEAD는 `7ae2b0138725ad7cde44d4842950d2ffb7cc99b8`, `wait_jobs.py` 기준 sha256은 `bf1dd9097a537b7f7999af93398b97386f6c3a24e3acc441b960b25bafd1ec83`, 실행본은 `441a8501a4cefc146115bab154b5e939c8d59cd2e1d27d46661562a4f561a21d`다. 파일 수정·반입·merge·해당 수락 시험은 하지 않았다. 이 조건이 풀리기 전 Google 배경 대기 작업의 꺼짐을 완료로 세거나 운영에 적용하면 안 된다.
+
+## 2차 구현 — TASK-04 앱
+
+배정 구현과 앱 대역 시험을 마쳤다. `ConnectionModels.swift`는 설정 항목을 읽고, 기존 `ConnectionsView`에 다른 동작 메뉴·지금 설정·단계별 바꾸기를 더했다. 기존 SwiftUI 화면 안의 변경이며 별도 맞춤 화면은 만들지 않았다(design 5절 예외).
+
+- 해제는 값이 남는다는 확인 → 지문/암호 재확인 → 요청 순서다. 저장 뒤 다시 시작을 재개할 때 해제 확인을 다시 묻거나 같은 변경을 다시 실행하지 않는다.
+- 단계가 하나면 바로 그 단계를 열고, 여러 개면 자세히 화면에서 고른다. 서버의 `selected`를 그대로 미리 선택한다.
+- 바꾸기 세션은 `changeValues`에만 누적하고 디스크·로그에 쓰지 않는다. 저장 완료·실패·창 닫힘에 지우며, 닫힌 세션의 늦은 응답도 세션을 되살리지 않는다. 저장 뒤 재개 프레임은 `resume`만 갖는다.
+- `authenticated()`와 AppKit `ask()`의 종료 시 성공·취소 모두 앱 활성화와 연결 창/입력 창을 앞으로 가져온다. 확인 중 창 높이는 기존 `.normal` 규칙을 유지한다.
+
+### 확인 창 재현과 원인
+
+수정 전 이 Mac에서 독립 AppKit 창과 실제 `LAContext.evaluatePolicy(.deviceOwnerAuthentication)`로 시험했다. 12초 뒤 context를 취소한 경계에서 `success=false`, 오류 코드 `-9`, 앱 `active=false`·창 `key=false`·`visible=true`를 관측했다. 0.5초 뒤에는 시스템이 다시 활성화했다. 따라서 지속적인 숨김 전체를 재현했다고 주장하지 않으며, 재확인 완료 직후 키 창을 잃는 경계를 확인한 것이다. 원문은 `.build/conn-manage-evidence/auth-repro.swift`·`auth-repro.log`다.
+
+기존 `authenticated()`와 `ask()`는 확인 중 높이만 바꾸고 완료 뒤 활성화·키 창 복원을 하지 않았다. 이 책임 자리에 복원을 추가했다. 실제 암호 승인 성공은 미실행이며, 성공/취소·입력 창 유무 조합은 AT-CM-35의 주입한 비활성 상태·활성화 함수와 실제 AppKit 키 창으로 시험했다. OS의 비동기 deactivate 타이밍에 의존하던 중간 시험을 명세가 요구한 주입 방식으로 바꿨으며, 기대하는 복원 횟수·키 창·표시·확인 중 높이는 유지했다.
+
+`app/Tests/ConnectionsTests.swift`의 AT-CM-30~38은 메뉴 동작 목록, 설정 읽기·선택, 두 종류 해제 프레임과 확인 순서, 미리 선택, 값 누적·committed 경계·resume 전용·닫힘 정리를 확인한다. 기존 연결 화면 시험도 통과했다. 전체 `bash app/scripts/test.sh`는 종료 0이며 `.build/conn-manage-evidence/app-all.log`에 `AT-CM-30~38 APP PASS`와 마지막 settings/downloads 메타데이터 불변 확인이 있다. Swift 컴파일 경고는 출력되며 경고 정리는 이번 범위 밖이다. 최종 필수 통합 스크립트 결과는 다음 절에 기록한다.
+
+## 추가 검토가 필요한 범위
+
+- TASK-02b와 운영 적용·공개·설치·버전 변경·실제 M1~M5는 미완료/미실행이다. 새 코드의 서버 설치나 실제 서비스 메시지 전송은 하지 않았다.
+- Google 등록 필터는 `gmail_direct`·`google_reauth`·`google_calendar_*`·`calendar_direct_*` 이름에 적용한다. 일부 이름은 Mac Mail/Calendar 앱도 공유하므로, 같은 직원의 Google 해제와 Mac 앱 동시 연결에서 원하는 도구 노출 범위를 검토자가 특히 확인해야 한다. 별도 사용자 결정을 구현자가 추가하지 않았다.
+- 금고에 설정이 없는 옛 조립 설정만의 경로는 추가 실물 검증을 하지 않았다. 수락 시험은 명세의 저장 값이 있는 가짜 연결을 기준으로 한다.
+- 고위험 작업의 독립 검토와 최종 완료 판정은 다음 담당 역할에 남아 있다. 본 보고는 운영 준비 완료나 푸시 완료 선언이 아니다.
+
+
+## 최종 통합 검사와 인계 상태
+
+[확인] `bash scripts/test.sh` 종료 0. 최종 코드가 실행 중 바뀌지 않았음을 파일 지문으로 확인했다. 문/수락 시험 397 passed, 격리 게이트웨이 전달 시험, 앱 빌드·서명 검증·AppKit/네트워크 대역 시험 및 마지막 훅 시험 9개가 끝까지 통과했다. 원문과 검사 대상 지문은 `.build/conn-manage-evidence/product-full.log`·`product-full.log.json`이다. 관련 Swift 경고와 기존 pytest 표시 경고는 남아 있다. 기능 시험을 skip/xfail로 돌려 통과시키지 않았다.
+
+- TASK-02: `5e6c81cc173042e879bacf1b7f0fb766ba8494fd`, 개발 worktree의 `hejo-conn-manage-20261120` 브랜치. TASK-02b는 포함하지 않는다.
+- TASK-03: `961ea80fb455a3a49f22a2fac9e4f225b35d6ffa`, hejo `main`.
+- TASK-04: 앱 세 파일과 이 최종 보고서를 담는 별도 커밋으로 인계한다. 전체 해시는 인계 상태 블록에서 확인한다.
+- 배정 범위 필요/도달 증거 수준: 2/2. TASK-02b·운영 적용·실물 확인·독립 검토는 남아 있다.
+- 로컬 재현 환경: `source .build/conn-manage-env.sh`로 이번 worktree lib를 먼저 사용한다. 예전 `connections-env.sh`만 쓰면 이전 작업 worktree가 먼저 잡히므로 새 환경 파일을 사용한다.
+- 다른 작업의 `docs/changes/HEJO-TODO-DRAWER-20261120/impl-report.md`가 미추적으로 생겼으며 수정·스테이징하지 않았다.
+- 운영 main 동기화·원본 교체·게이트웨이 재시작·설치·공개·푸시는 하지 않았다. 다음 담당은 이 보고서와 실제 코드/증거를 검토하고, TASK-02b 기준 일치가 풀렸는지 다시 확인한다.
+
+추가 대역 화면 캡처: `app/.build/app-tests --task32-capture <임시 출력 폴더>` 종료 0, 검사 중 코드 지문 동일. 로그는 `.build/conn-manage-evidence/app-capture.log`, 생성 파일은 `ui/conn-manage-list.png`·`ui/conn-manage-settings.png`(같은 증거 폴더 아래)다. 운영 화면 캡처가 아니다.
+
+최종 개인값 검사: gateway Python `scripts/scan_private.py` 종료 0, 지적 0. 실제 owner 입력과 비교하는 정식 검사이며 기준선·예외를 늘리지 않았다. 로그는 `.build/conn-manage-evidence/private-final.log`와 `.log.json`이다.
