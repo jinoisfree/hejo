@@ -1,6 +1,6 @@
 # HEJO-TODO-DRAWER 설계
 
-1판 · 2026-11-20 · 명세 [spec.md](spec.md) · 칸 표는 [spec 첫 절](spec.md#칸원본쓰기-주체수명)을 따른다.
+2판 · 2026-11-20(계획 검증 1회차 반영, [plan-review.md](plan-review.md)) · 명세 [spec.md](spec.md) · 칸 표는 [spec 첫 절](spec.md#칸원본쓰기-주체수명)을 따른다.
 
 ## 1. 자료 흐름
 
@@ -49,9 +49,20 @@ hermes-deadlines list --json (team-kit, 새 진입점)
     - 직원 id는 명부 규칙의 문자열이어야 한다.
     - 틀린 항목은 버리지 않고 전체를 `invalid_response`로 처리한다.
   - 이유 코드: `unavailable`(파일 없음), `command_failed`(실행 오류·종료 코드 ≠0·시간 초과), `invalid_response`.
-  - 같은 때 들어온 요청은 진행 중인 실행 하나(`asyncio.Task`)의 결과를 함께 받는다(NFR-TD-02). 결과를 보관해 두지는 않는다.
-- 앱에 보내는 링크: `source`가 `http://`·`https://`로 시작하는 URL일 때만 `url`로 보낸다. 그 밖의 `source` 원문은 앱에 보내지 않는다(NFR-TD-01, 앱은 링크 여부만 필요).
-- 분배(`gate/server.py`): `connections` 분기 옆에 `deadlines` 분기를 둔다. 같은 연결의 다음 프레임을 막지 않도록 `asyncio.create_task`로 처리하고 연결이 끊기면 취소한다.
+  - **공유 실행 계약(NFR-TD-02)**
+    - 소유자: 문 프로세스에 하나뿐인 `Deadlines` 객체다. 진행 중 실행 `asyncio.Task` 하나(`_running`)를 가진다. 범위는 문 전체이고, 연결 단위가 아니다.
+    - 요청이 오면 다음처럼 한다.
+      - `_running`이 없으면 새 실행 Task를 만든다.
+      - 있으면 그것을 기다린다. 기다릴 때는 `asyncio.shield(_running)`을 쓴다.
+    - 대기자 하나가 취소돼도(연결 종료) shield 때문에 실행 Task와 다른 대기자는 영향을 받지 않는다.
+    - 실행 Task는 대기자 수와 상관없이 스스로 끝난다(성공, 실패, 10초 제한 시간). 끝날 때 자식 프로세스를 회수한다(`terminate` → 0.2초 → `kill` → `wait`). 끝나면 `_running`을 비운다(`finally`).
+    - 결과를 보관해 두지는 않는다. 실행이 끝난 뒤 온 요청은 새 실행을 만든다.
+    - 문이 멈출 때(어댑터 종료)는 `_running`을 취소하고 자식 프로세스를 회수한다.
+- 앱에 보내는 필드는 NFR-TD-01의 허용 목록뿐이다. 응답을 만들 때 허용 목록에 있는 키만 골라 담는다(받은 것을 통째로 넘기지 않는다). `url`은 `source`를 `urllib.parse`로 읽었을 때 scheme이 `http`·`https`이고 host가 있을 때만 `source` 값 그대로 넣는다. 그 밖의 `source`는 버린다.
+- 분배(`gate/server.py`): `connections` 분기 옆에 `deadlines` 분기를 둔다.
+  - 받기 고리를 막지 않도록 요청마다 대기 Task(`asyncio.create_task`)를 만든다. 이 Task는 공유 실행을 기다려 응답을 보낸다.
+  - 연결은 자기 대기 Task 집합을 갖는다. 연결이 끊기면 그 연결의 대기 Task만 취소한다. 공유 실행은 위 계약대로 shield로 보호된다.
+  - 끊긴 연결에 응답을 보내다 나는 오류는 기록만 하고 삼킨다.
 - 로그: `deadlines_read items=N failed=K`, 실패 시 `deadlines_failed reason=…`만 남긴다. 제목·출처는 넣지 않는다.
 
 ## 4. 통신 규격 (`schemas/hejo-wire-v1.json`)
@@ -118,8 +129,8 @@ hermes-deadlines list --json (team-kit, 새 진입점)
   - 사장 차례 칸이 없으면 "닫기 ‹" 칸을 만든다.
   - `Snapshot`에 `drawerOpen`을 실어 테두리를 강조색으로 그린다.
 - 사장 차례 칸의 `action`은 새 `Action.drawer`로 바꾼다. 빈 알약도 누르면 `Action.drawer`를 낸다.
-  - `.question` 경우는 아일랜드의 잠깐 늘어남 알림(새 `asked`) 클릭에서 계속 쓴다. 알림 중인 그 질문으로 가는 지금 동작을 유지한다.
-  - 지금 사장 차례 칸 클릭 경로("가장 오래된 질문으로")는 칸의 맨 위 답 요청 카드로 옮긴다. 이 경로는 **교체**다.
+  - 예외: 사장 칸이 새 질문 미리보기로 잠깐 늘어나 있는 동안(`snapshot().expanded == .owner`)에는 지금처럼 `.question(가장 오래된 asked)`를 낸다. `IslandModel.swift:143`의 치환과 기존 시험 AT56(`IslandTests.swift:70-72`)이 그대로 유지된다. **의미 변경 없음.**
+  - 미리보기가 아닐 때의 사장 칸 클릭 경로("가장 오래된 질문으로")는 칸의 첫 답 요청 카드로 옮긴다. 이 경로는 **교체**다.
 - 올리기 미리보기(`hoverQuestion`)는 그대로 둔다.
 
 ### 5.5 마감 요청
@@ -132,8 +143,8 @@ hermes-deadlines list --json (team-kit, 새 진입점)
 
 | 경로 | 판정 | 내용 |
 |---|---|---|
-| 사장 차례 칸 클릭 → 가장 오래된 질문 (`IslandModel` 사장 칸 `action`) | 교체 | `Action.drawer`로 바꾸고, 같은 이동은 칸 맨 위 답 요청 카드가 맡는다. 옛 할당 코드는 같은 변경에서 지운다 |
-| 아일랜드 잠깐 알림의 `.question` 클릭 | 유지 | 새 질문 알림 중 클릭은 그 질문으로 이동 |
+| 사장 차례 칸 클릭(미리보기 아님) → 가장 오래된 질문 (`IslandModel` 사장 칸 `action`) | 교체 | `Action.drawer`로 바꾸고, 같은 이동은 칸의 첫 답 요청 카드가 맡는다. 옛 할당 코드는 같은 변경에서 지운다 |
+| 사장 칸 미리보기 중 클릭 → 가장 오래된 질문 (`IslandModel.swift:143`) | 유지 | 코드·기존 시험 AT56 불변 |
 | `notices(_:)` | 유지(재사용) | 칸이 같은 계산을 읽는다. 새 원본을 만들지 않는다 |
 | `PetPlacement`·`paneSplit` | 유지 + 확장 | `leading` 인자 추가. 기본 0이면 지금과 같은 결과(회귀 시험) |
 | team-kit `deadline_watch` 쓰기·Slack 보고 | 유지 | 바꾸지 않는다 |
@@ -148,8 +159,9 @@ hermes-deadlines list --json (team-kit, 새 진입점)
 
 ## 8. 위험
 
-- 위험도는 **일반**이다. 근거는 다음과 같다.
-  - 읽기 전용 기능 추가다. 저장 형식, 권한, 비밀값 변경이 없다.
+- 위험도
+  - TASK-03(문)은 **고위험**이다. 근거는 공통 4절의 동시성이다: 문 전체 공유 실행, 연결 종료 취소, 자식 프로세스 회수. 다른 모델의 독립 검증이 필요하다(구현 담당과 다른 모델의 계획 담당 검토, 같은 모델이면 사용자 또는 다른 모델). 복구는 문 릴리스 롤백이다(TASK-05에서 이전 릴리스 폴더로 되돌린 뒤 재시작). 이번 지시는 운영에 적용하지 않으므로 운영 영향은 없다.
+  - TASK-02(team-kit)와 TASK-04(앱)는 **일반**이다. 읽기 전용 추가이고, 저장 형식·권한·비밀값 변경이 없다. 앱은 단일 메인 스레드 UI다.
   - 통신 규격에는 새 종류만 더한다(되돌릴 수 있음).
 - 단, TASK-05 서버 적용은 운영 시설 교체와 게이트웨이 재시작이므로 **고위험**이다. 롤백을 먼저 기록한다.
 - 필요 증거 수준
