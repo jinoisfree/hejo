@@ -190,10 +190,18 @@ async def test_at_hi_10_feature_mask(gate, client, phone):
 @pytest.mark.parametrize('kind', ['room_delete', 'room_archive'])
 async def test_at_hi_11_dead_rooms_filtered(gate, client, phone, kind):
     await group(gate)
-    ws, _ = await client.pair(features=['imessage', 'rooms'])
+    ws, welcome = await client.pair(features=['imessage', 'rooms'])
     await activate(client, ws, phone, room=G, reports=[G, 'alpha'])
+    other, _ = await client.open(token=welcome['token'], features=['imessage', 'rooms'])
     await ws.send_json({'v': 1, 'type': kind, 'id': G, **({'archived': True} if kind == 'room_archive' else {})})
-    await client.read(ws)
+    for peer in (ws, other):
+        assert (await client.read(peer))['type'] in {'room', 'room_deleted'}
+        state = await client.read(peer)
+        assert state['type'] == 'imessage_status' and 'ref' not in state
+        assert state['room'] is None and state['reports'] == ['alpha']
+        # A boundary also proves exactly one status was broadcast.
+        await peer.send_json({'v': 1, 'type': 'roster', 'id': 'boundary'})
+        assert (await client.read(peer))['type'] == 'roster'
     state = await request(client, ws)
     assert state['room'] is None and state['reports'] == ['alpha']
 
@@ -210,10 +218,27 @@ async def test_at_hi_31_claims_are_read_only(gate, client, phone):
     await request(client, ws, 'imessage_save', enabled=False, room='alpha', reports=[])
     assert not gate.claims_external(phone.event())
     code = await request(client, ws, 'imessage_pair')
-    before = gate.imessage.private()
+    paths = [gate.imessage.vault.path / 'imessage.json', gate.imessage.settings_store.path / 'settings.json']
+    before = [p.read_bytes() for p in paths]
     assert gate.claims_external(phone.event(code['code']))
     assert not gate.claims_external(phone.event('wrong'))
-    assert gate.imessage.private() == before
+    phone.set_authorization_check(lambda *args: False)
+    assert not gate.claims_external(phone.event(code['code']))
+    assert before == [p.read_bytes() for p in paths]
+    phone.set_authorization_check(lambda *args: True)
+    await phone.handle_message(phone.event(code['code']))
+    await client.read(ws)
+    await request(client, ws, 'imessage_save', enabled=True, room='alpha', reports=[])
+    phone.calls.clear()
+    before = [p.read_bytes() for p in paths]
+    assert not gate.claims_external(phone.event(code['code']))
+    assert before == [p.read_bytes() for p in paths]
+    code = await request(client, ws, 'imessage_pair')
+    before = [p.read_bytes() for p in paths]
+    gate.imessage.clock = lambda: 10**12
+    assert not gate.claims_external(phone.event(code['code']))
+    assert before == [p.read_bytes() for p in paths]
+    assert not phone.calls and gate.journal.head == 0
 
 
 async def test_photon_dispatch_uses_instance_handler_and_authorizer(gate, phone, registered):
@@ -626,7 +651,7 @@ async def test_at_hi_30_42_journal_and_app_frames_preserved(gate, airport, monke
         if active:
             imessage.attach_photon(None, transport)
             with adapter.imessage.vault.locked():
-                adapter.imessage.vault.write('imessage.json', {'pair': {'platform': 'photon', 'chat_id': 'chat-A', 'user_id': 'user-A'}, 'code': None})
+                adapter.imessage.vault.write('imessage.json', {'pair': {'platform': 'photon', 'chat_id': 'chat-A', 'user_id': 'user-A', 'paired_at': 0}, 'code': None})
             with adapter.imessage.settings_store.locked():
                 adapter.imessage.settings_store.write('settings.json', {'enabled': True, 'room': 'alpha', 'reports': ['alpha']})
         else:
@@ -718,3 +743,118 @@ async def test_mixed_button_guidance_and_disconnected_outbound(gate, runner, cli
     await gate.send('alpha', 'not ready', metadata={'thread_id': thread})
     await settle()
     assert not phone.calls
+
+
+@pytest.mark.parametrize('failure', ['journal', 'oversize', 'unexpected'])
+async def test_at_hi_19_failure_isolated_and_next_message_works(gate, runner, client, phone, caplog, failure):
+    from gate.journal import HejoJournalError
+    from gate.server import LIMITS
+    ws, _ = await client.pair(features=['imessage'])
+    await activate(client, ws, phone)
+    caplog.clear()
+    text = 'private fixture text'
+    event = phone.event(text, mid='private-fixture-id')
+    if failure == 'journal':
+        with patch.object(gate.journal, 'append', side_effect=HejoJournalError(text)):
+            await phone.handle_message(event)
+    elif failure == 'unexpected':
+        with patch.object(gate, 'receive', side_effect=RuntimeError(text + event.message_id)):
+            await phone.handle_message(event)
+        assert [r.getMessage() for r in caplog.records] == ['imessage_receive_failed']
+    else:
+        await phone.handle_message(phone.event('a' * (LIMITS['text_bytes'] + 1)))
+    assert gate.journal.head == 0 and not runner.events and not phone.originals
+    assert phone.calls == [('chat-A', '지금은 받지 못했어요', None)]
+    await phone.handle_message(phone.event('next', mid='im-next'))
+    assert (await client.until(ws, 'message'))[-1]['text'] == 'next'
+    await wait_for_turns(runner, 1)
+
+
+@pytest.mark.parametrize('outer', ['hejo', 'reception'])
+async def test_at_hi_43_retained_code_never_enters_active_room(gate, runner, client, phone, outer):
+    phone.handle_message = Phone.handle_message.__get__(phone)
+    phone._hejo_imessage_wrapped = False
+    classifications = []
+    def reception():
+        original = phone.handle_message
+        async def handle(event):
+            if not gate.claims_external(event):
+                classifications.append(event)
+            return await original(event)
+        phone.handle_message = handle
+    if outer == 'hejo': reception()
+    imessage.attach_photon(None, phone)
+    if outer == 'reception': reception()
+    ws, _ = await client.pair(features=['imessage'])
+    await activate(client, ws, phone)
+    code = await pair_phone(client, ws, phone)
+    for case in ['used', 'expired', 'denied']:
+        if case != 'used':
+            code = await request(client, ws, 'imessage_pair')
+        if case == 'expired': gate.imessage.clock = lambda: 10**12
+        if case == 'denied': phone.set_authorization_check(lambda *args: False)
+        before = gate.imessage.private()['pair']
+        event = phone.event(code['code'], mid='im-' + case)
+        await phone.handle_message(event)
+        assert phone.originals[-1] is event and classifications[-1] is event
+        assert len(phone.originals) == len(classifications) == ['used', 'expired', 'denied'].index(case) + 1
+        assert gate.journal.head == 0 and not runner.events and not phone.calls
+        assert gate.imessage.private()['pair'] == before
+        await ws.send_json({'v': 1, 'type': 'roster', 'id': 'boundary'})
+        assert (await client.read(ws))['type'] == 'roster'
+    phone.set_authorization_check(lambda *args: True)
+    await phone.handle_message(phone.event('hi', mid='im-normal'))
+    row = (await client.until(ws, 'message'))[-1]
+    assert row['text'] == 'hi' and row['employee'] == 'alpha'
+    await wait_for_turns(runner, 1)
+
+
+@pytest.mark.parametrize('file', ['sent.jsonl', 'settings.json', 'imessage.json'])
+async def test_at_hi_44_corrupt_connection_files_preserve_app(gate, runner, client, phone, settle, file):
+    from gate.adapter import _delivery_scope
+    ws, welcome = await client.pair(features=['imessage'])
+    await activate(client, ws, phone)
+    originals = []
+    if file == 'sent.jsonl':
+        for n in range(2):
+            await phone.handle_message(phone.event('seed', mid=f'im-seed-{n}'))
+            originals.append((await client.until(ws, 'message'))[-1])
+            await wait_for_turns(runner, n + 1)
+        path = gate.imessage.sent_path
+        raw = (json.dumps({'im': 'im-out-A', 'msg_id': originals[0]['msg_id']}) + '\n' +
+               'broken fixture row\n' + json.dumps({'im': 'im-out-B', 'msg_id': originals[1]['msg_id']}) + '\n').encode()
+    else:
+        path = (gate.imessage.vault.path if file == 'imessage.json' else gate.imessage.settings_store.path) / file
+        raw = b'{broken fixture'
+    path.write_bytes(raw)
+    await ws.close()
+    await gate.disconnect()
+    assert await gate.connect()
+    # Keep the real adapter and the same substituted turn handler across reconnect.
+    gate.set_message_handler(runner.handle)
+    gate.imessage.settle_seconds = 0.05
+    ws, _ = await client.open(token=welcome['token'], features=['imessage'])
+    if file == 'sent.jsonl':
+        assert path.read_bytes() == raw
+        for n, im_id in enumerate(['im-out-A', 'im-out-B']):
+            await phone.handle_message(phone.event('reply', mid=f'im-reply-{n}', reply_to_message_id=im_id))
+            assert (await client.until(ws, 'message'))[-1]['thread'] == originals[n]['thread']
+        await wait_for_turns(runner, 4)
+    else:
+        head = gate.journal.head
+        event = phone.event('pass through')
+        await phone.handle_message(event)
+        assert phone.originals == [event] and gate.journal.head == head and not phone.calls
+    await client.send(ws, text='app input')
+    owner = (await client.until(ws, 'message'))[-1]
+    await wait_for_turns(runner, 5 if file == 'sent.jsonl' else 1)
+    result = await gate.send('alpha', 'app answer', metadata={'thread_id': owner['thread']})
+    assert result.success
+    assert (await client.until(ws, 'message'))[-1]['text'] == 'app answer'
+    token = _delivery_scope.set(('alpha', 'alpha', owner['thread']))
+    try:
+        await gate.stop_typing('alpha')
+    finally:
+        _delivery_scope.reset(token)
+    await settle()
+    if file != 'sent.jsonl': assert not phone.calls

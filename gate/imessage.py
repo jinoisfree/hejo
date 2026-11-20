@@ -43,14 +43,16 @@ def attach_photon(native, adapter):
         bridge = getattr(_primary, "imessage", None)
         try:
             claimed = bridge is not None and bridge.claims_external(event)
-            if claimed and bridge.pending_code(event, bridge.private()):
-                claimed = adapter._is_sender_authorized(
-                    event.source.user_id, event.source.chat_type, event.source.chat_id) is not False
         except Exception:
             log.warning("imessage_claim_failed")
             claimed = False
         if claimed:
-            return await bridge.receive_external(event)
+            try:
+                return await bridge.receive_external(event)
+            except Exception:
+                log.warning("imessage_receive_failed")
+                await bridge.notice(event.source.chat_id, "지금은 받지 못했어요")
+                return
         return await original(event)
 
     adapter.handle_message = handle
@@ -73,7 +75,7 @@ class IMessage:
     def _load_sent(self):
         try:
             raw = self.sent_path.read_bytes()
-        except FileNotFoundError:
+        except OSError:
             return
         lines = raw.splitlines(keepends=True)
         rows = []
@@ -85,16 +87,18 @@ class IMessage:
             except (ValueError, UnicodeDecodeError):
                 row = None
             rows.append(row)
-        last = max((i for i, row in enumerate(rows) if row is not None), default=-1)
-        if any(row is None for row in rows[:last + 1]):
-            raise ValueError("imessage_sent_corrupt")
-        for row in rows[:last + 1]:
-            self.sent[row["im"]] = row["msg_id"]
-        with self.sent_path.open("r+b") as stream:
-            os.fchmod(stream.fileno(), 0o600)
-            stream.truncate(sum(len(line) for line in lines[:last + 1]))
-            stream.flush()
-            os.fsync(stream.fileno())
+        for row in rows:
+            if row is not None:
+                self.sent[row["im"]] = row["msg_id"]
+        try:
+            with self.sent_path.open("r+b") as stream:
+                os.fchmod(stream.fileno(), 0o600)
+                if lines and not lines[-1].endswith(b"\n"):
+                    stream.truncate(len(raw) - len(lines[-1]))
+                stream.flush()
+                os.fsync(stream.fileno())
+        except OSError:
+            log.warning("imessage_sent_read_failed")
 
     async def close(self):
         tasks = tuple(self.workers.values())
@@ -211,7 +215,32 @@ class IMessage:
         self.sent[im_id] = msg_id
 
     def private(self):
-        return self.vault.read("imessage.json", {"pair": None, "code": None})
+        return self._private() or {"pair": None, "code": None}
+
+    def _private(self):
+        try:
+            value = self.vault.read("imessage.json", {"pair": None, "code": None})
+            pair, code = value["pair"], value["code"]
+            if pair is not None and not (isinstance(pair, dict)
+                    and all(isinstance(pair.get(k), str) for k in ("platform", "chat_id", "user_id"))
+                    and type(pair.get("paired_at")) in (int, float)):
+                return None
+            if code is not None and not (isinstance(code, dict) and isinstance(code.get("hash"), str)
+                    and type(code.get("expires")) in (int, float) and type(code.get("used")) is bool):
+                return None
+            return value
+        except (OSError, ValueError, TypeError, KeyError):
+            return None
+
+    def _settings(self):
+        try:
+            value = self.settings_store.read("settings.json", {"enabled": False, "room": None, "reports": []})
+            if (type(value["enabled"]) is bool and (value["room"] is None or isinstance(value["room"], str))
+                    and isinstance(value["reports"], list) and all(isinstance(r, str) for r in value["reports"])):
+                return value
+        except (OSError, ValueError, TypeError, KeyError):
+            pass
+        return None
 
     def rooms(self):
         employees = self.adapter.employees()
@@ -222,7 +251,7 @@ class IMessage:
             (r["id"], r["title"], [r["title"]]) for r in groups]
 
     def settings(self):
-        value = self.settings_store.read("settings.json", {"enabled": False, "room": None, "reports": []})
+        value = self._settings() or {"enabled": False, "room": None, "reports": []}
         available = {r[0] for r in self.rooms()}
         return {"enabled": value["enabled"], "room": value["room"] if value["room"] in available else None,
                 "reports": [r for r in value["reports"] if r in available]}
@@ -252,7 +281,7 @@ class IMessage:
                 return
             code = secrets.token_urlsafe(9)
             with self.vault.locked():
-                value = self.vault.read("imessage.json", {"pair": None, "code": None})
+                value = self.private()
                 value["code"] = {"hash": digest(code), "expires": self.clock() + PAIR_TTL, "used": False}
                 self.vault.write("imessage.json", value)
             await conn.send({"v": 1, "type": "imessage_code", "ref": ref, "code": code, "expires_in": PAIR_TTL})
@@ -288,9 +317,15 @@ class IMessage:
         source = event.source
         if source is None or source.chat_type != "dm" or getattr(source.platform, "value", source.platform) != "photon":
             return False
-        private = self.private()
-        if self.pending_code(event, private):
-            return True
+        private = self._private()
+        if private is None or self._settings() is None:
+            return False
+        code = private["code"]
+        if code and hmac.compare_digest(code["hash"], digest(event.text.strip())):
+            if code["used"]:
+                return False
+            return bool(self.clock() < code["expires"]
+                        and _photon._is_sender_authorized(source.user_id, source.chat_type, source.chat_id) is not False)
         pair = private["pair"]
         return bool(pair and self.settings()["enabled"] and pair["platform"] == "photon"
                     and pair["chat_id"] == source.chat_id and pair["user_id"] == source.user_id)
@@ -306,7 +341,7 @@ class IMessage:
     async def receive_external(self, event):
         # Recheck and consume under the same file lock: a code may only pair once.
         with self.vault.locked():
-            private = self.vault.read("imessage.json", {"pair": None, "code": None})
+            private = self.private()
             pairing = self.pending_code(event, private)
             if pairing:
                 private["pair"] = {"platform": "photon", "chat_id": event.source.chat_id,
