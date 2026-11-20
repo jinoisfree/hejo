@@ -170,6 +170,8 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
         if self.forwarder:
             self._mark_disconnected()
             return
+        if self.imessage:
+            await self.imessage.close()
         if self._register_task:
             self._register_task.cancel()
             await asyncio.gather(self._register_task, return_exceptions=True)
@@ -207,7 +209,9 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
                 await self.server.error("journal_write_failed")
                 raise
             await self.server.broadcast(saved)
-            return saved
+        if self.imessage:
+            self.imessage.recorded(saved)
+        return saved
 
     def _validate_frame(self, frame):
         candidate = dict(frame, v=1, seq=self.journal.head + 1)
@@ -811,6 +815,8 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
                     log.warning("thread_deleted_drop")
                     continue
                 await self.server.broadcast({"v": 1, "type": "typing", "employee": employee, "thread": thread, "on": False, **({"room":room} if room else {})})
+            if self.imessage:
+                self.imessage.wake((room or chat_id, thread))
 
     async def get_chat_info(self, chat_id):
         if self.forwarder:

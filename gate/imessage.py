@@ -1,21 +1,35 @@
 """The second door: private pairing, room settings and external message ownership."""
 import asyncio
 import hmac
+import json
 import logging
+import os
 import secrets
 import time
 from pathlib import Path
 
 from .auth import AuthStore, PAIR_TTL, digest
+from .context import thinking
 
 log = logging.getLogger(__name__)
 _photon = None
+SETTLE_SECONDS = 2.0
 
 
 def attach_photon(native, adapter):
     """Platform handler contract; resolve the primary at dispatch time, in either start order."""
     global _photon
+    changed = _photon is not adapter
     _photon = adapter
+    if changed:
+        from .adapter import _primary
+        if _primary is not None and _primary.is_connected and _primary.imessage:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+            if loop is not None:
+                loop.create_task(_primary.imessage.publish())
     if getattr(adapter, "_hejo_imessage_wrapped", False):
         return
     original = adapter.handle_message
@@ -46,6 +60,151 @@ class IMessage:
         self.vault = AuthStore(home, clock)
         self.settings_store = AuthStore(home, clock)
         self.settings_store.path = Path(home) / "shared" / "hejo" / "imessage"
+        self.settle_seconds = SETTLE_SECONDS
+        self.pending, self.changed, self.workers, self.wakes = {}, {}, {}, {}
+        self.sent = {}
+        self.sent_path = self.settings_store.path / "sent.jsonl"
+        self._load_sent()
+
+    def _load_sent(self):
+        try:
+            raw = self.sent_path.read_bytes()
+        except FileNotFoundError:
+            return
+        lines = raw.splitlines(keepends=True)
+        rows = []
+        for line in lines:
+            try:
+                row = json.loads(line) if line.endswith(b"\n") else None
+                if not isinstance(row, dict) or set(row) != {"im", "msg_id"} or not all(isinstance(v, str) for v in row.values()):
+                    row = None
+            except (ValueError, UnicodeDecodeError):
+                row = None
+            rows.append(row)
+        last = max((i for i, row in enumerate(rows) if row is not None), default=-1)
+        if any(row is None for row in rows[:last + 1]):
+            raise ValueError("imessage_sent_corrupt")
+        for row in rows[:last + 1]:
+            self.sent[row["im"]] = row["msg_id"]
+        with self.sent_path.open("r+b") as stream:
+            os.fchmod(stream.fileno(), 0o600)
+            stream.truncate(sum(len(line) for line in lines[:last + 1]))
+            stream.flush()
+            os.fsync(stream.fileno())
+
+    async def close(self):
+        tasks = tuple(self.workers.values())
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        self.workers.clear()
+        self.pending.clear()
+
+    def recorded(self, row):
+        if row["type"] not in {"message", "edit", "delete"}:
+            return
+        key = self.adapter.journal.message_threads.get(row.get("msg_id"))
+        if not key:
+            return
+        if row["type"] == "message" and row["role"] == "employee":
+            self.pending.setdefault(key, []).append(row["msg_id"])
+        if key not in self.pending:
+            return
+        self.changed[key] = asyncio.get_running_loop().time()
+        self.wake(key)
+
+    def wake(self, key):
+        if key not in self.pending:
+            return
+        if key not in self.workers:
+            self.wakes[key] = asyncio.Event()
+            self.workers[key] = asyncio.create_task(self._settle(key))
+        self.wakes[key].set()
+
+    def typing(self, key):
+        chat = "room:" + key[0] if key[0] in self.adapter.journal.rooms else key[0]
+        return any(thread == key[1] for _, thread in self.adapter._typing_threads.get(chat, set()))
+
+    async def _settle(self, key):
+        try:
+            while key in self.pending:
+                await self.wakes[key].wait()
+                self.wakes[key].clear()
+                while key in self.pending:
+                    delay = self.changed[key] + self.settle_seconds - asyncio.get_running_loop().time()
+                    if delay > 0:
+                        await asyncio.sleep(delay)
+                        continue
+                    if self.typing(key):
+                        break
+                    msg_id = self.pending[key].pop(0)
+                    if not self.pending[key]:
+                        del self.pending[key]
+                    try:
+                        await self._send_message(msg_id, key)
+                    except (OSError, ValueError):
+                        log.warning("imessage_send_failed")
+        finally:
+            self.workers.pop(key, None)
+            self.wakes.pop(key, None)
+            self.changed.pop(key, None)
+
+    def phone_parent(self, key):
+        return next((row["client_msg_id"][len("imessage:"):] for row in reversed(self.adapter.journal.records)
+                     if row.get("role") == "owner" and row.get("client_msg_id", "").startswith("imessage:")
+                     and self.adapter.journal.message_threads.get(row.get("msg_id")) == key), None)
+
+    async def _send_message(self, msg_id, key):
+        row = self.adapter.journal.message(msg_id)
+        settings, pair = self.settings(), self.private()["pair"]
+        parent = self.phone_parent(key)
+        if (not row or thinking(row["text"]) or not pair or not settings["enabled"] or _photon is None
+                or key[0] not in {r[0] for r in self.rooms()} or not (parent or key[0] in settings["reports"])):
+            return
+        names = {e["id"]: e["name"] for e in self.adapter.employees()}
+        label = names.get(row["employee"], row["employee"])
+        group = self.adapter.journal.rooms.get(key[0])
+        if group:
+            label = group["title"] + " · " + label
+        text = f"[{label}] " + row["text"]
+        buttons = row.get("buttons", [])
+        if buttons:
+            if all(b["kind"] == "reply" for b in buttons):
+                text += "\n선택: " + " / ".join(b["label"] for b in buttons)
+            else:
+                text += "\n(이 선택은 hejo 앱에서 눌러 주세요)"
+        for file in row.get("files", []):
+            text += ("\n" if row["text"] or buttons or not text.endswith("] ") else "") + f"📎 {file['name']} (hejo 앱에서 열기)"
+        try:
+            for part in split_characters(text, _photon.MAX_MESSAGE_LENGTH):
+                result = await _photon.send(pair["chat_id"], part, reply_to=parent)
+                if not result.success:
+                    raise OSError("imessage_send_failed")
+                if result.message_id:
+                    self._save_sent(result.message_id, msg_id)
+        except Exception:
+            # No exception text: transport failures can contain credentials or the message.
+            log.warning("imessage_send_failed")
+
+    def _save_sent(self, im_id, msg_id):
+        with self.settings_store.locked():
+            created = not self.sent_path.exists()
+            fd = os.open(self.sent_path, os.O_CREAT | os.O_WRONLY | os.O_APPEND, 0o600)
+            try:
+                os.fchmod(fd, 0o600)
+                with os.fdopen(fd, "ab", closefd=False) as stream:
+                    stream.write((json.dumps({"im": im_id, "msg_id": msg_id}) + "\n").encode())
+                    stream.flush()
+                    os.fsync(fd)
+            finally:
+                os.close(fd)
+            if created:
+                directory = os.open(self.settings_store.path, os.O_RDONLY)
+                try:
+                    os.fsync(directory)
+                finally:
+                    os.close(directory)
+        self.sent[im_id] = msg_id
 
     def private(self):
         with self.vault.locked():
@@ -233,3 +392,13 @@ class ExternalReply:
         if frame["type"] == "error":
             self.failed = True
             await self.bridge.notice(self.chat_id, "지금은 받지 못했어요")
+
+
+def split_characters(text, limit):
+    """Lossless phone chunks in Unicode code points, preferring the last complete line."""
+    while len(text) > limit:
+        end = text.rfind("\n", 0, limit) + 1 or limit
+        yield text[:end]
+        text = text[end:]
+    if text:
+        yield text

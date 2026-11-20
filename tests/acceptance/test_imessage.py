@@ -355,3 +355,339 @@ async def test_at_hi_32_wrapper_order(gate, runner, client, phone, outer):
     other = phone.event(chat='chat-B')
     await phone.handle_message(other)
     assert classifications == [other] and phone.originals == [other]
+
+
+@pytest.fixture
+def settle(gate):
+    gate.imessage.settle_seconds = 0.05
+    async def wait():
+        async with asyncio.timeout(3):
+            while gate.imessage.workers:
+                await asyncio.sleep(0.01)
+    return wait
+
+
+async def phone_thread(gate, runner, client, ws, phone):
+    await activate(client, ws, phone)
+    await phone.handle_message(phone.event())
+    row = (await client.until(ws, 'message'))[-1]
+    await wait_for_turns(runner, 1)
+    # BasePlatformAdapter runs the substituted turn in its own task.
+    async with asyncio.timeout(3):
+        while gate._active_sessions:
+            await asyncio.sleep(0.01)
+    return row['thread']
+
+
+async def test_at_hi_14_15_22_reply_follows_original_thread(gate, runner, client, phone, settle):
+    ws, _ = await client.pair(features=['imessage', 'rooms'])
+    thread = await phone_thread(gate, runner, client, ws, phone)
+    await gate.send_typing('alpha', {'thread_id': thread})
+    result = await gate.send('alpha', 'pong', metadata={'thread_id': thread})
+    await gate.stop_typing('alpha')
+    await settle()
+    assert phone.calls == [('chat-A', '[Alpha] pong', 'im-in-1')]
+    assert gate.imessage.sent == {'im-out-1': result.message_id}
+    await request(client, ws, 'imessage_save', enabled=True, room='beta', reports=[])
+    for n, target in enumerate(['im-out-1', 'im-in-1', 'im-out-1'], 2):
+        if n == 4:
+            await request(client, ws, 'imessage_save', enabled=True, room=None, reports=[])
+        await phone.handle_message(phone.event('reply', mid=f'im-in-{n}', reply_to_message_id=target))
+        row = [r for r in gate.journal.records if r.get('client_msg_id') == f'imessage:im-in-{n}'][0]
+        assert row['employee'] == 'alpha' and row['thread'] == thread
+    await request(client, ws, 'imessage_save', enabled=True, room='beta', reports=[])
+    await phone.handle_message(phone.event('unknown', mid='im-in-5', reply_to_message_id='missing'))
+    unknown = [r for r in gate.journal.records if r.get('client_msg_id') == 'imessage:im-in-5'][0]
+    assert unknown['employee'] == 'beta' and unknown['thread'] != thread
+    await gate.thread_delete({'room': 'alpha', 'thread': thread, 'id': 'delete'}, next(iter(gate.server.connections)))
+    await phone.handle_message(phone.event('deleted', mid='im-in-6', reply_to_message_id='im-out-1'))
+    assert [r for r in gate.journal.records if r.get('client_msg_id') == 'imessage:im-in-6'][0]['employee'] == 'beta'
+    await request(client, ws, 'imessage_save', enabled=True, room=None, reports=[])
+    phone.calls.clear()
+    before = gate.journal.head
+    await phone.handle_message(phone.event('no room', mid='im-in-7'))
+    assert gate.journal.head == before and len(phone.calls) == 1 and '/방' in phone.calls[0][1]
+
+
+async def test_at_hi_23_24_report_rooms_and_app_threads(gate, runner, client, phone, settle):
+    await group(gate)
+    ws, _ = await client.pair(features=['imessage', 'rooms'])
+    await activate(client, ws, phone, reports=[G])
+    assert (await gate.send('room:' + G, 'report', metadata={'hermes_profile': 'beta'})).success
+    await settle()
+    assert phone.calls == [('chat-A', '[Team · Beta] report', None)]
+    await client.send(ws, room=G, text='from app')
+    row = (await client.until(ws, 'message'))[-1]
+    while row.get('role') != 'owner':
+        row = (await client.until(ws, 'message'))[-1]
+    await wait_for_turns(runner, 1)
+    await gate.send('room:' + G, 'done', metadata={'hermes_profile': 'alpha', 'thread_id': row['thread']})
+    await settle()
+    assert phone.calls[-1] == ('chat-A', '[Team · Alpha] done', None) and len(phone.calls) == 2
+    await request(client, ws, 'imessage_save', enabled=True, room='alpha', reports=[])
+    await client.send(ws, text='private app')
+    row = (await client.until(ws, 'message'))[-1]
+    while row.get('role') != 'owner': row = (await client.until(ws, 'message'))[-1]
+    await gate.send('alpha', 'private answer', metadata={'thread_id': row['thread']})
+    await settle()
+    assert len(phone.calls) == 2
+
+
+async def test_at_hi_25_stream_final_and_deleted_progress(gate, runner, client, phone, settle):
+    ws, _ = await client.pair(features=['imessage'])
+    thread = await phone_thread(gate, runner, client, ws, phone)
+    await gate.send_typing('alpha', {'thread_id': thread})
+    await gate.send('alpha', '생각 중…', metadata={'thread_id': thread})
+    result = await gate.send('alpha', 'p', metadata={'thread_id': thread, 'expect_edits': True})
+    for text in ['f', 'fi', 'fin']:
+        assert (await gate.edit_message('alpha', result.message_id, text)).success
+    assert (await gate.edit_message('alpha', result.message_id, 'final', finalize=True)).success
+    tool = await gate.send('alpha', 'tool', metadata={'thread_id': thread})
+    # Deletion enforces profile ownership, just as the real multiplex forwarder does.
+    from gate.adapter import _delivery_scope
+    token = _delivery_scope.set(('alpha', 'alpha', thread))
+    try:
+        assert await gate.delete_message('alpha', tool.message_id)
+    finally:
+        _delivery_scope.reset(token)
+    await asyncio.sleep(0.08)
+    assert not phone.calls
+    await gate.stop_typing('alpha')
+    await settle()
+    assert phone.calls == [('chat-A', '[Alpha] final', 'im-in-1')]
+
+
+@pytest.mark.parametrize('case', ['failed_turn', 'delete_failure', 'late_delete'])
+async def test_at_hi_42_remaining_progress_is_sent(gate, runner, client, phone, settle, case):
+    from gate.adapter import _delivery_scope
+    from gate.journal import HejoJournalError
+    ws, _ = await client.pair(features=['imessage'])
+    thread = await phone_thread(gate, runner, client, ws, phone)
+    await gate.send_typing('alpha', {'thread_id': thread})
+    tool = await gate.send('alpha', 'tool', metadata={'thread_id': thread})
+    final = 'failed' if case == 'failed_turn' else 'final'
+    await gate.send('alpha', final, metadata={'thread_id': thread})
+    await gate.stop_typing('alpha')
+    token = _delivery_scope.set(('alpha', 'alpha', thread))
+    try:
+        if case == 'delete_failure':
+            with patch.object(gate.journal, 'append', side_effect=HejoJournalError('fixture failure')):
+                assert not await gate.delete_message('alpha', tool.message_id)
+        await settle()
+        assert [c[1] for c in phone.calls] == ['[Alpha] tool', '[Alpha] ' + final]
+        if case == 'late_delete':
+            assert await gate.delete_message('alpha', tool.message_id)
+            await settle()
+            assert len(phone.calls) == 2
+    finally:
+        _delivery_scope.reset(token)
+
+
+async def test_at_hi_26_character_split_persistence_and_newline(gate, runner, client, phone, settle):
+    ws, _ = await client.pair(features=['imessage'])
+    thread = await phone_thread(gate, runner, client, ws, phone)
+    text = '가' * 125 + 'a' * 125
+    result = await gate.send('alpha', text, metadata={'thread_id': thread})
+    await settle()
+    assert [len(c[1]) for c in phone.calls] == [100, 100, 58]
+    assert ''.join(c[1] for c in phone.calls) == '[Alpha] ' + text
+    assert [c[2] for c in phone.calls] == ['im-in-1'] * 3
+    assert set(gate.imessage.sent.values()) == {result.message_id}
+    assert len(gate.imessage.sent) == 3 and gate.imessage.sent_path.stat().st_mode & 0o777 == 0o600
+    await gate.imessage.close()
+    gate.imessage = imessage.IMessage(gate, airport_home(gate))
+    gate.imessage.settle_seconds = 0.05
+    await phone.handle_message(phone.event('reply', mid='im-in-2', reply_to_message_id='im-out-3'))
+    assert [r for r in gate.journal.records if r.get('client_msg_id') == 'imessage:im-in-2'][0]['thread'] == thread
+    phone.calls.clear()
+    text = '가' * 60 + '\n' + '나' * 60
+    await gate.send('alpha', text, metadata={'thread_id': thread})
+    await settle()
+    assert [len(c[1]) for c in phone.calls] == [69, 60]
+    assert ''.join(c[1] for c in phone.calls) == '[Alpha] ' + text
+
+
+async def test_at_hi_27_buttons_and_files(gate, runner, client, phone, settle):
+    ws, _ = await client.pair(features=['imessage'])
+    thread = await phone_thread(gate, runner, client, ws, phone)
+    await gate.send('alpha', 'pick', metadata={'thread_id': thread, 'hejo_buttons': [
+        {'label': 'A', 'style': 'default'}, {'label': 'B', 'style': 'default'}]})
+    await settle()
+    assert phone.calls[-1][1] == '[Alpha] pick\n선택: A / B'
+    await gate.send('alpha', 'ok?', metadata={'thread_id': thread, '_hejo_native_buttons': [
+        {'label': 'approve', 'kind': 'approval', 'style': 'primary'}]})
+    await settle()
+    assert phone.calls[-1][1] == '[Alpha] ok?\n(이 선택은 hejo 앱에서 눌러 주세요)'
+    file = airport_home(gate) / 'r.txt'
+    file.write_text('fixture')
+    await gate.send_document('alpha', str(file), metadata={'thread_id': thread})
+    await settle()
+    assert phone.calls[-1][1] == '[Alpha] 📎 r.txt (hejo 앱에서 열기)'
+
+
+async def test_at_hi_28_send_failure_isolated(gate, runner, client, phone, settle, caplog):
+    ws, _ = await client.pair(features=['imessage'])
+    thread = await phone_thread(gate, runner, client, ws, phone)
+    phone.failure = True
+    first = await gate.send('alpha', 'first', metadata={'thread_id': thread})
+    await settle()
+    assert len(phone.calls) == 1 and not gate.imessage.sent
+    logs = [r.message for r in caplog.records if r.name == 'gate.imessage']
+    assert logs == ['imessage_send_failed']
+    phone.failure = False
+    second = await gate.send('alpha', 'second', metadata={'thread_id': thread})
+    await settle()
+    assert len(phone.calls) == 2 and len(gate.imessage.sent) == 1
+    for mid in [first.message_id, second.message_id]: assert gate.journal.message(mid)
+    messages = (await client.until(ws, 'message'))
+    while not any(f.get('msg_id') == second.message_id for f in messages):
+        messages += await client.until(ws, 'message')
+    assert {first.message_id, second.message_id} <= {f.get('msg_id') for f in messages}
+
+
+@pytest.mark.parametrize('case', ['restart', 'disabled', 'unpaired'])
+async def test_at_hi_29_no_pending_replay(gate, runner, client, phone, settle, case):
+    ws, _ = await client.pair(features=['imessage'])
+    thread = await phone_thread(gate, runner, client, ws, phone)
+    if case == 'restart':
+        await gate.send('alpha', 'pending', metadata={'thread_id': thread})
+        await gate.imessage.close()
+        gate.imessage = imessage.IMessage(gate, airport_home(gate))
+    else:
+        await request(client, ws, 'imessage_unpair' if case == 'unpaired' else 'imessage_save',
+                      **({} if case == 'unpaired' else {'enabled': False, 'room': 'alpha', 'reports': []}))
+        await gate.send('alpha', 'pending', metadata={'thread_id': thread})
+    await settle()
+    await asyncio.sleep(0.08)
+    assert not phone.calls
+
+
+async def test_at_hi_07_sensitive_values_only_in_allowed_outputs(gate, runner, client, phone, settle, caplog, monkeypatch):
+    import logging
+    caplog.set_level(logging.DEBUG)
+    ws, welcome = await client.pair(features=['imessage'])
+    other, _ = await client.open(token=welcome['token'], features=['imessage'])
+    received = {ws: [], other: []}
+    read = client.read
+    async def capture(socket):
+        frame = await read(socket)
+        received[socket].append(frame)
+        return frame
+    monkeypatch.setattr(client, 'read', capture)
+    code = await pair_phone(client, ws, phone)
+    await client.read(other)
+    await request(client, ws, 'imessage_save', enabled=True, room='alpha', reports=[])
+    await client.read(other)
+    await phone.handle_message(phone.event('hello'))
+    owner = (await client.until(ws, 'message'))[-1]
+    await wait_for_turns(runner, 1)
+    await phone.handle_message(phone.event('/방'))
+    phone.calls.clear()
+    await gate.send('alpha', 'pong', metadata={'thread_id': owner['thread']})
+    await settle()
+    for socket in [ws, other]:
+        await socket.send_json({'v': 1, 'type': 'roster', 'id': 'boundary'})
+        await client.until(socket, 'roster')
+    log = '\n'.join(r.getMessage() for r in caplog.records)
+    private = gate.imessage.vault.path / 'imessage.json'
+    settings = gate.imessage.settings_store.path / 'settings.json'
+    sent = gate.imessage.sent_path
+    journal = '\n'.join(p.read_text() for p in gate.journal.path.glob('*.jsonl'))
+    frames = [f for items in received.values() for f in items]
+    for socket, items in received.items():
+        matches = [f for f in items if code['code'] in json.dumps(f)]
+        assert matches == [code] if socket is ws else not matches
+    assert code['code'] not in log + journal + private.read_text() + settings.read_text() + sent.read_text()
+    for identifier in ['chat-A', 'user-A']:
+        assert identifier in private.read_text()
+        assert identifier not in log + journal + json.dumps(frames) + settings.read_text() + sent.read_text()
+    for body in ['hello', 'pong']:
+        assert body in journal
+        assert body not in log + private.read_text() + settings.read_text() + sent.read_text()
+        assert all(body not in json.dumps(f) for f in frames if f['type'] not in ['message', 'edit'])
+    assert private.stat().st_mode & 0o777 == 0o600
+    assert phone.calls == [('chat-A', '[Alpha] pong', 'im-in-1')]
+
+
+async def test_at_hi_30_42_journal_and_app_frames_preserved(gate, airport, monkeypatch):
+    """Same app input and failed/deleted progress sequences in two disposable homes."""
+    from aiohttp import ClientSession
+    from gate.adapter import HejoAdapter, _delivery_scope
+    from gate.journal import HejoJournalError
+    results = []
+    for active in [False, True]:
+        home = airport / ('enabled' if active else 'baseline')
+        monkeypatch.setenv('HERMES_HOME', str(home))
+        adapter = HejoAdapter(PlatformConfig(enabled=True, extra={'listen': ['127.0.0.1'], 'port': 0}))
+        adapter.employees = lambda: [{'id': 'alpha', 'name': 'Alpha', 'aliases': []}]
+        assert await adapter.connect()
+        transport = Phone()
+        if active:
+            imessage.attach_photon(None, transport)
+            with adapter.imessage.vault.locked():
+                adapter.imessage.vault.write('imessage.json', {'pair': {'platform': 'photon', 'chat_id': 'chat-A', 'user_id': 'user-A'}, 'code': None})
+            with adapter.imessage.settings_store.locked():
+                adapter.imessage.settings_store.write('settings.json', {'enabled': True, 'room': 'alpha', 'reports': ['alpha']})
+        else:
+            monkeypatch.setattr(imessage, '_photon', None)
+        adapter.imessage.settle_seconds = 0.05
+        async def turn(e): return None
+        adapter.set_message_handler(turn)
+        try:
+            async with ClientSession(trust_env=False) as session:
+                ws = await session.ws_connect(f'http://127.0.0.1:{adapter.server.port}/v1/ws')
+                await ws.send_json({'v': 1, 'type': 'hello', 'device_name': 'Fixture', 'app_version': 'test', 'pair_code': adapter.auth.pair_code()})
+                assert (await ws.receive_json(timeout=5))['type'] == 'welcome'
+                assert (await ws.receive_json(timeout=5))['type'] == 'sync_done'
+                thread = '00000000-0000-4000-8000-000000000002'
+                await ws.send_json({'v': 1, 'type': 'send', 'id': 'input', 'employee': 'alpha', 'thread': thread,
+                                    'client_msg_id': 'fixture-client', 'text': 'app request'})
+                frames = []
+                async with asyncio.timeout(3):
+                    while not any(f['type'] == 'message' for f in frames): frames.append(await ws.receive_json())
+                    while adapter._active_sessions: await asyncio.sleep(0.01)
+                for case in ['failed_turn', 'delete_failure', 'late_delete', 'ordinary_delete']:
+                    await adapter.send_typing('alpha', {'thread_id': thread})
+                    tool = await adapter.send('alpha', 'tool', metadata={'thread_id': thread})
+                    await adapter.send('alpha', 'failed' if case == 'failed_turn' else 'final', metadata={'thread_id': thread})
+                    token = _delivery_scope.set(('alpha', 'alpha', thread))
+                    try:
+                        if case == 'ordinary_delete': assert await adapter.delete_message('alpha', tool.message_id)
+                        await adapter.stop_typing('alpha')
+                        if case == 'delete_failure':
+                            with patch.object(adapter.journal, 'append', side_effect=HejoJournalError('fixture')):
+                                assert not await adapter.delete_message('alpha', tool.message_id)
+                        async with asyncio.timeout(3):
+                            while adapter.imessage.workers: await asyncio.sleep(0.01)
+                        if case == 'late_delete': assert await adapter.delete_message('alpha', tool.message_id)
+                    finally:
+                        _delivery_scope.reset(token)
+                await ws.send_json({'v': 1, 'type': 'roster', 'id': 'boundary'})
+                while True:
+                    frame = await ws.receive_json(timeout=5)
+                    if frame['type'] == 'roster': break
+                    frames.append(frame)
+                ids = {r['msg_id']: f'message-{n}' for n, r in enumerate(adapter.journal.records) if r['type'] == 'message'}
+                def normalized(row):
+                    return {k: ids.get(v, v) if isinstance(v, str) else v for k, v in row.items() if k not in ['seq', 'msg_id', 'ts']}
+                disk = [json.loads(line) for p in adapter.journal.path.glob('*.jsonl') for line in p.read_text().splitlines()]
+                results.append(([normalized(r) for r in disk], [normalized(f) for f in frames]))
+                if active:
+                    assert [c[1] for c in transport.calls] == ['[Alpha] tool', '[Alpha] failed', '[Alpha] tool', '[Alpha] final', '[Alpha] tool', '[Alpha] final', '[Alpha] final']
+        finally:
+            await adapter.disconnect()
+    assert results[0] == results[1]
+
+
+async def test_at_hi_39_real_gateway_cleanup():
+    from gate.tests.imessage_settling import main
+    assert await asyncio.to_thread(main) == 0
+
+
+async def test_claim_exception_passes_original_unchanged(gate, client, phone):
+    ws, _ = await client.pair(features=['imessage'])
+    await activate(client, ws, phone)
+    event = phone.event()
+    with patch.object(gate.imessage, 'claims_external', side_effect=ValueError('fixture')):
+        await phone.handle_message(event)
+    assert phone.originals == [event] and phone.originals[0] is event and gate.journal.head == 0
