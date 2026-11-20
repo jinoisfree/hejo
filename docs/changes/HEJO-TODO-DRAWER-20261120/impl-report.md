@@ -84,3 +84,52 @@
 - 계획 담당은 실제 두 기준의 계보와 HEJO-CONN-MANAGE 변경을 확인하고, 허가된 통합 방법을 보완 plan으로 지시해야 한다. 이후 통합·충돌 정리·전체 검사·독립 재검증을 마친 커밋으로만 푸시 대상을 확정한다. 푸시는 사용자 화면 승인 후 플러그인이 수행한다.
 
 이 보고서는 지시대로 계획 담당 폴더에 작성했으며 구현 브랜치의 제품 커밋에는 섞지 않았다. 전체 로그·로컬 경로 대응표는 구현 worktree의 `.build/todo-drawer/`에 있다.
+
+
+## 보완 1 — 기준 통합과 V-1·V-2·V-3
+
+[확인] 보완 지시 1의 구현·자체 시험을 마쳤다. 최종 검토 대상은 `4a82dda0e506ae4dad7bae9406bad411f3bd4eba`(`role-workflow/7-833b7c8b`)이며 독립 재검증 대기다. 이 절이 앞선 기준 통합 차단 기록의 후속 결과다.
+
+### 병합과 커밋
+
+- 최초 로컬 `main`은 `a3786fbccc6314cc2ff07d2842eaf4333612bb21`이었다. `git merge --no-ff --no-commit main`은 예상한 `gate/server.py` 연결 종료 `finally` 한 곳에서 충돌하여 종료 1이었다. `admin_connections.disconnected(conn.device_id)`와 `deadline_waiters` 전체 취소·`asyncio.gather(..., return_exceptions=True)`를 모두 보존했다. 다른 충돌이나 의도 판단은 없었다.
+- 충돌 해결 merge 커밋: `2a7ca15a7527eb71925deaeb4812164ac4522478`. merge 이력 전체를 보존하는 일반 merge 커밋이며 `git commit` 종료 0. 로그: `.build/todo-drawer-supplement1/merge.log`, `merge-resolution.log`.
+- 앱 보완 커밋: `005677e801aa461bee8c158814e9be0b151fa86b`. 아래 네 파일만 `git commit --only`로 커밋했다(종료 0, `app-commit.log`).
+- 실행 중 `main`이 추가 전진하여 충돌 없이 merge 커밋으로 포함했다. 각각 `git merge --no-ff main` 종료 0이다.
+  - `729eee3317e8cea2dc5f8119271696977c0f8563`의 연결 관리 검토 문서: `c472178cbd741607811839852463805a991a911a`(`merge-latest.log`).
+  - `131e47ff62f2d5df75c03907d9ae3a768586bbf1`의 연결 목록 합치기 코드·시험·보고서: `154950334e2b3b06430a0773293d30b42bfbbc8f`(`merge-connection-fix.log`).
+  - `c9cd9c0471ee08f05d36386290dd57514e28ecb3`의 연결 관리 판정 문서: `4a82dda0e506ae4dad7bae9406bad411f3bd4eba`(`merge-verification.log`).
+- 최종 로컬 `main`은 `c9cd9c0471ee08f05d36386290dd57514e28ecb3`이다. 최종 커밋의 조상임을 종료 0으로 확인했다. 기준 checkout의 미커밋 변경은 건드리지 않았다. rebase·force·원격 쓰기는 하지 않았다.
+
+### 바꾼 파일과 동작
+
+- `app/Sources/ConversationController.swift`: 실제 채팅 펼침 상태를 받아 `drawerVisible = drawerOpen && drawerChatExpanded`를 계산한다. 숨김 → 보임 전환에서 한 번 요청하고 5분 주기를 다시 시작한다. 주기 호출·재연결·비동기 전송 직전에도 가시성을 확인하므로 닫힘·접힘·접힌 채 시작에서는 요청하지 않는다. 열림 선호 저장·복원 형식은 그대로다.
+- `app/Sources/PetController.swift`: 설치·칸 토글·채팅 펼침/접힘 때 열림 선호와 펼침 상태를 함께 전달한다. 기존 `onExpansionChanged` 배선을 보존했다.
+- `app/Sources/ConversationView.swift`: `refresh`와 1초 tick의 `drawerSnapshot` 계산·`todoDrawer.show`를 가시성으로 제한한다. `refresh` 내부 tick의 중복 투영도 제거했다. 보이게 되면 컨트롤러의 변경 통지로 최신 상태를 그린다.
+- `app/Tests/TodoDrawerTests.swift`: AT-TD-42를 추가했다. 접힌 11분 동안 주기 호출·재연결에도 요청 0, 펼친 직후 1, 5분 주기 재시작, 저장된 열림 선호로 접힌 채 시작할 때 요청 0을 실제 PetController/View 배선과 가짜 전송으로 확인한다. V-1은 숨은 동안 카드 내용을 바꿔 refresh/tick을 호출해도 카드 보기의 사진 읽기가 없고, 다시 보일 때 즉시 최신 카드를 그리는지 확인한다.
+- 기존 AT-TD-20~41의 입력·기대값, AT56·AT92 및 다른 회귀 시험은 변경하지 않았다. `integration.json`에 기존 TodoDrawer 시험 본문 보존 대조 결과가 있다. spec·수락 시험 명세를 구현자가 고치지 않았다.
+- 도달 증거 수준 2(실제 AppKit 패널·컨트롤러·가짜 화면/시계/문을 쓰는 대역 통합). 운영 마감 조회·운영 문 적용·사장 확인 증거는 아니다.
+
+### 검사와 로그
+
+아래 로그는 모두 hejo 구현 worktree의 `.build/todo-drawer-supplement1/` 기준이다. 환경은 기존 `.build/todo-drawer/env.sh`를 사용했다. `HEJO_PYTHON`은 Hermes venv이며, 개인값 검사는 가짜 명부·금고가 있는 임시 검사 홈으로 실행했다. 최종 명령·커밋·종료 코드·로그 대응은 `verification.json`, 병합/기준 기록은 `integration.json`에 있다.
+
+| 명령 | 실제 결과 | 로그 |
+|---|---|---|
+| `TZ=Asia/Seoul bash scripts/test.sh` 최종 병합본 | 종료 0. Python 416 passed·기존 warning 1, gateway clean, AT-TD-20~42·AT-HF-92·앱 전체·네트워크 회귀·hook 9개 통과. 실제 CLI 설정 메타데이터·다운로드 이름 불변 | `full-test-final.log` |
+| `"$HEJO_PYTHON" -m pytest gate/tests tests/acceptance -q -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function` 최종 병합본 | 종료 0, 416 passed·기존 warning 1 | `gate-test-final.log` |
+| `"$HEJO_PYTHON" scripts/scan_private.py --home .build/todo-drawer/scan-home` 최종 병합본 | 종료 0, 바이너리는 기존 정책대로 생략 | `scan-final.log` |
+| `git diff --check` | 종료 0 | `diff-check.log` |
+| `git merge-base --is-ancestor main 4a82dda0e506ae4dad7bae9406bad411f3bd4eba` | 종료 0. 위에 적은 최종 로컬 main 기준 | `main-ancestry.log` |
+| `TZ=Asia/Seoul app/.build/app-tests --task41`(AT92 단독) | 종료 0, AT-HF-92·APP_TEST_OK. 최종 앱과 입력이 같은 바이너리임을 `git diff ... -- app` 종료 0으로 대조 | `at92-isolated.log`, `app-inputs-unchanged.log` |
+
+- 최종 실행 앞의 전체 실행 두 번은 모두 종료 1이었다. 두 번 모두 Python 409 passed와 AT-TD-20~42까지 통과한 뒤 기존 `AT92 real 0.18 fade intermediate frame`에서 실패했다. 각각 `full-test.log`, `full-test-2.log`에 보존했다. 첫 실행 중 호스트에서 다른 Swift 컴파일을 관측했다. 두 번째 실패 때는 다른 Swift 컴파일·시험 프로세스가 보이지 않았으므로 부하만을 원인으로 단정하지 않는다.
+- AT92 기대값·코드를 바꾸지 않고 단독 실행 통과를 확인했다. 이후 추가 병합을 모두 마친 최종 커밋에서 전체 스크립트를 새로 실행해 종료 0을 확인했다. 앞선 실패를 최종 통과로 덮어쓰지 않는다. D-1(기존 실제 시간 의존)의 재현성 검토는 남는다.
+- 중간 집중 시험 `bash .build/todo-drawer/compile-tests.sh`는 종료 0(`targeted.log`). 최종 V-1 보기 관측 단언을 더하기 전 실행이므로 최종 변경본의 통과 근거는 위 전체 시험이다. 추가 기준 병합 전 별도 문 시험은 종료 0, 409 passed(`gate-test.log`); 최종 기준에서는 위 416개 시험으로 다시 확인했다.
+
+### 범위와 인계
+
+- hejo 구현 worktree는 최종 커밋 기준 깨끗하다. 이 보고서 보완 절은 지시한 계획 담당 폴더의 `impl-report.md`에만 덧붙였으며 제품 커밋에는 섞지 않았다. 계획 담당이 재검증 뒤 보고서를 커밋한다.
+- team-kit worktree·운영 원본은 이번 보완에서 변경하지 않았다. TASK-02 검토 대상은 앞서 통과한 `b2bc84f89ff52a0d14b5cb39768b5e767eee189e` 그대로이며 해당 시험·airport-check를 반복하지 않았다.
+- TASK-05·06, 운영 공항 변경·재시작·비밀 파일 열기·Hermes 본체·ddots 변경·실제 메시지·git push는 수행하지 않았다.
+- 다음 담당자는 최종 커밋의 merge 해결과 V-1·V-2·AT-TD-42, 위 증거를 직접 확인해 보완 1을 재판정한다. 공개 이력에 반영하는 TASK-06 절차나 푸시 대상은 이번 구현 보고에서 제안하지 않는다.

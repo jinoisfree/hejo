@@ -108,3 +108,31 @@
   - 실제 시간에 기대는 기존 시험(예: AT92)이 부하로 흔들리면 부하 없이 다시 실행하고, 두 결과를 모두 기록한다.
 - 보고: `impl-report.md`에 "보완 1" 절을 덧붙인다(merge 커밋, 충돌 해결 내용, 바꾼 파일, 시험 명령·종료 코드·로그 경로). team-kit worktree는 바꿀 것이 없다.
 - 금지: 기존과 같다(운영 공항·재시작·운영 team-kit 원본·비밀 파일·Hermes 본체·ddots·실제 메시지·git push). TASK-05·06은 하지 않는다.
+
+## 보완 지시 2 — 실제 시간 애니메이션 시험 회귀(V-4) (검증 2차, [verdict.md](verdict.md))
+
+- 기준
+  - 구현 브랜치 `role-workflow/7-833b7c8b` @ `4a82dda`. 통합할 기준은 merge 시점의 최신 로컬 `main`(현재 `d5d04a2`, 문서 1개, merge-tree 충돌 없음).
+  - 설계·수락 시험은 3판 그대로다.
+- 사실: 같은 기계에서 앱 시험 기본 묶음을 번갈아 돌린 결과(verdict 2차 4번 표)
+  - 기준 main `c9cd9c0`: 0/7 실패.
+  - `4a82dda`: 4/7 실패(`AT92 real 0.18 fade intermediate frame`, `AT89 following row has an intermediate y`).
+  - 할 일 칸 시험 호출만 뺀 `4a82dda`: 2/4 실패.
+- 할 일
+  1. **원인 확정.** 제품 코드와 시험 정리 누락 가운데 무엇이 같은 프로세스의 뒤 시험(AT89·AT92)의 메인 스레드·애니메이션 시간을 미는지 실험으로 가린다. 실험 방법은 구현 자유다(예: `IslandTests`의 칸 열기 경로를 기준과 같게 돌려 비교, 남은 `PetController`·`ConversationView`의 타이머와 칸 투영 호출 횟수 계측). 근거와 실험 로그를 보고한다.
+  2. **수정.**
+     - 원인이 제품 코드이면 제품 쪽에서 고친다. 예: 칸이 보일 때도 1초마다 모든 방을 투영하지 않고 바뀜이 있을 때만 하기, 이동이 끝나면 타이머 멈추기.
+     - 원인이 시험 정리 누락이면, 새로 넣거나 바꾼 시험(`IslandTests`·`TodoDrawerTests`)이 끝날 때 칸을 닫고 펫 패널·보기·타이머·클라이언트를 정리한다.
+     - 둘 다면 둘 다 고친다.
+     - AT89·AT92와 다른 기존 시험의 기대값·대기 시간·순서를 바꾸지 않는다. 수락 시험 AT-TD 기대값도 바꾸지 않는다.
+  3. 최신 로컬 `main`을 merge 커밋으로 병합한다(rebase·force 금지).
+- 합격 기준(대상 = 최종 커밋)
+  - 다른 무거운 프로세스 없이 `TZ=Asia/Seoul app/.build/app-tests "$PWD/app/.build/hejo.app/Contents/Resources/Pet"`(기본 묶음)를 **10회 연속** 실행해 모두 종료 0. 회차별 종료 코드를 기록한다.
+  - 그 뒤 `TZ=Asia/Seoul bash scripts/test.sh` 종료 0.
+  - 문 `pytest gate/tests tests/acceptance` 종료 0.
+  - `scan_private.py`(Hermes venv) 종료 0.
+  - `git diff --check` 종료 0.
+  - `git merge-base --is-ancestor main <최종 커밋>` 종료 0(로컬 main 해시 기록).
+  - 중간 실패도 지우지 말고 모두 기록한다.
+- 보고: `impl-report.md`에 "보완 2" 절(원인 실험·결론, 바꾼 파일, 커밋, 10회 결과표, 명령·종료 코드·로그)을 덧붙인다.
+- 금지: 기존과 같다. 운영 공항·재시작·운영 team-kit 원본·비밀 파일·Hermes 본체·ddots·실제 메시지·git push, TASK-05·06은 하지 않는다.
