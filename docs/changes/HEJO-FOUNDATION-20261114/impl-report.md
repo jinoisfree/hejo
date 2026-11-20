@@ -2188,3 +2188,7 @@ TASK-46 최종 확인: 마지막 입력 199개를 동결한 전체 검사와 집
 - python3 .build/n34-03/frozen.py 종료 0: 내부 python3 .build/foundation9_runner.py hejo 종료 0, Python 257 passed(test_install·허브 포함), 앱 전체·통신·WebKit·훅 9개 통과. 실제 CLI 설정 내용은 열지 않은 lstat 메타데이터·실제 다운로드 폴더 이름 불변 단언을 통과했다. 제품·시험 입력 222개 불변. .build/n34-03/foundation.log·foundation-result.json. 기존 Swift 경고는 코드 무변경으로 유지했으며 억제하지 않았다.
 - python3 .build/n34-03/mutation.py 종료 0: 정리 경로 제거 사본의 실제 GatewayRunner 시험은 종료 1, 기본·보조 모두 진행 글이 남아 검출됐다. 수정 전 원본 문은 같은 시험에서 보조만 실패했고, 정상 수정본은 네 차례 모두 기대 동작이다. 각 경우의 키·generation·ID·행 순서와 결과는 baseline-trace.json·fixed-trace.json·mutation-trace.json에 둔다.
 - 개인값 검사·HEJO_PYTHON 지정 pre-commit·diff, 소유 파일 5개 commit-only와 커밋된 입력 대조의 실제 종료 결과는 .build/n34-03/final-checks.json·commit-result.json·final-verification.json을 따른다. 운영 적용·재시작·실물 확인·public 갱신·푸시는 실행하지 않았다.
+
+## 비설계자 검토 보완 TASK-55·56
+
+TASK-55의 구현·시험·호환 경계는 [별도 보고](impl-report-task55.md), TASK-56은 [별도 보고](impl-report-task56.md)에 기록했다. TASK-55를 먼저 커밋한 뒤 TASK-56을 별도 변경으로 진행했다. 운영 적용과 공개판 갱신은 하지 않았다.

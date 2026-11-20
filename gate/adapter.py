@@ -831,12 +831,15 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
         path = self.validate_media_delivery_path(file_path)
         if path is None:
             return SendResult(success=False, error="invalid_file")
+        try:
+            info = await self.files.copy(employee, path, file_name)
+        except (OSError, ValueError):
+            return SendResult(success=False, error="attachment_send_failed")
         async with self.files.lock:
             if room in self.journal.deleted_rooms:
                 log.warning("room_deleted_drop")
                 return SendResult(success=False, error="room_deleted_drop")
             try:
-                info = await self.files.copy(employee, path, file_name)
                 descriptors, moved = self.files.promote(employee, [info["file_id"]])
                 registrations = self.files.registration(employee, "employee", descriptors)
                 result = await self.send(chat_id, caption or "", reply_to, {

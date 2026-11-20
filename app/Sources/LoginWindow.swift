@@ -40,6 +40,10 @@ import AppKit
     /// Saved passwords go to the Keychain under their own entry, never to the settings file.
     var passwords: GateCredentialStore = GateKeychain()
     static let passwordEntry = "saved-login-password"
+    var onPasswordSaveFailure:(String)->Void = {text in
+        let alert=NSAlert();alert.messageText="hejo";alert.informativeText=text;alert.addButton(withTitle:"확인")
+        NSApp.activate(ignoringOtherApps:true);alert.runModal()
+    }
     let or = NSTextField(labelWithString: "또는 아이디로")
     let address = NSTextField(string: "")
     let changeAddress = NSButton(title: "서버 주소 직접 입력", target: nil, action: nil)
@@ -244,7 +248,10 @@ import AppKit
             $0.rememberAccount = keepID; $0.rememberPassword = keepSecret; $0.autoLogin = auto
             if keepID && !id.isEmpty { $0.rememberedAccount = id } else if !keepID { $0.rememberedAccount = nil }
         }
-        if keepSecret && secret.count >= 8 { _ = passwords.save(secret, account: Self.passwordEntry) }
+        if keepSecret && secret.count >= 8, !passwords.save(secret, account: Self.passwordEntry) {
+            message.stringValue = "비밀번호를 저장하지 못했어요. 다시 로그인할 때 입력해 주세요."
+            onPasswordSaveFailure(message.stringValue)
+        }
         else if !keepSecret { passwords.delete(account: Self.passwordEntry) }
     }
     override func close() { password.stringValue = ""; confirm.stringValue = ""; super.close() }

@@ -33,6 +33,7 @@ class FileStore:
         self.root = self.home / "shared" / "hejo" / "files"
         self.journal = journal
         self.lock = asyncio.Lock()
+        self.active_uploads = set()
         self.checked(self.root).mkdir(parents=True, exist_ok=True, mode=0o700)
 
     def checked(self, path):
@@ -84,6 +85,7 @@ class FileStore:
         target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         working = self.checked(target.parent / (".writing-" + file_id))
         working.mkdir(mode=0o700)
+        self.active_uploads.add(working)
         try:
             fd = os.open(working / name, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW, 0o600)
             try:
@@ -102,15 +104,18 @@ class FileStore:
             finally:
                 os.close(fd)
             self.fsync_dir(working)
-            os.replace(working, target)
-            self.fsync_dir(target.parent)
-            return self.describe(target, file_id)
+            async with self.lock:
+                os.replace(working, target)
+                self.fsync_dir(target.parent)
+                return self.describe(target, file_id)
         except BaseException:
             if working.exists():
                 shutil.rmtree(working)
             if target.exists():
                 shutil.rmtree(target)
             raise
+        finally:
+            self.active_uploads.discard(working)
 
     def promote(self, employee, ids):
         if len(ids) != len(set(ids)):
@@ -183,7 +188,7 @@ class FileStore:
             if item.name == ".pending":
                 for employee in self.checked(item).iterdir():
                     for pending in self.checked(employee).iterdir():
-                        if self.checked(pending).stat().st_mtime < cutoff:
+                        if pending not in self.active_uploads and self.checked(pending).stat().st_mtime < cutoff:
                             shutil.rmtree(pending)
             elif item.name not in registered:
                 self.checked(item)

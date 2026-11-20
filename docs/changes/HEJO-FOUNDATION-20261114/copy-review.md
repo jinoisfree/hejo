@@ -826,3 +826,7 @@ AT-90의 “따라 읽은 스트림이 완료 후에도 펼침” fixture는 여
 - 기본 문 delete_message는 이 수신 범위가 있을 때만 해당 직원·대화·스레드의 살아 있는 employee 글을 지운다. 범위 밖 직접 호출의 기존 기본/전달자 소유권 규칙과 role 검사는 유지한다. 임의의 다른 chat·thread나 owner 글은 허용하지 않는다. 본체나 team-kit 변경은 없다.
 - 새 시험은 별도 가짜 홈에서 실제 start_gateway와 연결·문 짝맺기·웹소켓 수신·handle_message·GatewayRunner·executor·TurnRunner·진행 큐·편집·최종 답·post-delivery를 실행한다. 가짜 모델은 실제 진행 콜백을 부르고 실제 전송·편집 완료를 기다린다. 관측 래퍼는 원래 함수를 그대로 호출하며 정리 등록·pop·fire를 직접 호출하지 않는다. 파일/DB/소켓 audit는 가짜 홈 밖 쓰기·비밀 파일·외부 접속을 거절한다.
 - 기본/보조 성공 차례는 진행 글 message→edit(non-final)→edit(final)→최종 답 message→진행 글 delete 순서이며, 실패 차례 두 개는 진행 글을 남긴다. 별도 동시 1:1/단체방 시험으로 직원·대화·스레드·owner 보존과 수신 범위 복원을 확인한다. 운영 실물과 수준 3 수락은 계획 담당+사장에게 남는다.
+
+## TASK-55·56 보완 대조
+
+전달 대상·인증·읽음 경계는 [TASK-55](copy-review-task55.md), 동기화·첨부·비밀번호 및 오류 문구는 [TASK-56](copy-review-task56.md)을 따른다.

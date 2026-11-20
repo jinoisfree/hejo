@@ -6,6 +6,8 @@ import json
 import logging
 import os
 import traceback
+import time
+from collections import deque
 from pathlib import Path
 from aiohttp import web, WSMsgType
 from jsonschema import Draft202012Validator
@@ -17,6 +19,8 @@ from .pictures import Pictures, MAX_PICTURE_BYTES, valid_png
 from .journal import HejoJournalError
 from hermes_constants import get_hermes_home
 
+SEND_TIMEOUT = 5.0
+PONG_TIMEOUT = 30.0
 log = logging.getLogger(__name__)
 SCHEMA = json.loads((Path(__file__).resolve().parent.parent / "schemas" / "hejo-wire-v1.json").read_text())
 LIMITS = SCHEMA["x-limits"]
@@ -63,12 +67,51 @@ class Connection:
     hub_token: str = None  # set for hub-issued sign-ins; re-checked with the hub while connected
     features: set = field(default_factory=set)
 
+    outgoing: deque = field(default_factory=deque)
+    sender: object = None
+    pong_deadline: float = None
+
+    def enqueue(self, frame):
+        done = asyncio.get_running_loop().create_future()
+        if self.ws.closed:
+            done.set_result(False)
+            return done
+        if len(self.outgoing) >= LIMITS['sync_queue']:
+            done.set_result(False)
+            asyncio.create_task(self.close())
+            return done
+        self.outgoing.append((frame, done))
+        if self.sender is None or self.sender.done():
+            self.sender = asyncio.create_task(self.drain())
+        return done
+
+    async def close(self, code=1000):
+        try:
+            await asyncio.wait_for(self.ws.close(code=code), 1.0)
+        except (TimeoutError, ConnectionError, RuntimeError):
+            transport = getattr(getattr(self.ws, '_req', None), 'transport', None)
+            if transport is not None: transport.close()
+
+    async def drain(self):
+        try:
+            while self.outgoing:
+                frame, done = self.outgoing.popleft()
+                success = False
+                try:
+                    if not self.ws.closed:
+                        await asyncio.wait_for(self.ws.send_json(frame), SEND_TIMEOUT)
+                        success = True
+                except (TimeoutError, ConnectionError, RuntimeError):
+                    await self.close()
+                finally:
+                    if not done.done(): done.set_result(success)
+        finally:
+            while self.outgoing:
+                _, done = self.outgoing.popleft()
+                if not done.done(): done.set_result(False)
+
     async def send(self, frame):
-        if not self.ws.closed:
-            try:
-                await self.ws.send_json(frame)
-            except (ConnectionError, RuntimeError):
-                await self.ws.close()
+        await asyncio.shield(self.enqueue(frame))
 
 
 class GateServer:
@@ -113,7 +156,7 @@ class GateServer:
             task.cancel()
         await asyncio.gather(*self.tasks, return_exceptions=True)
         self.tasks.clear()
-        await asyncio.gather(*(c.ws.close() for c in tuple(self.connections)))
+        await asyncio.gather(*(c.close() for c in tuple(self.connections)))
         if self.runner:
             await self.runner.cleanup()
             self.runner = None
@@ -143,8 +186,7 @@ class GateServer:
             async def chunks():
                 while chunk := await part.read_chunk(65536):
                     yield chunk
-            async with self.adapter.files.lock:
-                info = await self.adapter.files.stage(employee, part.filename, chunks())
+            info = await self.adapter.files.stage(employee, part.filename, chunks())
             return web.json_response(info)
         except ValueError as exc:
             if str(exc) == "too_large":
@@ -228,7 +270,7 @@ class GateServer:
                 devices = self.adapter.auth.devices()
             except (OSError, ValueError, KeyError, TypeError):
                 log.error("auth_store_unavailable")
-                await asyncio.gather(*(c.ws.close(code=1008) for c in tuple(self.connections)))
+                await asyncio.gather(*(c.close(code=1008) for c in tuple(self.connections)))
                 continue
             revoked = [conn for conn in tuple(self.connections)
                        if conn.hub_token is None and devices.get(conn.device_id, {}).get("revoked", True)]
@@ -239,12 +281,15 @@ class GateServer:
                             await self.adapter.hub.verify(conn.hub_token, fresh=True, allow_cached=True)
                         except AuthRejected as exc:
                             if exc.reason == 'hub_unavailable':
-                                await conn.ws.close(code=1001)
+                                await conn.close(code=1001)
                             else:revoked.append(conn)
-            await asyncio.gather(*(conn.ws.close(code=1008) for conn in revoked))
-            for conn in self.connections - set(revoked):
-                if ticks and ticks % 60 == 0:
-                    await conn.send({"v": 1, "type": "ping"})
+            await asyncio.gather(*(conn.close(code=1008) for conn in revoked))
+            for conn in tuple(self.connections - set(revoked)):
+                if conn.pong_deadline is not None and time.monotonic() >= conn.pong_deadline:
+                    await conn.close()
+                elif ticks and ticks % 60 == 0:
+                    conn.pong_deadline = time.monotonic() + PONG_TIMEOUT
+                    conn.enqueue({"v": 1, "type": "ping"})
             try:
                 self.admin_connections.secrets.purge()
             except (OSError,ValueError,KeyError):
@@ -259,20 +304,19 @@ class GateServer:
             await self.broadcast(frame)
 
     async def broadcast(self, frame):
+        # All queue transitions are synchronous on the server loop. Socket backpressure
+        # belongs to each connection, outside the journal's publication lane.
         for conn in tuple(self.connections):
             if "seq" not in frame:
                 if not self.adapter.journal.room_id(frame) or "rooms" in conn.features:
-                    await conn.send(frame)
-                continue
-            async with conn.lock:
-                if conn.replaying:
-                    if not conn.overflow:
-                        conn.queue.append(frame)
-                        if len(conn.queue) > LIMITS["sync_queue"]:
-                            conn.queue.clear()
-                            conn.overflow = True
-                else:
-                    await conn.send(self.project(frame, conn))
+                    conn.enqueue(frame)
+            elif conn.replaying:
+                if not conn.overflow:
+                    conn.queue.append(frame)
+                    if len(conn.queue) > LIMITS["sync_queue"]:
+                        conn.queue.clear(); conn.overflow = True
+            else:
+                conn.enqueue(self.project(frame, conn))
 
     def project(self, frame, conn):
         room = self.adapter.journal.room_id(frame)
@@ -281,25 +325,21 @@ class GateServer:
         return self.adapter.journal.replay(frame)
 
     async def sync(self, conn, since, ref):
-        async with conn.lock:
-            conn.replaying = True
-            conn.overflow = False
-            conn.queue.clear()
-            page = self.adapter.journal.page(since, LIMITS["sync_page"])
+        conn.replaying = True; conn.overflow = False; conn.queue.clear()
+        page = self.adapter.journal.page(since, LIMITS["sync_page"])
         for frame in page:
             await conn.send(self.project(frame, conn))
         through = page[-1]["seq"] if page else since
-        async with conn.lock:
-            head = self.adapter.journal.head
-            more = through < head or conn.overflow
-            await conn.send({"v": 1, "type": "sync_done", "ref": ref,
-                             "through": through, "more": more, "head_seq": head})
-            if not more:
-                for frame in conn.queue:
-                    if frame["seq"] > through:
-                        await conn.send(self.project(frame, conn))
-                conn.replaying = False
-            conn.queue.clear()
+        head = self.adapter.journal.head
+        more = through < head or conn.overflow
+        # Queue the boundary and buffered records atomically before live publication resumes.
+        pending = [conn.enqueue({"v": 1, "type": "sync_done", "ref": ref,
+                                "through": through, "more": more, "head_seq": head})]
+        if not more:
+            pending += [conn.enqueue(self.project(frame, conn)) for frame in conn.queue if frame["seq"] > through]
+            conn.replaying = False
+        conn.queue.clear()
+        await asyncio.gather(*pending)
 
     def parse(self, message):
         if message.type != WSMsgType.TEXT:
@@ -434,7 +474,9 @@ class GateServer:
                         await self.adapter.thread_branch(frame, conn)
                     elif frame["type"] in {"room_save", "room_archive", "room_delete"}:
                         await self.adapter.room_command(frame, conn)
-                    elif frame["type"] != "pong":
+                    elif frame["type"] == "pong":
+                        conn.pong_deadline = None
+                    else:
                         await self.error("unexpected_frame", frame.get("id"), conn)
                 except Exception as exc:
                     # Exception messages may embed frame text. Keep only type and stack.
@@ -445,5 +487,8 @@ class GateServer:
         finally:
             if conn:
                 self.connections.discard(conn)
+                if conn.sender is not None and not conn.sender.done():
+                    conn.sender.cancel()
+                    await asyncio.gather(conn.sender, return_exceptions=True)
             await ws.close()
         return ws

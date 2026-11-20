@@ -61,9 +61,9 @@ import Sparkle
         UpdateNoticePolicy.allows(manual: manual, enabled: notices.enabled, reminderAllows: reminder.allowsCheck(manual: false, now: now()))
     }
     @objc func checkNow() {
-        if let knownRelease { begin(knownRelease) } else { check(manual: true) }
+        check(manual: true, installing: knownRelease)
     }
-    func check(manual: Bool) {
+    func check(manual: Bool, installing: UpdateRelease? = nil) {
         guard !stopped, !busy, !installer.isBusy, allows(manual) else { return }
         guard installed() else { if manual { inform("응용 프로그램 폴더에 설치한 뒤 업데이트할 수 있어요.") }; return }
         busy = true; automaticCheckPending = !manual; generation += 1; onChange?()
@@ -80,6 +80,7 @@ import Sparkle
                         if manual { self.inform("최신 버전이에요 (\(self.current().version))") }; return
                     }
                     self.knownRelease = release; self.onChange?()
+                    if let installing, installing == release {self.begin(release);return}
                     self.busy = true
                     let response = self.present(Self.automaticAlert(version: release.version))
                     self.busy = false; self.onChange?()
