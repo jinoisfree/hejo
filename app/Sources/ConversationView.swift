@@ -4,6 +4,18 @@ import UniformTypeIdentifiers
 /// AppKit translation of the reviewed workspace, room strip, card stack and composer.
 @MainActor final class ConversationView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSTextViewDelegate, NSSearchFieldDelegate {
     let controller: ConversationController
+    let todoDrawer=TodoDrawerView(frame:.zero)
+    var onToggleDrawer:(()->Void)?
+    private(set) var drawerSelectedID:String?
+    func setDrawerOpen(_ open:Bool) {controller.setDrawerOpen(open);refresh()}
+    func selectDrawerCard(_ card:TodoDrawerModel.Card) {
+        drawerSelectedID=card.id
+        if let id=card.messageID,let key=card.key {
+            reveal(key);highlightedMessageID=id;highlightUntil=islandModel.now.addingTimeInterval(1.5)
+            refresh();history.scrollTo(key.thread)
+        } else if let url=card.url {onOpenURL(url)}
+        else {controller.model.select(employee:card.employee);refresh()}
+    }
     let island=IslandView(frame:.zero)
     let islandModel:IslandModel
     /// Animation clock and reduced-motion switch for in-chat typing shimmer; checks inject both.
@@ -159,6 +171,10 @@ import UniformTypeIdentifiers
         history.reduceMotion={ [weak self] in self?.reduceMotion() ?? true }
         history.onBlank={ [weak self] in self?.foldAll() }
         history.onMeasured={ [weak self] in self?.reportOpenHeight() }
+        todoDrawer.onFilter={ [weak self] filter in self?.controller.drawerFilter=filter;self?.refresh() }
+        todoDrawer.onCard={ [weak self] card in self?.selectDrawerCard(card) }
+        todoDrawer.onClose={ [weak self] in self?.onToggleDrawer?() }
+        todoDrawer.avatar={ [weak controller] id in controller?.avatar(id) ?? ProfileAvatar(color:PictureCodec.color(name:id,hex:nil)) }
         island.onAction={ [weak self] action in self?.activateIsland(action) }
         island.onWidthChange={ [weak self] in self?.needsLayout=true }
         headerDrag.excluded={ [weak self] point in self?.island.frame.contains(point) == true }
@@ -178,11 +194,16 @@ import UniformTypeIdentifiers
     func tickIsland() {
         island.show(islandModel.snapshot())
         let second=Int(controller.clock().timeIntervalSince1970)
-        if second != noticeSecond {noticeSecond=second;if let room=controller.model.selected?.employee,controller.model.notices(room) != shownNotices {refresh()}}
+        if second != noticeSecond {
+            noticeSecond=second
+            todoDrawer.show(controller.drawerSnapshot,filter:controller.drawerFilter,selected:drawerSelectedID)
+            if let room=controller.model.selected?.employee,controller.model.notices(room) != shownNotices {refresh()}
+        }
         if let until=highlightUntil, until<=islandModel.now { highlightUntil=nil;highlightedMessageID=nil;refresh() }
     }
     func activateIsland(_ action:IslandModel.Action) {
         switch action {
+        case .drawer: onToggleDrawer?()
         case .reconnect: reconnect()
         case .retry(let key): retrySend(key)
         case .question(let id,let key):
@@ -621,7 +642,9 @@ import UniformTypeIdentifiers
         modeMotion.target(replyMode ? 1:0,now:motionTime(),immediate:reduceMotion())
         notice.stringValue=controller.notice
         refreshWorkspaceBars();scheduleSearch()
-        islandModel.update(controller.islandInput);tickIsland(); onUnread?(model.visibleUnreadTotal)
+        var islandInput=controller.islandInput;islandInput.drawerOpen=controller.drawerOpen
+        islandModel.update(islandInput);tickIsland()
+        todoDrawer.show(controller.drawerSnapshot,filter:controller.drawerFilter,selected:drawerSelectedID); onUnread?(model.visibleUnreadTotal)
         reportOpenHeight()
         startWorkspaceMotion();needsLayout=true; needsDisplay=true
     }

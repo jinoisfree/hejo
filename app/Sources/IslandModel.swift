@@ -11,7 +11,7 @@ struct IslandUpload: Equatable { var completed: Int; var total: Int }
 /// Ephemeral presentation state only. Messages, read positions and drafts remain owned by their existing stores.
 final class IslandModel {
     enum Kind: Int { case problem, owner, worker }
-    enum Action: Equatable { case reconnect, retry(ConversationKey), question(String, ConversationKey), worker(ConversationKey) }
+    enum Action: Equatable { case drawer, reconnect, retry(ConversationKey), question(String, ConversationKey), worker(ConversationKey) }
     struct Input {
         var messages: [ConversationMessage] = []
         var typing: [ConversationKey: Date] = [:]
@@ -22,6 +22,7 @@ final class IslandModel {
         var failure: IslandFailure?
         var uploads: [ConversationKey: IslandUpload] = [:]
         var muted: Set<String> = []
+        var drawerOpen = false
     }
     struct Part {
         var kind: Kind
@@ -36,6 +37,7 @@ final class IslandModel {
     }
     struct Snapshot {
         var parts: [Part] = []
+        var drawerOpen = false
         var disconnected = false
         var restored = false
         var expanded: Kind?
@@ -100,7 +102,7 @@ final class IslandModel {
             switch event.action {
             case .question(let id, let key): return !asked.contains(id) || next.muted.contains(key.employee)
             case .worker(let key), .retry(let key): return next.muted.contains(key.employee)
-            case .reconnect: return false
+            case .reconnect, .drawer: return false
             }
         }
         queue.removeAll(where: hiddenEvent)
@@ -109,13 +111,14 @@ final class IslandModel {
     func snapshot() -> Snapshot {
         advance()
         let date=now
+        let closePart: [Part] = input.drawerOpen ? [Part(kind:.owner,text:"닫기 ‹",action:.drawer)] : []
         if wasDisconnected {
             let text: String
             if let retryAt { text="서버 연결 끊김 · \(max(0,Int(ceil(retryAt.timeIntervalSince(date)))))초 뒤 다시 연결 · 지금 연결" }
             else { text="서버 연결 중 · 지금 연결" }
-            return Snapshot(parts:[Part(kind:.problem,text:text,action:.reconnect)],disconnected:true)
+            return Snapshot(parts:[Part(kind:.problem,text:text,action:.reconnect)]+closePart,drawerOpen:input.drawerOpen,disconnected:true)
         }
-        if let until=restoredUntil, until>date { return Snapshot(parts:[Part(kind:.problem,text:"다시 연결됨")],restored:true) }
+        if let until=restoredUntil, until>date { return Snapshot(parts:[Part(kind:.problem,text:"다시 연결됨")]+closePart,drawerOpen:input.drawerOpen,restored:true) }
         var parts:[Part]=[]
         if [.revoked,.wrongCode,.storageError,.tooLarge].contains(input.status) { parts.append(Part(kind:.problem,text:input.status.text,action:input.status == .tooLarge ? nil : .reconnect)) }
         else if let failure=input.failure {
@@ -128,7 +131,7 @@ final class IslandModel {
         let questions=input.messages.filter { $0.role == "employee" && $0.replyState == "asked" }.sorted { $0.seq<$1.seq }
         let oldest=questions.first, latest=questions.last
         if !questions.isEmpty || input.unread>0 {
-            parts.append(Part(kind:.owner,text:questions.isEmpty ? String(input.unread) : "\(questions.count) · \(input.unread)",redDot:!questions.isEmpty,action:oldest.map { .question($0.id,$0.key) }))
+            parts.append(Part(kind:.owner,text:questions.isEmpty ? String(input.unread) : "\(questions.count) · \(input.unread)",redDot:!questions.isEmpty,action:.drawer))
         }
         let keys=input.typing.filter { $0.value>date }.keys.sorted { $0.employee == $1.employee ? $0.thread<$1.thread : $0.employee<$1.employee }
         let employees=Array(Set(keys.map(\.employee))).sorted()
@@ -142,13 +145,17 @@ final class IslandModel {
         if let event {
             let action:Action? = event.kind == .owner ? oldest.map { .question($0.id,$0.key) } : event.action
             let employee:String
-            switch event.action { case .question(_,let key),.worker(let key),.retry(let key):employee=key.employee;case .reconnect:employee="" }
+            switch event.action { case .question(_,let key),.worker(let key),.retry(let key):employee=key.employee;case .reconnect,.drawer:employee="" }
             let part=Part(kind:event.kind,text:event.text,faces:[event.name],redDot:event.kind == .owner,action:action,faceEmployees:[employee])
             if let index=parts.firstIndex(where:{$0.kind == event.kind}) { parts[index]=part } else { parts.append(part) }
             for index in parts.indices where parts[index].kind != event.kind { parts[index].iconOnly=true }
         } else if parts.contains(where:{$0.kind == .problem}) {
             for index in parts.indices where parts[index].kind != .problem { parts[index].iconOnly=true }
         }
-        return Snapshot(parts:parts.sorted{$0.kind.rawValue<$1.kind.rawValue},expanded:event?.kind,hoverQuestion:latest.map { Self.firstLine($0.text)+" · 열기 ›" })
+        if input.drawerOpen {
+            if let index=parts.firstIndex(where:{$0.kind == .owner}) {parts[index].text += " · 닫기 ‹"}
+            else {parts.append(Part(kind:.owner,text:"닫기 ‹",action:.drawer))}
+        }
+        return Snapshot(parts:parts.sorted{$0.kind.rawValue<$1.kind.rawValue},drawerOpen:input.drawerOpen,expanded:event?.kind,hoverQuestion:latest.map { Self.firstLine($0.text)+" · 열기 ›" })
     }
 }

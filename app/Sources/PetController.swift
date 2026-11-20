@@ -21,6 +21,29 @@ final class PetController: NSObject {
     var reducedMotion: () -> Bool = { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
     var canCollapse:()->Bool = {true}
     var onExpansionChanged: ((Bool) -> Void)?
+    static let drawerWidth: CGFloat = 290
+    static let drawerDuration: TimeInterval = 0.25
+    private var drawerSlideActive = false
+    private(set) var drawerOpen = false
+    var onDrawerChanged: ((Bool)->Void)?
+    func toggleDrawer(){setDrawerOpen(!drawerOpen)}
+    func setDrawerOpen(_ open:Bool) {
+        guard drawerOpen != open else{return}
+        drawerOpen=open
+        try? store.update{$0.todoDrawerOpen=open}
+        pet.drawerOpen=open
+        onDrawerChanged?(open)
+        guard let target=placementTarget else{return}
+        drawerSlideActive=chatExpanded && !reducedMotion()
+        if drawerSlideActive {bubbleMotion.slideWidth(now:clock(),duration:Self.drawerDuration)}
+        placePet(at:target.anchorOrigin)
+    }
+    @MainActor func installDrawer(_ view:ConversationView) {
+        pet.installDrawer(view.todoDrawer)
+        view.onToggleDrawer={ [weak self] in self?.toggleDrawer() }
+        onDrawerChanged={ [weak view] open in view?.setDrawerOpen(open) }
+        view.setDrawerOpen(drawerOpen)
+    }
     private(set) var chatExpanded = false
     private(set) var placementTarget: PetPlacement?
     private(set) var transitionProgress: CGFloat = 0
@@ -142,6 +165,8 @@ final class PetController: NSObject {
         pet.bubbleName = store.settings.petName
         panel = PetPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         super.init()
+        drawerOpen=store.settings.todoDrawerOpen ?? false;pet.drawerOpen=drawerOpen
+        panel.onCloseDrawer={ [weak self] in guard let self,self.drawerOpen else{return false};self.setDrawerOpen(false);return true }
         if let width=store.settings.webPaneWidth, width.isFinite, width>=Double(PetLayout.minimumPaneWidth) {savedPaneWidth=CGFloat(width)}
         if let height=store.settings.webPaneHeight, height.isFinite, height>=Double(PetLayout.minimumChatSize.height) {savedPaneHeight=CGFloat(height)}
         panel.isOpaque = false; panel.backgroundColor = .clear; panel.hasShadow = false
@@ -150,6 +175,7 @@ final class PetController: NSObject {
         panel.becomesKeyOnlyIfNeeded = true
         panel.contentView = pet; panel.onCollapse = { [weak self] in self?.collapseChat() }
         pet.onBubbleSize = { [weak self] in guard let self,let origin=self.placementTarget?.anchorOrigin else{return};self.placePet(at:origin) }
+        pet.onCloseDrawer={ [weak self] in self?.setDrawerOpen(false) }
         pet.onResetPaneSize = { [weak self] in self?.resetPaneSize() }
         pet.onClick = { [weak self] in self?.toggle() };pet.onResetSize={ [weak self] in self?.resetChatSize() }
         pet.onDragMove = { [weak self] in self?.movePet(to: $0) }
@@ -242,12 +268,13 @@ final class PetController: NSObject {
     func moveChatDrag(to point:CGPoint){
         guard let drag=chatDrag else{return}
         let screen=PetDisplay.nearest(to:point,in:displays())
-        let p=drag.placement.dragged(by:CGPoint(x:point.x-drag.point.x,y:point.y-drag.point.y),visibleFrame:screen.visible,screenFrame:screen.frame)
+        let base=PetPlacement(globalSprite:drag.placement.globalSprite,globalBubble:drag.placement.contentBubble,userScale:pet.petScale,expanded:true)
+        let p=base.dragged(by:CGPoint(x:point.x-drag.point.x,y:point.y-drag.point.y),visibleFrame:screen.visible,screenFrame:screen.frame).withLeading(drawerOpen ? Self.drawerWidth:0,visibleFrame:screen.visible)
         placementTarget=p;resizedBelow=p.bubbleBelow
         bubbleMotion.retarget(p.globalBubble.origin,visibleFrame:screen.visible,now:clock(),immediately:true,size:p.globalBubble.size,headerAtTop:p.expanded && p.bubbleBelow)
         apply(p)
     }
-    func endChatDrag(){guard chatDrag != nil else{return};chatDrag=nil;endPetDrag()}
+    func endChatDrag(){guard chatDrag != nil else{return};chatDrag=nil;if drawerOpen,let p=placementTarget {placePet(at:p.anchorOrigin)};endPetDrag()}
     func placePet(at origin: CGPoint) {
         guard chatDrag==nil else{return}
         let sprite = CGRect(origin: origin, size: PetLayout(scale: pet.petScale).spriteSize)
@@ -263,7 +290,7 @@ final class PetController: NSObject {
         if web?.sliding == true { pet.paneSliding = true }
         else { pet.paneWidth = split.pane; web?.width = split.pane; if split.pane > 0 { web?.layoutWidth = split.pane } }
         let target = PetPlacement(spriteOrigin: origin, scale: pet.petScale, visibleFrame: screen.visible, screenFrame: screen.frame,
-                                  bubbleSize: pet.foldedSize, expanded: chatExpanded, preferredSize: size, below: resizedBelow, trailing: split.pane, expandToFit: wanted > 0)
+                                  bubbleSize: pet.foldedSize, expanded: chatExpanded, preferredSize: size, below: resizedBelow, trailing: split.pane, expandToFit: wanted > 0, leading: drawerOpen ? Self.drawerWidth:0)
         placementTarget = target
         bubbleMotion.retarget(target.globalBubble.origin,visibleFrame:screen.visible,now:clock(),immediately:pet.placement==nil || reducedMotion() || resizeStart != nil,size:target.globalBubble.size,headerAtTop:target.expanded && target.bubbleBelow)
         if timer==nil {stepPlacement()}
@@ -277,8 +304,10 @@ final class PetController: NSObject {
             if pet.widthCoverVisible {finishPaneTransition();pet.endWidthCover();onReadingResizeEnded?()}
         }
         let point=bubbleMotion.step(now:clock()),size=bubbleMotion.size
-        let p=PetPlacement(globalSprite:target.globalSprite,globalBubble:CGRect(origin:point,size:size),userScale:pet.petScale,expanded:chatExpanded)
+        let shownLeading=chatExpanded ? (drawerSlideActive ? max(0,size.width-(target.globalBubble.width-target.leading)):target.leading):0
+        let p=PetPlacement(globalSprite:target.globalSprite,globalBubble:CGRect(origin:point,size:size),userScale:pet.petScale,expanded:chatExpanded,leading:shownLeading,drawerOverlay:target.drawerOverlay)
         apply(p)
+        if bubbleMotion.widthProgress>=1 {drawerSlideActive=false}
         if pet.widthCoverVisible {
             if bubbleMotion.widthProgress<1 {widthFadeStart=nil;pet.setWidthCover(alpha:ChatWidthSlide.cover(bubbleMotion.widthProgress))}
             else {if web?.sliding == true {finishPaneTransition()};let start=widthFadeStart ?? clock();widthFadeStart=start;let fade=min(1,max(0,(clock()-start)/ChatWidthSlide.fadeDuration));pet.setWidthCover(alpha:1-CGFloat(fade));if fade>=1 {pet.endWidthCover();onReadingResizeEnded?()}}
@@ -315,12 +344,13 @@ final class PetController: NSObject {
     private func resize(edge: PetLayout.ResizeEdge, delta: CGPoint) {
         if web?.open == true, edge.contains(.right), let p = placementTarget {
             if resizeStart == nil { resizeStart = p }
-            resizePane(to: max(PetLayout.minimumPaneWidth, resizeStart!.globalBubble.width - paneBase + delta.x)); return
+            resizePane(to: max(PetLayout.minimumPaneWidth, resizeStart!.contentBubble.width - paneBase + delta.x)); return
         }
         if resizeStart == nil {resizeStart=placementTarget;onReadingResizeBegan?();}
         guard let start = resizeStart else { return }
         let screen = PetDisplay.nearest(to: CGPoint(x: start.globalSprite.midX, y: start.globalSprite.midY), in: displays())
-        let resized = PetLayout.resized(start, edge: edge, delta: delta, screen: screen.visible, trailing: pet.paneWidth, screenFrame: screen.frame)
+        let chatStart=PetPlacement(globalSprite:start.globalSprite,globalBubble:start.contentBubble,userScale:pet.petScale,expanded:true)
+        let resized = PetLayout.resized(chatStart, edge: edge, delta: delta, screen: screen.visible, trailing: pet.paneWidth, screenFrame: screen.frame)
         if web?.open == true {savedPaneHeight = resized.height; preferredChatSize.width = resized.width}
         else { preferredChatSize = resized }
         fittedThreadHeight = nil

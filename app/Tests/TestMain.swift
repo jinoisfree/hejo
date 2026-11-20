@@ -32,7 +32,9 @@ final class MemoryCredentials: GateCredentialStore {
         Task { @MainActor in
             do {
                 let args = CommandLine.arguments
-                if args.contains("--imessage") {
+                if args.contains("--todo-drawer") {
+                    try await todoDrawerTests(resourceDirectory:URL(fileURLWithPath:args.last!))
+                } else if args.contains("--imessage") {
                     try await imessageTests()
                 } else if args.contains("--review56-existing") {
                     try await review56Tests();try await memberStateTests();try await settingsTests();try await sidebarTests();try await updateTests()
@@ -258,6 +260,7 @@ final class MemoryCredentials: GateCredentialStore {
         controller.panel.orderOut(nil)
         try check(LoginLaunchPresentation.resolve(.enabled, installed: false).canChange == false, "login registration requires installation")
         try await conversationUnitTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
+        try await todoDrawerTests(resourceDirectory:URL(fileURLWithPath:CommandLine.arguments.last!))
         try await islandTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await typingTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await task17Tests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
