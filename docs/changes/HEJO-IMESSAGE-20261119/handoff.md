@@ -116,3 +116,18 @@
 - **주의:** 운영 저장소에는 매일 자동 기록 커밋과 다른 작업의 변경이 들어온다. 자기 경로만 다루고, 겹치는 변경을 보면 멈추고 보고한다. 게이트웨이 재시작·`reload-plugins`는 하지 않는다(실행 중 동작은 다음 재시작 전까지 그대로이며, 양보 코드는 hejo 쪽이 적용되기 전에 실려도 기존 동작과 같다 — design 7절).
 - **금지(공통):** hejo 제품 코드 변경, `install/hejo-release`, 앱 사본 교체, 운영 설정·비밀 파일 열기, 실제 아이메시지·Slack 발송, git push, spec·design·수락 명세 수정.
 - **보고:** `impl-report.md`에 "보완 2" 절.
+
+## 보완 지시 3: TASK-07 서버 적용 (2026-11-20)
+
+- **허가:** 이 지시는 AGENTS.md가 말하는 "인계서가 허가한 작업"이다. 사용자가 2026-11-19에 "서버 적용·재시작까지"를 정했고, TASK-02~06·05a는 [verdict.md](verdict.md) 3차까지 검토를 통과했다. 허가 범위는 아래 절차뿐이다.
+- **대상 변경본:** hejo `main`의 이 지시를 담은 커밋(제품 코드는 `abf68d9`와 같다 — 착수 때 `git diff --stat abf68d9 HEAD -- gate app schemas install scripts`가 0건이고 작업 트리가 깨끗한지 확인, 아니면 멈춤). team-kit은 실행 원본에 이미 있다(운영 저장소 `9e68b39b`).
+- **위험·증거:** 고위험(운영), 증거 수준 3. 수락 시험 AT-HI-40·41.
+- **절차:**
+  1. **적용 전 기록**(`evidence/HEJO-IMESSAGE/TASK-07.md`에, 개인값·절대 경로 없이): 공용 릴리스 폴더의 `RELEASE` 값, 운영 저장소 HEAD와 team-kit 세 경로의 직전 커밋(`4f79deca`), 운영 `shared/hejo/`를 0700 사본으로 뜬 위치(홈 기준 상대 표기), 설치된 앱 두 사본의 버전·빌드 값.
+  2. **롤백 절차를 먼저 적는다**(같은 파일, 명령마다 대상 커밋·경로를 채움, 빈 칸 0): (가) 급할 때 — 앱 설정에서 아이메시지 끄기 또는 연결 해제(재시작 없음) (나) 코드 — 기록한 `RELEASE` 커밋을 임시 worktree로 꺼내 거기서 `install/hejo-release` 실행, team-kit 세 경로를 직전 커밋 내용으로 되돌리고 `./sync`, 게이트웨이 재시작 (다) 앱 — 적용 전 사본을 보관해 두었다가 되돌림. 새 파일(`imessage.json`, `shared/hejo/imessage/`)은 남겨도 된다.
+  3. **적용:** `install/hejo-release`(기본 대상) → `RELEASE` 값이 대상 커밋인지 확인 → `bash app/scripts/build.sh` → 앱 두 사본(`/Applications`와 공용 릴리스 폴더의 `hejo.app`) 교체. 설치 도우미(`hejo-install`)와 운영 `config.yaml`은 건드리지 않는다(설정 변경 없음).
+  4. **재시작:** 게이트웨이 로그에서 최근 2분 동안 직원 차례가 돌고 있지 않음을 확인한 뒤 `hermes --profile default gateway restart`. 차례가 돌고 있으면 2분 뒤 다시 보고, 10분이 지나도 계속이면 재시작하지 않고 멈춰 보고한다.
+  5. **확인(AT-HI-40):** 재시작 뒤 게이트웨이 로그에 hejo·photon·Slack 문 연결, 재시작 이후 새 오류·역추적 0건. hejo 앱을 다시 실행해 설정 → 아이메시지 구역이 "연결 안 됨"(지원함·아이메시지 문 있음)으로 보이는 화면을 캡처해 `evidence/HEJO-IMESSAGE/`에 둔다(개인값이 보이면 가리거나 그 부분을 빼고 찍는다).
+  6. **실패하면** 2번 롤백을 실행하고 롤백 뒤 로그 확인까지 한 다음 보고한다(AT-HI-41).
+- **금지:** 짝짓기 시도, 코드 발급, 실제 아이메시지·Slack 발송, 운영 `config.yaml`·`.env`·비밀 파일 열기·쓰기, `hejo-install`·`hejo-ship`·publish 실행, Hermes 본체·photon 수정, 제품 코드 변경, git push, spec·design·수락 명세 수정. 로그는 연결·오류 줄만 보고에 옮기고 대화 본문·식별자는 옮기지 않는다.
+- **보고:** `impl-report.md` "TASK-07" 절 — 절차별 명령·종료 코드, 적용 전 기록, 재시작 시각, 로그 확인 결과, 캡처 경로, 롤백 실행 여부.
