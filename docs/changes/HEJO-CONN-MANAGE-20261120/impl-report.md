@@ -1,6 +1,6 @@
 # 구현 인계: HEJO-CONN-MANAGE-20261120
 
-> 최신 판단: **TASK-05 합동 보류(복구 절차와 재시작 횟수 제한 충돌)**. 5차 지시의 착수 읽기 확인은 통과했으나, 재시작 후 롤백에 필요한 추가 재시작이 금지돼 운영 변경 전에 멈췄다(문서 끝 TASK-05 합동). TASK-02~04·02b의 검토 통과분은 유지한다. 아래 이전 단계·GAP·대기는 당시 기록이며, 최종 제품 완료·운영 적용·푸시 완료를 뜻하지 않는다.
+> 최신 판단: **TASK-05 합동 적용 실패·롤백 복구 확인, 검토 대기**. 실제 연결 표 읽기에서 toolset_config HTTP 400 로그가 생겨 복구 조건을 적용했다. 이전 실행본·공용 릴리스로 복원하고 복구 재시작까지 총 2회 실행했다. 복구 뒤 채널 7개 재연결과 status/apps 성공을 확인했으며 추가 재시도는 하지 않았다.
 
 ## 판단 상태
 
@@ -303,3 +303,73 @@ TASK-02b의 실제 수정 범위는 worktree의 위 코드·시험 2개이며, `
 `git rev-parse`·`status`·`diff`·`merge-base`·`log`, 파일 지문 대조, 기존 BUSY 읽기 조회는 성공했다. 사전 결과는 `v5-preflight.json`에 있다. TASK-02b와 이전 제품 시험은 코드가 그대로여서 반복하지 않았다. 이번 보고서의 개인값 검사 결과는 `v5-private.log`·`.log.json` 및 최종 상태 블록에 기록한다.
 
 롤백 보관본·공용 RELEASE 기록·복원 명령 작성은 미실행(유효한 복구 허용 범위를 먼저 확정해야 함). team-kit 교체, status/apps 적용 후 확인, 운영 저장소 merge·sync·commit, 문 릴리스, 게이트웨이 재시작, M1·M2는 모두 미실행이다. 운영 변경·재시작 횟수는 0이며 롤백할 실행 변경이 없다. hejo에는 이 구현 보고서만 변경한다. 계획 담당이 재시작/복구 계약을 보완한 뒤 재개하며, 그때 착수 지문·tip·진행 중 턴을 다시 확인한다.
+
+
+## TASK-05 합동 — 6차 재개·롤백 기록 (2026-11-21)
+
+6차 정정 `036619261d2dfaebbe06e51f09f92a8c752b8f8d`를 따르며 정상 재시작 1회, 지정 복구 조건에 한해 복구 재시작 1회(총 2회 상한)를 적용한다. 착수 재확인: 운영 HEAD·미커밋 목록·두 브랜치 tip·17개 실행 대상 지문은 5차 기록과 같고 진행 중 턴 0이다. 이번 릴리스 후보는 위 정정 커밋이며, 5차 후보 이후 gate/app/hub/schemas/config/install 차이는 없다. 실제 기존 앱 자격의 키체인 사용 가능 여부도 값 출력·파일 저장 없이 확인했다. 비밀 파일을 직접 열지 않았다. 근거는 `v6-preflight.json`이다.
+
+### 운영 교체 전에 기록한 복원 기준
+
+- 보관 폴더: `.build/conn-manage-rollback-ibyf11cz`(0700). 기존 실행본 15개와 공용 릴리스 전체를 보관했다. 전체 대상·파일별 sha256·모드·복원 경로는 로컬 `.build/conn-manage-evidence/v6-rollback.json`에 있다.
+- 공용 릴리스 대상은 설치기의 기본 대상(`$HOME/../Shared/hejo`). 교체 전 RELEASE = `1c6b3e2f18a3e3ceb24f01eeda8bcb042c4582a3`, 게이트웨이 pid = `81413`. 보관본 `shared-release/`의 파일별 sha256도 위 manifest에 있다. 이전 커밋의 복원용 worktree는 보관 폴더 `rollback-release/`에 준비했다.
+- 새 실행 파일은 `plugin-store/team-kit/lib/hermes_facility/account_connect.py`와 `bin/hermes-deadlines`다. 복원 때 이 둘은 삭제하고 기존 파일은 보관본으로 원자 교체한다.
+- 복원 명령: hejo 루트에서 `source .build/conn-manage-env.sh` 뒤 `"$HEJO_PYTHON" .build/conn-manage-evidence/v6-ops.py restore`. 문을 교체한 경우 이 명령이 이전 커밋 worktree의 `install/hejo-release`로 공용 릴리스도 복원한다. 그 뒤 `"$HEJO_PYTHON" .build/conn-manage-evidence/v6-ops.py recovery-restart`를 한 번만 실행한다(BUSY 검사, 계획 재시작이 실행된 경우에만, 총 2회 제한). 복구 재시작까지 실패하면 추가 조치 없이 보고한다. 계획 재시작 전 파일 확인 실패는 실행본 복원·status/apps 재확인 후 멈추며 재시작하지 않는다.
+- `./sync`는 실행본 → 운영 저장소 수집이다. 실행본 교체 뒤에만 인자 없이 실행한다. 운영 설정 원본은 고치지 않으며 다른 작업의 수집 결과는 이번 커밋에 넣지 않는다.
+
+| 교체 전 실행본(홈 기준) | sha256 |
+|---|---|
+| `plugin-store/team-kit/lib/hermes_execution/__init__.py` | `6fd73c1f44e440276aa8741d1d5d2935448d29b2c303cd8dbb6251cc52ca6bb4` |
+| `plugin-store/team-kit/lib/hermes_execution/personal_scopes.py` | `e0fd7e0581a13f80165d143a209f292477df07404e26858d505df0f268152618` |
+| `plugin-store/team-kit/lib/hermes_facility/app_connect.py` | `7457e18c6beead28015d8ef0825a6801e9441baa6f58b45aff4675743a58d19e` |
+| `plugin-store/team-kit/lib/hermes_facility/connection_checks.py` | `4a1fa5db559c28a23fd212571d5e99009fd77408cf6cb91c45c81d4d5309e816` |
+| `plugin-store/team-kit/lib/hermes_facility/connections.py` | `9c27a65c01b7fb7be4ee03b1c58e2336a6a3e8d3e018f4bac92ad6b807aece6f` |
+| `plugin-store/team-kit/lib/hermes_facility/synology_setup.py` | `d48ce57783ce9d594f5247d0e32f974f7a3d29b1107c059997386bb9835ef842` |
+| `plugin-store/team-kit/lib/hermes_packs/mac_apps/discovery.py` | `47a56912f2d0884736dbc5b977b6a384b8b8cd75a6502056603caa956277f114` |
+| `plugin-store/team-kit/lib/hermes_packs/mail/mail_index.py` | `c657baa370e8c79fa9a38d4bbff758180b8c1ce83688e3149dacd60a95640530` |
+| `plugin-store/team-kit/lib/hermes_team_services/morning_report.py` | `4fa29ae8ad2e60a5916845731d95423cb1cf9e57951bdc6315b4584e8d3cf175` |
+| `plugin-store/team-kit/lib/hermes_team_services/news_watch.py` | `0ad2cfe71ef1c409f9d5450001d17c7e8dd7c4eddefa40032399cdfd2ff59c38` |
+| `plugin-store/team-kit/lib/hermes_team_services/personal_review.py` | `5a4f965533fba034e522866ff60f040c2422a54142fe259b3b9b37847a3e0fff` |
+| `plugin-store/team-kit/lib/hermes_team_services/report_review.py` | `71b043dd68beb3ca6458e8e59640d330146ad3b62e20c8fd7dd599b7d31127a9` |
+| `plugin-store/team-kit/lib/hermes_team_services/wait_jobs.py` | `441a8501a4cefc146115bab154b5e939c8d59cd2e1d27d46661562a4f561a21d` |
+| `schemas/connections-status.json` | `d53a2e66f52efd988b9ac38374da7e55d37507763d7688d3602a7b96e859919d` |
+| `plugin-store/team-kit/lib/hermes_team_services/deadline_watch.py` | `e20213cdb0e17d4e72a97ea3bcaff5216382efa2b9269c7846063e7ce9f78af1` |
+
+
+### 6차 적용 실행 결과 — 읽기 실패 후 롤백
+
+**판단: TASK-05 미완료.** 필요/도달 증거 수준은 3/3(실제 운영 실행)이나 적용 성공을 뜻하지 않는다. 실제 문 응답 읽기에서 새 `connections_part_failed`를 검출해 6차 지시의 복구 절차를 실행했다. 계획 재시작 1회와 복구 재시작 1회로 총 2회이며, 더 실행하지 않았다.
+
+| 단계와 실제 명령(hejo 루트 기준) | 종료 코드·결과 | 로컬 증거 |
+|---|---|---|
+| `v6-ops.py backup` | 0, 실행본·공용 릴리스 보관 및 이전 커밋 worktree 준비. 위 롤백 기록을 교체 전에 작성 | `v6-rollback.json` |
+| `v6-ops.py apply` | 0, 17개 원자 교체 뒤 status/apps 각각 종료 0·직원 6명 | `v6-after-copy.json` |
+| 운영 저장소 `git merge --no-edit ae04a715…` | 0, 빨리 감기 | `v6-merge-cm.log` |
+| 운영 저장소 `git merge --no-edit b2bc84f8…` | 0, 충돌 없는 병합 `66f2a44c190390edd2a8a8eab9b2c32cba20195a` | `v6-merge-td.log` |
+| 운영 저장소 `./sync` | 0, 1592개 수집 | `v6-sync.log` |
+| 운영 저장소 `./airport-check` | 0, 경계·문서·칸·조립 검사 PASS | `v6-airport.log` |
+| 운영 저장소 두 작업 경로 `git commit --only` | 1, nothing to commit·작업 트리 깨끗. 두 작업은 위 병합 커밋에 이미 기록돼 추가 커밋을 만들지 않음 | `v6-commit-only.log` |
+| `v6-ops.py release`(내부 `install/hejo-release`) | 0, RELEASE `036619261d2dfaebbe06e51f09f92a8c752b8f8d` 확인 | `v6-rollback.json`의 releaseCommit |
+| `v6-ops.py restart`(기존 BUSY 검사·재연결 확인) | 0, 계획 재시작 1회·채널 7개 재연결 | `v6-restart.json` |
+| 재시작 뒤 `status`·`apps` | 각각 0, 직원 6명 | `v6-after-restart.json` |
+| `v6-live-read.py`(실제 문 WebSocket 읽기) | 1, `new_connection_failure_logs` 단정에서 실패 → 즉시 복원 | `v6-failure-summary.json`, 아래 설명 |
+| `v6-ops.py restore` | 0, 기존 파일 15개 복원·새 파일 2개 삭제·이전 RELEASE 재설치. status/apps 각각 0 | `v6-restored.json` |
+| `v6-ops.py recovery-restart` | 0, BUSY 통과·복구 재시작 1회·채널 7개 재연결 | `v6-recovery-restart.json` |
+| 복구 후 파일 지문·RELEASE·status/apps 검사 | 0, 아래 복구 확인값과 같음 | `v6-recovery-proof.json` |
+
+위 명령의 Python은 앞서 기록한 게이트웨이 환경의 `$HEJO_PYTHON`이다. 로그·JSON·보조 스크립트는 모두 `.build/conn-manage-evidence/` 아래다. 원문 응답의 제목·주소·계정·자격 값은 로그로 남기지 않았다.
+
+`./sync`는 실행본에 아직 배포하지 않은 시험을 병합본에서 지우거나 이전 시험으로 돌렸다. 해당 역변경 5개(`test_conn_management.py`·`test_connections_check.py`·`test_deadline_list.py`·`test_morning_report.py`·`test_news_watch.py`)만 병합 HEAD에서 복원해 검토한 시험을 보존했다. 이번 실행본 교체는 인계서의 17개 대상에 한정했으며 시험 실행본은 바꾸지 않았다. 수집 뒤 실행 코드 차이는 없고 추가 커밋할 변경도 없었다. 이후 sync가 시험 역변경을 다시 만들 수 있으므로 다음 계획 담당에게 이 범위 차이를 넘긴다.
+
+### 실제 읽기 관측과 복구 확인
+
+- 실패 관측: 계획 재시작 뒤 `toolset_config`의 `admin_failed`, HTTP `400` 로그 1건. 비밀 파일·관리 서비스에 직접 접근하지 않고 기존 앱의 키체인 자격으로 정식 문 프로토콜의 `connections`·`deadlines` 읽기만 요청했다. 이 HTTP 400이 기존에도 발생하던 것인지, 이번 변경으로 생긴 것인지는 미확정이며 런타임 코드를 덧고치지 않았다. 원문 제목·계정·요청 자격은 저장하지 않았다.
+- 연결 문서 수신과 시놀로지 중복 단정은 지나갔지만, 최종 요약 파일을 쓰기 전 새 오류 로그 단정에서 실패했다. 연결 행 개수의 영속 요약은 남지 않았으며 성공 판정에 세지 않는다. 실제 해제·설정 변경·메시지 전송은 하지 않았다.
+- TODO-DRAWER M1: 실제 `hermes-deadlines list --json` 종료 0, failed 없음. 장부 2개 sha256 전후 동일. 개수·직원 id·지문만 `v6-M1.json`에 기록했다. M2: 재시작 뒤 실제 문 로그 `deadlines_read items=2 failed=0`를 확인했다(`v6-failure-summary.json`). 이 부분 관측 통과와 합동 적용의 실패·롤백을 구분한다.
+- 복구 확인: 기존 실행본 15개의 sha256이 롤백 기준과 모두 같고 새 `account_connect.py`·`hermes-deadlines`는 삭제됐다. 공용 RELEASE는 `1c6b3e2f18a3e3ceb24f01eeda8bcb042c4582a3`로 복원됐다. 공용 릴리스의 소스 파일 지문도 실제 보관본과 차이 0(생성 pyc 제외)이다. 복구 뒤 게이트웨이 pid는 `28134`, 채널 7개 재연결, status/apps 각각 종료 0·직원 6명이다.
+
+### 다음 검토와 현재 저장소 상태
+
+운영 저장소 main은 검토한 두 작업을 포함한 `66f2a44c190390edd2a8a8eab9b2c32cba20195a`이며 작업 트리는 깨끗하다. **실행본과 공용 릴리스는 이전 상태로 복구됐으므로 이 main을 운영 반영 완료로 보면 안 된다.** 다음 시도의 HEAD=실행본 착수 조건은 이 상태에서는 맞지 않는다. 계획 담당이 롤백 manifest의 기준 지문과 병합 main의 관계, 재적용 기준을 명시해야 한다.
+
+다음 담당은 toolset_config HTTP 400의 원인과 기존 발생 여부를 조사해 새 오류 로그 0의 판정/구현을 보완하고, 시험 수집 경로 차이도 처리한 뒤 새 적용 인계를 낸다. 본 실행에서는 재시작 상한에 도달했으므로 재시도·reload·추가 조치는 하지 않는다. 서버 실물 읽기 결과는 TODO-DRAWER 검증 담당이 위 M1·M2 증거로 교차 확인할 수 있다. 공개·앱 교체·운영 설정/금고/명부 변경·실제 메시지·본체·ddots 수정·푸시는 하지 않았다. 최종 보고서 정적 검사와 커밋은 상태 블록에 기록한다.
