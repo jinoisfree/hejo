@@ -162,7 +162,7 @@ final class ThreeTapReader: ThreeTapReading {
                 guard active else { return }
                 if tapped { ThreeTapDiagnostics.begin(frame: frameTime, recognized: recognizedTime, main: mainTime) }
                 if first { self.onHealth?(.ready) }
-                if tapped { self.onTap?(); ThreeTapDiagnostics.discardUnstarted() }
+                if tapped { self.onTap?(); ThreeTapDiagnostics.mark("tap_handler_end"); ThreeTapDiagnostics.discardUnstarted() }
             }
         }
     }

@@ -260,10 +260,18 @@ final class PetController: NSObject {
         pet.updateGenie(open,progress:start)
         transitionStart=clock();genieStart=start
         ThreeTapDiagnostics.mark("timer_start")
-        let t=Timer(timeInterval:1.0/60,repeats:true){[weak self] _ in self?.stepTransition()}
-        timer=t;RunLoop.main.add(t,forMode:.common);show()
+        let t=Timer(timeInterval:1.0/60,repeats:true){[weak self] _ in ThreeTapDiagnostics.firstTick(); self?.stepTransition()}
+        timer=t;RunLoop.main.add(t,forMode:.common);show();ThreeTapDiagnostics.mark("transition_setup_end")
+        // Preserve the synchronous starting pose, then submit the first elapsed-time
+        // frame without waiting for a 60 Hz timer. Ignore a superseded transition.
+        DispatchQueue.main.async { [weak self, weak t] in
+            guard let self, let t, self.timer === t else { return }
+            ThreeTapDiagnostics.firstTick()
+            self.stepTransition()
+        }
     }
     func stepTransition(){
+        ThreeTapDiagnostics.markFirst("step_start")
         let fraction=min(1,max(0,(clock()-transitionStart)/ChatMorph.genieDuration))
         transitionProgress=ChatMorph.genieProgress(from:genieStart,opening:chatExpanded,fraction:fraction);transitionSteps+=1
         if let p=pet.placement {pet.updateGenie(p,progress:transitionProgress)}
@@ -338,6 +346,8 @@ final class PetController: NSObject {
         if point==target.globalBubble.origin && size==target.globalBubble.size && !pet.widthCoverVisible {motionTimer?.invalidate();motionTimer=nil}
     }
     private func apply(_ p: PetPlacement) {
+        let span = ThreeTapDiagnostics.startBeforeFirstTickSpan()
+        defer { ThreeTapDiagnostics.endSpan("placement_apply", span) }
         CATransaction.begin(); CATransaction.setDisableActions(true)
         panel.setFrame(p.windowFrame, display: false); pet.arrange(p)
         let screen=PetDisplay.nearest(to:CGPoint(x:p.globalSprite.midX,y:p.globalSprite.midY),in:displays())

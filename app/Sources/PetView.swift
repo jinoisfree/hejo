@@ -448,9 +448,13 @@ final class PetView: NSView {
     var hasPanePicture: Bool { panePicture?.contents != nil }
     func endWidthCover(){widthCover.removeFromSuperview();widthCover.image=nil;panePicture?.removeFromSuperlayer();panePicture=nil;paneSharp=nil}
     func captureGenie() {
+        let layoutSpan = ThreeTapDiagnostics.startSpan()
         conversation.isHidden = false; conversation.layoutSubtreeIfNeeded()
+        ThreeTapDiagnostics.endSpan("capture_layout", layoutSpan)
         if let rep = conversation.bitmapImageRepForCachingDisplay(in: conversation.bounds) {
+            let displaySpan = ThreeTapDiagnostics.startSpan()
             conversation.cacheDisplay(in: conversation.bounds, to: rep)
+            ThreeTapDiagnostics.endSpan("capture_display", displaySpan)
             let size=conversation.bounds.size
             if let graphics=NSGraphicsContext(bitmapImageRep:rep){
                 NSGraphicsContext.saveGraphicsState();NSGraphicsContext.current=graphics
@@ -459,7 +463,11 @@ final class PetView: NSView {
                 c.addRect(CGRect(origin:.zero,size:size));c.addPath(CGPath(roundedRect:CGRect(origin:.zero,size:size),cornerWidth:20,cornerHeight:20,transform:nil));c.clip(using:.evenOdd);c.clear(CGRect(origin:.zero,size:size));NSGraphicsContext.restoreGraphicsState()
             }
             let image=NSImage(size:size);image.addRepresentation(rep);genie.image=image
-            if let captured=rep.cgImage {genie.blurredImage=Self.blurred(captured,width:size.width)}
+            if let captured=rep.cgImage {
+                let blurSpan = ThreeTapDiagnostics.startSpan()
+                genie.blurredImage=Self.blurred(captured,width:size.width)
+                ThreeTapDiagnostics.endSpan("capture_blur", blurSpan)
+            }
         }
         conversation.isHidden = true; genie.isHidden = false
     }

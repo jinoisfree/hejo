@@ -1,4 +1,5 @@
 import Foundation
+import CoreFoundation
 
 /// Opt-in timing only. Contact coordinates, device identifiers and conversation data never enter the trace.
 enum ThreeTapDiagnostics {
@@ -22,6 +23,38 @@ enum ThreeTapDiagnostics {
     static func begin(frame: Double?, recognized: Double?, main: Double?) {
         guard let frame, let recognized, let main else { return }
         sample = ["frame": frame, "recognized": recognized, "main": main]
+        idleStart = nil
+        _ = waitObserver
+    }
+    private static var idleStart: Double?
+    // Diagnose run-loop sleep separately from synchronous work after timer registration.
+    // This observer is installed only when an enabled trace begins a real sample.
+    private static let waitObserver: CFRunLoopObserver? = {
+        let activities = CFRunLoopActivity.beforeWaiting.rawValue | CFRunLoopActivity.afterWaiting.rawValue
+        let observer = CFRunLoopObserverCreateWithHandler(nil, activities, true, 0) { _, activity in
+            guard sample?["timer_start"] != nil, sample?["first_tick"] == nil else { return }
+            let now = ProcessInfo.processInfo.systemUptime
+            if activity == .beforeWaiting { idleStart = now }
+            else if let start = idleStart {
+                let slept = (sample?["timer_sleep_seconds"] ?? 0) + now - start
+                sample?["timer_sleep_seconds"] = slept
+                idleStart = nil
+            }
+        }
+        if let observer { CFRunLoopAddObserver(CFRunLoopGetMain(), observer, .commonModes) }
+        return observer
+    }()
+    static func firstTick() {
+        guard sample != nil, sample?["first_tick"] == nil else { return }
+        sample?["first_tick"] = ProcessInfo.processInfo.systemUptime
+        if sample?["timer_sleep_seconds"] == nil { sample?["timer_sleep_seconds"] = 0 }
+    }
+    static func markFirst(_ stage: String) {
+        guard sample?[stage] == nil else { return }
+        mark(stage)
+    }
+    static func startBeforeFirstTickSpan() -> Double? {
+        sample?["first_tick"] == nil ? startSpan() : nil
     }
     static func discardUnstarted() {
         if sample?["expanded"] == nil { sample = nil }

@@ -85,6 +85,7 @@ import UniformTypeIdentifiers
     private var rooms:[Room]=[], threads:[ConversationThread]=[]
     private(set) var sidebarRows:[SidebarLayout.Row]=[]
     private var renderedSidebarIDs:[String]=[]
+    private var renderedSidebarHeights:[CGFloat]=[]
     private var sidebarRails:[String:CAShapeLayer]=[:]
     private var sidebarUpdating=false
     private lazy var sidebarSearch=SidebarSearchRow(field:employeeSearch)
@@ -560,6 +561,7 @@ import UniformTypeIdentifiers
         }
         let span = ThreeTapDiagnostics.startSpan()
         defer { ThreeTapDiagnostics.endSpan("refresh", span) }
+        var phase = ThreeTapDiagnostics.startSpan()
         let model=controller.model
         let themeDark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua;subtitle.textColor=CardText.quiet(dark:themeDark);version.textColor=CardText.quiet(dark:themeDark)
         streamReveal.receive(Array(model.messages.values),now:motionTime());streamReveal.advance(now:motionTime(),immediately:reduceMotion())
@@ -582,6 +584,7 @@ import UniformTypeIdentifiers
             controller.moveDraft(from:controller.composeKey ?? old,to:destination,carry:true);selectAutomatic(identity,home:model.isHome)
         }
         }
+        ThreeTapDiagnostics.endSpan("refresh_selection", phase); phase = ThreeTapDiagnostics.startSpan()
         let selected=model.selected
         rooms=model.displayRooms.filter { employeeSearch.stringValue.isEmpty || $0.title.localizedCaseInsensitiveContains(employeeSearch.stringValue) }
         let layout=model.sidebar
@@ -602,8 +605,10 @@ import UniformTypeIdentifiers
         composerFaces.lit=model.isHome ? light.id.flatMap{composerMembers.firstIndex(of:$0)}:nil;composerFaces.ring=model.isHome && light.ring;composerFaces.explicitlyPicked = !replyMode && !controller.draft.picks.isEmpty
         editor.editor.mentions=(model.isHome ? model.homeRecipients.members:model.people(selected?.employee ?? "")).map(\.name)
         addRoom.toolTip="새 방·섹션 만들기, 뺀 방·보관된 방 다시 넣기";addRoom.setAccessibilityLabel("방 추가")
-        employeeTable.rowHeight=ConversationSidebar.isList(sidebarWidth) ? ConversationSidebar.rowHeight : ConversationSidebar.tabHeight
+        let rowHeight = ConversationSidebar.isList(sidebarWidth) ? ConversationSidebar.rowHeight : ConversationSidebar.tabHeight
+        if employeeTable.rowHeight != rowHeight { employeeTable.rowHeight = rowHeight }
         updateSidebarRows()
+        ThreeTapDiagnostics.endSpan("refresh_sidebar", phase); phase = ThreeTapDiagnostics.startSpan()
         if let selected {
             let current=model.selectionIdentity
             threads=model.isHome ? model.homeThreads:(model.room(for:current).map { model.threads(room:$0,query:"") } ?? []).sorted { (model.timeline($0.key).first?.seq ?? 0) < (model.timeline($1.key).first?.seq ?? 0) }
@@ -621,11 +626,13 @@ import UniformTypeIdentifiers
                 if previous==nil || !Calendar.current.isDate(previous!,inSameDayAs:date) { cards.append(dayContent(date,id:thread.id)) }
                 cards.append(threadContent(thread));previous=date
             }
+            ThreeTapDiagnostics.endSpan("refresh_cards", phase); phase = ThreeTapDiagnostics.startSpan()
             history.show(cards,identity:current,entry:newest(current)?.thread)
             if enteredPlace != current {enteredPlace=current;let last=threads.last?.key,newest=newest(current);history.enter(newest==last ? nil:newest?.thread)}
             if !automatic,model.timeline(selected).isEmpty,controller.timeline(selected).isEmpty {replyMode=false}
 
         } else { threads=[]; history.show([],identity:""); heading.stringValue="HEJO." }
+        ThreeTapDiagnostics.endSpan("refresh_history", phase); phase = ThreeTapDiagnostics.startSpan()
         let draft=controller.draft
         if !editor.editor.hasMarkedText() && (writingKey != controller.composeKey || editorFontSize != ChatMetrics.bodyFont || MessageFormat.serialize(editor.editor.attributedString(),baseSize:editorFontSize) != draft.text) {
             editor.editor.breakUndoCoalescing(); editor.editor.undoManager?.removeAllActions()
@@ -657,15 +664,22 @@ import UniformTypeIdentifiers
         for button in [replyButton,newButton,sendButton] { button.needsDisplay=true }
         modeMotion.target(replyMode ? 1:0,now:motionTime(),immediate:reduceMotion())
         notice.stringValue=controller.notice
+        ThreeTapDiagnostics.endSpan("refresh_composer", phase); phase = ThreeTapDiagnostics.startSpan()
         refreshWorkspaceBars();scheduleSearch()
+        ThreeTapDiagnostics.endSpan("refresh_workspace", phase); phase = ThreeTapDiagnostics.startSpan()
         var islandInput=controller.islandInput;islandInput.drawerOpen=controller.drawerOpen
         islandModel.update(islandInput);tickIsland(updateDrawer:false)
+        ThreeTapDiagnostics.endSpan("refresh_island", phase); phase = ThreeTapDiagnostics.startSpan()
         if controller.drawerVisible {todoDrawer.show(controller.drawerSnapshot,filter:controller.drawerFilter,selected:drawerSelectedID)}
+        ThreeTapDiagnostics.endSpan("refresh_drawer", phase); phase = ThreeTapDiagnostics.startSpan()
         onUnread?(model.visibleUnreadTotal)
         reportOpenHeight()
         startWorkspaceMotion();needsLayout=true; needsDisplay=true
+        ThreeTapDiagnostics.endSpan("refresh_finish", phase)
     }
     override func layout() {
+        let span = ThreeTapDiagnostics.startBeforeFirstTickSpan()
+        defer { ThreeTapDiagnostics.endSpan("conversation_layout", span) }
         super.layout()
         let w=bounds.width,h=bounds.height,left=min(sidebarWidth,max(0,w-100)), x=left, right=max(1,w-left), list=ConversationSidebar.isList(sidebarWidth)
         brandDrag.frame=CGRect(x:0,y:0,width:left,height:44); brand.frame=CGRect(x:0,y:7,width:left,height:18); version.frame=CGRect(x:0,y:26,width:left,height:12)
@@ -722,6 +736,8 @@ import UniformTypeIdentifiers
         inputBackground.layer?.backgroundColor=NSColor.labelColor.withAlphaComponent(0.04).cgColor; inputBackground.layer?.borderColor=NSColor.labelColor.withAlphaComponent(0.18).cgColor
     }
     override func draw(_ dirtyRect:NSRect) {
+        let span = ThreeTapDiagnostics.startBeforeFirstTickSpan()
+        defer { ThreeTapDiagnostics.endSpan("conversation_draw", span) }
         let dark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua
         (dark ? NSColor(white:0.07,alpha:0.4) : .clear).setFill(); bounds.fill()
         NSColor.labelColor.withAlphaComponent(0.035).setFill(); CGRect(x:sidebarWidth,y:0,width:max(0,bounds.width-sidebarWidth),height:44).fill()
@@ -772,8 +788,15 @@ import UniformTypeIdentifiers
         guard !sidebarUpdating else{return};sidebarUpdating=true;defer{sidebarUpdating=false}
         let ids=sidebarRows.map(\.stableID)+(employeeSearch.stringValue.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty || !ConversationSidebar.isList(sidebarWidth) ? ["add"]:[])
         let old=renderedSidebarIDs;renderedSidebarIDs=ids
+        let heights = ids.indices.map { tableView(employeeTable,heightOfRow:$0) }
+        // Ordinary rows have fixed heights. Keep content/selection updates below, but
+        // avoid asking AppKit to recreate their layout when those heights did not change.
+        // Search rows retain the existing refresh path for live hit text and wrapping.
+        let searchRows = sidebarRows.contains { $0.kind == .hit || $0.kind == .hitHeading }
+        let changedHeights = IndexSet(ids.indices.filter { searchRows || !renderedSidebarHeights.indices.contains($0) || renderedSidebarHeights[$0] != heights[$0] })
+        renderedSidebarHeights = heights
         if old != ids {SidebarMotion.update(employeeTable,old:old,new:ids,animated:!old.isEmpty && !reduceMotion() && window != nil)}
-        else {NSAnimationContext.runAnimationGroup{context in context.duration=reduceMotion() || window==nil ? 0:0.24;context.timingFunction=SidebarMotion.curve;employeeTable.noteHeightOfRows(withIndexesChanged:IndexSet(integersIn:0..<ids.count))}}
+        else if !changedHeights.isEmpty {NSAnimationContext.runAnimationGroup{context in context.duration=reduceMotion() || window==nil ? 0:0.24;context.timingFunction=SidebarMotion.curve;employeeTable.noteHeightOfRows(withIndexesChanged:changedHeights)}}
         for i in sidebarRows.indices {if let cell=employeeTable.view(atColumn:0,row:i,makeIfNecessary:false) as? EmployeeSidebarCell {configureSidebarCell(cell,row:sidebarRows[i])}}
         if let index=rowIndex(for:controller.model.selectionIdentity) {employeeTable.selectRowIndexes(IndexSet(integer:index),byExtendingSelection:false)}else{employeeTable.deselectAll(nil)}
         layoutSidebarRails()
