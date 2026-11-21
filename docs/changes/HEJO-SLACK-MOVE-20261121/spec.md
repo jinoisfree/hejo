@@ -1,6 +1,6 @@
 # HEJO-SLACK-MOVE 명세: 알림·보고·대화를 Slack 대신 hejo로
 
-4판 · 2026-11-22(계획 검증 1~3회차 반영, [plan-review.md](plan-review.md)) · 상태: 초안(계획 재검증 대기) · 기준 커밋: 이 저장소 `cb06e7d`, `<운영 저장소>` `66f2a44c`
+5판 · 2026-11-22(계획 검증 1~4회차 반영, [plan-review.md](plan-review.md)) · 상태: 초안(계획 재검증 대기) · 기준 커밋: 이 저장소 `cb06e7d`, `<운영 저장소>` `66f2a44c`
 요청과 사장 결정: [brainstorm.md](brainstorm.md). 설계 [design.md](design.md), 작업 [tasks.md](tasks.md), 인계 [handoff.md](handoff.md), 수락 시험 [HEJO-SLACK-MOVE.md](../../../tests/acceptance/HEJO-SLACK-MOVE.md).
 
 약어: `H` 이 저장소, `HD` `<운영 저장소>`, `TK` `<HOME>/plugin-store/team-kit`, `TKL` `TK/lib`, `TS` `TKL/hermes_team_services`, `CP` 고객 응대 직원 프로필 홈(인스타·네이버톡 플러그인이 있는 직원), `본체` `<HOME>/hermes-agent`.
