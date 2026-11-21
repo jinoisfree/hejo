@@ -310,3 +310,70 @@ TASK-05·06 배정 범위의 구현·자체 시험을 마쳤으며 계획 담당
 운영 main 최종 전체 커밋: **`d7208c11c23ddb0dacddbe3e225864058f263006`**. merge 전후와 파일/커밋 blob은 `E5/final-integrity.json`에 기록했다. 지정 두 경로가 이미 HEAD와 같아서 추가 `git commit --only`는 실행하지 않았다(빈 커밋 금지). app_setup.py 실행본·저장소·커밋 SHA-256이 모두 적용값과 같으며 app_connect.py는 착수값 그대로다. 작업 밖 미커밋은 착수 10개에서 11개로 늘었으며 모두 커밋하지 않았다. 차이는 로컬 전용 전후 status 파일에 남겼다.
 
 게이트웨이 pid·시작 식별자 불변, 복원 미실행. 보관본과 복원 절차는 유지한다. 게이트웨이가 요청마다 호출하는 CLI 자식 프로세스의 실행본 lib를 확인했으며, 게이트웨이 재시작·운영 app connect·메시지·앱 교체·릴리스·push는 실행하지 않았다. 사장 직원 A 설정 재저장·M5는 아직 남아 있다.
+
+## 5차-TASK-09: 세 손가락 탭 구간 측정
+
+착수 hejo HEAD: `fa0622250825112adad0e7a93df6345ec0df3d02`. 작업 도중 확인한 5차 정정 인계에 따라 실제 탭 대신 프레임 주입으로 진행한다. 위험도 일반, 증거 수준 **2**이며 실제 탭 M7은 설치 후 사장 확인으로 남긴다. 아래 `E9`는 `.build/finder-folders-evidence/round5-task09`다. 착수 소스 SHA-256은 `E9/preflight.json`, 수정 전 계측 소스 지문·사본은 `E9/before-source.json`과 `E9/before-source/`다.
+
+### 측정 준비·격리
+
+`HEJO_THREE_TAP_TRACE`가 `.build/` 아래 출력 파일을 가리킬 때만 구간 시각을 기록한다. 기본값은 꺼짐이다. 숫자 시각·열기 여부만 기록하며 좌표·기기 식별자·대화·실제 경로는 기록하지 않는다. 기록 쓰기는 애니메이션 완료 후 별도 큐로 보낸다. 판정 규칙과 애니메이션 길이를 아직 고치지 않았다.
+
+`app/Tests/build_three_tap_latency.sh`는 AppDelegate 원문과 시험 전용 확장을 같은 파일로 이어 private 의존 자료만 가짜로 조립한다(제품의 접근 제어·메서드 본문을 치환하지 않음). 임시 LocalStore와 메모리 자격 대역, 가짜 직원·대화 20개를 사용하고 네트워크 연결·캘린더·운영 모니터·업데이트는 시작하지 않는다. 실제 AppDelegate.openBubble/refreshPetActivity 및 ConversationView, PetController를 사용한다. 고정 가짜 대상을 여는 클릭 콜백·확장 콜백은 평상시 시작과 같은 순서다.
+
+읽기 대역은 기기 열거·콜백 등록 심벌만 제공한다. `ThreeTapReader.start()`가 실제로 등록한 C callback에 별도 읽기 큐에서 96바이트 접촉 3개(착지)와 80ms 뒤 0개(뗌)를 전달한다. 따라서 실제 `ThreeTapReader.callback → receive → ThreeTapFrames/ThreeTapGesture → DispatchQueue.main.async → ThreeTapController.tapped → PetController.threeFingerTapped → pet.onClick → AppDelegate.openBubble/접기 → setExpanded`를 지난다. 1.2초 이상 간격으로 열기·닫기 각 10회다.
+
+시각 기준은 읽기 함수 입구의 systemUptime(해당 프레임이 탭으로 판정된 경우만 보존), 판정 직후, 메인 큐 작업 시작, setExpanded 진입, 첫 nonzero genie 갱신, 애니메이션 완료다. 첫 움직임은 앱 내부에서 첫 변화 프레임을 제출한 시점이며 물리 화면의 발광을 외부 장치로 잰 값은 아니다. 추가로 캡처·확장 콜백·타이머 대기 구간을 계측한다.
+
+정정 전 준비한 실물용 진단 빌드는 종료 0이나 실행하지 않았다(`E9/diagnostic-build-before.log/json`). 사용자에게 직접 탭할 필요 없음을 안내했고, 정정된 주입 빌드로 측정을 진행한다.
+
+### 수정 전 측정 결과와 중단 판단
+
+`bash app/Tests/build_three_tap_latency.sh` 종료 0(`E9/injected-build-before.log/json`). `HEJO_THREE_TAP_TRACE=E9/before.jsonl app/.build/three-tap-diagnostic/three-tap-diagnostic <개발 리소스>` 종료 0, 주입 **20회(열기 10·닫기 10)** 완료(`E9/before-run.log/json`). `python3 app/Tests/three_tap_latency.py E9/before.jsonl` 종료 0, 원시 시각·요약은 `E9/before.jsonl`, `E9/before-summary.json`이다. 빌드 전 `pgrep -f app-tests`는 종료 1(다른 앱 시험 없음).
+
+단위 ms, 각 칸은 중앙값 / 최댓값이다.
+
+| 구간 | 열기 10회 | 닫기 10회 |
+|---|---:|---:|
+| 손 뗀 프레임 → 판정 | 0.008 / 0.011 | 0.008 / 0.020 |
+| 판정 → 메인 큐 시작 | 0.038 / 0.669 | 0.037 / 2.277 |
+| 메인 큐 시작 → setExpanded | 58.651 / 63.914 | 0.009 / 0.021 |
+| setExpanded → 첫 움직임 | 100.820 / 223.201 | 147.565 / 170.273 |
+| 첫 움직임 → 애니메이션 완료 | 288.855 / 307.565 | 304.027 / 362.709 |
+| 손 뗀 프레임 → 첫 움직임 | 162.059 / 281.081 | 147.605 / 170.335 |
+| 화면 캡처(위 구간에 포함) | 21.050 / 69.867 | 28.449 / 35.129 |
+| 확장 콜백(위 구간에 포함) | 52.326 / 79.642 | 76.928 / 89.565 |
+| 타이머 시작 → 첫 움직임(위 구간에 포함) | 18.478 / 55.987 | 18.968 / 22.299 |
+
+[확인] 첫 움직임까지 중앙값은 열기 **162.059ms**, 닫기 **147.605ms**로 100ms를 넘는다. 판정·메인 큐 전달은 각각 1ms 미만이다. 첫 움직임 전 가장 큰 구간은 setExpanded 내부이며(열기 100.820ms·닫기 147.565ms), 그 안의 확장 콜백이 52.326ms·76.928ms를 차지한다. 열기 전 AppDelegate.openBubble의 준비도 58.651ms다.
+
+[코드 확인] PetController.setExpanded에서 onDrawerStateChanged → onExpansionChanged가 동기로 호출된다. 전자는 ConversationController.setDrawerState의 onChange, 후자는 AppDelegate에서 ConversationView.folded(닫기) 및 ConversationModel.setVisible를 거쳐 여러 차례 onChange를 발생시킨다. ConversationView에 설치된 onChange는 refresh를 즉시 실행하며, openFromBubble도 refresh한다. [추론] 같은 사용자 동작의 중간 상태마다 대화 화면을 다시 만드는 비용이 첫 움직임 전 지연의 주요 원인 후보다. 각 개별 refresh의 독립 비용·호출 횟수까지 계측하지 않았으므로 이를 확정된 단일 병목으로 확대하지 않는다.
+
+**중단 조건:** spec REQ-FF-07 AC-03은 “측정에서 애니메이션이 지연의 대부분이면 멈추고 보고”라고 지정했다. 첫 움직임 뒤 구간 중앙값은 열기 288.855ms·닫기 304.027ms로 단일 구간 중 가장 크며, 기존 genieDuration 0.30초와 부합한다. 이 조건에 따라 성능 동작 수정은 중단했다. 탭 규칙·애니메이션 길이·화면 갱신 순서를 임의 변경하지 않았다. 따라서 수정 후 측정은 **미실행**, AT-FF-30은 수정 전 절반만 완료, AT-FF-31은 **미실행/미충족**이다. 이 보고를 지연 개선 완료로 보지 않는다.
+
+검토할 선택지: (1) 애니메이션 0.30초를 유지하고 **첫 움직임 전 지연**만 목표로 삼도록 중단 조건을 분명히 한 뒤, ConversationView/ConversationController/ConversationModel의 갱신 묶음 처리까지 범위를 열어 중복 화면 갱신을 원래 책임 자리에서 줄이기; (2) 사장이 애니메이션 길이·동작 변경을 결정하고 별도 수락 기준으로 진행. 구현자의 권고는 (1)이다. 현재 탭 판정·큐 전달은 지연 근거가 작으므로 이를 조정하거나, 화면 갱신을 임의 지연시켜 오래된 화면을 먼저 띄우는 우회는 하지 않는다. 판단 대기 중에는 측정 코드 회귀 시험·개인값 검사·기록만 마무리한다.
+
+### 진단 경로 검사 보완
+
+첫 `HEJO_PYTHON=P bash app/scripts/test.sh`는 종료 **1**이었다(`E9/app-full-initial.log/json`, 검사 중 앱 소스 변화 없음). 기존 시험에서 AT-FF-20~23 등은 통과했으나, 새 진단 경로 시험 `tap tracing rejects symlink escape`가 실패해 이후 시험·네트워크 fixture는 실행되지 않았다. 통과로 간주하지 않는다.
+
+[재현] Foundation이 아직 없는 출력 파일까지 포함한 URL을 resolvingSymlinksInPath로 처리하면 중간 링크가 남았다. 별도 최소 재현에서 전체 경로는 `.build`를 유지했지만 기존 부모 디렉터리만 해석하면 밖으로 풀렸다. 실제 외부 로그 파일을 쓰지 않고 경로 함수만 검사했다.
+
+진단 설정을 읽을 때 **이미 존재하는 부모 디렉터리**를 먼저 해석하고 `.build` 아래인지 확인하도록 고쳤다. 출력 파일 자체가 링크이면 거부한다. 출력 폴더는 실행자가 미리 만들어야 하며, 기본 꺼짐·없는 부모·부모 링크 탈출·아직 대상이 없는 파일 링크를 검사한다. `xcrun swiftc <진단 소스·최소 시험>` / `E9/trace-path-tests`는 각각 종료 **0**, TRACE_PATH_GUARDS_PASS(`E9/trace-path-check.log/json`). 이 보완은 기록 경로 검사만 바꾸며 탭·창 전환 성능 수정은 아니다. 다시 `pgrep -f app-tests` 종료 1을 확인한 뒤 전체 앱 시험을 재실행했다.
+
+### TASK-09 회귀·커밋·인계
+
+| 명령(hejo cwd) | 종료 코드 | 결과 | 로그 |
+|---|---:|---|---|
+| `HEJO_PYTHON=P bash app/scripts/test.sh`(보완 후) | **0** | 개발 빌드·서명, 앱 본시험 APP_TEST_OK, 기존 ThreeTap/펫 클릭·창 시험, AT-FF-20~23, 통신 fixture, hooks 9개 및 실제 설정 메타데이터·Downloads 이름 보존 검사 통과 | `E9/app-full.log/json` |
+| `P scripts/scan_private.py`(새 경로 intent-to-add 뒤) | 0 | 새 계측·시험 파일까지 검사 | `E9/scan-private-code.log/json` |
+| 자기 앱 경로 `git diff --check` | 0 | 새 파일 포함 공백 오류 없음 | 실행 결과 및 `E9/diff-check.log` |
+| `git commit --only -- <자기 앱 7경로>` | 0 | 계측·시험만 커밋 | `E9/app-commit.log/json` |
+
+앱 계측·시험 커밋 전체 해시: **`3ccda920f77530580c69d367da95d241c7da26ff`**. `E9/app-tested-source.json`은 전체 시험이 읽은 앱 소스·시험의 지문이며 검사 중 변경은 0개다. 자기 7개 파일의 최종 커밋 blob과 시험한 바이트가 같음을 확인했다(`E9/app-commit.json`). 커밋은 ThreeTapDiagnostics.swift(기본 꺼짐 숫자 계측), ThreeTapReader.swift(실제 읽기·메인 큐 시각), PetController.swift(확장·캡처·첫 프레임·완료 시각), ThreeTapTests.swift(진단 저장 경계), 시험 전용 주입 harness·빌드 스크립트·집계 스크립트뿐이다. 기존 시험 기대값을 바꾸지 않았다.
+
+AT-FF-32 회귀는 통과했다. AT-FF-30 수정 후 표와 AT-FF-31 개선 기준은 중단 사유로 아직 미충족이다. 실제 탭·체감 M7은 미실행이다. 진단 빌드 스크립트는 개발 앱의 Pet 리소스와 Sparkle 프레임워크를 사용하므로, 재현 시 먼저 `HEJO_SKIP_GOOGLE_SECRET=1 HEJO_SPARKLE_OFFLINE=1 bash app/scripts/build.sh` 또는 위 전체 시험으로 개발 산출물을 준비한다. 임시 자료만 쓰며 운영 문·실제 직원 자료를 불러오지 않는다.
+
+TASK-07은 적용·자체 검증을 마쳤고 계획 담당 검토를 기다린다. TASK-09는 수정 전 계측·회귀만 완료한 **부분 결과**다. 다음 담당자는 중단 조건 해석과 대화 화면 갱신 책임 파일의 범위를 결정해야 한다. TASK-08 공개 후보는 이번 결과만으로 착수하지 않는다. hejo main의 다른 작업 커밋과 새 감사 문서가 함께 존재하므로, 향후 푸시·공개 대상 확정 때 포함 범위를 다시 확인해야 한다. 이번 앱 커밋과 보고서 변경에는 gate/·schemas/·다른 작업 문서를 넣지 않았다.
+
+기존 ThreeTap 판정 규칙, ChatMorph.genieDuration, AppDelegate·PetView의 제품 동작, 수락 기준·시험 명세·spec·design, 앱 버전·설치 앱·Hermes 본체·ddots를 바꾸지 않았다. TASK-07의 명시 허가된 app_setup.py 교체 외 추가 실행본 교체·재시작·문 릴리스·운영 app connect·실제 메시지·push는 없다. 문서 최종 검사 명령·종료 코드·지문은 `E9/final-report-checks.json`에 남긴다.
