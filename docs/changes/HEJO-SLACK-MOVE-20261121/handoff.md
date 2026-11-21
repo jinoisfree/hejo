@@ -63,6 +63,10 @@
    TS/vault_backup_approval.py, 승인 대기 파일의 모양을 고치지 않는다. AT-SM-41·60의 "전 줄"에서 이 한 줄은 제외하고
    impl-report에 제외 사유를 적는다. 그 밖에 두 저장소 밖에서 Slack으로 보내는 곳을 더 찾으면 같은 방식으로 목록만 보고하고
    (파일·줄·무엇을 보내는지) 나머지 TASK-06·07·08은 계속한다. 멈추는 것은 두 저장소 안의 경로를 옮길 수 없을 때뿐이다.
+   S-5(구현 검토 5차, design 4.1 9판): Slack에 남긴 길 두 이름(vault_backup, slack_session)을 TASK-07에서 만든다. 고칠 곳은
+   공통 전송의 Slack 쓰기 검사, 보고 모듈의 이름 붙은 보내기, TK/__init__.py의 금고 백업 등록 한 곳, 대화 도구(file_link,
+   보고 상태 고치기와 같은 성격의 도구)다. TS/vault_backup_approval.py와 승인 대기 파일은 고치지 않는다. 일반 Slack 쓰기 차단을
+   풀거나 스위치를 잠시 바꾸는 방식은 금지. 수락 시험 AT-SM-64(회귀)·69.
    TASK-08: AT-SM-71에서 hejo·Slack 도구 집합이 같아지지 않으면 차이 목록을 보고하고 멈춘다(임의로 도구를 빼거나 넣지 않음).
    금지 범위:
    - 게이트웨이 재시작, reload-plugins, install/hejo-release, 상주 프로그램 재시작, 조립기 운영 실행(모두 TASK-10).
