@@ -1,0 +1,408 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:hejo:local:v1",
+  "title": "hejo local v1",
+  "description": "HTTP JSON over the home hejo/post.sock Unix socket (0600). Employee posts only. Never mounted on TCP. Text limits count UTF-8 bytes; one POST records one message. Unknown fields are rejected.",
+  "x-limits": {
+    "text_bytes": 65536,
+    "frame_bytes": 1048576
+  },
+  "x-routes": {
+    "POST /local/v1/messages": {
+      "request": "post",
+      "response": "posted"
+    },
+    "PATCH /local/v1/messages/{msg_id}": {
+      "request": "patch",
+      "response": "edited"
+    },
+    "DELETE /local/v1/messages/{msg_id}": {
+      "request": "delete",
+      "response": "deleted"
+    },
+    "GET /local/v1/threads/{thread}": {
+      "query": "thread_query",
+      "response": "messages"
+    },
+    "POST /local/v1/rooms": {
+      "request": "room",
+      "response": "created_room"
+    }
+  },
+  "x-semantics": {
+    "post": "Deduplicate client_id per employee using durable journal metadata; return original msg_id and thread with repeated=true. Deleted originals are never recreated. Reject oversized text with invalid_frame before claiming the key.",
+    "patch": "Only the author may edit. Repeating the same edit has the same result.",
+    "delete": "Only the author may delete. Deleting an already deleted message succeeds.",
+    "room": "Match nondeleted rooms by trimmed title. An identical member set and lead in one unarchived room returns created=false. Otherwise return 409 room_conflict with room,members,lead,archived, or 409 room_ambiguous with rooms. Conflicts do not write."
+  },
+  "$defs": {
+    "post": {
+      "type": "object",
+      "properties": {
+        "employee": {
+          "type": "string",
+          "minLength": 1
+        },
+        "room": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "thread": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "text": {
+          "type": "string"
+        },
+        "buttons": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 30
+              },
+              "style": {
+                "enum": [
+                  "primary",
+                  "danger",
+                  "default"
+                ]
+              }
+            },
+            "required": [
+              "label",
+              "style"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "checklist": {
+          "type": "object",
+          "properties": {
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "selected": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "can_skip": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "items",
+            "selected",
+            "can_skip"
+          ],
+          "additionalProperties": false
+        },
+        "reply_state": {
+          "enum": [
+            "asked",
+            "answered",
+            "closed",
+            null
+          ]
+        },
+        "images": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "client_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "employee",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "patch": {
+      "type": "object",
+      "properties": {
+        "employee": {
+          "type": "string",
+          "minLength": 1
+        },
+        "text": {
+          "type": "string"
+        },
+        "buttons": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 30
+              },
+              "style": {
+                "enum": [
+                  "primary",
+                  "danger",
+                  "default"
+                ]
+              }
+            },
+            "required": [
+              "label",
+              "style"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "reply_state": {
+          "enum": [
+            "asked",
+            "answered",
+            "closed",
+            null
+          ]
+        }
+      },
+      "required": [
+        "employee"
+      ],
+      "additionalProperties": false
+    },
+    "delete": {
+      "type": "object",
+      "properties": {
+        "employee": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "employee"
+      ],
+      "additionalProperties": false
+    },
+    "room": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "lead": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "title",
+        "members",
+        "lead"
+      ],
+      "additionalProperties": false
+    },
+    "thread_query": {
+      "type": "object",
+      "properties": {
+        "employee": {
+          "type": "string",
+          "minLength": 1
+        },
+        "room": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "after": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "employee"
+          ],
+          "not": {
+            "required": [
+              "room"
+            ]
+          }
+        },
+        {
+          "required": [
+            "room"
+          ],
+          "not": {
+            "required": [
+              "employee"
+            ]
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "posted": {
+      "type": "object",
+      "properties": {
+        "msg_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "thread": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "repeated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "msg_id",
+        "thread",
+        "repeated"
+      ],
+      "additionalProperties": false
+    },
+    "edited": {
+      "type": "object",
+      "properties": {
+        "msg_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "msg_id"
+      ],
+      "additionalProperties": false
+    },
+    "deleted": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "created_room": {
+      "type": "object",
+      "properties": {
+        "room": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "created": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "room",
+        "created"
+      ],
+      "additionalProperties": false
+    },
+    "messages": {
+      "type": "object",
+      "properties": {
+        "messages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "msg_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "seq": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "role": {
+                "enum": [
+                  "owner",
+                  "employee",
+                  "system"
+                ]
+              },
+              "employee": {
+                "type": "string",
+                "minLength": 1
+              },
+              "text": {
+                "type": "string"
+              },
+              "ts": {
+                "type": "string"
+              },
+              "reply_state": {
+                "enum": [
+                  "asked",
+                  "answered",
+                  "closed",
+                  null
+                ]
+              }
+            },
+            "required": [
+              "msg_id",
+              "seq",
+              "role",
+              "employee",
+              "text",
+              "ts",
+              "reply_state"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "messages"
+      ],
+      "additionalProperties": false
+    },
+    "error": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "enum": [
+            "unknown_employee",
+            "room_not_found",
+            "room_member_required",
+            "room_deleted",
+            "thread_deleted",
+            "message_not_found",
+            "invalid_room",
+            "invalid_frame",
+            "journal_write_failed",
+            "room_conflict",
+            "room_ambiguous"
+          ]
+        }
+      },
+      "required": [
+        "error"
+      ]
+    }
+  }
+}
