@@ -204,3 +204,112 @@
 - 구현 worktree는 깨끗하다. 이 보완 절은 지정된 계획 담당 폴더의 보고서에만 덧붙였으며 아직 커밋하지 않았다.
 - 남은 조건은 위 OS 부하에 대한 사용자 결정, 필요한 경우 무부하 10회 재실행과 후속 전체 검사, 그리고 계획 담당의 V-4 재검증이다. 현재 10회는 부하 관측 상태의 통과 증거로만 사용한다.
 - team-kit은 이번 보완에서 변경하지 않았다. 운영 공항·재시작·운영 원본·비밀 파일·Hermes 본체·ddots·실제 메시지·git push, TASK-05·06은 수행하지 않았다.
+
+
+## 보완 2 추가 검증 — 사용자 부하 정리 뒤 GUI 초점 차단 (2026-11-21)
+
+### 현재 인계와 이번 범위
+
+- [확인] 사용자는 OS 프로세스 일시정지 대신 직접 부하를 정리한 뒤 재실행을 선택했고, 이어서 “완료”라고 알렸다. 이 실행에서는 SIGSTOP·SIGCONT 등 시스템 프로세스 제어를 하지 않았다.
+- [확인] 시작 시 최신 handoff와 verdict 3차·4차를 대조했다. 기존 보완 2(V-4)는 이미 검토를 통과했고, 합동 TASK-05와 별도 공개·설치 기록도 뒤에 생겨 있었다. 이번 추가 실행은 사용자가 요청한 로컬 재검증에 한정했다. 기존 판정을 덮어쓰거나 운영 적용·공개를 반복하지 않았다.
+- [확인] 로컬 main의 추가 내용을 충돌 없는 merge 커밋 두 개로 포함했다. `dc74579e4f97df378cf9dac3f922405600f2255d`는 main `18bc735be9ef568ce88e13d67b6f1a1557c2ea91`을, 최종 `0368f6968e5cdd1e6b6d64c9092b304312372d54`는 main `43b6994cbb5113bd5be7b5543c493a1e18599c61`을 포함한다. `merge.log`, `final-merge.log` 모두 종료 0. 최종 병합은 판정 문서 1개뿐이다.
+- [확인] 앱 Sources·Tests·Pet 리소스는 기존 검증본 `73a9447`과 같다(`final-app-inputs-unchanged.log`, 종료 0). 제품·시험·수락 기대값·대기 시간·순서 변경은 없다. 현재 구현 worktree는 깨끗하다. 임시 진단 출력은 원복했고 별도 진단 바이너리만 `.build/`에 남겼다.
+
+### 재실행과 실패 분리
+
+아래 증거는 모두 구현 worktree의 `.build/todo-drawer-supplement2-quiet/` 기준이다. 기존 `.build/todo-drawer-supplement2/`의 원인 실험·10회 통과·후속 검사 로그는 보존했다.
+
+명령: `TZ=Asia/Seoul app/.build/app-tests "$PWD/app/.build/hejo.app/Contents/Resources/Pet"`
+
+| 시도 | 회차 | 종료 | 실행 초 | 확인한 결과 | 로그 |
+|---|---|---|---|---|---|
+| 최초 추가 실행 | 1/10 | 1 | 129.136 | AT-TD-20~42·AT89·AT92 통과 뒤 AT-HC-27 실패 | `app-basic-01.log` |
+| 동일 바이너리 새 묶음 | 1/10 | 1 | 126.434 | 같은 지점 통과 뒤 같은 AT-HC-27 실패 | `retry/app-basic-01.log` |
+
+- [확인] 두 묶음 모두 첫 실패에서 중단했다. 실패 로그를 덮어쓰거나 10회 통과로 세지 않았다. 현재 추가 검증의 연속 통과 횟수는 0이다. `ten-runs.json`, `retry/ten-runs.json`에 대상 커밋과 회차별 종료를 기록했다.
+- [확인] 실행 전과 실행 중 30초 간격의 프로세스 스냅숏 10개에서 `mediaanalysisd` CPU 최댓값은 41.3%였다(`load-summary.json`). 이전 175~219% 부하는 재현되지 않았지만, 이번 묶음을 무부하 10회 합격으로 보고하지 않는다.
+- [확인] 복합 단언 AT-HC-27의 실패 항목을 가리기 위해, 해당 단언 바로 앞에 상태 출력 한 줄만 더한 별도 진단 바이너리를 만들고 기존 `--task32-capture` 경로를 실행했다. 종료 1이며 `visible=true`, `key=false`, `empty=true`, `busy=false`, `active=false`, `canKey=true`, `showingInput=false`, `sheets=0`, 전면 앱 `com.apple.SecurityAgent`를 기록했다(`connection-probe.log`). 단언·대기·순서는 그대로다.
+- [확인] 프로세스 실행 계정과 `/dev/console`의 활성 계정이 다르다(`console-session.json`; 계정 이름은 기록하지 않음). 직접 실패한 조건은 창의 키보드 초점이며, 잠금·계정 전환 상태가 관측됐다. 실제 데스크톱 전환 뒤의 성공 여부는 아직 확인하지 않았다. AT89·AT92 회귀 재발로 분류할 근거는 없다.
+- [확인] 임시 진단 diff는 `connection-probe.patch`, 빌드 명령과 로그는 `compile-connection-probe.sh`, `compile-connection-probe.log`에 보존했다. `ConnectionsTests.swift`는 원본 바이트로 복원했고 `git diff --exit-code` 종료 0(`connection-probe-restored.log`). 일반 시험 바이너리는 진단 바이너리와 별개다.
+
+### 독립적으로 마친 검사
+
+검사 대상은 최종 커밋 `0368f6968e5cdd1e6b6d64c9092b304312372d54`다. 명령·대상·종료 코드·로그는 `verification.json`에 있다. Hermes venv와 기존 가짜 검사 홈을 썼다.
+
+| 명령 | 실제 결과 | 로그 |
+|---|---|---|
+| `"$HEJO_PYTHON" -m pytest gate/tests tests/acceptance -q -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function` | 종료 0, 416 passed·기존 warning 1 | `gate-test.log` |
+| `"$HEJO_PYTHON" scripts/scan_private.py --home .build/todo-drawer/scan-home` | 종료 0 | `scan.log` |
+| `git diff --check` | 종료 0 | `diff-check.log` |
+| `git merge-base --is-ancestor main HEAD` | 종료 0, main `43b6994cbb5113bd5be7b5543c493a1e18599c61` 포함 | `main-ancestry.log`, `git-tips.txt` |
+| `TZ=Asia/Seoul bash scripts/test.sh` | [미실행] 이번 추가 10회가 GUI 초점에서 차단돼 후속 전체 검사는 아직 실행하지 않음. 기존 `73a9447` 전체 종료 0 증거는 앞 절에 보존 | 해당 없음 |
+
+### 대기 조건과 이어갈 일
+
+- 사용자에게 작업 실행 계정의 macOS 데스크톱으로 전환해 잠금을 해제한 뒤 “완료”라고 알려 달라고 요청했다. 비밀번호는 요청하지 않는다. 계정 전환이나 로그인 상태를 에이전트가 변경하지 않았다.
+- 사용자 응답 뒤 콘솔 계정 일치·창 활성 조건을 먼저 확인하고, 기존 실패 폴더를 보존한 새 폴더에서 기본 묶음 10회 및 후속 전체 검사를 실행한다. 모든 중간 실패도 기록한다. 기존 AT-HC-27·AT89·AT92와 AT-TD의 기대값·대기·순서를 바꾸지 않는다.
+- 이번 추가 실행은 증거 수준 2의 일부 통과와 GUI 환경 차단 보고다. 기존 교차 모델 완료 판정과 별도로, 요청받은 추가 무부하 10회 조건은 미충족 상태다. 이 절은 지정된 계획 담당 폴더에만 덧붙였으며 아직 커밋하지 않았다.
+- 운영 공항·재시작·운영 team-kit 원본·비밀 파일·Hermes 본체·ddots·실제 메시지·git push, TASK-05·06은 이번 대화에서 수행하지 않았다.
+
+
+### 계정 전환 완료 알림 뒤 재확인 (2026-11-21)
+
+- [확인] 사용자 완료 알림을 받아 GUI 조건부터 다시 확인했다. 콘솔 계정은 여전히 시험 실행 계정과 달랐다. 개인 계정 이름은 이 추적 문서에 기록하지 않고, 무시되는 로컬 증거 `after-unlock-console.json`에만 남겼다.
+- [확인] 동일한 기존 진단 바이너리로 `TZ=Asia/Seoul app/.build/app-tests-connection-probe --task32-capture <무시되는 출력 폴더>`를 실행했다. 종료 1(`after-unlock-probe.log`, `after-unlock-probe.exit`). 창은 보이고 입력은 비었으나 `key=false`, `active=false`이며 전면 앱은 `com.apple.SecurityAgent`였다. AT-HC-27의 초점 조건이 계속 충족되지 않았다.
+- [확인] 기본 묶음 10회·후속 전체 검사는 재개하지 않았다. 소스나 빌드 입력은 바뀌지 않았고 이전에 통과한 서버·정적 검사는 반복하지 않았다. 사용자에게는 필요한 실행 계정을 구체적으로 안내하고 해당 계정의 데스크톱을 활성화할 수 있는지 물었다. 계정 전환 가능 여부 또는 전환 완료 알림 대기다.
+
+
+## 보완 2 추가 검증 완료 — 활성 GUI에서 10회와 후속 검사 (2026-11-21)
+
+### GUI 조건 확인과 앞선 안내 정정
+
+- [확인] 사용자가 다시 완료를 알린 뒤 같은 진단 바이너리를 실행했다. `visible=true`, `key=true`, `empty=true`, `busy=false`, `active=true`였고 AT-HC-20~29·AT-CM-30~38·`APP_TEST_OK`로 종료 0이었다. 증거는 `.build/todo-drawer-supplement2-quiet/after-unlock-2-probe.log`와 `.exit`다.
+- [확인] 이때도 `/dev/console` 소유자는 시험 실행 계정과 달랐다. 따라서 앞 절에서 콘솔 소유자 일치를 필수 조건으로 안내한 부분을 정정한다. 실제 앱 활성화와 창의 키보드 초점이 시험에 필요한 GUI 조건이다. 콘솔 소유자 표시는 보조 진단 정보로만 쓴다. 별도 OS 설정이나 로그인 상태를 에이전트가 바꾸지 않았다.
+- [확인] 같은 진단 바이너리가 GUI 상태 변경 전에는 AT-HC-27에서 `key=false`, `active=false`로 실패하고, 사용자 조작 뒤에는 `key=true`, `active=true`로 통과했다. 일반 바이너리도 앞선 두 실패 묶음 뒤 이번 10회에서는 모두 통과했다. 이 추가 실행에서 AT89·AT92의 재실패는 없었다. 이전 실패를 제품 수정으로 우회하거나 기대값을 바꾸지 않았다.
+
+### 대상과 소스 상태
+
+- 최종 커밋: `0368f6968e5cdd1e6b6d64c9092b304312372d54` (`role-workflow/7-833b7c8b`). 로컬 main `43b6994cbb5113bd5be7b5543c493a1e18599c61`을 포함한다. 이 추가 실행 중 main과 HEAD는 바뀌지 않았다.
+- 제품 소스·시험·Pet 리소스는 보완 2 수정본 `73a9447`과 같다. 통과용 일반 바이너리를 만든 `dc74579`와 현재 HEAD의 해당 입력도 같다(`active-desktop/app-inputs-unchanged.log`). 10회 전후 일반 바이너리 SHA256 일치와 모든 수락 표식은 `ten-run-audit.json`으로 확인했다.
+- 이 추가 검증에서는 제품·시험을 수정하지 않았으므로 새 제품/시험 커밋은 없다. 앞 절의 main 병합 커밋 두 개 외에 구현 브랜치의 새 커밋도 없다. 일반 시험 바이너리와 상태 출력이 있는 별도 진단 바이너리는 분리했다. 기존 단언·대기·순서·수락 명세는 그대로다.
+
+### 활성 GUI에서 기본 묶음 10회
+
+명령: `TZ=Asia/Seoul app/.build/app-tests "$PWD/app/.build/hejo.app/Contents/Resources/Pet"`
+
+아래 로그는 구현 worktree `.build/todo-drawer-supplement2-quiet/active-desktop/` 기준이다. 모든 회차는 같은 커밋과 같은 계측 없는 일반 debug 바이너리를 사용했다. 각 로그에 AT-TD-20~42·AT89·AT92·AT-HC-20~29·AT-CM-30~38·`APP_TEST_OK`가 있다. 실패 시 즉시 중단하는 실행기로 10회 연속 종료 0을 확인했다.
+
+| 회차 | 종료 코드 | 실행 초 | 로그 |
+|---|---|---|---|
+| 1 | 0 | 132.305 | `app-basic-01.log` |
+| 2 | 0 | 133.357 | `app-basic-02.log` |
+| 3 | 0 | 134.609 | `app-basic-03.log` |
+| 4 | 0 | 133.676 | `app-basic-04.log` |
+| 5 | 0 | 134.970 | `app-basic-05.log` |
+| 6 | 0 | 135.924 | `app-basic-06.log` |
+| 7 | 0 | 134.667 | `app-basic-07.log` |
+| 8 | 0 | 135.386 | `app-basic-08.log` |
+| 9 | 0 | 134.877 | `app-basic-09.log` |
+| 10 | 0 | 135.759 | `app-basic-10.log` |
+
+- 전체 기록: `ten-runs.json`, `ten-runs.log`, `ten-runs.exit`(0), `ten-run-audit.json`.
+- 부하 관측: 사용자 부하 정리 뒤 별도 빌드나 다른 시험을 동시에 실행하지 않았다. 시작 전 표본 10개와 실행 중 30초 간격 표본 40개를 보존했다. 실행 중 시험 외 프로세스 CPU 최댓값은 `mediaanalysisd` 97.7%였으며, CPU 100% 이상인 시험 외 프로세스 표본은 0개다. 시작 전 최댓값은 `mds_stores` 76.6%였다. 기존 보완 2의 10회 실행에서 보였던 175~219%는 이번 표본에서 관측되지 않았다. 표본 원문과 전체 수치는 `app-basic-NN-load.log`, `app-basic-NN-sample-MM.log`, `load-summary.json`에 있다. 부하가 항상 0이었다고 주장하지 않고 실제 관측값을 검토 근거로 넘긴다.
+
+### 10회 뒤 후속 검사
+
+동일 최종 커밋에서 다음 검사를 순서대로 실행했다. Python 검사는 기존 Hermes venv와 가짜 검사 홈을 사용했다. 실제 명령·대상·종료 코드는 `verification.json`에 있다.
+
+| 명령 | 실제 결과 | 로그 |
+|---|---|---|
+| `TZ=Asia/Seoul bash scripts/test.sh` | 종료 0. Python 416 passed·기존 warning 1, 앱 기본 묶음·네트워크 회귀·hook 9개 통과. AT-TD·AT89·AT92·연결 관리 표식 확인. 실제 CLI 설정 메타데이터와 다운로드 이름 불변 표식 확인 | `full-test.log` |
+| `TZ=Asia/Seoul "$HEJO_PYTHON" -m pytest gate/tests tests/acceptance -q -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function` | 종료 0, 416 passed·기존 warning 1 | `gate-test.log` |
+| `"$HEJO_PYTHON" scripts/scan_private.py --home .build/todo-drawer/scan-home` | 종료 0. 바이너리는 기존 정책대로 생략 | `scan.log` |
+| `git diff --check` | 종료 0 | `diff-check.log` |
+| `git merge-base --is-ancestor main HEAD` | 종료 0. 위 main 해시 포함 | `main-ancestry.log`, `git-tips.txt` |
+
+### 인계
+
+- 추가 검증의 구현자 판단: 요청한 10회 연속과 후속 명령 실행 완료. 도달 증거 수준은 2다. 최종 합격 판단은 이 기록의 GUI 조건 정정·부하 관측값과 함께 계획 담당에게 넘긴다.
+- 앞 절들의 실패·사용자 대기 기록은 이력을 위해 남겼다. 현재 대기는 해소됐으며, 그 기록의 “10회 미충족·전체 검사 미실행”은 이번 완료 기록으로 대체한다. 기존 교차 모델 판정과 다른 흐름의 운영 적용·공개 기록은 수정하지 않았다.
+- 구현 worktree는 깨끗하다. 이 보고서는 지정된 계획 담당 폴더에만 덧붙였고 아직 커밋하지 않았다. 계획 담당은 보고서와 로컬 `.build/` 증거를 검토해 판정에 추가하면 된다.
+- 이번 대화에서 운영 공항·재시작·운영 team-kit 원본·비밀 파일·Hermes 본체·ddots·실제 메시지·git push, TASK-05·06은 수행하지 않았다.

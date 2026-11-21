@@ -239,3 +239,27 @@
   - 다른 Mac의 업데이트("업데이트 확인…"). 공개 뒤에 할 수 있다.
   - M3 사장 화면 확인.
   - TASK-07 현재 명세 반영.
+
+## 검증 판정 5차: 부하 정리 뒤 추가 검증 (2026-11-21)
+
+1. **판정: 구현·검증 범위 완료(3차 판정 유지·보강).**
+   - 3차에서 열어 둔 "부하 없는 10회" 조건이 채워졌다.
+   - 기능 전체로는 아직 남은 것이 있다. 공개 명령은 사장이 하고(원격 태그 `v0.2.3` 없음, `ls-remote` 확인), 그 뒤 사장 화면 확인 M3와 현재 명세 반영(TASK-07)이 남는다.
+2. **검증 조건**
+   - 교차 모델: 구현은 codex/gpt-6.1-sol, 검증은 이 대화.
+   - 대상: `role-workflow/7-833b7c8b` @ `0368f6968e5cdd1e6b6d64c9092b304312372d54`. 작업 트리는 깨끗하다.
+3. **설계 적합성**: 3차와 같다(변경 없음).
+4. **직접 확인한 것**
+   - `git diff --exit-code 43b6994 0368f69` 종료 0이다. 이 브랜치 트리는 로컬 `main`과 같다.
+   - 73a9447 뒤로는 main 병합 커밋(`dc74579`, `0368f69`)만 있다. 제품·시험 소스에 새 변경이 없다.
+   - 구현 담당 증거(구현 worktree `.build/todo-drawer-supplement2-quiet/active-desktop/`)
+     - `app-basic-01..10.exit`가 모두 0이고, `ten-runs.json`의 10회 종료 코드도 모두 0이다.
+     - 표본으로 본 회차(01·05·10)는 각각 `AT-TD-20..42`, `AT-HF-89`, `AT-HF-92`, `APP_TEST_OK` 4줄이 있고 `APP_TEST_FAILED`는 0이다.
+     - `full-test.exit` 0, `full-test.log`는 Python 416 passed다.
+     - 보고된 시험 외 프로세스 최대 CPU는 `mediaanalysisd` 97.7%다(구현 담당 기록).
+   - 검증자의 3차 직접 실행(무거운 부하에서 7/7, 전체 시험 0)과 합치면, V-4 회귀가 남아 있다는 근거는 없다.
+5. **지적**: 없음.
+6. **남은 것**
+   - 사장: 공개 명령 `install/hejo-ship publish --approve-commit f397bdb7bedfc766c2116ecdd07118cb3afdfc32 --prepared .build/release-0.2.3/prepared.json`.
+   - 사장: 이 Mac 0.2.3(설치됨)에서 M3 확인.
+   - 그 뒤 TASK-07 현재 명세 반영. 내용은 ARCHITECTURE 문 절에 마감 읽기 한 줄, HEJO-FOUNDATION 사장 칸 클릭 서술 갱신, spec 상태 "적용"이다.
