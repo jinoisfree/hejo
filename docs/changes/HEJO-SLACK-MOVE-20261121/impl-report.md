@@ -1,8 +1,8 @@
 # HEJO-SLACK-MOVE 구현 인계 보고
 
-## 현재 판단: TASK-02~05 구현·자체 시험·분리 전체 검사 통과
+## 현재 판단: TASK-02~08 구현·자체 시험 완료, 마지막 분리 전체 검사 대기
 
-[확인] 구현 검토 2차와 설계·인계 7판(`892d54ed1ddecbe96eddc1945494f1f8c6583777`)으로 재개했다. 기본 프로필 작성자 D-3를 반영했다. TASK-03 커밋 `57d00939c04d81d6c033ef5a31999fe02e35a383`의 분리 전체 검사가 종료 0으로 통과했다. TASK-04는 운영 worktree의 최종 제품 커밋 `22f8aa629bdf828e9b02085531bfd0819d071139`에서 회귀 시험 245개와 경계 검사를 통과했다. 공개 커밋 `0dfe9db8aab7373ebee6fc456deaf0134eb00e05`와 이 team-kit 커밋을 각각 고정한 전체 검사도 종료 0이다. TASK-05는 설계 8판 반영까지 구현·커밋하고 자체 시험을 마쳤다. 공개·운영 커밋을 고정한 분리 전체 검사도 종료 0으로 통과했다(아래 마지막 절). TASK-06은 아래의 보고·스레드 전송 일부를 구현 중이며 TASK-07·08은 대기다. 아래 S-1·S-2는 이전 중단 기록이다.
+[확인] 구현 검토 2차와 설계·인계 7판(`892d54ed1ddecbe96eddc1945494f1f8c6583777`)으로 재개했다. 기본 프로필 작성자 D-3를 반영했다. TASK-03 커밋 `57d00939c04d81d6c033ef5a31999fe02e35a383`의 분리 전체 검사가 종료 0으로 통과했다. TASK-04는 운영 worktree의 최종 제품 커밋 `22f8aa629bdf828e9b02085531bfd0819d071139`에서 회귀 시험 245개와 경계 검사를 통과했다. 공개 커밋 `0dfe9db8aab7373ebee6fc456deaf0134eb00e05`와 이 team-kit 커밋을 각각 고정한 전체 검사도 종료 0이다. TASK-05는 설계 8판 반영까지 구현·커밋하고 자체 시험을 마쳤다. 공개·운영 커밋을 고정한 분리 전체 검사도 종료 0으로 통과했다(아래 마지막 절). TASK-06은 `8020089a`로 구현·검토 수락됐다. TASK-07·08은 아래 마지막 절의 커밋과 시험으로 구현을 마쳤고 마지막 두 커밋 고정 전체 검사를 준비한다. 중간 절의 미완료·중단 문장은 당시 상태이며, 최신 상태는 마지막 절을 따른다.
 
 - 받은 지시: [handoff.md](handoff.md) 7판, [verdict.md](verdict.md) 구현 검토 2차, TASK-02~08. 최신 계획 보완 기준 `892d54ed1ddecbe96eddc1945494f1f8c6583777`, 제품 기준 `cb06e7d`. 고위험, 필요 증거 수준 2, 연합개발.
 - 다른 작업의 `app/` 및 HEJO-FINDER-FOLDERS 문서 변경은 보존하며 커밋에 포함하지 않는다. 전체 검사는 TASK 커밋을 임시 detached worktree로 꺼내 실행한다.
@@ -452,3 +452,52 @@ TASK-06 착수 전 읽기 조사만 진행했다. `night_batch`는 조직개편�
 [선택지와 권고] 기획설계에서 H-5 보류 소비자에만 허용하는 Slack 전송 예외의 책임·허용 메서드·대상 증명·해제 조건을 정하는 것을 권고한다. 기존 소비자와 대기 파일 모양은 유지하면서 등록 지점과 공통 전송의 계약을 보완할 수 있는지 검토가 필요하다. 다른 선택은 H-5 자체를 결정하여 생산자·소비자 이관을 별도 인계하는 것이며 이는 사용자 결정이 먼저다. 일반 Slack 쓰기 차단을 풀거나 설정을 잠시 slack으로 바꾸는 우회, 소비자 파일 임의 수정, AT-SM-64 기대값 완화는 하지 않았다.
 
 [남은 범위] TASK-07의 나머지 예약·진단 접수·보고/조직/스타터 입력·대기 작업·AT-SM-67과 TASK-08은 아직 미완료다. H-5와 독립된 입력 규칙은 계속 구현 가능한 부분이지만, 규칙 20-implementation 2절의 설계 불일치 보고를 먼저 반환한다. 새 실패 재현 시험은 운영 worktree에 미커밋으로 보존한다. 설계·명세·인계서·판정서는 수정하지 않는다. TASK-07/08 완료 후 두 저장소 커밋을 고정한 분리 전체 검사는 여전히 미실행이다.
+
+
+## TASK-07: 설계 9판의 남겨 둔 Slack 길과 들어오는 규칙
+
+[확인] 판정 5차 `25a8b8a822cec2ec313d57fbf8b9a932dcbbe214`의 S-5 처분을 반영했다. 운영 커밋 `8cb51621a527bcdb82051c1e664b59470436c21f`(제품 10·시험 3파일), 누락 입력 경로 보완 `8a86f1390f4867fa5b789be95d7517a0f50d1d0d`(제품 3·시험 1파일)이다. H-5는 결정하지 않았고 금고 백업 소비자·대기 형식은 그대로다.
+
+| 책임 자리 | 변경과 검증 연결 |
+|---|---|
+| `TS/delivery.py`, `learning_report.py` | 남긴 길은 `vault_backup`·`slack_session` 두 이름만. 전자는 스레드 읽기·글 고치기·글 올리기만, 후자는 본체 대화 환경의 현재 Slack 사장 대화만 허용. 이름 없는 일반 쓰기와 모르는 이름은 hejo에서 거절. 예약·배경·사장 아닌 대화는 허용하지 않음 |
+| `TK/__init__.py` | 금고 백업 등록이 전용으로 읽은 보고 모듈 사본에만 `vault_backup` 보내기를 주입. 소비자 파일과 대기 레코드 필드 변경 없음 |
+| `TKL/hermes_packs/files_docs/files.py`, `TS/report_status.py` | 현재 Slack 도구의 파일 올리기·보고 상태 변경만 `slack_session`. native 파일·표시 경로는 그대로. 같은 성격의 직접 쓰기 조사에서 추가 적용 대상은 없었고 이름 사용 자리를 AST 시험으로 고정 |
+| `TS/cron_guard.py` | hejo 대화의 예약 관리를 받아 보고 받을 곳과 local만 허용. 다른 대화·Slack 대상·예약/배경 호출은 거절 |
+| `TKL/hermes_packs/diagnosis/diagnosis_requests.py`, `native_tools/__init__.py` | 현재 native 사장 글·세션·구성된 받을 곳을 증명해 진단 접수. 사용량은 실제 스레드 조회의 글 순번으로 이전 요청을 선택하고 현재·미래 글을 제외. 기존 pending-only 진단 실행은 유지 |
+| `TS/starter_plugins.py`, `org_review.py` | hejo 사장 답글을 저장한 문·방·스레드와 대조. 실제 native 버튼은 이미 기록된 사장 글이므로 중복 입력을 추가하지 않음. 결과는 같은 스레드. 보고 검토는 TASK-06의 실제 훅·상태 연결을 회귀 확인 |
+| `TKL/hermes_packs/linked_work/link_decisions.py`, `conflict_decisions.py` | 이전 보고의 잔여 입력 훅 보완. 현재 문·사장·내부 이벤트를 검사하고 공통 누른 글 id를 기존 판정 함수의 글 식별자에 전달. 실제 버튼과 글 답변으로 결정 장부와 같은 스레드 결과를 확인 |
+| `TS/deadline_watch.py` | hejo에서도 기존 열린 마감의 도구 안내를 제공. 기존 Slack 안내 내용과 동일 |
+| 변경 없는 대기 작업·프로젝트 허브 | 실제 대기 작업 생성→본체 예약 배달→방 기록에서 요청 직원 이름을 확인. hejo 문맥에는 허브 안내가 없고 Slack에는 유지. 금지한 허브 다섯 파일 변경 0줄 |
+
+수정 전 운영 main과 실행본 SHA-256을 대조했다. 증거는 `task07-exceptions-preedit.json`, `task07-native-preedit.json`, `task07-linked-preedit.json`이다. TASK-04에서 새로 만든 delivery 파일은 main/실행본에 모두 없으며, 기존 수정 파일의 worktree 차이는 앞선 TASK 커밋이다. 확인한 운영 main은 `dba8f4fb8b4e832383d834e2863c1883d06885db`다. 새 입력 훅 수정 전 연결 보고 fake Slack fixture도 다시 대조했다.
+
+모든 로그·JSON은 로컬 `.build/slack-move/` 아래에 있다. 격리 실행기는 임시 HOME/HERMES_HOME과 가짜 명부·Slack·문을 사용했다.
+
+| 실행 | 실제 결과·검사한 변경본 | 증거 |
+|---|---|---|
+| 예외 경로 변경 전 pytest 3파일/선택 시험 | 종료 0, 28 passed | `task07-exceptions-baseline.log`·`.json` |
+| 예약·진단·스타터·조직 변경 전 pytest 4파일 | 종료 0, 158 passed | `task07-native-baseline.log`·`.json` |
+| TASK-07 pytest 22파일 | 종료 0, 666 passed. 제품은 `8cb51621`과 같음. H-5 시험은 이후 정확한 요청 비교로 보강 | `task07-reviewed.log`·`.json`, `task07-completion-source.json` |
+| 최종 AT-SM-64 승인·거절 | 종료 0, 2 passed. 각 시험 안에서 Slack/hejo 설정의 실제 등록·전송 모듈을 실행해 URL·본문 배열이 동일, native 입구 0건. `8cb51621`의 최종 시험 | `task07-h5-wire.log`·`.json` |
+| 예외 조건 무력화 mutation | 변형 pytest 종료 1, 6 failed·1 passed. 원본 SHA 불변. 최초 실행기 문법 오류 로그는 검출 증거에서 제외 | `task07-retained-mutation-v2.log`·`.json` |
+| 연결 입력 변경 전 pytest 3파일 | 종료 0, 57 passed, 기존 가짜 Slack 기준 요청 일치 | `task07-linked-baseline.log`·`.json` |
+| 연결 입력·마감 및 회귀 pytest 4파일 | 종료 0, 62 passed. `8a86f139`와 같은 변경본. 실제 WebSocket→문→reply 설치→소비자→입구 결과를 버튼/글로 각각 확인 | `task07-linked-incoming-v2.log`·`.json` |
+| `airport-check --snapshot .` | 종료 0, boundary 382·document 0·compartments 0. TASK-07 주 변경본, 임시 홈. 기준선 변경 없음 | `task07-completion-airport.log`·`.json` |
+| 금지 파일 Git diff | 종료 0, 허브·금고 백업 소비자·앱 설치/연결 제품 파일 변경 0줄(TASK-06 이후) | `task07-protected-diff.json` |
+
+AT-SM-63·65~68의 native 입력 증거는 `test_slack_move_native.py`, 64는 `test_slack_move_incoming.py`, 69는 `test_slack_move_retained.py`에 있다. AT-SM-65 결과 전송은 TASK-06 진단 통합 시험, 66 보고 검토는 TASK-06 검토 통합 시험을 함께 근거로 쓴다. 예외를 추가한 뒤에도 정기 보고의 native 전송 회귀를 실행했다. 새 입력 시험 초기 실패는 임시 금고/정책 위치, fixture 의존성, 실제 버튼 문구·항목 선택 문법·결과 제목을 실제 계약대로 바로잡은 기록으로 남겼다. 수락 명세·기존 기대값을 바꾸지 않았다.
+
+## TASK-08: 도구 묶음 조립과 실제 도구 집합
+
+운영 커밋 `fcdec420b51193da5cfa3982044c61b33490abb1`의 두 파일만 변경했다. `TKL/hermes_facility/config_assembly.py`는 Slack에 선택된 목록에서 `hermes-slack`만 `hermes-hejo`로 바꾼 hejo 목록을 만들고, 앱 플러그인 추가에도 hejo를 포함한다. 선택하지 않은 기본 묶음은 추가하지 않으며 같은 입력을 다시 조립해도 같다. `app_setup.py`·`app_connect.py` 제품 파일은 바꾸지 않았다.
+
+`tests/test_slack_move_toolsets.py`는 세 가짜 프로필의 조립 결과와 실제 본체 `toolsets.resolve_toolset` 결과를 비교한다. 실제 문 등록과 실제 인스타 플러그인 도구 등록을 임시 홈에 묶었다. 세 경우 모두 전체 도구 이름 집합이 같고 인스타 선택 시 인스타 도구가 포함된다. 문에는 별도 전용 도구가 없어 비교에서 제외한 이름은 없다. 최초 fixture가 다른 임시 홈으로 환경을 바꾸어 문 등록을 보지 못한 실패는 같은 홈을 사용하도록 고쳤다. 도구를 임의로 추가하거나 빼지 않았다.
+
+- 수정 전 main·실행본·worktree config_assembly 해시 일치: `task08-preedit.json`.
+- 기존 조립 시험: 종료 0, 9 passed(`task08-baseline.log`·`.json`).
+- AT-SM-70~72와 조립 회귀: 종료 0, 15 passed(`task08-toolsets-v3.log`·`.json`).
+- 새 시험·조립·앱 연결/설치 회귀 네 파일: 종료 0, 58 passed(`task08-reviewed.log`·`.json`), 커밋 `fcdec420`과 해당 파일 해시 일치.
+- 임시 홈 `airport-check --snapshot .`: 종료 0, boundary 382·document 0·compartments 0(`task08-airport.log`·`.json`). 해시 `task08-final-source.json`. 이 검사는 연결 입력 후속 수정 전이며, 후속 커밋의 Git 훅 경계 검사도 같은 수치로 통과했다.
+
+[다음] 이 보고를 커밋한 뒤 공개 커밋과 운영 `fcdec420`을 각각 고정한 detached worktree에서 마지막 `bash scripts/test.sh`를 실행한다. 이 문단 시점에는 미실행이다. 운영 적용·재시작·실제 Slack/고객 전송·푸시는 하지 않았다. 위키/H-5의 이전과 TASK-09·10은 여전히 범위 밖이다.
