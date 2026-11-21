@@ -102,3 +102,31 @@
 7. 보고: impl-report.md '3차' 절(착수 확인값, 롤백 기록, 명령·종료 코드·로그 경로, 4의 수치, 운영 저장소 merge·커밋 전체 해시), result.
    위험도 일반(운영 실행본 교체, 롤백 있음), 필요 증거 수준 3.
 ```
+
+## 4차 지시 (2026-11-22): TASK-05·06 — 한글 정규화(team-kit), 연결 창 숨음(앱)
+
+배경: 사장 확인 중 두 문제가 나왔다(spec 4판 5.1절 8~10번). 사장 결정(2026-11-22): 앱 수정도 이 작업에 포함한다.
+
+```text
+[설계 인계: HEJO-FINDER-FOLDERS TASK-05·06]
+0. 기준: hejo main(착수 HEAD 기록), 운영 저장소 main f3318572(= 브랜치 hejo-finder-folders-20261121 tip). spec·design·수락 명세 4판 / 계획 검증 대기 후 승인.
+1. 문서: spec 5절, design 7절, 수락 명세 4판 AT-FF-15~17·20~23(AT-FF-12 재확인 포함).
+2. 요구: REQ-FF-05(Finder 후보 값 NFC, 중복 합치기, 섞인 저장 값 미리 선택. files.inside는 바꾸지 않음), REQ-FF-06(입력 단계·다시 열기에서 연결 창이 대화 창 앞, 시스템 확인 중만 .normal).
+3. 유지할 계약: 1~3차 지시의 모든 계약, files.py·files.inside 무수정, app_connect.selected_options 무수정, AT-HC-25~27·HEJO-CONN-MANAGE 앱 시험(확인 중 .normal, restoreFocus).
+4. 책임: 정규화는 app_setup.finder_scopes 한 곳. 창 높이는 ConnectionsWindow.updateLevel 한 규칙(+show()가 다시 계산).
+5. 기존 경로 판정: updateLevel의 '입력 창·시트 있으면 .normal' 조건 교체(confirming만 남김). 나머지 유지.
+6. 위험도 일반, 증거 수준 2. 롤백: 브랜치·커밋 되돌림(운영 미적용).
+7. 의미 변경. 비교: 기존 시험 전체(team-kit AT-FF-12 기준, hejo bash scripts/test.sh).
+8. 수락 시험: 명세 4판 완료·코드 미작성. 기대값 출처 spec 5절·design 7절. 바꿔야 하면 멈추고 보고.
+9. 범위·순서:
+   - TASK-05: 운영 저장소 worktree ../.worktrees/hejo-finder-folders-20261121(브랜치 tip f3318572, 운영 main과 같음)에서 app_setup.py와 시험만. 착수 때 실행본 app_setup.py sha256 = eff2a716…(3차 적용값) 확인. 새 커밋(git commit --only).
+     AT-FF-15~17 + 기존 AT-FF-01~14 + AT-FF-12(가)(나) 재실행(임시 HOME·HERMES_HOME, 게이트웨이 Python).
+   - TASK-06: hejo 저장소에서 앱만. 먼저 대화 창(펫 패널)이 열린 배치에서 입력 단계를 열어 연결 창이 뒤로 가는 것을 시험 코드나 개발 빌드로 재현하고 원인을 impl-report에 적은 뒤 고친다.
+     실제 운영 문에 연결 동작(이어서 하기·연결·설정 바꾸기)을 보내지 않는다(가짜 문·시험 대역만). AT-FF-20~23과 bash scripts/test.sh 전체(HEJO_PYTHON=게이트웨이 Python).
+     입력 창 때문에 .normal이 필요한 다른 이유가 재현되면 멈추고 보고. 커밋은 자기 경로만 git commit --only(다른 대화가 같은 저장소에서 일할 수 있음).
+   - 병렬 갈래: 없음(두 갈래, 3개 미만).
+   - 금지: 실행본 교체·운영 main 변경·./sync·재시작(TASK-07), 앱 버전 올리기·공개 후보·설치 앱 교체(TASK-08), 비밀 파일, 개인값(실제 폴더 이름·경로 포함), Hermes 본체·ddots·files.py 수정, 수락 기준·시험 명세·spec·design 수정, git push.
+   - 보고: impl-report.md '4차' 절(TASK별 착수 HEAD·sha256, 재현·원인, 명령·종료 코드·로그 경로, 커밋 전체 해시), result.
+10. 가정·미확정: design 7.2 [가정](입력 창 .normal의 원래 이유는 confirming이 덮음). TASK-06 재현으로 확인. 착수 차단 없음.
+11. 사용자 확인: 앱 포함은 사장 결정(2026-11-22). files.inside 미수정·직원 A 재저장 방식은 계획 확인 때 사장 확인.
+```

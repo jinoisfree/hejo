@@ -1,6 +1,6 @@
 # HEJO-FINDER-FOLDERS 수락 시험 명세
 
-3판 · 2026-11-21(계획 검증 1회차 PR-01~04 반영, 구현 검증 1차 V-1로 AT-FF-12 기준 정정, [plan-review.md](../../docs/changes/HEJO-FINDER-FOLDERS-20261121/plan-review.md)) · 명세 [spec.md](../../docs/changes/HEJO-FINDER-FOLDERS-20261121/spec.md), 설계 [design.md](../../docs/changes/HEJO-FINDER-FOLDERS-20261121/design.md).
+4판 · 2026-11-22(AT-FF-15~17·20~23 추가: 한글 정규화·연결 창 높이, 3판: 구현 검증 1차 V-1로 AT-FF-12 기준 정정, 계획 검증 1회차 PR-01~04 반영, [plan-review.md](../../docs/changes/HEJO-FINDER-FOLDERS-20261121/plan-review.md)) · 명세 [spec.md](../../docs/changes/HEJO-FINDER-FOLDERS-20261121/spec.md), 설계 [design.md](../../docs/changes/HEJO-FINDER-FOLDERS-20261121/design.md).
 상태: 명세 완료 · 코드 미작성 · 미실행 · 독립 검토: 계획 검증 1회차 BLOCKED → 2판 반영, 재검증 대기. 기대값 출처: spec 요구와 design 2절. 구현 담당이 코드로 옮기며 기대값·합격 기준을 바꾸지 않는다(바꿔야 하면 멈추고 보고).
 
 공통: 임시 폴더를 서버 홈(`home`)으로 넘기고(`resolve()`한 경로. macOS 임시 폴더의 `/var` 링크가 부모 링크 검사에 걸리지 않게), 임시 `HERMES_HOME`에 가짜 직원 `alpha`. 폴더 이름은 `SynologyDrive-team`, `ExampleDrive-owner`, `Projects`, `2026` 같은 가짜 이름만. 실제 이름·경로 금지. "바이트 그대로"는 실행 전후 sha256 비교.
@@ -31,8 +31,27 @@
 | AT-FF-14 | FF-01.AC-03(부모 링크) | 사례마다 새 `home`. 진짜 폴더 `home/Real/OtherDrive-x/A/B`를 둔다. (가) `home/Library/CloudStorage`가 `home/Real`을 가리키는 심볼릭 링크, iCloud Drive는 정상 폴더(`Notes`) (나) `home/Library/Mobile Documents`가 진짜 폴더 `home/RealDocs`(안에 `com~apple~CloudDocs/Notes`)를 가리키는 링크, CloudStorage는 정상(`ExampleDrive-owner/Shared`) (다) CloudStorage 정상(`ExampleDrive-owner/Shared`)이고 그 안에 `LinkedDrive-y` → `home/Real/OtherDrive-x` 링크 (라) 정상 `SynologyDrive-team/Projects`, `ExampleDrive-owner/Shared`, 그리고 `ExampleDrive-owner/Alias` → `home/Real/OtherDrive-x/A` 링크 | (가) CloudStorage에서 온 후보 0개(`OtherDrive-x`·`A`·`B` 없음), 후보 = `iCloud Drive`, `iCloud Drive › Notes` (나) iCloud 후보 0개, 후보 = `ExampleDrive-owner`, `ExampleDrive-owner › Shared` (다) `LinkedDrive-y`와 그 하위 없음, `ExampleDrive-owner`·`› Shared`는 있음 (라) `Alias`와 그 하위(`B`) 없음, 나머지(`SynologyDrive-team`, `› Projects`, `ExampleDrive-owner`, `› Shared`)는 있음. 네 사례 모두 `home/Real` 또는 `home/RealDocs` 아래 경로를 `id`로 가진 후보 없음 |
 | AT-FF-13 | NFR-FF-01 | 새 시험 파일과 바뀐 코드 | `python3 scripts/scan_private.py`(H, 해당 파일 대상 가능하면) 또는 `HD`의 개인값 검사(`./airport-check` 포함)에 걸리지 않음 |
 
+### 4판 추가: 한글 정규화 (team-kit, 같은 시험 파일 또는 새 파일)
+
+`home` 준비: 기본 `home` + `SynologyDrive-team` 아래에 이름을 **조합형(NFD)으로** 만든 폴더 `팀폴더`(`os.mkdir`에 `unicodedata.normalize('NFD','팀폴더')`), 그 아래 조합형 `회의록` 폴더와 파일 `a.txt`, 그리고 완성형으로 만든 다른 폴더 `팀폴더2`.
+
+| ID | AC | 입력 | 기대 |
+|---|---|---|---|
+| AT-FF-15 | FF-05.AC-01 | Finder `app connect`(scope 없음) | `팀폴더`·`팀폴더 › 회의록` 후보의 `id`·`value`·`label`이 모두 NFC 문자열(`unicodedata.is_normalized('NFC', …)` 참)이고 각 폴더는 한 번만 나온다. `팀폴더2`는 별도 후보 |
+| AT-FF-16 | FF-05.AC-02 | `팀폴더` 후보(NFC)를 골라 저장. 그 직원 조립 설정으로 `files.folders(config)`를 만들고, 실제 파일 도구 처리기(`file_list`, `read_file`)를 (가) 완성형으로 적은 `…/팀폴더` (나) 완성형 `…/팀폴더/회의록/a.txt` (다) `file_list`가 (가)에서 돌려준 `회의록` 경로 그대로 (라) 완성형 `…/팀폴더2`로 부른다 | 저장된 `files.folders` 값이 NFC. (가)(나)(다) 성공(목록·내용 반환), (라) 허용 폴더 밖 오류(지금과 같은 문장). `files.py`는 바뀌지 않았다(`git diff` 대상 아님) |
+| AT-FF-17 | FF-05.AC-03 | 금고 Finder `scope`에 같은 폴더를 섞인 형태(앞부분 NFC + `팀폴더` NFD)로 저장한 상태에서 `app connect --change values` | 후보에 그 폴더가 NFC로 한 번만 있고 `selected`에 그 `id`. 그대로 제출하면 금고·`files.folders`에 NFC 값 하나 |
+
+## 앱 (`app/Tests/ConnectionsTests.swift`, 4판 추가)
+
+| ID | AC | 입력 | 기대 |
+|---|---|---|---|
+| AT-FF-20 | FF-06.AC-01 | 실제 `ConnectionsWindow`, `setPreferredLevel(펫 높이+1)`(기존 시험처럼 26), 가짜 문에서 `waiting`·`secret_set` 응답으로 입력 창 열기 | 입력 창이 붙어 있는 동안 연결 창 `level` = 선호 높이(26), `.normal` 아님. 입력 창 보임 |
+| AT-FF-21 | FF-06.AC-02 | AT-FF-20 상태에서 연결 창 순서를 뒤로 보낸 뒤(`orderBack`) `show()` | 연결 창 `level` = 26, `isVisible`, 입력 창 보임(`attachedSheet?.isVisible`) |
+| AT-FF-22 | FF-06.AC-03 | 입력 창이 열린 상태에서 (가) `confirmRestart` 알림 시트 (나) 지문 확인(`confirm` 대역이 호출될 때의 높이 기록) | 확인 중에는 `.normal`(기존 AT-HC-26과 같음), 끝나면 26으로 돌아오고 입력 창이 보임. 기존 AT-HC-25~27·AT-CM 앱 시험 전부 통과 |
+| AT-FF-23 | FF-06.AC-04 | 앱 비활성 높이(`setPreferredLevel(.normal)`)로 입력 창 열기 | `level == .normal` |
+
 ## 사장 확인(서버 적용 뒤, 증거 수준 4)
-spec 4절 M1~M3. M1에서 고르기 화면이 뜨기까지 걸린 대략 시간을 사장이 알려 주면 NFR-FF-03에 적는다.
+spec 4절 M1~M3과 5.3절 M4~M6. M1에서 고르기 화면이 뜨기까지 걸린 대략 시간을 사장이 알려 주면 NFR-FF-03에 적는다.
 
 ## AC ↔ 시험 연결
 
@@ -53,3 +72,10 @@ spec 4절 M1~M3. M1에서 고르기 화면이 뜨기까지 걸린 대략 시간�
 | NFR-FF-01 | AT-FF-13 |
 | NFR-FF-02 | AT-FF-03 |
 | NFR-FF-03 | M1(실측) |
+| FF-05.AC-01 | AT-FF-15 |
+| FF-05.AC-02 | AT-FF-16, M5 |
+| FF-05.AC-03 | AT-FF-17 |
+| FF-06.AC-01 | AT-FF-20, M4 |
+| FF-06.AC-02 | AT-FF-21, M4 |
+| FF-06.AC-03 | AT-FF-22 |
+| FF-06.AC-04 | AT-FF-23 |

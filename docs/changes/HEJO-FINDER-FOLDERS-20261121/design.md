@@ -1,6 +1,6 @@
 # HEJO-FINDER-FOLDERS 설계
 
-2판 · 2026-11-21(계획 검증 1회차 PR-01~04 반영) · 상태: 초안(계획 재검증 대기) · 명세 [spec.md](spec.md). 약어: `H` 이 저장소, `HD` `<운영 저장소>`, `TKL` 실행 중인 team-kit 원본(`<HOME>/plugin-store/team-kit`), `TK` = `HD` worktree의 `hermes/plugin-store/team-kit`.
+4판 · 2026-11-22(7절 추가) · 상태: 1~6절 승인·적용됨, 7절 초안(계획 검증 대기) · 명세 [spec.md](spec.md). 약어: `H` 이 저장소, `HD` `<운영 저장소>`, `TKL` 실행 중인 team-kit 원본(`<HOME>/plugin-store/team-kit`), `TK` = `HD` worktree의 `hermes/plugin-store/team-kit`.
 
 ## 1. 책임과 흐름
 
@@ -64,3 +64,24 @@
 
 - 일반(공통 4절): 기존 연결 흐름의 후보만 늘린다. 인증·재확인·저장 경로는 그대로다. 사장 기기 화면에 서버 동기화 폴더 이름이 더 보인다(문 공개 필드 안, 로그에는 안 남음: 문 감사 기록은 동작·결과만 `connection_manager.py:288`).
 - 롤백: TASK-02는 worktree 브랜치 버림. TASK-03은 보관본 복원(7.2).
+
+## 7. 4판 추가 설계 (REQ-FF-05·06)
+
+### 7.1 한글 정규화 (team-kit)
+- 정규화 위치는 `app_setup.finder_scopes` 한 곳이다(`unicodedata.normalize('NFC', …)`).
+  - 후보 `id`·`value`·`label`을 NFC 문자열로 만든다. 디스크 확인은 원래 경로로 한다(APFS·CloudStorage는 정규화를 구분하지 않는다. 실측 `is_dir` 둘 다 참).
+  - 저장 폴더(`selected['scope']`)·`_requested_scope`와의 중복 판정도 NFC로 한다. 같은 폴더면 후보 하나로 합친다.
+  - 미리 선택이 맞도록, Finder 갈래는 메모리의 `selected['scope']`를 NFC 목록으로 바꿔 둔다. 그러면 바꾸지 않는 `app_connect.selected_options`가 NFC 후보와 맞춘다. 다시 저장하면 금고·설정에도 NFC로 들어간다.
+- 왜 이것으로 충분한가: 파일 도구의 경계 검사 `files.inside`는 `resolve()` 뒤 문자열 앞부분(루트)을 비교한다. `resolve()`는 입력 문자열의 정규화를 바꾸지 않는다(실측). 루트가 NFC면 직원이 완성형으로 적은 경로, 그리고 루트 아래 디스크 이름(조합형일 수 있음)을 붙인 `file_list` 출력 경로가 모두 루트 앞부분과 맞는다.
+- 기각한 대안: `files.inside`에서 양쪽을 정규화해 비교. 메일·Notion·승인·브라우저 등 10여 모듈이 쓰는 권한 경계라 고위험이고, `relative_to` 호출자 연쇄 수정이 필요하다. 지금 문제는 저장 값 형태에서 생기므로 저장하는 곳에서 고친다.
+- 이미 저장된 섞인 형태(지금 직원 A 값)는 사장이 "설정 바꾸기"로 한 번 다시 저장하면 NFC가 된다(M5 앞 단계).
+
+### 7.2 연결 창 높이 (앱)
+- 원인: `updateLevel`이 입력 창·시트가 있으면 `.normal`로 내린다(`ConnectionsWindow.swift:268`). 대화 창(`.floating` 이상) 뒤로 간다.
+- 바꿀 규칙: 연결 창 높이를 `.normal`로 내리는 것은 시스템 확인(`model.confirming`: 지문·암호, `NSAlert`) 동안뿐이다. 입력 창(`inputWindow`)·시트가 있다는 이유만으로는 내리지 않는다. 끝나면 지금처럼 `restoreFocus`로 다시 앞으로 온다. 앱이 비활성이면 `.normal`(지금 `updateConnectionsLevel`).
+- `show()`는 높이를 다시 계산한 뒤 앞으로 가져온다(지금은 `AppDelegate.showConnections`가 `show` 뒤 `updateConnectionsLevel`을 부르지만, 입력 창이 있으면 `.normal`로 남는다).
+- [가정] 입력 창 때문에 `.normal`로 내린 원래 이유는 시스템 확인 창이 가려지는 문제였다(HEJO-CONNECTIONS spec 1절 5번 (가)). 그 경우는 `confirming`이 덮는다. 구현 담당은 먼저 서버와 같은 배치(대화 창이 열린 상태)에서 "이어서 하기" 재현 → 원인 기록 → 수정 → 지문·암호·알림 회귀를 확인한다. 입력 창 높이를 내려야 하는 다른 이유(예: 보안 입력 칸 자동 채움 창)가 재현되면 멈추고 보고한다.
+
+### 7.3 공개
+- 앱 0.2.4(빌드 6) 공개 후보 준비는 HEJO-CONNECTIONS handoff "보완 지시 3" 절차, HEJO-CONN-MANAGE 8차 지시와 같은 방식이다. 실제 공개(`hejo-ship publish`)는 사장이 한다.
+- 다른 작업(HEJO-SLACK-MOVE)이 앱을 바꾸면 공개 후보 준비 전에 두 계획 담당이 순서를 맞춘다(같은 `public` 부모 충돌 방지).
