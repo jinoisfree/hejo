@@ -14,6 +14,7 @@ from jsonschema import Draft202012Validator
 from .auth import AuthRejected
 from .connection_manager import Connections
 from .connections import ConnectionFailure
+from .deadlines import Deadlines
 from .files import MAX_FILE_BYTES, UnknownFile
 from .pictures import Pictures, MAX_PICTURE_BYTES, valid_png
 from .journal import HejoJournalError
@@ -66,6 +67,8 @@ class Connection:
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     hub_token: str = None  # set for hub-issued sign-ins; re-checked with the hub while connected
     features: set = field(default_factory=set)
+
+    deadline_waiters: set = field(default_factory=set)
 
     outgoing: deque = field(default_factory=deque)
     sender: object = None
@@ -122,6 +125,7 @@ class GateServer:
         self.sites = []
         self.tasks = set()
         self.port = None
+        self.deadlines = Deadlines(get_hermes_home())
         self.admin_connections = Connections(get_hermes_home(), adapter.employees)
         runner = getattr(adapter, "_message_handler", None)
         runner = getattr(runner, "__self__", None)
@@ -152,6 +156,7 @@ class GateServer:
         self.tasks.add(asyncio.create_task(self.maintenance()))
 
     async def stop(self):
+        await self.deadlines.stop()
         for task in self.tasks:
             task.cancel()
         await asyncio.gather(*self.tasks, return_exceptions=True)
@@ -161,6 +166,13 @@ class GateServer:
             await self.runner.cleanup()
             self.runner = None
         self.sites.clear()
+
+    async def send_deadlines(self, conn, ref):
+        try:
+            result = await self.deadlines.list()
+            await conn.send({'v': 1, 'type': 'deadlines_status', 'ref': ref, **result})
+        except (ConnectionError, RuntimeError, TimeoutError):
+            log.warning('deadlines_failed reason=connection_closed')
 
     async def http_auth(self, request):
         if not allowed_address(request.remote):
@@ -448,6 +460,10 @@ class GateServer:
                     elif frame["type"] == "roster":
                         await conn.send({"v": 1, "type": "roster", "ref": frame["id"],
                                          "employees": self.adapter.employees()})
+                    elif frame['type'] == 'deadlines':
+                        waiter = asyncio.create_task(self.send_deadlines(conn, frame['id']))
+                        conn.deadline_waiters.add(waiter)
+                        waiter.add_done_callback(conn.deadline_waiters.discard)
                     elif frame['type'] in {'connections','connection_action'}:
                         try:
                             if frame['type']=='connections':
@@ -492,6 +508,9 @@ class GateServer:
             if conn:
                 self.connections.discard(conn)
                 self.admin_connections.disconnected(conn.device_id)
+                for waiter in tuple(conn.deadline_waiters):
+                    waiter.cancel()
+                await asyncio.gather(*conn.deadline_waiters, return_exceptions=True)
                 if conn.sender is not None and not conn.sender.done():
                     conn.sender.cancel()
                     await asyncio.gather(conn.sender, return_exceptions=True)

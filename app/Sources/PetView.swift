@@ -4,6 +4,7 @@ import CoreImage
 final class PetPanel: NSPanel {
     var chatExpanded = false
     var bubbleReplyPresented=false
+    var onCloseDrawer: (() -> Bool)?
     var onCollapse: (() -> Void)?
     var onPageKey: ((NSEvent) -> Bool)?
     var onWorkspaceKey:((NSEvent)->Bool)?
@@ -14,6 +15,7 @@ final class PetPanel: NSPanel {
     override func orderFrontRegardless(){super.orderFrontRegardless();(contentView as? PetView)?.updateFoldedBubble();(contentView as? PetView)?.updateAnimationVisibility()}
     override func cancelOperation(_ sender: Any?) {
         if let input=firstResponder as? NSTextInputClient,input.hasMarkedText(){return}
+        if onCloseDrawer?()==true{return}
         if (contentView as? PetView)?.bubbleReply?.escape()==true {return};onCollapse?()
     }
     override func sendEvent(_ event: NSEvent) {
@@ -85,6 +87,11 @@ final class PetView: NSView {
     let collapseButton = NSButton(title: "펫으로 접기", target: nil, action: nil)
     private var conversationContent: NSView?
     private(set) var webPane: WebPaneView?
+    var drawerOpen = false
+    private(set) var todoDrawer: NSView?
+    let drawerScrim=TodoDrawerScrim(frame:.zero)
+    var onCloseDrawer:(()->Void)?
+    func installDrawer(_ view:NSView){todoDrawer?.removeFromSuperview();todoDrawer=view;conversation.addSubview(drawerScrim);conversation.addSubview(view);view.isHidden=true;drawerScrim.isHidden=true;drawerScrim.onClose={ [weak self] in self?.onCloseDrawer?() }}
     var paneWidth: CGFloat = 0, paneSliding = false
     var onResetPaneSize: (() -> Void)?
     func installWeb(_ view: WebPaneView) { webPane?.removeFromSuperview(); webPane = view; conversation.addSubview(view) }
@@ -337,10 +344,15 @@ final class PetView: NSView {
         glass.frame = conversation.bounds; tint.frame = conversation.bounds
         updateScrim()
         if !paneSliding {
-            conversationContent?.frame = CGRect(x:0,y:0,width:max(0,p.bubbleRect.width-paneWidth),height:p.bubbleRect.height)
+            conversationContent?.frame = CGRect(x:p.leading,y:0,width:max(0,p.bubbleRect.width-paneWidth-p.leading),height:p.bubbleRect.height)
             webPane?.isHidden = paneWidth <= 0
             webPane?.frame = CGRect(x:p.bubbleRect.width-paneWidth,y:0,width:paneWidth,height:p.bubbleRect.height)
         }
+        let visible=p.expanded && (drawerOpen || p.leading>0)
+        todoDrawer?.isHidden = !visible
+        todoDrawer?.frame=CGRect(x:p.drawerOverlay ? 0:p.leading-PetController.drawerWidth,y:0,width:PetController.drawerWidth,height:p.bubbleRect.height)
+        drawerScrim.isHidden = !visible || !p.drawerOverlay
+        drawerScrim.frame=CGRect(x:0,y:0,width:max(0,p.bubbleRect.width-paneWidth),height:p.bubbleRect.height)
         updateUnreadBadge()
         updateFoldedBubble()
         sprite.needsDisplay = true

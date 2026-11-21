@@ -26,6 +26,7 @@ struct LocalSettings: Codable {
     /// Mac-specific window geometry; a nil value uses the current native default.
     var chatWidth: Double?
     var chatHeight: Double?
+    var todoDrawerOpen: Bool?
     var webPaneWidth: Double?
     var webPaneHeight: Double?
     var chatTheme: String?

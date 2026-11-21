@@ -94,7 +94,7 @@ import AppKit
         if snapshot.idle { NSColor.labelColor.withAlphaComponent(0.09).setFill();NSBezierPath(roundedRect:idleStripe,xRadius:6,yRadius:6).fill();return }
         let path=NSBezierPath(roundedRect:bounds.insetBy(dx:0.5,dy:0.5),xRadius:15,yRadius:15)
         NSColor.labelColor.withAlphaComponent(0.055).setFill();path.fill()
-        (snapshot.disconnected ? NSColor.systemOrange : NSColor.labelColor.withAlphaComponent(0.13)).setStroke();path.lineWidth=1;path.stroke()
+        (snapshot.drawerOpen ? NSColor.controlAccentColor : snapshot.disconnected ? NSColor.systemOrange : NSColor.labelColor.withAlphaComponent(0.13)).setStroke();path.lineWidth=1;path.stroke()
         NSGraphicsContext.saveGraphicsState();path.addClip();defer { NSGraphicsContext.restoreGraphicsState() }
         for (index,item) in partRects.enumerated() {
             let (part,rect)=item;var x=rect.minX+7
@@ -127,6 +127,7 @@ import AppKit
     override func mouseEntered(with event:NSEvent) { mouseMoved(with:event) }
     override func mouseExited(with event:NSEvent) { hover(at:nil) }
     func activate(at point:CGPoint) {
+        if snapshot.idle,bounds.contains(point) {onAction?(.drawer);return}
         guard let (part,rect)=partRects.first(where:{$0.1.contains(point)}) else { return }
         let facesX=rect.minX+7+(part.redDot ? 9 : 0)
         let index=Int(floor((point.x-facesX)/18))

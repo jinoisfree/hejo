@@ -95,6 +95,12 @@
     },
     {
       "$ref": "#/$defs/imessage_code"
+    },
+    {
+      "$ref": "#/$defs/deadlines"
+    },
+    {
+      "$ref": "#/$defs/deadlines_status"
     }
   ],
   "$defs": {
@@ -1076,6 +1082,9 @@
         },
         {
           "$ref": "#/$defs/imessage_save"
+        },
+        {
+          "$ref": "#/$defs/deadlines"
         }
       ]
     },
@@ -1134,6 +1143,9 @@
         },
         {
           "$ref": "#/$defs/imessage_code"
+        },
+        {
+          "$ref": "#/$defs/deadlines_status"
         }
       ]
     },
@@ -1783,6 +1795,176 @@
         "expires_in"
       ],
       "additionalProperties": false
+    },
+    "deadlines": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "deadlines"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "deadlines_status": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "deadlines_status"
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "available": {
+          "type": "boolean"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "employee": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+              },
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "due": {
+                "type": "string",
+                "format": "date"
+              },
+              "deadline_at": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string",
+                "maxLength": 1000
+              }
+            },
+            "required": [
+              "employee",
+              "id",
+              "title",
+              "due"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "failed": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+          }
+        },
+        "reason": {
+          "enum": [
+            "command_failed",
+            "invalid_response"
+          ]
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "ref",
+        "available"
+      ],
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "properties": {
+            "available": {
+              "const": false
+            },
+            "items": {
+              "maxItems": 0
+            }
+          },
+          "required": [
+            "items"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "reason"
+                ]
+              },
+              {
+                "required": [
+                  "failed"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "properties": {
+            "available": {
+              "const": true
+            }
+          },
+          "required": [
+            "items",
+            "failed"
+          ],
+          "not": {
+            "required": [
+              "reason"
+            ]
+          }
+        },
+        {
+          "properties": {
+            "available": {
+              "const": true
+            }
+          },
+          "required": [
+            "reason"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "items"
+                ]
+              },
+              {
+                "required": [
+                  "failed"
+                ]
+              }
+            ]
+          }
+        }
+      ]
     }
   },
   "x-limits": {
