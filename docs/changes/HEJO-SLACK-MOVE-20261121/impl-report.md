@@ -1,13 +1,13 @@
 # HEJO-SLACK-MOVE 구현 인계 보고
 
-## 현재 판단: TASK-03 구현·수락 시험반영, 분리 전체 검사 대기
+## 현재 판단: TASK-02·03 구현, TASK-03 커밋의 전체 검사 통과
 
-[확인] 구현 검토 2차와 설계·인계 7판(`892d54ed1ddecbe96eddc1945494f1f8c6583777`)으로 재개했다. 기본 프로필 작성자 D-3를 반영했다. TASK-04~08은 미착수다. 아래 S-1·S-2는 이전 중단 기록이며 현재 진행 규칙은 7판을 따른다.
+[확인] 구현 검토 2차와 설계·인계 7판(`892d54ed1ddecbe96eddc1945494f1f8c6583777`)으로 재개했다. 기본 프로필 작성자 D-3를 반영했다. TASK-03 커밋 `57d00939c04d81d6c033ef5a31999fe02e35a383`의 분리 전체 검사가 종료 0으로 통과했다. TASK-04는 착수 준비만 했고 제품 변경은 없다. TASK-05~08은 미착수다. 아래 S-1·S-2는 이전 중단 기록이며 현재 진행 규칙은 7판을 따른다.
 
-- 받은 지시: [handoff.md](handoff.md) 6판, [verdict.md](verdict.md) 구현 검토 1차, TASK-02~08. 계획 보완 기준 `716f67e5ae61795202023dc74694a53df7da0a06`, 제품 기준 `cb06e7d`. 고위험, 필요 증거 수준 2, 연합개발.
+- 받은 지시: [handoff.md](handoff.md) 7판, [verdict.md](verdict.md) 구현 검토 2차, TASK-02~08. 최신 계획 보완 기준 `892d54ed1ddecbe96eddc1945494f1f8c6583777`, 제품 기준 `cb06e7d`. 고위험, 필요 증거 수준 2, 연합개발.
 - 다른 작업의 `app/` 및 HEJO-FINDER-FOLDERS 문서 변경은 보존하며 커밋에 포함하지 않는다. 전체 검사는 TASK 커밋을 임시 detached worktree로 꺼내 실행한다.
 - 운영 저장소 최초 착수 HEAD는 `f3318572b9cbd85fccb54347872feca8915532cd`였다. 당시 대상 실행본·기준본 Python 소스 233개의 SHA-256이 같았다(`.build/slack-move-baseline-check.json`). team-kit 착수 전 최신 HEAD와 파일별 해시를 다시 확인한다.
-- 운영 저장소 worktree·team-kit·직원 플러그인 변경은 아직 없다. 운영 적용·재시작·실제 전송·비밀 파일 열기·본체·ddots·앱 소스 수정·푸시는 하지 않았다.
+- 운영 저장소 임시 worktree는 준비했으며 team-kit·직원 플러그인 제품 변경은 아직 없다. 운영 적용·재시작·실제 전송·비밀 파일 열기·본체·ddots·앱 소스 수정·푸시는 하지 않았다.
 - 직접 구현·시험했으며 하위 에이전트는 사용하지 않았다.
 
 ## TASK-02: 서버 안 전용 입구
@@ -37,7 +37,7 @@
 - D-1·AT-SM-09: 기록 실패의 `503 / journal_write_failed`, 기록 불변, 쓰기 복구 후 같은 열쇠로 정확히 한 글, 이후 중복 응답을 확인한다.
 - D-2·AT-SM-09: PATCH null을 규격에서 제외하고 중복 수동 검사를 제거했다. 규격 검사와 실제 HTTP 거절·글 불변, 세 유효 상태, POST null·생략 허용을 확인한다.
 - V-5: 본문 수정 후 상태 기록만 실패하면 본문은 바뀌고 상태는 이전 값으로 남는다. 같은 PATCH를 재전송하면 본문·상태가 요청값으로 복구되고 메시지 수는 하나임을 고정했다.
-- V-1: 커밋을 분리한 전체 검사도 실패해 미해소(아래). V-2: TASK-03 부분 구현, TASK-04~08 잔여.
+- V-1: TASK-02 당시 전체 실패 기록은 보존하며, 최신 TASK-03 커밋의 분리 전체 검사 종료 0을 확보했다. V-2: TASK-03 구현·검증 완료, TASK-04~08 잔여.
 
 ### 실행 증거
 
@@ -65,6 +65,8 @@
 
 - 최종 국소 검사: `python -m pytest tests/acceptance/test_slack_move_gate.py gate/tests/test_rooms.py gate/tests/test_progress.py -q -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function` → 종료 0, 38 passed(`.build/slack-move/task03-final-targeted.log`, `.exit`). 개인값 검사 종료 0(`task03-scan.log`, `.exit`), diff 공백 검사 종료 0.
 
+TASK-03 제품 커밋: `57d00939c04d81d6c033ef5a31999fe02e35a383`. 분리 전체 검사 `bash scripts/test.sh`는 종료 0: Python 434 passed, 실제 게이트웨이 정상 종료, 앱·모든 연동 fixture·훅 시험 9개 통과. 로그 `.build/slack-move/task03-isolated-full.log`, 커밋·실제 종료 코드 `.build/slack-move/task03-isolated-full.json`. 검사 worktree는 제거했다. 앱 도중 UI 서비스 통신 경고가 나타났지만 이후 정상 진행해 전체가 통과했다. 이전 TASK-02 커밋의 실패 원인이 확인됐다는 뜻은 아니다. 이 커밋과 부모의 `git diff --stat -- app`는 빈 결과다. 이전 TASK-02 커밋부터의 범위에는 타 작업 `b21dd94`의 앱 두 파일 변경이 있으므로 그 구간 전체가 빈 diff라고 기록하지 않는다. TASK-03 자체는 앱을 바꾸지 않았다.
+
 ### 6판 중단 당시 기록(아래 미커밋·미도달 상태는 당시 상태)
 
 - `gate/__init__.py`: `room:<UUID>` 대상 문법. `gate/rooms.py`: 첫 글이 직원이면 작성자, 사장 글이면 내부 수신자를 현재 구성원·명부로 거른다. `gate/adapter.py`는 기존 `recipients`에 기록장·스레드를 전달한다. `room_save_record` 추출 위에 작업했다.
@@ -88,8 +90,15 @@ worktree의 추적 변경이 없음을 확인한 뒤 `git worktree remove`로 �
 
 실패 단언에 오류 반환값과 추가된 가짜 기록을 표시해 한 번 더 확인했다(`task03-scheduler-stop.log`, `.exit`). 재확인 결과는 종료 1, 1 failed·14 deselected이며 반환 오류는 null, 추가된 글의 작성자는 `alpha`, 본문은 `Outsider`였다. 기대한 `room_member_required`는 바꾸지 않았다. 선택지: 기본 프로필의 예약 작성자를 전달자와 동일하게 명시하도록 설계·영향 범위를 보완하거나 기본 프로필 예약의 적용 범위를 명확히 정한다. 권고: 실제 보내는 프로필의 작성자와 구성원 검사를 보장하고, 본체를 고치지 않는 문 쪽 책임으로 보완한다. 기본 프로필을 시험에서 빼거나 성공을 허용해 통과시키지 않는다.
 
+## TASK-04 착수 준비(제품 변경 전)
+
+운영 저장소 HEAD `f3318572b9cbd85fccb54347872feca8915532cd`를 다시 확인했다. 대상 Python 파일 233개의 기준 커밋·실행본 SHA-256은 모두 일치했다(`.build/slack-move/task04-baseline-check.json`). 운영 저장소에 다른 설정·학습 변경이 있어 건드리지 않고 해당 HEAD로 임시 worktree 브랜치 `hejo-slack-move-20261121`을 만들었다. 로컬 worktree 위치는 상태 인계에만 적는다. 새 worktree의 제품 코드는 아직 변경하지 않았다.
+
+- 변경 전 `python airport-check --snapshot .`: 종료 0, boundary count=382·document count=0·compartments count=0. 기준선은 바꾸지 않았다(`.build/slack-move/task04-baseline-airport.log`, `.exit`). 임시 HOME·HERMES_HOME·HERMES_ROOT, 게이트웨이 Python 사용. 운영 모드의 조립 검사로 대체 주장하지 않는다.
+- 변경 전 공통 Slack 전송의 가짜 요청 기록: 종료 0, 올리기·고치기·지우기·스레드 읽기·대화 읽기와 그림 업로드의 요청 총 8건(`task04-slack-baseline.json`, `.log`, `.exit`). 가짜 명부·금고·지시서·토큰 파일과 외부 네트워크 차단 감사 안에서 실행했다. 이것은 공통 HTTP 기준 기록이며 TASK-05·06의 모든 호출 경로 회귀 자료는 아직 수집하지 않았다. 초기 기록 도우미가 가짜 업로드 응답의 status를 빠뜨려 실패했고, 응답 대역을 실제 인터페이스에 맞춰 수정했다. 제품 코드는 변경하지 않았다.
+
 ## 남은 범위와 재개 순서
 
-TASK-03 커밋·분리 전체 검사 → TASK-04 → TASK-05(인스타 최우선) → TASK-06 → TASK-07 및 TASK-08. 중간 TASK에서 앱만 실패하면 Python·실제 게이트웨이 통과와 변경 범위를 기록하고 이어간다. 마지막 TASK 뒤 최종 전체 검사에서도 앱만 실패하면 제품 기준 cb06e7d를 같은 조건에서 한 번 검사해 대조하고 보고한다. TASK-09와 운영 전환 TASK-10은 범위 밖이다.
+TASK-04 → TASK-05(인스타 최우선) → TASK-06 → TASK-07 및 TASK-08. 중간 TASK에서 앱만 실패하면 Python·실제 게이트웨이 통과와 변경 범위를 기록하고 이어간다. 마지막 TASK 뒤 최종 전체 검사에서도 앱만 실패하면 제품 기준 cb06e7d를 같은 조건에서 한 번 검사해 대조하고 보고한다. TASK-09와 운영 전환 TASK-10은 범위 밖이다.
 
 마지막 상태 대조: 검사 중 다른 작업이 앱 두 파일을 `b21dd94528981dddcfa98e5a9883e864442d243d`로 커밋했다. 이 커밋은 분리 전체 검사 대상에 포함되지 않았고, 그 이후 HEAD의 전체 통과를 주장하지 않는다. 타 작업의 보고서 미커밋 변경은 그대로 보존한다. 최종 변경본의 `python scripts/scan_private.py`는 종료 0(`.build/slack-move/stop-scan.log`, `.exit`), `git diff --check`도 종료 0이다.
