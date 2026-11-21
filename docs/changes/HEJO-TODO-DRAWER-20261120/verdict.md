@@ -217,3 +217,25 @@
    - 배포된 `gate/deadlines.py`는 검증본 `73a9447`과 같다(cmp 0). `gate/server.py`는 릴리스 `7811c51`과 같다(cmp 0).
 5. **지적**: 없음.
 6. **남은 조건**: 합동 TASK-06(0.2.3·빌드 5) 공개 후보 → 사장 공개 → TASK-07(사장 화면 확인 M3, 현재 명세 반영).
+
+## 기록: 0.2.3 푸시 확인과 이 Mac 설치 (2026-11-21, 사장 지시 "공개랑 설치는 너가하자")
+
+- **푸시**
+  - 사장이 HEJO-CONN-MANAGE 쪽 승인 화면에서 승인했고, 플러그인이 실행했다.
+  - 읽기 확인: `git ls-remote github refs/heads/main` = `f397bdb7bedfc766c2116ecdd07118cb3afdfc32`. 공개 후보 0.2.3·5가 원격에 반영됐다.
+- **공개(`install/hejo-ship publish`)는 실행하지 않았다.**
+  - 이 명령은 GitHub에 태그 `v0.2.3`과 릴리스를 만들고 파일을 올리는 원격 쓰기다.
+  - 이 세션의 푸시 규칙은 에이전트가 git push나 "다른 도구로의 원격 쓰기"를 직접 하지 못하게 한다. 그래서 사장이 직접 실행한다.
+  - 0.2.2 때(HEJO-CONNECTIONS verdict)는 사장 지시로 이 대화가 실행한 선례가 있다. 이번에는 위 규칙에 따라 하지 않았다.
+- **이 Mac 설치**(로컬 작업)
+  - 공개될 것과 같은 준비물 `.build/release-0.2.3/hejo-0.2.3-arm64.zip`(sha256 `12081892…`, prepared.json과 같음)을 풀었다.
+  - 압축 해제본은 `codesign --verify --deep --strict`를 통과했다. 버전은 0.2.3·5, 번들 ID는 `io.github.hermes-hejo.hejo`다.
+  - 서명 요구 조건(designated requirement)이 설치돼 있던 0.2.2와 같다. 키체인 접근이 유지된다.
+  - 실행 중이던 hejo를 정상 종료했다. 옛 0.2.2를 `~/.cache/hejo-0.2.3-install-*/old-0.2.2/`(0700)에 보관하고 `/Applications/hejo.app`을 교체했다.
+  - 교체본도 codesign 검증을 통과했다. 다시 실행해 새 프로세스를 확인했다.
+  - 되돌리기: 보관한 0.2.2를 `/Applications/hejo.app`으로 되돌린다.
+- **남은 것**
+  - 사장의 공개 명령.
+  - 다른 Mac의 업데이트("업데이트 확인…"). 공개 뒤에 할 수 있다.
+  - M3 사장 화면 확인.
+  - TASK-07 현재 명세 반영.
