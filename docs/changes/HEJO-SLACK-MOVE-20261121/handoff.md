@@ -76,6 +76,12 @@
    빈 결과)을 impl-report에 적으면 다음 TASK로 넘어간다. 이것은 통과가 아니다. 종료 코드와 실패한 앱 시험 이름을 그대로 적는다.
    마지막 TASK 뒤에는 최종 커밋에서 전체 검사를 다시 돌린다. 그때도 앱 시험만 실패하면, 같은 조건에서 제품 기준 커밋(cb06e7d)의
    전체 검사도 한 번 돌려 결과를 나란히 적고 멈춰 보고한다. 앱 코드·앱 시험·기대값은 고치지 않는다.
+   다른 세션과 맞춘 규칙(2026-11-22, 사장 지시로 세션끼리 직접 조율): 같은 폴더에서 HEJO-FINDER-FOLDERS 작업이 app/ 과
+   운영 저장소 team-kit의 hermes_facility/app_setup.py·app_connect.py를 고치고 있고 app_setup.py 실행본을 곧 교체한다. 그 작업은
+   gate/·schemas/를 고치지 않고 게이트웨이 재시작·hejo-release를 하지 않는다. 운영 저장소 main이 그 작업 커밋으로 앞으로 갈 수 있다.
+   이 작업은 app_setup.py·app_connect.py를 고치지 않는다. team-kit 착수 때 기준 sha256은 그 시점의 실행본으로 다시 잡는다.
+   앱 시험이 든 검사(bash scripts/test.sh, app/scripts/test.sh)를 돌리기 전에 pgrep -f app-tests 로 다른 실행이 없는지 보고,
+   있으면 끝날 때까지 기다린다(화면 포커스 시험이 서로 겹친다). 기다린 사실과 시각을 impl-report에 적는다.
    선행 작업: 없음.
 10. 가정·미확정:
     - [미확정·착수 차단] REQ-SM-08.AC-05(일 넘기기·프로젝트 허브). 계획 담당이 TASK-09a로 조사해 보완한 뒤 따로 인계한다.
