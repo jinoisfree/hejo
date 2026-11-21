@@ -186,3 +186,6 @@ TASK-02b 기준(운영 저장소 HEAD의 `wait_jobs.py` sha256 = 실행본)이 �
 - 보고: 버전 올림 커밋, 새 `public` 전체 커밋, 준비물 경로, 사장용 공개 명령 한 줄(`install/hejo-ship publish --approve-commit <새 public 커밋> --prepared .build/release-0.2.3/prepared.json`), 푸시 대상, 검증 명령·종료 코드.
 - 금지: 선례와 같다(GitHub 조회·쓰기·publish·push 금지, 설치된 앱 사본 교체·공용 릴리스·운영 홈 변경·게이트웨이 재시작 금지, 비밀 값 열람 금지, 제품 동작 코드·spec·design·수락 시험 명세 수정 금지).
 - 위험·증거: 고위험(공개 배포물), 증거 수준 2. 실제 공개·업데이트 설치(수준 4)는 사장이 한 뒤 M1~M5로 본다.
+- 8차 추가 확인(HEJO-TODO-DRAWER 계획 담당 요청, 2026-11-21):
+  1. 공개 후보 빌드 트리가 `433095a`를 조상으로 포함하고, `app/Sources/TodoDrawer*.swift`가 `73a9447`과 바이트가 같다.
+  2. 공개 후보 트리의 전체 시험 로그에서 AT-TD-20..42와 AT89·AT92(실제 시간에 민감했던 시험)가 통과로 나온다. impl-report에 해당 줄을 인용한다.
