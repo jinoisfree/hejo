@@ -1,13 +1,14 @@
 # HEJO-SLACK-MOVE 구현 인계 보고
 
-## 현재 판단: TASK-02·03 구현, TASK-03 커밋의 전체 검사 통과
+## 현재 판단: TASK-02~04 구현·자체 시험 통과, TASK-05부터 남음
 
-[확인] 구현 검토 2차와 설계·인계 7판(`892d54ed1ddecbe96eddc1945494f1f8c6583777`)으로 재개했다. 기본 프로필 작성자 D-3를 반영했다. TASK-03 커밋 `57d00939c04d81d6c033ef5a31999fe02e35a383`의 분리 전체 검사가 종료 0으로 통과했다. TASK-04는 착수 준비만 했고 제품 변경은 없다. TASK-05~08은 미착수다. 아래 S-1·S-2는 이전 중단 기록이며 현재 진행 규칙은 7판을 따른다.
+[확인] 구현 검토 2차와 설계·인계 7판(`892d54ed1ddecbe96eddc1945494f1f8c6583777`)으로 재개했다. 기본 프로필 작성자 D-3를 반영했다. TASK-03 커밋 `57d00939c04d81d6c033ef5a31999fe02e35a383`의 분리 전체 검사가 종료 0으로 통과했다. TASK-04는 운영 worktree의 최종 제품 커밋 `22f8aa629bdf828e9b02085531bfd0819d071139`에서 회귀 시험 245개와 경계 검사를 통과했다. 공개 커밋 `0dfe9db8aab7373ebee6fc456deaf0134eb00e05`와 이 team-kit 커밋을 각각 고정한 전체 검사도 종료 0이다. TASK-05~08 제품 구현은 미착수다. 아래 S-1·S-2는 이전 중단 기록이다.
 
 - 받은 지시: [handoff.md](handoff.md) 7판, [verdict.md](verdict.md) 구현 검토 2차, TASK-02~08. 최신 계획 보완 기준 `892d54ed1ddecbe96eddc1945494f1f8c6583777`, 제품 기준 `cb06e7d`. 고위험, 필요 증거 수준 2, 연합개발.
 - 다른 작업의 `app/` 및 HEJO-FINDER-FOLDERS 문서 변경은 보존하며 커밋에 포함하지 않는다. 전체 검사는 TASK 커밋을 임시 detached worktree로 꺼내 실행한다.
+- 진행 중 추가된 인계 `d28f72ed8abbde1f5a84dc6425e12ffbf99af6b1`도 확인했다. 프로젝트 허브는 범위 밖이며, 앱 시험 전 다른 `app-tests` 실행을 확인한다. 다른 작업이 맡은 `app_setup.py`·`app_connect.py`는 고치지 않는다.
 - 운영 저장소 최초 착수 HEAD는 `f3318572b9cbd85fccb54347872feca8915532cd`였다. 당시 대상 실행본·기준본 Python 소스 233개의 SHA-256이 같았다(`.build/slack-move-baseline-check.json`). team-kit 착수 전 최신 HEAD와 파일별 해시를 다시 확인한다.
-- 운영 저장소 임시 worktree는 준비했으며 team-kit·직원 플러그인 제품 변경은 아직 없다. 운영 적용·재시작·실제 전송·비밀 파일 열기·본체·ddots·앱 소스 수정·푸시는 하지 않았다.
+- 운영 저장소 임시 worktree에 TASK-04 제품·시험 8개 파일을 변경했다. 다음 TASK-05의 예비 대조는 운영 저장소 최신 HEAD `d7208c11c23ddb0dacddbe3e225864058f263006`에서 대상 Python 29개가 실행본·작업 기준과 모두 같았다(`task05-preliminary-hashes.json`). 실제 수정 전에 최신 HEAD와 대상 파일을 다시 확인한다. 운영 적용·재시작·실제 전송·비밀 파일 열기·본체·ddots·앱 소스 수정·푸시는 하지 않았다.
 - 직접 구현·시험했으며 하위 에이전트는 사용하지 않았다.
 
 ## TASK-02: 서버 안 전용 입구
@@ -99,7 +100,7 @@ worktree의 추적 변경이 없음을 확인한 뒤 `git worktree remove`로 �
 
 ## TASK-04: 공통 전송과 보고 복구
 
-운영 저장소의 분리 worktree에서 구현했다. 기준 `f3318572b9cbd85fccb54347872feca8915532cd`, 제품·시험 커밋 `b4a240e046b68e962af9f13b0471e9beba605cf4`, 편집 저장 실패 보완 커밋 `c8b31f3177d182a7c6b61e2ddaabf09b43582f7e`. 기존 파일 세 개의 실행본 SHA-256을 수정 직전에 다시 대조했고 모두 일치했다(`.build/slack-move/task04-edit-hashes.json`). 실행본·운영 설정·본체·앱은 바꾸지 않았다.
+운영 저장소의 분리 worktree에서 구현했다. 기준 `f3318572b9cbd85fccb54347872feca8915532cd`, 제품·시험 커밋 `b4a240e046b68e962af9f13b0471e9beba605cf4`, 편집 저장 실패 보완 `c8b31f3177d182a7c6b61e2ddaabf09b43582f7e`, 4xx 거절의 보고 종료 보완 `22f8aa629bdf828e9b02085531bfd0819d071139`가 최종 제품 커밋이다. 기존 파일 세 개의 실행본 SHA-256을 수정 직전에 다시 대조했고 모두 일치했다(`.build/slack-move/task04-edit-hashes.json`). 커밋 뒤 실행본 불변도 확인했다(`task04-final-scope.json`). 실행본·운영 설정·본체·앱은 바꾸지 않았다.
 
 ### 변경과 호출 계약
 
@@ -109,6 +110,8 @@ worktree의 추적 변경이 없음을 확인한 뒤 `git worktree remove`로 �
 - 새 시험 `tests/test_delivery_hejo.py`, 별도 프로세스 도우미 `tests/helpers/delivery_report_worker.py`, 작업 전 가짜 Slack 요청 두 자료를 운영 worktree에 추가했다. 통합 시험은 `HEJO_GATE_SOURCE`로 이 저장소 checkout을 받고, 실제 어댑터와 Unix 입구를 임시 홈에 띄운다. 해당 환경 값이 없으면 이 통합 묶음은 건너뛰므로 아래 증거는 반드시 값을 준 실행이다(건너뜀 0).
 
 재전송 호출자는 `delivery.post(..., client_id=발생건값, state=자기상태항목, save=동기저장함수)`를 쓴다. 영속 상태를 준 hejo 호출에는 열쇠가 필수다. 조각 목록·열쇠·꾸밈을 첫 요청 전에 저장하고, 다시 실행하면 저장된 조각 열쇠를 읽어 첫 조각부터 올린다. 결과의 `head_id`는 첫 글, `msg_id`는 버튼이 달린 마지막 글, `thread`는 별도 스레드 id다. 호환 함수의 `ts`는 마지막 **글** id이며 스레드로 쓰지 않는다. `read_thread`의 각 행은 규격 그대로 `msg_id`와 `seq`를 쓴다. `clicked_message_id(event)`와 `thread_key(event)`가 버튼 글·스레드를 따로 읽는다.
+
+전송 실패는 호출자가 처리한다. `Refused.permanent`는 4xx만 참이며, 학습·스킬 보고는 이 경우 실패 사유와 조각 번호를 `delivery_error`에 적고 해당 회차를 끝낸다. 다음 실행에서 그 회차를 다시 올리거나 다음 날짜의 보고를 막지 않는다. 보내지 못한 부록은 전달 완료로 확인하지 않는다. 503·연결 끊김은 미완료 상태와 같은 열쇠를 유지한다. 이는 기존 design 3.1 D-1의 구현 보완이며 요구 변경이 아니다.
 
 긴 글 고치기는 기존 조각을 고치고 남는 조각을 지우거나 같은 스레드에 더한다. PATCH는 체크 목록·그림을 옮기거나 상태를 null로 지울 수 없으므로, 마지막 조각 위치가 달라지거나 이 꾸밈이 바뀌면 필요한 뒷부분을 지우고 새 발생 건 열쇠로 다시 올린다. 이 편집 계획도 요청 전에 같은 상태 항목에 저장하며 받은 새 글 id를 반환한다. 앞 조각 id와 스레드는 유지한다. 문 규격·수락 기준은 바꾸지 않았다.
 
@@ -127,9 +130,12 @@ worktree의 추적 변경이 없음을 확인한 뒤 `git worktree remove`로 �
 | `pytest test_delivery_hejo.py` | 종료 0, 21 passed. AT-SM-40~45 공통 경로, 46 학습·스킬 보고, 47·48 실제 문, 49 정기 보고 부분 | `task04-targeted-5.log`, `.exit` |
 | `pytest test_delivery_hejo.py test_learning.py test_learning_report.py test_learning_report_status.py test_skill_report.py test_slack_blocks.py` | 종료 0, 242 passed | `task04-regression.log`, `.exit` |
 | 보완 뒤 `pytest test_delivery_hejo.py` | 종료 0, 22 passed. 편집 계획 저장이 실패한 같은 메모리 객체로 다시 호출해도, 저장 성공 전에 문에 쓰지 않음을 추가 확인 | `task04-revision.log`, `.exit` |
+| 4xx 보완 뒤 전송·학습 보고·스킬 보고 시험 | 종료 0, 115 passed | `task04-d1.log`, `.exit` |
+| 최종 `22f8aa62` detached 사본의 위 6개 시험 파일 | 종료 0, 245 passed. 새 전송 묶음 24개 포함, 건너뜀 0 | `task04-reviewed-regression.log`, `.json` |
 | `python .build/slack-move/task04_mutation.py` | 실행기 종료 0. 조각 열쇠 중복 변형은 4 failed, 요청 전 저장 제거 변형은 1 failed·3 passed. 각 pytest 종료 1, 원본 불변 | `task04-mutation-results.json`, `task04-mutation-piece-key.log`, `task04-mutation-intent-save.log` |
 | `python airport-check --snapshot .` | 변경 중 검사 종료 0, boundary=382·document=0·compartments=0. 커밋 훅도 같은 검사 통과. 기준선 변경 없음 | `task04-airport.log`, `.exit` |
 | 제품 커밋 `b4a240e0`에서 `python airport-check --snapshot .` | 종료 0, 같은 집계. 보완 커밋의 인덱스 검사 훅도 통과 | `task04-commit-airport.log`, `.json` |
+| 최종 `22f8aa62` detached 사본의 `python airport-check --snapshot .` | 종료 0, boundary=382·document=0·compartments=0, 기준선 변경 없음 | `task04-reviewed-airport.log`, `.json` |
 
 AT-SM-46은 학습·스킬 보고를 각각 별도 프로세스로 실행했다. 가짜 Unix 입구가 기록 후 연결을 끊는 두 지점과, 응답을 받은 뒤 상태 저장 직전에 SIGKILL하는 지점을 검사했다. 재실행은 디스크 상태만 읽고, 입구는 요청마다 열쇠가 이미 파일에 있는지 확인한다. AT-SM-47·48은 실제 문의 기록 후 HTTP 연결을 끊었으며, 재시작 경우에는 같은 임시 홈에 새 어댑터 객체를 만들어 기록장을 다시 읽었다. 중복 0, 한 스레드, 조각 순서·버튼 위치·완료 뒤 재실행의 기록장 불변을 확인했다.
 
@@ -137,8 +143,12 @@ AT-SM-46은 학습·스킬 보고를 각각 별도 프로세스로 실행했다.
 
 최초 전체 검사는 공개 저장소 `d28f72ed8abbde1f5a84dc6425e12ffbf99af6b1`의 detached worktree와 team-kit 작업 worktree를 조합해 시작했다. 검사 전에 다른 앱 시험 프로세스가 없음을 확인했으며 대기는 없었다(`task04-app-check.json`). Python 단계 뒤 자체 검토에서 편집 계획의 첫 저장이 실패한 같은 객체를 재사용하는 경우도 요청 전에 다시 저장해야 함을 찾아 보완했다. 따라서 이 최초 실행은 단일 team-kit 커밋의 최종 증거로 쓰지 않고, 보완 커밋도 detached 사본으로 고정해 전체 검사를 다시 한다. 새 인계의 앱 시험 동시 실행 방지 규칙과 프로젝트 허브 범위 밖 결정은 확인했고, 해당 파일은 고치지 않았다.
 
+이 최초 실행은 종료 0이었다(`task04-isolated-full.log`, `.json`). 다음으로 공개 저장소 `0dfe9db8aab7373ebee6fc456deaf0134eb00e05`와 team-kit `c8b31f31`을 각각 고정한 전체 검사도 종료 0이었다(`task04-final-isolated-full.log`, `.json`). 마지막 4xx 보완 뒤에는 같은 공개 커밋과 최종 team-kit `22f8aa62`를 고정해 **전체 검사 종료 0**을 확인했다: Python 434 passed, 실제 게이트웨이 정상 종료, 앱·연동 fixture·훅 시험 9개 통과(`task04-reviewed-isolated-full.log`, 두 커밋을 적은 `.json`). 각 검사 전 앱 시험 프로세스 없음·대기 없음과 UTC 시각은 `task04-final-app-check.json`, `task04-reviewed-app-check.json`에 있다. 검사 사본들은 제거했고 구현을 이어갈 운영 worktree만 유지한다. 운영 저장소의 조립·적용 검사는 실행하지 않았다.
+
+개인값 검사 `python scripts/scan_private.py`와 작업 파일 공백 검사도 종료 0이다(`task04-final-scan.log`, `.exit`). 전체 검사 도중 다른 작업이 앱 변경을 커밋했으므로 이후 공개 HEAD 전체를 검사했다고 주장하지 않는다. TASK-04는 공개 제품 코드를 바꾸지 않았고, 검사 대상 공개 커밋과 현재의 문·규격·이 작업 문 시험 소스는 같음을 확인했다. 다음 TASK에서 검사할 때도 정확한 두 저장소 커밋을 고정한다.
+
 ## 남은 범위와 재개 순서
 
-TASK-04 전체 검사 결과 기록 → TASK-05(인스타 최우선) → TASK-06 → TASK-07 및 TASK-08. 중간 TASK에서 앱만 실패하면 Python·실제 게이트웨이 통과와 변경 범위를 기록하고 이어간다. 마지막 TASK 뒤 최종 전체 검사에서도 앱만 실패하면 제품 기준 cb06e7d를 같은 조건에서 한 번 검사해 대조하고 보고한다. TASK-09와 운영 전환 TASK-10은 범위 밖이다.
+TASK-05(인스타 최우선) → TASK-06 → TASK-07 및 TASK-08. TASK-05는 수정 전 가짜 Slack 요청을 먼저 기록하고 최신 실행본 SHA-256을 다시 확인한다. 중간 TASK에서 앱만 실패하면 Python·실제 게이트웨이 통과와 변경 범위를 기록하고 이어간다. 마지막 TASK 뒤 최종 전체 검사에서도 앱만 실패하면 제품 기준 cb06e7d를 같은 조건에서 한 번 검사해 대조하고 보고한다. TASK-09와 운영 전환 TASK-10은 범위 밖이다.
 
 마지막 상태 대조: TASK-02의 이전 분리 검사에는 타 작업 앱 커밋 `b21dd94528981dddcfa98e5a9883e864442d243d`가 없었고, TASK-03 전체 검사에는 포함되어 통과했다. TASK-04 동안 공유 폴더의 앱·타 작업 보고서가 다시 수정 중이므로 해당 미커밋 변경을 보존하고 분리 검사에 넣지 않았다. 위 결과는 각각 명시한 커밋과 조합에만 해당한다.
