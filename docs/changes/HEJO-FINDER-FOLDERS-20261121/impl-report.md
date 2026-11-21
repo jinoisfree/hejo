@@ -278,3 +278,35 @@ TASK-05·06 배정 범위의 구현·자체 시험을 마쳤으며 계획 담당
 다음은 계획 담당의 두 구현 커밋 범위·증거 검토 → 별도 TASK-07 실행본 적용·TASK-08 공개 후보 지시 → 사장 M1~M6 → 현재 명세 반영 → 푸시 승인이다. TASK-05의 운영 적용 대상 tip은 `d7208c11c23ddb0dacddbe3e225864058f263006`, TASK-06 앱 커밋은 위 해시다. 이 보고는 제품 최종 완료·운영 반영·푸시 완료 판정이 아니다.
 
 최종 문서 검사: `P scripts/scan_private.py` 종료 0(`E4/scan-private.log`), 자기 변경 경로 `git diff --check` 종료 0(`E4/report-diff-check.log`). 최종 보고서 지문과 검사 결과는 `E4/final-report-checks.json`에 보관했다.
+
+## 5차-TASK-07: NFC Finder 후보 실행본 적용
+
+위험도 일반, 증거 수준 3. 아래 `E5`는 `.build/finder-folders-evidence/round5-task07`이며 `P`는 설치 메타데이터로 확인한 게이트웨이 Python이다.
+
+### 착수 확인과 적용 전 롤백 기록
+
+- 운영 main 착수 HEAD: `f3318572b9cbd85fccb54347872feca8915532cd`. 대상 브랜치 tip: `d7208c11c23ddb0dacddbe3e225864058f263006`. hejo 착수 HEAD: `d1668653d3b30bbbefe841d48dc9fd7ff6142c68`.
+- 실행본 및 운영 HEAD의 app_setup.py SHA-256: `eff2a716b30fd2e1eb165ca295fa84da56be4db86e1b9602b477d56a67fd4be6`. 적용할 blob SHA-256: `12aeddba77c4052f35714800eea1c63c06587d0666d9b2baa3e49214817aa3ab`. 일치 확인 후 진행한다.
+- 작업 밖 미커밋 목록 10개는 로컬 전용 `E5/operating-status-before.local`에 보관하고 커밋하지 않는다.
+- 보관 디렉터리 `.build/finder-folders-evidence/round5-task07/rollback-cntadfts`는 권한 0700, app_setup.py 사본은 0600이며 SHA-256은 착수값과 같다. `E5/deployment.json`에 파일 모드와 복원 전후 해시를 적었다.
+- **적용 전 작성한 복원 절차:** 검사 실패 시 `P E5/restore.py`로 사본 해시 확인 → 실행본 같은 디렉터리의 임시 파일에 쓰기·fsync·기존 모드 적용 → 이름 바꾸기 → 착수 해시 재확인. 이어 status·apps를 다시 확인하고 중단한다. 복원 스크립트는 준비만 했고 아직 실행하지 않았다.
+- 적용은 `python3 E5/apply_and_check.py`가 동일한 임시 파일·이름 바꾸기로 app_setup.py 한 파일만 수행한다. status/apps 원문은 남기지 않고 종료 코드·schema만 기록한다. Finder는 실제 HOME에서 읽기 전용 1회, 수치와 NFC 참/거짓만 남긴다.
+- merge 뒤 plain `./sync`는 실행본 → 저장소 방향이다. 실행본에 없는 새 시험 파일이 수집에서 사라지면 검토된 대상 커밋의 `tests/test_finder_folders.py` blob만 저장소에 복구한다. 시험 코드를 실행본에 설치하지 않는다. 자기 경로가 이미 HEAD와 같으면 빈 커밋은 만들지 않는다.
+
+### TASK-07 실행 결과
+
+| 명령 | 종료 코드 | 결과 | 로그 |
+|---|---:|---|---|
+| `python3 E5/apply_and_check.py` | 0 | 단일 파일 원자 교체 및 적용 해시 확인 | `E5/apply.log`, `E5/applied.json` |
+| `hermes-connections status --json` / `apps --json` | 각각 0 | 예상 schema 확인, stderr 0바이트 | `E5/live-checks.json` |
+| `P -B -c <실행본 finder_scopes 읽기 전용 1회>` | 0 | 후보 **75**, **0.111216초**, hint 없음, id/value 모두 NFC **true** | `E5/finder-metrics.json` |
+| `git merge --ff-only hejo-finder-folders-20261121`(운영 저장소) | 0 | app_setup.py와 저장소 시험만 fast-forward | `E5/merge.log`, `E5/merge.json` |
+| `./sync`(운영 저장소, 옵션 없음) | 0 | 실행본 → 저장소 수집. 저장소 전용 시험은 검토된 blob으로 복구 | `E5/sync.log`, `E5/sync.json` |
+| `./airport-check`(운영 저장소, 게이트웨이 Python PATH) | 0 | 기준선 변경 없이 통과 | `E5/airport-check.log`, `E5/airport-check.json` |
+| 자기 두 경로 `git diff --check`(운영 저장소) | 0 | 공백 오류 없음 | `E5/diff-check.log` |
+
+후보 종류별 개수: Synology 10, iCloud 65, 기타 CloudStorage 0, 기타 0. 뿌리 종류별 개수: Synology 2, iCloud 1, 기타 0. 이름·경로는 기록하지 않았다.
+
+운영 main 최종 전체 커밋: **`d7208c11c23ddb0dacddbe3e225864058f263006`**. merge 전후와 파일/커밋 blob은 `E5/final-integrity.json`에 기록했다. 지정 두 경로가 이미 HEAD와 같아서 추가 `git commit --only`는 실행하지 않았다(빈 커밋 금지). app_setup.py 실행본·저장소·커밋 SHA-256이 모두 적용값과 같으며 app_connect.py는 착수값 그대로다. 작업 밖 미커밋은 착수 10개에서 11개로 늘었으며 모두 커밋하지 않았다. 차이는 로컬 전용 전후 status 파일에 남겼다.
+
+게이트웨이 pid·시작 식별자 불변, 복원 미실행. 보관본과 복원 절차는 유지한다. 게이트웨이가 요청마다 호출하는 CLI 자식 프로세스의 실행본 lib를 확인했으며, 게이트웨이 재시작·운영 app connect·메시지·앱 교체·릴리스·push는 실행하지 않았다. 사장 직원 A 설정 재저장·M5는 아직 남아 있다.
