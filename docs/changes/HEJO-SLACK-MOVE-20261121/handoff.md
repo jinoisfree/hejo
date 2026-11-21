@@ -5,7 +5,7 @@
 ```text
 [설계 인계: HEJO-SLACK-MOVE TASK-02~08 / 문·team-kit·직원 플러그인]
 0. 기준: 제품 코드 기준 cb06e7d(이 저장소 main) / 계획 문서 기준은 이 인계서를 담은 커밋 / <운영 저장소> 66f2a44c /
-   spec·design·수락 시험 명세·tasks 5판 2026-11-22(계획 검증 1회차 4건·2회차 2건·3회차 1건·4회차 1건 반영, plan-review.md) /
+   spec·design·수락 시험 명세·tasks 6판 2026-11-22(계획 검증 5회차 통과. 그 뒤 구현 검토 1차의 계약 보완 D-1·D-2 반영, verdict.md) /
    승인 상태: 사장 브레인스토밍 결정(brainstorm.md) 기반, 계획 검증 켬(재검증 대기) / 운영 모드: 연합개발(교차 모델 + 계획 검증)
    <운영 저장소>는 매일 자동 기록 커밋으로 움직인다. 착수 때 HEAD를 impl-report에 적는다.
 1. 공식 문서: docs/ARCHITECTURE.md, AGENTS.md, docs/changes/HEJO-SLACK-MOVE-20261121/{brainstorm,spec,design,tasks}.md,
@@ -36,7 +36,7 @@
 7. 변경 성격: 의미 변경(새 입구·대상·주인 규칙·hejo 전송). 보존 비교: AT-SM-40·59(가짜 Slack 호출이 작업 전 기록과 같음),
    AT-SM-12·22(문의 기존 동작), bash scripts/test.sh 전체, <운영 저장소> ./airport-check.
    team-kit 회귀 기준 기록은 고치기 전에 먼저 뜬다(작업 전 코드로 가짜 Slack 호출을 기록해 시험 자료로 둔다).
-8. 수락 시험: tests/acceptance/HEJO-SLACK-MOVE.md AT-SM-01~08·10~12·20~22·30·31(문), 40~49·49b·49c·50~59·51b·60~66·61b·68·70~72(team-kit·직원 플러그인).
+8. 수락 시험: tests/acceptance/HEJO-SLACK-MOVE.md AT-SM-01~09·10~12·20~22·30·31(문), 40~49·49b·49c·50~59·51b·60~66·61b·68·70~72(team-kit·직원 플러그인).
    AT-SM-47·48·51·51b는 실제 문 어댑터와 team-kit을 묶는 통합 시험이다(tasks.md 끝 문단). 훅을 가짜 이벤트로 직접 부르는 시험으로 대신하지 않는다.
    AT-SM-67과 M1~M7은 이번 지시 밖. AC↔시험 연결표는 같은 파일 끝. 상태: 명세 완료·코드 미작성·미실행·계획 검증 대기.
    기대값 출처: spec 요구, design 3·4·5절 표. 기대값·합격 기준을 바꾸지 말고, 바꿔야 하면 멈추고 보고.
@@ -65,6 +65,10 @@
    - 앱(app/) 변경, 앱 버전 올리기. 수락 기준·수락 시험 명세·spec·design 본문 수정.
    - TASK-09(일 넘기기·프로젝트 허브) 착수. project_referral.py·project_threads.py·project_work.py·project_channel.py·
      project_alerts.py의 동작을 바꾸지 않는다.
+   전체 검사(bash scripts/test.sh)는 다른 작업이 같은 폴더의 app/을 고치는 동안 흔들릴 수 있다. TASK 커밋을 만든 뒤 그 커밋을
+   임시 분리 worktree(git worktree add --detach, .build 아래나 임시 폴더)로 꺼내 거기서 전체 검사를 돌리고, 끝나면 그 worktree를
+   지운다. 검사한 커밋 해시와 로그 경로를 impl-report에 적는다. 이 작업은 app/을 고치지 않으며 다른 작업의 app/ 변경을 커밋에
+   넣지 않는다(git commit --only). 공유 폴더에서 이 작업의 파일(gate/, schemas/, 이 작업의 시험·문서)을 고치는 것은 계속해도 된다.
    선행 작업: 없음.
 10. 가정·미확정:
     - [미확정·착수 차단] REQ-SM-08.AC-05(일 넘기기·프로젝트 허브). 계획 담당이 TASK-09a로 조사해 보완한 뒤 따로 인계한다.

@@ -1,6 +1,6 @@
 # HEJO-SLACK-MOVE 설계
 
-5판 · 2026-11-22(계획 검증 1~4회차 반영, [plan-review.md](plan-review.md)) · 상태: 초안(계획 재검증 대기). 명세 [spec.md](spec.md), 작업 [tasks.md](tasks.md), 수락 시험 [HEJO-SLACK-MOVE.md](../../../tests/acceptance/HEJO-SLACK-MOVE.md). 약어는 spec 머리말과 같다.
+6판 · 2026-11-22(계획 검증 1~4회차, 구현 검토 1차의 계약 보완 D-1·D-2 반영, [plan-review.md](plan-review.md)) · 상태: 초안(계획 재검증 대기). 명세 [spec.md](spec.md), 작업 [tasks.md](tasks.md), 수락 시험 [HEJO-SLACK-MOVE.md](../../../tests/acceptance/HEJO-SLACK-MOVE.md). 약어는 spec 머리말과 같다.
 
 칸·원본·쓰기 주체·수명은 [spec 첫 절](spec.md#칸원본쓰기-주체수명)을 따른다. 새 칸 없음.
 
@@ -60,7 +60,9 @@ Slack 문: 연결만 유지. 사장이 Slack에서 말을 걸 때만 답한다
 - 한 요청은 한 줄(2회차 PR-02): 입구의 올리기는 글을 나누지 않는다. 문의 `send`는 한도를 넘는 글을 조각마다 따로 기록하고 중간에 실패하면 앞 조각이 남는다(`adapter.py:336,346-362`). 그래서 입구는 `send`를 부르기 전에 글 크기를 검사해 한 글 한도(`hejo-wire-v1`의 글 바이트 한도와 같은 값, 규격 파일에 적음)를 넘으면 `invalid_frame`으로 거절한다. 요청 하나는 "한 줄이 기록됨" 아니면 "아무것도 없음" 둘 중 하나이고, 열쇠 하나는 글 하나만 가리킨다. 거절된 요청은 열쇠를 차지하지 않는다. 긴 글 나누기는 보내는 쪽 책임이다(4.1).
 - 고치기는 같은 내용으로 다시 해도 결과가 같다. 지우기는 이미 지운 글이면 성공으로 답한다.
 - 방 만들기(PR-03): 제목이 같은 지우지 않은 방을 찾는다. ① 없으면 만들고 `created: true`. ② 하나이고 보관되지 않았고 구성원 집합·대표 직원이 요청과 같으면 그 id와 `created: false`. ③ 하나인데 구성원·대표 직원이 다르거나 보관된 방이면 `room_conflict`(409)와 그 방의 `{room, members, lead, archived}`. ④ 둘 이상이면 `room_ambiguous`(409)와 그 방들의 목록. ③·④에서는 아무것도 쓰지 않는다. 입구에는 있는 방을 고치는 길이 없다(방 고치기는 사장이 앱에서 한다).
-- 오류는 `{error: <이름>}`과 4xx다. 이름은 문의 기존 값(`unknown_employee`, `room_not_found`, `room_member_required`, `room_deleted`, `thread_deleted`, `message_not_found`, `invalid_room`, `invalid_frame`, `journal_write_failed`)을 쓰고, 방 만들기에만 새 이름 `room_conflict`·`room_ambiguous`를 더한다.
+- 오류는 `{error: <이름>}`이다. 요청을 거절한 경우는 4xx(방 충돌 둘은 409), 문이 기록장에 쓰지 못한 경우(`journal_write_failed`)는 503이다(구현 검토 1차 D-1). 보내는 쪽은 4xx면 다시 해도 같으므로 끝내고, 503·연결 실패·시간 초과는 결과를 모르는 것으로 보고 같은 열쇠로 다시 올린다(4.1의 다시 보내기 규칙과 같은 구분). 503 뒤 같은 열쇠로 다시 올리면 기록된 적이 없으면 새로 기록되고 있으면 처음 글 id를 받는다.
+- 고치기의 `reply_state`는 문의 기존 답장 상태 값 중 하나여야 하고 빈 값(null)은 받지 않는다(구현 검토 1차 D-2). 문의 `set_reply_state`가 상태를 지우는 동작을 갖지 않기 때문이다. 올리기에서는 `reply_state`를 빼거나 null로 주면 상태 없는 글이다. 규격 파일의 고치기 요청에서 null을 뺀다.
+- 오류 이름은 아래와 같다. 이름은 문의 기존 값(`unknown_employee`, `room_not_found`, `room_member_required`, `room_deleted`, `thread_deleted`, `message_not_found`, `invalid_room`, `invalid_frame`, `journal_write_failed`)을 쓰고, 방 만들기에만 새 이름 `room_conflict`·`room_ambiguous`를 더한다.
 - 입구로 올린 글의 기록장 내부 메타에 출처 표시 하나를 남긴다(앱에 나가지 않음). 레코드 종류와 `hejo-wire-v1`은 그대로다.
 - 소비자: team-kit 공통 전송(4.1)과 전환 도우미(7절). 그 밖의 소비자는 없다.
 

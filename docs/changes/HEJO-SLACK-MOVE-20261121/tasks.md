@@ -1,13 +1,13 @@
 # HEJO-SLACK-MOVE 작업 분해
 
-5판 · 2026-11-22(계획 검증 1~4회차 반영, [plan-review.md](plan-review.md)). 명세 [spec.md](spec.md), 설계 [design.md](design.md), 수락 시험 [HEJO-SLACK-MOVE.md](../../../tests/acceptance/HEJO-SLACK-MOVE.md), 인계 [handoff.md](handoff.md). 약어는 spec 머리말과 같다.
+6판 · 2026-11-22(계획 검증 1~4회차, 구현 검토 1차의 계약 보완 D-1·D-2 반영, [plan-review.md](plan-review.md)). 명세 [spec.md](spec.md), 설계 [design.md](design.md), 수락 시험 [HEJO-SLACK-MOVE.md](../../../tests/acceptance/HEJO-SLACK-MOVE.md), 인계 [handoff.md](handoff.md). 약어는 spec 머리말과 같다.
 
 순서 원칙(사장 강조): 문의 입구 → 인스타 → 나머지. 전환은 모든 작업이 끝난 뒤 한 번.
 
 | TASK | 내용 | REQ / 시험 | 영향 파일 | 선행 | 위험·증거 | 상태 |
 |---|---|---|---|---|---|---|
-| TASK-01 | 조사·명세·설계·수락 시험 명세·인계 | 전체 | `H/docs/changes/HEJO-SLACK-MOVE-20261121/`, `H/tests/acceptance/HEJO-SLACK-MOVE.md` | — | 문서 | 완료(1판, 계획 검증 대기) |
-| TASK-02 | 문: 서버 안 전용 입구(글 올리기·고치기·지우기·스레드 읽기·방 만들기)와 규격 파일 | SM-01, SM-04.AC-02·04 / AT-SM-01~08, 30, 31 | `H/gate/`의 새 모듈 하나, `H/gate/server.py`(소켓 시작·끝), `H/schemas/hejo-local-v1.json`, `H/gate/README.md`, `H/tests/acceptance/test_slack_move_gate.py`(입구 부분) | — | 고위험(새 쓰기 권한) · 2 | 대기 |
+| TASK-01 | 조사·명세·설계·수락 시험 명세·인계 | 전체 | `H/docs/changes/HEJO-SLACK-MOVE-20261121/`, `H/tests/acceptance/HEJO-SLACK-MOVE.md` | — | 문서 | 완료(6판, 계획 검증 5회차 통과 뒤 구현 검토 1차의 계약 보완 반영) |
+| TASK-02 | 문: 서버 안 전용 입구(글 올리기·고치기·지우기·스레드 읽기·방 만들기)와 규격 파일 | SM-01, SM-04.AC-02·04 / AT-SM-01~09, 30, 31 | `H/gate/`의 새 모듈 하나, `H/gate/server.py`(소켓 시작·끝), `H/schemas/hejo-local-v1.json`, `H/gate/README.md`, `H/tests/acceptance/test_slack_move_gate.py`(입구 부분) | — | 고위험(새 쓰기 권한) · 2 | 부분 구현·검증 중단([impl-report.md](impl-report.md)) |
 | TASK-03 | 문: 예약 보고의 방 대상, 방 스레드 주인 | SM-02, SM-03 / AT-SM-10~12, 20~22 | `H/gate/__init__.py`, `H/gate/rooms.py`, `H/gate/adapter.py`(`receive`의 받는 직원 계산), `H/gate/README.md`, `H/tests/acceptance/test_slack_move_gate.py`(대상·주인 부분) | — | 일반 · 2 | 대기 |
 | TASK-04 | team-kit: `delivery.platform` 읽기, 직책 키 받을 곳 풀이, 공통 전송(Slack·hejo, 요청 열쇠 인자, 긴 글 조각 나누기와 조각별 열쇠), "누른 글 id"·"스레드 열쇠" 읽기 함수(design 5절 표), 상태 항목의 문 표시 규칙, 꾸밈 대응 | SM-05 / AT-SM-40~45, 46(학습 보고·스레드 보고 부분)·47·48, 49(정기 보고 부분) | `TS/`의 공통 전송 자리(지금 `learning_report.py`·`learning.py`의 전송·받을 곳 함수와 새 모듈), `TS/slack_blocks.py`를 부르는 자리, 그 시험 | TASK-02의 규격 파일(가짜 입구로 시험) | 고위험(모든 보고의 길) · 2 | 대기 |
 | TASK-05 | 인스타·네이버톡을 공통 전송으로: 고객별 스레드, 초안·버튼, 승인 판정, 훅, 요약, 상태, 피드, 학습 보고, 네이버톡 다리. 코드 상수 제거 | SM-06, SM-05.AC-04·08(인스타·네이버톡 부분) / AT-SM-50~59, 51b, 46(인스타 부분), 49, 49b, 49c | `CP/plugins/instagram-dm/`(`watch.py`, `__init__.py`, `feed_runner.py`, `learning_report.py`, `naver_talk.py`), `CP/scripts/naver-talk/bridge.py`, 그 시험 | TASK-04 | 고위험(고객 응대 승인 판정) · 2 | 대기 |
