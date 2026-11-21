@@ -1,6 +1,6 @@
 # 구현 인계: HEJO-CONN-MANAGE-20261120
 
-> 최신 판단: **3차 TASK-03 보완 구현·자체 시험 완료, 독립 검토 대기**. V-3의 앱 파생 줄 중복은 design 4판대로 보완했고 진단 한 줄 기준을 통과했다(문서 끝 3차 구현). TASK-02b는 기준 불일치로 대기한다. 아래 이전 단계와 GAP은 당시 기록이며, 최종 제품 완료·운영 적용·푸시 완료를 뜻하지 않는다.
+> 최신 판단: **4차 TASK-02b 구현·자체 시험 완료, 독립 검토 대기**. 시작 조건 충족을 확인하고 지정 main 병합 뒤 Google 꺼짐 소비자를 보완했다(문서 끝 4차 구현). TASK-02~04의 이전 검토 통과분은 유지한다. 아래 이전 단계·GAP·대기는 당시 기록이며, 최종 제품 완료·운영 적용·푸시 완료를 뜻하지 않는다.
 
 ## 판단 상태
 
@@ -238,3 +238,40 @@ TASK-02 커밋: `5e6c81cc173042e879bacf1b7f0fb766ba8494fd`. 게이트웨이가 i
 **대기(기준 불일치).** 읽기 전용 재확인에서 운영 저장소 HEAD는 `7ae2b0138725ad7cde44d4842950d2ffb7cc99b8`, `wait_jobs.py` 기준 sha256은 `bf1dd9097a537b7f7999af93398b97386f6c3a24e3acc441b960b25bafd1ec83`, 실행본은 `441a8501a4cefc146115bab154b5e939c8d59cd2e1d27d46661562a4f561a21d`다. 명령 실행 종료 0, 일치 판정 false(`v3-task02b.json`). 파일 수정·반입·merge·TASK-02b 시험은 하지 않았다.
 
 추가 설계 차이·범위 밖 부채 없음. 이번 제품 변경은 문과 수락 시험 코드뿐이고, 본 보고서는 구현 인계 의무에 따라 이어 쓴 것이다. 운영 적용·실물 M1~M5·최종 독립 검토·푸시는 미실행이다. 다음 검토자는 같은 직원·키·reason 경계와 파생 줄 직접 확인 반영, 계정 check 전달의 보존을 우선 확인한다.
+
+## 4차 구현 — TASK-02b (2026-11-21)
+
+받은 기준은 `30680a1`의 handoff 4차 지시와 design 3.1 표, AT-CM-12(라)다. 고위험·필요 증거 수준 2, 구현·자체 시험 역할이며 TASK-05 운영 적용은 이번에 시작하지 않는다.
+
+### 착수와 병합
+
+[확인] 착수 때 운영 저장소 HEAD/main은 `dfb469d3b33a7732583a291283ffb6b0eeca2ab1`, `wait_jobs.py`의 HEAD·실행본 sha256은 모두 `441a8501a4cefc146115bab154b5e939c8d59cd2e1d27d46661562a4f561a21d`였다. 해당 파일 미커밋 표시 없음, 작업 worktree는 깨끗한 `hejo-conn-manage-20261120`의 `5e6c81cc173042e879bacf1b7f0fb766ba8494fd`였다. 기존 TASK-02 변경과 들어올 변경의 파일 교집합은 없었다. 경로는 추적하지 않는 `AGENTS.local.md`를 따른다. 근거: `.build/conn-manage-evidence/v4-preflight.json`.
+
+지정된 main 커밋을 worktree에 `git merge --no-edit`로 병합했다(종료 0, 충돌 없음). 병합 커밋은 `fe7f0c954ea7d8cfa3360078c716d3d4c0685373`이며 부모는 기존 TASK-02 커밋과 위 운영 main이다. 다른 작업의 origin 비교·prune 변경은 이 main 조상으로 들어왔고 TASK-02b 변경으로 다시 작성하지 않았다. 운영 main·실행본은 수정하지 않았다.
+
+### 변경과 자체 시험
+
+- 실제 파일 `team-kit/lib/hermes_team_services/wait_jobs.py`의 `account(home)`가 그 직원의 `gmail.enabled is False`를 먼저 확인하고 기존 소비자와 같은 `ValueError('GOOGLE_DISABLED')`로 계정 선택을 끝낸다. 칸이 없거나 true이면 기존 주소 정리·계정 없음 오류를 유지한다.
+- 실제 호출 경계를 조사하니 `gmail_service()`가 계정 확인 전에 클라이언트를 만들고 있었다. 같은 파일에서 계정 결정을 클라이언트보다 앞에 옮기고, `evaluate()`도 계정 확인을 먼저 한다. `create()`의 메일 갈래는 이미 서비스 객체가 주어진 경우에도 메일 읽기 전에 계정을 확인한다. 따라서 꺼진 직원은 클라이언트·메일함 주소·스레드 읽기를 호출하지 않는다. 새 공개 형식·저장 칸·설계 변경이나 별도 처리 계층은 없다.
+- 꺼진 상태의 기존 대기 확인은 기존 `check()` 오류 처리(`read_failed`, 처음에는 깨우지 않음)를 따른다. `check`·`handle`·`cancel`·`_matches_origin`·`prune`는 바꾸지 않았다. 이전 main과 AST를 직접 비교해 이 함수들의 보존 및 이번에 바뀐 네 함수만 확인했다(`v4-preservation.json`).
+- `tests/test_conn_management.py`에 AT-CM-12(라) wait_jobs 사례와 켜짐 대조를 추가했다. 가짜 홈에서 실제 해제·재연결을 거쳐 계정 결정, 새 대기 생성(서비스 주입 유무), 기존 대기 평가·확인의 Google 호출 없음, 다른 직원 유지, 재연결 뒤 같은 읽기 경로 복원을 확인한다. `.env`·가짜 토큰·beta 설정 바이트를 보존하며 운영 파일·서비스를 쓰지 않는다. 별도 2사례는 enabled 없음/true의 정규화와 계정 없음 오류를 확인한다. 수락 시험 명세·기대값은 수정하지 않았다.
+
+검사 환경은 hejo 루트에서 `source .build/conn-manage-env.sh`를 적용한 뒤 worktree에서 게이트웨이 환경 Python으로 실행했다. 로그는 모두 `.build/conn-manage-evidence/` 아래이며 대응 `.log.json`은 실제 명령·종료 코드·대상 코드 지문·검사 중 불변 여부를 담는다.
+
+| 검사 | 실제 결과 | 로그 |
+|---|---|---|
+| 병합 후, TASK-02b 수정 전 team-kit 전체 | 종료 0, 5219 passed·기존 4 skipped·58 subtests | `v4-merged-team.log` |
+| 병합 후 `./airport-check --snapshot .` | 종료 0, boundary 382·document 0·compartments 0 PASS | `v4-merged-airport.log` |
+| 수정 전 새 wait_jobs 수락 시험 | 종료 1, 꺼짐 무시를 검출(1 failed·2 passed) | `v4-red.log` |
+| `test_conn_management.py`·`test_wait_jobs.py`·`test_hejo_work_wait.py` 상세 실행 | 종료 0, 61 passed. AT-CM-01~18·14b·40~44 및 origin·prune 회귀 포함 | `v4-focused.log` |
+| Mutation: 클라이언트 생성 뒤 계정을 확인하도록 순서를 되돌림 | 기대한 종료 1, 호출 기록 `['client']`로 검출(1 failed·2 passed). 원본 복원 | `v4-mutation-client-before-check.log` |
+| 수정 후 team-kit 전체 | 종료 0, 5222 passed·기존 4 skipped·58 subtests·기존 경고 1개 | `v4-final-team.log` |
+| 수정 후 `./airport-check --snapshot .` | 종료 0, boundary 382·document 0·compartments 0 PASS, 기준선 증가 없음 | `v4-final-airport.log` |
+
+AT-CM-14b는 이번에도 새 프로세스에서 본체 `agent.skill_utils.get_disabled_skill_names`를 가짜 HERMES_HOME으로 실행했다(2사례 PASSED, 미실행/skip 아님). 필요/도달 증거 수준은 2/2다. 병합 뒤 전체 시험에서 기존 표시 경고 1개가 있었으며 이번 변경으로 기준·예외를 늘리지 않았다.
+
+### 인계와 남은 범위
+
+TASK-02b의 실제 수정 범위는 worktree의 위 코드·시험 2개이며, `git commit --only`로 `ae04a715d351befaebd36a3809df6a3565d82f96`에 기록했다(브랜치 `hejo-conn-manage-20261120`). hejo에는 이 구현 보고서만 이어 썼다. 계획과 다른 제품 동작·추가 부채 없음. 롤백은 TASK-02b 보완 커밋만 되돌리며 병합해 들여온 다른 작업은 유지한다. 최종 개인값 검사 결과는 `v4-private.log`·`.log.json` 및 상태 블록에, 검토 대상 커밋과 검사 코드의 일치 대조는 `v4-final-evidence.json`에 기록한다. 보고서 커밋 해시는 최종 상태 블록에 적는다.
+
+운영 원본 교체·`./sync`·게이트웨이 재시작·릴리스·설치·푸시는 하지 않았다. 독립 검토 통과 뒤 계획 담당이 합동 TASK-05(HEJO-TODO-DRAWER 추가분 포함) 인계를 내며, 이번 구현자가 그 단계를 시작하지 않는다.
