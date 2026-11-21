@@ -1,6 +1,6 @@
 # HEJO-SLACK-MOVE 설계
 
-1판 · 2026-11-21 · 상태: 초안(계획 검증 대기). 명세 [spec.md](spec.md), 작업 [tasks.md](tasks.md), 수락 시험 [HEJO-SLACK-MOVE.md](../../../tests/acceptance/HEJO-SLACK-MOVE.md). 약어는 spec 머리말과 같다.
+2판 · 2026-11-21(계획 검증 1회차 반영, [plan-review.md](plan-review.md)) · 상태: 초안(계획 재검증 대기). 명세 [spec.md](spec.md), 작업 [tasks.md](tasks.md), 수락 시험 [HEJO-SLACK-MOVE.md](../../../tests/acceptance/HEJO-SLACK-MOVE.md). 약어는 spec 머리말과 같다.
 
 칸·원본·쓰기 주체·수명은 [spec 첫 절](spec.md#칸원본쓰기-주체수명)을 따른다. 새 칸 없음.
 
@@ -47,7 +47,7 @@ Slack 문: 연결만 유지. 사장이 Slack에서 말을 걸 때만 답한다
 
 | 동작 | 요청 | 응답 | 문 안에서 부르는 것 |
 |---|---|---|---|
-| 글 올리기 | `POST /local/v1/messages` `{employee, room?, thread?, text, buttons?, checklist?, reply_state?, images?}` | `{msg_id, thread}` | `send` |
+| 글 올리기 | `POST /local/v1/messages` `{employee, room?, thread?, text, buttons?, checklist?, reply_state?, images?, client_id?}` | `{msg_id, thread, repeated}` | `send` |
 | 글 고치기 | `PATCH /local/v1/messages/{msg_id}` `{employee, text?, buttons?, reply_state?}` | `{msg_id}` | `edit_message`, `set_reply_state` |
 | 글 지우기 | `DELETE /local/v1/messages/{msg_id}` `{employee}` | `{}` | `delete_message` |
 | 스레드 읽기 | `GET /local/v1/threads/{thread}` `?employee=` 또는 `?room=`, `&after=<순번>` | `{messages:[{msg_id, seq, role, employee, text, ts, reply_state}]}` | 기록장 읽기 |
@@ -56,8 +56,10 @@ Slack 문: 연결만 유지. 사장이 Slack에서 말을 걸 때만 답한다
 - `room`이 없으면 그 직원의 1:1이다. `buttons`·`checklist`·`reply_state`는 team-kit이 게이트웨이 안에서 `send`에 넘기는 `hejo_buttons`·`hejo_checklist`·`hejo_reply_state` 메타와 같은 모양이고, 입구는 이 허용 목록만 통과시킨다. 그래서 버튼 누름은 기존 누름 처리기(`register_click_handler("reply")`)로 간다.
 - `images`는 서버의 그림 파일 경로 목록이고 문의 기존 그림 저장·등록 경로(`send_image_file`과 같은 한도·형식 검사)를 탄다.
 - 고치기·지우기는 그 글을 쓴 직원이 `employee`와 같을 때만 된다(`message_not_found`).
-- 방 만들기는 같은 제목의 살아 있는 방이 있으면 만들지 않고 그 id와 `created: false`를 준다.
-- 오류는 `{error: <이름>}`과 4xx다. 이름은 문의 기존 값(`unknown_employee`, `room_not_found`, `room_member_required`, `room_deleted`, `thread_deleted`, `message_not_found`, `invalid_room`, `invalid_frame`, `journal_write_failed`)을 쓴다.
+- 요청 열쇠(`client_id`, PR-02): 올리기에 붙이면 문이 그 글의 기록장 내부 메타에 함께 적는다. 같은 `employee`의 같은 `client_id`가 다시 오면 새로 기록하지 않고 처음 글의 `msg_id`·`thread`와 `repeated: true`를 준다. 판정은 기록장으로 한다(사장 글의 `client_msg_id` 중복 검사와 같은 방식, `adapter.py` `receive`). 그래서 문이 재시작해도, 응답이 끊긴 뒤에도 같다. 따로 두는 표는 없고 수명은 기록장과 같다. 여러 조각으로 나뉘는 긴 글은 첫 조각에 열쇠를 적고 다시 오면 첫 조각의 id를 준다. 그 글이 이미 지워졌으면 `thread_deleted` 또는 `message_not_found`로 답한다(다시 만들지 않음).
+- 고치기는 같은 내용으로 다시 해도 결과가 같다. 지우기는 이미 지운 글이면 성공으로 답한다.
+- 방 만들기(PR-03): 제목이 같은 지우지 않은 방을 찾는다. ① 없으면 만들고 `created: true`. ② 하나이고 보관되지 않았고 구성원 집합·대표 직원이 요청과 같으면 그 id와 `created: false`. ③ 하나인데 구성원·대표 직원이 다르거나 보관된 방이면 `room_conflict`(409)와 그 방의 `{room, members, lead, archived}`. ④ 둘 이상이면 `room_ambiguous`(409)와 그 방들의 목록. ③·④에서는 아무것도 쓰지 않는다. 입구에는 있는 방을 고치는 길이 없다(방 고치기는 사장이 앱에서 한다).
+- 오류는 `{error: <이름>}`과 4xx다. 이름은 문의 기존 값(`unknown_employee`, `room_not_found`, `room_member_required`, `room_deleted`, `thread_deleted`, `message_not_found`, `invalid_room`, `invalid_frame`, `journal_write_failed`)을 쓰고, 방 만들기에만 새 이름 `room_conflict`·`room_ambiguous`를 더한다.
 - 입구로 올린 글의 기록장 내부 메타에 출처 표시 하나를 남긴다(앱에 나가지 않음). 레코드 종류와 `hejo-wire-v1`은 그대로다.
 - 소비자: team-kit 공통 전송(4.1)과 전환 도우미(7절). 그 밖의 소비자는 없다.
 
@@ -77,6 +79,8 @@ Slack 문: 연결만 유지. 사장이 Slack에서 말을 걸 때만 답한다
 ### 3.4 방 5개 (REQ-SM-04)
 
 방은 전환 때 입구의 방 만들기로 만든다(7절). 이름·구성원은 서버 설정에서 읽고, 대표 직원은 사장이 확인한 표의 값을 쓴다. 만든 방 id는 금고 `hejo.rooms.<Slack 채널 id>`에 적는다. 이 대응은 금고에만 있다.
+
+방 표를 만들 때(전환 전) 다섯 이름마다 입구의 스레드 읽기가 아닌 **방 만들기와 같은 대조**를 미리 해 본다: 전환 도우미가 요청을 보내기 전에 표와 지금 방을 견줘 충돌(`room_conflict`·`room_ambiguous`에 해당)을 표에 적는다. 충돌이 있으면 사장이 앱에서 그 방의 구성원·대표 직원·보관을 고치거나, 표를 지금 방에 맞게 고친다. 충돌이 0이 된 표만 전환에 쓴다. 전환 중 `room_conflict`·`room_ambiguous`가 나오면 그 자리에서 멈추고 되돌린다.
 
 ## 4. team-kit
 
@@ -98,6 +102,8 @@ Slack 문: 연결만 유지. 사장이 Slack에서 말을 걸 때만 답한다
 - 반환하는 식별자는 문에 따라 다르다(Slack은 채널+ts, hejo는 글 id+스레드 id). 상태 파일에 저장하는 곳은 항목마다 문 이름을 함께 적는다(REQ-SM-05.AC-05). 문 이름이 없는 옛 항목은 Slack 것으로 본다.
 - `hejo`일 때 Slack 쓰기 함수가 불리면 예외를 낸다(조용히 보내지 않음). 시험이 이것으로 0건을 확인한다.
 - 문이 없으면(소켓 없음·거절) 전송 실패를 그대로 올려 각 프로그램의 기존 실패 경로를 타게 한다. 새 재시도 큐는 만들지 않는다.
+- 다시 보내기와 중복(PR-02). 책임은 둘로 나눈다. **문**은 요청 열쇠로 같은 글을 한 번만 기록한다(3.1). **보내는 프로그램**은 열쇠를 정하고 보내기 전에 자기 상태 파일에 적는다. 열쇠는 그 글이 무엇인지에서 만든다(예: 보고 종류 + 보고 날짜·회차 + 조각 번호, 인스타는 대화 id + 초안 열쇠 + 글 종류). 시각이나 난수로 만들지 않는다. 지금 Slack에서 "보내기 전 시도 기록 + 서버 표식으로 찾기"를 하는 곳(`TS/learning_report.py:466-479,514-533`)은 그 표식 값을 열쇠로 쓰고, hejo에서는 찾기 대신 같은 열쇠로 다시 올려 받은 id를 저장한다. 수명: 열쇠와 받은 id는 그 프로그램의 기존 상태 파일 항목(직원 사물함)에 그 항목이 사는 동안, 문 쪽 기록은 기록장과 같다.
+- 공통 전송의 올리기는 열쇠를 받는 인자를 가진다. 실패 뒤 다시 보내는 호출자(상태 파일로 "보냈는지"를 따지는 모든 곳)는 반드시 열쇠를 넘긴다. 다시 보내지 않는 일회성 알림은 열쇠 없이 보내고 실패하면 기록만 한다. 어느 호출자가 어느 쪽인지는 TASK-05·06이 경로마다 impl-report 표에 적는다.
 
 ### 4.2 직접 전송 경로 전수 표 (REQ-SM-07, 대조표의 바탕)
 
@@ -181,7 +187,19 @@ Slack 채널·스레드·안내원을 전제로 한 흐름이고(`project_work.p
 - 승인 판정(`_thread_verdict`): 승인 글 바로 앞 글을 hejo 스레드 읽기로 가져온다. "앞 글이 직원 글이고 그 초안 글 id와 같으면 `send`, 초안 내용을 그대로 보여 준 다른 직원 글이면 `send`, 사장 글이면 `ask`, 그 밖은 `show`/`ask`"라는 지금 규칙을 그대로 둔다. Slack의 `bot_id` 검사는 hejo의 `role == employee`다.
 - 승인 훅(`_approval_in_dm_thread`)과 문맥 훅(`_human_turn_notes`): 플랫폼 `hejo`, 대화 id가 인스타 방, 사용자 `owner`일 때 동작한다. 스레드 주인 규칙(3.3)으로 그 스레드의 사장 글은 고객 응대 직원에게 간다.
 - 모델이 그 스레드에 썼는지 보는 조회(`_answered_since`)는 hejo 대화 id·스레드 id로 한다.
-- 버튼: 기존 답장 버튼 묶음을 hejo `buttons`로 올리고, 누름은 문의 누름 처리기 → team-kit 답장 버튼 처리(`hermes_reply`의 hejo 설치)로 온다. 제안 버튼(`proposal_decisions`)의 hejo 누름에는 글 id가 따로 없다는 기존 주석(`:293`)이 있으므로 구현 착수 때 이 경로를 먼저 읽고, 맞지 않으면 멈추고 보고한다.
+- 버튼 누름의 길과 식별자(PR-01, [확인]). 문은 답장 버튼이 눌리면 누름 처리기를 부른 뒤 그 버튼 글을 쓴 직원에게 사장 글(버튼 글자)을 넣고, 이벤트 원문에 `_hermes_button {label, message_id, message_text}`를 싣는다(`H/gate/adapter.py:672-688`). 여기서 `message_id`는 버튼이 달린 글의 hejo 글 id다. team-kit의 hejo 설치는 이 필드를 바꾸지 않고 문맥 글을 만들 때만 임시로 `message_ts` 이름을 붙인다(`TKL/hermes_reply/plugin.py:519-526`). 그런데 인스타 승인 훅과 제안 처리는 `message_ts`만 읽는다(`CP/plugins/instagram-dm/__init__.py:2764-2778`, `TKL/hermes_governance/proposal_decisions.py:286-297`). 또 제안 처리는 "스레드 id = 첫 글 id"라는 Slack 전제로 글자 승인을 찾는다(같은 파일 `_locate`). hejo에서는 스레드 id와 글 id가 서로 다른 값이다.
+- 그래서 식별자 책임을 이렇게 정한다.
+
+| 식별자 | Slack | hejo | 누가 바꾸나 |
+|---|---|---|---|
+| 버튼이 달린 글 | 원문 `_hermes_button.message_ts` | 원문 `_hermes_button.message_id` | team-kit에 "누른 글 id" 읽기 함수 하나(공통 전송 옆, TASK-04). 문과 `hermes_reply`의 hejo 설치는 바꾸지 않는다 |
+| 스레드 | 이벤트의 스레드 id(= 첫 글 ts) | 이벤트의 스레드 id(첫 글 id와 다름) | 같은 자리의 "스레드 열쇠" 함수. 상태·장부는 스레드 id와 글 id를 **따로** 적는다 |
+| 초안 글 | 상태 `draft_post {ts, key}` | 상태 `draft_post {문 이름, 글 id, key}` | 인스타 감시(TASK-05). 공통 전송의 올리기 응답에서 받는다 |
+| 제안 장부의 글 | 장부 행 `message_ts` | 장부 행에 문 이름·글 id·스레드 id | `proposal_decisions`(TASK-06) |
+
+- 인스타 승인 훅(TASK-05)이 바뀌는 곳: 버튼 승인은 "누른 글 id"가 상태의 `draft_post` 글 id와 같고 그 초안 열쇠가 지금 가장 새 초안일 때만 `send`다. 같지 않으면 지금의 묶기 시도(`bind_button_draft`: 그 글이 자기 프로그램이 올린 미리보기이고 지금 초안을 그대로 보여 줄 때만 묶음)를 hejo 스레드 읽기로 하고, 그래도 아니면 보내지 않고 거절 표시(`refuse_button`: 그 글을 고쳐 "현재 초안과 일치하지 않음")를 한다. 고치기·읽기는 공통 전송을 쓴다.
+- 제안 처리(TASK-06)가 바뀌는 곳: 버튼 누름은 "누른 글 id"로 장부 행을 찾는다. 글자 승인은 (문 이름, 스레드 id)로 열린 제안이 하나일 때만 찾는다. "글 id가 없는 누름(예: hejo)" 주석과 그 전제는 지운다.
+- 버튼 올리기: 기존 답장 버튼 묶음을 공통 전송의 `buttons`로 올린다. 문은 버튼마다 새 id를 붙이고 그 글의 내부 메타에 둔다. 고쳐서 버튼을 비운 글의 옛 버튼은 문이 `button_expired`로 막는다(`adapter.py:669-671`).
 - 네이버톡 다리: 같은 방식. 받을 곳은 금고 `hejo.channels.naver_talk`. 다리의 Slack 함수와 스레드 답글 읽기를 공통 전송으로 바꾼다.
 - 고객 응대 직원의 hejo 도구 목록에 인스타 도구 묶음이 들어간다(4.6으로 자동 충족).
 
@@ -207,15 +225,19 @@ Slack 채널·스레드·안내원을 전제로 한 흐름이고(`project_work.p
 1. team-kit·직원 플러그인·문을 적용한다. `delivery.platform`이 없으므로 모든 전송은 여전히 Slack으로 간다. 이 상태에서 하루 이상 Slack 보고가 평소대로 오는지 본다(회귀 확인).
 2. 전수 대조표와 방 표(이름·구성원·대표 직원)를 만들어 사장이 확인한다.
 
-전환(사장이 자리에 있을 때, 진행 중 턴 0, 승인 대기 0)
+전환(사장이 자리에 있을 때. PR-04 반영)
 
-1. 지시서·금고·`config.yaml`·각 프로필 `cron/jobs.json`의 보관본을 0700 임시 폴더에 두고 경로와 sha256을 기록한다.
-2. 입구로 방 5개를 만들고 금고 `hejo.*` 값을 쓴다.
-3. 지시서: `delivery.platform: hejo`, 예약 보고의 받을 곳을 hejo 대상으로, 자동 가입 예약 끔. `config.yaml`: 시스템 알림을 hejo로, 재시작·온라인 종류 제거.
-4. 조립기를 돌리고 게이트웨이를 재시작하고 상주 프로그램을 다시 띄운다.
-5. 확인: 문 연결, 입구 응답, 직책 키마다 시험 글 한 줄(사장이 hejo에서 봄), 예약 보고 하나 수동 실행, 인스타는 가짜가 아닌 실제 받은함의 다음 DM을 사장과 함께 본다(보내기는 사장이 승인할 때만).
+1. 멈추기: 보고를 보내는 상주·타이머 프로그램(인스타 감시·요약·피드, 네이버톡 다리, 뉴스·AI 소식·학습·스킬 보고, 자동수정, 예약 실행기)을 모두 멈춘다. 멈춘 목록을 적는다.
+2. 비우기 확인: 진행 중 직원 턴 0, 승인 대기 초안·보고 0, 멈춘 프로그램의 실행 중 프로세스 0, 진행 중 외부 전송(인스타·네이버) 0을 확인하고 기록한다. 하나라도 남으면 기다리거나 전환을 미룬다.
+3. 보관: 지시서·금고·`config.yaml`·각 프로필 `cron/jobs.json`의 보관본을 0700 임시 폴더에 두고 경로와 sha256을 기록한다.
+4. 방: 입구로 방 5개를 만든다(충돌 0인 표, 3.4). 금고 `hejo.*` 값을 쓴다.
+5. 스위치: 지시서 `delivery.platform: hejo`, 예약 보고의 받을 곳을 hejo 대상으로, 자동 가입 예약 끔. `config.yaml`: 시스템 알림을 hejo로, 재시작·온라인 종류 제거. 조립기를 돌린다.
+6. 켜기: 게이트웨이를 재시작하고, 문 연결과 입구 응답을 확인한 뒤에 1번에서 멈춘 프로그램을 다시 띄운다.
+7. 확인: 직책 키마다 hejo 시험 글 한 줄(사장이 hejo에서 봄), 예약 보고 하나 수동 실행, 인스타는 실제 받은함의 다음 DM을 사장과 함께 본다(보내기는 사장이 승인할 때만).
 
-되돌리기: 보관본 복원 → 조립 → 재시작 → Slack으로 예약 보고 하나와 직접 전송 하나 확인. 만든 방과 hejo 글은 지우지 않는다(공용 창고 보존). 복구 조건: 재시작 뒤 문이 연결되지 않음, 입구 무응답, 직책 키 시험 글이 하나라도 안 옴, 인스타 새 DM이 10분 안에 안 올라옴.
+1~6 사이에는 어느 보고 프로그램도 돌지 않으므로 한 글이 두 문으로 가거나 반쯤 바뀐 설정으로 나가지 않는다.
+
+되돌리기: 1번처럼 멈추기 → 보관본 복원(sha256이 보관본과 같은지 확인) → 조립 → 재시작 → 프로그램 다시 띄우기. 확인은 Slack에 시험 글을 보내지 않고 한다(NFR-SM-03): 복원 파일의 sha256, `delivery.platform`을 읽는 함수의 답이 `slack`인지(읽기 명령), 다음에 저절로 나가는 보고가 Slack에 오는지 관찰. 만든 방과 hejo 글은 지우지 않는다(공용 창고 보존). 복구 조건: 재시작 뒤 문이 연결되지 않음, 입구 무응답, 방 충돌, 직책 키 시험 글이 하나라도 안 옴, 인스타 새 DM이 10분 안에 안 올라옴. 되돌리기 절차는 전환 전에 임시 홈에서 끝까지 한 번 해 본다(M7).
 
 전환 뒤: 다음 날 같은 시각까지 Slack 새 글 0건과 대조표 줄마다 hejo 도착을 확인한다.
 
