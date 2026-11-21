@@ -1,6 +1,6 @@
 # HEJO-FINDER-FOLDERS 명세: Finder 연결에서 서버 동기화 폴더 고르기
 
-1판 · 2026-11-21 · 상태: 초안(계획 검증 대기) · 기준 커밋: 이 저장소 `9514f0f`, `<운영 저장소>` `66f2a44c`
+2판 · 2026-11-21(계획 검증 1회차 PR-01~04 반영, [plan-review.md](plan-review.md)) · 상태: 초안(계획 재검증 대기) · 기준 커밋: 이 저장소 `9514f0f`, `<운영 저장소>` `66f2a44c`
 요청 원문과 사장 결정: [brainstorm.md](brainstorm.md). 설계 [design.md](design.md), 작업 [tasks.md](tasks.md), 인계 [handoff.md](handoff.md), 수락 시험 [HEJO-FINDER-FOLDERS.md](../../../tests/acceptance/HEJO-FINDER-FOLDERS.md).
 
 ## 칸·원본·쓰기 주체·수명
@@ -36,8 +36,8 @@
 ### REQ-FF-01 서버 동기화 폴더가 Finder 후보로 나온다
 - AC-01(정상): Given 서버 홈에 Synology Drive 동기화 폴더(`synology_setup.candidates`가 찾는 것), `Library/CloudStorage/` 아래 다른 동기화 폴더, iCloud Drive(`Library/Mobile Documents/com~apple~CloudDocs`)가 있다. When Finder 연결의 고르기 단계를 연다. Then 후보에 각 뿌리 폴더와, 뿌리 아래 1단계·2단계 하위 폴더가 나온다. 후보 `id`와 저장 값은 서버 절대 경로다(지금 Finder 후보와 같은 형식). `label`은 "뿌리 이름 › 하위 › 하위"이고, iCloud Drive 뿌리 이름은 "iCloud Drive", 나머지 뿌리는 폴더 이름 그대로다.
 - AC-02(정상): 순서는 Synology Drive 뿌리 → 다른 `CloudStorage` 뿌리 → iCloud Drive. 같은 뿌리 안에서는 부모 바로 뒤에 자식이 오고(깊이 우선), 형제끼리는 이름 대소문자 무시 순서다.
-- AC-03(경계): 이름이 `.`으로 시작하는 폴더, 자신이나 부모가 심볼릭 링크인 폴더, macOS 꾸러미 폴더(이름이 `.app`·`.bundle`·`.framework`·`.photoslibrary`·`.musiclibrary`·`.tvlibrary`·`.pkg`·`.plugin`으로 끝남)는 후보와 하위 탐색에서 빠진다. 읽을 수 없는 폴더(권한 오류)는 그 폴더 아래만 건너뛰고 나머지는 나온다. 같은 실제 경로는 한 번만 나온다.
-- AC-04(경계): 후보가 300개를 넘으면 얕은 깊이부터 채워 300개에서 멈추고(뿌리 → 1단계 → 2단계), 고르기 응답 `hint`가 "폴더가 많아 일부만 보여요. 위 폴더를 고르면 그 안의 폴더도 함께 쓸 수 있어요."다. 300개 이하이면 이 안내가 없다.
+- AC-03(경계): 이름이 `.`으로 시작하는 폴더, 자신이나 부모(서버 홈 위까지 모든 부모. 뿌리 자체와 `Library/CloudStorage`·`Library/Mobile Documents` 같은 중간 폴더 포함)가 심볼릭 링크인 폴더, macOS 꾸러미 폴더(이름이 `.app`·`.bundle`·`.framework`·`.photoslibrary`·`.musiclibrary`·`.tvlibrary`·`.pkg`·`.plugin`으로 끝남)는 후보와 하위 탐색에서 빠진다. 읽을 수 없는 폴더(권한 오류)는 그 폴더 아래만 건너뛰고 나머지는 나온다. 같은 실제 경로는 한 번만 나온다.
+- AC-04(경계): 후보가 300개를 넘으면 300개만 보낸다. 고르는 규칙: 모든 뿌리의 깊이 0을 먼저, 그다음 모든 뿌리의 깊이 1, 남은 자리를 깊이 2로 채운다. 한 깊이 안에서 자리가 모자라면 AC-02의 화면 순서(뿌리 순서 → 깊이 우선)에서 앞선 것부터 넣는다. 보낸 목록의 순서는 AC-02 그대로다. 이때 고르기 응답 `next.hint`가 "폴더가 많아 일부만 보여요. 위 폴더를 고르면 그 안의 폴더도 함께 쓸 수 있어요."다. 300개 이하(정확히 300개 포함)이면 전부 보내고 이 안내가 없다.
 - AC-05(실패): 뿌리가 하나도 없고 저장된 폴더도 없으면 기존처럼 `SCOPE_EMPTY`로 멈추되, Finder의 `hint`는 "서버에서 고를 수 있는 폴더를 찾지 못했어요. 서버 Mac에 Synology Drive나 iCloud Drive 동기화 폴더가 있는지 확인해 주세요."다. 파일 변경은 기존 `SCOPE_EMPTY`와 같다(진행 기록만).
 - AC-06(경계): 후보 만들기는 폴더 항목 이름만 읽는다. 뿌리 폴더 아래의 어떤 파일도 만들거나 바꾸거나 열지 않는다(실행 전후 그 아래 sha256·목록 같음).
 

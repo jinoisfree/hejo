@@ -5,7 +5,7 @@
 ```text
 [설계 인계: HEJO-FINDER-FOLDERS TASK-02 / team-kit]
 0. 기준: 이 저장소 main 9514f0f(제품 코드 기준) / 계획 문서는 이 인계서를 담은 커밋 / <운영 저장소> 66f2a44c /
-   spec·design·수락 시험 명세·tasks 1판 2026-11-21 / 승인 상태: 사장 브레인스토밍 결정(brainstorm.md), 계획 검증 켬(검증 대기) /
+   spec·design·수락 시험 명세·tasks 2판 2026-11-21(계획 검증 1회차 반영, plan-review.md) / 승인 상태: 사장 브레인스토밍 결정(brainstorm.md), 계획 검증 켬(재검증 대기) /
    운영 모드: 연합개발(교차 모델 + 계획 검증). <운영 저장소>는 매일 자동 기록 커밋으로 움직이므로 착수 HEAD를 impl-report에 적는다.
 1. 공식 문서: docs/ARCHITECTURE.md, AGENTS.md, docs/changes/HEJO-FINDER-FOLDERS-20261121/{brainstorm,spec,design,tasks}.md,
    tests/acceptance/HEJO-FINDER-FOLDERS.md, <운영 저장소>/AGENTS.md, team-kit 개발 절차는
@@ -17,13 +17,15 @@
 3. 유지할 기존 계약: 문·앱 프레임과 공개 필드(후보 {id,label,value}, next.hint, selected), Finder id/저장 값 = 서버 절대 경로,
    _requested_scope 수용(ddots 폴더 고르기 창), catalog.sync_folders 결과, 시놀로지 앱 연결 흐름, app connect 트랜잭션·되돌리기·
    바꾸기 모드(마지막 저장 전 쓰기 없음), 재확인 규칙, Hermes 본체·ddots·hejo gate/app 무수정.
-4. 책임과 흐름: design 1절. Finder 후보 규칙은 app_setup.scopes() Finder 갈래 한 곳(함수 위치는 구현 담당), 빈 목록 hint는 app_connect 한 곳.
+4. 책임과 흐름: design 1절. Finder 후보 규칙은 app_setup.scopes() Finder 갈래 한 곳(함수 위치는 구현 담당). 안내 문장은 Finder 갈래가 selected['_scope_hint']로 넘기고
+   app_connect.py:694-698 고르기 대기 응답이 그것을 hint로 쓴다(design 2절 8항, app_connect.py 변경은 필수 범위). scopes() 반환형(list)은 그대로.
 5. 기존 경로 판정: design 3절(교체 1, 유지 5).
 6. 위험도: 일반(후보 목록만 늘어남, 인증·저장 경로 그대로). 필요 증거 수준 2(임시 HOME·HERMES_HOME, 가짜 폴더).
    롤백: worktree 브랜치 버림(운영 원본 무변경).
 7. 변경 성격: 의미 변경(Finder 후보가 늘어남). 보존 비교: AT-FF-12(team-kit 기존 시험 전체, 기대값 수정 없음).
-8. 수락 시험: tests/acceptance/HEJO-FINDER-FOLDERS.md AT-FF-01~13(M1~M3는 TASK-03 뒤 사장). 연결표는 같은 파일 끝.
-   상태: 명세 완료·코드 미작성·미실행·계획 검증 대기. 기대값 출처: spec 요구, design 2절. 기대값·합격 기준을 바꾸지 말고,
+8. 수락 시험: tests/acceptance/HEJO-FINDER-FOLDERS.md AT-FF-01~14(M1~M3는 TASK-03 뒤 사장). 연결표는 같은 파일 끝.
+   상태: 명세 2판 완료·코드 미작성·미실행·계획 재검증 대기. AT-FF-03은 실제 hermes-connections 진입점을 감사 훅을 건 자식 프로세스로 돌려
+   파일 열기를 관측한다(후보 생성 경로를 대역으로 바꾸지 않음). 기대값 출처: spec 요구, design 2절. 기대값·합격 기준을 바꾸지 말고,
    바꿔야 하면 멈추고 보고.
 9. 작업 범위: tasks.md TASK-02 영향 파일만. 절차는 HEJO-CONNECTIONS design 7.1 그대로:
    <운영 저장소> 착수 HEAD로 임시 worktree(브랜치 이름은 구현 담당), 바꿀 파일마다 실행본(<HOME>/plugin-store/team-kit/…)과 worktree
@@ -50,6 +52,6 @@
 
 [인계 전 점검]
 - 현재 코드·계약·명세가 기준 커밋과 호환되는가? 예(이 저장소 9514f0f, <운영 저장소> 66f2a44c에서 조사).
-- G1–G4: G1 spec REQ·AC·범위 밖·사장 결정. G2 현황 근거(파일:줄), 칸 표, 기존 경로 판정. G3 AC↔AT 연결표, 계획 검증 대기.
+- G1–G4: G1 spec REQ·AC·범위 밖·사장 결정. G2 현황 근거(파일:줄), 칸 표, 기존 경로 판정. G3 AC↔AT 연결표, 계획 검증 1회차 지적 반영·재검증 대기.
   G4 위험도 근거·롤백, 기준 커밋, 미확정은 착수 비차단.
 ```

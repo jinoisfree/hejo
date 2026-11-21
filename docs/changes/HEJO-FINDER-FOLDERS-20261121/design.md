@@ -1,6 +1,6 @@
 # HEJO-FINDER-FOLDERS 설계
 
-1판 · 2026-11-21 · 상태: 초안(계획 검증 대기) · 명세 [spec.md](spec.md). 약어: `H` 이 저장소, `HD` `<운영 저장소>`, `TKL` 실행 중인 team-kit 원본(`<HOME>/plugin-store/team-kit`), `TK` = `HD` worktree의 `hermes/plugin-store/team-kit`.
+2판 · 2026-11-21(계획 검증 1회차 PR-01~04 반영) · 상태: 초안(계획 재검증 대기) · 명세 [spec.md](spec.md). 약어: `H` 이 저장소, `HD` `<운영 저장소>`, `TKL` 실행 중인 team-kit 원본(`<HOME>/plugin-store/team-kit`), `TK` = `HD` worktree의 `hermes/plugin-store/team-kit`.
 
 ## 1. 책임과 흐름
 
@@ -22,13 +22,16 @@
    - `home/Library/CloudStorage/` 바로 아래 폴더 중 위에 없는 것(이름 순서)
    - `catalog.sync_folders(app, home)`이 주는 iCloud Drive
    - `home`은 지금 함수들과 같이 기본값 `Path.home()`이고, 시험은 임시 폴더를 넘긴다.
-2. 각 뿌리에서 깊이 2까지 하위 폴더를 깊이 우선으로 나열한다. 형제는 이름 `casefold()` 순서. 빼는 것: 이름이 `.`으로 시작, 자신 또는 부모가 심볼릭 링크(기존 `synology_setup.candidates`와 같은 검사), 꾸러미 확장자(spec REQ-FF-01.AC-03 목록), 폴더가 아닌 것. `PermissionError`·`OSError`가 나는 폴더는 그 아래만 건너뛴다. 파일은 열지 않는다(`os.scandir`의 항목 종류만 쓴다. 온라인 전용 항목을 내려받게 하는 읽기를 하지 않는다).
-3. 상한 300: 깊이 0(뿌리) → 1 → 2 순서로 채운다(너비 단계별 개수 계산 뒤 화면 순서는 2항의 깊이 우선). 잘렸으면 `hint`를 spec AC-04 문장으로 넘긴다. 상한 300은 [제안] 값이다(화면 목록이 스크롤로 다룰 수 있는 크기. 근거 수치 없음. 바꾸려면 사장 결정).
+2. 각 뿌리에서 깊이 2까지 하위 폴더를 깊이 우선으로 나열한다. 형제는 이름 `casefold()` 순서. 빼는 것: 이름이 `.`으로 시작, 자신 또는 부모가 심볼릭 링크(기존 `synology_setup.candidates`와 같은 검사: 후보와 그 모든 부모 `is_symlink()`. 세 종류 뿌리 모두와 하위 폴더에 같은 검사를 적용한다. CloudStorage 나열·iCloud 뿌리도 예외 없음), 꾸러미 확장자(spec REQ-FF-01.AC-03 목록), 폴더가 아닌 것. `PermissionError`·`OSError`가 나는 폴더는 그 아래만 건너뛴다. 파일은 열지 않는다(`os.scandir`의 항목 종류와 `is_symlink`·`is_dir` 검사만 쓴다. `open()`·`os.open`·내용 읽기·`stat` 이외 메타데이터 읽기 없음. 온라인 전용 항목을 내려받게 하는 읽기를 하지 않는다). 이 금지는 AT-FF-03의 감사 훅(`sys.addaudithook`의 `open` 사건)으로 관측한다.
+3. 상한 300: 전체 후보를 모은 뒤, 깊이 0 전부 → 깊이 1 전부 → 깊이 2 순서로 자리를 준다. 한 깊이 안에서 자리가 모자라면 화면 순서(2항)에서 앞선 것부터. 보낼 목록은 뽑힌 것을 화면 순서로 다시 늘어놓은 것이다. 전체가 300을 넘을 때만 잘림이고, 그때만 spec AC-04 `hint`를 단다(정확히 300개는 잘림 아님). 상한 300은 [제안] 값이다(화면 목록이 스크롤로 다룰 수 있는 크기. 근거 수치 없음. 바꾸려면 사장 결정).
 4. 라벨: 뿌리 이름(iCloud Drive는 "iCloud Drive", 나머지는 폴더 이름) + ` › ` + 하위 이름들.
 5. 저장된 폴더: `selected.get('scope')`(설정 바꾸기·다시 연결 때 금고 값, `app_connect.py:568`)의 경로 중 서버에 있는 폴더이고 1~4에서 나오지 않은 것은 맨 뒤에 붙인다. 라벨은 위 뿌리 안이면 같은 규칙, 밖이면 폴더 이름. 상한에 세지 않는다.
 6. 요청에 실려 온 경로(`_requested_scope`)는 지금 코드 그대로 받아들여 후보에 넣는다(`app_setup.py:146-149`. ddots 폴더 고르기 창 경로).
 7. 후보 모양은 지금과 같다: `dict(id=경로, label=라벨, value=경로)`.
-8. 후보가 0개면 `app_connect`의 기존 `SCOPE_EMPTY` 경로를 그대로 쓰되, Finder일 때만 spec AC-05 `hint`를 쓴다. `hint`를 정하는 곳은 `app_connect.py:696-697` 한 곳이다(여기에 Finder 문장을 넣거나 `scopes()`가 넘긴 hint를 쓰게 한다. 구현 담당이 정함). AC-04의 잘림 `hint`도 같은 길로 응답 `next.hint`에 실린다.
+8. 안내 문장 전달 계약(PR-03):
+   - `adapters.scopes(home, app, selected, config)`의 반환값은 지금처럼 후보 목록(list)이다. 다른 앱 갈래와 호출자는 바뀌지 않는다.
+   - Finder 갈래만 `selected['_scope_hint']`에 안내 문장을 넣는다: 잘렸으면 spec AC-04 문장, 후보 0개면 spec AC-05 문장, 그 밖에는 키를 넣지 않는다. `_`로 시작하는 키는 저장되지 않는 임시 값이다(`app_connect.py:373·424`가 저장 때 뺌. `_requested_scope`·`_secrets`와 같은 통로).
+   - `app_connect.py:694-698`의 고르기 대기 응답(`CHOOSE_SCOPE`·`SCOPE_EMPTY` 둘 다)은 `selected.get('_scope_hint')`가 있으면 그것을 `hint`로 쓰고, 없으면 지금 동작 그대로다(`SCOPE_EMPTY`의 기존 문장, `CHOOSE_SCOPE`는 hint 없음). 이 `app_connect.py` 변경은 TASK-02 범위에 반드시 들어간다.
 
 ## 3. 기존 경로 판정
 
