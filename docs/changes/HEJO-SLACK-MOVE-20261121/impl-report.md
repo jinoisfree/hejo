@@ -252,3 +252,20 @@ TASK-05 설계 8판 반영과 커밋·분리 전체 검사까지 마쳤다. 다�
 검사 중 운영 main이 `f86cf3506dc4448741dea2b9ee7c5fac3feeb3f8`로 이동했다. 이전 조사 기준과 team-kit·고객 플러그인 범위를 비교하면 `TK/tests/test_live_soul.py`만 바뀌었고 TASK-05 대상 제품 파일은 불변이다. 운영 main 전체를 검사한 것으로 대신하지 않는다. TASK-06 수정 전에는 최신 HEAD와 그 수정 대상 실행본을 다시 대조한다.
 
 TASK-06 착수 전 읽기 조사만 진행했다. `night_batch`는 조직개편안/아침 보고를 호출하고, `gap_review`는 예약 사전 입력을 만들며 직접 Slack 쓰기는 발견되지 않았다. `memory_tidy`는 보고 받을 곳을 계산한 뒤 `morning_queue.hold`에 넣는다. `reply_buttons._update_status`는 Slack 전용 client 경로다. 금고 백업의 첫 질문 생산자와 전체 직접 전송 목록 대조는 다음 단계에서 계속한다. TASK-06 제품 파일은 아직 고치지 않았다.
+
+
+## TASK-06 착수 조사 중단: S-4 금고 백업 첫 질문의 외부 생산자
+
+[확인] 착수 시 공개 HEAD `f1ce4586c2a830fa7dc5d50d6a56572140848834`, 운영 구현 worktree `84c6a82d18c4b70730bcf4e49f9c9c0af224983f`(깨끗함), 최신 운영 main `f86cf3506dc4448741dea2b9ee7c5fac3feeb3f8`를 대조했다. TASK-05는 위 커밋 및 기존 검사 기록 상태를 유지한다. 이번 조사에서 제품 파일은 고치지 않았다.
+
+[확인] 추가 조사 대상인 금고 백업 첫 질문은 **별도 위키 저장소**의 `02_etc/scripts/wiki_daily.py`가 만든다. 해당 저장소 HEAD는 `085db649d188bfc9d4f878d9148d7d55a4dbae5e`, 읽은 소스 SHA-256은 `a197d62fde3ac00d639993088f639a4d1075d66171f551908e8375156cd9506f`다. `send_slack:154-166`은 158줄에서 `hermes send --to slack:…`를 실행한다. 일일 작업 272줄이 이를 부르고 275줄이 `ask_backup_approval`을 부른다. 173-175줄은 기존 승인 대기 파일에 `chat_id`·`thread_ts`·`created_at`·백업 대상과 변경 목록을 적는다. 개인 경로와 값은 공개 보고에 싣지 않았고 로컬 증거만 `.build/slack-move/task06-external-producer.json`에 남겼다. 비밀 파일·운영 대기 파일은 읽지 않았다.
+
+[확인] 소비자는 `TS/vault_backup_approval.py:252-269`이며, 대기 파일의 채널·Slack 스레드·버튼 글 id를 검사한다. 생산자를 그대로 두고 소비자만 hejo에 연결하면 첫 질문은 계속 Slack으로 나가고 hejo 질문/승인 식별자가 생기지 않는다. 이는 AT-SM-41·60의 전수 전송과 TASK-07 AT-SM-64의 시작 입력에도 영향을 준다.
+
+[중단 근거] `handoff.md` 9번과 `design.md` 4.2의 “다른 저장소나 본체에 있으면 멈추고 보고한다” 조건에 해당한다. 요청한 새 수정 대상 실행본 SHA-256 대조와 가짜 Slack 기준 요청 수집은 대상 범위 확정 전이라 미실행이다. TASK-06 제품 구현·수락 시험·분리 전체 검사, TASK-07·08도 미실행이다. 기존 통과 결과를 이번 TASK의 통과로 세지 않는다.
+
+[기획설계 요청·권고] 원래 목표를 유지하려면 외부 생산자의 변경 범위와 임시 worktree 절차를 승인하고, 첫 질문의 직책 대상·공통 전송 연결·재시도 분류와 기존 승인 대기 항목의 platform/message_id/thread 저장 계약을 생산자와 소비자 함께 확정하는 방안을 권고한다. 외부 파일을 임의로 고치거나 team-kit에 대체 생산자를 만들지 않는다. 다른 선택은 이 알림을 명시적으로 범위 밖에 두는 것이지만, 현재의 전체 이전 요구와 수락 기준을 바꾸므로 사용자·기획설계 결정이 필요하다. 승인 대기 레코드의 두 번째 원본은 만들지 않는다.
+
+[재개 가능 부분] 결정 뒤 TASK-06의 나머지 내부 경로 조사·가짜 Slack 기준 수집은 독립적으로 진행할 수 있다. 이번 인계는 명시된 멈춤 조건에 따라 조사 결과만 반환한다. TASK-05를 다시 구현하거나 검사하지 않으며, 재개 순서는 TASK-06 → TASK-07(AT-SM-67 포함) → TASK-08이다.
+
+[자체 확인] 이번 보고 변경본의 게이트웨이 Python `scripts/scan_private.py` 종료 0(`.build/slack-move/task06-stop-scan.log`), 두 저장소 `git diff --check` 종료 0. 제품 코드 변경이 없어 기존 전체 검사를 반복하지 않았다. TASK-05의 고정 커밋 조합과 종료 0은 기존 `task05-isolated-full.json`을 재확인했으며 TASK-06 검증 결과가 아니다.
