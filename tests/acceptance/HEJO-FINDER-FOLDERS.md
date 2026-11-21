@@ -50,6 +50,14 @@
 | AT-FF-22 | FF-06.AC-03 | 입력 창이 열린 상태에서 (가) `confirmRestart` 알림 시트 (나) 지문 확인(`confirm` 대역이 호출될 때의 높이 기록) | 확인 중에는 `.normal`(기존 AT-HC-26과 같음), 끝나면 26으로 돌아오고 입력 창이 보임. 기존 AT-HC-25~27·AT-CM 앱 시험 전부 통과 |
 | AT-FF-23 | FF-06.AC-04 | 앱 비활성 높이(`setPreferredLevel(.normal)`)로 입력 창 열기 | `level == .normal` |
 
+## 앱 세 손가락 탭 (4판 추가, REQ-FF-07)
+
+| ID | AC | 입력 | 기대 |
+|---|---|---|---|
+| AT-FF-30 | FF-07.AC-01 | 이 Mac의 실제 트랙패드로 개발 빌드에서 열기·닫기 각 10회(구현 담당 수동 실행). 앱 안에 구간 시각 기록을 넣고(시험·진단 설정일 때만 기록, 기본 꺼짐) 결과를 `.build/` 아래에 쓴다 | 구간별 중앙값·최댓값 표가 impl-report에 있음. 고치기 전과 고친 뒤 둘 다 |
+| AT-FF-31 | FF-07.AC-02 | AT-FF-30을 고친 뒤 다시 실행 | 손 뗀 프레임 → 창 움직임 시작 중앙값이 고치기 전보다 작고 100ms 이하 |
+| AT-FF-32 | FF-07.AC-03 | 기존 ThreeTap 시험(`ThreeTapGesture`·`ThreeTapFrames`), 펫 클릭 시험, `bash app/scripts/test.sh`(HEJO_PYTHON=게이트웨이 Python) | 전부 통과, 기존 기대값 수정 없음 |
+
 ## 사장 확인(서버 적용 뒤, 증거 수준 4)
 spec 4절 M1~M3과 5.3절 M4~M6. M1에서 고르기 화면이 뜨기까지 걸린 대략 시간을 사장이 알려 주면 NFR-FF-03에 적는다.
 
@@ -79,3 +87,6 @@ spec 4절 M1~M3과 5.3절 M4~M6. M1에서 고르기 화면이 뜨기까지 걸�
 | FF-06.AC-02 | AT-FF-21, M4 |
 | FF-06.AC-03 | AT-FF-22 |
 | FF-06.AC-04 | AT-FF-23 |
+| FF-07.AC-01 | AT-FF-30 |
+| FF-07.AC-02 | AT-FF-31, M7 |
+| FF-07.AC-03 | AT-FF-32 |

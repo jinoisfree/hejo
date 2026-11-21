@@ -130,3 +130,45 @@
 10. 가정·미확정: design 7.2 [가정](입력 창 .normal의 원래 이유는 confirming이 덮음). TASK-06 재현으로 확인. 착수 차단 없음.
 11. 사용자 확인: 앱 포함은 사장 결정(2026-11-22). files.inside 미수정·직원 A 재저장 방식은 계획 확인 때 사장 확인.
 ```
+
+## 5차 지시 (2026-11-22): TASK-07 서버 적용(app_setup.py) + TASK-09 세 손가락 탭 지연
+
+허가: 검증 4차에서 TASK-05 완료를 판정했다. TASK-07은 tasks.md TASK-07 "검토 통과 + 별도 인계"의 인계다. TASK-09는 사장 결정(2026-11-22: 0.2.4에 포함)으로 추가했다. 두 갈래는 파일이 겹치지 않으니 TASK-07을 먼저 끝내고 TASK-09를 한다.
+
+```text
+[설계 인계: HEJO-FINDER-FOLDERS TASK-07]
+0. 절차: 3차 지시(TASK-03)와 같다. 대상 파일은 hermes/plugin-store/team-kit/lib/hermes_facility/app_setup.py 하나뿐이다
+   (test_finder_folders.py는 운영 저장소 기록에만 들어간다). 재시작·문 릴리스·앱 없음.
+1. 착수 확인(다르면 멈춤):
+   - 실행본 app_setup.py sha256 = eff2a716b30fd2e1eb165ca295fa84da56be4db86e1b9602b477d56a67fd4be6.
+   - 운영 저장소 HEAD와 미커밋 목록을 기록한다(f3318572 이후 다른 작업 커밋이 있으면 app_setup.py가 안 바뀌었는지 확인).
+   - 브랜치 hejo-finder-folders-20261121 tip = d7208c11c23ddb0dacddbe3e225864058f263006.
+   - 같은 저장소의 HEJO-SLACK-MOVE 세션이 team-kit 실행본 sha를 기준으로 쓰고 있다. app_setup.py 교체는 미리 알려 두었다.
+     그 밖의 실행본 파일은 건드리지 않는다.
+2. 롤백 기록 → 3. 임시 파일+이름 바꾸기로 교체, sha256 = 12aeddba77c4052f35714800eea1c63c06587d0666d9b2baa3e49214817aa3ab 확인
+   → 4. status·apps 성공, 실행본 finder_scopes({}) 읽기 전용 1회(후보 수·초·hint·뿌리 종류별 개수, 그리고 id·value가 모두 NFC인지 참/거짓만.
+   이름·경로 기록 금지) → 실패 시 복원
+   → 5. 운영 저장소 main에 브랜치 merge(ff 가능하면 ff, 충돌이면 멈춤)·./sync 방향 확인·./sync·./airport-check·
+   자기 경로 git commit --only(이미 커밋된 내용이면 빈 커밋 만들지 않음). ./sync가 가져온 다른 운영 기록은 커밋하지 않는다.
+6. 금지: 3차 지시 6항과 같다(운영 app connect 금지. 사장이 직원 A를 "설정 바꾸기"로 다시 저장하는 것은 사장이 한다).
+7. 보고: impl-report.md '5차-TASK-07' 절. 위험도 일반, 증거 수준 3.
+
+[설계 인계: HEJO-FINDER-FOLDERS TASK-09 세 손가락 탭 지연]
+1. 문서: spec REQ-FF-07, 수락 명세 AT-FF-30~32.
+2. 순서: (가) 측정을 먼저 한다. 손 뗀 프레임 시각(읽기 스레드) → 판정 → 메인 스레드 처리 시작 → setExpanded 진입 → 첫 창 움직임 → 애니메이션 끝.
+   진단 기록은 기본 꺼짐이고, 시험·진단 설정(환경 변수 등, 구현 담당이 정함)일 때만 .build/ 아래 파일에 쓴다. 개인값은 넣지 않는다.
+   열기·닫기 각 10회, 고치기 전 표를 impl-report에 적는다.
+   (나) 가장 큰 구간을 원인으로 기록한 뒤 그 자리에서 고친다(덧대기 금지).
+   예: 판정 뒤 메인 스레드 대기, openBubble의 동기 작업, 첫 프레임 그리기 지연.
+   애니메이션 길이(ChatMorph.genieDuration)나 탭 판정 규칙(0.3초·이동·간격)을 바꿔야 하면 멈추고 보고(사장 결정).
+   (다) 고친 뒤 같은 측정. 손 뗀 프레임 → 첫 창 움직임 중앙값이 줄고 100ms 이하인지 확인.
+3. 회귀: AT-FF-32. 앱 시험은 `pgrep -f app-tests`로 다른 실행이 없을 때만 돌리고, HEJO_PYTHON=게이트웨이 Python으로 돌린다.
+   다른 세션(HEJO-SLACK-MOVE)과 포커스 충돌을 피하기 위해서다.
+4. 범위: hejo app/Sources의 ThreeTap*.swift·PetController.swift·AppDelegate.swift 중 필요한 곳, app/Tests. 자기 경로만 git commit --only.
+   gate/·schemas/·다른 작업 파일은 건드리지 않는다.
+5. 금지: 앱 버전 올리기·공개 후보·설치 앱 교체(TASK-08), 운영 문에 연결 동작 보내기, 개인값, Hermes 본체·ddots 수정,
+   수락 기준·시험 명세·spec·design 수정, git push.
+6. 보고: impl-report.md '5차-TASK-09' 절(측정 방법, 전후 표, 원인, 고친 곳, 명령·종료 코드·로그 경로, 커밋 전체 해시), result.
+   위험도 일반, 증거 수준 4. 실제 트랙패드 측정이므로 이 Mac의 실물 측정이다.
+   단, 사장 체감(M7)은 0.2.4 설치 뒤 사장이 확인한다.
+```

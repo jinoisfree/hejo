@@ -70,3 +70,35 @@
 6. **미검증 범위:** 사장 화면 확인 M1(다른 Mac의 hejo에서 Finder 연결에 Synology 폴더가 보이고 저장됨), M2(직원이 그 폴더에서 파일 만들기·고치기·휴지통), M3(설정 바꾸기에서 미리 선택됨).
 7. **남은 조건:** M1~M3 → 현재 명세 반영(작업 상태 "적용") → 푸시 승인(hejo main 문서, 운영 저장소 main `f3318572`).
 8. 롤백(필요할 때): 보관본 `hejo .build/finder-folders-evidence/round3/rollback-*`(0700)로 두 실행본 파일을 되돌린다. 재시작은 필요 없다.
+
+## 검증 판정 4차: HEJO-FINDER-FOLDERS TASK-05·06 (2026-11-22)
+
+1. **판정: TASK-05·06 완료.** 작업 전체는 미완료다. TASK-07(실행본 교체), TASK-09(세 손가락 탭, 4판 추가), TASK-08(0.2.4 공개 후보), 사장 확인이 남았다.
+2. **검증 조건:** 교차 모델(계획 담당이 같은 대화에서 다시 읽고 검토). 대상은 두 가지다.
+   - 운영 저장소 브랜치 `d7208c11c23ddb0dacddbe3e225864058f263006`: `e7990047` 구현 + `d7208c11` 시험 입력. `f3318572` 대비 `app_setup.py`·`test_finder_folders.py`만 바뀌었다.
+   - hejo `b21dd94528981dddcfa98e5a9883e864442d243d`: `ConnectionsWindow.swift`·`ConnectionsTests.swift`만 바뀌었다.
+3. **설계 적합성(4.2):** 적합하다.
+   - TASK-05(design 7.1):
+     - 후보를 NFC 키 사전으로 모아 중복을 합친다. 디스크 확인은 원래 경로로 한다.
+     - 출력 `id`·`value`·`label`은 NFC다.
+     - `selected['scope']`를 NFC 목록으로 바꿔 미리 선택이 맞는다.
+     - `files.py`·`selected_options`는 바뀌지 않았다.
+     - `d7208c11`은 AT-FF-17 입력을 명세대로 "섞인 저장 값 하나"로 맞춘 것이다(이전 입력이 NFC 값을 함께 넣어 명세보다 쉬웠다). 기준을 완화한 것이 아니다.
+   - TASK-06(design 7.2):
+     - `updateLevel`은 `confirming`일 때만 `.normal`이다.
+     - `show()`가 높이를 다시 계산한다.
+     - 수정 전 재현이 기록돼 있다(대화 창 25, 연결 창 0, 입력 창 보임 → 연결 창이 뒤에 있음).
+4. **직접 확인한 것(증거 수준 2):**
+   - team-kit 관련 6파일 @`d7208c11`, 게이트웨이 Python·임시 HOME: **exit 0, 102 passed**(`.build/finder-folders-verify/related-r4.log`).
+   - AT-FF-16은 실제 `files.file_list`·`guard`와 본체 `read_file_tool`로 NFC 경로를 열고, 형제 폴더는 거절됨을 확인한다(대역 아님).
+   - 앱: `app/scripts/test.sh`, `app/`는 `b21dd94` 이후 바뀌지 않음.
+     - 첫 실행(`app-r4.log`): 앱 시험은 `AT-FF-20~23 APP PASS`, `APP_TEST_OK`까지 갔다. 그 뒤 통신 fixture가 시스템 Python의 `aiohttp` 없음으로 종료 1이 났다(환경).
+     - `HEJO_PYTHON`=게이트웨이 Python으로 다시 실행(`app-r4b.log`): **exit 0**.
+   - team-kit 전체: 구현 담당 `round4/comparison.json`이 기준 29 = 현재 29, 새 node 0이다. 코드는 `e7990047`~`d7208c11`에서 내가 돌린 것과 같다.
+   - 실행본 `app_setup.py`는 아직 `eff2a716…`(미적용). 적용 대상 sha256은 `12aeddba77c4052f35714800eea1c63c06587d0666d9b2baa3e49214817aa3ab`이다.
+5. **지적:** 없음. 기술 부채: 시험 1회차는 `bash app/scripts/test.sh`가 `HEJO_PYTHON` 없이는 통신 fixture에서 실패한다(설정값 문제, 기존).
+6. **남은 조건:** TASK-07, TASK-09, TASK-08, 사장 확인 M1~M7.
+7. **조율:** 같은 저장소의 HEJO-SLACK-MOVE 세션과 범위를 나눴다(그쪽은 gate/·schemas/·그쪽 시험만, app/는 안 고침).
+   - 앱 시험은 `pgrep -f app-tests`로 겹침을 확인한 뒤 돌린다.
+   - TASK-07의 실행본 sha 변경을 미리 알렸다.
+   - 0.2.4 공개 후보는 준비 전에 순서를 맞춘다.

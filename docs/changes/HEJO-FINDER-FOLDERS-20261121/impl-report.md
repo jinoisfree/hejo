@@ -185,3 +185,96 @@ iCloud 뿌리는 Finder 도우미 안에서 경로를 만들고 동일한 제외
 배정된 TASK-03 서버 적용과 증거 수준 **3**의 읽기 확인을 마쳤다. 전체 회귀·수락 시험의 검토된 코드와 blob이 같아 TASK-02의 99개 통과·새 실패 0 증거를 재사용하며 같은 전체 시험은 반복하지 않았다. 운영 직원 설정·금고·명부의 원본, 본체·ddots·hejo gate/app, 수락 기준·시험 명세·spec·design은 수정하지 않았다. 외부 메시지·운영 연결 쓰기·푸시는 하지 않았다.
 
 다음은 계획 담당의 TASK-03 result 검토 → 사장 M1~M3(다른 Mac hejo) → 현재 명세 반영 → 푸시 대상 확인·사용자 승인이다. 푸시 대상 제안은 이 검토 뒤 별도 단계이며, 이번 result는 제품 최종 완료나 푸시 완료 선언이 아니다. 롤백 보관본과 증거 폴더를 유지한다.
+
+
+## 4차: TASK-05·06 구현·자체 시험 (2026-11-22)
+
+### 착수와 범위
+
+[확인] handoff 4차·spec/design/수락 명세 4판을 적용한다. 위험도 일반, 필요한 증거 수준 2. 이 절의 `E4`는 hejo 기준 `.build/finder-folders-evidence/round4`, `P`는 설치 facts에서 확인한 게이트웨이 환경 Python이다.
+
+- TASK-05 worktree 브랜치 `hejo-finder-folders-20261121` 착수 HEAD: `f3318572b9cbd85fccb54347872feca8915532cd`, 작업 트리 깨끗함. 실행본 app_setup.py SHA-256 `eff2a716b30fd2e1eb165ca295fa84da56be4db86e1b9602b477d56a67fd4be6`으로 3차 적용값과 일치.
+- TASK-06 hejo 착수 HEAD: `3e2dd7c32bcd5925c94a306d02cd0b2f16dae885`. 다른 작업의 gate 소스·수락 시험 변경은 건드리지 않는다.
+- 착수 `hermes/plugin-store/team-kit/lib/hermes_facility/app_setup.py` SHA-256: `eff2a716b30fd2e1eb165ca295fa84da56be4db86e1b9602b477d56a67fd4be6`.
+- 착수 `hermes/plugin-store/team-kit/tests/test_finder_folders.py` SHA-256: `45e0938735953c1ae78158829bab864ab5e5b6f2f43b8416ef0a926252a0caa6`.
+- 착수 `app/Sources/ConnectionsWindow.swift` SHA-256: `a65e87bf14efb18487d6f578bf84fe6606e2828b04eb1a4fd9e47d098aba7b7a`.
+- 착수 `app/Tests/ConnectionsTests.swift` SHA-256: `0c7557314d939f4cda053e6632c0d6773d8340e387a5f6b9685409d8c4bb63ad`.
+착수 증거는 `E4/preflight.json`, 다른 작업 파일의 착수 지문은 로컬 전용 `E4/other-work.json`이다. 실행본 교체·운영 main 변경·sync·재시작·앱 버전/공개 후보/설치 앱 교체는 이번 배정 범위 밖이다.
+
+### TASK-05 원인과 수정
+
+[확인] 조합형 이름을 가진 임시 디스크 폴더와 완성형 요청이 같은 경로지만 문자열로 따로 남아, app_connect의 기존 NFC id 검사에서 중복으로 거절됐다. 새 AT-FF-15~17 시험은 수정 전 3개 모두 실패(기존 관련 99개 통과): 후보 중복 및 저장 시 SCOPE_INVALID. `E4/nfc-before.log`에 기록했다.
+
+`finder_scopes`에서 원래 Path로 존재·디렉터리 확인을 유지하고 NFC 경로를 중복 판정 키로 사용했다. 후보 id/value/label과 메모리 selected.scope를 NFC로 맞춘다. 파일 권한 경계 files.py·files.inside 및 app_connect.selected_options는 그대로다. 새 시험은 조합형 임시 폴더의 후보·저장·미리 선택·재저장, 실제 file_list와 read_file_tool 및 기존 guard, 비슷한 이름의 이웃 폴더 거절을 검사한다. file_list가 반환하는 부모 path와 하위 항목 name을 그대로 이어 실제 반환 경로를 검사했다.
+
+### TASK-06 수정 전 재현·원인
+
+[확인] 제품 코드를 고치기 전에, 실제 PetPanel(대화 배치, 높이 25)과 실제 ConnectionsWindow(선호 높이 26)를 띄우고 가짜 문 waiting/secret_set 응답으로 입력 시트를 열었다. `E4/app-targeted.sh`(개발 시험 바이너리 빌드·실행) 종료 1, 관측값은 **대화 25·연결 0(.normal)·입력 시트 보임 true**였고 AT-FF-20이 실패했다(`E4/app-before.log`). 실제 운영 문 요청은 없다.
+
+원인은 updateLevel이 confirming뿐 아니라 inputWindow/attachedSheet 존재만으로 높이를 0으로 내리는 조건이다. 높은 대화 패널 위로는 orderFront만으로 올라올 수 없다. 먼저 이 재현을 기록한 뒤 조건을 confirming만 남기고 show에서 높이를 다시 계산하도록 수정한다. 기존 확인 알림·인증 이후 restoreFocus 계약은 유지한다.
+
+초기 시험 자료에는 행의 필수 checked_at가 없어 문서 디코딩에 실패했다. 제품 결함 재현으로 세지 않고 필드를 보충했다(`E4/app-fixture-initial.log`, 종료 1). 위 재현은 유효한 자료와 입력 시트가 실제 열린 상태에서 다시 얻은 결과다.
+
+### TASK-05 검증·커밋
+
+`E4/run_checks.py`는 2차와 같은 격리 환경으로 resolve한 임시 HOME·HERMES_HOME·HERMES_ROOT를 만든다. 게이트웨이 Python이 기존 기준 시험의 Python과 같음을 확인했다. 기존 시험 수정·skip 추가·운영 폴더 입력은 없다.
+
+| 명령(작업 위치) | 종료 코드 | 결과 | 로그 |
+|---|---:|---|---|
+| `python3 E4/run_checks.py related`(hejo → team-kit worktree) | 0 | 새 AT-FF-15~17·기존 AT-FF-01~14·관련 5파일, **102 passed**, 4.51초 | `E4/related.log`, `E4/related.json` |
+| `python3 E4/run_checks.py full`(동일) | 1 | **28 failed, 5013 passed, 64 skipped, 1 warning, 1 error, 58 subtests passed**, 160.90초 | `E4/full.log`, `E4/full.json` |
+| FAILED/ERROR node 집합 비교(Python) | 0 | 기준 29개 = 현재 29개, 새 node 0. 정정된 AT-FF-12(나) 부분집합 조건 충족 | `E4/comparison.json` |
+| `python3 E4/run_checks.py airport`(동일) | 0 | 게이트웨이 Python으로 `./airport-check --snapshot .`, 개인값·문서·칸 검사 통과. 기준선 수정 없음 | `E4/airport.log`, `E4/airport.json` |
+| `git diff --check`(worktree) | 0 | 변경분 공백 오류 없음 | 커밋 실행 전 확인 |
+| `git commit --only -m <NFC 중복 제거 이유> -- <app_setup.py·test_finder_folders.py 두 경로>`(worktree) | 0 | 지정 두 파일만 커밋, hook 통과 | `E4/team-commit.log`, `E4/team-commit.json` |
+
+기준은 착수 HEAD `66f2a44c190390edd2a8a8eab9b2c32cba20195a`에서 같은 환경으로 이미 재현한 `E/baseline-failures.log`의 29개 집합을 재사용했다. 원래 전체 pytest 종료 1을 통과로 바꾸어 기록하지 않는다. AT-FF-03 실제 CLI 감사 훅도 위 관련·전체 시험에서 재실행됐다.
+
+TASK-05 구현 커밋: **`e79900474219ac3dbd990e3e481e665909b6c06b`**. 이어 AT-FF-17의 저장 입력을 명세 그대로 섞인 형태 하나만 남겼다(NFC 복사본 없이도 미리 선택돼야 함). 관련·전체 시험을 다시 실행해 위 결과를 얻었고, 시험 파일만 `git commit --only`로 **`d7208c11c23ddb0dacddbe3e225864058f263006`**에 기록했다(종료 0, `E4/team-test-commit.log/json`). 최종 tip은 후자이며, 두 커밋을 합친 변경 경로는 app_setup.py와 새 시험 파일뿐이다. 최종 시험 뒤 내용 수정 없이 커밋했고 파일·커밋 blob을 대조했다. 아래는 최종 SHA-256이다.
+
+- `hermes/plugin-store/team-kit/lib/hermes_facility/app_setup.py`: `12aeddba77c4052f35714800eea1c63c06587d0666d9b2baa3e49214817aa3ab`.
+- `hermes/plugin-store/team-kit/tests/test_finder_folders.py`: `6f44156030bbe7934b06e7475dd385cbc399ada33d9ebedee40371338405740f`.
+
+### TASK-06 수정 후 자체 시험
+
+[확인] `bash E4/app-targeted.sh` 종료 **0**, 수정 후 같은 배치의 관측은 **대화 25·연결 26·입력 시트 보임 true**다(`E4/app-after.log`). AT-FF-20~23, 기존 AT-HC-20~29와 AT-CM-30~38이 모두 통과하고 APP_TEST_OK다.
+
+- 입력 시트가 붙어도 선호 높이 26을 유지한다(AT-FF-20).
+- orderBack 및 오래된 `.normal` 높이를 만든 뒤 show를 부르면 높이를 다시 계산하고 입력 시트와 함께 보인다(AT-FF-21).
+- 입력 위의 실제 NSAlert 재시작 시트를 취소하는 동안만 `.normal`이고, 닫히면 26으로 복구한다. 인증 대역의 승인·취소 양쪽에서 같은 높이·포커스 복구를 확인했다(AT-FF-22, 기존 CM-35).
+- 비활성 선호 높이 `.normal`을 주면 입력을 열어도 그대로다(AT-FF-23).
+
+입력 때문에 별도로 `.normal`이어야 하는 이유는 이 시험 범위에서 재현되지 않았다. 실제 지문·암호 시스템 창과 자동 채움 UI는 호출하지 않았으므로 이 결과를 실물 검증으로 주장하지 않는다. 요구된 증거 수준 2이며 사장 확인은 후속 단계다.
+
+### 전체 hejo 검사 환경 보완
+
+첫 실행은 게이트웨이 Python에 pytest 경로를 붙이지 않아 `No module named pytest`로 종료 1(`E4/hejo-env-initial.log`). 기존 로컬 검증 환경에 맞춰 pytest·team-kit·검증 의존 경로를 연결했다. 라이브러리 경로가 없는 시도는 2 failed·225 passed·199 errors로 종료 1(`E4/hejo-library-initial.log`), 라이브러리를 붙인 시도는 227 passed·199 errors로 종료 1(`E4/hejo-long-path.log`)이었다.
+
+남은 오류는 다른 작업이 추가한 Unix 소켓이 pytest 기본 임시 경로에서 macOS 경로 길이 제한에 걸린 것이다. 소스 수정 없는 예외 관측으로 `OSError: AF_UNIX path too long`을 확인했다(`E4/socket-fixture-diagnostic.log`, 진단 pytest 종료 1). 그 작업의 gate/코드는 건드리지 않고, 새로 만든 짧은 시험 전용 임시 디렉터리를 PYTEST_ADDOPTS의 --basetemp로 지정해 같은 전체 명령을 다시 실행했다. 시험 기대값·skip·제품 소켓 위치는 바꾸지 않았다.
+
+### TASK-06 전체 결과·커밋·동시 작업의 범위
+
+| 명령(hejo cwd) | 종료 코드 | 실제 결과 | 로그 |
+|---|---:|---|---|
+| `HEJO_PYTHON=P bash scripts/test.sh`(위 라이브러리·짧은 임시 경로 환경) | **0** | gate/수락 pytest **426 passed**, 기존 경고 1개. gateway_delivery, 앱 개발 빌드·서명 검사, 앱 전체 본시험과 네트워크 fixture, hooks 9개 모두 통과. 실제 설정 메타데이터·Downloads 이름 보존 검사 통과 | `E4/hejo-full.log`, `E4/hejo-full.json`, `E4/hejo-test-env.json` |
+| `bash E4/app-targeted.sh` | 0 | AT-FF-20~23·AT-HC-20~29·AT-CM-30~38, APP_TEST_OK | `E4/app-after.log` |
+| `P -m pytest gate/tests tests/acceptance -q -o asyncio_default_fixture_loop_scope=function -p no:cacheprovider`(짧은 임시 경로) | 0 | 다른 작업의 추가 변경 뒤 실행: **428 passed**, 경고 1개. 아래 동시 수정 제한 있음 | `E4/gate-current.log`, `E4/gate-current.json` |
+| `git diff --check -- app/Sources/ConnectionsWindow.swift app/Tests/ConnectionsTests.swift` | 0 | 앱 변경분 공백 오류 없음 | 커밋 실행 전 확인 |
+| `git commit --only -m <창 높이 수정 이유> -- app/Sources/ConnectionsWindow.swift app/Tests/ConnectionsTests.swift` | 0 | 앱 두 경로만 기록 | `E4/app-commit.log`, `E4/app-commit.json` |
+
+TASK-06 커밋 전체 해시: **`b21dd94528981dddcfa98e5a9883e864442d243d`**. 부모는 `2911232cbea8c0e48fc26aeca2b925050194bd13`다. 착수 후 다른 작업의 gate 커밋이 들어왔지만 앱 두 파일의 수정 범위는 겹치지 않았다. 본 커밋 diff는 지정 앱 두 파일뿐이며 보고서는 이 커밋에 포함하지 않았다. 시험 후 앱 코드 변경 없이 커밋했고 파일·blob SHA-256이 같다.
+
+- `app/Sources/ConnectionsWindow.swift`: `ab0465c84410cfb46c12f375fc576dc9356da202d790c6e480458a258d38fe86`.
+- `app/Tests/ConnectionsTests.swift`: `d3b9e5a72c8a9f6ed944e533b5debdd6701738c36af64abe3a84a40eece563c6`.
+
+[제한] 같은 저장소의 HEJO-SLACK-MOVE 담당이 검사 중에도 gate/local.py·adapter.py·rooms.py 및 해당 수락 시험을 수정했다. 추가 gate 검사도 전후 지문이 달랐다(`E4/gate-current.json`). 따라서 위 전체 명령 종료 0을 **이후 최신 gate 전체 변경본에 대한 고정 검증**으로 확대하지 않는다. 이번 앱 두 파일은 집중 시험과 전체 앱 시험에서 같은 바이트로 검증됐고, 다른 작업의 코드·시험·명세를 고치거나 이번 커밋에 섞지 않았다. 공개 후보를 만들 때 두 작업의 최종 통합 상태를 다시 확인해야 한다.
+
+### 보존·남은 작업
+
+TASK-05·06 배정 범위의 구현·자체 시험을 마쳤으며 계획 담당 검토 대기다. 증거 수준은 **2**다. 파일 도구 시험은 임시 HOME·HERMES_HOME의 가짜 자료만 사용했고, 앱 시험은 가짜 문·인증 대역과 실제 AppKit 창을 사용했다. 운영 문에 연결 동작을 보내지 않았고 실제 서버 폴더·직원 값을 시험에 넣지 않았다.
+
+운영 main은 `f3318572b9cbd85fccb54347872feca8915532cd`, 실행본 app_setup.py는 착수 SHA-256 그대로다(`E4/team-final-integrity.json`). team-kit worktree는 최종 커밋 뒤 깨끗하다. files.py·files.inside·app_connect.selected_options·Hermes 본체·ddots, 수락 기준·시험 명세·spec·design, 앱 버전은 수정하지 않았다. sync·재시작·실행본 교체·설치 앱 교체·공개·push는 미실행이다.
+
+다음은 계획 담당의 두 구현 커밋 범위·증거 검토 → 별도 TASK-07 실행본 적용·TASK-08 공개 후보 지시 → 사장 M1~M6 → 현재 명세 반영 → 푸시 승인이다. TASK-05의 운영 적용 대상 tip은 `d7208c11c23ddb0dacddbe3e225864058f263006`, TASK-06 앱 커밋은 위 해시다. 이 보고는 제품 최종 완료·운영 반영·푸시 완료 판정이 아니다.
+
+최종 문서 검사: `P scripts/scan_private.py` 종료 0(`E4/scan-private.log`), 자기 변경 경로 `git diff --check` 종료 0(`E4/report-diff-check.log`). 최종 보고서 지문과 검사 결과는 `E4/final-report-checks.json`에 보관했다.
