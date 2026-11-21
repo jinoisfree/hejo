@@ -134,3 +134,20 @@ handoff 5차 지시: 합동 TASK-05(HEJO-TODO-DRAWER와 재시작 1회).
   - 보고값(로그로 확인): 계획 재시작 1회·복구 0회, 채널 7개 재연결, 연결 표 6명 수신, 직원마다 시놀로지 계열 한 줄.
 - 설계 적합성: HEJO-CONNECTIONS design 7.2와 7차 지시를 따랐다. 시험 5개를 원본 그대로 함께 배치한 것은 `./sync` 차이를 0으로 만들기 위한 것으로, 내용 변경은 없다(허용).
 - 남은 것: TASK-06(0.2.3 공개 후보, HEJO-TODO-DRAWER와 1회), TASK-07(사장 확인 M1~M5, 현재 명세 반영). 앱 0.2.3 설치 전까지는 옛 앱(0.2.2)이 새 문과 통신한다. 새 필드(`settings`·`committed`)·새 동작 id는 옛 앱이 무시하거나 일반 동작 버튼으로 그린다. 옛 앱에서는 해제·설정 바꾸기를 쓰지 않기를 권한다.
+
+## 8차 (2026-11-21) — TASK-06 0.2.3 공개 후보 통과. 작업 전체는 부분 완료(공개·M1~M5·현재 명세 반영 남음)
+
+- 대상: 버전 커밋 `fe00cc0`, 공개 후보 `public` `f397bdb7bedfc766c2116ecdd07118cb3afdfc32`, 준비물 `.build/release-0.2.3/`, 보고 `90822d7`.
+- 판정: **TASK-06 통과.**
+- 직접 확인:
+  - [확인] `f397bdb`의 유일한 부모는 `0cc0828`(0.2.2 public)이다. 트리 `b8971a7…`는 `fe00cc0`과 같다. `fe00cc0`은 `Info.plist`(0.2.3·5)와 `test_ship.py` 버전 단언 한 줄만 바꿨다.
+  - [확인] `fe00cc0`은 `433095a`·`961ea80`·`131e47f`·`f06d8b2`를 조상으로 포함한다. 공개 트리의 `TodoDrawerModel.swift`·`TodoDrawerView.swift`는 `73a9447`과 바이트가 같다. `ConnectionsWindow.swift`에 `restoreFocus`가 있다.
+  - [확인] `full.log`에 `AT-TD-20..42 … PASS`, `AT-HF-89 APP PASS`, `AT-HF-92 APP PASS`가 있다(TODO-DRAWER 요청 확인).
+  - [확인] 압축 SHA-256 `12081892aca70e91…`(보고값과 같음). 압축 해제본을 직접 `codesign --verify --deep --strict` → 종료 0. 앱 안 버전 0.2.3·5. `archive-sparkle.log` 업데이트 서명 검증 종료 0. `prepared.json` version 0.2.3·build 5.
+  - 다시 돌리지 않은 것: `bash scripts/test.sh`. 구현 담당 로그는 같은 트리에서 종료 0이고, TASK-02~04 검토 뒤 제품 코드 변경은 버전 값뿐이다.
+- 남은 조건(순서):
+  1. 사장의 푸시 승인(`public` `f397bdb` → github `main`). `hejo-ship publish`는 공개 커밋이 원격 `main`과 같아야 실행된다.
+  2. 사장의 공개 명령: 서버의 hejo 저장소 폴더에서 `install/hejo-ship publish --approve-commit f397bdb7bedfc766c2116ecdd07118cb3afdfc32 --prepared .build/release-0.2.3/prepared.json`
+  3. 각 Mac 업데이트 설치(이 서버는 자동 확인이 꺼져 있다)
+  4. 사장 확인 M1~M5(수락 시험 명세), HEJO-TODO-DRAWER 쪽 확인
+  5. 현재 명세 반영(TASK-07)
