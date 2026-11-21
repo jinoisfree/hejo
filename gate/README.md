@@ -73,3 +73,13 @@ Hermes `/branch`나 세션 DB를 우회하지 않으므로 도구 호출 기록�
 정확한 필드와 한도는 [통신 규격](../schemas/hejo-wire-v1.json)을 따른다.
 
 `deadlines`는 team-kit의 `hermes-deadlines list --json`을 읽기 전용으로 실행하며, 문 전체의 진행 중 실행 하나를 공유한다.
+
+서버 안 전용 전송은 기본 프로필 문이 여는 `<HOME>/hejo/post.sock`(0600)의 HTTP JSON을 쓴다.
+규격 원본은 [hejo-local-v1.json](../schemas/hejo-local-v1.json)이며 TCP에는 등록하지 않는다.
+직원 글의 올리기·고치기·지우기, 스레드 읽기와 방 만들기를 제공한다. 사장 글과 임의 메타는 받지 않는다.
+올리기 한 번은 기록장 글 한 줄이다. UTF-8 본문이 규격 한도를 넘으면 `invalid_frame`으로 거절한다.
+`client_id`는 직원별로 기록장 내부 메타에 남기며, 다시 보내면 처음 글과 스레드를 돌려준다.
+이미 지운 글은 같은 열쇠로 되살리지 않는다. 긴 글의 분할과 조각별 열쇠 저장은 보내는 쪽 책임이다.
+방 만들기는 제목·구성원 집합·대표가 같은 비보관 방을 재사용한다. 제목이 같은 방의 설정이 다르거나
+보관됐으면 `room_conflict`, 같은 제목의 방이 여러 개면 `room_ambiguous`로 쓰기 없이 거절한다.
+입구 시험을 포함한 전체 pytest에는 짧은 임시 기본 경로를 지정한다(예: `PYTEST_ADDOPTS`의 `--basetemp`).

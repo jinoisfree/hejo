@@ -364,6 +364,8 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
         context = dict(msg_id=msg_id, employee=employee, thread=thread, message_text=content, **({"room":room} if room else {}))
         try:
             buttons, internal = self._buttons(metadata, context)
+            if metadata.get("_hejo_local"):
+                internal = {**(internal or {}), "local": metadata["_hejo_local"]}
             if metadata.get("_hejo_file_registration"):
                 internal = {**(internal or {}), "files": metadata["_hejo_file_registration"]}
             state = metadata.get("hejo_reply_state")

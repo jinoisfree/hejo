@@ -125,6 +125,7 @@ class GateServer:
         self.sites = []
         self.tasks = set()
         self.port = None
+        self.local = None
         self.deadlines = Deadlines(get_hermes_home())
         self.admin_connections = Connections(get_hermes_home(), adapter.employees)
         runner = getattr(adapter, "_message_handler", None)
@@ -150,12 +151,18 @@ class GateServer:
                 await site.start()
                 self.sites.append(site)
                 self.port = site._server.sockets[0].getsockname()[1]
+            from .local import LocalIngress
+            self.local = LocalIngress(self.adapter, get_hermes_home())
+            await self.local.start()
         except Exception:
             await self.stop()
             raise
         self.tasks.add(asyncio.create_task(self.maintenance()))
 
     async def stop(self):
+        if self.local:
+            await self.local.stop()
+            self.local = None
         await self.deadlines.stop()
         for task in self.tasks:
             task.cancel()
