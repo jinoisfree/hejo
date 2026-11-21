@@ -2,7 +2,7 @@
 
 ## 현재 판단: TASK-02~05 구현·자체 시험·분리 전체 검사 통과
 
-[확인] 구현 검토 2차와 설계·인계 7판(`892d54ed1ddecbe96eddc1945494f1f8c6583777`)으로 재개했다. 기본 프로필 작성자 D-3를 반영했다. TASK-03 커밋 `57d00939c04d81d6c033ef5a31999fe02e35a383`의 분리 전체 검사가 종료 0으로 통과했다. TASK-04는 운영 worktree의 최종 제품 커밋 `22f8aa629bdf828e9b02085531bfd0819d071139`에서 회귀 시험 245개와 경계 검사를 통과했다. 공개 커밋 `0dfe9db8aab7373ebee6fc456deaf0134eb00e05`와 이 team-kit 커밋을 각각 고정한 전체 검사도 종료 0이다. TASK-05는 설계 8판 반영까지 구현·커밋하고 자체 시험을 마쳤다. 공개·운영 커밋을 고정한 분리 전체 검사도 종료 0으로 통과했다(아래 마지막 절). TASK-06~08은 미착수다. 아래 S-1·S-2는 이전 중단 기록이다.
+[확인] 구현 검토 2차와 설계·인계 7판(`892d54ed1ddecbe96eddc1945494f1f8c6583777`)으로 재개했다. 기본 프로필 작성자 D-3를 반영했다. TASK-03 커밋 `57d00939c04d81d6c033ef5a31999fe02e35a383`의 분리 전체 검사가 종료 0으로 통과했다. TASK-04는 운영 worktree의 최종 제품 커밋 `22f8aa629bdf828e9b02085531bfd0819d071139`에서 회귀 시험 245개와 경계 검사를 통과했다. 공개 커밋 `0dfe9db8aab7373ebee6fc456deaf0134eb00e05`와 이 team-kit 커밋을 각각 고정한 전체 검사도 종료 0이다. TASK-05는 설계 8판 반영까지 구현·커밋하고 자체 시험을 마쳤다. 공개·운영 커밋을 고정한 분리 전체 검사도 종료 0으로 통과했다(아래 마지막 절). TASK-06은 아래의 보고·스레드 전송 일부를 구현 중이며 TASK-07·08은 대기다. 아래 S-1·S-2는 이전 중단 기록이다.
 
 - 받은 지시: [handoff.md](handoff.md) 7판, [verdict.md](verdict.md) 구현 검토 2차, TASK-02~08. 최신 계획 보완 기준 `892d54ed1ddecbe96eddc1945494f1f8c6583777`, 제품 기준 `cb06e7d`. 고위험, 필요 증거 수준 2, 연합개발.
 - 다른 작업의 `app/` 및 HEJO-FINDER-FOLDERS 문서 변경은 보존하며 커밋에 포함하지 않는다. 전체 검사는 TASK 커밋을 임시 detached worktree로 꺼내 실행한다.
@@ -269,3 +269,171 @@ TASK-06 착수 전 읽기 조사만 진행했다. `night_batch`는 조직개편�
 [재개 가능 부분] 결정 뒤 TASK-06의 나머지 내부 경로 조사·가짜 Slack 기준 수집은 독립적으로 진행할 수 있다. 이번 인계는 명시된 멈춤 조건에 따라 조사 결과만 반환한다. TASK-05를 다시 구현하거나 검사하지 않으며, 재개 순서는 TASK-06 → TASK-07(AT-SM-67 포함) → TASK-08이다.
 
 [자체 확인] 이번 보고 변경본의 게이트웨이 Python `scripts/scan_private.py` 종료 0(`.build/slack-move/task06-stop-scan.log`), 두 저장소 `git diff --check` 종료 0. 제품 코드 변경이 없어 기존 전체 검사를 반복하지 않았다. TASK-05의 고정 커밋 조합과 종료 0은 기존 `task05-isolated-full.json`을 재확인했으며 TASK-06 검증 결과가 아니다.
+
+
+## TASK-06 재개: 진단·보류·개인 메일 경로 일부 구현(미커밋)
+
+[범위] 4차 판정 `0bfa9f98aee2bf1e9eafc17d01dbdfd7caff373c`와 최신 지시를 적용했다. S-4는 나머지 구현을 막지 않는다. 위키 일일 보고·금고 백업 질문/승인은 H-5 결정 대기라 AT-SM-41·60의 전수 대상에서 제외한다. 위키 저장소·`TS/vault_backup_approval.py`·승인 대기 형식은 바꾸지 않았다. AT-SM-64 회귀 확인은 TASK-07에서 남아 있다.
+
+[기준 확인] 운영 main `f86cf3506dc4448741dea2b9ee7c5fac3feeb3f8`, 구현 worktree `84c6a82d18c4b70730bcf4e49f9c9c0af224983f`. 새 후보 21개 파일의 main/worktree/실행본 SHA-256이 모두 같았다(`.build/slack-move/task06-preedit.json`). 이번 수정 뒤에도 21개 실행본은 불변이다. 정확한 미커밋 10개 파일과 SHA-256은 `task06-partial-source.json`에 있다. TASK-05 수락과 기존 검사 결과는 그대로 보존한다.
+
+| 경로 | 현재 변경·상태 | 발생 건과 재시도 |
+|---|---|---|
+| `TS/doctor.py` | 진단 직원 직책 대상으로 공통 전송. 기존 점검 상태 안 notice에 본문·대상·점검 스냅샷·조각 상태 저장 | 새 알림 회차 UUID를 I/O 전에 저장. 일시 실패는 같은 스냅샷·열쇠, 4xx는 오류를 남기고 그 회차 종료 |
+| `TS/error_digest.py` | 진단 직원 직책 대상으로 공통 전송. 기존 오류 요약 상태 안 notice에 본문·대상·보고한 오류 집합·조각 상태 저장 | 새 보고 회차 UUID를 먼저 저장. 복구 중 현재 로그를 다시 계산하지 않음. 성공/4xx 때 그 스냅샷만 확인 처리 |
+| `TS/eventkit_stall_watch.py` | 즉시 알림의 받을 곳을 진단 직원 직책으로 해석, hejo에서 Slack DM 값 불필요 | 즉시 알림은 기존 일회성 정책 유지. 실패 기록만 남김. 조용한 시간의 알림은 아래 보류 장부가 소유 |
+| `TS/morning_queue.py` | 기존 held-posts 행에 문·직책 대상·요청 열쇠·조각 상태. 아침 flush가 공통 전송 | hold 때 새 회차 UUID, 옛 Slack 행은 첫 native flush 전에 생성·저장. 부분 조각 실패와 응답 유실 복구. 4xx 오류 기록 뒤 종료. Slack 복귀 시 hejo 행을 Slack에 보내지 않음 |
+| `TS/memory_tidy.py` | 학습 보고 직책으로 대상 해석 후 기존 보류 장부에 넣음. 독립 글을 새로 보내지 않음 | 학습 보고가 기존처럼 부록을 소유·확인 처리. 옛 Slack 보류 부록도 native 학습 보고에서 선택 가능 |
+| `TS/personal_mail_summary.py` | 보고 직책 대상으로 공통 전송, 실행 항목에 hejo 표시 | 기존 보내기 전 회차 선점·불명확 결과 재전송 금지 정책 유지(일회성). 새 재시도 큐 없음 |
+
+[가짜 Slack 기준] 제품 수정 전에 진단 보고·오류 요약·멈춤 알림·개인 메일 요약의 실제 HTTP 요청 4건, 보류 장부 flush 요청 1건을 수집했다. `TK/tests/fixtures/slack_move_reports_baseline.json`·`slack_move_held_baseline.json`에 고정하고 수정 후 같은 요청인지 비교한다. 수집 로그는 `task06-baseline.log`·`task06-held-baseline.log`. 기준 파일을 덮어쓰는 시험 옵션은 제거했다.
+
+[자체 시험] 임시 HOME/HERMES_HOME과 짧은 임시 Unix 소켓 경로에서 게이트웨이 Python으로 8개 시험 파일을 실행했다. 종료 0, **235 passed**, 건너뜀 0. 로그 `.build/slack-move/task06-isolated-reports.log`, 실행 명령/종료 코드 `task06-isolated-reports.json`, 실행기 `task06_test.py`. 대상은 운영 `84c6a82d` 위 위 10개 미커밋 파일과 공개 문 코드 `0bfa9f9`다. 가짜 입구에서 저장 선행·503·4xx·부분 조각·동일 본문의 별개 회차·Slack 복귀를 검사했고, 실제 문 어댑터/Unix 입구에서는 기록 후 HTTP 응답을 끊어 진단·오류·보류 보고가 한 건으로 복구되는 것을 확인했다. 관련 기존 진단·멈춤·아침·기억 정리 회귀도 포함했다.
+
+[시험 준비 보완] 첫 직접 통합 실행은 긴 기본 임시 경로에서 소켓 연결 준비가 실패했다. 짧은 임시 경로로 고쳤다. 임시 HOME의 기존 회귀 2건은 운영 위치에서 시험 입력 코드(mini-maintenance와 인스타 보고 렌더러)를 찾고 있었으므로 worktree의 해당 코드만 임시 홈에 복사했다. 기대값과 기존 시험 코드는 바꾸지 않았다. 이 두 준비 오류를 통과로 세지 않고 보완 후 전체 235개 결과를 기록했다.
+
+[정적 검사] 같은 미커밋 변경본의 `airport-check --snapshot .`는 임시 HOME/HERMES_HOME에서 종료 0, boundary 382·document 0·compartments 0(`task06-partial-airport.log`·`.json`). 기준선은 바꾸지 않았다.
+
+[추가 조사] 운영 저장소 `local-bin/mini-maintenance:69-112`의 `slack`은 직접 HTTP 전송이며, `queue_notice:114-132`가 기존 아침 장부 저장 실패 시 이를 부른다. 같은 운영 저장소 안이므로 TASK-06의 추가 이전 대상이다. 본문은 정비 결과·경고와 로그 위치다. main/worktree/실행본 해시도 같음을 확인했으나 아직 가짜 Slack 기준 수집·수정은 하지 않았다. 두 저장소 밖에서 추가로 확정한 생산자는 기존 S-4 외에 없다(외부 경로 전수 조사를 마쳤다는 뜻은 아님).
+
+[남음] 위 여섯 제품 파일만 일부 구현했다. `morning_system` 본 보고, `org_review`, `starter_plugins`, `paseo_autofix`, `ai_digest`, 보고 검토 결과, CCTV·제안 장부, linked_work와 호출자, 진단 요청 결과, 뉴스·마감, file_link, mini-maintenance와 나머지 전수 조사/시험은 남았다. AT-SM-41·60 전체·61·61b·62는 완료가 아니다. TASK-06 커밋과 분리 전체 검사, TASK-07·08은 미실행이다. TASK-06 경계가 끝나지 않아 부분 제품 변경은 커밋하지 않았다. 운영 적용·실제 전송·푸시 없음.
+
+
+## TASK-06 계속: 아침·조직·스타터·자동수정·소식 보고(미커밋)
+
+[기준] 공개 `0bfa9f98aee2bf1e9eafc17d01dbdfd7caff373c`, 운영 worktree `84c6a82d18c4b70730bcf4e49f9c9c0af224983f` 위 변경이다. 수정 전 운영 main `f86cf3506dc4448741dea2b9ee7c5fac3feeb3f8`와 새 후보 여섯 파일의 실행본·worktree SHA-256을 다시 대조해 일치를 확인했다(`task06-threaded-preedit.json`). 이후 파일 첨부·뉴스·마감·mini-maintenance 네 후보도 같은 방법으로 확인했다(`task06-files-news-preedit.json`). 후자 네 파일은 아직 수정하지 않았다.
+
+| 경로 | 이번 구현 | 발생 건·실패 처리 |
+|---|---|---|
+| `TS/morning_system.py` | 기존 아침 보고 outbox에 문·대상·열쇠·조각 상태·별도 글/스레드 id. 자동수정 작업에 native 스레드와 원 보고 글 id 전달 | 보고 날짜와 새 회차 값을 보내기 전에 저장. 현재 점검/오류/정비 입력을 재계산하지 않고 재시도. 4xx는 회차 종료 |
+| `TS/doctor.py`, `error_digest.py` | 아침 보고가 같은 기준 상태를 확인 처리할 때 단독 보고의 미완료 notice와 더 새로 확인한 기준을 보존. native 오류 상태는 기존 잠금 방식으로 직렬화 | 옛 보고의 복구가 더 새 기준·알림을 덮어쓰지 않음. Slack 호출 기준 유지 |
+| `TS/starter_plugins.py` | 보고 직책 대상, 첫 글·답글의 공통 전송, native 순번 읽기, 상태 편집. 완료한 옛 Slack 질문은 재게시하지 않음 | 기존 보고/답글 항목에 회차·조각 상태. 응답 유실/503 재시도, 4xx 오류 기록. 편집으로 바뀐 글 id 저장 |
+| `TS/org_review.py` | 진단 직책 대상, 첫 글·상세·승인 답글의 공통 전송, native 순번과 ISO 시각 읽기, 상태 편집, 자동수정에 문·스레드·원 글 전달 | 보고 열쇠·조각 구분과 저장한 새 회차. native에서는 Slack auth 조회 없음. 순번을 시각으로 잘못 쓰지 않음 |
+| `TS/paseo_autofix.py` | 기존 held 목록에 native 전송/편집 의도를 단계 상태와 함께 저장. 다음 tick의 held 처리로 전송 복구. 부모 글과 스레드 id 분리 | 기존 보류 항목의 UUID를 저장하고 재사용. 새 단계의 같은 본문은 새 발생 건. 확인 답글 편집은 기존 글을 고치며, 긴 편집으로 교체된 글 id도 보존. 일회성 상태 표시 실패는 기존처럼 기록 |
+| `TS/ai_digest.py` | 보고 직책 대상, 각 조각과 후속 상세를 같은 native 스레드로 연결. 이전 날짜의 미완료 보고도 먼저 복구 | 날짜·회차·조각 번호와 공통 전송의 조각 상태. 일시 실패는 고정 본문 재시도, 4xx 종료 |
+
+[기준 요청] 수정 전 아침 보고 2건·자동수정 답글 1건·스타터 첫 글/답글 2건, 조직개편안 2건·AI 소식 2건의 가짜 Slack HTTP 요청을 추가 고정했다. `TK/tests/fixtures/slack_move_threaded_baseline.json`·`slack_move_org_ai_baseline.json`이며, 임시 홈 경로가 들어간 metadata 해시만 형식을 검사한 뒤 정규화한다. 수집 로그는 `task06-threaded-baseline.log`·`task06-org-ai-baseline.log`. 수집 옵션은 제거했다. 앞의 5건을 합쳐 현재 기준 요청은 14건이며 나머지 경로의 기준은 아직 없다.
+
+[증거 주의] 이전 235건 로그 이름을 후속 실행에서도 사용해 그 파일은 이후 결과로 갱신됐다. 중간 두 실행은 로그 파일을 동시에 열어 일부 출력이 섞였으므로 이 중간 파일을 현재 변경본의 최종 증거로 쓰지 않는다. 실행이 끝난 것을 확인한 뒤 아래의 새 로그 이름으로 분리해 다시 검사했다. 모든 시험은 임시 HOME/HERMES_HOME을 썼으며 운영 전송·운영 상태 변경은 없다.
+
+[남은 범위] 보고 검토 결과, CCTV·제안 장부, linked_work와 호출자, 진단 결과 및 그 자동수정 연결, 뉴스·마감, file_link, mini-maintenance는 아직 이전하지 않았다. 이번에 바꾼 조직·스타터의 게이트웨이 답글 훅은 TASK-07에서 계속해야 한다. AT-SM-61의 실제 버튼 처리 전체, 61b·62 및 전수 AT-SM-41·60은 완료로 세지 않는다. 자동수정의 장문 원 보고 상태 표시와 진단 요청 생산자/소비자의 연결도 최종 통합 시험에서 확인해야 한다. TASK-06 전체가 끝나기 전이므로 커밋과 분리 전체 검사는 하지 않았다. 다음은 나머지 전송 경로 → TASK-06 커밋 → TASK-07 → TASK-08이다.
+
+[현재 검증] 위 18개 미커밋 파일의 정확한 해시는 `.build/slack-move/task06-threaded-source.json`이다(운영 실행본 21개 불변 확인). 게이트웨이 Python `task06_test.py`는 임시 HOME/HERMES_HOME에서 관련 회귀와 새 시험을 함께 실행해 **종료 0, 490 passed, 건너뜀 0**이다. 로그 `task06-threaded-reviewed.log`, 명령·종료 코드·변경본 명세 연결은 같은 이름의 `.json`. 실제 어댑터/Unix 입구의 기록 후 응답 유실은 아침·조직·소식·스타터·자동수정까지 검사했다. 이 결과는 TASK-06 전체 또는 최종 분리 전체 검사의 통과를 뜻하지 않는다.
+
+[현재 정적 검사] 최종 미커밋 변경본 `airport-check --snapshot .` 종료 0, boundary 382·document 0·compartments 0(`task06-threaded-final-airport.log`·`.json`). 기준선 변경 없음. 공개 보고 변경본의 개인값 검사 종료 0(`task06-threaded-scan.log`), 두 저장소 `git diff --check` 종료 0(`task06-threaded-diff.json`). 운영 원본·실제 전송·재시작·커밋·푸시 없음.
+
+## TASK-06 계속: 뉴스·마감·파일 첨부·정비 알림(미커밋)
+
+[기준] 공개 `0bfa9f98aee2bf1e9eafc17d01dbdfd7caff373c`, 운영 worktree `84c6a82d18c4b70730bcf4e49f9c9c0af224983f` 위 변경이다. 뉴스·마감 수정 직전 운영 main `f86cf3506dc4448741dea2b9ee7c5fac3feeb3f8`, 파일·정비 수정 직전 main `dba8f4fb8b4e832383d834e2863c1883d06885db`와 실행본·worktree 해시 일치를 각각 확인했다. 중간 main 변경의 team-kit 범위는 다른 작업의 `tests/test_finder_folders.py`뿐이며 대상 제품 파일은 불변이다. 로컬 증거는 `task06-watchers-preedit.json`, `task06-file-link-preedit.json`, `task06-mini-preedit.json`이다.
+
+| 경로 | 이번 구현과 상태 자리 | 발생 건·실패 처리 |
+|---|---|---|
+| `TS/news_watch.py` | 보고 직책 대상. 기존 `inflight`에 hejo 문·UUID·대상·렌더된 알림·조각 상태·알릴 항목 id를 저장. 원문 수집 자료는 저장하지 않음. 완료 뒤 inflight 제거 | hejo의 일시 실패는 같은 본문·열쇠로 다음 실행에서 복구, 4xx는 오류 기록과 해당 항목 확인 처리로 종료. 다른 발생 건은 새 UUID. Slack의 기존 불확실 전송/프로세스 종료 후 재발송 금지는 그대로. Slack 복귀 때 미완료 hejo 항목을 소비하거나 재전송하지 않음. 로그인·건강 경고는 기존 선행 시도 표시와 일회성 전송 유지 |
+| `TS/deadline_watch.py` | 기존 단계별 notifications에 문·UUID·고정 본문·조각 상태·글/스레드 id. hejo 대상은 보고 직책. 닫기는 해당 문 기록만 편집하고 버튼을 비움 | hejo pending 단계는 같은 알림으로 복구(나중 제목·입력으로 재계산하지 않음). 4xx는 오류와 기존 terminal 예약 상태로 종료. Slack 단계 예약/불확실 전송 정책은 불변. 편집 의도는 공통 조각 상태에 저장하며 닫기 재호출로 복구 가능 |
+| `TKL/hermes_packs/files_docs/files.py` | `file_link`가 현재 hejo 어댑터의 공개 `send_document` 계약 사용. 현재 사장 원문·프로필·대화·스레드·메시지와 세션 사용자 행을 확인. 기존 파일 범위·심링크·크기 검사 유지 | 일회성 첨부, 불확실 실패를 자동 재시도하지 않음. 새 큐/캐시 파일 없음. 결과에 native 글/스레드 id를 돌려주며 Slack URL을 만들지 않음. Slack 업로드·기존 캐시는 그대로이고 hejo 전환 뒤 Slack 업로드는 거절 |
+| `local-bin/mini-maintenance` | 시스템 Python에서 기존 게이트웨이 Python 환경을 골라 공통 전송의 문 설정·직책 대상을 읽고 hejo 알림 전송. 기존 아침 장부가 실패했을 때의 즉시 알림도 이 경로 | 일회성. 전송/환경 확인 실패를 기록하고 Slack으로 우회하지 않음. 설치 환경이 없거나 모호하면 실패로 기록. Slack일 때 기존 말투 처리·HTTP 본문 유지 |
+
+[기준 요청] 제품 변경 전 `slack_move_watchers_baseline.json`에 뉴스·마감 2건, `slack_move_files_baseline.json`에 파일 업로드 4건, `slack_move_maintenance_baseline.json`에 정비 1건을 고정했다. 앞 14건과 합쳐 현재 비교 입력은 21건이다. 수집 로그는 `task06-watchers-baseline.log`, `task06-file-link-baseline.log`, `task06-mini-baseline-captured.log`. 기준 수집용 쓰기는 시험에서 제거했다. 정비 첫 수집 시 시험 대역이 `.env` 파일 이름을 잘못 판별한 실패가 있었고, 대역만 고친 뒤 제품 수정 전 수집했다.
+
+[자체 검증] 모든 명령은 게이트웨이 Python, 임시 HOME/HERMES_HOME, 가짜 외부 요청으로 실행했다. 명령·실제 종료 코드는 각 로그 옆 `.json`에 있다.
+
+- 뉴스·마감과 기존 회귀, 실제 Unix 입구 기록 후 응답 유실: `task06-watchers-ingress.log`, 종료 0, 129 passed. 파일 첨부 및 기존 파일/되돌리기 회귀: `task06-file-link-docenv.log`, 종료 0, 289 passed, 건너뜀 0. 최초 파일 묶음은 임시 홈에 문서 Python 환경이 없어 10 failed·268 passed·11 skipped였고, 기존 설치 환경을 임시 홈에서 참조하고 바이트코드 쓰기를 끈 후 재검사했다. 기대값은 바꾸지 않았다.
+- 정비 가짜 Slack/실패 대조 및 실제 자식 프로세스→공통 전송→임시 Unix 입구: `task06-mini-ingress-reviewed.log`, 종료 0, 14 passed. 다른 실제 입구 시험과 함께 실행한 수이며 정비 단독 건수는 아니다.
+- 기존 TASK-06 부분 구현과 새 파일을 합친 검사: `task06-watchers-files-reviewed.log`, 종료 1, 902 passed·2 failed. 실패 둘은 기존 시험이 찾는 정비 스크립트·인스타 학습 보고 시험 입력이 임시 홈에 없었던 경우다. 실행기에 worktree 원본 복사를 추가한 뒤 해당 둘을 재실행해 `task06-fixture-regression.log`, 종료 0, 2 passed. **합친 검사 자체의 종료 코드를 0으로 바꾸어 기록하지 않는다.** 앞의 성공 묶음과 중복이 있으므로 건수를 합산하지 않는다.
+- `file_link`의 사장/세션 확인을 메모리 변형으로 한 번 제거: 해당 5개 거절 시험이 실패(변형 pytest 종료 1, 5 failed·4 passed·2 deselected), 실행기 종료 0. 원본 파일 해시 불변. `task06-file-mutation.log`·`.json`.
+- 정확한 미커밋 28파일 해시와 실행본 22파일 불변은 `task06-watchers-files-source.json`. 같은 변경본의 `airport-check --snapshot .` 종료 0, boundary 382·document 0·compartments 0(`task06-watchers-files-airport.log`·`.json`). 기준선 변경 없음.
+
+[남음] 보고 검토 결과, CCTV/제안 장부, linked_work와 호출자, 진단 결과와 자동수정 연결은 여전히 미구현이다. 진단 요청 `run`은 pending이 아닌 요청의 재실행을 막으며 `queue_fix`가 자동수정에 Slack의 posted_ts/thread_ts를 넘기므로 이 생산자와 소비자를 같이 고쳐야 한다. 제안 장부는 현재 글 id와 스레드 id를 같은 값으로 보고 있어 design 5절의 별도 식별자·문 표시·유일한 열린 제안 판정을 구현해야 한다. 이번 네 경로가 통과한 사실로 AT-SM-41·60 전수, 61 전체 버튼 처리, 61b를 완료로 세지 않는다. 마감 문맥 안내의 hejo 대응은 들어오는 규칙 TASK-07에서 함께 확인한다. TASK-06 전체 완료 전이므로 커밋·분리 전체 검사·TASK-07·08은 아직 하지 않았다. 운영 설정·비밀·재시작·실제 전송·허브·H-5 보류 파일·푸시 변경 없음.
+
+[최종 정적 확인] 공개 보고 변경본 `scripts/scan_private.py` 종료 0(`task06-watchers-files-scan.log`). 두 저장소 `git diff --check` 각각 종료 0(`task06-watchers-files-diff.json`). 앞의 개별 성공 묶음은 실행 당시 변경본이고, 최종 28파일 명세는 합친 검사와 누락 입력 보완 후 재검사 기록에 연결했다. 운영 제품 변경·커밋·푸시 없음.
+
+## TASK-06 계속: CCTV·제안·연결 업무·진단 결과(미커밋)
+
+[기준] 공개 `0bfa9f98aee2bf1e9eafc17d01dbdfd7caff373c`, 운영 worktree `84c6a82d18c4b70730bcf4e49f9c9c0af224983f` 위 변경이다. 최신 운영 main `dba8f4fb8b4e832383d834e2863c1883d06885db`와 수정 전 후보 실행본·worktree 해시를 대조했다. 증거는 `.build/slack-move/task06-cctv-preedit.json`, `task06-linked-preedit.json`, `task06-diagnosis-preedit.json`. 이미 수정 중인 자동수정 파일은 실행본과 main이 같고 이번에 고칠 `enqueue_incident` 함수가 기준본과 같은지 별도로 확인했다. 기존 미커밋 변경은 보존했다.
+
+| 경로 | 구현·발생 건·실패 처리 |
+|---|---|
+| `TKL/hermes_governance/proposal_decisions.py` | 기존 장부에 hejo 문·글 id·머리 글 id·스레드 id·조각 상태 저장. 제안 행 id를 요청 열쇠로 사용. 기존 정책대로 전송 결과가 불확실한 제안은 `posting`으로 남고 재제안하지 않음. 4xx는 `post_failed`. 그림은 제안 스레드에 한 번 첨부하고 실패가 제안을 취소하지 않음. 버튼은 공통 누른 글 id 함수, 글자 승인은 같은 문·방·스레드의 열린 제안 하나만 선택. 실제 실행 전 사장·문·방·스레드·상태를 다시 검사 |
+| `TKL/hermes_packs/cctv/{watch,now,settings,reference}.py` | 고객 방 직책 값, 경고·제안·그림 전송. 기존 once-per-day 경고·제안 판정과 카메라·기록 실행은 유지. 수동 확인은 기존 소유자 검사 뒤 hejo 고객 방 또는 자기 1:1만 허용. `now`의 그림은 기존 공통 `upload_image`의 native 분기를 사용 |
+| `TKL/hermes_packs/linked_work/slack_report.py`, `work_scope_backfill.py` | 완료 동기화 보고는 한 실행 안의 중복 제거와 일회 전송, 분류 보고는 보내기 전 시도 기록 뒤 불확실 실패를 재시도하지 않는 기존 정책 유지. hejo 보고 직책 대상으로 보내며 글/스레드 id를 구별. `notion_completion_sync` 호출자는 완료 보고 뒤 같은 상태를 되돌리지 않으며 코드 수정 불필요 |
+| 같은 칸 `link_decisions.py` | 첫 글·항목 글의 별도 id와 스레드, 문 표시, 새 질문마다 UUID와 조각 상태. 기존 질문 생성의 한 번 전송 정책 유지. 상태 편집에 공통 조각 상태를 쓰고 교체된 글 id 저장. 새 후보 질문을 올리기 전에 옛 글 id를 비워 실패한 새 질문에 옛 버튼이 붙지 않게 함. native 판정 함수는 명시한 문과 따로 저장한 스레드/글 id 사용. 게이트웨이 훅의 hejo 이벤트 연결은 TASK-07에 남음 |
+| 같은 칸 `conflict_decisions.py` | 다음 점검에서 다시 묻는 실패 경로는 기존 질문 행에 본문·대상·UUID·조각 상태·`delivery_pending`을 먼저 저장. 예외 처리 전 중단돼도 다음 호출이 같은 질문으로 복구. 응답 유실/503은 같은 열쇠, 4xx는 해당 질문 종료. 완료 편집은 저장한 조각 상태와 글 id 사용. Slack 분기 기준 요청 유지 |
+| `TKL/hermes_packs/diagnosis/diagnosis_requests.py`, `TS/paseo_autofix.py` | 요청 스레드의 짧은 결과와 보고 받을 곳의 전체 결과를 공통 전송으로. 진단 실행기는 여전히 `pending`만 한 번 실행하며 전송 실패 후 진단 자체를 다시 돌리지 않음. 따라서 이 결과·접수 안내는 일회 전송이고 새 재시도 장부 없음. 보고 글 id·머리 글 id·스레드를 따로 저장하고 자동수정 작업에 전달. 이전 Slack 요청은 native로 마친 전체 보고만 보내고 옛 Slack 스레드를 native id로 쓰지 않음. 저장한 native 요청을 읽는 소비자의 UUID·방·사장 검사를 추가했지만 신규 요청을 받는 게이트웨이 검사는 아직 TASK-07 대상 |
+
+[변경 전 기준] CCTV 경고·제안·첨부 4건, 연결 업무 완료·답글·고치기·충돌·연결 질문·분류 보고 8건, 진단 결과 4건, 실제 보고 검토 후 상태 고치기·결과 답글 3건을 제품 수정 전에 고정했다. `TK/tests/fixtures/slack_move_{proposals,linked,diagnosis,review}_baseline.json`. 앞 21건과 합쳐 TASK-06 기준은 **40건**이다(기존 TASK-04 스킬 fixture 2건은 제외). 수집 로그는 `task06-cctv-baseline.log`, `task06-linked-baseline.log`, `task06-diagnosis-baseline-captured.log`, `task06-review-baseline.log`. 수집 옵션은 제거했다. 진단 최초 수집은 임시 요청 폴더 누락으로 실패했고 폴더를 준비한 뒤 수정 전 다시 수집했다.
+
+[확인한 호출 경계] `TS/report_review.py`의 결과 답글은 이미 `learning_report.slack` 공통 전송을 사용하므로 이번에 중복 전송 함수를 만들지 않았다. 실제 파일 거절 후의 Slack 기준 3건과 기존 검토 시험을 실행했다. hejo에서 필요한 것은 TASK-07의 `find`/입력 훅·사장·버튼 식별자 및 보고 상태 편집 연결이다. `hermes_reply/reply_buttons.py`의 `_update_status`와 체크 목록 편집은 Slack 어댑터에 등록된 Slack 입력 처리기다. native 문은 자기 버튼 상태 처리를 이미 갖는다. Slack 입력 처리기를 없애거나 hejo 입구로 옮기지 않았다(허브·H-5의 Slack 입력은 유지).
+
+[자체 시험] 게이트웨이 Python, 임시 HOME/HERMES_HOME, 가짜 외부 요청으로 실행했다. 명령은 각 로그 옆 JSON에 있다. 성공 건수는 중복이 있어 합산하지 않는다.
+
+- CCTV·제안 기존/새 시험 및 긴 글 실제 Unix 입구: `task06-cctv-final.log`, 종료 0, 282 passed. 실제 입구의 그림 등록·같은 스레드 첨부는 별도 `task06-cctv-picture.log`, 종료 0, 1 passed.
+- 연결 업무·분류·보고 검토 회귀와 충돌 응답 유실 복구: `task06-linked-claim-reviewed.log`, 종료 0, 123 passed. 중단 시험은 `BaseException`으로 예외 복구를 건너뛰고 저장한 `delivery_pending`을 다음 호출이 읽는 시험이며 **별도 프로세스 SIGKILL 시험으로 주장하지 않는다**.
+- 진단·자동수정 기존 회귀와 실제 입구 연결: `task06-diagnosis-regression-final.log`, 종료 0, 259 passed. 실제 입구에서 긴 결과 두 조각→자동수정 접수 안내→진행 글과 마지막 결과 조각의 완료 상태를 확인했다. 준비 중 실패는 임시 명부·요청 형식·자동수정 설정 위치·시간 정책 누락이었고 기존 시험 기대값은 바꾸지 않았다.
+- 현재 TASK-06 새 시험 묶음과 관련 기존 회귀: `task06-reports-linked-reviewed.log`, 종료 0, 495 passed, 건너뜀 0. 이 실행 뒤 그림 실제 입구 시험 하나를 추가하고 위의 별도 1건으로 검사했다. 495건 실행은 전체 `scripts/test.sh`나 TASK-06 수락 전수 검사를 대신하지 않는다.
+- 제안의 유일한 열린 행 검사와 스레드 검사 각각 메모리 변형: 해당 pytest 종료 1(각 1개 실패), 실행기 종료 0, 원본 불변. `task06-proposal-mutation.json`과 개별 로그. 진단 native 요청의 사장 검사 제거도 pytest 종료 1(1 failed·4 passed), 실행기 종료 0, 원본 불변(`task06-diagnosis-mutation.log`·`.json`).
+- `airport-check --snapshot .`: 종료 0, boundary 382·document 0·compartments 0. `task06-linked-diagnosis-airport.log`·`.json`. 기준선 변경 없음.
+
+[변경본] 현재 운영 미커밋은 **46파일**(제품 25, 시험 10, 기준 요청 11)이다. 정확한 해시는 `task06-proposals-linked-source.json`. 수정한 제품 실행본 25개는 main 및 작업 기준본과 같아 운영 원본 불변을 확인했다. 이는 앞서 조사한 별도 후보를 모두 다시 해시했다는 뜻은 아니다. 공개 문서와 운영 로컬 인계만 갱신했고 타 작업 문서는 보존했다.
+
+[남음] AT-SM-41·60 전수 대조와 AT-SM-61 전체 버튼 입력/편집, TASK-06 커밋·분리 전체 검사는 아직 미완료다. 추가 대조에서 자동수정 `decide_cap`의 하루 한도 질문 상태 표시가 여전히 Slack식 `report_status.mark`를 쓰는 것을 확인했다. 이 경로와 `TS/report_status.py`의 도구 경로를 수정 전 기준 요청/해시를 확보해 조사·보완해야 한다. 연결 질문의 hejo 게이트웨이 훅은 입력 단계와 함께 연결해야 하며, 일반 보고 검토의 `find`·상태 편집도 아직 Slack 전제다. TASK-06 전체 완료 전 부분 커밋 금지는 유지한다. 그 뒤 TASK-07(AT-SM-64 보류 경로 회귀·67 포함)→08. H-5 보류 파일·프로젝트 허브·운영 설정·금고·재시작·실제 전송·푸시는 변경하지 않았다.
+
+
+### 같은 회차 후속: 자동수정 한도 질문
+
+[확인·변경] `decide_cap` 함수가 아직 기준본과 같은지, 최신 운영 HEAD와 실행본 SHA-256을 다시 확인했다(`task06-cap-preedit.json`). 수정 전 가짜 Slack 조회·고치기 2건을 `slack_move_cap_baseline.json`에 고정했고 동일 요청 회귀를 통과했다. TASK-06 기준 요청은 이제 **42건**이다. native 한도 질문의 닫기는 저장한 실제 질문 글 id와 스레드로 수행한다. 전송 응답 유실 또는 조용한 시간 뒤 복구해도 질문 글 id가 남도록 기존 `held`의 `question` 역할을 소비할 때 `question_ts`를 저장한다. 새 저장소나 별도 재시도 장부는 만들지 않았다.
+
+[검증] 실제 Unix 입구에서 질문 기록 후 응답 유실→저장된 의도로 복구→같은 질문 1건→거절→해당 질문 버튼 제거·닫기를 확인했다. Slack 기준 대조와 기존 자동수정 회귀를 포함한 `task06-cap-reviewed.log`는 종료 0, 119 passed. 앞 495건 실행 이후의 추가 변경이므로 그 이전 묶음을 이 최종 변경본 전체의 검사라고 주장하지 않는다.
+
+[기존 경로 확인] `TS/report_status.py`는 이미 현재 사장 세션을 증명하고 바인딩된 hejo 어댑터의 자기 스레드 글을 고치는 별도 경로가 있었다. 제품 파일은 수정하지 않았다. 실제 어댑터·세션 연결과 기존 Slack 보고 상태 시험 `test_report_status.py test_hejo_parity.py`는 종료 0, 36 passed(`task06-status-existing-reviewed.log`). 이 사실은 일반 보고 검토의 아직 연결하지 않은 hejo 입력 훅을 완료했다는 뜻이 아니다.
+
+[최종 변경본·다음] 미커밋 **47파일**(제품 25, 시험 10, 기준 요청 12)의 해시는 `task06-cap-source.json`에 따로 보존했다. 이전 46파일 명세와 검사 기록은 덮어쓰지 않았다. 남은 일은 AT-SM-41·60 전수 경로/호출자 대조, AT-SM-61 전체 버튼·61b 종단 입력 증거를 완성하고 TASK-06을 커밋하는 것이다. 이어 TASK-07의 들어오는 훅·문맥·보고 검토(보류된 AT-SM-64는 회귀만, 67 포함), TASK-08 순서다. 한도 질문과 기존 보고 상태 도구의 조사 항목은 위 결과로 처분한다. 운영 적용·실제 전송·푸시·TASK-06 부분 커밋은 하지 않았다.
+
+[최종 경계 확인] 최종 47파일 변경본의 `airport-check --snapshot .` 종료 0, boundary 382·document 0·compartments 0(`task06-cap-airport.log`·`.json`). 수정한 제품 실행본 25개가 운영 main·앞서 기록한 기준 해시와 같은지 재확인했다.
+
+
+## TASK-06 전수 대조와 실제 입력 보완
+
+[기준] 공개 HEAD·운영 worktree HEAD·운영 main은 앞 절과 같다. 직전 47파일 해시와 실제 변경본이 모두 같음을 확인한 뒤 이어갔다. 검색 결과는 `.build/slack-move/task06-{direct-path,profile-path,local-bin}-candidates.txt`에 보존했다. 검색은 두 저장소의 제품 소스만 대상으로 했으며 운영 비밀·설정·대화는 읽지 않았다. 아래 표는 design 4.2의 모든 줄과 추가 조사 줄을 대조한 결과다.
+
+| 경로/호출자 | hejo 도달·검증 근거 |
+|---|---|
+| `TS/error_digest`, `eventkit_stall_watch`, `doctor` | `test_slack_move_reports`의 직책 대상·응답 유실·저장 실패, `test_slack_move_reports_gate`의 실제 입구 |
+| `TS/morning_system`, `morning_queue` | 고정된 아침 보고/보류 항목과 실제 작업 스레드 연결. 같은 두 묶음 및 `test_slack_move_threaded` |
+| `TS/org_review`, `starter_plugins`, `paseo_autofix` | 저장한 스레드·조각·순번 읽기와 편집. `test_slack_move_threaded`, 실제 입구 및 한도 질문 복구. 입력 훅의 모델 건너뛰기 계약은 TASK-07에서 추가 확인 |
+| `TS/personal_mail_summary` | 일회 보고, 보고 직책 대상과 실패 정책. `test_slack_move_reports` |
+| `TS/learning_report`, `skill_report`, `ai_digest` | TASK-04 공통 전송 위에서 실제 보고 생산자를 실행. `test_delivery_hejo`, `test_slack_move_threaded`, 새 다섯 보고 종단 시험 |
+| `TS/report_review` | 실제 hejo 버튼/글자→검토 함수→임시 스킬 복원→보고 상태 고치기→같은 스레드 결과. 새 `test_slack_move_buttons` |
+| `TS/vault_backup_approval` 및 외부 위키 생산자 | **H-5 보류로 AT-SM-41·60에서 제외.** 제품·대기 파일 모양 변경 없음. AT-SM-64 Slack 입력 회귀는 TASK-07 |
+| CCTV `watch`, `now`, 제안 장부 | 가짜 CCTV 판정/그림과 공통 전송. 실제 입구의 그림 첨부, 실제 WebSocket→team-kit 등록 제안 훅→가짜 기록 실행. `test_slack_move_proposals`, `test_slack_move_buttons`, `test_slack_move_reports_gate` |
+| `linked_work/slack_report`와 `notion_completion_sync` 호출자 | 완료 보고·연결/충돌 질문은 공통 전송. 호출자가 결과 상태를 되돌려 재전송하지 않음을 확인. `test_slack_move_linked`, 기존 완료/연결 회귀 |
+| `linked_work/work_scope_backfill` | 기존 한 번 시도 정책으로 분류 보고. `test_slack_move_linked` |
+| `diagnosis/diagnosis_requests` | 실제 요청 결과 두 조각·요청 스레드·진단 보고 스레드·자동수정 연결. pending-only 실행 유지. `test_slack_move_diagnosis`, 실제 입구 |
+| `TS/news_watch`, `deadline_watch` | 기존 inflight/단계별 알림에 발생 건·본문·조각 상태. `test_slack_move_watchers`, 실제 입구 |
+| `files_docs/files.file_link` | 현재 사장 세션 증명 뒤 바인딩된 실제 문 첨부. `test_slack_move_files`, 기존 파일 회귀 |
+| 인스타 감시·피드·학습 보고, 네이버톡 다리 | TASK-05 수락된 경로. 이번에 직접 제품 수정 없음. 공통 학습/보고 변경 영향은 인스타 격리 회귀로 확인 |
+| 공개 채널 자동 가입 | 설계대로 이관하지 않음. 예약 끄기는 운영 전환 TASK-10 |
+| `TS/night_batch` | 별도 Slack 전송 없음. 진단 요청 실행·점검 준비·조직개편안 생성 후 아침 보고가 저장 결과를 소비. 기존 야간 시험과 아침 보고 시험 |
+| `TS/gap_review` | 예약 작업의 사전 입력이며 전송 생산자 아님. 기존 빈틈 검토 시험 |
+| `TS/memory_tidy` | 학습 보고 부록을 `morning_queue.hold`로 넘김. native 대상·부록 소비 확인 시험 |
+| `local-bin/mini-maintenance` | 실제 게이트웨이 Python 자식에서 공통 전송, 실패 시 Slack 우회 없음. `test_slack_move_maintenance`, 실제 자식→입구 |
+| `hermes_reply/reply_buttons`, 체크 목록, `report_status` | Slack 어댑터에만 붙는 편집 처리기는 유지. native 버튼은 문의 계약을 사용하며 보고 상태 도구에는 기존 native 현재 세션 증명이 있음. `test_hejo_parity`, `test_report_status` |
+| 조회·연결 검사·문맥/조립 코드 | `slack_read`는 메서드 허용 목록이 읽기만, `connection_checks`는 auth.test. `optimization`·`learning`의 검색 일치는 자료/파일 처리. 사용량·예약·대기 작업은 TASK-07, 조립은 TASK-08 |
+| 프로젝트 허브 | 사용자 결정으로 범위 밖. 파일 변경 없음, native 안내 부재 확인은 AT-SM-67 |
+
+[실제 입력] 새 `test_slack_move_buttons.py`는 임시 문·WebSocket·team-kit의 실제 hejo 버튼 설치를 사용한다. AT-SM-61의 명세에 적힌 다섯 생산자(조직개편안·스킬·학습·AI 소식·자동수정)를 두 번 실행해 한 스레드/중복 없음과 사장 버튼 이벤트의 실제 글 id를 확인한다. 이는 버튼 전송·해석의 증거이며, 각 서비스의 모델 호출 차단과 도구 문맥은 TASK-07 수락으로 구분한다. AT-SM-61b는 제안 등록 훅까지 통과해 승인·거절, 장부에 없는 글 id, 다른 스레드, 열린 제안 두 개→하나, 재승인 시 추가 실행 없음을 확인했다. 열린 행 두 개는 유효한 장부 경계 입력으로 준비하고 입력/전송은 실제 문을 썼다.
+
+[결과 전송의 호출 경계 보완] 보고 검토는 공통 전송만 바꾸어서는 hejo에서 입구의 Slack 전용 조건 때문에 실행되지 않았다. 요청된 TASK-06 결과 전송을 검증하기 위해 이 최소 호출 경계와 상태 편집을 함께 연결했다. `TS/report_review`는 문·사장·보고 대상·저장 보고의 문 표시를 대조하고 공통 누른 글 id로 현재 부분을 찾는다. `TS/learning.owner_report_place`는 hejo 직원 1:1 또는 학습 보고 직책 대상만 인정한다. `learning_report`는 부분별 영속 편집을 사용하며 저장 시 최신 검토 결정을 덮지 않고 조각 상태·교체 글 id만 합친다. 이전 미완료 편집을 먼저 끝낸 뒤 최신 표시를 적용한다. 스킬 native 전송에서 비어 있던 owner/bot도 생산자에서 기록한다. 새 저장 파일·설정·공개 규격은 없다. 수정 전 `task06-review-preedit.json`에서 실행본/main 해시와 이번 함수들이 기준 함수와 같음을 확인했고, 기존 가짜 Slack 검토 3건을 수정 직전 다시 대조했다(`task06-review-preedit-baseline.log`, 종료 0, 1 passed).
+
+[현재 시험 기록] 새 입력 묶음은 최종 보완 전 `task06-review-edit-retry.log` 종료 0, 14 passed였다. 잘못된 검토 글의 버튼 거절을 추가한 뒤 야간 시험 보완과 합친 `task06-night-fixture-fixed.log` 종료 0, 36 passed. 검토 글 식별자 검사를 메모리에서 무력화하면 실제 입력 시험 둘이 실패했다(변형 pytest 종료 1, 실행기 종료 0, 원본 불변, `task06-review-mutation.log`·`.json`).
+
+[실패 기록 보존] 합친 실행 준비의 v1·v2는 시험 파일 경로를 잘못 구성해 pytest 종료 4·시험 0건이었다. 상대 경로를 바로잡은 v3은 종료 1, 1641 passed·2 failed. 둘은 야간 시험 대역에 새 `accept_snapshot`/acknowledge 인자가 없는 것과 격리 홈에 기존 보존 검사 스크립트가 없는 것이었다. 기대값은 그대로 두고 대역 인터페이스와 임시 홈에 복사할 시험 소스를 보완했다. `task06-all-reviewed*.log`와 JSON을 덮어쓰지 않았다.
+
+
+[최종 결과] TASK-06 구현·자체 시험을 마치고 운영 worktree의 작업 파일 **52개만** `git commit --only`로 커밋했다: `8020089a9fb00649222fe09125d40d84f629c76d`. 제품 28개, 시험 12개, 가짜 요청 fixture 12개다. 추적되지 않는 인계 파일은 커밋하지 않았다. 커밋 파일 집합과 시험 변경본 SHA-256이 정확히 같음을 확인했다(`task06-commit.json`, `task06-completion-source.json`). 운영 원본 28파일은 확인한 운영 main과 같으며 `learning`/`learning_report`의 앞선 TASK-04 차이는 수정 전 함수 대조 기록으로 구분했다.
+
+- 합친 TASK-06 및 관련 기존 회귀: 게이트웨이 Python pytest **종료 0, 1643 passed, 건너뜀 0**. `task06-all-reviewed-v4.log`·`.json`. 실행 명령의 전체 파일 목록은 JSON에 있다.
+- 공통 학습/보고 변경에 대한 인스타·네이버톡 격리 회귀: `tests/run_isolated.py -q -rs` **종료 0, 819 passed, 건너뜀 0**. `task06-shared-instagram.log`·`.json`.
+- 운영 worktree `airport-check --snapshot .` **종료 0**, boundary 382·document 0·compartments 0. `task06-completion-airport.log`·`.json`. 기준선 변경 없음.
+- 별도 프로세스 검사와 전체 앱/게이트웨이 검사 `bash scripts/test.sh`를 이번 회차에 추가 실행했다고 주장하지 않는다. 마지막 TASK 뒤 고정한 두 커밋의 분리 worktree에서 전체 검사를 한다. TASK-06 자체 수락 증거와 제품 최종 완료/푸시는 구별한다.
+
+[다음 경계] TASK-07은 아직 대기다. TASK-06 결과 전송을 막던 보고 검토 입구·표시 연결은 위 커밋에 포함했으며, TASK-07에서는 등록 훅/도구 문맥과 학습 검토 전체의 AT-SM-66을 이어서 확인한다. 예약 허용 대상, 진단 사용량·요청 접수, 스타터/조직개편안과 연결 업무의 native 입력 훅, 대기 작업 방 작성자, H-5 보류 파일의 Slack 회귀, 허브 무변경/안내 부재를 구현·검증한다. TASK-08에서는 실제 본체 도구 집합 비교가 같지 않으면 차이를 보고하고 멈춘다. 운영 전환·고객 글·푸시는 하지 않았다.
