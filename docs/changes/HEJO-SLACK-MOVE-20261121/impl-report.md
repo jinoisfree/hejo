@@ -1,8 +1,8 @@
 # HEJO-SLACK-MOVE 구현 인계 보고
 
-## 현재 판단: TASK-02~08 구현·자체 시험 완료, 마지막 분리 전체 검사 대기
+## 현재 판단: TASK-02~08 구현·자체 시험·마지막 분리 전체 검사 통과
 
-[확인] 구현 검토 2차와 설계·인계 7판(`892d54ed1ddecbe96eddc1945494f1f8c6583777`)으로 재개했다. 기본 프로필 작성자 D-3를 반영했다. TASK-03 커밋 `57d00939c04d81d6c033ef5a31999fe02e35a383`의 분리 전체 검사가 종료 0으로 통과했다. TASK-04는 운영 worktree의 최종 제품 커밋 `22f8aa629bdf828e9b02085531bfd0819d071139`에서 회귀 시험 245개와 경계 검사를 통과했다. 공개 커밋 `0dfe9db8aab7373ebee6fc456deaf0134eb00e05`와 이 team-kit 커밋을 각각 고정한 전체 검사도 종료 0이다. TASK-05는 설계 8판 반영까지 구현·커밋하고 자체 시험을 마쳤다. 공개·운영 커밋을 고정한 분리 전체 검사도 종료 0으로 통과했다(아래 마지막 절). TASK-06은 `8020089a`로 구현·검토 수락됐다. TASK-07·08은 아래 마지막 절의 커밋과 시험으로 구현을 마쳤고 마지막 두 커밋 고정 전체 검사를 준비한다. 중간 절의 미완료·중단 문장은 당시 상태이며, 최신 상태는 마지막 절을 따른다.
+[확인] 구현 검토 2차와 설계·인계 7판(`892d54ed1ddecbe96eddc1945494f1f8c6583777`)으로 재개했다. 기본 프로필 작성자 D-3를 반영했다. TASK-03 커밋 `57d00939c04d81d6c033ef5a31999fe02e35a383`의 분리 전체 검사가 종료 0으로 통과했다. TASK-04는 운영 worktree의 최종 제품 커밋 `22f8aa629bdf828e9b02085531bfd0819d071139`에서 회귀 시험 245개와 경계 검사를 통과했다. 공개 커밋 `0dfe9db8aab7373ebee6fc456deaf0134eb00e05`와 이 team-kit 커밋을 각각 고정한 전체 검사도 종료 0이다. TASK-05는 설계 8판 반영까지 구현·커밋하고 자체 시험을 마쳤다. 공개·운영 커밋을 고정한 분리 전체 검사도 종료 0으로 통과했다(아래 마지막 절). TASK-06은 `8020089a`로 구현·검토 수락됐다. TASK-07·08은 아래 마지막 절의 커밋과 시험으로 구현을 마쳤고 마지막 두 커밋 고정 전체 검사도 종료 0으로 통과했다. 중간 절의 미완료·중단 문장은 당시 상태이며, 최신 상태는 마지막 절을 따른다.
 
 - 받은 지시: [handoff.md](handoff.md) 7판, [verdict.md](verdict.md) 구현 검토 2차, TASK-02~08. 최신 계획 보완 기준 `892d54ed1ddecbe96eddc1945494f1f8c6583777`, 제품 기준 `cb06e7d`. 고위험, 필요 증거 수준 2, 연합개발.
 - 다른 작업의 `app/` 및 HEJO-FINDER-FOLDERS 문서 변경은 보존하며 커밋에 포함하지 않는다. 전체 검사는 TASK 커밋을 임시 detached worktree로 꺼내 실행한다.
@@ -501,3 +501,16 @@ AT-SM-63·65~68의 native 입력 증거는 `test_slack_move_native.py`, 64는 `t
 - 임시 홈 `airport-check --snapshot .`: 종료 0, boundary 382·document 0·compartments 0(`task08-airport.log`·`.json`). 해시 `task08-final-source.json`. 이 검사는 연결 입력 후속 수정 전이며, 후속 커밋의 Git 훅 경계 검사도 같은 수치로 통과했다.
 
 [다음] 이 보고를 커밋한 뒤 공개 커밋과 운영 `fcdec420`을 각각 고정한 detached worktree에서 마지막 `bash scripts/test.sh`를 실행한다. 이 문단 시점에는 미실행이다. 운영 적용·재시작·실제 Slack/고객 전송·푸시는 하지 않았다. 위키/H-5의 이전과 TASK-09·10은 여전히 범위 밖이다.
+
+
+## 최종 고정 커밋 검사와 검토 인계
+
+[확인] `bash scripts/test.sh`를 공개 `28e9d7cbf70f6324c4818ee0373550ebb1affc76`와 운영 `fcdec420b51193da5cfa3982044c61b33490abb1` 두 detached worktree 조합에서 실행해 **종료 0**을 확인했다. Python 434 passed, 실제 게이트웨이 정상 종료, 앱 기본·연동 fixture와 훅 시험 9건 모두 통과했다. 앱 실행 전 중복 app-tests가 없음을 확인했다. 입력 서비스 통신 경고와 기존 Swift 경고가 있었지만 실제 종료는 성공이다. 앱만 실패한 조건에 해당하지 않아 제품 기준 커밋의 비교 검사는 실행하지 않았다. 두 검사 worktree를 제거했으며 구현 worktree는 깨끗하다.
+
+- 명령·커밋·종료 코드: `.build/slack-move/task08-final-isolated-full.json`; 전체 로그: 같은 이름의 `.log`.
+- 공통 전송 변경 후 인스타·네이버톡 격리 회귀 `python tests/run_isolated.py -q -rs`: 운영 `fcdec420`·공개 `28e9d7c`, 종료 0, 819 passed·건너뜀 0. `task08-shared-instagram.log`·`.json`.
+- 최종 운영 `fcdec420`의 임시 홈 `airport-check --snapshot .`: 종료 0, boundary 382·document 0·compartments 0. `task08-final-airport.log`·`.json`. 기준선 재설정 없음.
+- 최종 수정 제품 14개 경로의 운영 main/실행본 SHA 대조: 같음(신규 공통 전송은 양쪽 모두 없음). `task08-final-live-check.json`; 운영 main `dba8f4fb8b4e832383d834e2863c1883d06885db`.
+- 이 최종 결과를 적는 후속 공개 커밋은 구현 보고와 TASK 상태만 바꾼다. 전체 검사는 위의 고정 커밋 조합에 대한 결과이며, 다른 작업·이후 제품 변경에 대한 통과를 주장하지 않는다.
+
+[검토 인계] TASK-07의 이름 붙은 Slack 예외·실제 입력 증거와 TASK-08 실제 도구 집합을 검토한다. 최신 자체 시험 근거가 없는 새로운 제품 변경이 생기지 않으면 같은 전체 검사를 반복할 필요는 없다. 최종 판정은 검토 역할에 남긴다. 운영 전환 TASK-10 및 푸시는 실행하지 않았으며 별도 승인 전에는 진행하지 않는다. H-5 위키 경로는 Slack에 보류, TASK-09 허브는 범위 밖이다. 다른 작업 문서는 보존했다.
