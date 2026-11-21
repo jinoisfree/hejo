@@ -83,3 +83,22 @@
 
 ### 사장 결정이 필요한 것
 TASK-02b 없이 서버에 먼저 적용하면, Google을 해제한 직원도 **대기 작업(기다렸다가 메일 확인하기)** 경로에서는 Google을 계속 쓸 수 있다(spec REQ-CM-02.AC-07 일부 미충족). 선택지: (가) TASK-02b 기준이 맞을 때까지 기다렸다가 함께 적용(권고) (나) 지금 TASK-05를 적용하고 Google 해제는 TASK-02b 적용 전까지 쓰지 않기.
+
+## 4차 (2026-11-21) — TASK-02b 통과, 작업 전체는 부분 완료(TASK-05~07 남음)
+
+- 대상: 운영 저장소 worktree 브랜치 `hejo-conn-manage-20261120` `ae04a715`(코드), `fe7f0c95`(merge, 부모 `5e6c81cc`·`dfb469d3`), hejo `96be814`(보고).
+- 판정: **TASK-02b 검토 통과.** V-1 해소. TASK-02~04·02b 모두 통과했다. 남은 것은 TASK-05(합동 서버 적용)·06(공개)·07(사장 확인)이다.
+
+### 직접 확인한 것
+| 항목 | 결과 |
+|---|---|
+| 변경 | [확인] `ae04a715`는 `wait_jobs.py`(+8/-3)와 `test_conn_management.py`(+52)만 바꿨다. merge로 들어온 다른 작업 문서는 운영 저장소 main(`dfb469d3`) 내용 그대로다 |
+| 설계 3.1 | [확인] `account()`는 `gmail.enabled is False`면 `GOOGLE_DISABLED`를 낸다. `gmail_service()`·`evaluate()`·`create()`는 Gmail 클라이언트를 만들기 전에 이것을 확인한다. `enabled` 없음/true는 지금 동작 그대로다. 다른 작업의 origin 비교·prune 변경은 보존됐다 |
+| 시험 | [확인] `v4-red.log` 수정 전 1 failed, `v4-mutation-client-before-check.log` 클라이언트를 먼저 만드는 변이를 잡음(1 failed), `v4-final-team.log` 5222 passed·4 skipped, `v4-final-airport.log` boundary 382·document 0·compartments 0 PASS |
+| 적용 준비 사실 | [확인] 이 작업 team-kit 바꿀 파일(lib 아래)의 실행본은 모두 기준 `dfb469d3`과 같다(`account_connect.py`는 새 파일). HEJO-TODO-DRAWER 범위(브랜치 `b2bc84f8`: `hermes/bin/hermes-deadlines`·`deadline_watch.py`·시험)와 파일이 겹치지 않는다. `deadline_watch.py`는 HEAD = 실행본 `e20213cd…`. hejo `main`에 이 작업 문 코드(`961ea80`·`131e47f`)와 TODO-DRAWER `433095a`가 모두 들어 있다 |
+
+### 설계 적합성(4.2)
+설계 4판과 일치한다. Google 꺼짐 검사는 team-kit 한 곳(`account()`)에서 한다.
+
+### 다음
+handoff 5차 지시: 합동 TASK-05(HEJO-TODO-DRAWER와 재시작 1회).

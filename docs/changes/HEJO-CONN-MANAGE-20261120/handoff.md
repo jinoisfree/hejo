@@ -119,3 +119,37 @@ TASK-02b 기준(운영 저장소 HEAD의 `wait_jobs.py` sha256 = 실행본)이 �
 - 범위: 그 worktree의 wait_jobs.py와 시험만. 별도 커밋. 운영 원본·./sync·재시작·릴리스 금지(TASK-05에서).
 - 위험도 고위험, 증거 수준 2, 금지 범위는 1차 지시 9항 그대로.
 ```
+
+## 5차 지시 (2026-11-21): 합동 TASK-05 서버 적용 (HEJO-CONN-MANAGE + HEJO-TODO-DRAWER, 재시작 1회)
+
+허가: 사장 결정 (가)(2026-11-20)와 사장 지시 "두 작업 한 번에 서버 적용"(2026-11-21, 두 계획 담당 합의 [HEJO-TODO-DRAWER handoff 마지막 절](../HEJO-TODO-DRAWER-20261120/handoff.md)). 이 인계가 운영 공항 변경(team-kit 실행본 교체, 문 릴리스, 게이트웨이 재시작 1회)을 허가하는 유일한 인계다.
+
+```text
+[설계 인계: 합동 TASK-05 서버 적용]
+0. 절차 원본: HEJO-CONNECTIONS design 7.2. 아래는 이번 대상만 적는다.
+1. 착수 확인(하나라도 다르면 아무것도 바꾸지 말고 멈추고 보고):
+   - 운영 저장소 HEAD와 그 시점 미커밋 목록을 기록. 아래 파일마다 실행본 sha256 = 운영 저장소 HEAD 파일 sha256(새 파일은 실행본 없음).
+     · CONN-MANAGE: git diff --name-only dfb469d3 ae04a715 중 hermes/plugin-store/team-kit/lib/ 아래 14개(account_connect.py 새 파일),
+       hermes/schemas/connections-status.json, docs/연결-상태.md(문서).
+     · TODO-DRAWER: hermes/bin/hermes-deadlines(새), deadline_watch.py(현재 e20213cd…).
+   - 두 브랜치 tip: hejo-conn-manage-20261120 = ae04a715, hejo-todo-drawer-20261120 = b2bc84f8. 두 범위 파일이 겹치지 않음.
+   - hejo 문 릴리스 대상 = 착수 때 로컬 main HEAD. 961ea80·131e47f·433095a가 조상이고, 73a9447 이후 TODO-DRAWER 제품과
+     CONN-MANAGE 제품 외 gate/·app/ 변경이 없는지 git log로 확인해 기록.
+   - 직원 진행 중 턴 0(기존 gateway restart BUSY 검사). 아니면 기다리거나 멈추고 보고.
+2. 롤백 기록 먼저(impl-report에 실제 값, 빈 칸 금지): 바꿀 실행본 파일 보관본(작업 문서 밖 0700 임시 폴더)·sha256, 새 파일 목록
+   (account_connect.py, hermes-deadlines → 되돌릴 때 삭제), 공용 릴리스 RELEASE 커밋, 게이트웨이 pid, 복원 명령.
+3. team-kit 교체: 7.2 순서(임시 파일 → 이름 바꾸기). 교체 뒤 hermes-connections status --json·apps --json 성공 확인,
+   실패하면 즉시 보관본 복원·재확인 후 멈춤.
+4. 운영 저장소 기록: 두 브랜치를 운영 저장소 main에 merge(충돌 시 멈춤) → ./sync → ./airport-check → 이 두 작업 경로만 git commit --only
+   (다른 작업의 미커밋 변경은 넣지 않음). ./sync가 실행본과 저장소를 어느 방향으로 맞추는지 먼저 확인해 기록.
+5. 문: 1에서 정한 main 커밋으로 install/hejo-release → 게이트웨이 재시작 1회 → 채널 재연결 확인.
+6. 확인(증거 수준 3, 실제 운영 쓰기 없이 읽기만):
+   - CONN-MANAGE: hermes-connections status·apps 성공, 연결 화면 표가 오고 시놀로지 계열이 직원마다 한 줄, 문 로그에
+     connections_failed·connections_part_failed 새 줄 없음. 해제·설정 바꾸기를 실제로 누르지 않는다(M1~M4는 사장).
+   - TODO-DRAWER: 그쪽 M1(hermes-deadlines list --json 종료 0·failed 없음, 장부 2개 sha256 전후 같음, 개수·직원 id만 기록),
+     M2(재시작 뒤 문 로그 deadlines_read … failed=0).
+   - 복구 조건: 재시작 뒤 채널 재연결 미확인, 연결 표 0, status·apps 실패, M1·M2 실패 → 2의 롤백 후 보고.
+7. 금지: 공개(hejo-publish·hejo-ship, TASK-06), 앱 사본 교체, 비밀 파일(.env·auth.json·토큰·admin.json) 열기, 운영 직원 설정·금고·명부
+   변경, 실제 Slack·고객 메시지, Hermes 본체·ddots 수정, 재시작 2회 이상, git push.
+8. 보고: impl-report.md에 'TASK-05 합동' 절(착수 확인값, 롤백 기록, 단계별 명령·종료 코드·로그 경로, 운영 저장소 커밋, 릴리스 커밋).
+```
