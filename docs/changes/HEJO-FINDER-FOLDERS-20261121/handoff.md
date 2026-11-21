@@ -69,3 +69,36 @@
   다시 돌린 결과 파일 경로 기록). impl-report.md에 '2차' 절(커밋 전체 해시, 명령·종료 코드·로그 경로, 비교 결과)을 추가하고 result로 보고.
 - 범위·금지·위험도·증거 수준은 1차 지시와 같다(실행본 교체·운영 main·./sync·재시작·릴리스·공개·push 금지).
 ```
+
+## 3차 지시 (2026-11-21): TASK-03 서버 적용 (team-kit만, 재시작 없음)
+
+허가: 사장이 승인한 계획(tasks.md TASK-03 "TASK-02 검토 통과 + 별도 인계")에 따른 운영 공항 변경의 유일한 인계다. 검증 2차에서 TASK-02 완료를 판정했다([verdict.md](verdict.md)).
+
+```text
+[설계 인계: HEJO-FINDER-FOLDERS TASK-03 서버 적용]
+0. 절차 원본: HEJO-CONNECTIONS design 7.2의 team-kit 부분. 대상 파일은 2개뿐이다:
+   hermes/plugin-store/team-kit/lib/hermes_facility/app_setup.py, app_connect.py
+   (시험 파일 test_finder_folders.py는 운영 저장소 기록에만 들어간다).
+   문 릴리스·앱 교체·공개·게이트웨이 재시작은 하지 않는다. 바뀐 모듈은 hermes-connections 자식 프로세스만 import한다(impl-report 1차 근거).
+1. 착수 확인(하나라도 다르면 아무것도 바꾸지 말고 멈추고 보고):
+   - 실행본(<HOME>/plugin-store/team-kit/lib/hermes_facility/)의 두 파일 sha256이 착수 기준과 같다:
+     app_setup.py 17834aa1382c0e61…, app_connect.py 0af29766b4728d5c…(impl-report 1차 표 전체 값).
+   - 운영 저장소 HEAD와 미커밋 목록을 기록한다. HEAD가 66f2a44c가 아니면 66f2a44c..HEAD에서 두 파일이 바뀌지 않았는지 확인한다.
+   - 브랜치 hejo-finder-folders-20261121 tip = f3318572b9cbd85fccb54347872feca8915532cd.
+2. 롤백 기록 먼저(impl-report '3차' 절, 빈 칸 금지): 두 실행본 파일 보관본(작업 문서 밖 0700 임시 폴더) 경로·sha256, 복원 명령.
+3. 교체: 파일마다 f3318572의 내용을 같은 폴더 임시 파일에 쓴 뒤 이름 바꾸기로 교체. 교체 뒤 sha256 = eff2a716…/e773e424… 확인.
+4. 확인(증거 수준 3, 운영 쓰기 없이 읽기만):
+   - hermes-connections status --json, apps --json 둘 다 성공.
+   - 실제 서버 홈으로 후보 만들기를 읽기 전용으로 한 번 실행한다. 게이트웨이 Python에서 실행본 lib을 PYTHONPATH로
+     hermes_facility.app_setup.finder_scopes({})를 부르고 다음만 기록한다: 후보 수, 걸린 초, _scope_hint 유무(잘림/빈 목록), 뿌리 종류별 개수
+     (Synology·다른 CloudStorage·iCloud 각각 몇 개). 폴더 이름·경로는 출력·기록하지 않는다(개인값). app connect는 실행하지 않는다(진행 기록 쓰기 방지).
+   - 복구 조건: status·apps 실패, 또는 finder_scopes 예외 → 2의 보관본으로 즉시 복원, 같은 확인 재실행, 멈추고 보고.
+     후보가 0개이거나 걸린 시간이 150초를 넘으면 복원하지 말고 보고한다(사장 판단).
+5. 운영 저장소 기록: 브랜치를 운영 저장소 main에 merge(충돌이면 멈춤) → ./sync가 실행본과 저장소를 어느 방향으로 맞추는지 먼저 확인해 기록
+   → ./sync → ./airport-check → 이 작업 세 경로만 git commit --only(다른 작업의 미커밋 변경은 넣지 않음).
+   merge 커밋도 이 작업 경로만 바꾸는지 확인. ./sync 뒤 저장소와 실행본의 두 파일 차이 없음 확인.
+6. 금지: 게이트웨이 재시작, install/hejo-release, 앱 교체·공개, 비밀 파일(.env·auth.json·토큰·admin.json) 열기, 운영 직원 설정·금고·명부 변경,
+   운영에서 app connect·연결 실행, 실제 Slack·고객 메시지, 폴더 이름·경로 기록, Hermes 본체·ddots·hejo gate/app 수정, git push.
+7. 보고: impl-report.md '3차' 절(착수 확인값, 롤백 기록, 명령·종료 코드·로그 경로, 4의 수치, 운영 저장소 merge·커밋 전체 해시), result.
+   위험도 일반(운영 실행본 교체, 롤백 있음), 필요 증거 수준 3.
+```

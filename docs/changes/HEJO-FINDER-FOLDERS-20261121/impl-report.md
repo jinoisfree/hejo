@@ -48,12 +48,12 @@ iCloud 뿌리는 Finder 도우미 안에서 경로를 만들고 동일한 제외
 | `P -B -m pytest hermes/plugin-store/team-kit/tests -q` | 1 | 28 failed, 5010 passed, 64 skipped, 1 error, 58 subtests passed, 144.18초. 기존 경고 1개 | `E/full.log`, `E/full.json` |
 | 착수 HEAD의 두 파일로 `P -B -m pytest -q -p no:cacheprovider <위 실패·오류 node ID 29개>` | 1 | 같은 28 failed, 1 error, 2.04초. node ID 집합까지 일치 | `E/baseline-failures.log`, `E/baseline-failures.json`, `E/failure-comparison.json`; 재현 실행기 `E/reproduce_baseline.py` |
 | `P ./airport-check --snapshot .` | 0 | boundary 382, document 0, compartments 0. 기준선 감소 가능 4건은 변경하지 않음 | `E/airport.log`, `E/airport.json` |
-| `P E/scan_changed.py`(hejo cwd) | 0 | hejo 개인값 검사 함수를 지정 세 파일에 적용. 신규 지적 0, 기준에도 있는 표준 `/mydrive` 문자열 지적 2건 구분 | `E/private-changed-final.log`, `E/private-changed-final.json` |
+| `P E/scan_changed.py`(hejo cwd) | 0 | hejo 개인값 검사 함수를 지정 세 파일에 적용. 신규 지적 0, 기준에도 있는 표준 드라이브 루트 문자열 지적 2건 구분 | `E/private-changed-final.log`, `E/private-changed-final.json` |
 | `P -B -m pytest …/test_finder_folders.py -q -k at_ff_14 -p no:cacheprovider`(링크 검사 제거 mutation) | 1 | 의도대로 4 failed, 23 deselected | `E/mutation-links.log`, `E/mutation.json` |
 | `P -B -m pytest …/test_finder_folders.py -q -k at_ff_03 -p no:cacheprovider`(동기화 파일 열기 mutation) | 1 | 의도대로 1 failed, 26 deselected | `E/mutation-file-open.log`, `E/mutation.json` |
 | `git diff --check` | 0 | 공백 오류 없음 | `E/final-integrity.log` |
 
-[확인] 개인값 추가 검사의 첫 시스템 Python 시도는 YAML 의존성 없음으로 종료 1이었다. 게이트웨이 Python으로 전체 세 파일을 검사한 초기 결과는 기준 코드의 표준 `/mydrive` 두 줄 때문에 종료 1(`E/private-changed.log`), 기준 원문과 대조해 **신규 변경분 지적 0**을 구분했다. airport-check의 기준선이나 제품·시험의 예외 목록을 바꾸지 않았다. 이 추가 검사는 tests를 제외하는 airport-check의 범위를 보완한다.
+[확인] 개인값 추가 검사의 첫 시스템 Python 시도는 YAML 의존성 없음으로 종료 1이었다. 게이트웨이 Python으로 전체 세 파일을 검사한 초기 결과는 기준 코드의 표준 드라이브 루트 문자열 두 줄 때문에 종료 1(`E/private-changed.log`), 기준 원문과 대조해 **신규 변경분 지적 0**을 구분했다. airport-check의 기준선이나 제품·시험의 예외 목록을 바꾸지 않았다. 이 추가 검사는 tests를 제외하는 airport-check의 범위를 보완한다.
 
 ### 수락 항목별 관측
 
@@ -97,3 +97,36 @@ iCloud 뿌리는 Finder 도우미 안에서 경로를 만들고 동일한 제외
 [확인] 운영 실행본 교체·운영 main 변경·sync·게이트웨이 재시작·문 릴리스·앱 교체·공개·외부 메시지·push는 하지 않았다. 금지된 비밀 파일을 열지 않았다. hejo gate/app/schemas·Hermes 본체·ddots·수락 명세·spec·design은 수정하지 않았다. 다른 작업의 문서 폴더는 보존했다.
 
 검토 담당은 worktree의 세 변경 파일과 위 로그를 직접 확인하고, AT-FF-12 처분을 우선해 달라. 최종 파일 해시 원본은 `E/final-sha256.json`, 최종 상태 확인은 `E/final-integrity.log`다. 구현본은 미커밋 상태로 보존하며, worktree를 지우면 현재 구현을 잃으므로 검토 전에 제거하지 않는다.
+
+## 2차: 검토본 커밋과 정정된 회귀 기준 확인 (2026-11-21)
+
+[확인] [handoff.md 2차 지시](handoff.md#2차-지시-2026-11-21-검증-1차-verdictmd-v-1v-2)와 [verdict.md 1차](verdict.md)를 적용했다. 수락 명세·spec 3판의 AT-FF-12가 이번 판정 기준이다. **배정된 TASK-02 구현·자체 시험 완료, 검토 대기**다. 1차 보고의 커밋 보류와 AT-FF-12 차단은 이 절의 결과로 해소됐으며 제품 전체 완료·서버 적용·푸시 완료를 뜻하지 않는다.
+
+### 변경본 고정
+
+- 구현 커밋: `f3318572b9cbd85fccb54347872feca8915532cd`.
+- worktree·브랜치는 1차와 동일(`hejo-finder-folders-20261121`), 부모는 착수 HEAD `66f2a44c190390edd2a8a8eab9b2c32cba20195a`다.
+- `git commit --only`로 지정 세 파일만 커밋했다. 새 시험만 먼저 `git add`했고, 기존 시험과 다른 파일은 포함하지 않았다.
+- 내용 수정 없음. 커밋 전 작업 파일, 커밋 blob, 시험 뒤 작업 파일의 SHA-256이 모두 1차 검토본과 일치한다: `app_setup.py eff2a716b30fd2e1eb165ca295fa84da56be4db86e1b9602b477d56a67fd4be6`, `app_connect.py e773e4244748feea273d9350a31f24ff3641f9597f8133de45c8308eb427cf1a`, `test_finder_folders.py 45e0938735953c1ae78158829bab864ab5e5b6f2f43b8416ef0a926252a0caa6`.
+
+### 커밋 HEAD에서 실행한 검증
+
+이 절의 `E2`는 hejo 작업 폴더 기준 `.build/finder-folders-evidence/round2`다. 실행기 `E2/run_checks.py`와 각 JSON에 실제 argv·cwd·Python 경로·종료 코드·대상 커밋이 있다. `P`는 설치 facts의 게이트웨이 환경 Python이며, 기준 재현에 사용했던 Python 경로와 같음을 비교했다. 모든 pytest는 resolve한 임시 HOME·HERMES_HOME·HERMES_ROOT와 기존 격리 환경을 사용했다. 운영 홈 입력으로 전환하거나 기존 시험 수정·skip 추가를 하지 않았다.
+
+| 명령 | 종료 코드 | 실제 결과 | 로그·증거(hejo 기준) |
+|---|---:|---|---|
+| `git commit --only -m <변경 이유> -- <지정 세 파일>` | 0 | 위 커밋 생성. pre-commit의 snapshot airport-check도 boundary 382·document 0·compartments 0 출력 후 완료. 기준선 변경 없음 | `E2/commit.log`, `E2/commit-command.json`, `E2/commit.json`, `E2/precommit-sha256.json` |
+| `P -B -m pytest -q hermes/plugin-store/team-kit/tests/test_finder_folders.py hermes/plugin-store/team-kit/tests/test_app_catalog.py hermes/plugin-store/team-kit/tests/test_app_connect.py hermes/plugin-store/team-kit/tests/test_app_setup.py hermes/plugin-store/team-kit/tests/test_synology_app_connect.py hermes/plugin-store/team-kit/tests/test_app_registry.py` | 0 | **99 passed**, 3.09초. 새 시험과 AT-FF-12(가) 충족 | `E2/related.log`, `E2/related.json` |
+| `P -B -m pytest hermes/plugin-store/team-kit/tests -q` | 1 | **28 failed, 5010 passed, 64 skipped, 1 error, 1 warning, 58 subtests passed**, 141.60초. 전체가 통과한 것은 아니며 아래 기준 집합과 비교 | `E2/full.log`, `E2/full.json` |
+| `python3 .build/finder-folders-evidence/round2/compare_results.py`(hejo cwd) | 0 | 기준 29 node, 현재 29 node, 새 node 0, 해소 node 0. 현재 집합 = 기준 집합이므로 부분집합 조건 충족. 커밋·파일 해시와 깨끗한 worktree도 확인 | `E2/comparison.log`, `E2/comparison.json`, `E2/integrity.json` |
+| `git diff --check`(worktree cwd, 비교 실행기에 포함) | 0 | 공백 오류 없음 | `E2/integrity.json` |
+
+[확인] 기준은 착수 HEAD의 두 구현 파일로 실제 재현했던 `E/baseline-failures.log`와 `E/baseline-failures.json`이다. 2차 지시가 재사용을 허용했고 기존 기록은 덮어쓰지 않았다. 이번 전체 실행의 FAILED·ERROR 요약에서 node ID를 추출해 그 합집합을 기준과 비교했다. `E2/comparison.json`에는 두 집합과 차집합을 모두 기록했다. **AT-FF-12(나)는 새 실패·오류 0으로 충족**한다. pytest 자체 종료 코드 1을 종료 0이나 전체 통과로 바꿔 보고하지 않는다.
+
+증거 수준은 요구된 **2**다. 1차의 실제 CLI 감사 훅·mutation·개인값 검사 증거는 코드와 시험 바이트가 동일하므로 그대로 유지한다. 29개 운영 홈 의존 시험은 명세 3판과 검증 1차가 처분한 기존 기술 부채이며 이번 코드에서 고치지 않았다.
+
+### 남은 단계와 보존
+
+[확인] 실행본 교체·운영 main 수정·sync·재시작·릴리스·공개·push·금지 경로 수정은 하지 않았다. 제품 worktree는 커밋 뒤 깨끗하다. 보고서의 이 2차 절은 hejo 작업 문서에 추가한 것으로, 제품 커밋에는 포함되지 않는다.
+
+다음 담당은 위 커밋과 정정된 수락 기준·비교 증거로 V-2를 재검토한다. 이후 TASK-03 서버 적용은 별도 인계가 필요하며, M1~M3와 NFR-FF-03 실측은 여전히 미실행이다. 푸시 대상 제안과 승인은 검토 이후의 별도 단계다.
