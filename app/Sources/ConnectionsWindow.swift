@@ -265,7 +265,7 @@ import Combine
     }
     deinit {if let appearanceObserver {NotificationCenter.default.removeObserver(appearanceObserver)}}
     func setPreferredLevel(_ level:NSWindow.Level){preferredLevel=level;updateLevel(confirming:model.confirming)}
-    private func updateLevel(confirming:Bool){window.level=confirming || inputWindow != nil || window.attachedSheet != nil ? .normal:preferredLevel}
+    private func updateLevel(confirming:Bool){window.level=confirming ? .normal:preferredLevel}
     private func presentInput(_ active:Bool){
         guard active==model.showingInput else{return}
         if !active {
@@ -306,6 +306,7 @@ import Combine
         if let profile{model.selected=profile}
         if let inputWindow,!inputWindow.isVisible {window.endSheet(inputWindow);inputWindow.orderOut(nil);self.inputWindow=nil;model.inputDismissed()}
         for sheet in window.sheets where !sheet.isVisible {window.endSheet(sheet);sheet.orderOut(nil)}
+        updateLevel(confirming:model.confirming)
         window.makeKeyAndOrderFront(nil)
         presentInput(model.showingInput)
         if let inputWindow {inputWindow.makeKeyAndOrderFront(nil)}

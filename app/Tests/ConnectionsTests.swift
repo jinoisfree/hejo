@@ -46,6 +46,7 @@ import SwiftUI
     }
     print("AT-HF-83 APP PASS")
     try await connectionFilteringTests(outputDirectory:outputDirectory)
+    try await finderConnectionsLevelTests()
     try await connectionsScreenTests()
     try await connectionManagementTests(outputDirectory:outputDirectory)
 }
@@ -323,4 +324,52 @@ import SwiftUI
     }
     live.close();window.window.close()
     print("AT-CM-30~38 APP PASS")
+}
+
+
+/// AT-FF-20~23: fake gate, real input/alert sheets alongside the floating conversation panel.
+@MainActor private func finderConnectionsLevelTests() async throws {
+    let dir=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer{try? FileManager.default.removeItem(at:dir)}
+    let store=try LocalStore(directory:dir),controller=try testConversation(client:GateClient(store:store,credentials:MemoryCredentials()))
+    let conversation=PetPanel(contentRect:CGRect(x:100,y:100,width:600,height:500),styleMask:[.borderless],backing:.buffered,defer:false)
+    conversation.isReleasedWhenClosed=false;conversation.hidesOnDeactivate=false
+    conversation.level=NSWindow.Level(rawValue:25)
+    conversation.contentView=NSTextField(labelWithString:"시험 대화 창")
+    conversation.orderFrontRegardless()
+    let window=ConnectionsWindow(controller:controller),model=window.model
+    defer{model.close();window.window.close();conversation.close()}
+    let document:[String:Any] = ["schema":"hermes-connections/1","checked_at":"2026-01-01T00:00:00Z","agents":[["profile":"alpha","display_name":"직원 A","connections":[["id":"app:synthetic","service":"synology","label":"시험 연결","group":"mac","state":"unknown","reason":"VALUES_REQUIRED","checked_at":"2026-01-01T00:00:00Z","capabilities":[],"rules":[],"actions":[["id":"app_connect","label":"이어서 하기","primary":true]]]]]]]
+    model.send={frame in
+        frame["type"] as? String=="connections" ? ["document":document]:["reply":["outcome":"waiting","next":["kind":"secret_set","fields":[["id":"password","label":"비밀번호","secure":true]]]]]
+    }
+    model.confirm={true}
+    await model.refresh();model.detail="app:synthetic"
+    try check(model.item != nil,"AT-FF fixture loads connection")
+    window.setPreferredLevel(NSWindow.Level(rawValue:26));window.show()
+    await model.perform("app_connect");await pause(0.15)
+    print("AT-FF-20 observation: conversation=\(conversation.level.rawValue), connections=\(window.window.level.rawValue), inputVisible=\(window.window.attachedSheet?.isVisible == true)")
+    try check(conversation.isVisible && window.window.attachedSheet?.isVisible==true && window.window.level.rawValue==26,"AT-FF-20 input keeps connections above conversation")
+    window.window.orderBack(nil)
+    window.window.level = .normal // A stale level must be recomputed when reopened.
+    window.show();await pause(0.1)
+    try check(window.window.level.rawValue==26 && window.window.isVisible && window.window.attachedSheet?.isVisible==true,"AT-FF-21 show recalculates level and brings input forward")
+    guard let input=window.window.attachedSheet else{throw TestFailure.assertion("AT-FF-22 missing input")}
+    let confirmation=Task{await model.confirmRestart()};await pause(0.1)
+    let alert=input.attachedSheet
+    let normalDuringAlert=window.window.level == .normal
+    if let alert{input.endSheet(alert,returnCode:.alertSecondButtonReturn)}
+    let accepted=await confirmation.value;await pause(0.1)
+    try check(alert != nil && normalDuringAlert && !accepted && window.window.level.rawValue==26 && input.isVisible,"AT-FF-22 restart alert lowers then restores input")
+    for accepted in [false,true] {
+        var normalDuringAuth=false
+        model.confirm={normalDuringAuth=window.window.level == .normal;return accepted}
+        await model.perform("app_connect");await pause(0.1)
+        try check(normalDuringAuth && window.window.level.rawValue==26 && window.window.attachedSheet?.isVisible==true,"AT-FF-22 authentication success/cancellation restores input")
+    }
+    model.closeInput();await pause(0.1)
+    window.setPreferredLevel(.normal)
+    await model.perform("app_connect");await pause(0.1)
+    try check(window.window.level == .normal && window.window.attachedSheet?.isVisible==true,"AT-FF-23 inactive preference stays normal with input")
+    print("AT-FF-20~23 APP PASS")
 }
