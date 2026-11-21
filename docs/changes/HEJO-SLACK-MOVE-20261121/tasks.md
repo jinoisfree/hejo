@@ -14,8 +14,8 @@
 | TASK-06 | 나머지 직접 전송 경로를 공통 전송으로(design 4.2 표에서 인스타·네이버톡 제외 전부, 착수 때 더 찾은 줄 포함). `file_link`의 hejo 첨부 | SM-07 / AT-SM-41(전 줄), 60~62, 61b | design 4.2 표의 `TS/`·`TKL/hermes_packs/`·`TKL/hermes_governance/proposal_decisions.py` 파일과 그 시험 | TASK-04 | 고위험 · 2 | 대기 |
 | TASK-07 | 들어오는 규칙의 hejo 대응: 예약 관리 도구, 금고 백업 승인, 진단 사용량 조회·진단 요청 접수, 보고 검토·스타터·조직개편안 답글, 대기 작업의 방 글쓴이 | SM-08.AC-01~04 / AT-SM-63~66, 68 | `TS/cron_guard.py`, `TS/vault_backup_approval.py`, `TKL/hermes_packs/native_tools/__init__.py`, `TKL/hermes_packs/diagnosis/diagnosis_requests.py`의 접수 검사, `TS/report_review.py`·`starter_plugins.py`·`org_review.py`의 답글 인식 부분, `TS/wait_jobs.py`, `TK/__init__.py`의 훅 연결, 그 시험 | TASK-04, TASK-06(같은 파일을 TASK-06이 먼저 전송 쪽을 고침) | 고위험 · 2 | 대기 |
 | TASK-08 | 도구 묶음: 조립기가 `platform_toolsets.hejo`를 만듦, 앱 설치 때 hejo에도 묶음 추가, 실제 도구 집합 비교 | SM-09 / AT-SM-70~72 | `TKL/hermes_facility/config_assembly.py`와 그 시험 | — | 고위험(직원 권한 범위) · 2 | 대기 |
-| TASK-09a | 계획 담당: 일 넘기기(프로젝트 허브) 흐름 조사, design 4.5·REQ-SM-08.AC-05·AT-SM-67 보완 | SM-08.AC-05 | 계획 문서 | — | 문서 | 대기(계획 담당) |
-| TASK-09 | 일 넘기기 안내·프로젝트 허브의 hejo 대응 | SM-08.AC-05 / AT-SM-67 | TASK-09a가 정함 | TASK-09a, TASK-04 | TASK-09a가 정함 | **차단(설계 미확정)** |
+| TASK-09a | 계획 담당: 일 넘기기(프로젝트 허브) 흐름 조사, design 4.5 보완 | SM-08.AC-05 | 계획 문서 | — | 문서 | 조사 완료(2026-11-22). 사장 결정 H-1~H-4 대기(design 4.5) |
+| TASK-09 | 일 넘기기 안내·프로젝트 허브의 hejo 대응 | SM-08.AC-05 / AT-SM-67 | TASK-09a가 정함 | TASK-09a, TASK-04 | TASK-09a가 정함 | **차단(사장 결정 H-1 대기, design 4.5)** |
 | TASK-10 | 서버 적용과 전환: 코드 적용(동작 불변) → 하루 회귀 관찰 → 대조표·방 표 사장 확인 → 전환(design 7절) → 확인 | SM-04, SM-10, SM-11 / M1~M5, M7 | `TK`, `CP`, 공용 릴리스(문), `<HOME>/owner/policy.yaml`, `<HOME>/owner/vault.yaml`, `<HOME>/config.yaml`, 조립 결과, `HD`(`./sync`·`./airport-check`·커밋) | TASK-02~09, 사장 승인 | 고위험(운영) · 3·4 | 대기(별도 인계) |
 | TASK-11 | 다음 날 관찰(M6), 현재 명세 반영(`ARCHITECTURE.md` 3·4·7절의 입구·방 대상·Slack 은퇴 단계, `gate/README.md`, `HD` 문서) | SM-11.AC-02·05 / M6 | `H/docs/ARCHITECTURE.md`, `HD` 문서 | TASK-10 | 문서 | 대기 |
 
