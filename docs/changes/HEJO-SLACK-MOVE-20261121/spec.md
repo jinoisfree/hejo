@@ -1,6 +1,6 @@
 # HEJO-SLACK-MOVE 명세: 알림·보고·대화를 Slack 대신 hejo로
 
-5판 · 2026-11-22(계획 검증 1~4회차 반영, [plan-review.md](plan-review.md)) · 상태: 초안(계획 재검증 대기) · 기준 커밋: 이 저장소 `cb06e7d`, `<운영 저장소>` `66f2a44c`
+7판 · 2026-11-22(계획 검증 1~4회차, 구현 검토 2차 D-3 반영, [plan-review.md](plan-review.md)) · 상태: 초안(계획 재검증 대기) · 기준 커밋: 이 저장소 `cb06e7d`, `<운영 저장소>` `66f2a44c`
 요청과 사장 결정: [brainstorm.md](brainstorm.md). 설계 [design.md](design.md), 작업 [tasks.md](tasks.md), 인계 [handoff.md](handoff.md), 수락 시험 [HEJO-SLACK-MOVE.md](../../../tests/acceptance/HEJO-SLACK-MOVE.md).
 
 약어: `H` 이 저장소, `HD` `<운영 저장소>`, `TK` `<HOME>/plugin-store/team-kit`, `TKL` `TK/lib`, `TS` `TKL/hermes_team_services`, `CP` 고객 응대 직원 프로필 홈(인스타·네이버톡 플러그인이 있는 직원), `본체` `<HOME>/hermes-agent`.
@@ -63,7 +63,7 @@
 
 ### REQ-SM-02 예약 보고를 방으로
 - AC-01(정상): 예약 대상 `hejo:room:<방 id>`가 유효하다. 그 방의 구성원인 직원이 보낸 예약 보고는 그 방에 그 직원 이름으로, 보고마다 새 스레드로 올라간다.
-- AC-02(실패): 없는 방·지운 방·구성원이 아닌 직원이면 전달 실패로 기록되고 다른 곳으로 대신 보내지 않는다.
+- AC-02(실패): 없는 방·지운 방·구성원이 아닌 직원이면 전달 실패로 기록되고 다른 곳으로 대신 보내지 않는다. 보내는 직원이 기본 프로필이어도 같다. 보낸 직원이 아닌 다른 직원(대표 직원 포함)의 이름으로 올라가지 않는다.
 - AC-03(경계): 기존 `hejo:<직원 id>` 대상은 그대로 동작한다. `room:` 뒤가 방 id 문법(경로 구분자 없음)이 아니면 거절한다.
 
 ### REQ-SM-03 방 스레드 주인 유지

@@ -5,7 +5,7 @@
 ```text
 [설계 인계: HEJO-SLACK-MOVE TASK-02~08 / 문·team-kit·직원 플러그인]
 0. 기준: 제품 코드 기준 cb06e7d(이 저장소 main) / 계획 문서 기준은 이 인계서를 담은 커밋 / <운영 저장소> 66f2a44c /
-   spec·design·수락 시험 명세·tasks 6판 2026-11-22(계획 검증 5회차 통과. 그 뒤 구현 검토 1차의 계약 보완 D-1·D-2 반영, verdict.md) /
+   spec·design·수락 시험 명세·tasks 7판 2026-11-22(계획 검증 5회차 통과. 그 뒤 구현 검토 1차 D-1·D-2, 2차 D-3 반영, verdict.md) /
    승인 상태: 사장 브레인스토밍 결정(brainstorm.md) 기반, 계획 검증 켬(재검증 대기) / 운영 모드: 연합개발(교차 모델 + 계획 검증)
    <운영 저장소>는 매일 자동 기록 커밋으로 움직인다. 착수 때 HEAD를 impl-report에 적는다.
 1. 공식 문서: docs/ARCHITECTURE.md, AGENTS.md, docs/changes/HEJO-SLACK-MOVE-20261121/{brainstorm,spec,design,tasks}.md,
@@ -69,6 +69,13 @@
    임시 분리 worktree(git worktree add --detach, .build 아래나 임시 폴더)로 꺼내 거기서 전체 검사를 돌리고, 끝나면 그 worktree를
    지운다. 검사한 커밋 해시와 로그 경로를 impl-report에 적는다. 이 작업은 app/을 고치지 않으며 다른 작업의 app/ 변경을 커밋에
    넣지 않는다(git commit --only). 공유 폴더에서 이 작업의 파일(gate/, schemas/, 이 작업의 시험·문서)을 고치는 것은 계속해도 된다.
+   TASK-03은 design 3.2 7판대로 기본 프로필의 방 글 글쓴이를 고친다(adapter.py의 send와 같은 대체가 있는 세 자리 포함. 6판의
+   '문법뿐'은 폐기). 기존 시험이 대표 직원 대체에 기대면 멈추고 보고.
+   전체 검사의 앱 시험 실패 처리(구현 검토 2차 S-1): 중간 TASK 커밋은 분리 worktree의 전체 검사에서 Python 묶음과 실제 게이트웨이
+   묶음이 통과하고, 실패가 앱 시험뿐이며, 그 TASK 커밋이 app/을 바꾸지 않았음(git diff --stat <이전 TASK 커밋> <이 커밋> -- app 이
+   빈 결과)을 impl-report에 적으면 다음 TASK로 넘어간다. 이것은 통과가 아니다. 종료 코드와 실패한 앱 시험 이름을 그대로 적는다.
+   마지막 TASK 뒤에는 최종 커밋에서 전체 검사를 다시 돌린다. 그때도 앱 시험만 실패하면, 같은 조건에서 제품 기준 커밋(cb06e7d)의
+   전체 검사도 한 번 돌려 결과를 나란히 적고 멈춰 보고한다. 앱 코드·앱 시험·기대값은 고치지 않는다.
    선행 작업: 없음.
 10. 가정·미확정:
     - [미확정·착수 차단] REQ-SM-08.AC-05(일 넘기기·프로젝트 허브). 계획 담당이 TASK-09a로 조사해 보완한 뒤 따로 인계한다.
