@@ -177,3 +177,12 @@ TASK-02b 기준(운영 저장소 HEAD의 `wait_jobs.py` sha256 = 실행본)이 �
 4. 재시작 예산: 이번 실행에서 계획 1회 + 복구용 1회(총 2회 상한, 6차 지시 규칙). 앞선 실행의 2회와 따로 센다.
 5. 문 릴리스는 착수 때 hejo 로컬 main HEAD로 한다(두 작업 제품 포함, `73a9447` 이후 gate/·app/ 변경이 두 작업 외에 없음을 다시 확인).
 6. 성공 뒤: TODO-DRAWER M1·M2를 다시 기록하고(그쪽 계획 담당이 별도 검증), 운영 저장소 기록이 실행본과 같은지(`./sync` 뒤 차이 없음) 확인한다.
+
+## 8차 지시 (2026-11-21): TASK-06 앱 0.2.3 공개 후보 준비 (HEJO-TODO-DRAWER와 1회)
+
+- 선례: [HEJO-CONNECTIONS handoff "보완 지시 3"](../HEJO-CONNECTIONS-20261120/handoff.md) 절차를 **0.2.3·빌드 5**로 그대로 따른다. 다른 점만 적는다.
+- 들어가는 것: 착수 때 `main` HEAD 전체(이 작업 앱 `f06d8b2`, 문 `961ea80`·`131e47f`, HEJO-TODO-DRAWER 앱·문 `433095a` 포함). 새 `public`의 부모는 지금 로컬 `public`(0.2.2).
+- 확인 추가: 새 `public` 트리에 `ConnectionsWindow.swift`의 `restoreFocus`와 TODO-DRAWER의 `TodoDrawer*.swift`가 들어 있다. 준비물 버전·빌드(0.2.3·5)가 설치본(0.2.2·4)보다 크고, 업데이트 서명 키가 0.2.2와 같다.
+- 보고: 버전 올림 커밋, 새 `public` 전체 커밋, 준비물 경로, 사장용 공개 명령 한 줄(`install/hejo-ship publish --approve-commit <새 public 커밋> --prepared .build/release-0.2.3/prepared.json`), 푸시 대상, 검증 명령·종료 코드.
+- 금지: 선례와 같다(GitHub 조회·쓰기·publish·push 금지, 설치된 앱 사본 교체·공용 릴리스·운영 홈 변경·게이트웨이 재시작 금지, 비밀 값 열람 금지, 제품 동작 코드·spec·design·수락 시험 명세 수정 금지).
+- 위험·증거: 고위험(공개 배포물), 증거 수준 2. 실제 공개·업데이트 설치(수준 4)는 사장이 한 뒤 M1~M5로 본다.

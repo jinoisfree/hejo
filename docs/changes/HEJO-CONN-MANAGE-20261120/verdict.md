@@ -122,3 +122,15 @@ handoff 5차 지시: 합동 TASK-05(HEJO-TODO-DRAWER와 재시작 1회).
 - 원인 분류: **수락 기준(확인 기준) 오류 — 계획 담당.** 5차 지시 6항 "connections_failed·connections_part_failed 새 줄 없음"은 이미 알려진 기존 실패를 빼지 않았다. 기준은 "적용 전과 비교해 새 종류의 실패가 없음"이어야 했다.
 - 남은 위험: 운영 저장소 main(`66f2a44c`)은 새 코드인데 실행본은 이전 상태다. 매일 자동 기록은 `./sync`로 실행본을 저장소에 모으므로, 재적용 전에 자동 기록이 돌면 저장소가 이전 내용으로 되돌아가는 커밋이 생길 수 있다. 재적용은 브랜치 tip(`ae04a715`·`b2bc84f8`)을 원본으로 삼는다.
 - 조치: handoff 7차 지시(재적용, 확인 기준 정정, 재시작 예산 새로).
+
+## 7차 (2026-11-21) — 합동 TASK-05 통과. 작업 전체는 부분 완료(TASK-06·07 남음)
+
+- 대상: 운영 저장소 main `66f2a44c`, 공용 RELEASE `7811c51`, hejo 보고 `209bdb7`.
+- 판정: **TASK-05 통과.**
+- 직접 확인(읽기만):
+  - [확인] 운영 저장소 HEAD `66f2a44c`, 미커밋 없음. `dfb469d3..HEAD`의 `hermes/` 아래 바뀐 파일(team-kit lib·시험·`hermes/bin/hermes-deadlines`·schemas)이 실행본과 바이트가 같다(`cmp`, 차이·누락 0).
+  - [확인] 문 공용 릴리스 `RELEASE` = `7811c51e26b2…`(두 작업 제품 포함 main).
+  - [확인] 재시작 뒤 게이트웨이 로그의 `connections_part_failed`는 기준선과 같은 `toolset_config/admin_failed/400`뿐이다(새 종류 없음). `v7-post.json` `newFailures: []`. `deadlines_read items=2 failed=0`.
+  - 보고값(로그로 확인): 계획 재시작 1회·복구 0회, 채널 7개 재연결, 연결 표 6명 수신, 직원마다 시놀로지 계열 한 줄.
+- 설계 적합성: HEJO-CONNECTIONS design 7.2와 7차 지시를 따랐다. 시험 5개를 원본 그대로 함께 배치한 것은 `./sync` 차이를 0으로 만들기 위한 것으로, 내용 변경은 없다(허용).
+- 남은 것: TASK-06(0.2.3 공개 후보, HEJO-TODO-DRAWER와 1회), TASK-07(사장 확인 M1~M5, 현재 명세 반영). 앱 0.2.3 설치 전까지는 옛 앱(0.2.2)이 새 문과 통신한다. 새 필드(`settings`·`committed`)·새 동작 id는 옛 앱이 무시하거나 일반 동작 버튼으로 그린다. 옛 앱에서는 해제·설정 바꾸기를 쓰지 않기를 권한다.
