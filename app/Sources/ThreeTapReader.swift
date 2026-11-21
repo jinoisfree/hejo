@@ -127,6 +127,7 @@ final class ThreeTapReader: ThreeTapReading {
         onHealth?(.failed(stage))
     }
     private func receive(_ device: UnsafeMutableRawPointer?, data: UnsafeRawPointer?, count: Int32, time: Double) {
+        let frameTime = ThreeTapDiagnostics.timestamp()
         guard let device else { return }
         lock.lock()
         let key = UInt(bitPattern: device), epoch = generation
@@ -140,6 +141,7 @@ final class ThreeTapReader: ThreeTapReading {
             }
         }
         let result = state.receive(contacts, count: Int(count), at: time); frames[key] = state
+        let recognizedTime = ThreeTapDiagnostics.timestamp()
         if case .failed(let reason) = result {
             failed = true; lock.unlock()
             DispatchQueue.main.async { [weak self] in
@@ -154,11 +156,13 @@ final class ThreeTapReader: ThreeTapReading {
         lock.unlock()
         if first || tapped {
             DispatchQueue.main.async { [weak self] in
+                let mainTime = ThreeTapDiagnostics.timestamp()
                 guard let self else { return }
                 self.lock.lock(); let active = self.generation == epoch && !self.failed; self.lock.unlock()
                 guard active else { return }
+                if tapped { ThreeTapDiagnostics.begin(frame: frameTime, recognized: recognizedTime, main: mainTime) }
                 if first { self.onHealth?(.ready) }
-                if tapped { self.onTap?() }
+                if tapped { self.onTap?(); ThreeTapDiagnostics.discardUnstarted() }
             }
         }
     }

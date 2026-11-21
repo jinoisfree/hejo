@@ -210,6 +210,7 @@ final class PetController: NSObject {
     private func setExpanded(_ expanded: Bool) {
         guard expanded || canCollapse(), web?.presenting != true else{return}
         guard expanded != chatExpanded,let old=placementTarget else{return}
+        ThreeTapDiagnostics.expanded(expanded)
         let continuing=timer != nil && !pet.genie.isHidden
         let start=continuing ? transitionProgress:(expanded ? 0:1)
         timer?.invalidate();timer=nil
@@ -224,10 +225,13 @@ final class PetController: NSObject {
         }
         chatExpanded=expanded;panel.chatExpanded=expanded
         // Capture the closing picture before folding the model, or keep the current picture on reversal.
-        if !expanded && !continuing {pet.captureGenie()}
+        if !expanded && !continuing {ThreeTapDiagnostics.mark("capture_start");pet.captureGenie();ThreeTapDiagnostics.mark("capture_end")}
+        ThreeTapDiagnostics.mark("callbacks_start")
         onDrawerStateChanged?(drawerOpen,expanded)
         onExpansionChanged?(expanded)
+        ThreeTapDiagnostics.mark("callbacks_end")
         placePet(at:reopeningAnchor ?? old.anchorOrigin)
+        ThreeTapDiagnostics.mark("placement_end")
         guard let target=placementTarget else{return}
         let open=expanded ? target:old
         transitionOpenRect=open.globalBubble;transitionSteps=0;transitionProgress=start
@@ -235,11 +239,12 @@ final class PetController: NSObject {
         else {panel.makeFirstResponder(nil);panel.resignKey()}
         if let outsideMonitor {NSEvent.removeMonitor(outsideMonitor);self.outsideMonitor=nil}
         if expanded {outsideMonitor=NSEvent.addLocalMonitorForEvents(matching:[.leftMouseDown]){[weak self] event in self?.handleOutsideClick(event);return event}}
-        if reducedMotion() {transitionProgress=expanded ? 1:0;pet.endGenie(expanded:expanded);apply(target);if expanded {onFocus?()};return}
+        if reducedMotion() {transitionProgress=expanded ? 1:0;pet.endGenie(expanded:expanded);apply(target);ThreeTapDiagnostics.moved();ThreeTapDiagnostics.finished();if expanded {onFocus?()};return}
         apply(open)
-        if !continuing && expanded {pet.captureGenie()}
+        if !continuing && expanded {ThreeTapDiagnostics.mark("capture_start");pet.captureGenie();ThreeTapDiagnostics.mark("capture_end")}
         pet.updateGenie(open,progress:start)
         transitionStart=clock();genieStart=start
+        ThreeTapDiagnostics.mark("timer_start")
         let t=Timer(timeInterval:1.0/60,repeats:true){[weak self] _ in self?.stepTransition()}
         timer=t;RunLoop.main.add(t,forMode:.common);show()
     }
@@ -247,6 +252,7 @@ final class PetController: NSObject {
         let fraction=min(1,max(0,(clock()-transitionStart)/ChatMorph.genieDuration))
         transitionProgress=ChatMorph.genieProgress(from:genieStart,opening:chatExpanded,fraction:fraction);transitionSteps+=1
         if let p=pet.placement {pet.updateGenie(p,progress:transitionProgress)}
+        if fraction > 0 {ThreeTapDiagnostics.moved()}
         if fraction>=1 {
             timer?.invalidate();timer=nil;pet.endGenie(expanded:chatExpanded)
             if let target=placementTarget {
@@ -255,6 +261,7 @@ final class PetController: NSObject {
                 apply(target)
             }
             if chatExpanded {onFocus?()}
+            ThreeTapDiagnostics.finished()
         }
     }
     func handleOutsideClick(_ event:NSEvent){
