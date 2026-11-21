@@ -1,6 +1,6 @@
 # HEJO-FINDER-FOLDERS 명세: Finder 연결에서 서버 동기화 폴더 고르기
 
-2판 · 2026-11-21(계획 검증 1회차 PR-01~04 반영, [plan-review.md](plan-review.md)) · 상태: 초안(계획 재검증 대기) · 기준 커밋: 이 저장소 `9514f0f`, `<운영 저장소>` `66f2a44c`
+3판 · 2026-11-21(계획 검증 1회차 PR-01~04, 구현 검증 1차 V-1 반영) · 상태: 승인(계획 검증 2회차 APPROVED), 구현 검증 중 · 기준 커밋: 이 저장소 `9514f0f`, `<운영 저장소>` `66f2a44c`
 요청 원문과 사장 결정: [brainstorm.md](brainstorm.md). 설계 [design.md](design.md), 작업 [tasks.md](tasks.md), 인계 [handoff.md](handoff.md), 수락 시험 [HEJO-FINDER-FOLDERS.md](../../../tests/acceptance/HEJO-FINDER-FOLDERS.md).
 
 ## 칸·원본·쓰기 주체·수명
@@ -51,7 +51,7 @@
 - AC-02(경계): 고른 폴더가 서버에서 사라졌으면 후보에 나오지 않고 미리 선택되지 않는다(기존 `selected_options` 규칙. 남은 것만 미리 선택).
 
 ### REQ-FF-04 다른 연결은 그대로다
-- AC-01(회귀): `catalog.sync_folders`의 결과(다른 동기화 앱의 자동 분류, `test_app_catalog.py:103-111`), 다른 앱의 고르기 후보, 시놀로지 앱 연결의 `folders` 후보, 문·앱 프레임은 바뀌지 않는다. team-kit 기존 시험이 모두 통과한다.
+- AC-01(회귀): `catalog.sync_folders`의 결과(다른 동기화 앱의 자동 분류, `test_app_catalog.py:103-111`), 다른 앱의 고르기 후보, 시놀로지 앱 연결의 `folders` 후보, 문·앱 프레임은 바뀌지 않는다. 관련 기존 시험은 모두 통과하고, team-kit 기존 시험 전체에는 이 변경으로 새로 생긴 실패가 없다(착수 HEAD 기준 집합 대비, AT-FF-12).
 
 ### NFR
 - NFR-FF-01(개인값): 코드·시험에 실제 사람 이름·계정·경로를 넣지 않는다. 시험은 임시 `HOME`·`HERMES_HOME`과 가짜 폴더만 쓴다.

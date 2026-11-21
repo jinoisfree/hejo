@@ -1,6 +1,6 @@
 # HEJO-FINDER-FOLDERS 수락 시험 명세
 
-2판 · 2026-11-21(계획 검증 1회차 PR-01~04 반영, [plan-review.md](../../docs/changes/HEJO-FINDER-FOLDERS-20261121/plan-review.md)) · 명세 [spec.md](../../docs/changes/HEJO-FINDER-FOLDERS-20261121/spec.md), 설계 [design.md](../../docs/changes/HEJO-FINDER-FOLDERS-20261121/design.md).
+3판 · 2026-11-21(계획 검증 1회차 PR-01~04 반영, 구현 검증 1차 V-1로 AT-FF-12 기준 정정, [plan-review.md](../../docs/changes/HEJO-FINDER-FOLDERS-20261121/plan-review.md)) · 명세 [spec.md](../../docs/changes/HEJO-FINDER-FOLDERS-20261121/spec.md), 설계 [design.md](../../docs/changes/HEJO-FINDER-FOLDERS-20261121/design.md).
 상태: 명세 완료 · 코드 미작성 · 미실행 · 독립 검토: 계획 검증 1회차 BLOCKED → 2판 반영, 재검증 대기. 기대값 출처: spec 요구와 design 2절. 구현 담당이 코드로 옮기며 기대값·합격 기준을 바꾸지 않는다(바꿔야 하면 멈추고 보고).
 
 공통: 임시 폴더를 서버 홈(`home`)으로 넘기고(`resolve()`한 경로. macOS 임시 폴더의 `/var` 링크가 부모 링크 검사에 걸리지 않게), 임시 `HERMES_HOME`에 가짜 직원 `alpha`. 폴더 이름은 `SynologyDrive-team`, `ExampleDrive-owner`, `Projects`, `2026` 같은 가짜 이름만. 실제 이름·경로 금지. "바이트 그대로"는 실행 전후 sha256 비교.
@@ -27,7 +27,7 @@
 | AT-FF-09 | FF-03.AC-02 | AT-FF-08에서 `home/Work`를 지운 뒤 같은 요청 | 후보에 `home/Work` 없음, `selected`는 남은 하나만. 파일 쓰기는 기존 바꾸기 규칙과 같음(마지막 저장 전 쓰기 없음) |
 | AT-FF-10 | FF-02.AC-02 | `--scope`에 `home/NoSuch`(없음) | `SCOPE_INVALID`, 금고·설정·명부 바이트 그대로 |
 | AT-FF-11 | FF-02.AC-03 | `--scope`에 뿌리 밖 실제 폴더 `home/Elsewhere` | 지금처럼 받아들여 저장(`files.folders`에 그 경로) |
-| AT-FF-12 | FF-04.AC-01 | team-kit 기존 시험 전체(`test_app_catalog.py`의 `sync_folders` 기대 포함, `test_app_connect.py`, `test_app_setup.py`, `test_synology_app_connect.py`) | 전부 통과. 기존 기대값 수정 없음(바꿔야 하면 멈추고 보고) |
+| AT-FF-12 | FF-04.AC-01 | (가) 관련 기존 시험 파일 `test_app_catalog.py`, `test_app_connect.py`, `test_app_setup.py`, `test_synology_app_connect.py`, `test_app_registry.py` (나) team-kit 기존 시험 전체(`tests/` 전부). 둘 다 임시 `HOME`·`HERMES_HOME`, 새 시험과 같은 환경 | (가) 전부 통과, 기존 기대값 수정 없음 (나) 실패·오류 node ID 집합이 착수 HEAD(`66f2a44c`)의 두 구현 파일로 같은 환경에서 돌린 집합의 부분집합(새 실패·오류 0). 기준 집합은 착수 HEAD에서 실제로 다시 돌려 기록한다(임시 `HOME`에 없는 실제 프로필·문서 Python·스크립트를 찾는 기존 시험 29개, 2026-11-21 [verdict.md](../../docs/changes/HEJO-FINDER-FOLDERS-20261121/verdict.md) V-1). 기존 시험 수정·skip 추가 금지(바꿔야 하면 멈추고 보고) |
 | AT-FF-14 | FF-01.AC-03(부모 링크) | 사례마다 새 `home`. 진짜 폴더 `home/Real/OtherDrive-x/A/B`를 둔다. (가) `home/Library/CloudStorage`가 `home/Real`을 가리키는 심볼릭 링크, iCloud Drive는 정상 폴더(`Notes`) (나) `home/Library/Mobile Documents`가 진짜 폴더 `home/RealDocs`(안에 `com~apple~CloudDocs/Notes`)를 가리키는 링크, CloudStorage는 정상(`ExampleDrive-owner/Shared`) (다) CloudStorage 정상(`ExampleDrive-owner/Shared`)이고 그 안에 `LinkedDrive-y` → `home/Real/OtherDrive-x` 링크 (라) 정상 `SynologyDrive-team/Projects`, `ExampleDrive-owner/Shared`, 그리고 `ExampleDrive-owner/Alias` → `home/Real/OtherDrive-x/A` 링크 | (가) CloudStorage에서 온 후보 0개(`OtherDrive-x`·`A`·`B` 없음), 후보 = `iCloud Drive`, `iCloud Drive › Notes` (나) iCloud 후보 0개, 후보 = `ExampleDrive-owner`, `ExampleDrive-owner › Shared` (다) `LinkedDrive-y`와 그 하위 없음, `ExampleDrive-owner`·`› Shared`는 있음 (라) `Alias`와 그 하위(`B`) 없음, 나머지(`SynologyDrive-team`, `› Projects`, `ExampleDrive-owner`, `› Shared`)는 있음. 네 사례 모두 `home/Real` 또는 `home/RealDocs` 아래 경로를 `id`로 가진 후보 없음 |
 | AT-FF-13 | NFR-FF-01 | 새 시험 파일과 바뀐 코드 | `python3 scripts/scan_private.py`(H, 해당 파일 대상 가능하면) 또는 `HD`의 개인값 검사(`./airport-check` 포함)에 걸리지 않음 |
 

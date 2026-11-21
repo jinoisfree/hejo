@@ -55,3 +55,17 @@
 - G1–G4: G1 spec REQ·AC·범위 밖·사장 결정. G2 현황 근거(파일:줄), 칸 표, 기존 경로 판정. G3 AC↔AT 연결표, 계획 검증 1회차 지적 반영·재검증 대기.
   G4 위험도 근거·롤백, 기준 커밋, 미확정은 착수 비차단.
 ```
+
+## 2차 지시 (2026-11-21, 검증 1차 [verdict.md](verdict.md) V-1·V-2)
+
+```text
+[보완 인계: HEJO-FINDER-FOLDERS TASK-02 마무리]
+- 원인: 시험 오류(V-1). AT-FF-12가 임시 HOME에서 team-kit 전체 통과를 요구했으나 기존 29개 시험은 실제 홈 입력에 의존한다.
+  수락 명세 3판·spec 3판으로 정정했다: (가) 관련 기존 5파일(test_app_catalog·test_app_connect·test_app_setup·test_synology_app_connect·
+  test_app_registry) 전부 통과 (나) 전체 실행의 실패·오류 node 집합 ⊆ 착수 HEAD 66f2a44c 기준 집합(새 실패 0). 기존 시험 수정·skip 금지.
+- 할 일(V-2): 구현 세 파일(app_setup.py, app_connect.py, tests/test_finder_folders.py)을 지금 내용 그대로 worktree 브랜치에
+  git commit --only로 커밋한다. 커밋 sha256이 검증 1차 기록(eff2a716… / e773e424… / 45e09387…)과 같은지 확인한다(다르면 이유 보고).
+  커밋 HEAD에서 새 시험 + AT-FF-12(가) 실행, AT-FF-12(나) 전체 실행 후 실패·오류 node 집합을 기준 집합과 비교한다(기존 baseline-failures 기록 재사용 가능,
+  다시 돌린 결과 파일 경로 기록). impl-report.md에 '2차' 절(커밋 전체 해시, 명령·종료 코드·로그 경로, 비교 결과)을 추가하고 result로 보고.
+- 범위·금지·위험도·증거 수준은 1차 지시와 같다(실행본 교체·운영 main·./sync·재시작·릴리스·공개·push 금지).
+```
