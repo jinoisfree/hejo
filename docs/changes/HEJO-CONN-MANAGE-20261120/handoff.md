@@ -102,3 +102,20 @@
 ## 사장 결정 (2026-11-20): 적용 순서 (가)
 
 TASK-02b 기준(운영 저장소 HEAD의 `wait_jobs.py` sha256 = 실행본)이 맞을 때까지 기다렸다가 TASK-02b를 마치고 TASK-05에서 함께 서버에 적용한다. 그 전에는 TASK-05를 시작하지 않는다. 결정 직후 확인: HEAD `7ae2b013`, `bf1dd909…` ≠ 실행본 `441a8501…`(대기).
+
+## 4차 지시 (2026-11-21): TASK-02b 시작 + 합동 적용 합의
+
+- 시작 조건 충족([확인] 2026-11-21): 운영 저장소 HEAD `dfb469d3`(매일 자동 기록)의 `wait_jobs.py` sha256 = 실행본 `441a8501…`, 미커밋 표시 없음. TASK-02 영향 파일 12개는 `7ae2b013..dfb469d3`에서 바뀌지 않았다.
+- 사장 지시(2026-11-21, HEJO-TODO-DRAWER 계획 담당 경유): HEJO-TODO-DRAWER와 한 번에 서버 적용(재시작 1회). 두 계획 담당 합의: TASK-02b 검토 통과 → 합동 TASK-05 실행 인계는 이 작업이 낸다(HEJO-CONNECTIONS design 7.2 절차 하나, HEJO-TODO-DRAWER 추가분 포함) → TASK-06 앱 공개 1회(0.2.3).
+
+```text
+[보완 인계: HEJO-CONN-MANAGE TASK-02b]
+- worktree ../.worktrees/hejo-conn-manage-20261120(브랜치 hejo-conn-manage-20261120 @ 5e6c81cc)에 운영 저장소 main(dfb469d3 이상)을 merge한다.
+  착수 때 HEAD·wait_jobs.py sha256(HEAD = 실행본)을 다시 확인해 impl-report에 쓴다. 충돌하면 멈추고 보고.
+- merge 뒤 TASK-02 전체 시험(team-kit tests, AT-CM-01~18·14b·40~44)과 ./airport-check를 다시 실행한다.
+- wait_jobs.account(실제 위치 team-kit/lib/hermes_team_services/wait_jobs.py)가 그 직원의 Google 꺼짐(gmail.enabled false)이면 Google 계정을
+  고르지 않고 건너뛰게 한다(design 3.1 표). AT-CM-12(라)의 wait_jobs 부분을 시험으로 옮기고 켜짐 대조(지금과 같은 동작)를 함께 둔다.
+  다른 작업이 넣은 origin 비교·prune 변경은 그대로 둔다.
+- 범위: 그 worktree의 wait_jobs.py와 시험만. 별도 커밋. 운영 원본·./sync·재시작·릴리스 금지(TASK-05에서).
+- 위험도 고위험, 증거 수준 2, 금지 범위는 1차 지시 9항 그대로.
+```
