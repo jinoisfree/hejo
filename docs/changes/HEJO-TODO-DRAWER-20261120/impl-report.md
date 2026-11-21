@@ -133,3 +133,74 @@
 - team-kit worktree·운영 원본은 이번 보완에서 변경하지 않았다. TASK-02 검토 대상은 앞서 통과한 `b2bc84f89ff52a0d14b5cb39768b5e767eee189e` 그대로이며 해당 시험·airport-check를 반복하지 않았다.
 - TASK-05·06, 운영 공항 변경·재시작·비밀 파일 열기·Hermes 본체·ddots 변경·실제 메시지·git push는 수행하지 않았다.
 - 다음 담당자는 최종 커밋의 merge 해결과 V-1·V-2·AT-TD-42, 위 증거를 직접 확인해 보완 1을 재판정한다. 공개 이력에 반영하는 TASK-06 절차나 푸시 대상은 이번 구현 보고에서 제안하지 않는다.
+
+
+## 보완 2 — V-4 원인 분리와 시험 종료 정리
+
+[확인] V-4는 새로 추가하거나 바꾼 시험의 칸/창 정리 누락으로 뒤 시험까지 UI 작업이 이어지는 회귀다. 앞선 보완 1의 D-1(이 변경과 무관한 기술 부채) 판단은 철회한다. 시험 정리를 고친 뒤 일반 빌드 기본 묶음 10회와 전체 스크립트가 모두 통과했다. 단, 아래 OS 부하 기록 때문에 지정된 **무부하 10회 조건은 아직 확인하지 못했다**. 현재 판단은 구현 완료·검증 환경 조건 승인 대기다. 독립 완료 판정이 아니다.
+
+### 원인 실험과 결론
+
+- 출발점은 `4a82dda`와 검증 2차의 A/B 결과다. 최신 로컬 `main` `cb3746eb526bde4ea3caeb87f706459e378d4d50`을 merge 커밋 `330040b66298b75d0d39147d041edf912cf05a0f`로 병합했다(`git merge --no-ff main`, 종료 0, `merge.log`). 문서 변경만 들어왔고 충돌은 없었다.
+- 같은 계측 바이너리에서 제품 동작·시험 순서·기대값·대기 시간은 그대로 두고, 환경 변수 `HEJO_TD_PROBE_CLEANUP`으로 시험 종료 정리만 꺼서/켜서 실행했다. 약한 참조로 TodoDrawer/Island 시험의 컨트롤러·보기·펫 생존 여부를 기록하고, 칸 투영과 펫 배치 호출 수를 셌다. 계측 빌드는 WMO debug이며 양쪽 조건은 동일 바이너리다. 최종 합격용 바이너리는 기존 스크립트와 같은 일반 debug 빌드로 따로 만들었다.
+
+| 비교 | 실제 종료 | 뒤 시험 중 관측 | 로그 |
+|---|---|---|---|
+| 원래 정리 | 1 | Sidebar 뒤 칸 투영 75 → AT92 실패 때 82. Island 컨트롤러·보기는 살아 있고 `drawerVisible=true`, 창은 숨김. 계측한 펫 객체는 모두 해제됨 | `probe-original.log` |
+| 종료 정리 적용 | 0 | Sidebar 뒤 67 → PetWindow 뒤 67. Island 보기가 일시적으로 남아 있어도 `drawerVisible=false`이며 추가 칸 투영 0. AT89·AT92 및 기본 묶음 전체 통과 | `probe-cleanup.log` |
+
+- 핵심은 `IslandTests`가 칸을 연 뒤 `orderOut`만 하고 끝났다는 점이다. 펫은 해제돼 이동 타이머 소유자는 사라져도, AppKit 참조로 남은 보기·컨트롤러의 열림/펼침 상태는 그대로였다. 그래서 1초 tick이 숨은 창의 모든 방을 계속 투영했다. TodoDrawer 시험에서도 같은 정리 공백이 관측되어 함께 고쳤다. 이는 TodoDrawer 시험 호출만 빼도 실패한 검증 2차 결과와도 맞는다.
+- 제품 코드를 바꾸지 않고 시험 종료 정리만으로 추가 투영이 사라지고 뒤 애니메이션 시험이 통과했다. 따라서 이번 수정은 시험이 소유한 자원 정리에 한정했다. 실제 앱의 정상적인 열린 칸 동작·주기·마감 요청 계약은 변경하지 않았다.
+- 임시 계측은 모두 원복했다. 비교 소스와 명령은 `.build/`의 `probe.patch`, `Probe.swift`, `compile-probe.sh`, `compile-probe.log`에만 남겼다. 제품·시험 추적 파일에는 계측이나 실험용 분기가 없다.
+
+### 바꾼 파일과 커밋
+
+- 수정 커밋: `73a944723e133c14b46e24dbefed554da19e1712`. `git commit --only`로 `app/Tests/IslandTests.swift`, `app/Tests/TodoDrawerTests.swift` 두 파일만 커밋했다(종료 0, `fix-commit.log`).
+- `disposeDrawerFixture`는 시험 소유 칸을 닫고, 해당 펫 애니메이션을 멈추고, 웹을 내리고, 보기·칸을 부모에서 분리하고, 패널의 first responder·contentView를 해제한 뒤 패널을 닫고 클라이언트를 멈춘다. 펫 소멸 시 이동 타이머도 회수된다. AppKit이 보기를 잠시 보유해도 남은 칸 상태는 닫힘이므로 추가 투영이 없다.
+- Island 시험과 TodoDrawer의 주·빈 상태·복원 fixture에 `defer` 정리를 적용했다. 추가로 만든 fresh 클라이언트와 복원 확인용 펫 패널도 정리한다. 실패로 시험을 빠져나와도 정리한다.
+- 기존 단언과 `await pause` 줄은 두 시험 모두 원본과 같다(`expectations-preserved.json`). 제품 소스·`TestMain.swift`·AT89·AT92·수락 시험 명세는 `git diff --exit-code 4a82dda ...` 종료 0으로 보존을 확인했다(`contracts-unchanged.log`). 순서·기대값·대기 시간 변경, skip, 허용 오차 변경은 없다.
+- 도달 증거 수준은 2(가짜 홈·문과 실제 AppKit 보기/패널의 대역 통합)다. 별도 제품 API나 시험 전용 제품 경로를 추가하지 않았다.
+
+### 기본 묶음 10회
+
+환경은 기존 `.build/todo-drawer/env.sh`를 썼다. `compile-final.sh`로 계측 없는 일반 debug 바이너리를 빌드했다(종료 0, `compile-final.log`). 아래 명령을 소스 변경 없이 순서대로 실행했다. 한 번이라도 실패하면 중단하도록 했으며 이 10회에는 실패가 없었다. 각 로그에서 AT-TD-20~42·AT89·AT92·`APP_TEST_OK`를 모두 확인했다.
+
+명령: `TZ=Asia/Seoul app/.build/app-tests "$PWD/app/.build/hejo.app/Contents/Resources/Pet"`
+
+아래 로그는 모두 구현 worktree `.build/todo-drawer-supplement2/` 기준이다. 전체 회차 기록은 `ten-runs.json`, 실행 로그는 `ten-runs.log`다.
+
+| 회차 | 종료 코드 | 실행 초 | 로그 |
+|---|---|---|---|
+| 1 | 0 | 134.254 | `app-basic-01.log` |
+| 2 | 0 | 134.096 | `app-basic-02.log` |
+| 3 | 0 | 135.482 | `app-basic-03.log` |
+| 4 | 0 | 135.082 | `app-basic-04.log` |
+| 5 | 0 | 135.084 | `app-basic-05.log` |
+| 6 | 0 | 134.154 | `app-basic-06.log` |
+| 7 | 0 | 134.526 | `app-basic-07.log` |
+| 8 | 0 | 134.990 | `app-basic-08.log` |
+| 9 | 0 | 134.130 | `app-basic-09.log` |
+| 10 | 0 | 134.048 | `app-basic-10.log` |
+
+**환경 조건 미확인:** 실행 전 프로세스 스냅숏을 사후 대조하니 2~10회에 macOS `mediaanalysisd`가 CPU 175.8~218.6%로 관측됐다. 10회 스냅숏에는 Paseo Daemon도 102.9%였다. 이 실행들을 “다른 무거운 프로세스 없는 10회”라고 보고하지 않는다. 스냅숏 원문은 `app-basic-NN-load.log`, 추출 결과는 `load-summary.json`에 있다. 별도 빌드·검사를 동시 실행하지는 않았다.
+
+제품 밖 OS 프로세스를 임의로 제어하지 않고, 사용자에게 `mediaanalysisd`만 잠시 SIGSTOP 후 종료 시 SIGCONT로 복구해 재실행할지, 직접 부하를 정리할지, 현재 부하 기록과 통과 결과로 검토할지 물었다. 아직 답변 대기이며 OS 프로세스에 신호를 보내지 않았다. 이 환경 조건을 해제하거나 충족하기 전에는 보완 2 합격 완료로 선언하지 않는다.
+
+### 후속 검사와 로그
+
+대상 커밋은 `73a944723e133c14b46e24dbefed554da19e1712`다. 모든 명령·종료 코드·대상·로그는 `verification.json`에 있다.
+
+| 명령 | 실제 결과 | 로그 |
+|---|---|---|
+| `TZ=Asia/Seoul bash scripts/test.sh`(위 10회 뒤 실행) | 종료 0. Python 416 passed·기존 warning 1, gateway clean, AT-TD-20~42·AT89·AT92·앱/네트워크 회귀·hook 9개 통과. 실제 CLI 설정 메타데이터와 다운로드 이름 불변 | `full-test.log` |
+| `"$HEJO_PYTHON" -m pytest gate/tests tests/acceptance -q -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function` | 종료 0, 416 passed·기존 warning 1 | `gate-test.log` |
+| `"$HEJO_PYTHON" scripts/scan_private.py --home .build/todo-drawer/scan-home` | 종료 0. Hermes venv·가짜 검사 홈, 바이너리는 기존 정책대로 생략 | `scan.log` |
+| `git diff --check` | 종료 0 | `diff-check.log` |
+| `git merge-base --is-ancestor main 73a944723e133c14b46e24dbefed554da19e1712` | 종료 0. 로컬 main `cb3746eb526bde4ea3caeb87f706459e378d4d50` 포함 | `main-ancestry.log` |
+
+### 인계와 남은 조건
+
+- 원인 재현 실패 1회(`probe-original.log`)와 정리 적용 통과 1회(`probe-cleanup.log`), 일반 빌드 10회 및 후속 검사 결과를 모두 보존했다. 중간 실패를 지우거나 통과로 바꾸지 않았다.
+- 구현 worktree는 깨끗하다. 이 보완 절은 지정된 계획 담당 폴더의 보고서에만 덧붙였으며 아직 커밋하지 않았다.
+- 남은 조건은 위 OS 부하에 대한 사용자 결정, 필요한 경우 무부하 10회 재실행과 후속 전체 검사, 그리고 계획 담당의 V-4 재검증이다. 현재 10회는 부하 관측 상태의 통과 증거로만 사용한다.
+- team-kit은 이번 보완에서 변경하지 않았다. 운영 공항·재시작·운영 원본·비밀 파일·Hermes 본체·ddots·실제 메시지·git push, TASK-05·06은 수행하지 않았다.

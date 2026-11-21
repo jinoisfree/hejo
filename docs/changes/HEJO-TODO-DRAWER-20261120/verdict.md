@@ -157,3 +157,43 @@
    - 남은 조건: 원인을 확정해 고친다 → 기본 앱 시험 묶음이 부하 없이 10회 연속 통과한다(AT89·AT92 기대값·대기 시간 불변) → 전체 `scripts/test.sh` 종료 0 → 최신 main 포함 → 계획 담당이 재검증한다.
 
 9. **현재 명세 반영 요청**: 해당 없음.
+
+## 검증 판정 3차: 보완 2 (2026-11-21)
+
+1. **판정: TASK-02·03·04 완료.**
+   - 기능 전체(REQ-TD-07 서버 적용·공개, M1~M3)는 아직 끝나지 않았다. TASK-05·06·07이 남아 있다.
+2. **검증 조건**
+   - 교차 모델: 구현은 codex/gpt-6.1-sol, 검증은 이 대화.
+   - 대상: `role-workflow/7-833b7c8b` @ `73a944723e133c14b46e24dbefed554da19e1712`. 그 안에 main 병합 `330040b`(로컬 main `cb3746e` 포함)과 시험 정리 커밋 `73a9447`이 있다. team-kit은 `b2bc84f8`(1차 통과) 그대로다.
+   - 부하 조건 결정: 구현 담당이 보완 2에서 물은 부하 조건(OS `mediaanalysisd`)은 사장이 2026-11-21 "진행해"로 계획 담당 권고안을 따르기로 했다. 권고안은 "지금 기록으로 검토"다. 이 실패는 부하가 클수록 잘 드러나므로, 부하가 있는 상태에서 통과한 것은 더 엄격한 확인으로 본다.
+3. **설계 적합성(4.2): 적합(2차와 같음).**
+   - V-4의 원인은 시험의 정리 누락이었다. `IslandTests`가 칸을 연 채 `orderOut`만 하고 끝나서, 남은 보기와 컨트롤러가 숨은 창의 칸을 계속 투영했다.
+   - 실제 앱 동작과 설계는 바꿀 것이 없다.
+4. **직접 확인한 것**
+   - 코드
+     - `git diff 4a82dda 73a9447`에서 바뀐 것은 `app/Tests/IslandTests.swift`(+1)와 `TodoDrawerTests.swift`(+18/−1)의 정리 코드뿐이다. `disposeDrawerFixture`와 `defer`가 들어갔다.
+     - `app/Sources`·`gate`·`schemas`·`tests`·`TestMain.swift`·`PetWindowTests.swift`는 `git diff --exit-code` 종료 0으로 바뀌지 않았다. 기존 단언과 대기 시간도 바뀌지 않았다.
+     - `git merge-base --is-ancestor main(cb3746e) 73a9447`: 종료 0.
+     - `git diff --check cb3746e HEAD`: 종료 0. 작업 트리는 깨끗하다.
+   - 실행 결과(로그는 계획 폴더 `.build/todo-drawer-verify/s2/`)
+
+     | 실행 | 종료 | 비고 |
+     |---|---|---|
+     | 앱 시험 기본 묶음 7회 연속(2차에서 4/7 실패한 것과 같은 방법) | 7회 모두 0 | 2~7회에 `mediaanalysisd` CPU 119~198%가 관측됨(`runs.txt`) |
+     | `TZ=Asia/Seoul bash scripts/test.sh` | 0 | Python 416 passed, `AT-TD-20..42 … PASS`(`full-test.log`) |
+     | `scan_private.py --home .build/todo-drawer/scan-home` | 0 | `scan.log` |
+
+   - 구현 담당의 근거(`probe-original.log`·`probe-cleanup.log`, 10회 기본 묶음 종료 0)는 보고서 표와 로그 이름으로 확인했다. 원인 결론은 위 반복 결과와 들어맞는다.
+   - 증거 수준: 2. 설계가 요구한 수준에 도달했다.
+5. **지적 처분**
+   - V-1·V-2·V-3·V-4: 모두 해결.
+   - 미해결 차단: 없음.
+   - 남은 위험(비차단, 기록만): 실제 앱에서 펼친 채팅 창이 화면에서 내려가 있는데(`orderOut`) 칸이 열려 있으면, 1초마다 투영하는 일이 계속된다. 일반 사용 경로에서는 채팅을 접으면 멈추므로 차단하지 않는다.
+6. **기획설계로 넘긴 것**: 없음.
+7. **미검증 범위**
+   - 운영 장부 출력(M1), 운영 문 응답(M2), 사장 화면 확인(M3).
+   - 시간대·`source` 가정.
+8. **남은 조건**: TASK-05 서버 적용(고위험, 롤백 먼저) → TASK-06 공개 후보 → TASK-07 사장 확인과 현재 명세 반영(HEJO-FOUNDATION 사장 칸 클릭 서술 갱신 포함).
+9. **푸시 대상**
+   - 원격 `github`의 `main`(`0cc0828`)은 공개판(`public`) 이력이고, 이 브랜치와 공통 조상이 없다. 그래서 이 브랜치를 그대로 푸시할 대상은 없다.
+   - 결과물은 로컬 `main`에 반영한 뒤 TASK-06 공개 절차(`hejo-publish`)로 원격에 나간다.
