@@ -36,7 +36,7 @@
 7. 변경 성격: 의미 변경(새 입구·대상·주인 규칙·hejo 전송). 보존 비교: AT-SM-40·59(가짜 Slack 호출이 작업 전 기록과 같음),
    AT-SM-12·22(문의 기존 동작), bash scripts/test.sh 전체, <운영 저장소> ./airport-check.
    team-kit 회귀 기준 기록은 고치기 전에 먼저 뜬다(작업 전 코드로 가짜 Slack 호출을 기록해 시험 자료로 둔다).
-8. 수락 시험: tests/acceptance/HEJO-SLACK-MOVE.md AT-SM-01~09·10~12·20~22·30·31(문), 40~49·49b·49c·50~59·51b·60~66·61b·68·70~72(team-kit·직원 플러그인).
+8. 수락 시험: tests/acceptance/HEJO-SLACK-MOVE.md AT-SM-01~09·10~12·20~22·30·31(문), 40~49·49b·49c·49d·50~59·51b·60~66·61b·68·70~72(team-kit·직원 플러그인).
    AT-SM-47·48·51·51b는 실제 문 어댑터와 team-kit을 묶는 통합 시험이다(tasks.md 끝 문단). 훅을 가짜 이벤트로 직접 부르는 시험으로 대신하지 않는다.
    M1~M7은 이번 지시 밖. AT-SM-67은 범위 밖 확인 시험(회귀)으로 TASK-07에 든다. AC↔시험 연결표는 같은 파일 끝. 상태: 명세 완료·코드 미작성·미실행·계획 검증 대기.
    기대값 출처: spec 요구, design 3·4·5절 표. 기대값·합격 기준을 바꾸지 말고, 바꿔야 하면 멈추고 보고.
@@ -55,6 +55,10 @@
    _hermes_button.message_id를 읽는다. 인스타 승인 훅·감시의 draft_post·bind/refuse, proposal_decisions의 장부 찾기를 바꾼다).
    코드가 이 표와 다르게 움직이면 멈추고 보고.
    다시 보내는 호출자와 일회성 호출자의 구분을 경로마다 impl-report 표에 적는다(design 4.1).
+   TASK-05 네이버톡(구현 검토 3차 S-3, design 4.1 8판): 사건 표에 notice_key와 notice_state(JSON: pending·posted) 두 열,
+   고객 표에 thread_platform 한 열을 기존 열 추가 방식으로 더한다. 본문은 행을 잡을 때 한 번 계산해 pending에 고정하고 다시
+   계산하지 않는다. 저장 함수는 notified=2이고 notice_key가 자기 값일 때만 적는다. 다른 열·표·파일을 더하지 않는다. 더 필요하면
+   멈추고 보고. slack 경로의 가짜 Slack 호출은 작업 전 기록 7건과 같아야 한다. 수락 시험은 AT-SM-49b·49c·49d·55.
    TASK-08: AT-SM-71에서 hejo·Slack 도구 집합이 같아지지 않으면 차이 목록을 보고하고 멈춘다(임의로 도구를 빼거나 넣지 않음).
    금지 범위:
    - 게이트웨이 재시작, reload-plugins, install/hejo-release, 상주 프로그램 재시작, 조립기 운영 실행(모두 TASK-10).
