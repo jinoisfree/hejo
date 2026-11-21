@@ -26,6 +26,7 @@ final class PetController: NSObject {
     private var drawerSlideActive = false
     private(set) var drawerOpen = false
     private var onDrawerStateChanged: ((Bool,Bool)->Void)?
+    private var updateConversation: ((() -> Void) -> Void)?
     func toggleDrawer(){setDrawerOpen(!drawerOpen)}
     func setDrawerOpen(_ open:Bool) {
         guard drawerOpen != open else{return}
@@ -40,6 +41,9 @@ final class PetController: NSObject {
     }
     @MainActor func installDrawer(_ view:ConversationView) {
         pet.installDrawer(view.todoDrawer)
+        updateConversation={ [weak view] updates in
+            if let view { view.performUpdates(updates) } else { updates() }
+        }
         view.onToggleDrawer={ [weak self] in self?.toggleDrawer() }
         onDrawerStateChanged={ [weak view] open,expanded in view?.setDrawerState(open:open,chatExpanded:expanded) }
         view.setDrawerState(open:drawerOpen,chatExpanded:chatExpanded)
@@ -206,10 +210,16 @@ final class PetController: NSObject {
         pet.onClick?()
     }
     @objc func showChat() { setExpanded(true) }
+    func showChat(preparing: @escaping () -> Void) { setExpanded(true, preparing: preparing) }
     @objc func collapseChat() { setExpanded(false) }
-    private func setExpanded(_ expanded: Bool) {
-        guard expanded || canCollapse(), web?.presenting != true else{return}
-        guard expanded != chatExpanded,let old=placementTarget else{return}
+    private func setExpanded(_ expanded: Bool, preparing: (() -> Void)? = nil) {
+        guard expanded || canCollapse(), web?.presenting != true,
+              expanded != chatExpanded, let old=placementTarget else {
+            if let preparing {
+                if let updateConversation { updateConversation(preparing) } else { preparing() }
+            }
+            return
+        }
         ThreeTapDiagnostics.expanded(expanded)
         let continuing=timer != nil && !pet.genie.isHidden
         let start=continuing ? transitionProgress:(expanded ? 0:1)
@@ -227,8 +237,13 @@ final class PetController: NSObject {
         // Capture the closing picture before folding the model, or keep the current picture on reversal.
         if !expanded && !continuing {ThreeTapDiagnostics.mark("capture_start");pet.captureGenie();ThreeTapDiagnostics.mark("capture_end")}
         ThreeTapDiagnostics.mark("callbacks_start")
-        onDrawerStateChanged?(drawerOpen,expanded)
-        onExpansionChanged?(expanded)
+        let updates = {
+            preparing?()
+            self.onDrawerStateChanged?(self.drawerOpen,expanded)
+            self.onExpansionChanged?(expanded)
+        }
+        // Flush the final conversation synchronously, before layout and the opening snapshot.
+        if let updateConversation { updateConversation(updates) } else { updates() }
         ThreeTapDiagnostics.mark("callbacks_end")
         placePet(at:reopeningAnchor ?? old.anchorOrigin)
         ThreeTapDiagnostics.mark("placement_end")

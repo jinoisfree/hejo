@@ -269,8 +269,11 @@ import AppKit
         wasSending = conversation.sending
     }
     private func openBubble(_ key:ConversationKey?) {
-        if let key {conversationView.openFromBubble(key)}
-        bubble.dismiss();pet.showChat();refreshPetActivity()
+        pet.showChat { [self] in
+            if let key { conversationView.openFromBubble(key) }
+            bubble.dismiss()
+        }
+        refreshPetActivity()
     }
     private func followLink(_ url: URL) {
         // Gateway URLs never become authenticated WebKit requests. Resolve a known attachment through GateHTTP instead.

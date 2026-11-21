@@ -187,7 +187,11 @@ import UniformTypeIdentifiers
             if !newPost {self.history.scrollTo(key.thread)}
         }
         appearanceObserver=NotificationCenter.default.addObserver(forName:ChatAppearance.didChange,object:nil,queue:.main){[weak self] _ in MainActor.assumeIsolated {self?.applyChatAppearance()} }
-        controller.onShowFailure={ [weak self] failure in self?.chooseEmployee(failure.shown) };controller.onChange={ [weak self] in self?.refresh() }; controller.onRevealThread={ [weak self] key in self?.openFromBubble(key) }; refresh()
+        controller.onShowFailure={ [weak self] failure in self?.chooseEmployee(failure.shown) };controller.onChange={ [weak self] in
+            let span = ThreeTapDiagnostics.startSpan()
+            defer { ThreeTapDiagnostics.endSpan("controller_change", span) }
+            self?.refresh()
+        }; controller.onRevealThread={ [weak self] key in self?.openFromBubble(key) }; refresh()
     }
     required init?(coder:NSCoder) { fatalError() }
     deinit { if let appearanceObserver {NotificationCenter.default.removeObserver(appearanceObserver)};islandTimer?.invalidate();streamTimer?.invalidate();workspaceTimer?.invalidate() }
@@ -401,8 +405,13 @@ import UniformTypeIdentifiers
         controller.model.select(key,inHome:controller.model.isHome);controller.model.markAlertSeen(key)
         if openThread==key {history.scrollTo(key.thread,bottom:true)}
     }
+    private var pendingRevealScroll: String?
+    func performUpdates(_ updates: () -> Void) { controller.performUpdates(updates) }
     func openFromBubble(_ key: ConversationKey) {
-        reveal(key,inHome:controller.model.isHome && controller.model.selected==key); refresh(); history.scrollTo(key.thread)
+        reveal(key,inHome:controller.model.isHome && controller.model.selected==key)
+        if controller.isUpdating { pendingRevealScroll = key.thread }
+        refresh()
+        if !controller.isUpdating { history.scrollTo(key.thread) }
     }
     @discardableResult func closeSearchIfOpen() -> Bool {
         guard searchOpen else { return false }
@@ -543,7 +552,14 @@ import UniformTypeIdentifiers
         return replyMode ? "스레드에 답글":model.selected.map{(model.groups[$0.employee] != nil ? "#":"@")+model.name($0.employee)+"에 새 글"} ?? "hejo에 새 글"
     }
     func refresh() {
-        guard !rendering else { return }; rendering=true; defer { rendering=false }
+        if controller.isUpdating { controller.notifyChange(); return }
+        guard !rendering else { return }; rendering=true
+        defer {
+            rendering=false
+            if let thread = pendingRevealScroll { pendingRevealScroll=nil; history.scrollTo(thread) }
+        }
+        let span = ThreeTapDiagnostics.startSpan()
+        defer { ThreeTapDiagnostics.endSpan("refresh", span) }
         let model=controller.model
         let themeDark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua;subtitle.textColor=CardText.quiet(dark:themeDark);version.textColor=CardText.quiet(dark:themeDark)
         streamReveal.receive(Array(model.messages.values),now:motionTime());streamReveal.advance(now:motionTime(),immediately:reduceMotion())

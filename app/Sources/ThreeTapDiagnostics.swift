@@ -35,6 +35,16 @@ enum ThreeTapDiagnostics {
         guard sample != nil else { return }
         sample?[stage] = ProcessInfo.processInfo.systemUptime
     }
+    /// Main-thread spans include nested work; only fixed stage names and numeric costs are recorded.
+    static func startSpan() -> Double? {
+        sample == nil ? nil : ProcessInfo.processInfo.systemUptime
+    }
+    static func endSpan(_ stage: String, _ start: Double?) {
+        guard let start, sample != nil else { return }
+        let count = Int(sample?[stage + "_count"] ?? 0) + 1
+        sample?[stage + "_count"] = Double(count)
+        sample?[stage + "_seconds_" + String(count)] = ProcessInfo.processInfo.systemUptime - start
+    }
     static func moved() {
         guard sample != nil, sample?["movement"] == nil else { return }
         sample?["movement"] = ProcessInfo.processInfo.systemUptime
