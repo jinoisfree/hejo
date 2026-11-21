@@ -130,3 +130,58 @@ iCloud 뿌리는 Finder 도우미 안에서 경로를 만들고 동일한 제외
 [확인] 실행본 교체·운영 main 수정·sync·재시작·릴리스·공개·push·금지 경로 수정은 하지 않았다. 제품 worktree는 커밋 뒤 깨끗하다. 보고서의 이 2차 절은 hejo 작업 문서에 추가한 것으로, 제품 커밋에는 포함되지 않는다.
 
 다음 담당은 위 커밋과 정정된 수락 기준·비교 증거로 V-2를 재검토한다. 이후 TASK-03 서버 적용은 별도 인계가 필요하며, M1~M3와 NFR-FF-03 실측은 여전히 미실행이다. 푸시 대상 제안과 승인은 검토 이후의 별도 단계다.
+
+## 3차: TASK-03 서버 적용 (2026-11-21)
+
+### 교체 전 착수 확인·롤백 기록
+
+[확인] handoff 3차 지시에 따라 증거 수준 3의 운영 적용을 시작한다. 아래 보관과 복원 기록을 **실행본 교체 전에** 작성했다. 이 절의 `E3`는 hejo 작업 폴더 기준 `.build/finder-folders-evidence/round3`, `P`는 설치 facts의 게이트웨이 환경 Python이다.
+
+- 운영 저장소 main 착수 HEAD: `66f2a44c190390edd2a8a8eab9b2c32cba20195a`, 미커밋 목록 없음. 검토 브랜치 tip: `f3318572b9cbd85fccb54347872feca8915532cd`. 기존 인계 값과 일치한다(`E3/preflight.json`).
+- 실행본 `app_setup.py` SHA-256: `17834aa1382c0e615f87f807a799baf27f58d2b8ec938172ae429c902f5aa649`; `app_connect.py`: `0af29766b4728d5c0574455d2000a7bbdec75a062230614d74e258727fcef489`. 두 값 모두 교체 전 기준과 일치한다.
+- 실제 보관 폴더: hejo 기준 **`.build/finder-folders-evidence/round3/rollback-n0ofur3z/`**(권한 0700). 파일은 `app_setup.py`, `app_connect.py`이며 SHA-256은 바로 위 실행본 기준값과 각각 같다. 작업 문서 폴더 밖이고 추적하지 않는다. 원래 파일 모드는 `E3/deployment.json`에 보관했다.
+- 복원 명령(hejo cwd): `P .build/finder-folders-evidence/round3/restore.py`. 이 스크립트는 보관본 해시를 검증하고 실행본 `plugin-store/team-kit/lib/hermes_facility/`의 동일 파일 각각에 임시 파일·이름 바꾸기로 복원한 뒤 기준 해시를 확인한다. 계속 움직이는 운영 저장소 HEAD를 복원 기준으로 쓰지 않는다.
+- 복구 조건: status/apps 실패 또는 finder_scopes 예외 시 즉시 두 파일 복원 → 같은 status/apps 확인 → 멈춤 보고. 후보 0개·150초 초과는 인계대로 복원 없이 보고한다.
+- 교체 전 게이트웨이 공식 상태 파일에서 active_agents 0·active_work 0과 프로세스 생존을 확인했다(`E3/runtime-before.json`). 재시작하지 않는다.
+- `sync` 소스 확인: 실행본에서 저장소로 수집한다. 먼저 저장소의 수집 폴더를 재생성하고 실행본을 복사하며, 인자 없는 실행은 커밋·푸시하지 않는다. 비밀 파일은 SKIP에서 제외한다. 운영에 배포하지 않는 새 시험은 수집 과정에서 사라질 수 있으므로 sync 뒤 검토된 커밋에서 해당 시험 파일만 저장소에 복원해 기록을 보존한다. sync 자체와 다른 파일의 내용을 고치지 않는다.
+
+### 적용 결과·실측
+
+[확인] 두 실행본을 같은 디렉터리의 임시 파일에 쓴 뒤 이름 바꾸기로 교체했다. 최종 실행본·운영 저장소 파일·커밋 blob의 SHA-256이 각각 일치한다(`E3/applied.json`, `E3/final-integrity.json`).
+
+| 파일 | 적용 후 SHA-256 |
+|---|---|
+| `app_setup.py` | `eff2a716b30fd2e1eb165ca295fa84da56be4db86e1b9602b477d56a67fd4be6` |
+| `app_connect.py` | `e773e4244748feea273d9350a31f24ff3641f9597f8133de45c8308eb427cf1a` |
+
+게이트웨이 환경 Python으로 **실행본 lib의 `finder_scopes({})`를 실제 서버 홈에서 읽기 전용 1회** 호출했다. 후보 **75개**, 소요 **0.151799초**, `_scope_hint` **없음**이었다. 후보는 Synology 10개·다른 CloudStorage 0개·iCloud 65개·기타 0개이며, 후보가 속한 뿌리는 각각 2개·0개·1개·0개다(`E3/finder-metrics.json`). 폴더 이름·경로와 status/apps의 원문 응답은 기록하지 않았고, 운영 app connect는 실행하지 않았다.
+
+[확인] status/apps 모두 종료 0이고 예상 JSON schema를 만족했다. 예외·후보 0개·150초 초과가 없어 복원 조건에 해당하지 않았다. 보관본은 유지하며 **복원은 미실행**이다. 전후 게이트웨이 pid·시작 식별자가 같고 프로세스 생존을 확인했다(`E3/runtime-before.json`, `E3/runtime-after.json`). 재시작·릴리스·앱 교체는 실행하지 않았다. 이 실측은 서버 한 번의 관측으로, 다른 Mac의 hejo 화면 확인 M1~M3를 대신하지 않는다.
+
+### 운영 저장소 기록·검증 명령
+
+| 명령 | 종료 코드 | 실제 결과 | 로그·증거(hejo 기준) |
+|---|---:|---|---|
+| `python3 E3/apply_and_check.py` | 0 | 원자 교체 및 아래 운영 읽기 확인 성공 | `E3/apply.log`, `E3/applied.json` |
+| `hermes-connections status --json` | 0 | `hermes-connections/1`, stderr 0바이트 | `E3/live-checks.json` |
+| `hermes-connections apps --json` | 0 | `hermes-installed-apps/1`, stderr 0바이트 | `E3/live-checks.json` |
+| `P -B -c <finder_scopes 1회·집계만 출력하는 코드>` | 0 | 위 실측 수치. 실제 코드는 `apply_and_check.py`의 probe에 보존 | `E3/finder-metrics.json`, `E3/apply.log` |
+| `git merge --ff-only hejo-finder-folders-20261121`(운영 저장소) | 0 | 착수 HEAD에서 검토 커밋으로 fast-forward. 변경 경로는 지정 세 파일뿐 | `E3/merge.log`, `E3/merge.json` |
+| `./sync`(운영 저장소, 추가 인자 없음) | 0 | 1598파일 수집, 토큰 경고 없음. 실행본을 읽어 저장소로 수집 | `E3/sync.log`, `E3/sync.json` |
+| `./airport-check`(운영 저장소, 게이트웨이 Python을 PATH 선두에 지정) | 0 | boundary 381, document 0, compartments 0, 세 assembly 검사 모두 0. 기준선 변경 없음 | `E3/airport-check.log`, `E3/airport-check.json` |
+| `git commit --only -m <서버 적용 기록 이유> -- <지정 세 파일>`(운영 저장소) | 1 | 세 파일이 이미 병합된 HEAD와 같아 새로 커밋할 변경 없음. hook은 boundary 382·document 0·compartments 0으로 통과 | `E3/post-sync-commit.log`, `E3/post-sync-commit.json` |
+| `git diff --check HEAD -- <지정 세 파일>`(운영 저장소) | 0 | 작업 범위 공백 오류 없음 | `E3/task-diff-check.log`, `E3/final-integrity.json` |
+| `git diff --check`(운영 저장소 전체) | 2 | sync가 수집한 작업 밖 `hermes/owner/vault.yaml`의 기존 줄 끝 공백 1건. 값은 기록하지 않고 진단만 보존. 수정·커밋하지 않음 | `E3/final-diff-check.log`, `E3/final-integrity.json` |
+| `P scripts/scan_private.py`(hejo) | 0 | 3차 보고서 포함 개인값 검사 통과 | `E3/scan-private.log`, `E3/scan-private.json` |
+
+운영 main의 병합 후 HEAD와 최종 커밋은 모두 **`f3318572b9cbd85fccb54347872feca8915532cd`**다. fast-forward이므로 별도 merge 커밋은 없다. TASK-02에서 세 경로만 `git commit --only`로 기록한 커밋을 그대로 반영했으며, 중복·빈 커밋을 만들거나 커밋 종료 1을 성공으로 바꾸어 보고하지 않는다.
+
+`sync`가 저장소에만 있던 새 시험을 제거했으므로, 교체 전 기록한 절차대로 해당 파일만 검토 커밋에서 복원했다. SHA-256은 `45e0938735953c1ae78158829bab864ab5e5b6f2f43b8416ef0a926252a0caa6`이며 실행본에는 새 시험을 추가하지 않았다(`E3/test-preservation.json`). 대상 세 파일의 HEAD 대비 차이는 없다.
+
+수집 과정에서 이번 작업 밖 변경 10개(운영 owner 사본 3개, 플러그인 링크 사본 1개, 프로필 설정 사본 1개, 학습 사본 5개)가 드러났다. 운영 원본은 고치지 않았으며 이 사본들은 미커밋으로 보존했다. 스테이징한 변경은 없다. 실제 목록은 로컬 전용 `E3/after-sync-status.bin`에 있으며 공개 문서에는 프로필 식별자·값을 옮기지 않았다.
+
+### 인계
+
+배정된 TASK-03 서버 적용과 증거 수준 **3**의 읽기 확인을 마쳤다. 전체 회귀·수락 시험의 검토된 코드와 blob이 같아 TASK-02의 99개 통과·새 실패 0 증거를 재사용하며 같은 전체 시험은 반복하지 않았다. 운영 직원 설정·금고·명부의 원본, 본체·ddots·hejo gate/app, 수락 기준·시험 명세·spec·design은 수정하지 않았다. 외부 메시지·운영 연결 쓰기·푸시는 하지 않았다.
+
+다음은 계획 담당의 TASK-03 result 검토 → 사장 M1~M3(다른 Mac hejo) → 현재 명세 반영 → 푸시 대상 확인·사용자 승인이다. 푸시 대상 제안은 이 검토 뒤 별도 단계이며, 이번 result는 제품 최종 완료나 푸시 완료 선언이 아니다. 롤백 보관본과 증거 폴더를 유지한다.
