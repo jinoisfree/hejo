@@ -136,3 +136,35 @@
   - 중간 실패도 지우지 말고 모두 기록한다.
 - 보고: `impl-report.md`에 "보완 2" 절(원인 실험·결론, 바꾼 파일, 커밋, 10회 결과표, 명령·종료 코드·로그)을 덧붙인다.
 - 금지: 기존과 같다. 운영 공항·재시작·운영 team-kit 원본·비밀 파일·Hermes 본체·ddots·실제 메시지·git push, TASK-05·06은 하지 않는다.
+
+## 사장 결정 (2026-11-21)과 TASK-05 합동 서버 적용 (시작 대기)
+
+- 사장 결정
+  1. 서버 적용은 HEJO-CONN-MANAGE와 **한 번에** 한다(계획 담당 권고안). 게이트웨이 재시작은 한 번만 한다.
+  2. 결과물은 로컬 `main`에 반영하고, 원격 반영은 TASK-06 공개 절차로 한다(권고안).
+- main 반영
+  - 로컬 `main`은 `e99e60f`(판정 문서)가 앞서 있어 빨리 감기가 불가능했다. 그래서 충돌 없는 일반 merge 커밋 `433095a`로 검증 커밋 `73a9447`을 넣었다.
+  - `git diff --exit-code 73a9447 433095a -- app gate schemas tests` 종료 0이다. 제품 내용은 검증본과 같다.
+- **시작 조건** (모두 충족되기 전에는 TASK-05를 시작하지 않는다)
+  1. HEJO-CONN-MANAGE TASK-02b가 끝나고 그 작업의 검토를 통과한다.
+     - 사장 결정 (가)에 따라 CONN-MANAGE의 서버 적용은 TASK-02b 뒤에 한다.
+     - 이미 `main`에 들어 있는 CONN-MANAGE 문 코드(`961ea80`·`131e47f`)는 이 작업의 문 릴리스에 함께 실리므로, 그 전에 릴리스하면 사장 결정을 어기게 된다.
+     - 2026-11-21 읽기 확인: `<운영 저장소>` HEAD `dfb469d3`의 `wait_jobs.py` sha256 = 실행본 `441a8501…`. TASK-02b 시작 조건이 이제 충족됐다.
+  2. 문 릴리스 대상 커밋은 두 작업이 모두 들어간 로컬 `main`이다. 계획 담당 둘(이 작업과 CONN-MANAGE)이 그 커밋을 확인한다.
+- **절차**: [HEJO-CONNECTIONS design 7.2](../HEJO-CONNECTIONS-20261120/design.md#72-서버-적용-task-05)를 그대로 따른다. 이 작업이 더하는 것은 아래뿐이다.
+  - team-kit
+    - `hejo-todo-drawer-20261120` 브랜치(`b2bc84f8`, 기준 `7ae2b013`)를 `<운영 저장소>` 최신 HEAD에 merge한다.
+      - 대상 파일은 `hermes/bin/hermes-deadlines`(새), `deadline_watch.py`(읽기 함수 추가), 시험이다.
+      - 착수 때 HEAD의 `deadline_watch.py` sha256이 `e20213cd…`인지 확인한다. 2026-11-21에는 HEAD와 실행본 모두 일치했다.
+    - CONN-MANAGE의 team-kit 변경과 같은 `./airport-check`·`./sync`·커밋으로 묶는다.
+    - 실행본 `<HOME>/bin/hermes-deadlines`도 sync 대상인지 확인한다. 롤백 목록에도 "새 파일 삭제"로 적는다.
+  - 문: 같은 공용 릴리스 하나에 담는다.
+  - 롤백(먼저 기록)
+    - 교체 전 `deadline_watch.py`와 문 릴리스 폴더의 보관본과 sha256을 남긴다.
+    - 되돌릴 때는 새 `hermes-deadlines`를 삭제하고, 이전 릴리스로 되돌린 뒤 재시작한다.
+  - 확인
+    - M1: `hermes-deadlines list --json`이 종료 0이고 `failed`가 없다. 운영 장부 2개의 sha256이 실행 전후로 같다. 기록에는 개수와 직원 id만 남긴다.
+    - M2: 재시작 뒤 문 로그에 `deadlines_read items=N failed=0`가 남는다.
+  - 금지
+    - 실제 Slack·고객 메시지를 보내지 않는다. 비밀 파일을 열지 않는다. Hermes 본체를 고치지 않는다. git push를 하지 않는다.
+    - 재시작은 합동 적용에서 한 번만 한다.
