@@ -17,6 +17,38 @@ struct ConversationFailedSend: Identifiable {
     var place:ConversationKey? = nil
 }
 @MainActor final class ConversationController {
+    let todoDrawer = TodoDrawerModel()
+    var drawerFilter = TodoDrawerModel.Filter.all
+    private(set) var drawerOpen = false
+    private var drawerChatExpanded = false
+    var drawerVisible: Bool { drawerOpen && drawerChatExpanded }
+    private var deadlineRequestedAt: Date?
+    private var deadlineRefs = Set<String>()
+    var deadlineSender: (([String:Any]) async throws -> Void)?
+    var drawerSnapshot: TodoDrawerModel.Snapshot { todoDrawer.snapshot(model,filter:drawerFilter,now:clock()) }
+    func setDrawerState(open: Bool, chatExpanded: Bool) {
+        guard drawerOpen != open || drawerChatExpanded != chatExpanded else{return}
+        let wasVisible=drawerVisible
+        drawerOpen=open;drawerChatExpanded=chatExpanded
+        if drawerVisible && !wasVisible { requestDeadlines() }
+        onChange?()
+    }
+    func pollDeadlines() {
+        guard drawerVisible else{return}
+        if deadlineRequestedAt.map({clock().timeIntervalSince($0)>=300}) ?? true {requestDeadlines()}
+    }
+    func requestDeadlines() {
+        guard drawerVisible else{return}
+        deadlineRequestedAt=clock()
+        let ref=UUID().uuidString.lowercased();deadlineRefs.insert(ref)
+        let frame:[String:Any]=["v":1,"type":"deadlines","id":ref]
+        Task { [weak self] in
+            guard let self else{return}
+            guard self.drawerVisible else {self.deadlineRefs.remove(ref);return}
+            do {if let sender=self.deadlineSender {try await sender(frame)}else{try await self.client.send(frame)}}
+            catch {self.deadlineRefs.remove(ref);self.todoDrawer.receive(["available":true,"reason":"command_failed"]);self.onChange?()}
+        }
+    }
     let client: GateClient
     let model: ConversationModel
     let files: GateHTTP
@@ -248,6 +280,7 @@ struct ConversationFailedSend: Identifiable {
         timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self, !self.paused else{return}
+                self.pollDeadlines()
                 let old=(self.confirmingDelete.count,self.interruptions.count,self.branching.count)
                 self.model.expireTyping()
                 let now=self.clock();self.confirmingDelete=self.confirmingDelete.filter{now.timeIntervalSince($0.value)<4}
@@ -259,6 +292,12 @@ struct ConversationFailedSend: Identifiable {
     }
     deinit { timer?.invalidate() }
     func receive(_ frame: [String: Any]) {
+        let kind=frame["type"] as? String
+        if kind=="deadlines_status" || (kind=="error" && (frame["ref"] as? String).map{deadlineRefs.contains($0)} == true) {
+            guard let ref=frame["ref"] as? String,deadlineRefs.remove(ref) != nil else{return}
+            todoDrawer.receive(frame);onChange?();return
+        }
+
         if ["connections_status","connection_result"].contains(frame["type"] as? String ?? "") {onConnectionsFrame?(frame);return}
         if paused { pausedFrames.append(frame); return }
         if ["welcome","roster"].contains(frame["type"] as? String ?? "") { pictures.invalidate() }
@@ -275,8 +314,9 @@ struct ConversationFailedSend: Identifiable {
             }
         }
         if frame["type"] as? String == "welcome", replicaAddress != client.store.settings.address {
-            prepareDraftAddress();model.resetReplica();newPostIDs=[];followup=nil;transferFailure=nil;bubbleProblems=[:];uploads=[:];activeUploads=[:];stoppedTargets=[:];interruptions=[:];branching=[:];deleting=[];confirmingDelete=[:];checklistSelections=[:];replicaAddress = client.store.settings.address
+            todoDrawer.receive(["available":false]);prepareDraftAddress();model.resetReplica();newPostIDs=[];followup=nil;transferFailure=nil;bubbleProblems=[:];uploads=[:];activeUploads=[:];stoppedTargets=[:];interruptions=[:];branching=[:];deleting=[];confirmingDelete=[:];checklistSelections=[:];replicaAddress = client.store.settings.address
         }
+        if kind=="welcome" {deadlineRefs=[];requestDeadlines()}
         let previousRooms=Set(model.groups.keys)
         do { try model.apply(frame) } catch { notice = "대화 기록을 읽지 못했어요. 다시 연결해 주세요." }
         if frame["type"] as? String=="welcome",frame["rooms"] != nil {model.clearArchivedPins()}

@@ -55,6 +55,7 @@ import AppKit
             conversationView.onConnections={ [weak self] profile in self?.showConnections(profile) }
             conversationView.homePetImage=pet.pet.atlas.image(row:0,frame:0)
             pet.pet.installConversation(conversationView)
+            pet.installDrawer(conversationView)
             pet.installWeb(WebPaneModel(downloads: conversation.files.downloads.root))
             pet.web?.onExternal = { url in if url.isFileURL || CardText.mayOpen(url) { NSWorkspace.shared.open(url) } }
             conversationView.onCalendar = { [weak self] in self?.showRelatedCalendar($0) }

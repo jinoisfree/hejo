@@ -102,3 +102,42 @@
 6. **기획설계로 넘긴 것:** 없음.
 7. **미검증 범위:** M1~M7(0.2.2 설치 뒤). 0.2.1 앱은 새 문에 붙어도 실패를 여전히 "관리 기능 꺼짐"으로 표시한다(TASK-06에서 해소).
 8. **남은 조건:** TASK-06(handoff "보완 지시 3"), TASK-07.
+
+## 검증 판정: HEJO-CONNECTIONS-20261120 — 4차 (TASK-06 0.2.2 공개 후보)
+
+1. **판정: 부분 완료.** 공개 후보 준비(TASK-06의 에이전트 몫)는 통과했다. 남은 것은 사장만 할 수 있는 일(공개 커밋 푸시 승인 → 공개 명령 → 각 Mac 업데이트 설치)과 TASK-07(M1~M7, 현재 명세 반영)이다.
+2. **검증 조건:** 교차 모델. 검토 대상은 hejo main `ee75b74`(버전), `5dfda09`(보고서만), 로컬 `public` `0cc0828d949d4efb2bf7e98b6f7548508b0a5797`, 준비물 `.build/release-0.2.2/`.
+3. **설계 적합성(4.2):** handoff 보완 지시 3과 선례(HEJO-IMESSAGE 보완 지시 5) 그대로다. REQ-HC-07.AC-01 중 준비물·공개 스냅샷 부분을 충족한다. 공개 자체는 사장 몫이다.
+4. **직접 확인한 것(증거 수준 2):**
+   - 버전 커밋 `ee75b74`는 `app/Resources/Info.plist`와 `tests/acceptance/test_ship.py`의 버전 단언만 바꿨다. `5dfda09`는 `impl-report.md`만 바꿨다.
+   - `public` = `0cc0828`, 부모 `363bcc0`(0.2.1), 트리 `441ad36` = `ee75b74`의 트리. HEJO-IMESSAGE 작성 중 표시 커밋 `05107d5`가 `ee75b74`의 조상이다.
+   - 공개 트리를 임시 worktree로 꺼내 `scan_private.py --repo` 종료 0.
+   - 준비물: `prepared.json`의 commit·tree·버전 0.2.2·빌드 4가 위와 일치한다. 압축 SHA-256 `46e9cae4…87a85`가 기록값과 같다.
+   - 압축을 새 임시 폴더에 풀어 `codesign --verify --deep --strict` 통과, 앱 안 버전 0.2.2·4.
+   - 별도 코드(`cryptography` Ed25519)로 업데이트 서명 검증 통과.
+   - 공개 키가 설치된 0.2.1 앱의 `SUPublicEDKey`와 같다(0.2.1·3 → 0.2.2·4 연속성).
+   - `hejo-ship publish`는 공개 커밋이 원격 `main`과 같아야 실행된다(`install/hejo-ship` publish 함수). 그래서 푸시 승인이 공개 명령보다 먼저다.
+   - 다시 돌리지 않은 것: `bash scripts/test.sh`. 2차에서 `20adc4d` 기준으로 직접 종료 0을 확인했고, 그 뒤 제품 코드 변경은 없다(버전 값만 바뀜). 구현 담당 로그는 같은 트리에서 종료 0이다. 옛 문 + 새 앱 연결 시험과 앱 시험 3회 반복은 구현 담당 로그만 읽었다.
+5. **지적:** 없음.
+6. **기획설계로 넘긴 것:** 없음.
+7. **미검증 범위:** 실제 공개, 자동 업데이트 설치, M1~M7(실물), 운영 아이디 미리 채움(M5), 직원 A의 400 원인(M2).
+8. **남은 조건(순서):**
+   1. 사장의 푸시 승인(`public` `0cc0828` → github `main`)
+   2. 사장의 공개 명령: 서버의 hejo 저장소 폴더에서 `install/hejo-ship publish --approve-commit 0cc0828d949d4efb2bf7e98b6f7548508b0a5797 --prepared .build/release-0.2.2/prepared.json`
+   3. 각 Mac 업데이트 설치
+   4. M1~M7
+   5. 현재 명세 반영
+
+## 기록: HEJO-CONNECTIONS-20261120 — 0.2.2 공개와 이 Mac 설치 (2026-11-20, 사장 지시 "공개랑 업데이트설치 너가해")
+
+- **푸시:** 사장이 승인해 플러그인이 실행했다. 읽기 확인 결과 github `main` = `0cc0828d949d4efb2bf7e98b6f7548508b0a5797`.
+- **공개:** 이 대화가 사장 지시로 `install/hejo-ship publish --approve-commit 0cc0828d949d4efb2bf7e98b6f7548508b0a5797 --prepared .build/release-0.2.2/prepared.json`을 실행했다. 종료 0, `PUBLISHED v0.2.2`. 로그 `.build/release-0.2.2-publish/publish.log`.
+  - 읽기 확인: 태그 `v0.2.2` = `0cc0828`, 릴리스는 초안·사전 공개가 아니고 첨부는 `appcast.xml`·`hejo-0.2.2-arm64.zip`이다.
+- **이 Mac(서버) 설치:** 앱의 자동 확인이 꺼져 있어(`SUEnableAutomaticChecks` false), Sparkle이 설치할 공개 첨부를 직접 받아 교체했다.
+  - 받은 압축의 SHA-256이 준비물 값(`46e9cae4…87a85`)과 같다. Ed25519 업데이트 서명 검증 통과.
+  - 압축 해제본 `codesign --verify --deep --strict` 통과, 0.2.2·4. 서명 요구 조건(identifier·leaf 인증서)이 설치돼 있던 0.2.1과 같다(키체인 접근 유지).
+  - 앱이 꺼진 상태에서 옛 0.2.1을 `~/.cache/hejo-0.2.2-install-*/old-0.2.1/`(0700)에 보관하고 교체했다. 실행 확인(새 프로세스).
+  - 되돌리기: 보관한 0.2.1을 `/Applications/hejo.app`으로 되돌려 놓는다.
+- **다른 Mac:** 이 대화에서 닿을 수 없다. 그 Mac의 hejo에서 "업데이트 확인…"으로 설치한다.
+- **확인한 상태:** 공용 `RELEASE` 그대로 `1c6b3e2`, team-kit 실행본 11개 그대로 `fe697e3b`. 게이트웨이는 19:18에 이 대화와 무관하게 다시 시작돼 지금 pid 81413이며 hejo 문 포트를 LISTEN 중이다.
+- **남은 것:** M1~M7(사장 화면 확인), M2 로그 확인(연결 창을 연 뒤 `gateway.log`의 `connections_part_failed`), 현재 명세 반영. 판정은 그대로 부분 완료다.

@@ -103,13 +103,18 @@ private func islandMessage(_ seq:Int,_ key:ConversationKey = islandA,asked:Bool=
     let ui=ConversationView(controller:controller,clipboardArea:directory.appendingPathComponent("clipboard"),islandModel:uiModel)
     ui.island.reduceMotion={true}
     let pet=PetController(store:client.store,atlas:try SpriteAtlas(resourceDirectory:resourceDirectory));pet.reducedMotion={true}
-    pet.preferredChatSize=CGSize(width:760,height:500);pet.pet.installConversation(ui);pet.showChat();pet.pet.layoutSubtreeIfNeeded();ui.layoutSubtreeIfNeeded()
+    defer{disposeDrawerFixture(pet,controller,ui)}
+    pet.preferredChatSize=CGSize(width:760,height:500);pet.pet.installConversation(ui);pet.installDrawer(ui);controller.deadlineSender={_ in};pet.showChat();pet.pet.layoutSubtreeIfNeeded();ui.layoutSubtreeIfNeeded()
     try check(ui.island.frame.minX == ui.sidebarWidth+12 && ui.island.frame.height == 30 && ui.heading.frame.minX == ui.island.frame.maxX+12,"AT53 island placed beside logo and title follows it")
     let owner=ui.island.partRects.first { $0.0.kind == .owner }!.1
     ui.island.hover(at:CGPoint(x:owner.midX,y:owner.midY));ui.layoutSubtreeIfNeeded()
     try check(ui.island.accessibilityLabel()?.contains("Question 3 · 열기 ›") == true && !ui.island.subviews.contains(where:{$0 is NSButton}),"AT56 hover shows latest question and Open, without reply buttons")
     ui.island.hover(at:nil)
     ui.island.activate(at:CGPoint(x:owner.midX,y:owner.midY));ui.layoutSubtreeIfNeeded()
+    try check(pet.drawerOpen,"AT-TD-27 normal owner click opens drawer")
+    // The approved replacement moves the old question navigation to the drawer card.
+    let firstQuestion=controller.drawerSnapshot.urgent.first{$0.kind == .question}!
+    ui.selectDrawerCard(firstQuestion);ui.layoutSubtreeIfNeeded()
     try check(controller.model.selected == islandA && ui.history.contents.first(where:{$0.id == islandA.thread})?.expanded == true && ui.highlightedMessageID == islandMessage(1).id,"AT56 oldest asked selects its room and opens/highlights card")
     try check(ui.history.contents.first(where:{$0.id == islandA.thread})?.style.lineWidth == 2 && ui.history.contents.first(where:{$0.id == islandA.thread})?.style.stroke == .controlAccentColor,"AT56 V15 visible accent 2pt card highlight")
     time.addTimeInterval(1.6);ui.tickIsland();try check(ui.highlightedMessageID == nil,"AT56 highlight expires at 1.5 seconds")

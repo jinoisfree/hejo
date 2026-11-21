@@ -14,12 +14,12 @@ from .connection_runtime import ActionJournal, RestartJobs, TeamKit, runtime_sna
 log = logging.getLogger(__name__)
 
 DEVICE_PROVIDERS={'nous','openai-codex','minimax-oauth','xai-oauth'}
-PUBLIC_KEYS={'schema','checked_at','agents','profile','display_name','connections','id','service','label','reason','group','state','account','scope','reconnect','capabilities','rules','connect_kind','verified_by','expires_at','actions','primary','action','outcome','check','results','saved_names','restart_required','undo_until','url','instruction','fields','guide','n','text','open_url','copy','image','field','pattern','message','secure','last_restart_at','connected','missing','next','kind','steps','needs_user','hint','pane','target','resume_key','options','disabled','multi','needs_default','other_account','account_settings','input_error','app','role_hint','bundle_id','name','scanned_at','apps','features','applescript','app_intents','url_schemes','links','route','can_do','available','tools','connection_key','progress','connected','connectable','unavailable','server_path','mac_path','status','session_id','user_code','verification_url','poll_interval','expires_in','job','select_all','selected','scope','value','required','unread','part','hidden_by_default'}
+PUBLIC_KEYS={'schema','checked_at','agents','profile','display_name','connections','id','service','label','reason','group','state','account','scope','reconnect','capabilities','rules','connect_kind','verified_by','expires_at','actions','primary','action','outcome','check','results','saved_names','restart_required','undo_until','url','instruction','fields','guide','n','text','open_url','copy','image','field','pattern','message','secure','last_restart_at','connected','missing','next','kind','steps','needs_user','hint','pane','target','resume_key','options','disabled','multi','needs_default','other_account','account_settings','input_error','app','role_hint','bundle_id','name','scanned_at','apps','features','applescript','app_intents','url_schemes','links','route','can_do','available','tools','connection_key','progress','connected','connectable','unavailable','server_path','mac_path','status','session_id','user_code','verification_url','poll_interval','expires_in','job','select_all','selected','scope','value','required','unread','part','hidden_by_default','settings','step','committed'}
 
 
 def public(value, secrets=()):
-    """Allow fields, never error/detail/log/preview/value; reject reflected input credentials."""
-    if isinstance(value,dict):return {k:public(v,secrets) for k,v in value.items() if k in PUBLIC_KEYS and not (k=='value' and value.get('secure') is not False)}
+    """Allow public fields and nonsecret setting values; reject reflected input credentials."""
+    if isinstance(value,dict):return {k:public(v,secrets) for k,v in value.items() if k in PUBLIC_KEYS and not (k=='value' and value.get('secure') is not False and value.get('step') not in {'address','login','sync_root','values'})}
     if isinstance(value,list):return [public(v,secrets) for v in value]
     if isinstance(value,str) and any(secret and secret in value for secret in secrets):
         raise ConnectionFailure('invalid_response')
@@ -51,7 +51,11 @@ class Connections:
         self.secrets=SecretTransactions(home,self.admin);self.team=TeamKit(home)
         self.audit=ActionJournal(home);self.jobs=RestartJobs(home,self.admin,snapshot=snapshot)
         self.snapshot=snapshot;self.sessions={}
-        self.documents={};self.input_fields={}
+        self.documents={};self.input_fields={};self.app_checks={}
+
+    def disconnected(self, device):
+        for key in list(self.input_fields):
+            if key[0]==device:self.input_fields.pop(key,None)
 
     def profiles(self):return {p['id']:p for p in self.employees()}
 
@@ -178,19 +182,38 @@ class Connections:
                 except (ConnectionFailure,KeyError,TypeError) as error:failed(identifier,'team_status',error,unread)
             if 'apps' not in shared_failures:
                 try:
-                    part_items=[]
+                    part_items=[];merged=set();checks={}
                     group=mapping(apps.get(identifier,{}))
                     for category in ('connected','connectable','unavailable'):
                         for app in rows(group.get(category,[])):
                             progress=mapping(app.get('progress') or {});actions=[]
-                            if category!='unavailable':actions.append(action('app_connect','이어서 하기' if progress.get('next') else '범위 바꾸기' if category=='connected' else '연결',True))
+                            settings=rows(app.get('settings',[]))
+                            connection_key=app.get('connection_key',app['bundle_id'])
+                            derived=next((r for r in items if r['id']=='team:app-'+connection_key
+                                and r.get('reason')=='APP_CONNECTED'),None)
+                            linked=next((r for link in rows(app.get('links',[])) for r in items
+                                if link.get('profile')==identifier and r['id']=='team:'+link.get('connection','')
+                                and r.get('group')=='account' and (category=='connected' or progress or r.get('state')=='off')),None)
+                            if category!='unavailable' and (category!='connected' or settings or progress.get('next')):
+                                actions.append(action('app_connect','이어서 하기' if progress.get('next') else '설정 바꾸기' if category=='connected' else '연결',True))
                             if category=='connected':actions.append(action('app_disconnect','해제'))
                             if progress.get('undo_until'):actions.append(action('app_undo','되돌리기' if category=='connected' else '처음부터 다시'))
-                            item=row('app:'+app.get('connection_key',app['bundle_id']),app['name'],'mac',state='connected' if category=='connected' else 'unknown',actions=actions,description=app.get('can_do',''))
+                            item=row('app:'+connection_key,app['name'],'mac',state='connected' if category=='connected' else 'unknown',actions=actions,description=app.get('can_do',''))
                             item['rules']=app.get('rules',[]);item['next']=progress.get('next')
+                            item['settings']=public(settings)
+                            if linked:
+                                merged.add(linked['id']);checks[(identifier,item['id'])]=linked['id'].split(':',1)[1]
+                                item['actions'].append(action('check','확인',category=='connected' and not settings and not progress.get('next')))
+                            if derived:merged.add(derived['id'])
+                            for source in (linked,derived):
+                                if source and source.get('verified_by') not in {None,'config','team_registry'}:
+                                    for key in ('state','reason','checked_at','verified_by'):
+                                        if key in source:item[key]=source[key]
                             if category=='unavailable':item['hidden_by_default']=True
                             part_items.append(item)
-                    items.extend(part_items)
+                    items=[r for r in items if r['id'] not in merged]+part_items
+                    self.app_checks={k:v for k,v in self.app_checks.items() if k[0]!=identifier}
+                    self.app_checks.update(checks)
                 except (ConnectionFailure,KeyError,TypeError) as error:failed(identifier,'apps',error,unread)
             try:
                 part_items=[];state=self.snapshot()
@@ -245,6 +268,9 @@ class Connections:
             if isinstance(value,list): return set().union(*(secure_fields(child) for child in value)) if value else set()
             return set()
         protected=secure_fields(item) | self.input_fields.get(form,set())
+        if 'change' not in values or set(values)=={'change'}:
+            self.input_fields[form]=set()
+        session_fields=self.input_fields.setdefault(form,set())
         if connection.startswith('key:') and verb=='secret_set': protected.add('value')
         if connection.startswith('catalog:') and verb=='catalog_install': protected.update(values)
         secrets=tuple(v for key,v in values.items() if key in protected and isinstance(v,str))
@@ -255,7 +281,11 @@ class Connections:
             reply={'outcome':'failed','reason':error.reason}
         finally:
             frame.pop('values',None)
-        self.input_fields[form]=secure_fields(reply)
+        if self.input_fields.get(form) is session_fields:
+            following=secure_fields(reply)
+            if 'change' not in values or set(values)=={'change'} or reply.get('committed') is True or reply.get('outcome') in {'failed','refused'}:
+                self.input_fields[form]=following
+            else:session_fields.update(following)
         reply=public(reply,secrets)
         outcome=reply.get('outcome','done')
         if outcome not in {'done','pending','partial','unknown','timeout','failed','refused','needs_user','waiting'}:raise ConnectionFailure('invalid_response')
@@ -276,6 +306,8 @@ class Connections:
             restart=(lambda:self.team.run('gateway_restart')) if self.team.available else None
             return await self.jobs.start(device,profile,restart=restart)
         if kind=='team':
+            if verb in {'account_connect','account_disconnect','account_undo'} and values.get('resume')=='gateway_restart':
+                return await self.jobs.start(device,profile,restart=lambda:self.team.run('gateway_restart'))
             target=item.get('reconnect') or item.get('scope')
             command='reconnect_start' if verb=='oauth_connect' else verb
             result=await self.team.run(command,profile=profile,connection=target if verb=='oauth_connect' else name,values=values if verb=='secret_set' else None)
@@ -293,14 +325,18 @@ class Connections:
                 if key in values:
                     options[key]=json.loads(values[key])
                     if not isinstance(options[key],list):raise ConnectionFailure('FORMAT_INVALID')
-            for key in ('default','resume'):
+            for key in ('default','resume','change'):
                 if key in values:options[key]=values[key]
-            body={k:v for k,v in values.items() if k not in {'account','scope','default','resume'}}
+            if 'change' in options and (verb!='app_connect' or (not isinstance(options['change'],str) or options['change'] not in {'address','login','sync_root','values'})):
+                raise ConnectionFailure('invalid_action')
+            body={k:v for k,v in values.items() if k not in {'account','scope','default','resume','change'}}
             async def run():return await self.team.run(verb,profile=profile,connection=name,values=body or None,options=options)
             if options.get('resume')=='gateway_restart':return await self.jobs.start(device,profile,restart=run)
             result=await run()
             await self.team.run('status')
             return public(result)
+        if kind=='app' and verb=='check' and (profile,connection) in self.app_checks:
+            return public(await self.team.run('check',profile=profile,connection=self.app_checks[(profile,connection)]))
         if kind=='key':
             if verb=='secret_guide':return {'outcome':'done','reason':'OK','fields':[{'id':'value','label':name,'secure':True}],'guide':[{'n':1,'text':'공식 서비스에서 키를 발급받아 붙여넣으세요.'}]}
             if verb=='secret_set':return await self.secrets.save(profile,name,values.get('value'))

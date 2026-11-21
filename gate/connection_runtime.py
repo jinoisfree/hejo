@@ -157,9 +157,14 @@ class TeamKit:
         elif verb in {'reconnect_start','reconnect_status'} and connection in {'personal','company'}:
             args=['reconnect',verb.split('_',1)[1],'--account',connection,'--json'];seconds=30
         elif verb=='apps':args=['apps','--json'];seconds=30
+        elif verb in {'account_connect','account_disconnect','account_undo'} and connection in {'google','google-personal','google-company','x','instagram'}:
+            args=['account',verb.split('_',1)[1],'--profile',profile,'--connection',connection,'--json'];seconds=30
         elif verb in {'app_connect','app_disconnect','app_undo'}:
             args=['app',verb.split('_',1)[1],'--profile',profile,'--app',connection,'--json'];seconds=180
             options=options or {}
+            if 'change' in options:
+                if verb!='app_connect' or (not isinstance(options['change'],str) or options['change'] not in {'address','login','sync_root','values'}):raise ConnectionFailure('invalid_action')
+                args+=['--change',options['change']]
             for key in ('account','scope'):
                 for identifier in options.get(key,[]):
                     if not isinstance(identifier,str):raise ConnectionFailure('invalid_action')
