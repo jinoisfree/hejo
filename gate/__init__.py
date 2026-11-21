@@ -20,9 +20,10 @@ def apply_yaml_config(yaml_cfg, platform_cfg):
 
 
 def parse_target(ref):
-    from .files import EMPLOYEE
-    # Target is a serving profile id, never a filesystem path or a threaded address.
-    return (ref, None) if EMPLOYEE.fullmatch(ref) else None
+    from .files import EMPLOYEE, ID
+    # Room targets start a new thread; neither form accepts filesystem paths.
+    valid = ID.fullmatch(ref[5:]) if ref.startswith('room:') else EMPLOYEE.fullmatch(ref)
+    return (ref, None) if valid else None
 
 
 def register(ctx):

@@ -325,3 +325,262 @@ async def test_v5_edit_then_state_failure_converges_on_retry(gate, local, monkey
         row = gate.journal.message(msg_id)
         assert row['text'] == 'after' and row['reply_state'] == 'answered'
     assert sum(r['type'] == 'message' for r in gate.journal.records) == 1
+
+
+@pytest.mark.asyncio
+async def test_at_sm_20_21_22_thread_owner_mentions_and_fallback(gate, local, client, runner, monkeypatch):
+    monkeypatch.setenv('HEJO_ALLOWED_USERS', 'owner')
+    room = await make_room(local)
+    first = await local('POST', employee='beta', room=room, text='Report')
+    ws, _ = await client.pair(features=['rooms'])
+    count = 0
+
+    async def owner(thread, text, expected, **fields):
+        nonlocal count
+        await client.send(ws, room=room, thread=thread, text=text, **fields)
+        await client.until(ws, 'message')
+        count += len(expected)
+        await wait_for_turns(runner, count)
+        assert not runner.denied
+        assert [e.source.profile for e in runner.events[count-len(expected):count]] == expected
+        row = gate.journal.message(runner.events[-1].message_id)
+        assert row['_meta']['recipients'] == expected
+
+    await owner(first['thread'], 'Please revise', ['beta'])
+    await owner(first['thread'], '@alpha another opinion', ['alpha'])
+    await owner(first['thread'], 'Continue', ['beta'])
+    human_thread = str(uuid.uuid4())
+    await owner(human_thread, '@beta begin', ['beta'])
+    await owner(human_thread, 'Continue', ['beta'])
+    await owner(str(uuid.uuid4()), 'New topic', ['alpha'])
+    await owner(first['thread'], 'Chosen recipient', ['alpha'], targeted=True)
+    await owner(first['thread'], 'Continue again', ['beta'])
+    # The owner metadata remains authoritative for a multi-recipient first post too.
+    shared = str(uuid.uuid4())
+    await owner(shared, '@alpha @beta together', ['alpha', 'beta'])
+    await owner(shared, 'Continue together', ['alpha', 'beta'])
+    await ws.send_json({'v': 1, 'type': 'room_save', 'id': room, 'title': 'Fixture room',
+                        'members': ['alpha', 'default'], 'lead': 'alpha'})
+    await client.until(ws, 'room')
+    await owner(first['thread'], 'Former owner removed', ['alpha'])
+    await owner(human_thread, 'Former recipient removed', ['alpha'])
+    # Direct messages do not inherit room recipients or use mentions for routing.
+    await client.send(ws, employee='beta', text='@alpha direct message')
+    await client.until(ws, 'message')
+    await wait_for_turns(runner, count + 1)
+    assert runner.events[-1].source.profile == 'beta'
+    assert runner.events[-1].source.chat_id == 'beta'
+
+
+def test_at_sm_12_target_validation():
+    from gate import parse_target
+    room = str(uuid.uuid4())
+    assert parse_target('room:' + room) == ('room:' + room, None)
+    assert parse_target('alpha') == ('alpha', None)
+    for value in ('room:', 'room:../alpha', 'room:/alpha', 'room:alpha/beta',
+                  'room:' + room + '/extra', 'room:alpha', '../alpha'):
+        assert parse_target(value) is None
+
+
+async def exercise_room_scheduling(runner, secondary):
+    """Run inside gateway_delivery's real start_gateway/stop lifecycle and audit guard."""
+    from gateway.config import Platform
+    from gateway.run import _profile_runtime_scope
+    from cron.scheduler_delivery import _resolve_delivery_targets, _deliver_result
+    primary = runner.adapters[Platform('hejo')]
+    own = runner._profile_adapters['beta']
+    root = Path(os.environ['HERMES_HOME'])
+    loop = asyncio.get_running_loop()
+    async with ClientSession(connector=UnixConnector(path=str(root / 'hejo' / 'post.sock')),
+                             trust_env=False) as http:
+        async with http.post('http://local/local/v1/rooms', json={
+                'title': 'Schedule fixture', 'members': ['alpha', 'beta'], 'lead': 'alpha'}) as response:
+            assert response.status == 200
+            room = (await response.json())['room']
+
+    async def scheduled(target, text, home=secondary, adapters=own):
+        with _profile_runtime_scope(home, hydrate_secrets=False):
+            job = {'id': 'fixture-room-job', 'name': 'Fixture', 'deliver': 'hejo:' + target}
+            targets = _resolve_delivery_targets(job)
+            assert targets[0]['chat_id'] == target and not targets[0].get('thread_id')
+            return await asyncio.to_thread(_deliver_result, job, text, adapters, loop)
+
+    for text in ('First report', 'Second report'):
+        assert await scheduled('room:' + room, text) is None
+    rows = [r for r in primary.journal.records if r['type'] == 'message']
+    assert [r['text'] for r in rows] == ['First report', 'Second report']
+    assert all(r['employee'] == 'beta' and r['room'] == room for r in rows)
+    assert len({r['thread'] for r in rows}) == 2
+    head = primary.journal.head
+    assert 'room_not_found' in await scheduled('room:' + str(uuid.uuid4()), 'Missing')
+    error = await scheduled('room:' + room, 'Outsider', root, runner.adapters)
+    unexpected = [{k: row.get(k) for k in ('type', 'employee', 'text', 'room')}
+                  for row in primary.journal.records if row['seq'] > head]
+    assert 'room_member_required' in (error or ''), {'error': error, 'unexpected_records': unexpected}
+    assert primary.journal.head == head
+    async with ClientSession(trust_env=False) as http:
+        async with http.ws_connect(f'http://127.0.0.1:{primary.server.port}/v1/ws') as ws:
+            await ws.send_json({'v': 1, 'type': 'hello', 'device_name': 'Fixture', 'app_version': 'test',
+                               'features': ['rooms'], 'pair_code': primary.auth.pair_code()})
+            while (await ws.receive_json(timeout=5))['type'] != 'sync_done':
+                pass
+            await ws.send_json({'v': 1, 'type': 'room_delete', 'id': room})
+            assert (await ws.receive_json(timeout=5))['type'] == 'room_deleted'
+    # AT-SM-11b: primary profile identity across scheduler, attachments and real owner ingress.
+    text_file, image_file = root / 'fixture.txt', root / 'fixture.png'
+    text_file.write_text('fixture document')
+    image_file.write_bytes(bytes.fromhex('89504e470d0a1a0a') + b'fixture')
+    async with ClientSession(connector=UnixConnector(path=str(root / 'hejo' / 'post.sock')),
+                             trust_env=False) as http:
+        async def create(title, members, lead):
+            async with http.post('http://local/local/v1/rooms', json={
+                    'title': title, 'members': members, 'lead': lead}) as response:
+                assert response.status == 200
+                return (await response.json())['room']
+        outside = await create('Outside fixture', ['alpha', 'beta'], 'alpha')
+        member = await create('Member fixture', ['default', 'beta'], 'beta')
+        leader = await create('Leader fixture', ['default', 'beta'], 'default')
+        for identifier, allowed in ((outside, False), (member, True), (leader, True)):
+            chat = 'room:' + identifier
+            before = primary.journal.head
+            error = await scheduled(chat, 'Primary report', root, runner.adapters)
+            if allowed:
+                assert error is None
+                assert primary.journal.records[-1]['employee'] == 'default'
+            else:
+                assert 'room_member_required' in error
+                assert primary.journal.head == before
+            for send, path in ((primary.send_document, text_file), (primary.send_image_file, image_file)):
+                before = primary.journal.head
+                sent = await send(chat, str(path), caption='Primary attachment')
+                if allowed:
+                    assert sent.success, sent.error
+                    row = primary.journal.message(sent.message_id)
+                    assert row['employee'] == 'default' and len(row['files']) == 1
+                    assert primary.files.registered('default', row['files'][0]['file_id'])
+                else:
+                    assert not sent.success and sent.error == 'room_member_required'
+                    assert primary.journal.head == before
+        # Explicit ingress author and forwarder identity remain independent of the room lead.
+        async with http.post('http://local/local/v1/messages', json={
+                'employee': 'beta', 'room': leader, 'text': 'Ingress author'}) as response:
+            assert response.status == 200
+            assert primary.journal.message((await response.json())['msg_id'])['employee'] == 'beta'
+        assert await scheduled('room:' + leader, 'Forwarder author') is None
+        assert primary.journal.records[-1]['employee'] == 'beta'
+
+    replies = []
+    async def fake_agent(event):
+        assert event.source.profile == 'default'
+        replies.append(event)
+        return 'Primary reply'
+    primary.set_message_handler(fake_agent)
+    async with ClientSession(trust_env=False) as http:
+        async with http.ws_connect(f'http://127.0.0.1:{primary.server.port}/v1/ws') as ws:
+            await ws.send_json({'v': 1, 'type': 'hello', 'device_name': 'Fixture', 'app_version': 'test',
+                               'features': ['rooms'], 'pair_code': primary.auth.pair_code()})
+            while (await ws.receive_json(timeout=5))['type'] != 'sync_done':
+                pass
+            for identifier in (member, leader):
+                thread = str(uuid.uuid4())
+                await ws.send_json({'v': 1, 'type': 'send', 'employee': 'default', 'room': identifier,
+                                   'thread': thread, 'text': 'Please answer', 'targeted': True,
+                                   'client_msg_id': str(uuid.uuid4())})
+                async with asyncio.timeout(5):
+                    while True:
+                        row = await ws.receive_json()
+                        if row['type'] == 'message' and row['role'] == 'employee' and row['thread'] == thread:
+                            assert row['employee'] == 'default' and row['text'] == 'Primary reply'
+                            break
+            assert len(replies) == 2
+    head = primary.journal.head
+    assert 'room_deleted_drop' in await scheduled('room:' + room, 'Deleted')
+    assert primary.journal.head == head
+    assert await scheduled('beta', 'Legacy target') is None
+    last = primary.journal.records[-1]
+    assert last['employee'] == 'beta' and last['text'] == 'Legacy target' and 'room' not in last
+    for adapters in (runner.adapters, own):
+        assert not adapters[Platform('probe_peer')].sent
+    return {'acceptance': 'AT-SM-10-12/11b', 'room_reports': 2, 'other_platform_sends': 0}
+
+
+@pytest.mark.asyncio
+async def test_at_sm_10_11_12_actual_gateway_scheduler(tmp_path):
+    import sys
+    import tempfile
+    with tempfile.TemporaryDirectory(prefix='hsmcron-', dir=os.environ.get('HEJO_GATE_TEST_TMPDIR') or '/tmp') as directory:
+        sandbox = Path(directory).resolve()
+        (sandbox / 'home').mkdir()
+        (sandbox / 'airport').mkdir()
+        env = {'PATH': os.defpath, 'HOME': str(sandbox / 'home'), 'HERMES_HOME': str(sandbox / 'airport'),
+               'TMPDIR': str(sandbox), 'XDG_STATE_HOME': str(sandbox / 'state'),
+               'HERMES_GATEWAY_LOCK_DIR': str(sandbox / 'locks'), 'HEJO_GATE_TEST_SANDBOX': str(sandbox),
+               'HERMES_DISABLE_LAZY_INSTALLS': '1', 'PYTHONDONTWRITEBYTECODE': '1',
+               'PYTHONPATH': os.pathsep.join(sys.path), 'NO_COLOR': '1'}
+        # Only the scenario and fake profile setup differ from the existing full gateway harness.
+        program = '''
+import asyncio, os, runpy, sys
+from pathlib import Path
+from gate.tests import gateway_delivery as harness
+scenario = runpy.run_path(sys.argv[1])
+harness.exercise = scenario['exercise_room_scheduling']
+original_setup = harness.setup
+def setup(root):
+    secondary = original_setup(root)
+    from hermes_cli.profiles import create_profile
+    create_profile('alpha', no_alias=True, no_skills=True)
+    return secondary
+harness.setup = setup
+asyncio.run(harness.child(Path(os.environ['HEJO_GATE_TEST_SANDBOX'])))
+'''
+        process = await asyncio.create_subprocess_exec(sys.executable, '-c', program, str(Path(__file__).resolve()),
+            cwd=sandbox, env=env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
+        try:
+            output, _ = await asyncio.wait_for(process.communicate(), 180)
+        except BaseException:
+            process.kill()
+            await process.wait()
+            raise
+        (tmp_path / 'room-scheduler.log').write_bytes(output)
+        assert process.returncode == 0, output.decode()
+        assert b'"acceptance": "AT-SM-10-12/11b"' in output
+        assert b'GATEWAY_EXIT clean' in output
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('members,lead,allowed', [
+    (['alpha', 'beta'], 'alpha', False),
+    (['default', 'beta'], 'beta', True),
+    (['default', 'beta'], 'default', True),
+])
+async def test_at_sm_11b_remote_image_and_typing_author(gate, local, client, monkeypatch, members, lead, allowed):
+    import httpx
+    from tools import url_safety
+    calls = []
+    def response(request):
+        calls.append(request.url)
+        return httpx.Response(200, headers={'content-type': 'image/png'},
+                              content=bytes.fromhex('89504e470d0a1a0a') + b'fixture')
+    # External HTTP/DNS are fixtures; the adapter stages, promotes and records the real attachment.
+    monkeypatch.setattr(url_safety, 'is_safe_url', lambda value: value == 'https://fixture.invalid/image.png')
+    monkeypatch.setattr(url_safety, 'create_ssrf_safe_async_client',
+                        lambda **kwargs: httpx.AsyncClient(transport=httpx.MockTransport(response), **kwargs))
+    room = await make_room(local, members=members, lead=lead)
+    head = gate.journal.head
+    sent = await gate.send_image('room:' + room, 'https://fixture.invalid/image.png', caption='Remote fixture')
+    assert len(calls) == 1
+    if allowed:
+        assert sent.success
+        row = gate.journal.message(sent.message_id)
+        assert row['employee'] == 'default' and len(row['files']) == 1
+        assert gate.files.registered('default', row['files'][0]['file_id'])
+    else:
+        assert not sent.success and sent.error == 'room_member_required'
+        assert gate.journal.head == head
+    ws, _ = await client.pair(features=['rooms'])
+    thread = str(uuid.uuid4())
+    await gate.send_typing('room:' + room, {'thread_id': thread})
+    frame = (await client.until(ws, 'typing'))[-1]
+    assert frame['employee'] == 'default' and frame['thread'] == thread
+    await gate.stop_typing('room:' + room, {'thread_id': thread})
+    assert (await client.until(ws, 'typing'))[-1]['on'] is False

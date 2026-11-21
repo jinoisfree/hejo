@@ -1,8 +1,8 @@
 # HEJO-SLACK-MOVE 구현 인계 보고
 
-## 현재 판단: 부분 구현·멈춤 보고(분리 전체 검사 실패, 예약 작성자 설계 빈틈)
+## 현재 판단: TASK-03 구현·수락 시험반영, 분리 전체 검사 대기
 
-[확인] 설계 6판과 구현 검토 1차의 V-3·V-4·V-5, D-1·D-2를 반영했다. TASK-02 분리 전체 검사는 앱 포커스 단언에서 실패했다. 검사가 도는 동안 작성한 TASK-03 변경과 시험은 미커밋이며, 실제 예약 시험에서 기본 프로필의 작성자 선택 문제를 확인해 멈췄다. TASK-04~08은 미착수이고 전체 완료 판정은 요청하지 않는다.
+[확인] 구현 검토 2차와 설계·인계 7판(`892d54ed1ddecbe96eddc1945494f1f8c6583777`)으로 재개했다. 기본 프로필 작성자 D-3를 반영했다. TASK-04~08은 미착수다. 아래 S-1·S-2는 이전 중단 기록이며 현재 진행 규칙은 7판을 따른다.
 
 - 받은 지시: [handoff.md](handoff.md) 6판, [verdict.md](verdict.md) 구현 검토 1차, TASK-02~08. 계획 보완 기준 `716f67e5ae61795202023dc74694a53df7da0a06`, 제품 기준 `cb06e7d`. 고위험, 필요 증거 수준 2, 연합개발.
 - 다른 작업의 `app/` 및 HEJO-FINDER-FOLDERS 문서 변경은 보존하며 커밋에 포함하지 않는다. 전체 검사는 TASK 커밋을 임시 detached worktree로 꺼내 실행한다.
@@ -53,14 +53,26 @@
 
 초기 기본 임시 경로의 문 시작 실패는 짧은 pytest 기본 경로를 사용해 해소했다. 최초 시험 코드의 삭제 응답 프레임 이름 오류는 기존 계약의 `delete`와 `scope=thread`로 바로잡았다. 수락 기대값은 변경하지 않았다. 이전 중단 시점의 파일 해시는 `stop-evidence.json`에 보존되어 있다.
 
-## TASK-03: 부분 구현·미커밋
+## TASK-03: 구현·검증
+
+### 7판 반영
+
+`gate/adapter.py`의 `_sending_employee`가 send·입력 중 표시·파일·URL 이미지 네 자리와 입력 중 표시 종료의 작성자를 정한다. 방 글에 직원 표시가 없으면 기본 프로필 자신이다. 대표 대체를 지웠고 1:1과 명시된 작성자는 유지했다. `gate/README.md`에 방 예약·작성자와 스레드 주인을 설명했다. AT-SM-11b는 실제 게이트웨이에서 기본 프로필이 비구성원·구성원이나 대표 아님·대표인 경우의 예약과 파일·그림, 실제 WS 사장 글에 대한 답글을 검사한다. URL 이미지는 가짜 HTTP 응답으로 실제 첨부 경로를 검사한다. 기존 수락 명세·기존 시험 기대값은 수정하지 않았다.
+
+- 작성자를 대표로 되돌린 임시 사본에서 실제 예약 시험 실패: mutation 실행기 종료 0, 변형 pytest 종료 1·1 failed. 원본 보존(`.build/slack-move/task03-mutation-results.json`, `mutation-room-author.log`).
+- 최초 전체 Python 실행은 431 passed·3 failed(종료 1), 국소 재확인은 22 passed·3 failed였다. 새 시험에서 기본 프로필의 입력 중 표시가 끝나지 않는 문제를 발견했다. 본체는 기본 프로필의 `_owner_profile`을 None으로 두는데, 기존 stop_typing은 None을 기본값으로 바꾸지 않아 작성자 default와 맞지 않았다. 같은 표시의 종료 소비자인 stop_typing도 공통 계산을 쓰게 했다. 수신자·1:1 동작은 그대로이며 기존 시험을 바꾸지 않았다(`task03-python.log`, `task03-revision-final.log`).
+- 기존 시험에서 대표 대체에 기대는 경로는 발견되지 않았다. 새 기본 프로필 예약 실패 시험은 D-3 수정 후 통과했다.
+
+- 최종 국소 검사: `python -m pytest tests/acceptance/test_slack_move_gate.py gate/tests/test_rooms.py gate/tests/test_progress.py -q -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function` → 종료 0, 38 passed(`.build/slack-move/task03-final-targeted.log`, `.exit`). 개인값 검사 종료 0(`task03-scan.log`, `.exit`), diff 공백 검사 종료 0.
+
+### 6판 중단 당시 기록(아래 미커밋·미도달 상태는 당시 상태)
 
 - `gate/__init__.py`: `room:<UUID>` 대상 문법. `gate/rooms.py`: 첫 글이 직원이면 작성자, 사장 글이면 내부 수신자를 현재 구성원·명부로 거른다. `gate/adapter.py`는 기존 `recipients`에 기록장·스레드를 전달한다. `room_save_record` 추출 위에 작업했다.
 - `tests/acceptance/test_slack_move_gate.py`: AT-SM-20~22의 실제 WS 수신·주인 유지·멘션·구성원 제거·targeted·1:1 및 AT-SM-12 문법을 추가했다. AT-SM-10~12는 기존 `gate.tests.gateway_delivery`의 격리 감사와 실제 `start_gateway`를 그대로 쓰고 시나리오만 바꾼다. 본체·전송 경로를 대역으로 바꾸지 않는다.
 - 실행: TASK-03 미커밋 변경본에서 `python -m pytest tests/acceptance/test_slack_move_gate.py gate/tests/test_rooms.py -q -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function` → **종료 1, 21 passed·1 failed**. 로그 `task03-targeted.log`, `.exit`. 새 예약 시험이 실패했으며 AT-SM-10의 B 보고 두 건과 서로 다른 스레드, 없는 방 거절까지 확인한 뒤 멈췄다. 뒤의 삭제 방·기존 대상 검사는 이 실행에서 도달하지 못했다.
 - TASK-03 파일은 커밋하지 않았다. 완료나 전체 회귀 통과로 취급하지 않는다. README 갱신·분리 전체 검사·TASK-03 커밋은 미실행이다.
 
-## 멈춤 보고와 선택이 필요한 지점
+## 이전 멈춤 보고와 7판 처분
 
 ### S-1: 분리 전체 검사에서도 앱 포커스 단언 실패
 
@@ -78,6 +90,6 @@ worktree의 추적 변경이 없음을 확인한 뒤 `git worktree remove`로 �
 
 ## 남은 범위와 재개 순서
 
-계획 담당이 S-1·S-2를 판단한 뒤 재개한다. TASK-02 전체 실패 처리 → TASK-03 기본 프로필 작성자 경계·미도달 시험·README·커밋·분리 전체 검사 → TASK-04 → TASK-05(인스타 최우선) → TASK-06 → TASK-07 및 TASK-08. 판단 대기 중 가능한 부분은 기존 변경·로그 검토이며 추가 구현은 멈췄다. team-kit 착수 때 운영 저장소 최신 기준과 실행본 SHA-256을 다시 확인한다. TASK-09와 운영 전환 TASK-10은 계속 범위 밖이다.
+TASK-03 커밋·분리 전체 검사 → TASK-04 → TASK-05(인스타 최우선) → TASK-06 → TASK-07 및 TASK-08. 중간 TASK에서 앱만 실패하면 Python·실제 게이트웨이 통과와 변경 범위를 기록하고 이어간다. 마지막 TASK 뒤 최종 전체 검사에서도 앱만 실패하면 제품 기준 cb06e7d를 같은 조건에서 한 번 검사해 대조하고 보고한다. TASK-09와 운영 전환 TASK-10은 범위 밖이다.
 
 마지막 상태 대조: 검사 중 다른 작업이 앱 두 파일을 `b21dd94528981dddcfa98e5a9883e864442d243d`로 커밋했다. 이 커밋은 분리 전체 검사 대상에 포함되지 않았고, 그 이후 HEAD의 전체 통과를 주장하지 않는다. 타 작업의 보고서 미커밋 변경은 그대로 보존한다. 최종 변경본의 `python scripts/scan_private.py`는 종료 0(`.build/slack-move/stop-scan.log`, `.exit`), `git diff --check`도 종료 0이다.

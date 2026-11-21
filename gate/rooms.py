@@ -9,7 +9,7 @@ from .journal import HejoJournalError
 log = logging.getLogger(__name__)
 
 
-def recipients(text, room, employees):
+def recipients(text, room, employees, journal, thread):
     called = []
     matches = []
     for employee in employees:
@@ -25,7 +25,14 @@ def recipients(text, room, employees):
             if employee not in called:
                 called.append(employee)
             end = stop
-    return called or [room['lead']]
+    if called:
+        return called
+    first = next((row for row in journal.records if row['type'] == 'message'
+                  and journal.message_threads.get(row['msg_id']) == (room['id'], thread)), None)
+    owners = ([first['employee']] if first['role'] == 'employee'
+              else first.get('_meta', {}).get('recipients', [])) if first else []
+    eligible = set(room['members']) & {employee['id'] for employee in employees}
+    return [owner for owner in owners if owner in eligible] or [room['lead']]
 
 
 class RoomCommands:
