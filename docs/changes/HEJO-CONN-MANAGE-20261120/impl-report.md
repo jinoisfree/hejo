@@ -1,6 +1,6 @@
 # 구현 인계: HEJO-CONN-MANAGE-20261120
 
-> 최신 판단: **TASK-05 합동 적용 실패·롤백 복구 확인, 검토 대기**. 실제 연결 표 읽기에서 toolset_config HTTP 400 로그가 생겨 복구 조건을 적용했다. 이전 실행본·공용 릴리스로 복원하고 복구 재시작까지 총 2회 실행했다. 복구 뒤 채널 7개 재연결과 status/apps 성공을 확인했으며 추가 재시도는 하지 않았다.
+> 최신 판단: **7차 TASK-05 합동 서버 적용·실제 읽기 확인 완료, 독립 검토 대기**. 적용 전후 실패 종류 집합이 같고 새 실패가 없으며, 연결 표·시놀로지 한 줄·채널·M1/M2·최종 sync 정합을 확인했다. 이번 계획 재시작 1회, 복구 재시작 0회다. 공개·앱 교체·푸시는 미실행이다. 이전 보류·롤백 기록은 당시 상태다.
 
 ## 판단 상태
 
@@ -373,3 +373,55 @@ TASK-02b의 실제 수정 범위는 worktree의 위 코드·시험 2개이며, `
 운영 저장소 main은 검토한 두 작업을 포함한 `66f2a44c190390edd2a8a8eab9b2c32cba20195a`이며 작업 트리는 깨끗하다. **실행본과 공용 릴리스는 이전 상태로 복구됐으므로 이 main을 운영 반영 완료로 보면 안 된다.** 다음 시도의 HEAD=실행본 착수 조건은 이 상태에서는 맞지 않는다. 계획 담당이 롤백 manifest의 기준 지문과 병합 main의 관계, 재적용 기준을 명시해야 한다.
 
 다음 담당은 toolset_config HTTP 400의 원인과 기존 발생 여부를 조사해 새 오류 로그 0의 판정/구현을 보완하고, 시험 수집 경로 차이도 처리한 뒤 새 적용 인계를 낸다. 본 실행에서는 재시작 상한에 도달했으므로 재시도·reload·추가 조치는 하지 않는다. 서버 실물 읽기 결과는 TODO-DRAWER 검증 담당이 위 M1·M2 증거로 교차 확인할 수 있다. 공개·앱 교체·운영 설정/금고/명부 변경·실제 메시지·본체·ddots 수정·푸시는 하지 않았다. 최종 보고서 정적 검사와 커밋은 상태 블록에 기록한다.
+
+
+## TASK-05 합동 — 7차 재적용 (2026-11-21)
+
+받은 인계는 `7811c51e26b214f29c8feb6727cbd652bd483a7d`의 7차 지시다. 계획 재시작 1회 + 지정 복구용 1회(이번 실행 총 2회 상한)를 앞선 실행과 따로 센다.
+
+### 적용 전에 기록한 확인·롤백 기준
+
+- 운영 HEAD `66f2a44c190390edd2a8a8eab9b2c32cba20195a`, 미커밋 없음. tip `ae04a715`·`b2bc84f8` 유지. 실행본은 v6 복구 지문과 같고 제품 새 파일 2개 없음, 공용 RELEASE `1c6b3e2f18a3e3ceb24f01eeda8bcb042c4582a3`, 진행 중 턴 0. 이번 릴리스 후보는 위 7차 인계 커밋이며 `73a9447` 이후 gate/app 제품 변경 없음. `v7-preflight.json`에 직접 확인값을 기록했다.
+- 적용 전 이전 릴리스에 실제 `connections` 읽기 1회를 보냈다. 실패 집합은 `{(toolset_config, admin_failed, 400)}`, 반복 1회이고 표를 받았다. 장부 지문도 불변이다(`v7-baseline.json`). 적용 뒤 실패 종류 집합이 이 집합의 부분집합인지 비교한다.
+- sync 차이 0 요구를 충족하려고 검토한 시험 5개도 해당 브랜치 원본 그대로 배치한다. 기존 시험 3개는 dfb469d3 기준과 실행본 지문 일치, 새 시험 2개는 실행본 없음을 먼저 확인했다. 제품 코드나 시험 내용은 고치지 않는다. 전체 배치 대상은 22개(기존 18개·새 4개)이며 모두 보관·복원 대상에 포함했다.
+- 새 보관 폴더 `.build/conn-manage-rollback-mkx1ekc_`는 0700이고 기존 파일과 공용 릴리스 전체를 보관했다. 이전 RELEASE `1c6b3e2f18a3e3ceb24f01eeda8bcb042c4582a3`, 적용 전 게이트웨이 pid `28134`. 전체 파일별 sha256·모드·복원 대상과 공용 릴리스 소스 지문은 `v7-rollback.json`에 기록했다. 제품 기존 15개의 지문은 앞 절 v6 표와 같다. 새 파일 4개는 제품 account_connect.py·hermes-deadlines 및 시험 test_conn_management.py·test_deadline_list.py이며 복원 때 삭제한다.
+- 복원 명령(hejo 루트, 기존 환경 적용 뒤): `"$HEJO_PYTHON" .build/conn-manage-evidence/v7-ops.py restore`. 문을 교체했다면 이전 커밋 worktree의 install/hejo-release도 실행한다. 계획 재시작이 실행된 뒤 복구 조건일 때만 `"$HEJO_PYTHON" .build/conn-manage-evidence/v7-ops.py recovery-restart` 1회를 허용한다(BUSY 검사·이번 총 2회 제한). 그 뒤에도 실패하면 멈춘다. 실제 배치 전에 이 기록을 작성했다.
+
+| 추가 보관한 기존 시험 | sha256 |
+|---|---|
+| `plugin-store/team-kit/tests/test_connections_check.py` | `aa8709edef0294b1555f57923ffc8dd40d8cff82d0b9b78835eb674dfceef6df` |
+| `plugin-store/team-kit/tests/test_morning_report.py` | `d91eed049008ac9114699213d00ae7399e4eff625bf8aa818b1cf8398c649225` |
+| `plugin-store/team-kit/tests/test_news_watch.py` | `85d0cc68cf45852ba8c2b2388c809ad16d53a28f2e25a51cf412a15c0453b211` |
+
+
+### 7차 실행 결과·현재 적용본
+
+**구현자 판단: 배정된 TASK-05 합동 서버 적용과 증거 수준 3의 실제 읽기 확인을 마쳤다.** 최종 독립 판정은 검토 담당에게 남아 있다. 이번 실행의 복구 조건은 발생하지 않았다.
+
+| 명령·단계(hejo 루트에서 기존 환경 적용) | 실제 결과 | 로컬 증거 |
+|---|---|---|
+| `v7-read.py baseline` | 종료 0, 적용 전 실패 집합 기록·표 수신·장부 불변 | `v7-baseline.json` |
+| `v7-ops.py backup` | 종료 0, 22개 대상 및 이전 공용 릴리스 보관·복원 준비 | `v7-rollback.json` |
+| `v7-ops.py apply` | 종료 0, 원자 교체 뒤 status/apps 각각 종료 0·직원 6명 | `v7-after-copy.json` |
+| 운영 저장소 `./sync`(릴리스 전) | 종료 0, 변경 없음. 22개 실행본이 병합 HEAD와 바이트 일치 | `v7-sync-before.log` |
+| 운영 저장소 `./airport-check` | 종료 0, 경계·문서·칸·조립 검사 PASS | `v7-airport.log` |
+| `v7-ops.py release`(내부 install/hejo-release) | 종료 0, 착수 시 정한 RELEASE 확인 | `v7-rollback.json`의 releaseCommit |
+| `v7-ops.py restart` | 종료 0, BUSY 검사 뒤 계획 재시작 1회·채널 7개 재연결 | `v7-restart.json` |
+| `v7-ops.py status` | 종료 0, status/apps 각각 종료 0·직원 6명 | `v7-after-restart.json` |
+| `v7-read.py post` | 종료 0, 표·시놀로지 한 줄·기준선 부분집합·M1/M2 확인 | `v7-post.json`·`v7-M1.json` |
+| 운영 저장소 `./sync`(성공 후) | 종료 0, git status 비어 있음·차이 0 | `v7-sync-final.log` |
+
+- 실제 문 응답: 직원 6명, 연결 행 988개. 적용 전 시놀로지 관련 행이 있던 직원 모두 적용 후 정확히 1행(6명)임을 대조했다. 실제 해제·설정 바꾸기를 누르지 않았다.
+- 적용 전/후 실패 종류 집합은 모두 `{(toolset_config, admin_failed, 400)}`다. 이번 후속 읽기의 반복은 1건이며 기준은 개수가 아닌 집합 부분집합이다. `newFailures:[]`, `failureSubsetOfBaseline:true`로 통과했다. 본체의 기존 알려진 400은 그대로이며 새 종류가 없다.
+- TODO-DRAWER M1: 실제 `hermes-deadlines list --json` 종료 0·failed 없음, 운영 장부 2개 sha256 전후 동일. M2: 실제 문 응답 항목 2개·failed 없음, 재시작 뒤 문 로그 `deadlines_read items=2 failed=0`. 개수·직원 id·지문만 로컬 JSON에 기록하고 제목·계정·자격은 기록하지 않았다.
+- 기존 앱의 키체인 자격을 사용한 정식 WebSocket 읽기만 했다. 비밀 파일을 직접 열거나 관리 서비스를 직접 호출하지 않았다. 운영 설정·금고·명부·본체·ddots·장부 내용은 바꾸지 않았고 실제 메시지도 보내지 않았다.
+- 운영 저장소 main은 `66f2a44c190390edd2a8a8eab9b2c32cba20195a`이며 두 검토 tip을 이미 포함하므로 merge·내용 없는 커밋을 반복하지 않았다. 성공 뒤 sync 차이 0, 작업 트리 깨끗함, 실행본 22개와 HEAD 바이트 일치를 확인했다. 이전 6차의 실행본/저장소 불일치는 해소됐다.
+- 공용 RELEASE는 `7811c51e26b214f29c8feb6727cbd652bd483a7d`, 실제 게이트웨이 pid는 `34656`다. 문 핵심 파일 4개의 지문도 해당 커밋과 일치한다(`v7-identity.json`). 이번 계획 재시작은 1회, 복구 재시작은 0회이며 확인용 재시작을 더 하지 않았다.
+
+배포 범위의 구현상 보완: 이번에는 기존 두 작업에서 검토한 시험 5개도 같은 원본으로 함께 배치했다(내용 수정 없음). 이전처럼 repo에서 시험 역변경만 복원하면 다음 sync 때 다시 차이가 생기므로, 성공 뒤 sync 차이 0 요구를 실제로 충족하려는 조치다. 제품 코드·명세·수락 기준·공개 계약은 변경하지 않았다. 이 시험 5개도 기존/신규 여부와 지문을 미리 확인하고 별도 보관·복원 목록에 넣었다. 이전 6차의 시험 수집 경로 차이는 이제 없다.
+
+### 7차 인계·미실행 범위
+
+필요/도달 증거 수준 3/3(실제 게이트웨이·실행 CLI·문 응답). 이전에 통과한 제품 시험은 소스가 그대로여서 반복하지 않았다. 독립 검토자는 `v7-baseline.json`·`v7-post.json`의 집합 비교, 시놀로지 행 수, `v7-M1.json`의 장부 지문, `v7-restart.json`과 최종 sync 로그를 확인한다. TODO-DRAWER 담당은 같은 M1·M2 증거를 교차 확인할 수 있다.
+
+TASK-06 공개·앱 사본 교체와 사장 확인(CM M1~M4 등), 푸시는 미실행이다. 현재 서버 적용을 최종 제품 완료·공개·푸시 완료로 표시하지 않는다. 보관본은 롤백을 위해 유지하며 실제 경로와 지문은 위 기록을 따른다. 최종 개인값 검사·보고서 커밋·검사 대상 대조는 상태 블록과 `v7-final-evidence.json`에 기록한다.
