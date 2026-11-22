@@ -77,3 +77,38 @@
 
 - 자체 점검에서 토픽 생성의 await 사이에 수정·작성 중 상태가 바뀔 수 있음을 확인했다. 발신 직전 최신 기록장 글·활성·방 생존·짝 표지를 다시 확인하고 새 수정의 정착/작성 중 종료를 기다리게 했다. 첫 정착은 토픽 생성 전에 유지한다(AT-HT-14 순서 보존). 외부 I/O 전후의 서로 다른 시점 검증이다.
 - 토픽 응답을 지연시키고 그 사이 본문 수정·작성 중을 주입했다. 작성 중에는 0건, 종료 뒤 최신 본문 1건을 확인했다. Hermes venv 동일 문 시험(`--basetemp=/tmp/ht04io`), 종료 0, **38 passed**, `.build/telegram-evidence/topic-io-final.log`. 설계 차이 없음.
+
+## TASK-06 — 검증 실행·보류(HT-B02)
+
+### 현재 판단과 변경본
+
+- TASK-02~05의 문·앱 구현과 새 수락 시험 이식은 수행했다. **전체 완료 판정은 보류**다. 아래 HT-B02와 다른 작업의 개인값 지적이 남아 AT-HT-43 전체 통과를 선언하지 않는다. tasks 상태 확정·최종 검토·운영 적용 판단은 계획 담당에게 넘긴다.
+- 제품 코드 최종 커밋: `1ef3ad27fbe0e960fb542ea14bd0a3ef7d62262e`. TASK-03 `338c35a2d09fea34139207690bb1db64d2e3f2ab`, TASK-04 `c9a653a36b4355f7591ff1a086b77449edc905e4` 및 자체 점검 `9fd6512af6efccc0d81b783a12785364c787a740`, TASK-05 `0ded4b8a1b7bb2076c4232d378c1ab4ce4900fbb`.
+- 최종 수락 시험 정합 점검에서 AT-HT-22(a)·23(b)의 실제 보낸 글 답장/삭제 절차, AT-HT-24(a)의 이미지 MIME, AT-HT-40의 깨진 중간 줄 뒤 유효 줄 읽기를 추가로 명확히 실행했다. 기대값·수락 명세는 바꾸지 않았다. 제품 코드는 위 커밋 이후 변하지 않았으며 이 보완은 시험·보고만의 마지막 커밋이다.
+
+### HT-B02 — 승인된 규격 교체와 기존 전체 파일 해시 단정의 충돌
+
+- 실패 위치: `tests/acceptance/test_slack_move_gate.py:60`, `test_at_sm_02_edit_state_buttons_images_delete`.
+- 이 시험은 통신 규격 전체 SHA-256을 `4f365159c687db76249fed494627764f2e8fe741e89a56471642fe983371b7ce`로 고정한다. 착수 HEAD `d3f5b5f`의 규격이 실제로 이 값임을 읽기 명령으로 확인했다.
+- 이번에 승인된 여섯 프레임 교체·필드 변경 뒤 규격은 `7b3c2db703a83824ee6d173262bbefec34b5210c74954d7c5dc8556c1fb0f75b`다. 착수 HEAD와의 규격 diff는 이 작업의 텔레그램 교체 부분이다. 기존 Slack 계약의 동작 검사가 실행되기 전에 전체 파일 해시 단정에서 멈춘다.
+- 구현자가 기존 수락 시험의 기대 해시를 임의 갱신하거나 skip하지 않았다. 권고: 계획 담당이 이 단정의 보호 범위를 검토해 승인된 새 규격 기준으로 정합화한 뒤 재인계한다. 제품을 옛 규격으로 되돌리는 선택은 승인된 교체 목표와 충돌한다. 명세·설계·수락 시험 명세 수정 없음.
+
+### 실행 증거
+
+모든 명령은 이 저장소에서 실행했고, 기존 `.build/connections-env.sh`의 Hermes venv/기존 의존성 경로를 썼다. 패키지는 설치하지 않았다. 로그는 추적하지 않는 `.build/telegram-evidence/`에 있다.
+
+| 명령/검사 | 실제 결과·변경본 | 로그 |
+|---|---|---|
+| `TZ=Asia/Seoul PYTEST_ADDOPTS=--basetemp=/tmp/htfull bash scripts/test.sh` | 최종 종료 **1**, Python **426 passed, 1 failed**(HT-B02만), 기존 async-mark 경고 1건. 제품 커밋 `1ef3ad2`. `set -e` 때문에 그 호출의 배달·앱 단계는 미실행 | `full-final.log`, `full-final.exit` |
+| Hermes venv `python -m pytest tests/acceptance/test_telegram.py -q -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function --basetemp=/tmp/httestfinal` | 종료 **0**, **38 passed**. 최종 절차 보완을 포함한 시험 작업 트리; 제품은 `1ef3ad2` | `acceptance-final.log`, `acceptance-final.exit` |
+| `TZ=Asia/Seoul bash app/scripts/test.sh` | 종료 **0**. AT-HT-50~52 및 전체 앱·통신·훅 통과. 앱 변경본 `0ded4b8`; 이후 앱 diff 0건을 확인해 결과 재사용 | `task05-app-final.log` |
+| Hermes venv `python -m gate.tests.telegram_settling` | 종료 **0**, AT-HT-44 수준 **3**, 5회 `[0.024027290986850858, 0.017138208961114287, 0.016871250001713634, 0.0187675419729203, 0.03308812482282519]`초, 전부 2초 미만. 제품 `1ef3ad2` | `settling-final.log`, `settling-final.exit` |
+| Hermes venv `python -m gate.tests.gateway_delivery` | 종료 **0**, 실제 격리 게이트웨이 배달·오프라인 재생·중복 검사, 다른 플랫폼 실제 발송 0, 깨끗한 종료. 제품 `1ef3ad2` | `gateway-final.log`, `gateway-final.exit` |
+| mutation check(계정 일치 제거·작성 중 대기 제거·텔레그램 수신 되보내기 허용) | 최종 제품의 세 변형 모두 의도한 단정에서 종료 **1**로 검출했다. 원복 후 제품 diff 0. 문 38건 최종 통과로 원복 확인 | `mutation.json`, `mutation-account.log`, `mutation-typing.log`, `mutation-echo.log` |
+| 임시 빈 HERMES_HOME의 Hermes venv `python scripts/scan_private.py` | 종료 **1**, 다른 작업 문서의 절대 경로 4건. 이 작업 파일 지적 **0건**(아래). 전체 통과로 보고하지 않음 | `private-final.log`, `private-final.exit` |
+| `git diff --check` | 종료 **0** | 도구 실행 결과 |
+
+- 개인값 지적: `docs/changes/HEJO-DEADLINE-CLOSE-20261122/impl-report.md` 97·109행, 같은 폴더 `verdict.md` 127·146행. 범위 밖 문서는 수정하지 않았다. 이 작업의 문·앱·시험·보고 파일에는 지적이 없다.
+- 이전에 다른 작업 보고에 적힌 locale 관련 기존 실패는 참고만 했다. 기준 계획 커밋을 임시 폴더에 추출한 `test_delivery_parity::test_native_labels_outcome_and_repeat_are_idempotent`는 이번 환경에서 종료 0/1 passed였다(`baseline-parity.log`). 최종 전체 실행의 실패는 HT-B02 하나다.
+- 필요한 수준과 도달 수준: 문·앱 기능은 대역 통합 **2**, AT-HT-44만 **3**. 실제 텔레그램 SDK·봇·안드로이드 실물은 미검증이며 TASK-07·08 몫이다. 게이트웨이 재시작·설치·운영 설정/비밀 파일·본체/플러그인/team-kit/ddots 수정·실제 메시지 발송·푸시는 하지 않았다. 새 하위 에이전트도 사용하지 않았다.
+- 다음 담당: HT-B02의 시험 계약을 판단해 보완하고, 이 작업 변경 코드와 위 로그를 검토한다. 전체 실행 실패와 다른 작업 문서의 개인값 지적이 남아 푸시 대상·승인 요청은 제안하지 않는다. 롤백은 운영 미적용 상태에서 이 작업 커밋 되돌림이다.

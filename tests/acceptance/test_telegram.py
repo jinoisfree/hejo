@@ -308,6 +308,10 @@ async def test_at_ht_16_20_21_22_23_25_27_routing(gate,client,transport,runner):
         await wait_for_turns(runner,index+2)
         assert runner.events[-1].source.profile==employee
         assert gate.journal.records[-1]['room']==group_id
+    await gate.send('alpha','answer',metadata={'thread_id':key[1]})
+    await settled(gate)
+    await transport.handle_message(transport.event('out reply',topic=topics['alpha']['topic'],mid='out-reply',reply_to_message_id='tg-out-1'))
+    assert gate.journal.message_threads[gate.journal.records[-1]['msg_id']]==key
     await transport.handle_message(transport.event('reply',topic=topics['beta']['topic'],mid='reply',reply_to_message_id='tg-in-1'))
     assert gate.journal.message_threads[gate.journal.records[-1]['msg_id']]==key
     for mid,reply in [('root',topics['alpha']['topic']),('unknown','unknown-id')]:
@@ -317,7 +321,7 @@ async def test_at_ht_16_20_21_22_23_25_27_routing(gate,client,transport,runner):
         features={'rooms'}
         async def send(self, frame): pass
     await gate.thread_delete({'room':'alpha','thread':key[1]}, Sink())
-    await transport.handle_message(transport.event('deleted',topic=topics['alpha']['topic'],mid='deleted',reply_to_message_id='tg-in-1'))
+    await transport.handle_message(transport.event('deleted',topic=topics['alpha']['topic'],mid='deleted',reply_to_message_id='tg-out-1'))
     assert gate.journal.records[-1]['thread']!=key[1]
     for topic in ['1','topic-99']:
         before=gate.journal.head
@@ -352,8 +356,8 @@ async def test_at_ht_24_28_attachments_and_receive_failures(gate,client,transpor
     ws,_=await client.pair(features=['telegram'])
     _,topics=await activate(gate,client,ws,transport)
     for n,(text,caption,inlined) in enumerate([('look',None,[]),('',None,[]),('caption\n[문서 내용]','caption',[True])]):
-        file=tmp_path/f'in-{n}.txt';file.write_bytes(b'fixture attachment')
-        event=transport.event(text,topic=topics['alpha']['topic'],mid=f'file-{n}',media_urls=[str(file)],media_types=['text/plain'],media_text_inlined=inlined)
+        file=tmp_path/(f'in-{n}.png' if n==0 else f'in-{n}.txt');file.write_bytes(b'fixture attachment')
+        event=transport.event(text,topic=topics['alpha']['topic'],mid=f'file-{n}',media_urls=[str(file)],media_types=['image/png' if n==0 else 'text/plain'],media_text_inlined=inlined)
         event.raw_message.caption=caption
         await transport.handle_message(event)
         row=gate.journal.records[-1]
@@ -534,7 +538,12 @@ async def test_at_ht_40_corrupt_stores_do_not_block_connect(gate,client,transpor
         sent_before=dict(gate.telegram.sent)
     path=(gate.telegram.vault.path if broken=='telegram.json' else gate.telegram.settings_store.path)/broken
     if broken=='sent.jsonl':
-        with path.open('ab') as stream: stream.write(b'broken middle\n{"partial":')
+        tag=gate.telegram.private()['pair']['tag']
+        msg_id=next(iter(sent_before.values()))
+        extra={'tag':tag,'tg':'tg-after-corrupt','msg_id':msg_id}
+        sent_before[(tag,extra['tg'])]=msg_id
+        with path.open('ab') as stream:
+            stream.write(b'broken middle\n'+json.dumps(extra).encode()+b'\n{"partial":')
     else: path.write_text('{broken')
     await gate.disconnect()
     assert await gate.connect()
