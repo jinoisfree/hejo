@@ -173,3 +173,11 @@
    3. 앱을 0.2.6으로 업데이트하고 묵은 2건을 우클릭으로 닫는다.
    4. 계획 담당이 `list --json`·로그·행동 기록으로 확인하고 현재 명세에 반영한다.
    5. 롤백 보관본은 4번 뒤 정리한다.
+
+## 0.2.6 공개 기록 (2026-11-22)
+
+- 사장 결정 1: HEJO-TELEGRAM(main `53acb8e`)을 넣지 않고 public `98a9f242`를 그대로 공개한다.
+- 사장이 직접 `git push github 98a9f242…:refs/heads/main`(47a4245..98a9f24)을 실행했다. `ls-remote`로 확인했다.
+- 계획 담당이 `install/hejo-ship publish --approve-commit 98a9f242… --prepared .build/release-0.2.6/prepared.json`을 실행했다 → 종료 0, "PUBLISHED v0.2.6".
+- 릴리스 v0.2.6: 2026-11-22T14:55:59Z, 초안 아님, 대상 `98a9f242`, 첨부 appcast.xml·hejo-0.2.6-arm64.zip.
+- 남은 일: 사장이 앱을 0.2.6으로 업데이트하고 묵은 2건을 닫는다(M-DC-2). 그 뒤 계획 담당이 확인하고 현재 명세에 반영하며 롤백 보관본을 정리한다.
