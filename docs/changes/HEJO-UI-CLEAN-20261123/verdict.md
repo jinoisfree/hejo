@@ -24,3 +24,13 @@
 - [확인] 실패 지점 AT-UC-12: 끝까지 스크롤한 뒤 x=S+145에서 바닥−14는 카드 안(RGBA 52,52,52,112), 바닥−60은 카드 사이 빈 곳(36,36,36,107)이다(`task-01-bottom-pixels.json`). 같은 높이 방 목록 표본 차는 0. 카드가 바닥까지 차 있으면 칸 가운데 세로선은 카드와 빈 곳을 번갈아 지나므로 3판 기대는 제품이 맞아도 실패한다. 바탕을 카드와 같게 바꾸거나 여백을 넣지 않고 멈춘 판단이 옳다.
 - 조치: 수락 시험 4판 AT-UC-12 — (가) 카드 3장으로 목록 아래가 빈 상태에서 x=S+145 두 높이, (나) 12장 끝까지 스크롤에서는 카드 밖 왼쪽 여백 x=S+3 두 높이 + (가) 빈 곳과 비교. 오차·뜻(바닥까지 같은 톤, 덮개 없음) 그대로. handoff 8항 4판.
 - 중간 확인(최종 판정 아님): 이관 내역 표(impl-report)는 design 4.1과 파생 수치 규칙 안이다(AT-DI-22 테두리 y45→26 = 52/2, 폭 278 = 290−12, 226 = 230−4). 공용 세로줄 값 `AttentionRail`를 `SidebarMotion.swift`에 두고 채팅 카드도 쓰는 구조는 design 2.2에 맞다. 설계 적합성(4.2) 최종 판정은 전체 시험 통과 커밋에서 한다.
+
+## 4회 · 2026-11-23 · TASK-01 판정: 미완료(새 칸 시험 통과, 전체 시험 1건 실패로 보류) — 원인: 설계 누락(계획 담당)
+
+- 대상: 구현 worktree HEAD `67bbba1` + 미커밋 11파일(`task-01-edition-4-final-candidate.patch`). 검증 조건: 교차 모델.
+- [확인] 집중 시험 `--drawer-inline` 종료 0, AT-UC-10~19 통과(`task-01-edition-4-focused.log`). 전체 시험 종료 1 — `IslandTests.swift:120` "AT56 highlight expires at 1.5 seconds"(`task-01-edition-4-final-app-tests.log`).
+- [확인] 원인: `:115-120` 블록은 HEJO-TODO-DRAWER 때 이미 칸 카드 경로(`selectDrawerCard`)로 바뀌어 있었는데, design 3판 4.1이 이것을 "알약 경로 1.5초"로 잘못 적었다. 새 요구(칸 선택 동안 유지)와 정면 충돌하므로 구현 담당의 보류가 맞다.
+- [확인] TASK-02 예고 누락 두 건도 맞다: `IslandTests.swift:44` `idleStripe` 44×12, `DrawerInlineTests.swift:53` `field("heading")`.
+- 조치(design 4판·수락 시험 5판·handoff 8항): AT56 `:120`을 칸 선택 유지 + 칸 닫기 해제로 이관(TASK-01), 알약 경로 1.5초 만료는 AT-UC-05(나)에 명시해 TASK-02에서 보호. `idleStripe` → AT-UC-01·05로 대체·API 제거, `heading` 대표 보기 → `headerDrag`. 같은 종류 반복을 막으려고 **제거 보기 규칙** 추가(없애는 표현 API를 읽는 단언은 같은 뜻의 새 대상으로 바꾸거나 대신하는 AT-UC를 적고 지움, 행동·순서·개수·시간 단언은 제외).
+- 중간 코드 확인(최종 판정 아님): `selectDrawerCard`가 알림만 1.5초, 그 밖은 `highlightUntil=nil` + `drawerSelectedID`로 유지, `refresh`에서 칸 닫힘 때 해제. 세로줄 `AttentionRail`(폭 3·안쪽 6·위아래 10, 색 하나)을 칸과 채팅 질문 카드가 같이 씀. 카드 색 `SidebarTone.cardFill/cardBorder` 공용 값. `SidebarBlank` 덮개 제거, 열 바탕 바닥까지. design 2.2에 맞다.
+- 남은 증거: 선택 뒤 비동기 스크롤 정착 화면(구현 담당 지적) — TASK-01 커밋 전 보강.

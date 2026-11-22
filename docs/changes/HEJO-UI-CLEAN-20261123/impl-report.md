@@ -150,3 +150,51 @@ TASK-01 전체 시험·커밋이 선행 조건이므로 제목 알약·중복 �
 ### 다음 인계
 
 R-UC-I3의 입력/바탕 표본 조건 판정 뒤 **현재 미커밋11파일을 보존**하고 재개한다. 그 전 TASK-01 커밋을 하지 않으며 TASK-02·03을 앞당기지 않는다. 검토자는 `task-01-candidate.patch`, 집중 진단2 로그, 스크롤 후 사진과 표본 JSON을 함께 확인하면 된다. 릴리즈 총괄에 보낼 상태는 기준 HEAD 위 부분 구현·시험 실패·새 후보 커밋 없음·푸시/운영 반영 없음이다.
+
+
+## TASK-01 · 4판 재개: 신규 칸 시험 통과 / 전체 시험 보류(R-UC-I4)
+
+### 기준과 보존
+
+- 지정 기준 `67bbba19d49bb69ba0d9594cf350c9df6f2b153c`를 미커밋11파일이 있는 상태 그대로 merge했다. 종료0, 문서만 fast-forward, 충돌 없음. 폐기·stash는 하지 않았다.
+- 이전 후보 patch와 대조해 UICleanDrawerTests 외 10파일 변경이 동일함을 확인했다(`task-01-edition-4-preservation.json`). 최초 시험 수정은 AT-UC-12 블록뿐(`task-01-edition-4-test-only.diff`)이며, 이후 아래 강조색 참조 조립을 보완했다. 제품 코드는 이번 재개에서 바꾸지 않았다.
+- 현재11파일 전체 후보: `.build/ui-clean-evidence/task-01-edition-4-final-candidate.patch`. HEAD는 위 기준, 새 구현 커밋 없음. TASK-01 전체 종료0 조건 미충족이므로 커밋하지 않았다. TASK-02·03 제품 수정은 시작하지 않았다.
+
+### 이번에 바꾼 시험·확인한 결과
+
+- AT-UC-12는 수락 시험4판 그대로: 실제 모델 카드에서 3장/12장 입력을 조립했다. 3장은 x=S+145의 바닥−14/−60, 12장은 끝까지 스크롤 후 x=S+3의 두 높이를 비교하며 3장의 빈 바탕 표본과도 비교한다. 두 입력의 방 목록 표본도 비교한다. 같은 마지막 카드의 상대 좌표(200,45)를 3장일 때의 실제 viewport와 12장 스크롤 후 실제 viewport에서 비교한다. 오차는 모두6/255다.
+- 어둡게·밝게의 AT-UC-12 및 스크롤 전후 머리 좌표 검사는 통과했다. 이전 R-UC-I3의 표본 충돌은 수정된 시험 조립으로 해소됐다. 제품 바탕·카드 값은 조정하지 않았다.
+- AT-UC-16 선택 테두리는 처음에 동적 NSColor를 창 밖에서 DeviceRGB로 풀어 비교해 실패했다. 강조색 참조를 **같은 창 안**의 NSColor.controlAccentColor 그리기로 해석하도록 새 시험의 참조 조립만 보완했다(UICleanAccentReference). 기대 색·비교 종류·오차는 그대로다. 최종 픽셀은 테두리와 참조 모두 `(0,0.569464,1,1)`로 정확히 같았다. 기존 InlineAccentReference와 같은 이유이며 제품 값을 참조한 기대가 아니다.
+- 집중 시험 `--drawer-inline` 종료0, AT-UC-10~19 전부 통과. 선택 유지/다른 카드/닫기 해제·키보드·빈 문구·기존 마감 닫기 회귀가 실행됐다.
+- 사진: `task-01-three-cards-{dark,light}.png`, `task-01-before-{dark,light}.png`, `task-01-after-{dark,light}.png`, `task-01-selected.png`. 밝은 테마 원본은 반투명 RGBA이므로 원본은 보존하고 검토용 흰 바탕 합성 사본 `*-light-on-white.png`, `task-01-selected-on-white.png`도 만들었다. 원본과 사본을 직접 열어 칸·사진·상태·선택·고정 머리를 확인했다.
+- 미검증 주의: 선택 사진은 동기 캡처다. history.scrollTo는 main queue에 지연 배치를 예약하므로, 선택된 스레드의 실제 화면 위치가 완전히 정착한 뒤의 사진·보이는 카드 관측은 추가로 남겨야 한다. 현재 자동 시험은 선택 messageID·replyMode·composeKey·contents의 강조 스타일을 검사했다. 이 제한을 실제 화면의 선택 연결 완료 증거로 과장하지 않는다.
+
+### 실제 실행
+
+위치: 구현 worktree 루트 `.build/ui-clean-evidence/`.
+
+| 명령 | 종료 | 변경본·로그·판정 |
+|---|---|---|
+| 전체 `HEJO_PYTHON=<gateway venv python> bash app/scripts/test.sh`(4판 최초) | 1 | AT-UC-12 양 테마 통과, 선택 강조색의 시험 참조 해석에서 실패. `task-01-edition-4-app-tests.log` |
+| 동일 swiftc 시험 컴파일 + `app-tests --drawer-inline` | 0 | 현재11파일. `task-01-edition-4-focused-compile.log`, `task-01-edition-4-focused.log`: APP_TEST_OK·AT-UC-10..19 PASS |
+| 지정 전체 앱 시험(최종) | **1** | 현재11파일. `task-01-edition-4-final-app-tests.log`: AT-TD·AT-DC·AT-DI·AT-UC-10~19 통과 뒤 IslandTests의 AT56에서 실패(아래). 이후 기본 시험 및 네트워크 fixture 미실행 |
+| scan_private.py, 임시 fake owner 입력 | 0 | 현재11파일, `task-01-edition-4-final-private-scan.log`. 새 지적 없음 |
+| git diff --check | 0 | 현재11파일, `task-01-edition-4-final-diff-check.log` |
+| 현재 HEAD·status·미이관 단언 rg | 각각0 | `task-01-edition-4-state.json` |
+
+신규 칸 시험의 통합 실행과 사진은 확보했지만 전체 종료0은 확보하지 못했다. mutation check는 여전히 미실행(시험 계약 충돌에서 보류). 설치·공개·main으로 구현 병합·푸시·운영 변경 없음.
+
+### R-UC-I4: 전체 시험의 실제 경로와 이관 표가 다름 / TASK-02 잔여 누락
+
+| 위치 | 확인한 사실 | 필요한 판정·권고 |
+|---|---|---|
+| `app/Tests/IslandTests.swift:116~120` AT56 | `ui.selectDrawerCard(firstQuestion)`로 **칸 카드**를 고른 후, 1.6초 뒤 highlightedMessageID==nil을 요구한다. design 4.1은 :120을 **알약 경로**의1.5초 단언이라고 적고 유지하라고 했다. REQ-UC-03 AC-07·AT-UC-17·이관된 AT-TD-25는 같은 칸 선택의 강조를 유지하도록 요구한다. 실제 전체 시험이 여기서 실패했다 | 현재 코드는 알약 activateIsland(.question)의1.5초를 그대로 유지하고 칸 선택만 지속시킨다. [권고] TASK-01 단계에서 이 AT56 준비 동작을 알약 action 처리 경로 `activateIsland(.question(...))`로 옮기도록 명시해 :118~120의 질문 이동·2pt 강조·1.5초 만료를 유지한다. 또는 칸 선택 시험으로 남길 의도면 :120을 지속 기대로 이관하고 알약1.5초는 별도 보호해야 한다. 구현자가 고르지 않았다 |
+| `IslandTests.swift:43~44` AT53, TASK-02 | 빈 상태의 `idleStripe.size == CGSize(width:44,height:12)`를 요구한다. 제목 알약은 빈 처리할 일 상태에서도 제목을 그리므로 옛 빈 띠가 교체된다. 4.1 표에는 이 :44 단언이 없고, 문자열 폭을 갖는 제목 알약은 spec 수치 산수만으로 옛 빈 띠 기대를 옮길 수 없다 | [권고] 옛 빈 띠 단언을 AT-UC-01의 제목 알약·점 없음·제목 영역 누르기 보호로 교체하도록 명시. 시험만 만족하는 미사용 idleStripe API를 남기지 않도록 허용 범위를 확정 |
+| `app/Tests/DrawerInlineTests.swift:49,53,57` AT-DI-05, TASK-02 | 대표 보기 배열이 Mirror로 `field("heading")`을 강제 추출하고 모든 보기의 화면좌표 +290을 단언한다. heading 제거 후 준비 코드가 실패한다. 해당 배열은4.1 표에 없다 | [권고] `field("heading")`을 `view.headerDrag`로 대체해 채팅 머리 대표 보기의 +290 계약을 유지하도록 명시. 나머지 배열·화면좌표 비교는 불변. 단순 숫자 이관이 아니라 대상을 바꾸므로 파생 수치 규칙으로 임의 처리하지 않음 |
+
+- 위 사실은 실제 코드와 4.1 표를 대조한 것이며 제품 설계/기대값을 변경한 것이 아니다. 특히 AT56 만료 실패는 아직 TASK-02를 구현하지 않은 TASK-01 전체 시험에서 발생하므로 지금 해소할 인계가 필요하다.
+- TASK-02·03은 선행 TASK-01 미완료 및 위 이관 범위 누락으로 미착수. 분홍 표식·접기 단추 실제 화면/뷰 계층 주인 확정은 TASK-03에 남아 있다. 밝은 사진에 보이는 묶음 글자의 낮은 가시성도 TASK-03 대상이며 이번 TASK-01에서 수정하지 않았다.
+
+### 다음 인계
+
+계획 담당이 R-UC-I4의 실제 AT56 준비 경로와 TASK-02 이관 두 곳을 명시한 뒤 재인계한다. 현재 미커밋11파일을 보존한다. 그다음 선택 스크롤 정착의 화면 증거를 보강하고 TASK-01 전체 종료0·정적 검사 후 자기 경로만 커밋, 이후 TASK-02→03을 진행한다. 현재 HEAD는 기준일 뿐 릴리즈 후보가 아니며 새 구현 커밋·푸시·운영 반영은 없다. 총괄 전달은 호스트 담당이다.

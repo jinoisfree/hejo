@@ -1,6 +1,6 @@
 # HEJO-UI-CLEAN 설계
 
-3판 · 2026-11-23(2판: 보류 R-UC-I1 — 4.1 이관 표, 3판: 보류 R-UC-I2 — AT-DI-39, 연결 없음 접미사, AT-DI-22 준비 상태, 파생 수치 규칙) · 명세 [spec.md](spec.md) · 기준 main `e9f2d59` · 칸 표는 spec 첫 절.
+4판 · 2026-11-23(4판: 보류 R-UC-I4 — AT56 칸 선택 경로, TASK-02 제거 보기 규칙. 2판: 보류 R-UC-I1 — 4.1 이관 표, 3판: 보류 R-UC-I2 — AT-DI-39, 연결 없음 접미사, AT-DI-22 준비 상태, 파생 수치 규칙) · 명세 [spec.md](spec.md) · 기준 main `e9f2d59` · 칸 표는 spec 첫 절.
 
 ## 1. 지금 흐름 [확인]
 - 알약: `IslandModel.snapshot()`이 `parts`(problem/owner/worker, 미리보기 event, "닫기 ‹" 덧붙임)를 만들고(`IslandModel.swift:111-160`), `IslandView`가 여러 칸으로 그린다. `ConversationView.layout`이 알약을 `x+12`에, 그 오른쪽에 `heading`(방 이름)·`subtitle`(설명)을 둔다. 클릭은 `ConversationView` `tickIsland`/`.drawer`·`.question`·`.worker`·`.reconnect`·`.retry` 처리.
@@ -61,6 +61,7 @@
 ### 4.1 기존 시험 이관 허용 목록(2판, 기준 main `aa65bfb` 줄 번호)
 원칙: 아래 단언만 바꿀 수 있다. **지키던 뜻(행동·순서·개수·시간·출처 매핑)은 남기고** 표현 API(`parts`→`activity`, `badge`/`time`→`status`/`trailing`)·좌표·문장·수치만 새 기대로 옮긴다. 시험 준비 코드(`Card(...)` 생성 인자 등)의 기계적 이름 변경은 허용. 단언 삭제는 '대체' 칸에 적힌 AT-UC가 같은 뜻을 볼 때만. 이 밖의 단언이 새 요구와 부딪히면 멈추고 보고.
 **파생 수치 규칙(3판)**: 단언의 숫자가 spec 2판 수치(칸 290, 카드 폭 278·높이 52·사이 7, 토글 x 14~244 → 폭 230·안쪽 226, ✕ 24, 머리 44)에서 산수로 바로 나오는 값으로만 바뀌는 경우(같은 비교, 같은 뜻)는 표에 없어도 옮길 수 있다. impl-report에 파일:줄·전후·계산식을 적는다. 뜻·비교 종류·오차가 바뀌면 여전히 멈추고 보고.
+**제거 보기 규칙(4판, TASK-02)**: 이 작업이 없애는 표현 API(`heading`·`subtitle`·`parts`·`partRects`·`iconOnly`·`workerFacesOnly`·`idleStripe`·owner 개수 문장)를 읽는 기존 시험은 (1) 같은 뜻을 새 API로 볼 수 있으면 대상만 바꾸고(예: 채팅 머리 대표 보기 `heading` → `headerDrag`, 제목 문자열 → 알약 제목), (2) 새 화면에 그 뜻이 없으면 그 뜻을 대신하는 AT-UC 행을 적고 단언을 지운다. 시험만 위해 옛 API를 남기지 않는다. 행동·순서·개수·시간을 보던 단언은 이 규칙으로 지울 수 없다(멈추고 보고). impl-report에 파일:줄·전후·대신하는 AT-UC를 적는다.
 
 | TASK | 파일:줄 | ID | 새 기대 |
 |---|---|---|---|
@@ -75,13 +76,16 @@
 | 01 | `TodoDrawerTests.swift:259-260` | AT-DC-21b | `status == "오늘 마감" + (tail.map{" · "+$0} ?? "") + (linked ? "" : " · 연결된 대화 없음")` — 알려진 7종·모르는 종류 매핑 전부 유지 |
 | 01 | `TodoDrawerTests.swift:71-73` | AT-TD-25 | 1.49·1.51초 뒤에도 `highlightedMessageID==q1`(선택 유지). 해제는 AT-UC-17 |
 | 01 | `TodoDrawerTests.swift:294-295` | AT-DC-23 | 같음(마감 카드는 목록에 남아 선택 유지) |
+| 01 | `IslandTests.swift:116-120` | AT56 칸 선택 | 이 블록은 이미 칸 카드 경로(`selectDrawerCard`)다. `:120`을 "1.6초 뒤에도 `highlightedMessageID == islandMessage(1).id`"로 바꾸고, 이어서 칸 닫기 → `nil`을 더한다(AT-UC-17 뜻). 알약 경로 1.5초 만료는 TASK-02 AT-UC-05가 지킨다 |
 | 01 | `TodoDrawerTests.swift:76-77` | AT-TD-39 | **바꾸지 않음**(알림 카드는 사라져 1.5초 규칙) |
 | 02 | `IslandTests.swift:13,15,19,24,27` | AT53 | `dot`·`activity`로: 질문 있음 → `dot`, 안 읽음만 → 점 기준은 처리할 일 total(spec AC-02), 일하는 중 문장·얼굴 3장 유지, 넘침 시 `workerFacesOnly` 대신 활동 말줄임(AT-UC-04) |
 | 02 | `IslandTests.swift:55,57,67` | AT54 | `expanded`·미리보기 순서·4초·문제 우선 뜻 유지, `parts.first/last` → `activity`(`iconOnly` 단언은 '활동 하나'로) |
 | 02 | `IslandTests.swift:72` | AT56 | `activity?.action == .question(...)` |
 | 02 | `IslandTests.swift:77,80,81,83,86,88` | AT55 | `parts[0]` → `activity`, 문장·action 그대로 |
+| 02 | `IslandTests.swift:43-44` | AT53 빈 띠 | `idleStripe` 단언 제거, 대신 AT-UC-01(가)(처리할 일 0: 제목 보임·점·구분선 숨김) + AT-UC-05(가)(제목 영역 클릭 = 칸 여닫기). `idleStripe` API 제거 |
+| 02 | `DrawerInlineTests.swift:53` | AT-DI-05 | 대표 보기 `field("heading")` → `view.headerDrag`. 배열의 나머지·+290 비교 불변 |
 | 02 | `IslandTests.swift:108,134` | AT53 배치 | 알약 `minX == sidebarWidth+12`, 높이 30, heading 단언 → 알약 최대 폭(AT-UC-04) |
-| 02 | `IslandTests.swift:47-48,109-131` | AT56 클릭 | 클릭 좌표를 `partRects` 대신 활동 영역/제목 영역 rect로. 끊김 재연결(`:127`)은 활동 영역 클릭. 1.5초 만료(`:120`, 알약 경로)는 유지 |
+| 02 | `IslandTests.swift:47-48,109-131` | AT56 클릭 | 클릭 좌표를 `partRects` 대신 활동 영역/제목 영역 rect로. 끊김 재연결(`:127`)은 활동 영역 클릭. 알약 경로 1.5초 만료는 AT-UC-05로 |
 | 02 | `TodoDrawerTests.swift:56-61` | AT-TD-41·27 | owner 칸 → 제목 영역 클릭. `:60` "닫기 ‹" 단언은 AT-UC-06으로 대체 |
 | 02 | `TodoDrawerTests.swift:119-122,135-141,146` | AT-TD-41·28·29 | 빈 알약 클릭 좌표 유지(제목 영역), 일하는 중·문제는 활동 영역 클릭, `parts...action` → `activity?.action` |
 | 02 | `Task17Tests.swift:206` | AT67 | `dot == true && activity?.kind != .question`(뮤트는 미리보기를 띄우지 않음) |
