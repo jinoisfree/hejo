@@ -5,7 +5,49 @@ private final class PicturePickerFixture:NSOpenPanel {
     override var url:URL? {chosen}
 }
 
+private final class OptionLevelWindow:NSWindow {
+    var levelChanges=0
+    override var level:NSWindow.Level {
+        get {super.level}
+        set {levelChanges+=1;super.level=newValue}
+    }
+}
+
+// AT-FF-64: visible options follow app activation without retaining or updating closed windows.
+@MainActor private func optionWindowActivationTests() throws {
+    let oldLevel=OptionWindows.petLevel,oldActivate=OptionWindows.activate
+    defer {OptionWindows.petLevel=oldLevel;OptionWindows.activate=oldActivate}
+    OptionWindows.activate={}
+    for petLevel in [NSWindow.Level.floating,NSWindow.Level(rawValue:NSWindow.Level.mainMenu.rawValue+1)] {
+        OptionWindows.petLevel={petLevel}
+        let window=OptionLevelWindow(contentRect:CGRect(x:0,y:0,width:100,height:100),styleMask:[.titled],backing:.buffered,defer:false)
+        window.isReleasedWhenClosed=false
+        let chooser=NSOpenPanel()
+        defer {window.close();chooser.close()}
+        OptionWindows.show(window)
+        OptionWindows.prepare(chooser);chooser.makeKeyAndOrderFront(nil)
+        try check(window.isVisible && chooser.isVisible,"AT-FF-64 standalone and real photo chooser are open")
+        OptionWindows.updateLevels(active:false)
+        try check(window.level == .normal && chooser.level == .normal,"AT-FF-64 inactive options return to normal")
+        OptionWindows.updateLevels(active:true)
+        try check(window.level.rawValue==petLevel.rawValue+1 && chooser.level.rawValue==petLevel.rawValue+1,"AT-FF-64 active options return above the pet")
+        window.close();chooser.close()
+        let changes=window.levelChanges,closedChooserLevel=chooser.level
+        OptionWindows.updateLevels(active:false);OptionWindows.updateLevels(active:true)
+        try check(window.levelChanges==changes && chooser.level==closedChooserLevel,"AT-FF-64 closed options receive no level updates")
+    }
+    weak var released:NSWindow?
+    autoreleasepool {
+        let window=NSWindow(contentRect:CGRect(x:0,y:0,width:100,height:100),styleMask:[.titled],backing:.buffered,defer:false)
+        window.isReleasedWhenClosed=false;released=window
+        OptionWindows.show(window);window.close()
+    }
+    try check(released == nil,"AT-FF-64 option tracking does not retain a closed window")
+    print("AT-FF-64 OPTION ACTIVATION PASS")
+}
+
 @MainActor func optionWindowTests(resourceDirectory:URL) async throws {
+    try optionWindowActivationTests()
     let directory=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer {try? FileManager.default.removeItem(at:directory)}
     let store=try LocalStore(directory:directory),controller=try testConversation(client:GateClient(store:store,credentials:MemoryCredentials()))

@@ -337,7 +337,7 @@ import AppKit
         toolsWindow?.show(profile:profile);updateConnectionsLevel()
     }
     private func updateConnectionsLevel() { toolsWindow?.setPreferredLevel(OptionWindows.level(active:NSApp.isActive)) }
-    func applicationDidResignActive(_ notification:Notification) { updateConnectionsLevel() }
+    func applicationDidResignActive(_ notification:Notification) { updateConnectionsLevel();OptionWindows.updateLevels(active:false) }
     @objc private func showOptions() {
         if petSettings == nil {
             let profile=conversation.model.employees.first
@@ -375,7 +375,7 @@ import AppKit
         petSettings?.present(name: store.settings.petName, percent: store.settings.petScalePercent ?? 100,
                              bubble: store.settings.bubbleAlwaysShown ?? false, account: currentAccount, status: client.status.text)
     }
-    func applicationDidBecomeActive(_ notification: Notification) { conversation?.model.memberState.activate();calendar?.refresh(force:true);petSettings?.refreshLogin(LoginLaunchPresentation.resolve(LoginLaunch.state,installed:LoginLaunch.isInstalled(),failed:loginChangeFailed));updateConnectionsLevel() }
+    func applicationDidBecomeActive(_ notification: Notification) { conversation?.model.memberState.activate();calendar?.refresh(force:true);petSettings?.refreshLogin(LoginLaunchPresentation.resolve(LoginLaunch.state,installed:LoginLaunch.isInstalled(),failed:loginChangeFailed));updateConnectionsLevel();OptionWindows.updateLevels(active:true) }
     func configureUpdates(_ updates: AppUpdate) {
         appUpdate = updates
         updates.onChange = { [weak self] in self?.refreshUpdates() }
