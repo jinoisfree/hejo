@@ -161,5 +161,6 @@ private func islandMessage(_ seq:Int,_ key:ConversationKey = islandA,asked:Bool=
     ui.island.show(lost);try capture("task11-disconnected-automatic.png")
     pet.panel.orderOut(nil)
     try await uiCleanIslandTests(resourceDirectory:resourceDirectory)
+    try await uiCleanPolishTests(resourceDirectory:resourceDirectory)
     print("AT-HF-53 UI PASS");print("AT-HF-56 AUTOMATIC PASS");print("ISLAND_AUTOMATIC_CAPTURES_OK")
 }

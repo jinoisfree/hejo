@@ -496,7 +496,7 @@ import UniformTypeIdentifiers
         }
         let alerts=next.filter{!$0.questions}.flatMap(\.messages).count
         if alerts>0 {let button=FileChip(title:"모두 읽음");button.isBordered=false;button.font = .systemFont(ofSize:11,weight:.medium);button.image=NSImage(systemSymbolName:"checkmark.circle",accessibilityDescription:nil);button.imagePosition = .imageLeading;button.contentTintColor = .secondaryLabelColor;button.toolTip="이 방의 알림 \(alerts)건을 모두 읽음으로";button.setAccessibilityLabel("알림 \(alerts)건 모두 읽음");button.invoke={model.readAllNotices(employee)};noticeBar.addArrangedSubview(button)}
-        bannerMotion.target(shownNotices.isEmpty ? 0:1,now:motionTime(),immediate:reduceMotion())
+        bannerMotion.target(shownNotices.isEmpty || controller.drawerOpen ? 0:1,now:motionTime(),immediate:reduceMotion())
         let shownFailures=controller.shownFailures
         for failure in shownFailures {
             let row=NSStackView();row.spacing=6;row.toolTip=failure.reason
@@ -516,6 +516,7 @@ import UniformTypeIdentifiers
             let label=NSTextField(labelWithString:"다른 방에서 보내지 못한 글 \(elsewhere.count)개");label.font = .systemFont(ofSize:11);row.addArrangedSubview(label)
             let button=FileChip(title:"보러 가기");button.isBordered=false;button.font = .systemFont(ofSize:11);button.invoke={ [weak self] in self?.chooseEmployee(first.shown) };row.addArrangedSubview(button);failureBar.addArrangedSubview(row)
         }
+        failureBar.isHidden=failureBar.arrangedSubviews.isEmpty
     }
     private func reportOpenHeight() {
         let needed: CGFloat?
@@ -722,7 +723,7 @@ import UniformTypeIdentifiers
         let noticeHeight:CGFloat=notice.stringValue.isEmpty ? 0 : 38, attachmentsHeight:CGFloat=30*chipFraction
         let inputHeight=max(42,editorHeight+22), composerHeight=10+32+6+attachmentsHeight+inputHeight+10
         let failureHeight=CGFloat(failureBar.arrangedSubviews.count)*28
-        noticeScroll.isHidden=bannerFraction<=0 || searchOpen;noticeScroll.frame=CGRect(x:x,y:y,width:right,height:38*bannerFraction);noticeScroll.alphaValue=bannerFraction
+        noticeScroll.isHidden=bannerFraction<=0 || searchOpen || controller.drawerOpen;noticeBar.isHidden=noticeScroll.isHidden;noticeScroll.frame=CGRect(x:x,y:y,width:right,height:38*bannerFraction);noticeScroll.alphaValue=bannerFraction
         noticeBar.frame=CGRect(x:0,y:0,width:max(right,noticeBar.fittingSize.width),height:37)
         CATransaction.begin();CATransaction.setDisableActions(true);noticeBar.layer?.setAffineTransform(CGAffineTransform(translationX:0,y:-38*(1-bannerFraction)));CATransaction.commit()
         if !noticeScroll.isHidden {y+=38*bannerFraction}

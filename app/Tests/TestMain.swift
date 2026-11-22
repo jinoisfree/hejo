@@ -32,7 +32,11 @@ final class MemoryCredentials: GateCredentialStore {
         Task { @MainActor in
             do {
                 let args = CommandLine.arguments
-                if args.contains("--ui-clean-island") {
+                if args.contains("--ui-clean-polish-probe") {
+                    try await uiCleanPolishTests(resourceDirectory:URL(fileURLWithPath:args.last!),diagnoseOnly:true)
+                } else if args.contains("--ui-clean-polish") {
+                    try await uiCleanPolishTests(resourceDirectory:URL(fileURLWithPath:args.last!))
+                } else if args.contains("--ui-clean-island") {
                     try await uiCleanIslandTests(resourceDirectory:URL(fileURLWithPath:args.last!))
                 } else if args.contains("--drawer-inline") {
                     try await drawerInlineTests(resourceDirectory:URL(fileURLWithPath:args.last!))
