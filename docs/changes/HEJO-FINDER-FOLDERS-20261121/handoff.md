@@ -289,3 +289,24 @@ TASK-09의 측정은 실제 트랙패드 탭이 아니라 수락 명세 AT-FF-30
 6. 금지: 개인값, 본체·ddots, 수락 기준·시험 명세·spec·design 수정, git push. 위험도 일반, 증거 수준 2.
 7. 보고: impl-report.md '10차-TASK-11 보완' 절(커밋 전체 해시, 명령·종료 코드·로그 경로), result.
 ```
+
+## 11차 지시 (2026-11-22): TASK-12 연결 창 화면 공유 숨김 없애기
+
+사장 보고: "에이전트 연결을 눌러도 창이 뜨지 않는다"(서버, 화면 공유로 보는 중). 사장 결정: 숨김 기능을 없애고, 이 작업에 넣어 0.2.4에 담는다.
+
+```text
+[설계 인계: HEJO-FINDER-FOLDERS TASK-12]
+1. 문서: spec 9판 REQ-FF-11(현황 근거 포함), 수락 명세 AT-FF-70·71.
+2. 원인: 입력 단계에서 model.privacy(true) → ConnectionsWindow.swift:250이 연결 창·시트 sharingType을 .none으로 바꾼다.
+   :277 입력 시트도 처음부터 .none이다. 화면 공유로 보는 사람에게 창이 보이지 않는다.
+3. 고치는 자리: ConnectionsWindow.swift의 두 곳. sharingType을 .none으로 두지 않는다(기본값 그대로).
+   model.privacy 콜백 자체는 모델 계약(기존 AT83이 호출을 확인함)이라 남겨도 된다. 창 연결 쪽만 바꾼다.
+   이제 아무 일도 하지 않는 연결이면 지운다. 기존 시험 기대값은 바꾸지 않는다.
+   비밀 칸 secure, 값 지우기, 원시 오류 비노출, 창 높이 규칙은 건드리지 않는다.
+4. 확인: AT-FF-70(실제 ConnectionsWindow, 세 시점 sharingType != .none), AT-FF-71 회귀.
+   앱 시험 전 pgrep -f app-tests, HEJO_PYTHON=게이트웨이 Python bash app/scripts/test.sh 전체.
+5. 범위: app/Sources/ConnectionsWindow.swift, app/Tests(ConnectionsTests 또는 새 파일 + TestMain 등록). 자기 경로만 git commit --only.
+   gate/·schemas/·다른 작업 파일, 앱 버전·공개 후보 금지.
+6. 금지: 개인값, 본체·ddots, 수락 기준·시험 명세·spec·design 수정, git push. 위험도 일반, 증거 수준 2.
+7. 보고: impl-report.md '11차-TASK-12' 절(커밋 전체 해시, 명령·종료 코드·로그 경로), result.
+```

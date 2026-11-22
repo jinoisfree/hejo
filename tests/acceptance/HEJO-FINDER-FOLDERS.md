@@ -1,6 +1,6 @@
 # HEJO-FINDER-FOLDERS 수락 시험 명세
 
-8판 · 2026-11-22(AT-FF-64 추가: 비활성 때 옵션창 높이. 7판: AT-FF-50~54 색과 글자 사진, AT-FF-60~63 옵션창 높이 추가. 6판 AT-FF-40~42, 4판 AT-FF-15~17·20~23, 3판 V-1로 AT-FF-12 정정, 계획 검증 1회차 PR-01~04 반영, [plan-review.md](../../docs/changes/HEJO-FINDER-FOLDERS-20261121/plan-review.md)) · 명세 [spec.md](../../docs/changes/HEJO-FINDER-FOLDERS-20261121/spec.md), 설계 [design.md](../../docs/changes/HEJO-FINDER-FOLDERS-20261121/design.md).
+9판 · 2026-11-22(AT-FF-70·71 추가: 연결 창 화면 공유. 8판: AT-FF-64 추가: 비활성 때 옵션창 높이. 7판: AT-FF-50~54 색과 글자 사진, AT-FF-60~63 옵션창 높이 추가. 6판 AT-FF-40~42, 4판 AT-FF-15~17·20~23, 3판 V-1로 AT-FF-12 정정, 계획 검증 1회차 PR-01~04 반영, [plan-review.md](../../docs/changes/HEJO-FINDER-FOLDERS-20261121/plan-review.md)) · 명세 [spec.md](../../docs/changes/HEJO-FINDER-FOLDERS-20261121/spec.md), 설계 [design.md](../../docs/changes/HEJO-FINDER-FOLDERS-20261121/design.md).
 상태: 명세 완료 · 코드 미작성 · 미실행 · 독립 검토: 계획 검증 1회차 BLOCKED → 2판 반영, 재검증 대기. 기대값 출처: spec 요구와 design 2절. 구현 담당이 코드로 옮기며 기대값·합격 기준을 바꾸지 않는다(바꿔야 하면 멈추고 보고).
 
 공통: 임시 폴더를 서버 홈(`home`)으로 넘기고(`resolve()`한 경로. macOS 임시 폴더의 `/var` 링크가 부모 링크 검사에 걸리지 않게), 임시 `HERMES_HOME`에 가짜 직원 `alpha`. 폴더 이름은 `SynologyDrive-team`, `ExampleDrive-owner`, `Projects`, `2026` 같은 가짜 이름만. 실제 이름·경로 금지. "바이트 그대로"는 실행 전후 sha256 비교.
@@ -88,8 +88,15 @@
 | AT-FF-64 | FF-10.AC-05 | 펫 창 높이 `.floating`·`mainMenu+1` 두 경우. 공용 함수로 띄운 독립 창(설정 창 또는 시험용 창)과 사진 고르기 창을 연 채 앱 비활성 알림 → 활성 알림을 차례로 보낸다(실제 `AppDelegate`의 활성 처리 입구 또는 그것이 부르는 공용 함수) | 비활성 뒤 두 창 높이 `.normal`. 활성 뒤 펫 창 높이+1. 닫힌 창은 붙잡지 않는다(약한 참조, 닫은 뒤 높이 변경 호출 없음) |
 | AT-FF-63 | FF-10.AC-03 | AT-FF-20~23, 첨부 고르기 시험, `HEJO_PYTHON` `bash app/scripts/test.sh` | 전부 통과, 기대값 수정 없음 |
 
+## 앱 연결 창 화면 공유 (9판 추가, REQ-FF-11)
+
+| ID | AC | 입력 | 기대 |
+|---|---|---|---|
+| AT-FF-70 | FF-11.AC-01 | 실제 `ConnectionsWindow`에 가짜 연결 응답(비밀 칸 하나, 기존 AT83 fixture와 같은 가짜 값)으로 입력 단계를 연다. 입력 시트가 붙은 뒤, 확인 알림 시트가 열린 동안, 입력을 닫은 뒤 세 시점을 본다 | 세 시점 모두 연결 창과 그때의 모든 시트의 `sharingType != .none` |
+| AT-FF-71 | FF-11.AC-02 | 기존 연결 시험(AT83 등, `ConnectionsTests`)과 AT-FF-20~23·60~64, `HEJO_PYTHON` `bash app/scripts/test.sh` | 전부 통과, 기존 기대값 수정 없음(비밀 칸 `secure`, 성공 뒤 값 비움 포함) |
+
 ## 사장 확인(서버 적용 뒤, 증거 수준 4)
-spec 4절 M1~M3, 5.3절 M4~M6, REQ-FF-07~10의 M7~M10(M7은 맨 마지막). M1에서 고르기 화면이 뜨기까지 걸린 대략 시간을 사장이 알려 주면 NFR-FF-03에 적는다.
+spec 4절 M1~M3, 5.3절 M4~M6, REQ-FF-07~11의 M7~M11(M7은 맨 마지막). M1에서 고르기 화면이 뜨기까지 걸린 대략 시간을 사장이 알려 주면 NFR-FF-03에 적는다.
 
 ## AC ↔ 시험 연결
 
@@ -133,3 +140,5 @@ spec 4절 M1~M3, 5.3절 M4~M6, REQ-FF-07~10의 M7~M10(M7은 맨 마지막). M1�
 | FF-10.AC-03 | AT-FF-63 |
 | FF-10.AC-04 | AT-FF-62 |
 | FF-10.AC-05 | AT-FF-64 |
+| FF-11.AC-01 | AT-FF-70, M11 |
+| FF-11.AC-02 | AT-FF-71 |
