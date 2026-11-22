@@ -6,9 +6,9 @@
 
 ```text
 [설계 인계: HEJO-TELEGRAM TASK-02~06 / 문·앱]
-0. 기준: base_commit: 이 인계서를 담은 커밋(main, 계획 문서만 추가. 그 부모 0644e9e) / spec·design·수락 시험 명세·tasks 1판 2026-11-22 /
+0. 기준: base_commit: 이 인계서를 담은 커밋(main, 계획 문서만 추가. 그 부모 0644e9e) / spec·design·수락 시험 명세 2판(계획 검증 1회차 반영)·tasks 1판 2026-11-22 /
    승인 상태: 브레인스토밍 결정 사장 확정(2026-11-22, brainstorm.md + 추가 결정 4건: 모든 방 전부 보냄, 앱 사장 글도 보임,
-   서버 photon 그대로, 방 보관·삭제 시 토픽 닫기), 계획 검증 대기 / 운영 모드: 연합개발(교차 모델 + 계획 검증 켜기)
+   서버 photon 그대로, 방 보관·삭제 시 토픽 닫기), 계획 검증 1회차 BLOCKED 3건·권고 2건 수용·반영(plan-review.md), 재검증 대기 / 운영 모드: 연합개발(교차 모델 + 계획 검증 켜기)
 1. 공식 문서: docs/ARCHITECTURE.md, AGENTS.md, docs/changes/HEJO-TELEGRAM-20261122/{brainstorm,spec,design,tasks}.md,
    tests/acceptance/HEJO-TELEGRAM.md. 이어받는 결정: docs/changes/HEJO-IMESSAGE-20261119/design.md(정착·수신 일반화·손상 처리). ADR 없음.
 2. 요구와 수락 기준: REQ-HT-01~08, NFR-HT-01~05(REQ-HT-09는 이번 지시 밖).
@@ -20,15 +20,15 @@
    (send·edit·delete·작성 중)의 앱 관측 동작 불변. `telegram` 기능을 밝히지 않은 앱이 받는 프레임 불변. team-kit 무수정.
    운영 설정(config.yaml·.env) 무변경.
 4. 책임과 흐름: design 2절. 텔레그램 연결의 저장·판정·토픽·발신·상태는 새 모듈 하나(gate/telegram.py 권고)가 맡고
-   adapter·server·rooms는 부르기만 한다. 수신은 receive() 한 경로, 받은 글 짝은 client_msg_id `telegram:<그룹>:<글>`,
-   보낸 글 짝은 sent.jsonl, 방 ↔ 토픽은 topics.json.
+   adapter·server·rooms는 부르기만 한다. 수신은 receive() 한 경로, 받은 글 짝은 client_msg_id `telegram:<짝 표지>:<글>`(그룹 id는 금고에만),
+   보낸 글 짝은 sent.jsonl, 방 ↔ 토픽은 topics.json. 토픽 호출은 adapter._bot의 Bot API로만(id를 로그에 쓰는 감싼 메서드 금지).
 5. 기존 경로 판정: design 9절. 아이메시지 모듈·photon 등록·규격 6종·앱 구역/메뉴/상태/시험은 교체 후 같은 변경에서 제거.
    receive() 일반화·정착 규칙·claims_external 위임은 유지. team-kit photon 양보는 무변경(무동작이 됨).
 6. 위험도: 고위험(인증 — 짝짓기가 사장을 정함, 운영 수신 경로 감쌈, 운영 중인 문 제거). 필요 증거 수준 2(임시 HERMES_HOME +
    실제 Hermes 모듈 + 가짜 텔레그램 어댑터), AT-HT-44만 3. 운영 적용(3)·실물(4)은 TASK-07·08.
    롤백: 이 저장소 커밋 되돌림(운영 적용 전이라 실행 중 동작 무영향).
 7. 변경 성격: 의미 변경(아이메시지 → 텔레그램) + 신규 기능. 보존 비교: AT-HT-39, `bash scripts/test.sh` 전체(기존 시험 통과).
-8. 수락 시험: tests/acceptance/HEJO-TELEGRAM.md AT-HT-01~44, 50~52. 상태: 명세 완료·코드 미작성·미실행·미검토.
+8. 수락 시험: tests/acceptance/HEJO-TELEGRAM.md(2판) AT-HT-01~45, 50~52. 상태: 명세 완료·코드 미작성·미실행·미검토.
    기대값 출처: spec 요구, design 3~7절. 코드는 구현 담당이 옮긴다(문: tests/acceptance/test_telegram.py, 앱: app/Tests/).
    기대값·합격 기준을 바꾸지 말고, 바꿔야 하면 멈추고 보고.
    HEJO-IMESSAGE 수락 시험(tests/acceptance/HEJO-IMESSAGE.md)은 작업 기록으로 남기고, 코드 test_imessage.py는 test_telegram.py로 대체·삭제.
@@ -64,13 +64,13 @@
 
 | REQ | AC → 시험 |
 |---|---|
-| HT-01 | AC-01 → 01, 02 · AC-02 → 01 · AC-03 → 03 · AC-04 → 04 · AC-05 → 05 · AC-06 → 06 · AC-07 → 01, 07 |
+| HT-01 | AC-01 → 01, 02 · AC-02 → 01 · AC-03 → 03 · AC-04 → 04 · AC-05 → 05, 45 · AC-06 → 06 · AC-07 → 01, 07 |
 | HT-02 | AC-01 → 08 · AC-02 → 08, 09 · AC-03 → 10 · AC-04 → 11 |
 | HT-03 | AC-01 → 12 · AC-02 → 13 · AC-03 → 14 · AC-04 → 15 · AC-05 → 16 |
-| HT-04 | AC-01 → 20, 21 · AC-02 → 22, 23 · AC-03 → 24 · AC-04 → 25 · AC-05 → 26 · AC-06 → 27 · AC-07 → 28 |
-| HT-05 | AC-01 → 30, 31 · AC-02 → 30, 32 · AC-03 → 33 · AC-04 → 34, 35 · AC-05 → 36 · AC-06 → 37, 40 · AC-07 → 31, 38 · AC-08 → 39 |
+| HT-04 | AC-01 → 20, 21 · AC-02 → 22, 23, 45 · AC-03 → 24 · AC-04 → 25 · AC-05 → 26 · AC-06 → 27 · AC-07 → 28 |
+| HT-05 | AC-01 → 30, 31 · AC-02 → 30, 32 · AC-03 → 33 · AC-04 → 34(c 실행 중 실패 포함), 35 · AC-05 → 36 · AC-06 → 37, 40 · AC-07 → 31, 38 · AC-08 → 39 |
 | HT-06 | AC-01·02 → 41 |
 | HT-07 | AC-01 → 50 · AC-02 → 51 · AC-03 → 51, 52 · AC-04 → 코드 검토 |
 | HT-08 | AC-01 → 11 · AC-02 → 42 · AC-03 → 코드 검토(문이 옛 경로를 쓰지 않음) |
-| NFR | 01·03 → 43 · 04 → 07 · 05 → 40 · 02 → 코드 검토 · 정착 → 44 |
+| NFR | 01·03 → 43 · 04 → 07, 15 · 05 → 40 · 02 → 코드 검토 · 정착 → 44 |
 | HT-09 | 60, 61, M1~M8 (TASK-07·08) |

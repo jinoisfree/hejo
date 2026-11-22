@@ -1,6 +1,6 @@
 # HEJO-TELEGRAM 설계
 
-- 상태: 1판(2026-11-22, 초안). 요구는 [spec.md](spec.md), 칸 배치는 [spec.md 첫 절](spec.md#칸원본쓰기-주체수명)이 원본이다. 앞선 설계 [HEJO-IMESSAGE design](../HEJO-IMESSAGE-20261119/design.md)의 정착·나누기·수신 일반화 결정을 이어받고, 다른 점만 적는다.
+- 상태: 2판(2026-11-22, 계획 검증 1회차 PR-01~04 반영 — [plan-review.md](plan-review.md)). 요구는 [spec.md](spec.md), 칸 배치는 [spec.md 첫 절](spec.md#칸원본쓰기-주체수명)이 원본이다. 앞선 설계 [HEJO-IMESSAGE design](../HEJO-IMESSAGE-20261119/design.md)의 정착·나누기·수신 일반화 결정을 이어받고, 다른 점만 적는다.
 - 경로 약어: `R` = Hermes 본체(`~/.hermes/hermes-agent`), `T` = `R/plugins/platforms/telegram/adapter.py`, `B` = `R/gateway/platforms/base.py`, `TK` = `<운영 저장소>`의 team-kit `lib/hermes_router`.
 
 ## 1. 현황 (근거, 2026-11-22 읽기)
@@ -19,7 +19,7 @@
 | 연속 글·앨범은 한 이벤트로 합쳐지고 첫 글 id가 남는다. 봇 자신의 글은 버린다. 반응·고친 글은 `handle_message`로 오지 않는 것이 기본이나 고친 글이 같은 id로 다시 올 수 있다(PTB 동작, 미확인) | `T:6718,6741-6749,6462,6494,2847-2967`, `B:2607-2626` |
 | 발신 `send(chat_id, content, reply_to, metadata)`: 토픽은 `metadata["thread_id"]`, 4096 단위로 스스로 나눔, `SendResult.message_id`는 첫 통, 모든 통은 `raw_response["message_ids"]`. 마크다운을 텔레그램 서식으로 바꿈. 기본 무음, `metadata["notify"]` 참이면 알림 | `T:3722-3851,1101-1176,5713-5810,891-896` |
 | 파일 발신 `send_document`·`send_image_file`(`metadata` thread_id, `reply_to`) | `T:5399,5460,5220-5239` |
-| 토픽: 만들기 `_create_dm_topic`(아무 chat_id, 실패 시 None), 이름 `rename_dm_topic`(실패 시 예외). 닫기·다시 열기는 감싼 메서드가 없어 `adapter._bot`의 Bot API 호출. 봇은 토픽 관리 권한 관리자여야 함 | `T:2591-2683`, `T:594,3300` |
+| 토픽: 감싼 메서드 `_create_dm_topic`·`rename_dm_topic`은 성공·실패 로그에 chat_id·토픽 id·이름을 쓴다. 닫기·다시 열기는 감싼 메서드가 없다. 모두 `adapter._bot`(PTB `Bot`)의 Bot API(`create_forum_topic`, `edit_forum_topic`, `close_forum_topic`, `reopen_forum_topic`)로 바로 부를 수 있다. 봇은 토픽 관리 권한 관리자여야 함 | `T:2591-2626`(로그 `:2606,2613,2616,2623`), `T:2674-2683`(로그 `:2683`), `T:594,3300` |
 | 작성 중 `send_typing(chat_id, metadata)` thread_id 지원, `stop_typing`은 본체 기본(무동작) | `T:5664-5690`, `B:3013` |
 | 텔레그램 어댑터의 허용·멘션 판정은 `handle_message` **앞**에서 돈다. 허용 환경값이 하나도 없으면 모두 통과 | `T:1043-1098,6483-6520,6570-6600` |
 | 발신자 허용 판정 `_is_sender_authorized(user_id, chat_type, chat_id, ...)`는 본체 공통 | `B:2446-2472` |
@@ -45,15 +45,16 @@
 - **문 붙이기.** `gate/__init__.py`가 `register_platform_handler("telegram", attach_telegram)`만 등록한다(`photon` 등록 삭제). 공장은 어댑터를 모듈 변수에 두고 `handle_message`를 어댑터마다 한 번 감싼다(표시 속성). 공장이 불릴 때 `is_connected`가 거짓이므로 상태 방송·동기화는 공장 안이 아니라 첫 수신·발신·조회 때 또는 연결 뒤 일정 작업으로 한다(구현 선택, 단 공장 안에서 네트워크 호출 금지).
 - **차지한 글의 접수 표시.** 차지해서 원래 처리기를 부르지 않는 글은 `adapter._accept_update()`를 부른다(어댑터의 수신 기록 유지). 메서드가 없으면 건너뛴다.
 - **기본 어댑터만.** HEJO-IMESSAGE와 같다(`_primary`).
-- **받은 글의 짝.** 사장 글의 `client_msg_id` = `telegram:` + 그룹 id + `:` + 글 id. 그룹을 바꿔 다시 짝지어도 충돌하지 않는다. 중복 방지·답장 대상 찾기·닻 찾기가 이 값으로 된다.
-- **보낸 글의 짝.** `sent.jsonl` 한 줄 = `{"chat": 그룹 id, "tg": 글 id, "msg_id": hejo 글 id}`. 읽기·손상 처리는 HEJO-IMESSAGE 3판 규칙(읽을 수 없는 줄 건너뜀, 덜 쓰인 꼬리만 자름, 시작을 막지 않음).
-- **답장 대상 찾기.** `reply_to_message_id` → (받은 글 `client_msg_id` 또는 `sent.jsonl`, 현재 그룹 것만) → hejo 글 id → `journal.message_threads` → (방, 스레드). 대상이 토픽 id와 같거나 원본이 토픽 만들기 표시면 "답장 아님".
+- **짝 표지.** 짝지을 때마다 `secrets`로 8자 무작위 표지(`tag`)를 뽑아 금고 `pair`에 둔다. 금고 밖에서 짝 그룹을 가리킬 때는 그룹 id 대신 이 표지를 쓴다(spec 제약 표 — 그룹 id는 금고에만).
+- **받은 글의 짝.** 사장 글의 `client_msg_id` = `telegram:` + 표지 + `:` + 글 id. 다시 짝지으면 표지가 바뀌어 충돌하지 않는다. 중복 방지·답장 대상 찾기·닻 찾기가 이 값으로 된다.
+- **보낸 글의 짝.** `sent.jsonl` 한 줄 = `{"tag": 짝 표지, "tg": 글 id, "msg_id": hejo 글 id}`. 읽기·손상 처리는 HEJO-IMESSAGE 3판 규칙(읽을 수 없는 줄 건너뜀, 덜 쓰인 꼬리만 자름, 시작을 막지 않음).
+- **답장 대상 찾기.** `reply_to_message_id` → (받은 글 `client_msg_id` 또는 `sent.jsonl`, 현재 표지 것만) → hejo 글 id → `journal.message_threads` → (방, 스레드). 대상이 토픽 id와 같거나 원본이 토픽 만들기 표시면 "답장 아님".
 
 ## 3. 저장 형식
 
-- `<HOME>/hejo/telegram.json`(0600, `AuthStore` 잠금·원자적 쓰기): `{"pair": {"platform":"telegram","chat_id","user_id","paired_at"} | null, "code": {"hash","expires","used"} | null}`.
+- `<HOME>/hejo/telegram.json`(0600, `AuthStore` 잠금·원자적 쓰기): `{"pair": {"platform":"telegram","chat_id","user_id","tag","paired_at"} | null, "code": {"hash","expires","used"} | null}`.
 - `<HOME>/shared/hejo/telegram/settings.json`(0600): `{"enabled": bool}`, 기본 `false`.
-- `<HOME>/shared/hejo/telegram/topics.json`(0600, 원자적 쓰기): `{"chat": 그룹 id, "topics": {방 id: {"topic": 토픽 id, "name": 마지막으로 맞춘 이름, "closed": bool}}}`. `chat`이 현재 짝 그룹과 다르면 비어 있는 것으로 읽는다. 손상이면 비어 있는 것으로 읽고 다음 동기화에서 덮어쓴다(토픽이 중복 생길 수 있음 — 알려진 결과).
+- `<HOME>/shared/hejo/telegram/topics.json`(0600, 원자적 쓰기): `{"tag": 짝 표지, "topics": {방 id: {"topic": 토픽 id, "name": 마지막으로 맞춘 이름, "closed": bool}}}`. `tag`가 현재 짝 표지와 다르면 비어 있는 것으로 읽는다. 손상이면 비어 있는 것으로 읽고 다음 동기화에서 덮어쓴다(토픽이 중복 생길 수 있음 — 알려진 결과).
 - `<HOME>/shared/hejo/telegram/sent.jsonl`(0600).
 - 문 시작이 이 파일들 때문에 실패하지 않는다(NFR-HT-05).
 
@@ -92,7 +93,7 @@
 
 - **계기.** (가) 활성이 되는 순간: 켜기 저장, 짝지은 뒤 켜져 있는 상태, 텔레그램 문 첫 연결 확인. (나) `recorded(row)`의 `room`·`room_delete` 레코드. (다) 발신할 방에 토픽이 없을 때.
 - **작업 한 줄.** 방마다 원하는 상태(열림+이름 / 닫힘)를 계산해 `topics.json`과 다르면 맞춘다. 직렬로 한 작업자가 처리하며 기록·방송을 막지 않는다(`_publish_lock` 밖).
-- **만들기.** 어댑터의 토픽 만들기 메서드(`T:2591`) — `None`이면 실패. **이름 바꾸기**는 `T:2674`(예외 = 실패). **닫기·다시 열기**는 `adapter._bot`의 Bot API(`close_forum_topic`, `reopen_forum_topic`). `_bot`이 없으면 실패로 보고 다음 계기에 다시.
+- **토픽 호출은 `adapter._bot`으로만.** 만들기 `create_forum_topic(chat_id, name)` → 돌려받은 `message_thread_id`, 이름 바꾸기 `edit_forum_topic(chat_id, message_thread_id, name)`, 닫기 `close_forum_topic`, 다시 열기 `reopen_forum_topic`. 어댑터의 감싼 메서드(`_create_dm_topic`, `rename_dm_topic`)는 id를 로그에 써서 로그 계약(spec 제약)을 어기므로 쓰지 않는다. 예외 = 실패. `_bot`이 없으면 실패로 보고 다음 계기에 다시. 예외 메시지에 id가 들어 있을 수 있으므로 로그에는 예외 종류 이름만 쓴다.
 - **실패 처리.** 로그 한 줄(종류만), `topic_problem` 참으로 방송. 다음 성공에서 거짓으로 돌린다.
 - **보관 풀기**는 `room` 레코드의 `archived` 거짓이다. 삭제된 방은 다시 열지 않는다.
 - 텔레그램 쪽 토픽 삭제·이름 변경은 알 수 없다. 사장이 토픽을 지우면 그 방 발신이 실패하고(어댑터가 일반 토픽으로 보낼 수 있음 — `T:3606-3621`), 앱에서 짝을 다시 하거나 `topics.json`을 비우는 방법만 있다(알려진 결과, 실물 확인 M8에서 안내).
@@ -105,7 +106,7 @@
 - **나누기.** 어댑터가 나눈다. 문은 나누지 않는다. `raw_response["message_ids"]`(없으면 `message_id`)의 모든 id를 대응시킨다.
 - **닻.** 스레드의 가장 이른 텔레그램 대응 글(받은 사장 글의 `client_msg_id` 또는 `sent.jsonl`)의 id. 없으면 이번 글 첫 통이 닻이 된다. 닻이 지워졌으면 어댑터가 닻 없이 다시 보낸다(`T:3622-3634`).
 - **알림.** 직원 글 `metadata["notify"] = True`, 사장 글은 넣지 않는다(무음).
-- **첨부.** 글 행의 각 파일을 저장소 경로로 찾아 이미지면 `send_image_file`, 그 밖은 `send_document`로 같은 토픽에 그 글 첫 통 답장으로 보낸다. 본문 발신이 실패하면 첨부도 보내지 않는다. 실패한 첨부는 다시 보내지 않고 로그 한 줄. 보내기 전에 아는 이유(파일 없음, 50MB 초과)로 못 보내는 첨부는 본문에 `📎 이름 (hejo 앱에서 열기)` 줄로 넣는다. 첨부 글 id도 `sent.jsonl`에 같은 hejo 글로 적는다.
+- **첨부.** 글 행의 각 파일을 저장소 경로로 찾아 이미지면 `send_image_file`, 그 밖은 `send_document`로 같은 토픽에 그 글 첫 통 답장으로 보낸다. 본문 발신이 실패하면 첨부도 보내지 않는다. 파일 발신 호출이 실패(거짓 결과·예외)하면 로그 한 줄(종류만), 다시 보내지 않음, 추가 안내 글 없음(spec REQ-HT-05.AC-04). 보내기 전에 아는 이유(파일 없음, 50MB 초과)로 못 보내는 첨부는 본문에 `📎 이름 (hejo 앱에서 열기)` 줄로 넣는다. 첨부 글 id도 `sent.jsonl`에 같은 hejo 글로 적는다.
 - **실패.** HEJO-IMESSAGE와 같다(로그 한 줄, 다시 보내지 않음, `_record`를 막지 않음).
 
 ## 7.1 작성 중
