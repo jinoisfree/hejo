@@ -959,3 +959,76 @@ AT-HC-27은 수정 전 코드에서도 앱이 비활성이어서 키 창이 아�
 **다음 판단:** 정상 창고 링크 갱신 시 원본 기억·권한·복원 기준을 어떻게 유지할지 계획 담당이 확정해야 한다. 앱 전체 회귀도 앱 활성화와 독립된 시험 실행 구간을 확보한 뒤 다시 확인해야 한다. 팀키트 수정이 정해지면 가짜 재현을 회귀 시험으로 옮기고 관련 시험·AT-FF-12(나)·airport-check를 실행한다. 허가된 운영 제출 1회는 이미 소진됐으므로 새 지시 없이 같은 명령을 반복하지 않는다.
 
 운영의 추가 변경·복원·실행본 교체·게이트웨이 재시작·실제 메시지·앱 공개·버전 변경·push는 하지 않았다. 운영 저장소의 다른 세션 변경과 HD worktree는 손대지 않았고, hejo의 다른 작업 미추적 문서 두 폴더도 보존했다. 안전한 독립 부분(진단·앱 표시)만 처리했으며, 실패한 기존 시험을 완화하지 않았다.
+
+
+## 13차-TASK-13 (2026-11-22)
+
+**구현자 판단: 팀키트 구현·지정 검증 및 앱 전체 회귀 완료, 검토·서버 적용 대기.** 받은 설계는 `handoff.md` 13차 지시, spec 10판 REQ-FF-12, design 9절, AT-FF-80~83이다. 위험도 일반, 필요한 증거 수준 2다. 12차에 허가된 운영 명령은 반복하지 않았다. 서버 적용·운영 명령·실행본 교체는 이번 범위에서 하지 않는다.
+
+착수 hejo HEAD는 `648ea17c7f7d34b49216d2e9ba830c453feaf05c`, HD worktree 브랜치 `hejo-finder-folders-20261121`의 착수 HEAD는 `d7208c11c23ddb0dacddbe3e225864058f263006`이다. HD 코드·시험 커밋 전체 해시는 **`6602c04098393eff0d2a2c4ee0afd90ce5b88b76`**다. 자기 config_assembly.py·새 test_finder_manifest_updates.py 두 경로만 commit --only했고, 커밋 blob은 시험한 바이트와 같다. 아래 `E13`은 `.build/finder-folders-evidence/round13-task13`, `P`는 게이트웨이 Python이다. 착수·커밋·시험 바이트 대조는 `E13/start.json`, `HD-commit.log/json`, `tested-HD-sha256.json`에 있다.
+
+### 한 곳의 변경과 실행본 대조
+
+app_manifests의 지문 거절 조건만 다음과 같이 바꿨다.
+
+```python
+if store.fingerprint(before)!=baseline['after'] and not (
+    'link' in before_host and entry is not None and entry.get('overlay') is False
+    and before==canonical.read_bytes()
+):raise ValueError('UNDO_CONFLICT')
+```
+
+링크 대상은 기존 store.snapshot이 검증한다. 세 조건 중 하나라도 맞지 않으면 기존 거절을 유지한다. template·original_host·app_tool_defaults·declared/additions·트랜잭션/undo 경로는 바꾸지 않았다. 새 함수·기록·저장 형식·제품 임시 코드는 없다. 설계와 달라진 점도 없다.
+
+실행본 전체 파일은 다른 작업의 hejo toolset 변경 때문에 HD와 다르지만, 변경 전 app_manifests 본문은 동일했다. 위 한 곳 diff를 실행본 함수의 문자열 사본에만 적용하면 수정 worktree 함수와 정확히 같았다. 실행본에는 쓰지 않았다.
+
+| 함수 본문 | SHA-256 |
+|---|---|
+| HD 착수·현재 실행본 | `4a2a74b64516d74f2c12f9c7ce41ce5c8241a8694a04f00a5fc658bab46b54de` |
+| HD 수정본·실행본 함수에 diff를 가상 적용한 결과 | `540a263dc2903ac4e76f839460cac59c291b8f2305ce01526a1faffa863bee7e` |
+
+전체 파일 SHA와 비교 방법은 `E13/function-parity.json`, 실제 함수 diff는 `E13/function.diff`에 있다. 후속 서버 적용은 다른 세션의 변경을 보존하도록 별도 지시로 진행해야 한다.
+
+### 새 시험과 기존 기준 유지
+
+새 시험 6개는 전부 임시 resolve HOME·HERMES_HOME과 가짜 자료를 쓴다. 기존 TASK-13 재현에서 공용 manifest 갱신 fixture를 옮겼고, 실제 운영 폴더는 입력으로 쓰지 않았다.
+
+- AT-FF-80: 검증된 공용 링크와 overlay false 장부에서 창고 manifest에 가짜 도구를 추가한 뒤 Finder 연결이 성공하고 기록이 생성되는지 확인한다. 저장된 after 지문은 실제 적용된 host manifest와 같아야 한다. 가짜 새 도구를 기본 도구 권한에 자동 추가하지 않는 것도 확인한다(기존 declared/additions 규칙 유지).
+- AT-FF-81: 개인 오버레이 외부 수정과 창고 밖 링크를 각각 거절하고 가짜 운영 파일 바이트가 그대로인지 확인한다. 장부가 없거나 overlay true인 경우도 거절한다. 두 읽기 사이 창고 바이트가 달라지는 경우도 대역으로 주입해 세 번째 조건을 검사한다.
+- AT-FF-82: Finder 저장 동안 원래 before·host가 유지되고, app undo 뒤 Finder 연결 전 host·manifest·정책 바이트와 기존 앱 grant가 그대로인지 확인한다.
+- 수정 전에는 정상 연결/undo 시험 하나가 실패하고 나머지 거절 시험 5개가 통과했다(`E13/red.log/json`). 수정 후 관련 113개가 통과했다. 이는 새 시험이 원래 거절 결함을 검출한다는 비교다. 기존 기대값·skip·수락 명세는 바꾸지 않았다.
+
+### team-kit 검증 명령·종료 코드
+
+검증은 게이트웨이 Python, 저장소 지침의 PYTHONPATH(HD lib·기존 pytest 의존성·본체 import 경로), Node PATH, 임시 resolve HOME·HERMES_HOME·HERMES_ROOT로 실행했다. 본체 파일은 수정하지 않았다. 기준 재확인은 추적하지 않는 사본에 추출한 `66f2a44c190390edd2a8a8eab9b2c32cba20195a`의 라이브러리로 기존 29개 node를 실행했다. 선택한 기존 시험 파일도 그 커밋과 바이트가 같음을 확인했다.
+
+| 명령 | 종료 코드 | 실제 결과 | 로그 |
+|---|---:|---|---|
+| 수정 전 새 시험 6개 | 1 (예상) | 정상 연결 1 failed, 보호 경계 5 passed | `E13/red.log/json` |
+| `P -B -m pytest` 관련 5파일 + test_finder_folders + test_app_manifests + 새 시험 | 0 | 113 passed | `E13/related.log/json` |
+| `66f2a44c` 라이브러리로 원래 실패 node 재확인 | 1 (예상 기준) | 28 failed·1 error, 기존 29개 | `E13/baseline66-failures.log/json`, `legacy-baseline-nodes.json` |
+| `P -B -m pytest` team-kit 전체 | 1 (기존 실패) | 5019 passed·64 skipped·28 failed·1 error, 실패/오류 node 29개 | `E13/full.log/json` |
+| 실패 node 집합 비교 | 조건 충족 | 기준 29, 수정본 29, 새 node 0·제거 0, 부분집합 true | `E13/failure-comparison.json` |
+| `P ./airport-check --snapshot .` | 0 | boundary 382·document 0·compartments 0 PASS | `E13/airport.log/json` |
+| 자기 HD 두 경로 `git diff --check` | 0 | 공백 오류 없음 | `E13/diff-check.log/json` |
+| 자기 HD 두 경로 `git commit --only` | 0 | 위 6602c040 커밋, 시험 blob과 일치 | `E13/HD-commit.log/json` |
+
+공항 검사는 운영 명령 금지에 맞춰 저장소 스냅샷 모드로 실행했다. baseline 줄이기 가능 4건 안내만 있었고 기준선 파일은 바꾸지 않았다.
+
+초기 전체 실행에는 앱 시험용 PYTHONPATH를 함께 사용해 선택적 문 통합 시험이 추가됐다. 그때는 착수 사본·수정본 모두 28 failed·48 errors였다. 원래 AT-FF-12 기준 환경이 아니어서 해당 결과를 29개 기준 통과로 쓰지 않았고, 모두 `E13/initial-app-pythonpath-*`에 보존했다. 규정된 team-kit 환경으로 재실행하고 66f2a44c의 원래 29개 기준도 재확인한 것이 위 최종 결과다. 시험에 skip을 추가하거나 실패 기준을 바꾸지 않았다.
+
+### 앱 전체 회귀와 최종 인계
+
+다른 GUI 시험이 실행 중이어서 종료를 기다렸다(`E13/app-resource-wait.json`). 대기 뒤 `pgrep -f app-tests` 종료 1과 다른 GUI 빌드 없음이 확인된 때에만 실행했다(`E13/app-pgrep.json`, `gui-builds.json`). 제품 앱 변경 없이 hejo HEAD `648ea17c7f7d34b49216d2e9ba830c453feaf05c`에서 실행했다.
+
+| 명령 | 종료 코드 | 실제 결과 | 로그 |
+|---|---:|---|---|
+| `HEJO_PYTHON=P bash app/scripts/test.sh` | 0 | 322.846초, 기본 GUI·통신 fixture·마지막 Python 9시험 통과 | `E13/app-full.log/json` |
+
+기존 AT-HC-27을 포함한 기본 GUI 시험이 `APP_TEST_OK`로 끝났고, AT-FF-20~23·40~41·50~54·60~64·70~71 회귀도 통과했다. 기존 기대값은 바꾸지 않았다. 시험 중 앱 Sources/Tests 변경 목록은 빈 배열이다(`E13/tested-sources.json`, `app-full.json`). 마지막 설정 메타데이터·다운로드 이름 보존 검사도 통과했다.
+
+V-7의 앱 비활성 실패가 이번에는 재현되지 않아 조건부 수정 전 사본 대조는 실행하지 않았다. 이전 실패 원인이 확정됐다는 뜻은 아니다. 대조 사본·바이너리 무결성 사전 확인은 `E13/app-probe-integrity.json`에 남겼다. 대기 중 프로세스 샘플 시도는 이미 해당 시험 프로세스가 종료돼 코드 255였으며 판정에 쓰지 않았다(`E13/sample-attempt.json`).
+
+게이트웨이 Python의 `scripts/scan_private.py`와 자기 보고서 `git diff --check` 결과는 `E13/report-checks.json`에, 보고서 한 경로만 `git commit --only`한 명령·종료 코드·전체 hejo 커밋 해시는 `E13/hejo-commit.log/json`과 최종 result에 기록한다.
+
+운영 저장소 main·실행본·다른 세션 파일은 건드리지 않았고 운영 명령도 실행하지 않았다. HD worktree는 커밋 후 깨끗했다. hejo의 다른 작업 미추적 문서 두 폴더도 보존했다. 재시작·릴리스·설치 앱 교체·push는 하지 않았다. 남은 일은 이 변경과 증거 검토 후, 다른 세션 변경을 보존하는 별도 서버 적용 지시 및 직원 D의 M6 확인이다. 기존 사용자 확인·공개·푸시 승인도 별도다.
