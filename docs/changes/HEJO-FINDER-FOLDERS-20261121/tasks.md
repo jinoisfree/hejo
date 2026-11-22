@@ -12,7 +12,8 @@
 | TASK-09 | 앱: 세 손가락 탭 지연 측정 → 원인 구간 수정(REQ-FF-07) | FF-07 / AT-FF-30~32 | `H/app/Sources/ThreeTap*.swift`, `PetController.swift`, `AppDelegate.swift`, `ConversationView.swift`·`ConversationController.swift`·`ConversationModel`(갱신 묶음, 6차), `H/app/Tests/` | TASK-06 | 일반 · 2 | 부분 완료·종료(검증 7차 b3fc5cb: 열기 101.3·닫기 94.6ms, 수용은 사장 M7) |
 | TASK-07 | 서버 적용: TASK-05의 `app_setup.py` 실행본 교체(3차 지시와 같은 절차) → `HD` 기록 | 운영 | `TKL`, `HD` | TASK-05 검토 통과 + 별도 인계 | 일반 · 3 | 완료(검증 5차, 운영 main d7208c11) |
 | TASK-08 | 앱 0.2.4(빌드 6) 공개 후보 준비(design 7.3) | FF-06 / M4 | `H/app/Resources/Info.plist`, 공개 산출물 | TASK-06·09 검토 통과 + 별도 인계 + SLACK-MOVE와 순서 조율 | 일반(공개) · 2 | 대기 |
-| TASK-04 | 사장 확인 M1~M7, 현재 명세 반영(`HD/docs/연결-상태.md`의 Finder 설명이 있으면) | 전체 | `HD/docs/연결-상태.md`(필요 시) | TASK-07·08 | — | 대기 |
+| TASK-10 | 앱: 처리할 일 칸 불투명 배경(REQ-FF-08) | FF-08 / AT-FF-40~42 | `H/app/Sources/TodoDrawerView.swift`(필요하면 `PetView.swift` 배치 부분), `H/app/Tests/` | — | 일반 · 2 | 지시함(handoff 8차) |
+| TASK-04 | 사장 확인 M1~M8, 현재 명세 반영(`HD/docs/연결-상태.md`의 Finder 설명이 있으면) | 전체 | `HD/docs/연결-상태.md`(필요 시) | TASK-07·08 | — | 대기 |
 
 ## TASK-08 착수 조건 (2026-11-22, HEJO-SLACK-MOVE 세션과 조율)
 
@@ -26,6 +27,7 @@ hejo main에는 HEJO-SLACK-MOVE의 문 변경 커밋이 섞여 있다(`gate/loca
 사장이 0.2.4 공개 후보를 다른 세션(HEJO-SLACK-MOVE 쪽)에서 진행 중이라고 알렸다. 이 작업은 별도 공개 후보를 만들지 않는다. 그 공개 후보에 아래가 들어가야 한다.
 - 이 작업의 앱 커밋: `b21dd94`(연결 창), `3ccda92`·`3e9400b`·`b3fc5cb`(세 손가락 탭). 모두 main 조상이고, `app/`은 `b3fc5cb` 뒤 바뀌지 않았다(2026-11-22 확인).
 - 검증 상태: TASK-06 완료(검증 4차), TASK-09 부분 완료·종료(검증 7차, 열기 101.3ms, 수용은 사장 M7).
+- TASK-10(처리할 일 칸 배경, 2026-11-22 추가) 커밋도 0.2.4에 들어가야 한다. 공개 후보 준비 세션과 순서를 맞춘다(사장 경유).
 - 이 작업이 공개 후보에서 확인할 것: 공개 후보 트리의 `app/`이 `b3fc5cb` 이후 것과 같고, 앱 전체 시험이 통과하는지.
 
 ## 병렬 갈래

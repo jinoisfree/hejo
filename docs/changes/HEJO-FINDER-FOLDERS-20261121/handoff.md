@@ -228,3 +228,21 @@ TASK-09의 측정은 실제 트랙패드 탭이 아니라 수락 명세 AT-FF-30
    (기준 완화를 에이전트가 하지 않음).
 6. 범위·금지: 6차 지시와 같다. impl-report.md '7차-TASK-09' 절, result.
 ```
+
+## 8차 지시 (2026-11-22): TASK-10 처리할 일 칸 배경
+
+사장 결정(2026-11-22): 처리할 일 칸이 방 목록 위에 비쳐 겹치는 문제도 이 작업에 넣어 0.2.4에 담는다.
+
+```text
+[설계 인계: HEJO-FINDER-FOLDERS TASK-10]
+1. 문서: spec REQ-FF-08(현황 근거 포함), 수락 명세 AT-FF-40~42.
+2. 원인: TodoDrawerView가 배경을 그리지 않는다. 겹침 배치(PetView.swift:353 drawerOverlay)에서 아래 방 목록이 비친다.
+3. 고치는 자리: TodoDrawerView 한 곳(배경 책임은 칸 자신). 배경색은 대화 창 바탕과 같은 테마 색. 겹침 배치에서는 알파 1.
+   대화 창 바탕색을 정하는 기존 함수·값(ChatAppearance 등)을 재사용하고 새 색 상수를 따로 만들지 않는다.
+   테마가 바뀌면(ChatAppearance.didChange) 다시 그린다.
+4. 확인: AT-FF-40~42. 앱 시험 전 pgrep -f app-tests, HEJO_PYTHON=게이트웨이 Python bash app/scripts/test.sh.
+5. 범위: app/Sources/TodoDrawerView.swift(필요하면 PetView.swift 배치 부분), app/Tests. 자기 경로만 git commit --only.
+   gate/·schemas/·다른 작업 파일 금지. 앱 버전·공개 후보는 이 작업이 하지 않는다(0.2.4는 다른 세션이 준비 중. 순서는 사장 경유로 맞춘다).
+6. 금지: 개인값, 본체·ddots, 수락 기준·시험 명세·spec·design 수정, git push. 위험도 일반, 증거 수준 2.
+7. 보고: impl-report.md '8차-TASK-10' 절(커밋 전체 해시, 명령·종료 코드·로그 경로), result.
+```

@@ -58,6 +58,14 @@
 | AT-FF-31 | FF-07.AC-02 | AT-FF-30을 고친 뒤 다시 실행(주입 프레임 기준) | 손 뗀 프레임 → 창 움직임 시작 중앙값이 고치기 전보다 작고 100ms 이하 |
 | AT-FF-32 | FF-07.AC-03 | 기존 ThreeTap 시험(`ThreeTapGesture`·`ThreeTapFrames`), 펫 클릭 시험, `bash app/scripts/test.sh`(HEJO_PYTHON=게이트웨이 Python) | 전부 통과, 기존 기대값 수정 없음 |
 
+## 앱 처리할 일 칸 배경 (6판 추가, REQ-FF-08)
+
+| ID | AC | 입력 | 기대 |
+|---|---|---|---|
+| AT-FF-40 | FF-08.AC-01 | 실제 `PetView`에 `ConversationView`의 처리할 일 칸을 설치하고, 겹침 배치(`drawerOverlay` 참)로 칸을 연다. 방 목록 자리에 눈에 띄는 색 사각형을 둔다. 칸 영역을 비트맵으로 그린다(`cacheDisplay`, 어둡게·밝게 두 테마) | 칸 영역 안의 표본 픽셀(카드·글자가 없는 빈 곳) 알파 = 1이고, 방 목록 자리 색이 섞이지 않는다(그 색과의 차이가 큼). 칸 배경색이 테마에 따라 다르다 |
+| AT-FF-41 | FF-08.AC-02 | 바깥 배치(`drawerOverlay` 거짓)로 같은 검사 | 칸 빈 곳이 배경색으로 칠해져 있다(투명 아님) |
+| AT-FF-42 | FF-08.AC-03 | 기존 HEJO-TODO-DRAWER 앱 시험(AT-TD-20~42 등)과 `HEJO_PYTHON` `bash app/scripts/test.sh` | 전부 통과, 기대값 수정 없음 |
+
 ## 사장 확인(서버 적용 뒤, 증거 수준 4)
 spec 4절 M1~M3과 5.3절 M4~M6. M1에서 고르기 화면이 뜨기까지 걸린 대략 시간을 사장이 알려 주면 NFR-FF-03에 적는다.
 
@@ -90,3 +98,6 @@ spec 4절 M1~M3과 5.3절 M4~M6. M1에서 고르기 화면이 뜨기까지 걸�
 | FF-07.AC-01 | AT-FF-30 |
 | FF-07.AC-02 | AT-FF-31, M7 |
 | FF-07.AC-03 | AT-FF-32 |
+| FF-08.AC-01 | AT-FF-40, M8 |
+| FF-08.AC-02 | AT-FF-41 |
+| FF-08.AC-03 | AT-FF-42 |
