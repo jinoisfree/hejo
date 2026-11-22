@@ -362,3 +362,25 @@ TASK-09의 측정은 실제 트랙패드 탭이 아니라 수락 명세 AT-FF-30
    문서에는 직원 이름·프로필 id·경로 대신 '직원 D/B'. 자기 경로만 git commit --only. 위험도 일반, 증거 수준 2.
 7. 보고: impl-report.md '13차-TASK-13' 절(커밋 전체 해시 — HD·hejo, 명령·종료 코드·로그 경로), result.
 ```
+
+## 14차 지시 (2026-11-22): TASK-14 서버 적용(config_assembly 한 곳) + 직원 D 연결
+
+계획 담당 확인(읽기만): 운영 저장소 작업 트리 깨끗함. 실행본 `config_assembly.py` = 운영 main 파일(SHA-256 `2684eb46e088356e4a159d1a424669b6917224c8065c4fe128416bec7c28dfde`). `origin/main` ⊂ 로컬 main. `d7208c11`은 원격에 있음.
+
+```text
+[설계 인계: HEJO-FINDER-FOLDERS TASK-14]
+1. 운영 저장소 main에 HD 커밋 6602c040을 cherry-pick한다(두 경로만). 충돌·다른 경로 변경이 생기면 멈추고 보고한다(merge·rebase·강제 해결 금지).
+   main에서 관련 8파일 pytest(임시 resolve HOME·HERMES_HOME)와 ./airport-check --snapshot . 를 실행한다.
+2. 실행본 교체: ~/.hermes/plugin-store/team-kit/lib/hermes_facility/config_assembly.py가 교체 직전에도 SHA 2684eb46…인지 확인한다.
+   다르면 멈추고 보고한다. 같으면 롤백 보관본을 .build/finder-folders-evidence/round14-task14/rollback-* 에 두고, cherry-pick 뒤 main 파일로 바꾼다.
+   교체 뒤 실행본 SHA = main 파일 SHA를 확인한다. 테스트 파일은 실행본에 넣지 않는다(3차·7차 절차와 같음).
+3. 재시작 판단: 연결은 요청마다 hermes-connections 하위 프로세스가 새로 읽는다. 게이트웨이 프로세스가 config_assembly를 import해 이 함수를 쓰는 경로가 있는지 코드로 확인해 기록한다.
+   게이트웨이 재시작은 하지 않는다(필요하다고 판단되면 멈추고 보고).
+4. 직원 D 연결 1회(사장이 요청한 그 연결): 12차와 같은 환경·명령으로 --scope '0. 공용자료_PF' 항목 id를 한 번 제출한다.
+   결과·바뀐 운영 파일 목록·app undo 방법을 기록한다. RESTART_REQUIRED·PERMISSION 대기면 거기서 멈추고 보고한다(재시작·권한 창 조작 금지).
+   성공하면 직원 D 프로필에서 그 폴더가 저장됐는지 읽기로 확인한다(파일 내용·비밀 값은 열지 않음).
+5. 금지: 게이트웨이 재시작, install/hejo-release, 비밀 파일, 실제 메시지, 본체·ddots, 수락 기준·spec·design 수정, git push, 다른 세션 파일.
+   문서에는 '직원 D'. 자기 경로만 git commit --only(운영 저장소 cherry-pick 커밋, hejo impl-report).
+6. 위험도 일반(운영 적용), 증거 수준 3.
+7. 보고: impl-report.md '14차-TASK-14' 절(운영 main 커밋 전체 해시, 교체 전후 SHA, 롤백 경로, 연결 결과, 명령·종료 코드·로그 경로), result.
+```
