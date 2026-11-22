@@ -13,7 +13,7 @@
 | TASK-07 | 서버 적용: TASK-05의 `app_setup.py` 실행본 교체(3차 지시와 같은 절차) → `HD` 기록 | 운영 | `TKL`, `HD` | TASK-05 검토 통과 + 별도 인계 | 일반 · 3 | 완료(검증 5차, 운영 main d7208c11) |
 | TASK-08 | 앱 0.2.4(빌드 6) 공개 후보 준비(design 7.3) | FF-06 / M4 | `H/app/Resources/Info.plist`, 공개 산출물 | TASK-06·09 검토 통과 + 별도 인계 + SLACK-MOVE와 순서 조율 | 일반(공개) · 2 | 대기 |
 | TASK-10 | 앱: 처리할 일 칸 불투명 배경(REQ-FF-08) | FF-08 / AT-FF-40~42 | `H/app/Sources/TodoDrawerView.swift`(필요하면 `PetView.swift` 배치 부분), `H/app/Tests/` | — | 일반 · 2 | 완료(검증 8차, 2fffbe0) |
-| TASK-11 | 앱: 사진 바꾸기에서 색과 글자(REQ-FF-09), 옵션창 높이 공용 규칙(REQ-FF-10) | FF-09·10 / AT-FF-50~54·60~63 | `H/app/Sources/ConversationView.swift`·`RoomDialogs.swift`·`Pictures.swift`·`AppDelegate.swift`, 옵션창을 띄우는 파일들, `H/app/Tests/` | TASK-10과 파일 겹침 없음(차례로) | 일반 · 2 | 지시함(handoff 9차) |
+| TASK-11 | 앱: 사진 바꾸기에서 색과 글자(REQ-FF-09), 옵션창 높이 공용 규칙(REQ-FF-10) | FF-09·10 / AT-FF-50~54·60~63 | `H/app/Sources/ConversationView.swift`·`RoomDialogs.swift`·`Pictures.swift`·`AppDelegate.swift`, 옵션창을 띄우는 파일들, `H/app/Tests/` | TASK-10과 파일 겹침 없음(차례로) | 일반 · 2 | 부분 완료(검증 9차 5fc60b2, V-5 보완 10차 지시함) |
 | TASK-04 | 사장 확인 M1~M10, 현재 명세 반영(`HD/docs/연결-상태.md`의 Finder 설명이 있으면) | 전체 | `HD/docs/연결-상태.md`(필요 시) | TASK-07·08 | — | 대기 |
 
 ## TASK-08 착수 조건 (2026-11-22, HEJO-SLACK-MOVE 세션과 조율)

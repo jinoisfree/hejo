@@ -269,3 +269,23 @@ TASK-09의 측정은 실제 트랙패드 탭이 아니라 수락 명세 AT-FF-30
 6. 금지: 개인값(시험 이름은 가짜만), 본체·ddots, 수락 기준·시험 명세·spec·design 수정, git push. 위험도 일반, 증거 수준 2.
 7. 보고: impl-report.md '9차-TASK-11' 절(AT-FF-62 목록, 커밋 전체 해시, 명령·종료 코드·로그 경로), result.
 ```
+
+## 10차 지시 (2026-11-22): TASK-11 보완 — 비활성 때 옵션창 내리기 (검증 9차 V-5)
+
+```text
+[설계 인계: HEJO-FINDER-FOLDERS TASK-11 보완]
+1. 문서: spec 8판 REQ-FF-10 AC-05, 수락 명세 AT-FF-64, verdict 9차 V-5.
+2. 원인: OptionWindows.show/prepare가 창을 펫 창+1로 올린 뒤, hejo가 비활성이 돼도 내리지 않는다.
+   그래서 설정·로그인·달력·대시보드·사진 고르기 창이 다른 앱 위에 떠 있다.
+3. 고치는 자리: OptionWindows 한 곳. show/prepare로 올린 창을 약한 참조로 기억한다.
+   AppDelegate.applicationDidResignActive에서는 보이는 창을 .normal로, applicationDidBecomeActive에서는 level(active:true)로 맞춘다.
+   두 함수가 이미 부르는 updateConnectionsLevel 옆에서 공용 함수 하나를 부른다. 닫힌 창은 붙잡지 않는다.
+   NSAlert.runModal 중에는 앱이 활성이라 따로 손대지 않는다.
+   연결 창은 지금 자기 규칙을 그대로 쓴다(공용 목록에 넣지 않거나, 넣더라도 확인 중 .normal 예외를 깨지 않는다).
+4. 확인: AT-FF-64 새 시험, 기존 AT-FF-50~54·60~63·20~23. 앱 시험 전 pgrep -f app-tests,
+   HEJO_PYTHON=게이트웨이 Python bash app/scripts/test.sh 전체.
+5. 범위: app/Sources/OptionWindows.swift, AppDelegate.swift(활성 처리 두 곳), app/Tests. 자기 경로만 git commit --only.
+   gate/·schemas/·다른 작업 파일, 앱 버전·공개 후보 금지.
+6. 금지: 개인값, 본체·ddots, 수락 기준·시험 명세·spec·design 수정, git push. 위험도 일반, 증거 수준 2.
+7. 보고: impl-report.md '10차-TASK-11 보완' 절(커밋 전체 해시, 명령·종료 코드·로그 경로), result.
+```
