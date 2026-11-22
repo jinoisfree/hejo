@@ -34,3 +34,12 @@
 - 조치(design 4판·수락 시험 5판·handoff 8항): AT56 `:120`을 칸 선택 유지 + 칸 닫기 해제로 이관(TASK-01), 알약 경로 1.5초 만료는 AT-UC-05(나)에 명시해 TASK-02에서 보호. `idleStripe` → AT-UC-01·05로 대체·API 제거, `heading` 대표 보기 → `headerDrag`. 같은 종류 반복을 막으려고 **제거 보기 규칙** 추가(없애는 표현 API를 읽는 단언은 같은 뜻의 새 대상으로 바꾸거나 대신하는 AT-UC를 적고 지움, 행동·순서·개수·시간 단언은 제외).
 - 중간 코드 확인(최종 판정 아님): `selectDrawerCard`가 알림만 1.5초, 그 밖은 `highlightUntil=nil` + `drawerSelectedID`로 유지, `refresh`에서 칸 닫힘 때 해제. 세로줄 `AttentionRail`(폭 3·안쪽 6·위아래 10, 색 하나)을 칸과 채팅 질문 카드가 같이 씀. 카드 색 `SidebarTone.cardFill/cardBorder` 공용 값. `SidebarBlank` 덮개 제거, 열 바탕 바닥까지. design 2.2에 맞다.
 - 남은 증거: 선택 뒤 비동기 스크롤 정착 화면(구현 담당 지적) — TASK-01 커밋 전 보강.
+
+## 5회 · 2026-11-23 · TASK-01 판정: 부분 완료(이번 변경 범위 통과, 전체 시험은 환경 실패로 미도달) — 원인: 환경(기준 코드에서도 재현)
+
+- 대상: 구현 worktree HEAD `e400512` + 미커밋 13파일(`task-01-edition-5-candidate.patch`; 이번 재개 변경은 시험만 — AT56 이관, `UICleanDrawerTests` async 정착 확인, `TestMain`·`DrawerInlineTests` 호출 전파). 검증 조건: 교차 모델.
+- [확인] AT56 이관은 design 4판 4.1 행대로(1.6초 유지 + 칸 닫기 해제). AT-UC-10~19·AT56 통과, 양 테마 정착 선택 화면 생성(`task-01-selected-settled-{dark,light}.png`).
+- [확인] 전체 실패는 `ConnectionsTests.swift:219` AT-HC-27(`window.isKeyWindow` 거짓, `appActive=false`). 같은 실패가 **변경 없는 기준 `e400512` 복사본**에서도 같은 값으로 재현된다(`task-01-edition-5-baseline-connections.log`, `…-baseline-full-unit-venv.log`, 144개 소스 바이트 대조 `…-baseline-provenance.json`). 앱 활성화가 필요한 단언이라 사장 부재·화면 상태·같은 Mac의 다른 세션 GUI 시험 같은 환경 요인이다. 이번 변경 원인 아님.
+- 영향: 실행 순서상 AT-HC-27 뒤 시험(`TestMain.swift:293` 이후)과 네트워크 fixture·gate 시험은 이번 변경본으로 아직 돌지 않았다. 증거 수준 2 미도달.
+- 결정: TASK-01은 **환경 예외를 기록하고 커밋 허용**, TASK-02·03 진행. 단 main 병합 전 조건 = 앱이 활성화될 수 있는 환경에서 전체 `test.sh` 종료 0(AT-HC-27 포함). 그 전까지는 뒤쪽 시험을 별도 확인한다(아래 계획).
+- 설계 적합성(4.2) — TASK-01 중간 판정: 적합. 카드 문장 원본 `TodoDrawerModel`(status·statusUrgent·trailing), 그리기 `TodoDrawerView`, 세로줄 공용 값 `AttentionRail` 하나를 칸·채팅이 같이 씀, 선택 원본 `ConversationView.drawerSelectedID`, 0개 흐림은 공용 `ComposerButton` 인자. 두 번째 원본·시험용 옛 API 없음. 최종 판정은 전체 시험 종료 0 커밋에서.

@@ -198,3 +198,51 @@ R-UC-I3의 입력/바탕 표본 조건 판정 뒤 **현재 미커밋11파일을 
 ### 다음 인계
 
 계획 담당이 R-UC-I4의 실제 AT56 준비 경로와 TASK-02 이관 두 곳을 명시한 뒤 재인계한다. 현재 미커밋11파일을 보존한다. 그다음 선택 스크롤 정착의 화면 증거를 보강하고 TASK-01 전체 종료0·정적 검사 후 자기 경로만 커밋, 이후 TASK-02→03을 진행한다. 현재 HEAD는 기준일 뿐 릴리즈 후보가 아니며 새 구현 커밋·푸시·운영 반영은 없다. 총괄 전달은 호스트 담당이다.
+
+
+## TASK-01 · 5판 재개: AT56·정착 화면 통과 / 범위 밖 포커스 시험 실패(R-UC-I5)
+
+### 기준·변경·보존
+
+- 지정 문서 커밋 `e4005125d8c0c3662412b71d08d77e909ecde313` merge 종료0, fast-forward, 충돌 없음. 기존 미커밋11파일을 폐기하거나 stash하지 않았다.
+- 이번 추가 변경은 시험뿐이다. design 4판4.1대로 `IslandTests.swift:120` AT56을1.6초 뒤 같은 messageID 유지로 이관하고, 칸 닫기→nil 검사를 더했다. 뒤쪽 기존 worker/좁은 머리 시험은 칸 열림을 전제하므로 닫기 검사 직후 다시 열어 원래 준비 상태를 복원했다. 다른 행동·개수·시간 기대를 바꾸지 않았다.
+- 선택 스크롤의 실제 정착 사진을 얻도록 UICleanDrawerTests를 async로 바꿨다. 실제 질문 카드 선택 뒤 기존 waitFor로 viewport에 해당 스레드 중심이 들어오는지 기다리고, scrollTo가0.45초까지 재배치하는 점을 따라0.5초 뒤 실제 보이는 NativeThreadCard의 강조2pt·강조색을 검사한다. 주입 시계의2초 유지 검사는 그대로다. 어둡게·밝게 모두 검사·캡처했다.
+- async 전파에 필요한 `DrawerInlineTests` 호출과 `TestMain` 호출만 await로 바꿨다. 따라서 현재 미커밋은 기존11파일 + IslandTests·TestMain = **13파일**이다. 제품7파일은 앞선 후보에서 바뀌지 않았다. 이번에 새 제품 경로·저장/통신 형식·운영 변경을 추가하지 않았다.
+- 현재 후보 `.build/ui-clean-evidence/task-01-edition-5-candidate.patch`, HEAD는 위 기준. 전체 종료0 조건이 남아 새 커밋 없음. TASK-02·03 미착수.
+
+### 선택·화면 증거
+
+- `task-01-selected-settled-dark.png`, `task-01-selected-settled-light.png`를 직접 열어 확인했다. 선택한 질문 카드와 실제 viewport의 같은 스레드에 강조가 함께 보이고, 답글 모드·해당 직원 얼굴이 표시된다. 밝은 원본은 RGBA이며 검토용 흰 바탕 사본 `task-01-selected-settled-light-on-white.png`도 보존했다. 원본의 픽셀 검사는 원본 RGBA로 수행했다.
+- 기존 AT-UC-10~19, AT-TD·AT-DC·AT-DI 및 이관한 AT56이 이번 전체 실행에서 통과했다. R-UC-I4의 칸 선택 만료 충돌과 선택 스크롤 정착 증거 누락은 해소됐다.
+
+### R-UC-I5: 변경하지 않은 연결 창 포커스 시험 실패
+
+- 전체 실행은 이후 `app/Tests/ConnectionsTests.swift:219`의 **AT-HC-27 show after onDismiss clears input and remains usable**에서 종료1이었다. 연결 제품 코드·시험 단언은 수정하지 않았다.
+- 해당 단언은 `window.isVisible && window.isKeyWindow && live.fields.isEmpty && !live.busy`다. 기준 코드의 진단 값은 visible=true, **key=false**, fieldsEmpty=true, busy=false, **appActive=false**다. 표시·입력 초기화·비동기 처리 종료는 충족하고 키 창/앱 활성화가 충족되지 않았다.
+- 변경본의 동일 연결 시험을 기존 `--task32-capture` 분기로 분리 실행해도 같은 단언에서 종료1이었다.
+- 기준 커밋의 Sources/Tests를 추적하지 않는 증거 폴더로 `git archive`해 별도 바이너리를 만들었다. 연결 시험에 위 Boolean 출력 한 줄만 더했고, 그 줄을 제외한 **Swift144파일 전체가 기준 원본과 동일**함을 바이트 대조했다(`task-01-edition-5-baseline-provenance.json`, unexpectedDifferences=[]). 추적 파일을 체크아웃/폐기/수정한 것이 아니다.
+- 기준 바이너리의 연결 분리 실행도 같은 값/단언에서 종료1. 이어 지정 venv를 사용한 기본 Swift 시험 전체 순서도 같은 AT-HC-27 및 같은 값으로 종료1이었다. **본 작업의 제품 변경 없이도 재현되는 실패**다. 기준 전체 test.sh(빌드+네트워크 fixture)를 통과시켰다는 뜻은 아니다.
+- 원인은 활성화 가능한 GUI 세션 조건·시험의 고정0.1초 대기·기존 연결 창 문제 중 아직 확정하지 못했다. 화면 잠금 메타데이터 읽기는 unknown이었으므로 잠금 때문이라고 단정하지 않는다. 테스트 앱의 실제 관측이 비활성이었다는 사실까지만 확인했다.
+- [권고] 계획 담당이 활성화가 가능한 시험 환경에서 기준의 이 단언을 확인하거나, 별도 연결 창/시험 조립 보완 범위를 판정한다. 이 작업에서 연결 제품 코드·기존 단언·대기를 고치거나 skip하지 않았다. 앱 활성화를 우회하기 위한 시스템 설정·공유 서비스 재시작도 하지 않았다.
+
+### 명령·실제 결과
+
+로그는 구현 worktree 루트 `.build/ui-clean-evidence/` 아래다.
+
+| 실행 | 종료 | 변경본·결과·로그 |
+|---|---|---|
+| `HEJO_PYTHON=<gateway venv python> bash app/scripts/test.sh` | **1** | 기준+현재13파일. 신규 AT-UC-10~19·AT56 통과 뒤 AT-HC-27 실패. `task-01-edition-5-app-tests.log`. 이후 나머지 기본 시험·네트워크 fixture 미실행 |
+| 변경본 `app-tests --task32-capture <temporary evidence>` | 1 | 현재13파일 바이너리, 동일 AT-HC-27. `task-01-edition-5-connections-isolation.log` |
+| 기준 복사본 Swift 컴파일 | 0 | 기준+진단 출력1줄. `task-01-edition-5-baseline-compile.log` |
+| 기준 `ui-clean-baseline-tests --task32-capture` | 1 | 동일 AT-HC-27, key=false/appActive=false. `task-01-edition-5-baseline-connections.log` |
+| 기준 기본 Swift 전체(첫 비교, venv 지정 누락) | 1 | 실행자 환경 지정 오류로 AT-PG-08의 Python fixture 시작 실패. 제품/기준 회귀 증거로 쓰지 않음. `task-01-edition-5-baseline-full-unit.log` |
+| `HEJO_PYTHON=<gateway venv python> ui-clean-baseline-tests <resources>` | 1 | 기본 순서에서도 동일 AT-HC-27 및 위 Boolean 값 재현. `task-01-edition-5-baseline-full-unit-venv.log` |
+| 기준 원본144 Swift파일 바이트 대조 | 0 | 진단 출력1줄만 제외, 예상 밖 차이0. `task-01-edition-5-baseline-provenance.json` |
+| scan_private.py, 임시 fake owner | 0 | 현재13파일, 새 지적 없음. `task-01-edition-5-private-scan.log` |
+| git diff --check | 0 | 현재13파일. `task-01-edition-5-diff-check.log` |
+
+이번 UI 표현 변경의 독립 수치·문장·RGBA·실제 보기 계약 시험은 실행됐으나 전체 통과 조건은 충족하지 못했다. mutation check는 새 중요 알고리즘을 도입하지 않은 표현 작업이며 미실행이다. 밝은/어두운 스크롤 전후·정착 선택 사진은 확보했다. 전체 앱 검증 완료·TASK-01 완료/커밋으로 보고하지 않는다.
+
+### 다음 인계
+
+R-UC-I5 판정 전 **미커밋13파일 보존**, 새 후보 커밋 없음. 연결 시험 실행 조건/범위가 해소되면 같은 후보의 전체 test.sh 종료0을 확보하고 자기13경로만 commit --only 한다. 이어 TASK-02→03을 진행한다. 4판의 제거 보기 규칙과 알약 경로1.5초 유지 조건은 그대로다. 분홍 표식·접기 단추 주인 확정은 TASK-03에 남았다. main으로의 구현 병합·설치·공개·푸시·운영 반영 없음. 릴리즈 총괄에 전달할 후보 해시는 없으며 위 기준 위 미커밋 상태·공통 포커스 시험 실패를 호스트가 전달한다.
