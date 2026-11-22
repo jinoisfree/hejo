@@ -1477,3 +1477,42 @@ install/hejo-ship publish --approve-commit eb5e62afd8ad6205e40d79386e34641d077ab
 ```
 
 푸시 대상은 **hejo 저장소의 로컬 public `eb5e62afd8ad6205e40d79386e34641d077ab898` → `github/main`**이다. 개인 main 이력·이 보고서 커밋을 공개 원격으로 보내지 않는다. 원격 포함은 조회 금지 범위이므로 확인하지 않았다. 실제 공개·업데이트 설치(수준 4), 문 서버 설치·재시작은 별도 사용자 승인, M4·M8~M11 및 맨 마지막 M7, 최종 명세 반영·푸시 완료 판정이 남아 있다. 독립 검토자는 고정 후보 트리/준비물 지문, 서명 연속성, 초기 환경 오류 대조, 남은 AT-FF-31을 확인한다. 배포 전 실패 시 공개하지 않고 준비물을 보존한다. 운영 롤백은 이번에 운영 변경이 없어 해당하지 않는다.
+
+
+## 21차-TASK-16 — 처리할 일 칸 바깥 배치: 기존 시험 충돌로 보류
+
+### 받은 지시·현재 상태
+
+[확인] handoff 21차·spec 13판 REQ-FF-13·design 10절·AT-FF-90~93과 실제 코드를 대조했다. 착수 main은 `913ad22eb2f0bcbf0d8829a65871e44fea917c2c`이다. 0.2.4 공개와 M1~M11 통과는 최신 verdict의 기록을 확인했으며 반복하지 않았다. 위험도 일반, 필요 증거 수준 2. 이번 범위의 구현자 판단은 **보류(멈춤 조건 해당)**다. 제품·시험·운영 변경은 0이며 보고서만 추가했다. 다른 작업의 미추적 문서 폴더는 보존했다.
+
+21차 지시와 이번 실행 요청의 **“기존 기대값 변경 필요하면 멈추고 보고”** 조건에 따라, 아래 충돌을 발견한 시점에 제품 수정을 시작하지 않았다. 수락 기준이나 기존 시험을 임의로 바꾸지 않았다.
+
+### 직접 확인한 충돌
+
+| 실제 기존 시험 | 현재 요구 | REQ-FF-13 규칙을 적용하면 |
+| --- | --- | --- |
+| `app/Tests/TodoDrawerTests.swift:95` AT-TD-33 | 1440폭 화면, 펫 x=200에서 `drawerOverlay=true`, 패널 프레임 불변, scrim 표시 | 오른쪽 여유가 충분하므로 203만큼 이동해 바깥 칸, overlay=false여야 함 |
+| `app/Tests/TodoDrawerTests.swift:116` AT-TD-35 | 왼쪽으로 끈 뒤 overlay=true | 같은 넓은 화면에서 오른쪽 이동으로 칸을 넣을 수 있어 기존 겹침 기대와 충돌 |
+| `app/Tests/TodoDrawerTests.swift:118` AT-TD-35 | 접고 다시 열어도 overlay=true | 다시 열 때도 바깥 배치를 재계산하므로 기존 겹침 기대와 충돌 |
+| `app/Tests/TodoDrawerBackgroundTests.swift:45~50` AT-FF-40 fixture | 1440폭 화면, 펫 x=100으로 overlay=true 사례를 만들고 이를 단언 | 오른쪽 여유가 충분하므로 290만큼 이동해 overlay=false, 픽셀 검사 전 fixture 단언부터 실패하게 됨 |
+
+현재 `PetLayout.swift`를 그대로 컴파일한 별도 기하 진단에서 실제 `withLeading` 반환값과 지시된 shift 수식을 대조했다. 대화 크기는 실제 기본값 428×500(360+사이드바 68), 칸 290, 화면 1440×900인 가짜 입력이다. AT-TD-33과 배경 시험 사례 모두 현재 overlay=true였고, 새 수식의 이동 후 대화 오른쪽 끝은 730으로 화면 제한 1428 안에 들어간다. 따라서 새 규칙은 두 사례 모두 overlay=false를 요구한다. 진단은 제품 구현이나 전체 AppKit 시험이 아니며, 새 수락 시험 통과로 세지 않는다.
+
+`PetController.placePet`는 leading을 `PetPlacement` 생성자에 전달하고 그 target으로 패널을 배치한다. `moveChatDrag` 역시 `withLeading`을 직접 사용한다. 칸 열기/닫기의 `setDrawerOpen`은 target.anchorOrigin을 다음 배치에 사용한다. 저장 기준 보존은 구현 재개 뒤 실제 컨트롤러 시험으로 확인해야 하며 이번에는 수정하지 않았다.
+
+### 검증·미실행
+
+증거 `E21` = `.build/finder-folders-evidence/round21-task16/`.
+
+| 명령·확인 | 실제 결과 | 증거 |
+| --- | --- | --- |
+| `xcrun swiftc -swift-version 5 -parse-as-library app/Sources/PetLayout.swift <로컬 기하 진단> -o <진단 실행 파일>` | 종료 0, 현재 제품 코드 그대로 컴파일 | `geometry-build.log/json` |
+| 위 진단 실행 파일 | 종료 0, 현재 반환값과 새 규칙의 상반된 요구 확인 | `geometry-conflict.log/json` |
+| 착수 이후 제품 파일 SHA-256 대조·`git diff` | 제품 변경 0 | `start.json`, `source-integrity.json` |
+| 보고서 개인값 검사·`git diff --check` | 최종 실제 결과는 `report-checks.json` | `report-private.log`, `report-diff-check.log` |
+
+[미실행] AT-FF-90~93 앱 시험 작성·전체 앱 시험·app-tests 실행 전 pgrep. 기존 기대값 변경을 허가받지 못한 상태에서 멈추었으므로 실행하거나 통과로 표시하지 않는다. 새 제품 구현 및 대역 통합 수준 2 증거도 아직 없다. 앱 버전·공개 후보·설치 앱·운영 홈·게이트웨이·본체·다른 앱·원격은 변경하지 않았다. 푸시도 하지 않았다.
+
+### 계획 담당에게 필요한 결정
+
+[제안] AT-TD-33·35의 위 단언만 새 오른쪽 이동/바깥 배치·닫기 복원 계약에 맞게 바꾸도록 허가하고, AT-FF-40은 실제로 공간이 부족한 좁은 가짜 화면에서 overlay fixture를 만들도록 허가한다. 픽셀·불투명도·테마 단언은 그대로 유지하고, 다른 시험 기대값은 바꾸지 않는다. 이는 제안이며 아직 적용하지 않았다. 계획 담당이 해당 허용 범위와 수락 명세의 “기존 기대값 수정 없음” 예외를 확정해 새 인계로 주면 TASK-16 구현과 AT-FF-90~93·전체 앱 회귀를 재개한다. 이번 제품 커밋은 없고 보고서 커밋 전체 해시는 result에 기록한다.
