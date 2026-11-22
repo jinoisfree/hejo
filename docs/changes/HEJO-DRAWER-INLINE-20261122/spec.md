@@ -1,6 +1,6 @@
 # HEJO-DRAWER-INLINE 명세
 
-3판 · 2026-11-23(REQ-DI-07 로고·버전 가운데 추가, 사장 요청) · 2판 · 2026-11-22(계획 검증 1회차 R1·R2 반영, [plan-review.md](plan-review.md)) · 상태: 승인(사장 결정 + 계획 검증 2회차 APPROVED) · 기준 커밋: 이 저장소 main `0644e9e` · 결정 기록 [brainstorm.md](brainstorm.md)
+3판 · 2026-11-23(REQ-DI-07 로고·버전 가운데 추가, 사장 요청) · 2판 · 2026-11-22(계획 검증 1회차 R1·R2 반영, [plan-review.md](plan-review.md)) · 상태: 적용(검증 6회 완료, main 18de43e, 2026-11-23) · 기준 커밋: 이 저장소 main `0644e9e` · 결정 기록 [brainstorm.md](brainstorm.md)
 
 ## 칸·원본·쓰기 주체·수명
 

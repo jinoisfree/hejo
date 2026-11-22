@@ -64,3 +64,25 @@ diff를 읽었다. `PetPlacement.withDrawer`(오른쪽 넓힘, `over`·`shift` �
 - [확인] 시험은 `window.appearance`/`view.appearance`만 바꾼다(`DrawerInlineTests.swift` AT-DI-34 반복). 버전 글자 색은 `refresh()`에서 `CardText.quiet(dark:)`로 정해지고(`ConversationView.swift` refresh), 실제 테마 변경은 `ChatAppearance.change` → `applyChatAppearance` 경로다. 시험 전환이 실제 경로를 거치지 않아 버전 색·숨김이 갱신되지 않았을 가능성이 크지만 [미확정].
 - 원인 분류: 미확정. 수락 시험에 전환 방법이 없던 것은 계획 쪽 누락이라 7판 보충으로 정했다(실제 앱 경로로 전환, 기대 불변, 그래도 안 보이면 제품 결함).
 - main `1150a27`(bb14bd3 이후 app 변경 없음).
+
+## 6회 · 2026-11-23 · 판정: 완료 (조건: 교차 모델) — 남은 사람 확인 M-DI-1·2
+
+- 대상: 구현 커밋 `94b06efe92743f0439bb6190d2ddd8ab088a8ddd`(브랜치 `role-workflow/17-96051e66`, 기준 `ce0e3d4`). worktree 깨끗함, 커밋은 지정 13경로만(`git show --stat`).
+- main 통합: 계획 담당이 `94b06ef`를 로컬 main에 `--no-ff` 병합 → `18de43eb2d552e985b327dbcd6ecbfe7de7f7783`. 병합 뒤 `app/` 트리가 시험한 `94b06ef`와 같다(`git diff --stat 94b06ef 18de43e -- app/` 빈 출력, `ce0e3d4..main`의 추가 변경은 문서·gate 시험 문서뿐).
+
+### 시험 증거 [확인]
+- `supplement-4-final-app-tests.log`(구현 worktree `.build/drawer-inline-evidence/`): `AT-DI-33 … PASS`, `AT-DI-01..14,31 INLINE PLACEMENT PASS`, `AT-DI-20..23 PIXEL PASS`, `AT-DI-34 LOGO AND VERSION PIXEL CENTERS PASS`, 묶음별 `APP_TEST_OK` 전부, 마지막 `OK`. 구현 보고 종료 0.
+- 시험 코드 대조(`DrawerInlineTests.swift`): AT-DI-08 다섯 경우 (1634,600,720)…(1002,428,260), AT-DI-10 528/290/170, AT-DI-11 508·346·798·1144, AT-DI-14 0/145/290·428/478/528·360/265/170과 단계 ≤30·한 방향·겹침 없음·도중 재클릭 145→0, AT-DI-12 카드 폭 262 — 수락 시험 기대값과 같다. AT-DI-34 RGBA 비교는 알파 차이를 더 잡는 쪽이라 약화가 아니다.
+- AT-DI-30 검색 0건, `git diff --check` 0, scan_private 새 지적 0(기존 HEJO-DEADLINE-CLOSE 문서 4건은 기준 대조). 이 작업 문서에 절대 경로 0건(직접 grep).
+- 화면 증거 직접 열람: `inline-right-edge-dark.png`(방 목록 | 처리할 일 | 채팅, 칸이 유리 위 옅은 톤, 선택 카드 옅은 강조 채움, 급함은 배지 글자만 빨강), `logo-sidebar-68-dark.png`(로고·버전 0.2.5가 68 열 가운데).
+
+### 설계 적합성(4.2) — 적합
+칸 폭 판정 `PetPlacement.withDrawer` 한 곳, 칸 열 배치 `ConversationView.layout`·바탕 `ConversationView.draw`(공용 `SidebarTone`), 칸 폭 보간은 `PetBubbleMotion.easedWidthProgress` 공유(역산식 제거), 크기 조절은 `contentBubble` 재정의로 기존 `resized` 계약 보존, `paneSplit`은 `available`에서 칸 몫만 뺌, `PetView`의 칸·덮개·불투명 배경 제거, 로고·버전 정렬 값 하나 공유. 옛 경로 이중 존재 없음(AT-DI-30). design 2·4절과 일치.
+
+### 수락 시험 정정 이력(계획 담당 원인)
+3판 AT-TD-41 창 프레임 단언 교체(AT-DI-33), 5판 열린 칸 상태 보기 폭 입력 +290(AT53), 6판 AT-DI-34 폭 140→240, 7판 실제 테마 전환 경로. 모두 기대값이 아니라 옛 배치 전제·허용 밖 입력·전환 방법을 바로잡은 것이다.
+
+### 남은 것
+- M-DI-1·2 사장 확인(개발 빌드에서 배치·색·오른쪽 끝 비킴). tasks.md "사람 확인" 행.
+- 공개: 사장 결정(다음 공개 판). github 원격 `main`은 공개 판 이력(`hejo 0.2.6` 등)이라 이 커밋을 그대로 푸시하는 대상이 아니다.
+- 현재 명세 반영 완료: HEJO-TODO-DRAWER spec REQ-TD-02·AC-04, HEJO-FINDER-FOLDERS spec REQ-FF-08·13, 수락 시험 AT-TD-30·31·33·34·35·41, AT-FF-40·41·90~93에 대체 표시, 이 작업 spec·design 상태 "적용".

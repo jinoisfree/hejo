@@ -1,6 +1,6 @@
 # HEJO-DRAWER-INLINE TASK-01 구현 인계
 
-> 최신 상태는 아래 **보완 3** 절이다. 앞 절의 보류·충돌 기록은 각 회차 이력으로 보존한다.
+> 최신 상태는 아래 **보완 4** 절이다. 앞 절의 보류·충돌 기록은 각 회차 이력으로 보존한다.
 
 ## 기준과 판단
 
@@ -195,3 +195,50 @@
 - 제품 커밋은 없음. 지정 브랜치의 13개 변경 파일을 그대로 남겼다. AT-DI-34 밝은 테마를 포함한 전체 시험 종료 0, 여섯 로고 사진, 독립 검토가 남았다. 실패 뒤 IslandTests와 Python 네트워크 fixture는 미실행이다.
 - 확인 시점 main은 `1150a27a495323eed3b4f926d4c0f8f76c13aa51`로 지정 기준보다 앞섰다. 다음 인계는 새 병합 기준과 R-DI-I4 처분을 명시해야 한다. 푸시 승인 전 로컬 기준·원격 tip 포함 재확인이 필요하다.
 - 운영 공항·실제 메시지·버전 올림·공개는 수행하지 않았다.
+
+## 보완 4 · 2026-11-23 · 구현·자체 시험 완료(독립 검토 대기)
+
+### 기준·보존·커밋
+
+- [확인] 판정 5회와 수락 시험 7판을 읽었다. 기존 13개 파일을 `before-supplement-4.patch`와 새 stash로 보존하고, 지정 기준 `ce0e3d40ca6aed18a602e323c530156cdba7874e`을 병합했다. merge·stash apply 각각 종료 0, 충돌 없이 fast-forward·복원했다. 기준 사이 app 변경은 없었다.
+- 기존 `HEJO-DRAWER-INLINE-supplement-3-preserved`는 현재와 세 파일(ConversationView·TestMain의 텔레그램 변경, DrawerInlineTests의 240 입력 정정)이 달라 삭제하지 않았다. 보관 해시는 `28d3f78ba449abe1be4301d9f7ea177a68cec521`이다. 새 `HEJO-DRAWER-INLINE-supplement-4-preserved` 해시는 `6fe6329031dbab2f5d8348d8672bcf467265fd15`이며 역시 남겼다. **둘 다 이미 작업 트리에 복원한 과거 보관본이므로 다시 적용하지 않는다.**
+- TASK-01 커밋: **`94b06efe92743f0439bb6190d2ddd8ab088a8ddd`**, 브랜치 `role-workflow/17-96051e66`. `git commit --only`로 아래 13개 경로만 커밋했다. 구현 worktree 상태는 깨끗하다. 푸시하지 않았다.
+- 영향 파일: Sources의 ConversationChrome·ConversationView·PetController·PetLayout·PetView·SidebarMotion·TodoDrawerView, Tests의 DrawerInlineTests(추가)·DrawerOutsidePlacementTests(삭제)·IslandTests·TestMain·TodoDrawerBackgroundTests(삭제)·TodoDrawerTests. 이전 절에 적힌 칸 배치·색·회귀 이관 구현을 모두 포함한다.
+
+### 이번 변경과 R-DI-I4 원인 확인
+
+- 이번 보완 추가 변경은 `app/Tests/DrawerInlineTests.swift`뿐이다. 나머지 12개 경로는 보존본과 바이트 대조로 동일함을 확인했다(`supplement-4-scope.log`). 제품 코드는 추가 변경하지 않았다.
+- AT-DI-20~23은 이미 임시 LocalStore에 묶인 `ChatAppearance.change(theme:)` → `pet.applyChatAppearance()`와 실제 부모의 배치·cacheDisplay 경로를 사용하고 있었다. 이 경로를 유지했다.
+- AT-DI-34를 임시 LocalStore·가짜 명부·실제 PetController/PetPanel에 조립했다(`DrawerInlineTests.swift:219~250`). 실제 ConversationView 1000×600을 단언하며, 테마 전환은 같은 `ChatAppearance.change` → `pet.applyChatAppearance` 후 배치·그리기를 거친다. window/view.appearance를 직접 바꾸던 전환은 제거했다. 끝나면 이전 ChatAppearance 저장소를 복원한다.
+- [확인] 실제 경로로 바꾼 첫 전체 실행에서도 버전 픽셀 검출 단언이 실패했다. 진단 사진·라벨 상태를 남겨 확인하니 버전은 `0.2.5`, 숨김 false, 프레임 (0,26,68,12), effective appearance Aqua, 색은 기존 CardText.quiet의 검정 RGB(0,0,0), alpha 약 0.593이었다. 실제 제품에서 글자가 사라진 것이 아니었다.
+- [확인] 관측 코드가 RGB 차이만 계산해 투명 바탕 RGB(0,0,0)와 검정 글자 RGB(0,0,0)를 같다고 잘못 판단했다. 실패 원본의 버전 글자에는 RGB 차이가 없는 **알파 픽셀 105개**가 있고, 경계 (22,28)~(46,37)의 가운데는 정확히 34pt다. 증거: `logo-failed-light.png`, `logo-failed-state.json`, `supplement-4-alpha-diagnostic.json`.
+- 원인 분류(구현자 확인): 시험 조립에 더해 **시험 픽셀 관측 구현 오류**였다. 승인된 "바탕과 다른 픽셀"을 투명 PNG에서도 관측하도록 RGBA 차이를 사용했다(`DrawerInlineTests.swift:268~270`). 이는 제품 색이나 기대값 변경이 아니다. 중심 오차 ±1.5pt·첫 글자 파랑·폭 0 숨김·68/212/240 입력 및 차이 판정 한계 0.05를 유지했다. 향후 같은 실패를 조사할 수 있도록 실패 때만 사진·상태 JSON을 저장한다.
+- 앞선 "테마 경로를 거치지 않아 색이 남았을 가능성"은 원인으로 확정하지 않는다. 실제 경로에서 정상 검정색·그려진 글자를 확인했으므로 ConversationView 색·숨김·갱신 코드를 임의로 바꾸지 않았다. 수락 시험 Markdown도 변경하지 않았다.
+- IslandTests 입력 이관은 이전 두 곳(133줄 428→718, 135줄 760→1050)뿐이며 이번에는 추가 충돌·기대 변경이 없었다.
+
+### 실행한 검증
+
+로그는 구현 worktree 루트의 `.build/drawer-inline-evidence/` 기준이다. 최종 전체 시험 변경본은 기준 ce0e3d4 + 위 13개 파일이며, 시험 시작 후 내용이 변하지 않았음을 patch로 대조한 뒤 동일 내용을 94b06ef로 커밋했다. 최종 커밋의 검증이며 이후 main 변경을 대신 검증한 것이 아니다.
+
+| 명령·관측 | 실제 결과 | 로그·증거 |
+|---|---|---|
+| 최초 `HEJO_PYTHON=<gateway venv python> bash app/scripts/test.sh` | 종료 1, 실제 테마 전환 후에도 RGB 관측 오류로 버전 픽셀 검출 실패 | `supplement-4-app-tests.log`, `supplement-4-app-tests.exit` |
+| 진단용 전체 Sources·Tests `xcrun swiftc`, `codesign` | 각각 종료 0 | `supplement-4-diagnostic-build.log` |
+| 진단 `.build/app-tests --drawer-inline .../Pet` | 종료 1, 같은 단언. 실패 사진·상태 확보 | `supplement-4-diagnostic-inline.log`, `supplement-4-diagnostic-inline.exit` |
+| 실패 PNG의 알파 픽셀 독립 분석(venv Pillow) | 종료 0, 위 105개·경계·가운데 확인 | `supplement-4-alpha-diagnostic.json` |
+| **최종 `HEJO_PYTHON=<gateway venv python> bash app/scripts/test.sh`** | **종료 0**. 빌드·서명, 전체 기본 앱 시험, 모든 네트워크 fixture와 hook 시험 9개 통과. AT-DI-34·IslandTests도 통과 | **`supplement-4-final-app-tests.log`**, `supplement-4-final-app-tests.exit` |
+| AT-DI-30 `rg` 두 검색 | 각 종료 1, 일치 0건 | `supplement-4-obsolete-search.log` |
+| `git diff --check` | 종료 0 | `supplement-4-diff-check.log` |
+| 임시 홈·가짜 명부 `scripts/scan_private.py --home <임시 홈>` | 종료 1, 선행 문서의 기존 지적 4건 | `supplement-4-private-scan.log` |
+| 개인값 지적과 기준 커밋 해당 줄 지문 대조 | 드라이버 종료 0, 네 지적 모두 기존과 동일, 새 지적 0건 | `supplement-4-private-baseline.log` |
+| 보존본 내용 대조·최종 시험 patch 대조 | 종료 0, 추가 변경은 위 시험 하나이고 시험 후 커밋 내용 동일 | `supplement-4-scope.log`, `supplement-4-candidate.patch` |
+
+개인값 지적은 HEJO-DEADLINE-CLOSE `impl-report.md` 97·109줄, `verdict.md` 127·146줄이다. 해당 문서나 검사 예외를 변경하지 않았다. 시스템 Python의 Pillow 분석 시도는 모듈 없음으로 종료 1이었고, 게이트웨이 venv로 다시 실행해 위 결과를 얻었다. 최종 로그에는 설정·다운로드 보호 검사 모두 UNCHANGED임을 확인했다. 기존 Swift 컴파일 경고·WebKit 환경 메시지가 있지만 최종 실행 종료는 0이다.
+
+### 화면 증거와 남은 인계
+
+- `logo-centers.json`: 어둡게·밝게 각각 폭 68·212·240, 칸 표시 폭 0·290의 12개 조립 모두 로고·버전 중심이 34·106·120pt로 정확히 일치한다. 첫 글자 파랑, 두 테마의 폭 0 숨김도 통과했다.
+- 원본 사진 6개: `logo-sidebar-{68,212,240}-{dark,light}.png`. 밝은 테마의 투명 PNG는 열람 도구가 검정 바탕으로 보여 검정 글자가 안 보일 수 있다. 원본은 유지하고 흰 바탕에 합성한 열람용 사본 `logo-sidebar-{68,212,240}-light-on-white.png`를 추가했다. 측정은 투명 원본으로만 했다. 구현자는 밝은 사본 세 장을 직접 열어 로고·버전 가운데를 확인했다. 기존 칸 배치·카드 사진도 유지했다.
+- 도달 증거 수준 2 + M-DI 확인용 사진 확보. M-DI 사람 확인·설계 적합성 최종 판정·푸시 승인은 검증 담당/사용자 단계에 남아 있다.
+- 확인 시점 main은 `223a191accbb70c28f7b35cfdf2eee9490dfb109`로 지정 기준보다 앞섰다. ce0e3d4..main의 app 변경은 없지만 이 커밋은 아직 새 main을 포함하지 않는다. 계획 담당은 푸시 승인 전에 최신 로컬 main·원격 추적 tip 포함 요건을 확인하고 필요한 보완 병합을 지시해야 한다. 이번에는 지정한 ce0e3d4만 병합했다.
+- 운영 공항·실제 메시지·버전 올림·공개는 수행하지 않았다. 보고 문서만 계획 checkout에 갱신했고 제품 변경은 지정 구현 브랜치에만 커밋했다.
