@@ -1272,3 +1272,54 @@ RESTART_REQUIRED 멈춤 조건 때문에 뒤따르는 **./sync와 운영 저장�
 다음은 재시작 필요에 대한 사장 승인/새 운영 지시 → 허용된 이어 하기 → 저장/링크 재확인 → sync·자기 경로만 커밋·AT-FF-86 확인이다. 같은 파일에 다른 세션 변경이 섞이면 해당 파일을 커밋하지 않고 보고해야 한다. 운영 저장소 미커밋 0을 만들려고 다른 세션 파일을 되돌리거나 커밋하지 않는다. 계획 담당의 d2 알림은 이 대화가 직접 보내지 않았다.
 
 실제 도달 증거 수준은 3(실행본 설치·정책 한 곳 보정·실제 연결 응답)이다. 요구 중 재시작 뒤 도구 사용·실제 파일 읽기와 AT-FF-86은 남아 있다. 제품 구조/수락 기준/기존 다른 시험 변경은 없고, 명시된 목표의 링크 복구를 위해 app_manifests 안에서 YAML 내용이 같은 원래 링크를 선택하는 구현 세부를 더했다. 전체 앱 회귀는 앱 변경이 없어 반복하지 않았다. 재시작·릴리스·실제 메시지·push는 하지 않았다. 자기 보고서만 commit --only한 hejo 커밋과 개인값/공백 검사 결과는 `E17/hejo-commit.log/json`, `report-checks.json` 및 최종 result에 기록한다.
+
+
+## 18차-TASK-15 마무리 1 (2026-11-22)
+
+**구현자 판단: 동기화·자기 경로 커밋 완료, 전체 미커밋 0 조건은 범위 밖 변경 1개 때문에 미충족.** handoff 18차를 따랐다. 위험도 일반, 실제 도달 증거 수준 3(실행본 수집·실제 Git 변경/커밋 확인)이다. 직원 D 적용용 재시작은 사장 결정대로 d2 예정 재시작에 합치며, 이번에는 재시작·resume·연결 명령을 실행하지 않았다.
+
+착수 hejo HEAD는 `ca28b09bebd9bc5ff9d59b40034b6a0b58d9c828`, 운영 main HEAD는 `3ef4105de4e377bd1230464945db09a644be6996`다. 아래 `E18`은 `.build/finder-folders-evidence/round18-task15`, `P`는 게이트웨이 Python이다.
+
+### 동기화와 경로별 소유 확인
+
+./sync는 실행본을 읽어 운영 저장소 사본을 다시 채우는 방향임을 소스로 확인했다. 커밋/푸시 옵션 없이 `P ./sync`를 실행해 종료 **0**, **1.543680초**, 토큰 경고 없음이었다(`E18/sync.log/json`). 비밀 파일 내용이나 vault diff 값은 열지 않았다.
+
+동기화 후 변경 경로 9개 중 8개가 이 작업이었다. 나머지 직원 기억 사본 1개는 범위 밖이므로 내용 미열람·미수정·미커밋으로 보존했다. 검토 스크립트와 결과는 `E18/review_paths.py`, `path-review.json`, `path-review-result.json`에 있다. vault는 numstat와 메타데이터만 확인했다. 첫 보조 메타데이터 검사에서 st_inode 오타로 종료 1이 난 것은 보존했고 st_ino로 바로잡은 최종 검토는 종료 0이다(`path-review-initial.json`). 제품이나 시험 기대값을 바꾼 것이 아니다.
+
+| 운영 저장소 경로 | 확인한 변경과 소유 근거 |
+|---|---|
+| `hermes/plugin-store/team-kit/lib/hermes_facility/config_assembly.py` | app_manifests 함수만 HD 5bd1da2의 검토된 함수로 바뀜. 함수 밖 바이트 보존·실행본 일치 |
+| `hermes/plugin-store/team-kit/tests/test_finder_folders.py` | 삭제됐던 시험 복원, HD·실행본 바이트 일치 |
+| `hermes/plugin-store/team-kit/tests/test_finder_manifest_updates.py` | 17차 허용 단언 및 링크 복구 시험 갱신, HD·실행본 바이트 일치 |
+| `hermes/owner/policy.yaml` | 직원 D 기본 team-kit 목록에 cctv_reference·cctv_now 두 개만 추가, 다른 정책 내용 동일. diff 2줄 추가 |
+| `hermes/plugin-store/links.json` | 직원 D team-kit 항목만 변경, overlay false·창고 manifest 지문 일치. 다른 항목·상위 필드 동일 |
+| `hermes/profiles/<직원 D>/config.yaml` | 같은 선택 Finder 폴더 한 개만 기존 목록 끝에 추가, 나머지 설정 내용 동일. diff 1줄 추가 |
+| `hermes/owner/team.yaml` | 직원 D apps에 Finder 한 개만 추가, 나머지 명부 내용 동일. diff 1줄 추가 |
+| `hermes/owner/vault.yaml` | 허가된 연결 기록 경로. diff 4줄 추가·삭제 0줄, 원본 메타데이터가 17차 허가된 트랜잭션 직후와 동일. 값·내용은 열지 않음 |
+
+직원 D `plugins/team-kit`은 동기화 뒤 공용 창고 심링크로 돌아왔고 기존 HEAD와 이미 같아 새 diff가 없었다. 따라서 별도 커밋 경로에는 들어가지 않았다. 다른 세션 변경이 섞인 것으로 확인된 자기 파일은 없었다. vault는 지시된 제한 때문에 경로·줄 수·메타데이터로만 소유 근거를 확인했으며 값 검토를 했다고 주장하지 않는다. 정확한 로컬 경로 목록은 비공개 `E18/owned-paths.json`, `operating-commit.json`에 있다.
+
+### 운영 커밋과 남은 변경
+
+자기 8개 경로만 한국어 메시지 "Finder 창고 링크 복구와 두 회귀 시험을 실행본에서 모아 보존"으로 `git commit --only`했다. 운영 커밋 전체 해시는 **`f1507977e7702dd9e0725c5eac605f8eb62f5473`**다. 부모는 착수 운영 main이며, 커밋 경로가 검토한 8개와 정확히 같음을 확인했다(`E18/operating-commit.log/json`). 직원 기억 사본을 스테이징하거나 포함하지 않았다.
+
+| 명령/확인 | 종료 코드 | 실제 결과 | 로그 |
+|---|---:|---|---|
+| `P ./sync` | 0 | 경고 없음, 두 시험 수집 | `E18/sync.log/json` |
+| 비밀 아닌 자기 경로 `git diff --check` | 0 | 공백 오류 없음, vault 내용 검사 제외 | `E18/own-diff-check.log/json` |
+| 자기 8경로 `git commit --only` | 0 | 위 운영 커밋, 경로 일치 | `E18/operating-commit.log/json` |
+| 자기 경로 `git diff --quiet HEAD -- ...` | 0 | 작업 변경 남지 않음 | `E18/final-integrity.json` |
+| `git diff --cached --quiet` | 0 | 스테이징 변경 없음 | `E18/final-integrity.json` |
+| 전체 `git status --porcelain` | 0 (명령 성공) | **미커밋 1개**, 범위 밖 직원 기억 사본 | `E18/after-commit-status.log`, `final-integrity.json` |
+
+두 시험은 삭제(D)나 미추적 상태가 아니며 실제 운영 커밋에 들어 있다. 저장소 파일·커밋 blob·실행본의 SHA가 모두 같다. Finder 시험 SHA `6f44156030bbe7934b06e7475dd385cbc399ada33d9ebedee40371338405740f`, manifest 시험 SHA `9d4f7639124087e365e2b0f302fe40dbc8fe3dda0396df8702f4bbf6c35e25dc`다. 따라서 AT-FF-86의 시험 보존 부분은 확인했다.
+
+전체 미커밋 0은 달성하지 못했다. 남은 것은 이 작업 밖 직원 기억 사본 1개뿐이다. 이를 0으로 만들려고 다른 세션/직원의 파일을 되돌리거나 커밋하지 않았다. 실행본 config_assembly.py는 운영 main과 같은 SHA `5f1bb8da1cf0bc919d1221e68a7bee597848ec7c7ed167affe66bce633beca7c`이고 제품 바이트를 새로 고치지 않았다. 따라서 17차의 관련 114 passed·전체 새 실패 0·airport 통과 증거를 재사용하고 같은 전체 시험을 반복하지 않았다.
+
+### 인계와 미실행
+
+계획 담당은 d2에 운영 커밋 `f1507977e7702dd9e0725c5eac605f8eb62f5473`와 자기 8경로 수집 완료·범위 밖 기억 사본 1개 남음을 알려야 한다. 남은 기억 사본의 처리 주체를 결정한 뒤 d2의 재시작·폴더 이동/repair 순서를 진행해야 한다. 이 대화는 다른 세션에 직접 메시지를 보내지 않았다.
+
+운영 소유 범위는 위 표 8개와 이미 HEAD와 같은 직원 D 플러그인 링크다. 범위 밖 변경의 정확한 로컬 경로는 `E18/after-commit-status.log`에만 남겼으며 기억 내용은 열지 않았다. 새 재시작·resume·연결 재제출은 0회다. d2 재시작 완료 뒤 다음 지시에서 기존 완료 증거를 확인하고 permission·check만 이어가야 한다. 기존 공개·사장 확인·푸시 승인은 별도다.
+
+이번 hejo 보고서 한 경로만 commit --only하며 전체 해시는 `E18/hejo-commit.log/json`과 최종 result에 기록한다. 보고서 개인값 검사·공백 검사 결과는 `E18/report-checks.json`에 있다. push·릴리스·실제 메시지·본체/ddots·수락 기준/설계 변경은 하지 않았다.
