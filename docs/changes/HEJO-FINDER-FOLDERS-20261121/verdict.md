@@ -510,3 +510,7 @@
 설계 적합성(4.2): 0.2.4와 같은 공개 절차(design 7.3), 제품 코드 무변경, 개인 이력 없는 public 한 커밋 — 적합.
 
 남은 일: 사장 GitHub 푸시(47a4245 → github/main) → publish → 사장 M12 → TASK-04 → 운영 저장소 커밋 원격 포함 확인.
+
+## 0.2.5 공개 기록 (2026-11-22)
+
+사장이 public 47a424564d4067c697b17b23aedcc0af9ab160ee를 github/main에 푸시(ls-remote로 확인), 사장 지시("공개 너가 실행해")로 계획 담당이 `install/hejo-ship publish --approve-commit 47a4245… --prepared .build/release-0.2.5/prepared.json` 실행 → 종료 0, "PUBLISHED v0.2.5". 릴리스 v0.2.5: 2026-11-22T13:20:27Z, 초안 아님, 대상 47a4245, 첨부 appcast.xml·hejo-0.2.5-arm64.zip. 문 재설치·재시작 없음(문 실행 차이 README뿐). 남은 일: 사장 M12.
