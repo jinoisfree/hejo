@@ -1,6 +1,6 @@
 # HEJO-DRAWER-INLINE 수락 시험
 
-4판 · 2026-11-23(REQ-DI-07 로고·버전 가운데, AT-DI-34) · 3판 · 2026-11-23(검증 1차: AT-TD-41 창 프레임 단언 교체 추가, verdict.md) · 2판 · 2026-11-22(계획 검증 1회차 R1~R4 반영, [plan-review.md](../../docs/changes/HEJO-DRAWER-INLINE-20261122/plan-review.md)) · 명세 [spec.md](../../docs/changes/HEJO-DRAWER-INLINE-20261122/spec.md) · 설계 [design.md](../../docs/changes/HEJO-DRAWER-INLINE-20261122/design.md)
+5판 · 2026-11-23(검증 3회: 열린 칸 상태 기존 시험의 보기 폭 입력 이관 규칙) · 4판 · 2026-11-23(REQ-DI-07 로고·버전 가운데, AT-DI-34) · 3판 · 2026-11-23(검증 1차: AT-TD-41 창 프레임 단언 교체 추가, verdict.md) · 2판 · 2026-11-22(계획 검증 1회차 R1~R4 반영, [plan-review.md](../../docs/changes/HEJO-DRAWER-INLINE-20261122/plan-review.md)) · 명세 [spec.md](../../docs/changes/HEJO-DRAWER-INLINE-20261122/spec.md) · 설계 [design.md](../../docs/changes/HEJO-DRAWER-INLINE-20261122/design.md)
 
 상태: 명세 완료 · 코드 미작성 · 미실행 · 계획 검증 통과(2회차).
 모두 앱 시험(`app/Tests`, swiftc 묶음)이다. 가짜 화면(`PetController.displays` 주입), 임시 `LocalStore`, 가짜 명부(`alpha`)만 쓴다. 움직임 시험 외에는 `reducedMotion = true`.
@@ -64,4 +64,10 @@
 | ID | AC | 입력 | 기대 |
 |---|---|---|---|
 | AT-DI-34 | DI-07.AC-01·02·03 | 실제 `ConversationView`(폭 1000, 높이 600). 시험에서 `version` 글자를 `0.2.5`로 둔다. 방 목록 폭 68 → 212 → 140 → 0, 어둡게·밝게. 각 폭에서 머리 영역(y 0~44, x 0~S)을 비트맵으로 그리고 바탕과 다른 픽셀로 로고 글자(y 7~25)·버전 글자(y 26~38)의 경계 상자를 잰다 | 폭 68·212·140에서 로고 경계 상자 가운데 x와 버전 경계 상자 가운데 x가 모두 `S/2`와 1.5pt 이내. 로고 첫 글자 영역에 파랑 픽셀(B > R + 0.3)이 있다. 폭 0에서 로고·버전 숨김. 기대값 근거: 사장 요청(칸 가운데) — 라벨 정렬 속성 값이 아니라 그려진 픽셀로 잰다 |
+
+## 5판 정정: 칸이 열린 채 대화 보기 폭을 직접 정하는 기존 시험의 입력 이관 (수락 시험 오류, 계획 담당)
+- 옛 배치에서는 칸이 대화 보기 밖에 있어 `ConversationView` 폭 = 방 목록 + 채팅이었다. 새 배치에서는 칸이 열려 있으면 대화 보기 폭 = 방 목록 + 290 + 채팅이다.
+- 그래서 칸이 열린 상태에서 `ConversationView.frame.size.width`를 직접 정해 "채팅 칸 폭"을 겨냥한 기존 시험은 **입력 폭에 칸 폭(`drawerShownWidth`, 열림이면 290)을 더한다.** 기대값은 바꾸지 않는다.
+- 확인된 대상: `app/Tests/IslandTests.swift` AT53 "narrow header reserves title and right icons"의 `ui.frame.size.width=428` → `428 + 290 = 718`, 바로 뒤 `760` → `760 + 290 = 1050`(AT56 머리 끌기 구간). 근거: 그 앞(AT-TD-27)에서 칸을 열고 닫지 않으며, 428은 방 목록 68 + 채팅 최소 360을 뜻한다(`PetLayout.minimumChatSize`).
+- 전체 시험에서 **같은 꼴**(칸 열림 + 보기 폭 직접 지정 + 채팅 폭을 겨냥한 기대)의 충돌이 더 나오면 같은 규칙으로 입력만 이관하고 impl-report에 파일:줄·전후 값을 목록으로 적는다. 다른 꼴의 실패는 고치지 말고 멈춘다.
 

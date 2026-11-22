@@ -1,5 +1,7 @@
 # HEJO-DRAWER-INLINE TASK-01 구현 인계
 
+> 최신 상태는 아래 **보완 1** 절이다. 앞 절의 보류·충돌 기록은 1회차 이력으로 보존한다.
+
 ## 기준과 판단
 
 - 인계: [handoff.md](handoff.md) 2판 및 0항 갱신. 위험도 일반, 필요한 증거 수준 2 + M-DI 화면 이미지.
@@ -66,3 +68,44 @@
 - 작업 도중 main이 `a2caf0a2369cd694737d55f217cc932c705a34f9`로 진행됐다. 앱 쪽 차이는 `app/Resources/Info.plist` 공개 버전뿐이고 앱 소스 차이는 없다. `git merge-base --is-ancestor main HEAD` 종료 1: 아직 구현 브랜치에 포함되지 않았다. 검증 담당이 R-DI-I1 보완 계획에 최신 main 병합·전체 재시험을 포함해야 한다.
 - 미검증 범위: AT-TD-41 뒤의 전체 시험 및 네트워크 fixture, M-DI 사람 확인. 운영 공항·실제 메시지·공개·버전 변경은 이번 범위 밖이다.
 - 검토 요청: 좁은 화면에서 창/칸 폭의 독립 보간, `contentBubble` 기반 기존 크기 조절, 모든 채팅 부속 프레임 이관, 투명 합성 표본과 중립 카드 테두리, AT-TD-41 혼합 단언의 배치 부분 이관.
+
+## 보완 1 · 2026-11-23 · 보류(2절 보고: R-DI-I2)
+
+### 받은 지시와 실제 변경
+
+- [확인] verdict 2회 및 수락 시험 3판의 AT-DI-33을 기준으로 보완했다. `git merge main`은 종료 0, `9a10cff`에서 `95680e911baf05366cd784a703d603af9bd72d54`로 충돌 없이 fast-forward됐다. 기존 미커밋 12개 파일은 보존했다.
+- [확인] 보완 전 변경본은 `.build/drawer-inline-evidence/before-supplement-1.patch`에 보존했다. 그 변경본과 비교하면 이번 보완에서 추가로 달라진 파일은 `app/Tests/TodoDrawerTests.swift` 하나다(`supplement-1-scope.log`).
+- [확인] 사장 칸·빈 알약의 두 열기 단언을 승인된 `minX` 불변·폭 +290·펫 `globalSprite` 불변으로 고쳤다. 각각 클릭 전에 닫힌 `globalBubble.maxX+290<=1428`도 단언했다. 나머지 AT-TD-41 상태·라벨·닫기 단언과 다른 시험 기대값은 변경하지 않았다.
+- [확인] R-DI-I1은 정정된 명세에 따라 해소됐다. 새 AT-DI-33 두 경우가 실제 전체 시험에서 통과했다. 제품 코드는 1회차 구현과 동일하다.
+- 구현자 판단: **보류(2절 보고)**. 아래 R-DI-I2 때문에 요구된 전체 종료 0을 달성하지 못했고, 커밋·푸시는 실행하지 않았다. 현재 변경본은 `.build/drawer-inline-evidence/supplement-1-candidate.patch`에 보존했다.
+
+### 실행한 검증
+
+로그 경로는 구현 worktree 루트 기준이다. 검증 변경본은 위 기준 커밋 + 현재 미커밋 12개 파일이며, 증거 수준은 가짜 화면·임시 저장소·실제 AppKit 조립에 대한 2다.
+
+| 명령·관측 | 실제 결과 | 로그 |
+|---|---|---|
+| `HEJO_PYTHON=<gateway venv python> bash app/scripts/test.sh` | 종료 1. 빌드·서명 성공, AT-DI-33 두 경우·AT-TD-20~42·AT-DC-21~34·새 AT-DI 배치/픽셀 시험 통과 후 `AT53 narrow header reserves title and right icons`에서 실패 | `.build/drawer-inline-evidence/supplement-1-app-tests.log` |
+| AT-DI-30 `rg` 두 검색 | 각각 종료 1, 일치 0건 | `.build/drawer-inline-evidence/supplement-1-obsolete-search.log`(명령 포함) |
+| `git diff --check` | 종료 0 | `.build/drawer-inline-evidence/supplement-1-diff-check.log` |
+| 임시 홈·가짜 명부의 `scripts/scan_private.py --home <임시 홈>` | 종료 1, 선행 HEJO-DEADLINE-CLOSE 문서의 기존 절대 경로 4건. 구현 파일 지적 0건 | `.build/drawer-inline-evidence/supplement-1-private-scan.log` |
+| 위 개인값 지적과 `git show HEAD:<해당 파일>` 줄 지문 대조 | 드라이버 종료 0. 네 지적 모두 병합 기준의 같은 줄과 동일(기존 부채), 새 지적 0건 | `.build/drawer-inline-evidence/supplement-1-private-baseline.log` |
+| `git merge-base --is-ancestor 95680e911baf05366cd784a703d603af9bd72d54 HEAD` | 종료 0 | Git 상태 확인 |
+| 확인 시점의 `git merge-base --is-ancestor main HEAD` | 종료 1. 지시받은 기준 병합 후 main에 추가 커밋이 생김 | 아래 남은 작업 |
+
+개인값 기존 지적: `HEJO-DEADLINE-CLOSE-20261122/impl-report.md` 97·109줄, `verdict.md` 127·146줄이다. 이번 범위 밖 문서를 고치거나 예외를 추가하지 않았다.
+
+### R-DI-I2: 열린 칸을 포함한 전체 보기 폭을 옛 채팅 폭으로 강제하는 AT53
+
+- [확인] 전체 시험은 `app/Tests/IslandTests.swift`의 `AT53 narrow header reserves title and right icons`에서 실패했다. 해당 파일은 수정하지 않았다.
+- [확인] 같은 시험은 앞에서 알약을 클릭해 칸을 열고(`pet.drawerOpen` 확인), 이를 닫지 않은 채 `ui.frame.size.width=428`로 보기 전체 폭을 강제한다. 그 뒤 알약 폭 ≤146·제목 폭 ≥120·알약 높이 30을 요구한다.
+- [확인] 새 배치에서는 보기 전체 폭에 칸 290이 포함된다. 현재 `ConversationView.layout` 식에 대입하면 방 목록 68 + 칸 290을 뺀 채팅 몫은 70이다. 이 공간 안에서 기존 머리 구성과 제목 120 이상을 동시에 보존할 수 없다. 옛 배치는 칸이 대화 보기 바깥에 있어 같은 보기 폭 428이 채팅 몫 360을 뜻했다.
+- [제안/권고] 계획 담당이 AT53의 입력 폭을 **칸을 뺀 기존 대화 폭** 기준으로 다시 정의한다. 열린 칸을 유지한다면 좁은 보기 폭은 고정 `428+290=718`, 뒤의 넓은 보기 폭은 `760+290=1050`으로 이관하고, 기존 머리 기대값은 유지하는 방안을 권고한다. 칸 열림·폭 290 전제도 고정 단언으로 추가할 수 있다. 대안은 이 머리 회귀 구간 전에 칸을 닫아 기존 닫힌 상태 입력으로 검증하는 것이다. 어느 쪽도 구현자가 임의 적용하지 않았다.
+- 멈춘 이유: 이번 지시는 AT-TD-41 두 단언만 바꾸고 다른 기대값은 바꾸지 말라고 명시했다. 제품에서 제목의 숨은 프레임만 억지로 키우거나 시험용 분기를 넣어 통과시키지 않았다.
+
+### 남은 작업과 인계
+
+- 계획 담당이 R-DI-I2의 시험 입력·보호 계약을 처분한 뒤 보완 재인계가 필요하다. 그 뒤 전체 시험·정적 검사 재확인과 자기 경로 `git commit --only`를 수행한다.
+- 전체 시험에서 실패 이후의 묶음과 Python 네트워크 fixture는 미실행이다. M-DI 사람 확인도 미실행이다. 기존 화면 사진 4개는 루트 `.build/drawer-inline-evidence/`에 그대로 보존했다. 제품 코드가 같아 기존 화면 증거를 유지하며, 자동 시험은 앱 쪽 증거 폴더에 같은 장면을 다시 생성했다.
+- 확인 시점 main은 `c9a653a36b4355f7591ff1a086b77449edc905e4`로 진행됐다. 여기에 포함된 `01e5e47`은 로고·버전 가운데 배치(REQ-DI-07) 문서 변경이고 다른 작업의 gate 변경도 있다. 이번 지시의 두 단언 보완 외 신규 구현은 하지 않았다. 다음 지시는 최신 기준 병합과 적용할 문서 판을 명시해야 한다.
+- 운영 공항·실제 메시지·버전 올림·공개는 수행하지 않았다. 모든 제품 변경은 지정 구현 worktree에만 남아 있다.
