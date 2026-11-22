@@ -13,7 +13,7 @@
    손대지 말고 "보류(2절 보고)"로 멈춘다. 반영돼 있으면 그 HEAD를 새 기준으로 적고, design 1절 근거 줄이 옮겨졌는지만 확인해 계속한다.
 1. 공식 문서: docs/ARCHITECTURE.md, AGENTS.md, docs/changes/HEJO-DRAWER-INLINE-20261122/{brainstorm,spec,design,tasks}.md,
    tests/acceptance/HEJO-DRAWER-INLINE.md. 앞선 작업: docs/changes/HEJO-TODO-DRAWER-20261120/, HEJO-FINDER-FOLDERS-20261121(REQ-FF-08·13), HEJO-DEADLINE-CLOSE-20261122.
-2. 요구와 수락 기준: REQ-DI-01~06. 정상: 방 목록 | 칸 | 채팅 | 웹 칸, 창은 오른쪽으로 290 넓어짐(웹 칸도 밀림),
+2. 요구와 수락 기준: REQ-DI-01~07. 정상: 방 목록 | 칸 | 채팅 | 웹 칸, 창은 오른쪽으로 290 넓어짐(웹 칸도 밀림),
    오른쪽 자리 없으면 창+펫이 모자란 만큼 왼쪽으로(저장 위치 불변, 닫으면 제자리), 칸 바탕은 방 목록과 같은 옅은 톤(불투명 판 없음), 카드는 부드러운 색.
    핵심 경계: 화면이 좁으면 칸 290 유지, 채팅이 좁아짐(덮기·막 없음), 저장된 chatWidth 불변.
 3. 유지할 계약: design 5절(알약, 칸 모델, 마감 요청 시점, todoDrawerOpen, paneSplit 규칙, 290·0.25초, Esc·접기, 펫 저장 위치).
@@ -23,7 +23,7 @@
    옛 시험 AT-FF-40·41·90~93, AT-TD-30(덮개)·31·33·34·35 단언은 AT-DI로 교체(옛 파일 지우거나 바꾸고 TestMain 등록 맞춤).
 6. 위험도: 일반(공통 4절) — 여러 모듈 화면 배치, 저장·통신·권한 변화 없음, 커밋 되돌리기로 롤백. 필요 증거 수준 2 + M-DI 확인용 화면 사진.
 7. 변경 성격: 의미 변경(칸 위치·창 넓힘 방향·색). 비교: AT-DI-05·09·10 좌표 비교, AT-DI-32 전체 시험.
-8. 수락 시험: tests/acceptance/HEJO-DRAWER-INLINE.md 3판 AT-DI-01~14·20~23·30~33. 기대값 출처는 그 문서 머리.
+8. 수락 시험: tests/acceptance/HEJO-DRAWER-INLINE.md 4판 AT-DI-01~14·20~23·30~34. 기대값 출처는 그 문서 머리.
    상태: 명세 완료 · 코드 미작성 · 미실행 · 계획 검증 통과(2회차). 시험 기대값은 바꾸지 않는다(틀렸다고 보면 멈추고 보고).
 9. 작업 범위: tasks.md TASK-01 영향 파일만. 금지: gate/·schemas/·kit/·hub/, 운영 공항(~/.hermes), Hermes 본체, 운영 저장소, 버전 올림·공개,
    tests/acceptance/*.md(계획 담당 소유), 다른 작업 문서. 선행: 0항 착수 조건. 병렬 갈래: 없음(파일 겹침, tasks.md).

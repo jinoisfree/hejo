@@ -1,6 +1,6 @@
 # HEJO-DRAWER-INLINE 설계
 
-2판 · 2026-11-22(계획 검증 1회차 R1·R2 반영, [plan-review.md](plan-review.md)) · 명세 [spec.md](spec.md) · 칸 표는 [spec 첫 절](spec.md#칸원본쓰기-주체수명)을 따른다. 기준 커밋 main `0644e9e`. 착수 때 HEJO-DEADLINE-CLOSE TASK-03 반영 뒤 기준으로 다시 확인한다(handoff 0항).
+3판 · 2026-11-23(REQ-DI-07 로고·버전 가운데 추가, 사장 요청) · 2판 · 2026-11-22(계획 검증 1회차 R1·R2 반영, [plan-review.md](plan-review.md)) · 명세 [spec.md](spec.md) · 칸 표는 [spec 첫 절](spec.md#칸원본쓰기-주체수명)을 따른다. 기준 커밋 main `0644e9e`. 착수 때 HEJO-DEADLINE-CLOSE TASK-03 반영 뒤 기준으로 다시 확인한다(handoff 0항).
 
 ## 1. 지금 흐름 [확인]
 
@@ -65,6 +65,10 @@ TodoDrawerView: 배경 칠하지 않음(투명), 카드 색만 그림
 ### 2.4 `PetView`
 - `todoDrawer`, `installDrawer`, `drawerScrim`, `drawerOpen`(칸 표시 판단용이면), `updateScrim`의 칸 색 설정, `arrange`의 칸·덮개 프레임 줄을 없앤다. `arrange`는 `conversationContent`를 `x = 0`, `폭 = 창 - paneWidth`로 둔다.
 - Esc로 닫기(`panel.onCloseDrawer`, `PetView.swift:7,18`)는 유지한다.
+
+### 2.5 로고·버전 가운데 (3판, REQ-DI-07)
+- 원본: `ConversationView`의 `brand`·`version` 라벨과 `layout()`의 프레임 한 곳. 프레임은 지금처럼 방 목록 열 폭 전체(`x:0, width:left`)로 두고, 글자 정렬을 실제로 가운데로 만든다(예: 로고 attributed string에 가운데 문단 스타일을 넣음). 프레임을 글자 폭에 맞춰 직접 계산하는 방식도 되지만 정렬 원본은 하나만 둔다.
+- 할 일 칸과 무관하다(칸은 방 목록 오른쪽에 붙으므로 방 목록 열 폭이 바뀌지 않음).
 
 ## 3. 대안
 | 대안 | 판정 | 이유 |

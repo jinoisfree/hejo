@@ -1,6 +1,6 @@
 # HEJO-DRAWER-INLINE 명세
 
-2판 · 2026-11-22(계획 검증 1회차 R1·R2 반영, [plan-review.md](plan-review.md)) · 상태: 승인(사장 결정 + 계획 검증 2회차 APPROVED) · 기준 커밋: 이 저장소 main `0644e9e` · 결정 기록 [brainstorm.md](brainstorm.md)
+3판 · 2026-11-23(REQ-DI-07 로고·버전 가운데 추가, 사장 요청) · 2판 · 2026-11-22(계획 검증 1회차 R1·R2 반영, [plan-review.md](plan-review.md)) · 상태: 승인(사장 결정 + 계획 검증 2회차 APPROVED) · 기준 커밋: 이 저장소 main `0644e9e` · 결정 기록 [brainstorm.md](brainstorm.md)
 
 ## 칸·원본·쓰기 주체·수명
 
@@ -57,6 +57,12 @@
 ### REQ-DI-06 옛 배치 경로를 없앤다
 - AC-01: 창 밖 왼쪽 배치(`leading`·`withLeading`), 덮기 판정(`drawerOverlay`), 덮개(`TodoDrawerScrim`·`drawerScrim`), 칸 불투명 배경(`TodoDrawerView.backgroundColor`·`PetView.updateScrim`의 칸 색 설정)이 코드에서 사라진다. 칸은 `ConversationView`의 하위 보기로만 있고 `PetView`에 따로 꽂히지 않는다.
 - AC-02(회귀): 유지되는 동작 — 알약 사장 칸·빈 알약 클릭으로 여닫기(AT-TD-27·41), Esc·"‹ 접기"로 닫기, 채팅 칸 클릭으로는 닫히지 않음, 카드 클릭 이동(AT-TD-25·39와 HEJO-DEADLINE-CLOSE 대체분), 열림 저장(REQ-TD-06), 채팅 접으면 칸 숨김과 마감 요청 중지(NFR-TD-03, AT-TD-37·42), 채팅 끌기 뒤 다시 판정, 세 손가락 탭, 웹 칸 시험.
+
+### REQ-DI-07 로고와 버전이 방 목록 칸 가운데에 있다 (3판 추가, 사장 요청 2026-11-23)
+- 현황: [확인] 로고 "HEJO."와 버전 글자는 방 목록 열 폭(`x:0, width:left`) 라벨에 `alignment = .center`를 주지만, 로고는 색을 입힌 `attributedStringValue`라 문단 정렬이 없어 왼쪽으로 쏠려 보인다(`ConversationView.swift:134-137,694`, 사장 스크린샷 2장). [가정] 원인은 attributed string의 문단 정렬 누락이며 구현 담당이 확인한다.
+- AC-01(정상): 로고 글자와 버전 글자는 방 목록 열(폭 `S`) 안에서 가로 가운데에 그려진다. 접힘 68, 펼침 212, 끌어서 바꾼 폭 모두 같다.
+- AC-02(정상): 방 목록 폭을 바꾸면 바로 새 폭의 가운데로 옮겨진다(할 일 칸 열림·닫힘과 무관).
+- AC-03(회귀): 로고 첫 글자 파랑, 글꼴·크기, 버전 글자 색, 방 목록 폭 0일 때 숨김은 그대로다.
 
 ## 대체 관계
 - HEJO-TODO-DRAWER REQ-TD-02 AC-01·03·04(창 왼쪽으로 늘림, 덮기) → REQ-DI-02·03·04. REQ-TD-01 AC-04의 "덮기 모드에서 칸 바깥을 눌러 닫기" → 덮기 없음.
