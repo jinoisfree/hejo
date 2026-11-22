@@ -87,11 +87,6 @@ final class PetView: NSView {
     let collapseButton = NSButton(title: "펫으로 접기", target: nil, action: nil)
     private var conversationContent: NSView?
     private(set) var webPane: WebPaneView?
-    var drawerOpen = false
-    private(set) var todoDrawer: NSView?
-    let drawerScrim=TodoDrawerScrim(frame:.zero)
-    var onCloseDrawer:(()->Void)?
-    func installDrawer(_ view:NSView){todoDrawer?.removeFromSuperview();todoDrawer=view;updateScrim();conversation.addSubview(drawerScrim);conversation.addSubview(view);view.isHidden=true;drawerScrim.isHidden=true;drawerScrim.onClose={ [weak self] in self?.onCloseDrawer?() }}
     var paneWidth: CGFloat = 0, paneSliding = false
     var onResetPaneSize: (() -> Void)?
     func installWeb(_ view: WebPaneView) { webPane?.removeFromSuperview(); webPane = view; conversation.addSubview(view) }
@@ -233,9 +228,6 @@ final class PetView: NSView {
         let dark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua
         let alpha=BubbleOpacity.alpha(progress:placement?.expanded==true ? 1:0,percent:chatOpacityPercent,reduceTransparency:reduceTransparency())
         let color=(dark ? NSColor.black:.white).withAlphaComponent(alpha).cgColor
-        if let drawer=todoDrawer as? TodoDrawerView, let background=NSColor(cgColor:color) {
-            drawer.backgroundColor=background
-        }
         guard tint.layer?.backgroundColor != color else{return}
         CATransaction.begin();CATransaction.setDisableActions(true);tint.layer?.backgroundColor=color;CATransaction.commit()
     }
@@ -347,15 +339,10 @@ final class PetView: NSView {
         glass.frame = conversation.bounds; tint.frame = conversation.bounds
         updateScrim()
         if !paneSliding {
-            conversationContent?.frame = CGRect(x:p.leading,y:0,width:max(0,p.bubbleRect.width-paneWidth-p.leading),height:p.bubbleRect.height)
+            conversationContent?.frame = CGRect(x:0,y:0,width:max(0,p.bubbleRect.width-paneWidth),height:p.bubbleRect.height)
             webPane?.isHidden = paneWidth <= 0
             webPane?.frame = CGRect(x:p.bubbleRect.width-paneWidth,y:0,width:paneWidth,height:p.bubbleRect.height)
         }
-        let visible=p.expanded && (drawerOpen || p.leading>0)
-        todoDrawer?.isHidden = !visible
-        todoDrawer?.frame=CGRect(x:p.drawerOverlay ? 0:p.leading-PetController.drawerWidth,y:0,width:PetController.drawerWidth,height:p.bubbleRect.height)
-        drawerScrim.isHidden = !visible || !p.drawerOverlay
-        drawerScrim.frame=CGRect(x:0,y:0,width:max(0,p.bubbleRect.width-paneWidth),height:p.bubbleRect.height)
         updateUnreadBadge()
         updateFoldedBubble()
         sprite.needsDisplay = true

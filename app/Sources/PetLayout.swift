@@ -167,22 +167,19 @@ struct PetLayout {
 
 /// The sprite is the position anchor. The bubble shifts independently to stay on the display.
 struct PetPlacement {
-    private(set) var leading: CGFloat = 0
-    private(set) var drawerOverlay = false
+    private(set) var drawer: CGFloat = 0
     private var drawerShift: CGFloat = 0
-    var contentBubble: CGRect {CGRect(x:globalBubble.minX+leading,y:globalBubble.minY,width:globalBubble.width-leading,height:globalBubble.height)}
-    /// The sole decision about expansion versus overlay; move the chat/page together only when needed.
-    func withLeading(_ width:CGFloat, visibleFrame:CGRect) -> PetPlacement {
+    /// The resize/drag contract uses the opened box minus its right-hand drawer allowance.
+    var contentBubble: CGRect { CGRect(x:globalBubble.minX,y:globalBubble.minY,width:globalBubble.width-drawer,height:globalBubble.height) }
+    func withDrawer(_ width:CGFloat, visibleFrame:CGRect) -> PetPlacement {
         guard expanded,width>0 else{return self}
-        let fits=globalBubble.minX-width>=visibleFrame.minX+12
-        let shift:CGFloat=fits ? 0:(visibleFrame.minX+12)-(globalBubble.minX-width)
-        let outside=fits || globalBubble.maxX+shift<=visibleFrame.maxX-12
-        let moved:CGFloat=outside ? shift:0
-        let extra:CGFloat=outside ? width:0
-        var result=PetPlacement(globalSprite:globalSprite.offsetBy(dx:moved,dy:0),
-            globalBubble:CGRect(x:globalBubble.minX+moved-extra,y:globalBubble.minY,width:globalBubble.width+extra,height:globalBubble.height),
+        let safe=visibleFrame.insetBy(dx:12,dy:12)
+        let over=max(0,globalBubble.maxX+width-safe.maxX)
+        let shift=min(over,max(0,globalBubble.minX-safe.minX))
+        var result=PetPlacement(globalSprite:globalSprite.offsetBy(dx:-shift,dy:0),
+            globalBubble:CGRect(x:globalBubble.minX-shift,y:globalBubble.minY,width:min(globalBubble.width+width,safe.width),height:globalBubble.height),
             placementScreen:visibleFrame,userScale:userScale,expanded:expanded)
-        result.leading=extra;result.drawerOverlay = !outside;result.drawerShift=moved
+        result.drawer=width;result.drawerShift = -shift
         return result
     }
 
@@ -223,8 +220,8 @@ struct PetPlacement {
     }
 
     init(globalSprite: CGRect, globalBubble: CGRect, windowFrame: CGRect? = nil, placementScreen: CGRect? = nil,
-         userScale: CGFloat? = nil, expanded: Bool = false, leading: CGFloat = 0, drawerOverlay: Bool = false) {
-        self.leading=leading;self.drawerOverlay=drawerOverlay
+         userScale: CGFloat? = nil, expanded: Bool = false, drawer: CGFloat = 0) {
+        self.drawer=drawer
         self.placementScreen = placementScreen
         self.userScale = userScale ?? globalSprite.width/192
         self.expanded = expanded
@@ -236,7 +233,7 @@ struct PetPlacement {
 
     init(spriteOrigin: CGPoint, scale: CGFloat, visibleFrame: CGRect, screenFrame: CGRect? = nil,
          bubbleSize: CGSize = PetLayout.bubbleSize, expanded: Bool = false,
-         preferredSize: CGSize = PetLayout.expandedSize, below: Bool? = nil, trailing: CGFloat = 0, expandToFit: Bool = false, leading: CGFloat = 0) {
+         preferredSize: CGSize = PetLayout.expandedSize, below: Bool? = nil, trailing: CGFloat = 0, expandToFit: Bool = false, drawer: CGFloat = 0) {
         let full = screenFrame ?? visibleFrame
         let safe = visibleFrame.insetBy(dx:12,dy:12)
         let requested = CGRect(origin:spriteOrigin,size:PetLayout(scale:scale).spriteSize)
@@ -274,7 +271,7 @@ struct PetPlacement {
         let top = expanded && isBelow ? PetLayout.visibleSprite(in:sprite).minY+PetLayout.perchOverlap : sprite.minY-8
         let bubble = CGRect(x:max(safe.minX,min(centered,safe.maxX-size.width-extra)),
                             y:isBelow ? top-size.height : sprite.maxY+8,width:size.width+extra,height:size.height)
-        self=PetPlacement(globalSprite:sprite,globalBubble:bubble,placementScreen:visibleFrame,userScale:scale,expanded:expanded).withLeading(leading,visibleFrame:visibleFrame)
+        self=PetPlacement(globalSprite:sprite,globalBubble:bubble,placementScreen:visibleFrame,userScale:scale,expanded:expanded).withDrawer(drawer,visibleFrame:visibleFrame)
     }
 }
 /// Frame-rate independent easing. Keep the bubble inside the current screen even during a transition.
@@ -344,6 +341,7 @@ struct PetBubbleMotion {
     private var targetSize = PetLayout.bubbleSize
     private var widthSlide: (start: TimeInterval, origin: CGPoint, size: CGSize, duration: TimeInterval)?
     private(set) var widthProgress: CGFloat = 1
+    var easedWidthProgress: CGFloat { widthProgress * widthProgress * (3 - 2 * widthProgress) }
     mutating func slideWidth(now: TimeInterval, duration: TimeInterval = ChatWidthSlide.duration) {
         widthSlide = (now, position ?? target, size, duration); widthProgress = 0
     }
@@ -365,7 +363,7 @@ struct PetBubbleMotion {
     mutating func step(now: TimeInterval) -> CGPoint {
         if let slide = widthSlide {
             widthProgress = CGFloat(min(1, max(0, (now - slide.start) / slide.duration)))
-            let eased = widthProgress * widthProgress * (3 - 2 * widthProgress)
+            let eased = easedWidthProgress
             size = CGSize(width: slide.size.width + (targetSize.width - slide.size.width) * eased,
                           height: slide.size.height + (targetSize.height - slide.size.height) * eased)
             position = CGPoint(x: slide.origin.x + (target.x - slide.origin.x) * eased,
