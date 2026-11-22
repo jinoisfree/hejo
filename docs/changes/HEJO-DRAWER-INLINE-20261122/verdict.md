@@ -103,3 +103,12 @@ diff를 읽었다. `PetPlacement.withDrawer`(오른쪽 넓힘, `over`·`shift` �
 - [확인] 구현 담당 독립 표본(`task-02-supplement-1-light-pixels.json`): 제목 선 RGBA (0,0,0,22), 바탕 (0,0,0,5), 방 목록 머리 선 (0,0,0,22), 필터 선 (0,0,0,27), 방 목록 경계선 (0,0,0,27). 제품은 같은 선 값을 정확히 쓰고 선도 보인다(알파 22 vs 5). 반투명 캡처에서 RGB만 비교하게 한 8·9판 문장이 틀렸다(AT-DI-34에서 이미 본 같은 현상을 이 절에 반영하지 않음).
 - 조치: 수락 시험 10판 — 8판 절의 픽셀 비교는 RGBA 네 성분 차이 합. 기대 수치는 그대로.
 - main `986451e`(3e8160e 이후 app 변경 없음).
+
+## 9회 · 2026-11-23 · TASK-02 판정: 구현 검증 완료(조건: 교차 모델) — main 병합은 0.2.7 공개 후보 준비와 겹침 방지로 대기
+
+- 대상: 구현 커밋 `e36c8a77c5fdedec7f8b7394ae0d55913d5502ee`(브랜치 `role-workflow/17-96051e66`, 기준 `c5170da`). worktree 깨끗함, 커밋은 앱 5경로만(`git show --stat`). 보완 2 추가 변경은 `DrawerHeaderTests.swift` 픽셀 차이 함수의 알파 항 하나.
+- [확인] `task-02-supplement-2-app-tests.log`: `APP_TEST_FAILED` 0건, `AT-DI-35..39 FIXED HEADER AND FILTER TOGGLE PASS`, 두 테마 선 참조 차이 0·바탕 대비 0.40/0.61(어둡게)·0.067/0.086(밝게, 6/255=0.024 초과). 구현 보고 전체 종료 0.
+- [확인] 코드: 제목 띠·필터 띠를 `stack` 밖 고정 보기(`heading`·`filters`)로 옮기고 `scroll`은 그 아래만(`bounds.height-2*band-footer`). 필터는 `ComposerModeTrack` 안 `ComposerButton(mode)` 칸, 균등 폭, `chosen`·접근성 선택, `onFilter`. 옛 `TodoDrawerButton` 필터 글자 제거, "‹ 접기"는 제목 띠로 이동. 필터 띠 선은 `SidebarTone.primary(0.1)`, 제목 선은 `ConversationView` 전폭 선 한 곳.
+- 화면 증거 직접 열람: `header-after-dark.png`(스크롤 후에도 "처리할 일 12"·필터 토글 고정, "전체 12" 파랑 채움, 카드만 위로 이동).
+- 설계 적합성(4.2): 적합 — 세 영역 배치는 `TodoDrawerView` 한 곳, 토글 모양은 `ComposerModeTrack`·`ComposerButton` 공용 원본을 "답글/새 대화"와 함께 사용(design 2.6).
+- 남은 것: main 병합. main에 HEJO-TELEGRAM TASK-07b의 `c3475bb`(0.2.7 빌드 9 버전 올림)가 있어 공개 스냅샷에 섞이지 않게 hermes-hejo-f7의 확인을 받은 뒤 병합한다(합의). c5170da 이후 main의 app 변경은 `Info.plist`(버전)뿐이라 병합 충돌 위험은 낮다.
