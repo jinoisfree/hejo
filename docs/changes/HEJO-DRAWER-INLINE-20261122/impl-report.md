@@ -1,6 +1,6 @@
 # HEJO-DRAWER-INLINE TASK-01 구현 인계
 
-> 최신 상태는 아래 **보완 1** 절이다. 앞 절의 보류·충돌 기록은 1회차 이력으로 보존한다.
+> 최신 상태는 아래 **보완 2** 절이다. 앞 절의 보류·충돌 기록은 각 회차 이력으로 보존한다.
 
 ## 기준과 판단
 
@@ -109,3 +109,47 @@
 - 전체 시험에서 실패 이후의 묶음과 Python 네트워크 fixture는 미실행이다. M-DI 사람 확인도 미실행이다. 기존 화면 사진 4개는 루트 `.build/drawer-inline-evidence/`에 그대로 보존했다. 제품 코드가 같아 기존 화면 증거를 유지하며, 자동 시험은 앱 쪽 증거 폴더에 같은 장면을 다시 생성했다.
 - 확인 시점 main은 `c9a653a36b4355f7591ff1a086b77449edc905e4`로 진행됐다. 여기에 포함된 `01e5e47`은 로고·버전 가운데 배치(REQ-DI-07) 문서 변경이고 다른 작업의 gate 변경도 있다. 이번 지시의 두 단언 보완 외 신규 구현은 하지 않았다. 다음 지시는 최신 기준 병합과 적용할 문서 판을 명시해야 한다.
 - 운영 공항·실제 메시지·버전 올림·공개는 수행하지 않았다. 모든 제품 변경은 지정 구현 worktree에만 남아 있다.
+
+## 보완 2 · 2026-11-23 · 보류(2절 보고: R-DI-I3)
+
+### 받은 지시와 변경
+
+- [확인] 판정 3회, 수락 시험 5판 정정, REQ-DI-07·design 2.5·AT-DI-34를 읽었다. 기존 미커밋 변경을 보존한 채 지시한 `19e049520a2316a9301fb8e5ade83bc09614bf5c`를 병합했다. 종료 0, 충돌 없는 fast-forward. 현재 HEAD도 이 커밋이다.
+- [확인] 보완 1 변경본은 `.build/drawer-inline-evidence/before-supplement-2.patch`로 보존했다. 추가 변경은 `ConversationView.swift`, `DrawerInlineTests.swift`, `IslandTests.swift` 세 파일뿐이다. 기존 다른 변경은 동일하다(`supplement-2-scope.log`).
+- 입력 이관: `app/Tests/IslandTests.swift:133`의 428 → 718, `:135`의 760 → 1050. 기대값·나머지 시험은 그대로다. 아직 전체 회귀 재실행으로 통과를 확인하지는 못했다.
+- 로고 원인 확인: 기존 `brand.attributedStringValue` 생성의 속성에는 문단 스타일이 없었다. 라벨의 alignment 속성만으로 두던 정렬에 가운데 문단 스타일을 추가했다. 정렬 값 원본은 로컬 `sidebarAlignment` 하나이며 로고 문단·로고 라벨·버전 라벨이 공유한다. 글꼴·크기·첫 글자 파랑·색·폭 0 숨김은 변경하지 않았다.
+- AT-DI-34는 실제 1000×600 ConversationView, 버전 `0.2.5`, 같은 머리 영역에서 글자를 숨긴 바탕과 실제 글자가 그려진 비트맵의 차이로 경계 상자를 잰다. 정렬 속성으로 결과를 판정하지 않으며, 고정 오차 ±1.5pt·첫 글자 파랑 조건을 그대로 적용했다. 칸 표시 폭 0·290에서 각각 측정한다.
+- 구현자 판단: **보류(2절 보고)**. 아래 고정 입력 140의 충돌을 확인해 다른 폭 규칙·기대값은 바꾸지 않고 멈췄다. 커밋·푸시 없음. 현재 미커밋 13개 파일은 `.build/drawer-inline-evidence/supplement-2-candidate.patch`에 보존했다.
+
+### 실행한 검증과 화면
+
+로그 경로는 구현 worktree 루트 기준이다. 검증 변경본은 기준 19e0495 + 위 미커밋 13개 파일이다.
+
+| 명령·관측 | 실제 결과 | 증거 |
+|---|---|---|
+| 기존 앱 시험과 같은 대상·프레임워크로 `xcrun swiftc` 전체 Sources·Tests 컴파일, `codesign` | 각각 종료 0 | `.build/drawer-inline-evidence/supplement-2-build.log` |
+| 앱 폴더에서 `.build/app-tests --drawer-inline .build/hejo.app/Contents/Resources/Pet` | 종료 1. 기존 AT-DI 배치·픽셀 통과 후 `AT-DI-34 requested sidebar width 140.0, actual 180.0`에서 실패 | `.build/drawer-inline-evidence/supplement-2-inline.log` |
+| AT-DI-34에서 어두운 테마 폭 68·212, 칸 표시 폭 각각 0·290의 실제 글자 경계 | 네 조립 모두 로고·버전 중심이 각각 정확히 34·106pt. 첫 글자 파랑 조건 통과 | `.build/drawer-inline-evidence/logo-centers.json` |
+| AT-DI-30 `rg` 두 검색 | 각 종료 1, 일치 0건 | `.build/drawer-inline-evidence/supplement-2-obsolete-search.log`(명령 포함) |
+| `git diff --check` | 종료 0 | `.build/drawer-inline-evidence/supplement-2-diff-check.log` |
+| 임시 홈·가짜 명부의 `scripts/scan_private.py --home <임시 홈>` | 종료 1, 기준의 HEJO-DEADLINE-CLOSE 문서 절대 경로 4건, 이번 변경 지적 0건 | `.build/drawer-inline-evidence/supplement-2-private-scan.log` |
+| 위 지적과 기준 커밋의 해당 줄 지문 대조 | 드라이버 종료 0, 네 지적 모두 동일한 기존 부채 | `.build/drawer-inline-evidence/supplement-2-private-baseline.log` |
+| 보완 전 patch 대조 | 드라이버 종료 0, 추가 변경은 위 세 파일뿐 | `.build/drawer-inline-evidence/supplement-2-scope.log` |
+
+- 새 로고 사진은 `.build/drawer-inline-evidence/logo-sidebar-68-dark.png`, `logo-sidebar-212-dark.png`다. 구현자가 두 파일을 직접 열어 실제 가운데 배치를 확인했다. 앱 시험이 생성한 파일을 루트 증거 폴더로 복사했다. 기존 칸 화면 사진은 유지했다.
+- 도달 증거 수준: 확인한 조립·픽셀에 대해 2. 밝은 테마와 140·0의 AT-DI-34 검증은 입력 전제 실패 뒤라 미실행이다. 전체 `HEJO_PYTHON=... bash app/scripts/test.sh`는 이 보완에서 미실행이며 전체 종료 0·새 AT53 통과를 선언하지 않는다.
+- 개인값 기존 부채는 선행 `impl-report.md` 97·109줄 및 `verdict.md` 127·146줄이다. 해당 문서와 검사 예외는 변경하지 않았다.
+
+### R-DI-I3: AT-DI-34의 140pt가 기존 방 목록 폭 규칙으로 만들어지지 않음
+
+- [확인] `ConversationView.setSidebarWidth`는 `ConversationSidebar.snapped` 결과만 저장하며 `sidebarWidth`는 private(set)이다.
+- [확인] `app/Sources/ConversationChrome.swift:10-13`의 기존 규칙은 124 이상 입력을 최소 180으로 보정한다. 따라서 140 요청은 180이 된다. 해당 규칙은 이번에 변경하지 않았다.
+- [확인] 실제 시험에서도 고정된 1000pt 보기에서 `setSidebarWidth(140)` 뒤 폭이 180임을 관측했다. 140pt 전제를 만족시키기 위해 시험용 쓰기 경로나 별도 상태를 추가하지 않았다. 라벨 프레임만 140으로 덮어쓰면 실제 열 폭 검증을 우회하므로 적용하지 않았다.
+- [제안/권고] 계획 담당이 AT-DI-34의 비표준 폭 입력 140을 기존 규칙으로 가능한 180 또는 240으로 정정하는 방안을 권고한다. 사장 요구인 실제 방 목록 열 가운데 정렬은 그대로 검증할 수 있다. 140pt 열 자체를 제품에 허용하려면 기존 폭·스냅 계약 변경이므로 별도 명세와 범위 승인이 필요하다.
+- 지시의 다른 꼴 실패 멈춤 규칙에 따라 보류했다. 수락 시험 문서·폭 규칙·고정 기대값은 임의로 수정하지 않았다.
+
+### 다음 작업
+
+- 계획 담당이 R-DI-I3을 처분하고 허용할 폭 입력을 확정해 재인계한다. 그 뒤 AT-DI-34 전체 및 전체 앱 시험을 실행하고, 같은 꼴의 열린 칸 보기 폭 입력만 허용된 규칙으로 이관하며, 다른 꼴 실패는 다시 보고한다. 검사와 커밋은 전체 검증을 마친 뒤 수행한다.
+- 확인 시점 main은 `0ded4b8a1b7bb2076c4232d378c1ab4ce4900fbb`로 지시 기준보다 앞서 있다. 다음 인계에서 병합 기준도 갱신해야 한다. 이번에는 지시한 19e0495만 병합했다.
+- 제품 변경·시험은 지정 worktree에만 남아 있다. 운영 공항·실제 메시지·공개·버전 올림은 하지 않았다.
