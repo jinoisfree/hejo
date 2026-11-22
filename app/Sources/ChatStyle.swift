@@ -148,7 +148,6 @@ struct UserBubblePalette {
 enum ThreadAppearance {
     static let inset: CGFloat = 18
     static let radius: CGFloat = 16
-    static let statusWidth: CGFloat = 4
     static func surface(dark: Bool) -> NSColor {
         dark ? NSColor(white: 0.15, alpha: 0.55) : NSColor.white.withAlphaComponent(0.38)
     }

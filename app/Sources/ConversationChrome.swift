@@ -271,6 +271,7 @@ final class ComposerModeTrack: NSView {
 
 final class ComposerButton: NSButton {
     var invoke:(() -> Void)?, chosen=false,mode=false
+    var textAlpha:CGFloat=1
     var selection:CGFloat?
     var symbol:String?, point:CGFloat=11, circle=false
     init(title:String="",symbol:String?=nil,point:CGFloat=11,circle:Bool=false) {
@@ -291,7 +292,7 @@ final class ComposerButton: NSButton {
             let tinted=image.copy() as! NSImage; tinted.lockFocus(); color.set(); CGRect(origin:.zero,size:image.size).fill(using:.sourceAtop); tinted.unlockFocus()
             tinted.draw(in:CGRect(x:(bounds.width-image.size.width)/2,y:(bounds.height-image.size.height)/2,width:image.size.width,height:image.size.height))
         } else {
-            let attrs:[NSAttributedString.Key:Any]=[.font:NSFont.systemFont(ofSize:point,weight:chosen ? .semibold : .regular),.foregroundColor:color]
+            let attrs:[NSAttributedString.Key:Any]=[.font:NSFont.systemFont(ofSize:point,weight:chosen ? .semibold : .regular),.foregroundColor:color.withAlphaComponent(color.alphaComponent*textAlpha)]
             let size=(title as NSString).size(withAttributes:attrs)
             (title as NSString).draw(at:CGPoint(x:(bounds.width-size.width)/2,y:(bounds.height-size.height)/2),withAttributes:attrs)
         }

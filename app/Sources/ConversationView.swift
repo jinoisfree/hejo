@@ -15,12 +15,13 @@ import UniformTypeIdentifiers
     var onToggleDrawer:(()->Void)?
     private(set) var drawerSelectedID:String?
     func setDrawerState(open:Bool,chatExpanded:Bool) {controller.setDrawerState(open:open,chatExpanded:chatExpanded)}
-    func selectDrawerCard(_ card:TodoDrawerModel.Card) {
-        drawerSelectedID=card.id
+    func selectDrawerCard(_ card:TodoDrawerModel.Card,activate:Bool=true) {
+        drawerSelectedID=card.kind == .alert ? nil:card.id
+        highlightedMessageID=nil;highlightUntil=nil
         if let id=card.messageID,let key=card.key {
-            reveal(key);highlightedMessageID=id;highlightUntil=islandModel.now.addingTimeInterval(1.5)
+            reveal(key);highlightedMessageID=id;highlightUntil=card.kind == .alert ? islandModel.now.addingTimeInterval(1.5):nil
             refresh();history.scrollTo(key.thread)
-        } else if let url=card.url {onOpenURL(url);refresh()}
+        } else if activate,let url=card.url {onOpenURL(url);refresh()}
         else {refresh()}  // nowhere to go: the card shows "연결된 대화 없음" and only becomes selected
     }
     let island=IslandView(frame:.zero)
@@ -182,6 +183,7 @@ import UniformTypeIdentifiers
         history.onMeasured={ [weak self] in self?.reportOpenHeight() }
         addSubview(todoDrawer);todoDrawer.isHidden=true
         todoDrawer.onFilter={ [weak self] filter in self?.controller.drawerFilter=filter;self?.refresh() }
+        todoDrawer.onSelect={ [weak self] card in self?.selectDrawerCard(card,activate:false) }
         todoDrawer.onCard={ [weak self] card in self?.selectDrawerCard(card) }
         todoDrawer.onClose={ [weak self] in self?.onToggleDrawer?() }
         todoDrawer.onCloseDeadline={ [weak self] card,outcome in self?.controller.closeDeadline(card,outcome:outcome);self?.refresh() }
@@ -579,6 +581,7 @@ import UniformTypeIdentifiers
         let span = ThreeTapDiagnostics.startSpan()
         defer { ThreeTapDiagnostics.endSpan("refresh", span) }
         var phase = ThreeTapDiagnostics.startSpan()
+        if !controller.drawerOpen,drawerSelectedID != nil {drawerSelectedID=nil;highlightedMessageID=nil;highlightUntil=nil}
         let model=controller.model
         let themeDark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua;subtitle.textColor=CardText.quiet(dark:themeDark);version.textColor=CardText.quiet(dark:themeDark)
         streamReveal.receive(Array(model.messages.values),now:motionTime());streamReveal.advance(now:motionTime(),immediately:reduceMotion())
@@ -759,8 +762,8 @@ import UniformTypeIdentifiers
         (dark ? NSColor(white:0.07,alpha:0.4) : .clear).setFill(); bounds.fill()
         let left=min(sidebarWidth,max(0,bounds.width-100)), x=left+drawerShownWidth
         NSColor.labelColor.withAlphaComponent(0.035).setFill(); CGRect(x:x,y:0,width:max(0,bounds.width-x),height:44).fill()
-        SidebarTone.column(dark:dark).setFill();CGRect(x:0,y:44,width:left,height:max(0,bounds.height-72)).fill()
-        CGRect(x:left,y:44,width:drawerShownWidth,height:max(0,bounds.height-72)).fill()
+        SidebarTone.column(dark:dark).setFill();CGRect(x:0,y:44,width:left,height:max(0,bounds.height-44)).fill()
+        CGRect(x:left,y:44,width:drawerShownWidth,height:max(0,bounds.height-44)).fill()
         if drawerShownWidth>0 {SidebarTone.primary(0.1).setFill();CGRect(x:x-1,y:0,width:1,height:bounds.height).fill()}
         if !noticeScroll.isHidden {NSColor.labelColor.withAlphaComponent(0.04).setFill();CGRect(x:x,y:noticeScroll.frame.minY,width:max(0,bounds.width-x),height:noticeScroll.frame.height).fill();NSColor.labelColor.withAlphaComponent(0.1).setFill();CGRect(x:x,y:noticeScroll.frame.maxY-1,width:max(0,bounds.width-x),height:1).fill()}
         let divideY=modeBackground.frame.minY-10
@@ -961,9 +964,9 @@ import UniformTypeIdentifiers
                 }))
             }
         }
-        let tone=state.color.flatMap(MessageFormat.color) ?? (controller.working(thread.key) ? MessageFormat.color("#ECB22E"):messages.lazy.compactMap{ThreadTools.color($0.text)}.first)
+        let tone=(state.pending != nil ? AttentionRail.color:state.color.flatMap(MessageFormat.color)) ?? (controller.working(thread.key) ? MessageFormat.color("#ECB22E"):messages.lazy.compactMap{ThreadTools.color($0.text)}.first)
         let target=replyMode && model.selected==thread.key
-        let highlighted=messages.contains{$0.id==highlightedMessageID} && (highlightUntil.map{$0>islandModel.now} ?? false)
+        let highlighted=messages.contains{$0.id==highlightedMessageID} && (highlightUntil.map{$0>islandModel.now} ?? (drawerSelectedID != nil))
         let now=controller.clock(),copiedLink=copiedID=="link:"+thread.id,copiedText=copiedID=="text:"+thread.id
         let branchAsked=controller.branching[thread.key].map{now.timeIntervalSince($0)<6} ?? false
         let sure=controller.confirmingDelete[thread.key].map{now.timeIntervalSince($0)<4} ?? false
@@ -1027,7 +1030,7 @@ import UniformTypeIdentifiers
                 else if url.scheme=="hejo" {self.controller.openLink(url)}
                 else if CardText.mayOpen(url) {self.onOpenURL(url)}
             })
-        post.flash=message.id==highlightedMessageID && (highlightUntil.map{$0>islandModel.now} ?? false)
+        post.flash=message.id==highlightedMessageID && (highlightUntil.map{$0>islandModel.now} ?? (drawerSelectedID != nil))
         if !mine,continuation {post.continuation=true;if post.textHelp==nil {post.textHelp=post.time}}
         var pieces:[NativeThreadCard.Piece]=[.post(post)]
         if !extras {return pieces}

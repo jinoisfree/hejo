@@ -30,12 +30,11 @@ import AppKit
     let track=all(drawer).compactMap{$0 as? ComposerModeTrack}.first!
     let scroll=all(drawer).compactMap{$0 as? NSScrollView}.first!
     let document=scroll.documentView!
-    let title=all(drawer).compactMap{$0 as? NSTextField}.first{$0.stringValue.hasPrefix("처리할 일  ")}!
-    let close=all(drawer).compactMap{$0 as? NSButton}.first{$0.title=="‹ 접기"}!
+    let close=all(drawer).compactMap{$0 as? NSButton}.first{$0.title=="✕"}!
     func buttons()->[ComposerButton] {track.subviews.compactMap{$0 as? ComposerButton}}
     func frame(_ child:NSView)->CGRect {child.convert(child.bounds,to:view)}
     func fromTop(_ child:NSView)->CGRect {frame(child).offsetBy(dx:-frame(drawer).minX,dy:-frame(drawer).minY)}
-    func windowFrames()->[CGRect] {[title,close,track].map{$0.convert($0.bounds,to:nil)}}
+    func windowFrames()->[CGRect] {[close,track].map{$0.convert($0.bounds,to:nil)}}
     func scrollTo(bottom:Bool) {
         document.layoutSubtreeIfNeeded()
         let end=max(0,document.bounds.height-scroll.contentView.bounds.height)
@@ -50,12 +49,12 @@ import AppKit
     for theme in [ChatTheme.dark,.light] {
         try ChatAppearance.change(theme:theme);pet.applyChatAppearance();refresh();view.displayIfNeeded()
         scrollTo(bottom:false)
-        try check(abs(fromTop(title).midY-22)<=1 && abs(fromTop(close).midY-22)<=1 && abs(fromTop(track).midY-66)<=1,"AT-DI-35 fixed band vertical centers")
-        try check(fromTop(scroll).minY==88 && fromTop(scroll).maxY==drawer.bounds.height && fromTop(track).minX==14 && fromTop(track).maxX==276,"AT-DI-35 scroll and track edges")
+        try check(abs(fromTop(close).midY-22)<=1 && abs(fromTop(track).midY-22)<=1,"AT-DI-35 fixed band vertical centers")
+        try check(fromTop(scroll).minY==44 && fromTop(scroll).maxY==drawer.bounds.height && fromTop(track).minX==14 && fromTop(track).maxX==244,"AT-DI-35 scroll and track edges")
         let rep=bitmap(view)
         try rep.representation(using:.png,properties:[:])!.write(to:evidence.appendingPathComponent("header-before-\(theme.rawValue).png"))
-        let references=[pixel(rep,view,CGPoint(x:view.sidebarWidth/2,y:43.5)),pixel(rep,view,CGPoint(x:view.sidebarWidth-0.5,y:200))]
-        for (y,reference) in zip([CGFloat(43.5),87.5],references) {
+        let references=[pixel(rep,view,CGPoint(x:view.sidebarWidth/2,y:43.5))]
+        for (y,reference) in zip([CGFloat(43.5)],references) {
             let line=pixel(rep,view,CGPoint(x:frame(drawer).minX+200,y:y))
             let background=pixel(rep,view,CGPoint(x:frame(drawer).minX+200,y:y+4))
             print("AT-DI-35 line samples \(theme) y=\(y): reference delta=\(delta(line,reference)), background delta=\(delta(line,background))")
@@ -83,7 +82,7 @@ import AppKit
         let kinds: [TodoDrawerModel.Filter]=available ? [.all,.question,.deadline,.alert]:[.all,.question,.alert]
         try check(buttons().count==kinds.count,"AT-DI-37 available filters")
         let widths=buttons().map{$0.frame.width}
-        try check(widths.allSatisfy{abs($0-widths[0])<=1} && abs(widths.reduce(0,+)-258)<0.01,"AT-DI-37 equal segments fill track interior")
+        try check(widths.allSatisfy{abs($0-widths[0])<=1} && abs(widths.reduce(0,+)-226)<0.01,"AT-DI-37 equal segments fill track interior")
         for (index,kind) in kinds.enumerated() {
             let count=controller.drawerSnapshot.counts[kind] ?? 0
             try check(buttons()[index].title=="\(kind.rawValue) \(count)","AT-DI-37 model count label")
@@ -101,6 +100,6 @@ import AppKit
     try check(frame(footer)==footerBefore && windowFrames()==fixedBefore && drawer.footerText != nil,"AT-DI-36 undo footer stays fixed after actual close")
     controller.undoClose();refresh()
     pet.setDrawerOpen(false);settle();var time=100.0;pet.clock={time};pet.reducedMotion={false};pet.setDrawerOpen(true);time+=0.125;settle()
-    try check(drawer.bounds.width==145 && track.frame.width==262 && track.visibleRect.width<track.bounds.width && drawer.layer?.masksToBounds==true,"AT-DI-39 reveal clips fixed-width bands")
+    try check(drawer.bounds.width==145 && track.frame.width==230 && track.visibleRect.width<track.bounds.width && drawer.layer?.masksToBounds==true,"AT-DI-39 reveal clips fixed-width bands")
     print("AT-DI-35..39 FIXED HEADER AND FILTER TOGGLE PASS")
 }

@@ -117,7 +117,11 @@ private func islandMessage(_ seq:Int,_ key:ConversationKey = islandA,asked:Bool=
     ui.selectDrawerCard(firstQuestion);ui.layoutSubtreeIfNeeded()
     try check(controller.model.selected == islandA && ui.history.contents.first(where:{$0.id == islandA.thread})?.expanded == true && ui.highlightedMessageID == islandMessage(1).id,"AT56 oldest asked selects its room and opens/highlights card")
     try check(ui.history.contents.first(where:{$0.id == islandA.thread})?.style.lineWidth == 2 && ui.history.contents.first(where:{$0.id == islandA.thread})?.style.stroke == .controlAccentColor,"AT56 V15 visible accent 2pt card highlight")
-    time.addTimeInterval(1.6);ui.tickIsland();try check(ui.highlightedMessageID == nil,"AT56 highlight expires at 1.5 seconds")
+    time.addTimeInterval(1.6);ui.tickIsland();try check(ui.highlightedMessageID == islandMessage(1).id,"AT56 drawer selection remains after 1.6 seconds")
+    pet.setDrawerOpen(false);ui.layoutSubtreeIfNeeded()
+    try check(ui.highlightedMessageID == nil,"AT56 closing drawer clears selection highlight")
+    // Restore the open-column fixture used by the following worker and width checks.
+    pet.setDrawerOpen(true);ui.layoutSubtreeIfNeeded()
     try controller.model.apply(["v":1,"type":"typing","employee":"beta","thread":islandB.thread,"on":true,"ttl_seconds":6],now:time)
     ui.refresh();ui.layoutSubtreeIfNeeded()
     let worker=ui.island.partRects.first { $0.0.kind == .worker }!.1

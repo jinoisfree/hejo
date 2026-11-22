@@ -39,7 +39,7 @@ import AppKit
     controller.todoDrawer.receive(["available":true,"items":rows,"failed":[]])
     let snapshot=controller.todoDrawer.snapshot(model,now:now,calendar:calendar)
     try check(snapshot.urgent.map(\.title)==["지남","오늘","내일","질문 B","질문 A"] && snapshot.rest.map(\.title)==["나중","가짜 알림"] && snapshot.total==7,"AT-TD-20 ordering, deduplication, muted exclusion, total")
-    try check(snapshot.urgent[0].badge=="D+1" && snapshot.urgent[1].badge=="D-DAY" && snapshot.urgent[1].time=="오늘 18시까지" && snapshot.rest[0].badge=="D-4" && snapshot.rest[0].time=="11월 24일까지","AT-TD-22 calendar labels")
+    try check(snapshot.urgent[0].status=="마감 1일 지남 · 연결된 대화 없음" && snapshot.urgent[1].status=="오늘 마감 · 연결된 대화 없음" && snapshot.urgent[1].trailing=="18:00" && snapshot.rest[0].status=="마감 4일 남음 · 연결된 대화 없음" && snapshot.rest[0].trailing=="11/24","AT-TD-22 calendar labels")
     let view=ConversationView(controller:controller,clipboardArea:home.appendingPathComponent("clipboard"),islandModel:IslandModel(clock:{now}))
     let pet=PetController(store:store,atlas:try SpriteAtlas(resourceDirectory:resourceDirectory))
     defer{disposeDrawerFixture(pet,controller,view)}
@@ -70,7 +70,7 @@ import AppKit
     view.selectDrawerCard(question)
     try check(model.selected==model.messages[q1]!.key && view.highlightedMessageID==q1 && pet.drawerOpen && view.drawerSelectedID==q1,"AT-TD-25 selection and reveal preserve drawer")
     now.addTimeInterval(1.49);view.tickIsland();try check(view.highlightedMessageID==q1,"AT-TD-25 highlight remains before 1.5 seconds")
-    now.addTimeInterval(0.02);view.tickIsland();try check(view.highlightedMessageID==nil,"AT-TD-25 highlight ends at 1.5 seconds")
+    now.addTimeInterval(0.02);view.tickIsland();try check(view.highlightedMessageID==q1,"AT-TD-25 drawer selection persists after 1.5 seconds")
     let notice=snapshot.rest.first{$0.messageID==alert}!
     view.selectDrawerCard(notice)
     try check(model.selected==model.messages[alert]!.key && view.highlightedMessageID==alert && pet.drawerOpen && !controller.drawerSnapshot.rest.contains{$0.messageID==alert},"AT-TD-39 alert reveal marks bell and removes the card")
@@ -249,15 +249,15 @@ import AppKit
     controller.setDrawerState(open:true,chatExpanded:true);await pause(0.01)
     answer(sent("deadlines")[0],rows)
     // AT-DC-21: the kind line carries the source kind when the gate named one.
-    try check(card("미리알림 마감").badge=="D+1 · 미리알림" && card("메일 마감").badge=="D-DAY · 메일" && card("링크 마감").badge=="D-4","AT-DC-21 kind line with source kind")
+    try check(card("미리알림 마감").status=="마감 1일 지남 · 미리알림 · 연결된 대화 없음" && card("메일 마감").status=="오늘 마감 · 메일" && card("링크 마감").status=="마감 4일 남음","AT-DC-21 kind line with source kind")
     // AT-DC-21b: every source kind the gate can name, and one it cannot.
     let kinds=[("notion","노션"),("calendar","캘린더"),("reminder","미리알림"),("slack","Slack"),("notes","메모"),("gmail","메일"),("other",nil)]
     let kindModel=TodoDrawerModel()
     kindModel.receive(["available":true,"failed":[],"items":kinds.map{row($0.0+":k","종류 "+$0.0,due:"2026-11-22",origin:$0.0)}])
     let kindCards=kindModel.snapshot(model,now:now).urgent
     for (name,tail) in kinds {
-        let badge=kindCards.first{$0.title=="종류 "+name}!.badge
-        try check(badge=="D-DAY"+(tail.map{" · "+$0} ?? ""),"AT-DC-21b origin \(name) tail")
+        let status=kindCards.first{$0.title=="종류 "+name}!.status
+        try check(status=="오늘 마감"+(tail.map{" · "+$0} ?? "")+" · 연결된 대화 없음","AT-DC-21b origin \(name) tail")
     }
     // AT-DC-22: a card is linked by a notice that is in the chat or by a link.
     try check(card("메일 마감").linked && card("링크 마감").linked && !card("없는 글 마감").linked && !card("갈 곳 없는 마감").linked && !card("미리알림 마감").linked,"AT-DC-22 linked only with notice in chat or url")
@@ -292,7 +292,7 @@ import AppKit
     view.selectDrawerCard(card("메일 마감"))
     try check(model.selected==model.messages[noticeMessage]!.key && view.highlightedMessageID==noticeMessage && pet.drawerOpen && view.drawerSelectedID==card("메일 마감").id,"AT-DC-23 goes to the notice")
     now.addTimeInterval(1.49);view.tickIsland();try check(view.highlightedMessageID==noticeMessage,"AT-DC-23 highlight stays before 1.5 seconds")
-    now.addTimeInterval(0.02);view.tickIsland();try check(view.highlightedMessageID==nil,"AT-DC-23 highlight ends")
+    now.addTimeInterval(0.02);view.tickIsland();try check(view.highlightedMessageID==noticeMessage,"AT-DC-23 drawer selection persists")
     // AT-DC-24: link only when there is no notice in the chat.
     view.selectDrawerCard(card("링크 마감"))
     try check(urls==[URL(string:"https://example.invalid/x")!],"AT-DC-24 link opens when there is no notice")
