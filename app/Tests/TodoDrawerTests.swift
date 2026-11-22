@@ -91,9 +91,11 @@ import AppKit
     pet.panel.cancelOperation(nil);settle();try check(!pet.drawerOpen && pet.chatExpanded,"AT-TD-30 escape closes drawer first")
     pet.toggleDrawer();view.todoDrawer.onClose?();settle();try check(!pet.drawerOpen,"AT-TD-30 fold control closes drawer")
     pet.placePet(at:CGPoint(x:200,y:700));let overlayFrame=pet.panel.frame
+    let beforeShift=pet.placementTarget!,shift=(visible.minX+12)-(beforeShift.globalBubble.minX-PetController.drawerWidth)
     pet.toggleDrawer();settle()
-    try check(pet.placementTarget!.drawerOverlay && pet.panel.frame==overlayFrame && !pet.pet.drawerScrim.isHidden,"AT-TD-33 missing left space overlays without moving panel")
+    try check(!pet.placementTarget!.drawerOverlay && pet.panel.frame.maxX==overlayFrame.maxX+shift && pet.placementTarget!.contentBubble==beforeShift.contentBubble.offsetBy(dx:shift,dy:0) && view.todoDrawer.frame.maxX<=view.frame.minX && pet.pet.drawerScrim.isHidden,"AT-TD-33 missing left space shifts chat right and opens outside")
     pet.pet.drawerScrim.onClose?();try check(!pet.drawerOpen,"AT-TD-30 overlay scrim closes")
+    settle();try check(pet.panel.frame==overlayFrame,"AT-TD-33 closing restores original frame")
     pet.placePet(at:CGPoint(x:650,y:700));pet.toggleDrawer();settle()
     try check(pet.pet.drawerScrim.isHidden && pet.drawerOpen,"AT-TD-30 expanded chat has no intercepting scrim")
     let stateKeys=store.settings.pendingState
@@ -113,9 +115,9 @@ import AppKit
     pet.reducedMotion={true};pet.setDrawerOpen(false);settle();pet.toggleDrawer();try check(pet.panel.frame==pet.placementTarget!.windowFrame,"AT-TD-32 reduced motion immediate")
     // Dragging and folding recalculate placement, while retaining the preference.
     pet.beginChatDrag(at:CGPoint(x:700,y:700));pet.moveChatDrag(to:CGPoint(x:100,y:700));pet.endChatDrag();settle()
-    try check(pet.placementTarget!.drawerOverlay,"AT-TD-35 drag near left switches to overlay")
+    try check(!pet.placementTarget!.drawerOverlay && pet.placementTarget!.leading==PetController.drawerWidth && pet.placementTarget!.contentBubble.minX==visible.minX+12+PetController.drawerWidth && pet.placementTarget!.globalSprite.minX>pet.placementTarget!.anchorOrigin.x,"AT-TD-35 drag near left shifts right and keeps drawer outside")
     pet.collapseChat();try check(pet.pet.todoDrawer?.isHidden == true && pet.drawerOpen,"AT-TD-35 folding hides without clearing preference")
-    pet.showChat();try check(pet.drawerOpen && pet.pet.todoDrawer?.isHidden == false && pet.placementTarget!.drawerOverlay,"AT-TD-35 reopening reevaluates mode")
+    pet.showChat();try check(pet.drawerOpen && pet.pet.todoDrawer?.isHidden == false && !pet.placementTarget!.drawerOverlay && pet.placementTarget!.leading==PetController.drawerWidth,"AT-TD-35 reopening reevaluates outside placement")
     // The web pane keeps the same width when the drawer cannot fit.
     pet.setDrawerOpen(false);visible=CGRect(x:0,y:0,width:2400,height:1000);pet.placePet(at:CGPoint(x:900,y:750))
     let web=WebPaneModel(downloads:controller.files.downloads.root);web.persistent=false;pet.installWeb(web)

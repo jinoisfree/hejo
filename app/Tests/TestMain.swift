@@ -267,6 +267,7 @@ final class MemoryCredentials: GateCredentialStore {
         try await transitionPreparationTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await todoDrawerTests(resourceDirectory:URL(fileURLWithPath:CommandLine.arguments.last!))
         try todoDrawerBackgroundTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
+        try drawerOutsidePlacementTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await letterPictureTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await optionWindowTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await islandTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
