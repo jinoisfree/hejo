@@ -1,6 +1,6 @@
 # HEJO-DRAWER-INLINE 명세
 
-4판 · 2026-11-23(REQ-DI-08·09 고정 머리·필터 토글, 사장 요청·시안 A) · 3판 · 2026-11-23(REQ-DI-07 로고·버전 가운데 추가, 사장 요청) · 2판 · 2026-11-22(계획 검증 1회차 R1·R2 반영, [plan-review.md](plan-review.md)) · 상태: 4판 추가분(REQ-DI-08·09) 구현 대기 · 1~3판 적용(검증 6회, main 18de43e) · 기준 커밋: 이 저장소 main `0644e9e` · 결정 기록 [brainstorm.md](brainstorm.md)
+4판 · 2026-11-23(REQ-DI-08·09 고정 머리·필터 토글, 사장 요청·시안 A) · 3판 · 2026-11-23(REQ-DI-07 로고·버전 가운데 추가, 사장 요청) · 2판 · 2026-11-22(계획 검증 1회차 R1·R2 반영, [plan-review.md](plan-review.md)) · 상태: 적용(1~3판 main 18de43e, 4판 main c1e1909, 2026-11-23) · 기준 커밋: 이 저장소 main `0644e9e` · 결정 기록 [brainstorm.md](brainstorm.md)
 
 ## 칸·원본·쓰기 주체·수명
 
