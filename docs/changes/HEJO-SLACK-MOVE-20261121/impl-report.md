@@ -797,3 +797,31 @@ M7 최종 예행은 `task10-rehearsal-v5.log`·`.json`, 종료 0이다. 임시 �
 검사: 게이트웨이 Python의 `scripts/scan_private.py` 종료 0, 공개·운영 작업 브랜치 `git diff --check` 각각 종료 0. 로그는 `task11-doc-scan.log`, `task11-doc-public-diff.log`, `task11-doc-worktree-diff.log`다. 운영 문서 커밋의 기존 pre-commit 경계 검사도 종료 0이었다(boundary 382·document 0·compartments 0). 전체 시험·운영 검사·동기화·재시작·전송은 실행하지 않았다.
 
 문서 반영을 마쳤으며 TASK-11의 다음 날 관찰(M6)은 아직 남아 있다. 초안·승인 길의 사용자 확인, 운영 저장소 기록, 기존 진단 직원 지시서 불일치의 별도 정리와 푸시 승인은 이번 문서 범위로 완료 처리하지 않는다.
+
+
+## TASK-10 10판 8단계 — 톡톡 전송 성공 안내 문장 제거
+
+[확인] 인계서 10판·AT-SM-74 기준으로 운영 작업 브랜치에서 수정하고 서버에 적용했다. 제품·시험 커밋은 **`9a752413b60c7084eeea45b255dcf8cf7e1d2aa4`**(부모 `6a2c30c9a43a72ceb1acf7f65043d67ae1ea8401`)이다. 착수 때 최신 운영 main은 `dba8f4fb8b4e832383d834e2863c1883d06885db`였으며, 실행본·운영 사본·작업 브랜치의 다리 파일 SHA-256이 같았다. 기준은 비추적 `task10-stage8-baseline.json`에 기록했다.
+
+제품 변경은 `CP/scripts/naver-talk/bridge.py`의 성공 사유 대입 한 줄뿐이다. 자동·승인 후 전송 모두 새 성공 사건의 사유를 빈 문자열로 저장한다. 기존 `format_notice`는 빈 항목을 걸러 문단을 조립하므로 수정하지 않았다. 제목·문의·보낸 답장, 실패·불명확·취소·직접 답장 사유, 자동 여부 열과 승인·재전송 규칙은 그대로다. 지난 사건의 사유를 다시 쓰지 않는다.
+
+AT-SM-74는 톡톡 `tests/test_bridge.py`(Slack)와 인스타 플러그인 `tests/test_hejo_naver_delivery.py`(실제 임시 문 입구)에 추가했다. 각각 자동·승인 후 전송과 성공·실패·불명확의 여섯 조합을 검증한다. 성공 알림의 제목·문의·답장 유지, 안내 문장 부재·불필요한 빈 줄 부재, 실패·불명확 사유 보존을 확인했다. 빈 성공 사유의 스레드 상태 조회와 상태 도구 JSON 반환도 통과했다. 승인 경로는 가짜 Slack 소유자 답글 또는 임시 문의 실제 소유자 입력을 거친다. 외부 전송은 대역이다.
+
+기존 기대를 바꾼 시험은 톡톡 `tests/test_bridge.py::test_auto_results_surface_same_customer_thread_and_do_not_repeat` 한 개다. 자동 전송 안내 문장의 존재 기대만 부재 기대로 바꾸고 보낸 답장·스레드·중복 금지 기대는 유지했다. 별도 변형 검사는 실행하지 않았다(국소 알림 문구 변경이며 승인·재전송 계약은 기존 전체 회귀로 확인).
+
+| 검사 | 실제 결과 | 비추적 로그 (`.build/slack-move/` 기준) |
+|---|---|---|
+| 격리 실행 `-k at_sm_74` | 종료 0, 12 passed | `task10-stage8-at74.log` |
+| 격리 실행 `-k 'naver or talk or test_bridge or test_model_process'` | 종료 0, 198 passed | `task10-stage8-talk-full.log` |
+| 인스타·네이버톡 격리 전체 | 종료 0, 834 passed, 건너뜀 0 | `task10-stage8-plugin-full.log` |
+| team-kit 지정 49파일 pytest | 종료 0, 1692 passed | `task10-stage8-teamkit.log`, `.json` |
+| 운영 `airport-check` | 종료 1, 기존 지시서 조립 불일치 한 건만. 경계·문서·칸·스킬·예약 조립 통과 | `task10-stage8-airport.log` |
+| 다리 파일 적용·톡톡만 재기동 | 종료 0, 건강 응답 200, 새 오류 로그 0줄·출력의 오류 0줄 | `task10-stage8-apply.log`, `task10-stage8-application.json` |
+
+검사한 세 파일 해시·명령·결과는 `task10-stage8-test-results.json`에 기록했다. 운영 작업 브랜치 커밋의 기존 경계 훅도 종료 0이었다(boundary 382·document 0·compartments 0). 앱·문 제품이 바뀌지 않아 전체 앱 검사는 반복하지 않았다.
+
+서버 적용 직전과 톡톡 정지 직후 모두 대기 초안·전송 중·접수 대기 사건 0건이었다. 원본 파일과 SHA-256, 파일 복원 후 톡톡만 다시 띄우는 명령을 새 0700 보관 폴더에 먼저 기록했다. 위치는 비추적 `task10-stage8-location.json`, 복원 절차는 그 폴더의 `ROLLBACK.md`다. 파일 하나를 이름 바꾸기로 교체한 뒤 톡톡만 다시 띄웠다. 건강 응답과 10초 관찰에서 새 오류 0줄, 실행 파일의 대상 해시 일치, 톡톡 프로세스 교체와 게이트웨이 프로세스 불변을 확인했다. 복원은 실행하지 않았다.
+
+운영 main의 HEAD·56개 미커밋 경로·diff 해시는 착수 전후 그대로다. 이번 적용은 실행본 한 파일만 바꾸었고 `./sync`·운영 커밋은 실행하지 않았다. 따라서 운영 사본의 다리 파일은 이번 적용 전 내용이며, 미해결 운영 저장소 기록(V-14) 때 동기화해야 한다. 공개 길·설정·저장 표의 지난 사건·다른 프로그램은 수정하지 않았다. 실제 시험 톡톡·고객 글·Slack 글 전송, 승인·거절 조작, 조립기 쓰기와 푸시는 없다.
+
+[사용자 확인] 전달받은 검토 16차에 따라 인스타 실제 초안·승인·전송(M4)은 사용자 화면으로 확인됐다. 이번에 이를 다시 실행하지 않았다. 톡톡 실제 초안·승인 확인, 다음 날 관찰(M6), 기존 지시서 불일치 정리·운영 저장소 기록과 푸시 승인은 남아 있다. 최종 공개 개인값 검사와 양쪽 diff 검사 결과·문서 해시는 `task10-stage8-report-checks.json`에 기록한다.
