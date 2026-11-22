@@ -1380,3 +1380,100 @@ RESTART_REQUIRED 멈춤 조건 때문에 뒤따르는 **./sync와 운영 저장�
 관측한 운영 저장소 HEAD는 `e5d13980d1d65be9be2392db0c964f20f42a015f`이며 상태 경로 1개다. 이는 다른 세션이 관리한 상태를 읽은 것이고 이번 작업에서 운영 커밋을 만든 것은 아니다. 계획 담당이 이 결과와 공용 checks.json 갱신을 검토한 뒤 d2에 마무리 완료를 알려야 한다. d2가 폴더 이동·worktree repair를 마치면 다음 작업 전에 AGENTS.local.md의 운영 저장소 경로를 확인/갱신해야 한다. 이 대화는 직접 다른 세션 메시지를 보내거나 저장소 폴더를 옮기지 않았다.
 
 자기 hejo impl-report 한 경로만 commit --only한다. 개인값·공백 검사와 보고 커밋 전체 해시는 `E19/report-checks.json`, `hejo-commit.log/json` 및 최종 result에 기록한다. 기존 공개·사장 확인·마지막 M7·푸시 승인은 별도다.
+
+
+## 20차-TASK-08 — 0.2.4·빌드 6 공개 후보 준비
+
+### 받은 지시·판단·범위
+
+[확인] handoff 20차, HEJO-CONNECTIONS 보완 지시 3·HEJO-CONN-MANAGE 8차 선례를 따랐다. 고위험(공개 배포물), 필요/도달 증거 수준 **2/2**. 구현자 판단은 **후보 준비·자체 검증 완료, 독립 검토·실제 공개·설치 확인 대기**다. 직접 수행했으며 하위 에이전트를 쓰지 않았다.
+
+- 착수 main: `4af8c11d8b71d46e6b363cd84963e3135180cc06`. 버전 커밋: `7c9aae9a094d5658eab488812b2492bee9b60b34`. 자기 경로 `app/Resources/Info.plist`의 버전·빌드와 `tests/acceptance/test_ship.py`의 현재 버전 단언만 0.2.4·6으로 올려 `git commit --only`했다. 제품 동작 코드·기존 시험의 기능 기대값·수락 명세·spec·design은 변경하지 않았다.
+- 공개본 생성은 기존 `install/hejo-publish`를 사용했다. 선례의 로컬 gh 대역이 이전 public 커밋의 작성자 정보로 두 조회에 응답했다(`offline-gh.jsonl`: 두 건 모두 `network:false`). 실제 gh·원격 Git·curl/wget은 차단했고 Sparkle는 기존 고정 지문 SDK를 오프라인으로 사용했다. 차단된 원격 시도도 없으며 GitHub 조회·쓰기·publish·push는 미실행이다.
+- 다른 작업의 미추적 문서 폴더를 보존하기 위해 `E20/public-worktree`에 깨끗한 분리 checkout을 만들었다. 원래 저장소에서 해당 폴더를 지우거나 커밋하지 않았다. 정상 배포 빌드만 무시된 Google 입력을 기존 빌드 경로로 사용했다(작업 사본에 입력 파일을 가리키는 무시된 링크). 값 직접 열람·출력·기록·수동 복사는 하지 않았다. 키 생성·setup·비밀 키 내보내기도 하지 않았다.
+
+### 공개본·준비물·연속성
+
+- 새 public: **`eb5e62afd8ad6205e40d79386e34641d077ab898`**, 부모: `f397bdb7bedfc766c2116ecdd07118cb3afdfc32`(0.2.3). 동일 제품 트리: `c4d9b98bf57c030d272222313942ab93c8eadcc2`. 부모 이후 커밋은 새 public 하나이며 개인 개발 이력은 포함하지 않는다.
+- 원본 main은 `b21dd94`·`3ccda92`·`3e9400b`·`b3fc5cb`·`2fffbe0`·`5fc60b2`·`da3cf0b`·`52e2511`·`f03b93a`의 조상 검사를 모두 통과했다. public 전체 트리 및 `app/`은 버전 커밋의 main과 같다. `ConnectionsWindow.swift`에 `sharingType`이 없고 `OptionWindows.swift`·`LetterPictureDialog.swift`가 있다(`snapshot.json`, `ancestor-*.json`).
+- 인계서의 “public 트리가 앱 커밋을 조상으로 포함”은 선례처럼 **원본 main 조상 관계 + public 트리 일치**로 확인했다. public 커밋 자체에 개인 커밋 조상을 넣으면 공개 이력 분리 조건을 위반하므로 그렇게 만들지 않았다. 보고서만 추가하는 후속 main 커밋은 이 고정 후보 트리에 포함하지 않으며 public을 재생성하지 않는다.
+- 준비물: `.build/release-0.2.4/prepared.json`, `.build/release-0.2.4/hejo-0.2.4-arm64.zip`(**6,390,405 bytes**), 압축 SHA-256 `a123bb0f85dbfe9ddbc6684b654c89fc3b9af22093fabdb6172baad200ac56b1`.
+- 배포용 앱·압축 해제본 BuildInfo는 위 트리·`dirty=false`, 실행 파일 바이트가 같다. 후보 0.2.4·6은 설치본 0.2.3·5보다 각각 크다. 후보·0.2.3 준비물·설치본의 업데이트 공개 키와 설치본의 코드 서명 Authority가 같다. 기존 키체인 키를 재사용했다. 압축 해제본 codesign, Sparkle 검증과 별도 Ed25519 공개 키 검증이 모두 통과했다.
+- 설치 앱 메타데이터, 게이트웨이 PID/시작 식별자, 공용 릴리스 식별자, 운영 저장소 HEAD/상태는 착수와 같다(`before.json`, `final-integrity.json`). 설치 앱 교체·공용 릴리스 변경·운영 홈 변경·문 설치·재시작·실제 메시지는 미실행이다.
+
+### 검증·환경 오류 처분
+
+아래 증거 `E20`은 `.build/finder-folders-evidence/round20-task08/`다. 검사 대상은 위 새 public과 동일 트리의 깨끗한 공개 checkout이다. 전체 시험 전 `pgrep -f app-tests` 종료 1(다른 실행 없음), 다른 GUI 빌드 없음. 시험 중 추적 소스 변경 0이며 시험 바이트를 public blob과 직접 대조했다(`tested-sources.json`, `final-integrity.json`).
+
+| 명령·조건 | 실제 종료 코드·결과 | E20 증거 |
+| --- | --- | --- |
+| `git commit --only` 버전 두 경로, 자기 경로 `git diff --check` | 각각 0 | `version-commit.log/json`, `version-diff-check.log/json` |
+| `install/hejo-publish`(로컬 작성자 대역), 공개본 개인값 검사 | 각각 0 | `publish-local.log/json`, `public-private.log/json`, `snapshot.json` |
+| 첫 `HEJO_PYTHON=<게이트웨이 Python> bash scripts/test.sh` | **1**, 229 passed·205 setup errors, 앱 단계 미실행 | `full.log/json` |
+| 같은 실패 node의 실제 예외 관측, 짧은 임시 경로 대조 | **1**(AF_UNIX path too long, 148바이트), **0**(1 passed) | `fixture-path-diagnosis.log/json`, `fixture-short-path.log/json` |
+| 같은 전체 명령, 짧은 `TMPDIR`·`PYTEST_ADDOPTS=--basetemp=<임시 경로>`, 임시 `HERMES_HOME`·`HERMES_ROOT` | **0**, 434 passed·게이트웨이 정상 종료·앱 전체 및 통신 시험 통과, 404.074초 | `full-short-tmp.log/json` |
+| CLI 설정 메타데이터·다운로드 이름 전후 guard | 모두 0, 내용 미조회·불변 | `settings-*-short-tmp.log/json`, `downloads-*-short-tmp.log/json` |
+| 같은 깨끗한 트리 `bash app/scripts/build.sh`(기본 배포 빌드) | 0 | `default-build.log/json` |
+| `install/hejo-ship prepare --output <준비물 폴더>` | 0 | `prepare.log/json`, `prepared-verification.json` |
+| `ditto -x -k`, 해제본 `codesign --verify --deep --strict` | 각각 0 | `extract.log/json`, `archive-codesign.log/json` |
+| 기존 계정 `sign_update --verify <archive> <prepared signature>`, 별도 `cryptography` Ed25519 공개 키 검증 | 각각 0 | `archive-sparkle.log/json`, `independent-signature.json` |
+| main·public 최종 개인값 검사, 자기 경로 `git diff --check` | 모두 0 | `main-private-final.log/json`, `public-private-final.log/json`, `report-private.log/json`, `report-diff-check.log/json` |
+
+첫 실패는 새 Unix 입구가 macOS 기본 긴 시험 임시 경로에서 소켓을 열지 못한 환경 조건이었다. 관측과 대조 뒤 실행 임시 경로만 줄였으며 제품·시험 기대값·오류 처리·기준을 바꾸거나 skip하지 않았다. 기존 Swift 동시성 경고 등 빌드 경고는 남아 있으며 이번 버전 올림에서 새로 수정하지 않았다. 개인값 검사는 비밀 파일을 입력하지 않는 임시 홈으로 실행했다.
+
+전체 로그의 실제 PASS 줄(일부 묶음 시험은 개별 번호를 따로 출력하지 않으므로 해당 기존 묶음 줄을 인용):
+
+```text
+AT-FF-20~23 APP PASS
+AT-FF-70 CONNECTION SHARING PASS; AT-FF-71 regression in full suite
+AT-FF-50..54 LETTER PICTURE PASS
+AT-FF-64 OPTION ACTIVATION PASS
+AT-FF-60..61 OPTION WINDOW PASS; AT-FF-63 regression in full suite
+AT-FF-AC04 UPDATE_CONTENT_EQUIVALENCE PASS
+AT-FF-FIRST-FRAME AND SIDEBAR_GEOMETRY PASS
+AT-HF-86 APP PASS
+AT-TD-20..42 MODEL, INPUT, WINDOW, REQUEST PASS
+APP_TEST_OK
+AT-FF-40 dark PIXEL PASS alpha=1.0
+AT-FF-40 light PIXEL PASS alpha=1.0
+AT-FF-41 dark PIXEL PASS alpha=1.0
+AT-FF-41 light PIXEL PASS alpha=1.0
+```
+
+AT-FF-32는 위 ThreeTap·펫/첫 프레임·내용 동일성과 앱 전체 시험, AT-FF-42는 AT-TD-20..42와 전체 시험, AT-FF-63·71은 기존 묶음과 전체 회귀에 대응한다. AT-FF-62는 9차 보고의 적용 분류와 이번 후보 검색 `options-inventory.log/json`으로 대조할 수 있다. **AT-FF-30·31의 성능 PASS를 만들거나 주장하지 않는다.** 7차 기록의 마지막 주입 측정은 열기 101.340ms·닫기 94.633ms로 열기 기준 미충족이다. 이번 후보에서 추가 성능 수정·재측정은 하지 않았고, 마지막 실제 탭 M7 수용 판단은 사장에게 남아 있다.
+
+### 서버 문과의 차이·인계
+
+공용 릴리스의 현재 문과 후보를 내용으로 비교했다. 실행 코드와 `schemas/` 차이는 0이다. 문서는 `gate/README.md` 하나가 다르고, 아래 `gate/tests/` 20개는 서버 릴리스에서 의도적으로 제외되는 후보 시험 파일이다(`server-gate-diff.json`). 파일 목록만 기록한다.
+
+```text
+gate/README.md
+gate/tests/conftest.py
+gate/tests/extension_support.py
+gate/tests/gateway_delivery.py
+gate/tests/imessage_settling.py
+gate/tests/support.py
+gate/tests/test_answer_targets.py
+gate/tests/test_boundaries.py
+gate/tests/test_connections.py
+gate/tests/test_delivery_parity.py
+gate/tests/test_employee_query.py
+gate/tests/test_extensions.py
+gate/tests/test_gateway_progress.py
+gate/tests/test_owner_query.py
+gate/tests/test_pictures.py
+gate/tests/test_progress.py
+gate/tests/test_report_query.py
+gate/tests/test_review55.py
+gate/tests/test_review56.py
+gate/tests/test_rooms.py
+gate/tests/test_threads.py
+```
+
+사장용 공개 명령(독립 검토·플러그인 푸시 승인 및 실행 뒤 사장이 직접 실행; **이번에는 실행하지 않음**):
+
+```sh
+install/hejo-ship publish --approve-commit eb5e62afd8ad6205e40d79386e34641d077ab898 --prepared .build/release-0.2.4/prepared.json
+```
+
+푸시 대상은 **hejo 저장소의 로컬 public `eb5e62afd8ad6205e40d79386e34641d077ab898` → `github/main`**이다. 개인 main 이력·이 보고서 커밋을 공개 원격으로 보내지 않는다. 원격 포함은 조회 금지 범위이므로 확인하지 않았다. 실제 공개·업데이트 설치(수준 4), 문 서버 설치·재시작은 별도 사용자 승인, M4·M8~M11 및 맨 마지막 M7, 최종 명세 반영·푸시 완료 판정이 남아 있다. 독립 검토자는 고정 후보 트리/준비물 지문, 서명 연속성, 초기 환경 오류 대조, 남은 AT-FF-31을 확인한다. 배포 전 실패 시 공개하지 않고 준비물을 보존한다. 운영 롤백은 이번에 운영 변경이 없어 해당하지 않는다.
