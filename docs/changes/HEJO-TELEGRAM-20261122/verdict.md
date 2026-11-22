@@ -26,3 +26,39 @@
 ### 다음
 
 - 구현 담당: 수락 시험 명세 3판에 맞춰 미커밋 TASK-03 시험을 고치고 TASK-03 → TASK-04, TASK-05 → TASK-06을 이어 간다(보완 plan).
+
+## 2차 (2026-11-23) — TASK-02~06 완료(작업 전체는 부분 완료: TASK-07·07b·08 남음)
+
+- 대상: 구현 보고 [impl-report.md](impl-report.md) TASK-03~06 절(보고 커밋 `1150a27`), 제품 최종 `1ef3ad27fbe0e960fb542ea14bd0a3ef7d62262e`(TASK-03 `338c35a`, TASK-04 `c9a653a`·`9fd6512`·`1ef3ad2`, TASK-05 `0ded4b8`). 검증 시점 HEAD `ce0e3d4`(그 뒤 커밋은 다른 작업 문서뿐 — `git diff 1150a27 HEAD -- gate schemas app tests`는 다른 작업 수락 시험 명세 1개).
+- 판정: **이번 지시 범위(TASK-02~06) 완료.** 작업 전체 완료 조건(서버 적용·앱 공개·실물 M1~M8·현재 명세 반영)은 남아 **부분 완료**다. 검증 조건: 교차 모델(계획 Claude, 구현 Codex).
+
+### HT-B02 판정과 조치
+
+- 실패: `tests/acceptance/test_slack_move_gate.py` AT-SM-02가 통신 규격 전체 SHA-256을 `4f365159…`로 고정. 이 단정의 뜻은 "Slack 이전이 앱 통신 규격을 바꾸지 않는다"이고, HEJO-DEADLINE-CLOSE도 정의 추가 때 같은 방식으로 갱신했다(그 작업 verdict V-2).
+- 직접 확인: `git diff d3f5b5f HEAD -- schemas/hejo-wire-v1.json`의 바뀐 줄은 모두 아이메시지 프레임 삭제와 텔레그램 프레임 추가(spec REQ-HT-02, design 4절)다. Slack 관련 정의 변화 0. 현재 규격 SHA-256 `7b3c2db703a83824ee6d173262bbefec34b5210c74954d7c5dc8556c1fb0f75b`.
+- **원인 분류: 수락 시험 오류**(다른 작업의 불변 조건이 이 작업의 승인된 규격 변경을 반영하지 못함). 기획설계가 고정 해시를 새 값으로 갱신하고 근거 주석을 달았다(`test_slack_move_gate.py`), 명세 `HEJO-SLACK-MOVE.md` AT-SM-02에 같은 근거를 적었다. 레코드 종류 불변 단정과 나머지 Slack 동작 단정은 그대로다.
+
+### 직접 확인한 것
+
+- 코드: `gate/telegram.py` 전체 흐름(수신 판정·경합 재확인·`_accept_update`·답장/토픽 대상·본문/첨부·중복, 토픽 동기화는 `_bot` 네 Bot API만·예외 종류만 로그·I/O 전후 짝 표지 재확인, 스레드 대기열·사장 즉시/직원 정착·`notify`·닻·버튼 줄·첨부 사전 판별 📎/실행 실패 로그·`sent.jsonl` 0600·손상 처리, 작성 중 4초 줄이기), `gate/adapter.py` 시작 실패 정리, 앱 `TelegramState`·설정 구역·방 메뉴 제거.
+- 설계 적합성(4.2): 칸·책임 분리 맞음(모듈 하나가 소유, adapter·server·rooms는 부르기만). 그룹·계정 id는 금고에만, 밖은 짝 표지. 감싼 처리기 하나·`claims_external` 하나가 판정 권위. 아이메시지 모듈·`photon` 등록·규격·앱 화면·시험 제거(AT-HT-42). 본체·플러그인·team-kit 무수정. 기록장 레코드 종류 불변. 위반 없음.
+- 1차 관찰(짝짓기 경합 무응답)은 해소: 금고 잠금 안 재판정, 이미 쓰인 코드면 원래 처리기로 같은 이벤트 한 번(`test_pair_consumed_between_claim_and_admission`).
+- 수락 시험 대응: 시험 이름의 AT 번호로 AT-HT-01~45, 50~52 모두 대응을 확인했다(묶은 시험 포함). AT-HT-12·05는 3판 기대(4개, `Main`) 그대로.
+- 경미 관찰(차단 아님): AT-HT-05의 "옛 그룹 글은 통과" 단정은 재짝짓기 시험에 직접 없고, `claims_external`의 짝 일치 규칙과 AT-HT-26(d)(다른 그룹 통과)로 보장된다. 수신 중복 판정·닻·답장 찾기가 기록장 전체를 훑는다 — 방이 많아지면 느려질 수 있는 최적화 후보로 남긴다(HEJO-AUDIT 몫).
+
+### 검증 증거
+
+| 검사 | 결과 | 비고 |
+|---|---|---|
+| `TZ=Asia/Seoul PYTEST_ADDOPTS=--basetemp=/tmp/ht-v2full bash scripts/test.sh`(검증 역할 실행, 해시 갱신 뒤 작업 트리, 제품 `1ef3ad2`) | 종료 **0**, Python **427 passed**, 앱·통신 고정물·훅 단계 모두 PASS | `.build/telegram-evidence/verdict2-full.log`, `verdict2-full.exit` |
+| `pytest tests/acceptance/test_slack_move_gate.py`(해시 갱신 뒤) | 종료 0, 18 passed | `.build/telegram-evidence/verdict2-slackmove.log` |
+| 구현 보고 증거(직접 로그 확인, 반복 안 함): 문 수락 시험 38 passed, 앱 전체 종료 0, AT-HT-44 수준 3(5회 0.017~0.033초), 게이트웨이 배달 종료 0, mutation 3종 검출 | 보고와 로그 일치 | `.build/telegram-evidence/` |
+| 임시 HERMES_HOME `scan_private.py` | 종료 **1**: 다른 작업 `HEJO-DEADLINE-CLOSE-20261122/impl-report.md` 97·109행, `verdict.md` 127·146행 절대 경로 4건. **이 작업 파일 0건** | 그 작업 커밋은 main에 있고 원격(`github/main`)에는 아직 없다. 푸시 전에 그 작업이 고쳐야 한다 — 사용자에게 보고 |
+
+- 도달 증거 수준: 기능 2(대역 통합), AT-HT-44 3. 실제 텔레그램 SDK·봇·안드로이드 실물은 미검증(TASK-07·08).
+
+### 남은 일
+
+1. TASK-07 서버 적용(사용자 별도 허가 필요): 사장 준비(봇·포럼 그룹·봇 관리자 권한·`TELEGRAM_BOT_TOKEN`·허용 계정 `group_allow_from`) → Hermes 환경 텔레그램 의존성 설치 → 공용 릴리스 → 게이트웨이 재시작 → AT-HT-60·61. 적용 순간부터 hejo의 아이메시지 연결이 사라진다(아이메시지는 Hermes 직통).
+2. TASK-07b 앱 공개, TASK-08 실물 M1~M8, 현재 명세(ARCHITECTURE) 반영.
+3. 푸시는 사용자 화면 승인. 단, main에는 다른 작업의 개인값 검사 지적 4건이 있어 공개 저장소 푸시 전에 정리가 필요하다.
