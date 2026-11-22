@@ -1323,3 +1323,60 @@ RESTART_REQUIRED 멈춤 조건 때문에 뒤따르는 **./sync와 운영 저장�
 운영 소유 범위는 위 표 8개와 이미 HEAD와 같은 직원 D 플러그인 링크다. 범위 밖 변경의 정확한 로컬 경로는 `E18/after-commit-status.log`에만 남겼으며 기억 내용은 열지 않았다. 새 재시작·resume·연결 재제출은 0회다. d2 재시작 완료 뒤 다음 지시에서 기존 완료 증거를 확인하고 permission·check만 이어가야 한다. 기존 공개·사장 확인·푸시 승인은 별도다.
 
 이번 hejo 보고서 한 경로만 commit --only하며 전체 해시는 `E18/hejo-commit.log/json`과 최종 result에 기록한다. 보고서 개인값 검사·공백 검사 결과는 `E18/report-checks.json`에 있다. push·릴리스·실제 메시지·본체/ddots·수락 기준/설계 변경은 하지 않았다.
+
+
+## 19차-TASK-15 마무리 2 (2026-11-22)
+
+**구현자 판단: 이어 하기·연결 완료 확인, 공용 확인 기록 추가 갱신을 명시해 검토 대기.** handoff 19차를 따랐다. 위험도 일반, 필요한 증거 수준과 실제 도달 수준은 3이다. 사장 결정대로 d2의 재시작 증거를 재사용했으며 이번에는 재시작하지 않았다.
+
+착수 hejo HEAD는 `9cb1406a2d54336c94ee76cf9b5817c086b101f5`다. 이하 `E19`는 `.build/finder-folders-evidence/round19-task15`다. 제품 코드·수락 기준·시험 변경은 없다. 운영 저장소의 sync·커밋도 하지 않았다.
+
+### 읽기 preflight
+
+직원 D Finder 기록의 첫 at 필드만 읽었다(첫 40바이트, undo 원문 미열람). 적용 시각은 `2026-11-22T19:14:32.133302+09:00`다. gateway.pid는 kind=hermes-gateway·PID **18074**였고, ps 프로세스 시작은 **19:35:23**으로 적용 시각보다 뒤였다. 인계서의 19:35:53은 프로세스 시작 시각이 아니라 gateway.log **7298줄**의 Starting Hermes Gateway 표시(`19:35:53,995`)다. 두 시각을 구분했다.
+
+게이트웨이 Python으로 `gateway_restart.completed_since(root, 적용 시각)`을 실제 읽기 호출한 결과 **True**였다. PID·로그·완료 증거를 바꾸지 않았으며, False일 때 실행을 막도록 했다(`E19/preflight.py`, `preflight.json`).
+
+### 이어 하기 1회와 결과
+
+다음 명령을 17차와 같은 환경 HERMES_HOME=<HOME>, HERMES_DISABLE_LAZY_INSTALLS=1, PYTHONDONTWRITEBYTECODE=1 및 200초 제한으로 **한 번** 실행했다. 실행 직전 PID 18074와 preflight True를 다시 확인하고, 제출 표식이 있으면 재실행하지 못하도록 했다.
+
+```text
+<HOME>/bin/hermes-connections app connect --profile <직원 D> --app com.apple.finder --resume gateway_restart --json
+```
+
+종료 코드 **0**, **1.051206초**, timeout 없음, stderr 없음, outcome=**done**·reason=**OK**·next.kind=done이다. enable·values·restart·permission·check 모두 done이었다. 명령 전후와 읽기 검증 시점 모두 PID **18074**로 같아 새 재시작은 발생하지 않았다(`E19/operation-started.json`, `operation-result.json`, `gateway-before.json`, `gateway-after.json`).
+
+### 변경된 운영 파일 — 두 기록 파일
+
+운영 설정·장부·플러그인 host·연결 상태 경로의 전후 lstat를 비교했다. 관측된 변경은 다음 **2개**다.
+
+1. 직원 D의 `state/connections/` Finder 진행 기록: 이어 하기 단계 완료를 저장했다.
+2. 공용 `state/connections/checks.json`: 최종 앱 확인 결과를 저장했다.
+
+예상한 Finder 진행 기록 하나 외에 공용 확인 기록도 갱신됐으므로 이를 추가 변화로 보고한다. 실행본 app_setup.Adapters.check의 local_files 갈래는 저장 폴더의 is_dir·디렉터리 접근을 확인한 뒤 `checks.save_check(... state=connected, reason=APP_VERIFIED ...)`를 호출한다. connection_checks.save_check가 이 공용 checks.json을 쓰는 기존 경로다. 이번에 코드를 고치거나 수동으로 기록을 쓴 것이 아니다. 공용 기록의 직원 D Finder 항목도 state=connected·reason=APP_VERIFIED·verified_by=app_read임을 읽기로 확인했다(`E19/shared-check-record.json`).
+
+그 밖에 관측 대상으로 둔 owner/policy.yaml·team.yaml·vault.yaml, plugin-store/links.json, 프로필 config/profile/env 메타데이터, 플러그인 host/manifest 등은 변하지 않았다. 비밀 값이나 비밀 파일 내용은 열지 않았다. 전체 파일 시스템 무변경이라고 주장하는 것이 아니라 정해진 연결 트랜잭션 경로를 비교한 결과다(`E19/operating-before-metadata.json`, `operating-after-metadata.json`, `changed-operating-files.json`, `final-integrity.json`). 이상을 감추거나 추가 제출로 덮지 않았다.
+
+### done 이후 읽기 확인
+
+- 저장 폴더 3개, 기존 선택 항목 포함, 모두 NFC·존재. 17차 저장 목록 지문과 같음(`E19/saved-folders-after.json`, `folder-comparison.json`). 파일 내용은 열지 않았다.
+- 직원 D 플러그인 자리는 공용 창고 심링크이며 links.json 항목은 overlay false다. host manifest 바이트도 창고와 같다(`E19/final-integrity.json`).
+- `<HOME>/bin/hermes-plugin-store --check`: 종료 **0**(`E19/plugin-store-check.log/json`).
+- 실행본 config_assembly.py SHA는 `5f1bb8da1cf0bc919d1221e68a7bee597848ec7c7ed167affe66bce633beca7c` 그대로다.
+
+| 명령/확인 | 종료 코드 | 실제 결과 | 로그 |
+|---|---:|---|---|
+| 게이트웨이 Python preflight | 0 | 적용 시각 < PID 시작, completed_since True | `E19/preflight.json` |
+| 위 app connect --resume gateway_restart | 0 | done/OK, 모든 단계 done, PID 18074 유지 | `E19/operation-result.json` |
+| 저장 폴더 읽기 확인 | 0 | 3개·이전 목록 유지·NFC·존재 | `E19/saved-folders-after.json`, `folder-comparison.json` |
+| hermes-plugin-store --check | 0 | 창고 연결 검사 통과 | `E19/plugin-store-check.log/json` |
+| PID·심링크·장부·변경 경로 확인 | 0 | 공용 확인 기록 포함 두 기록만 변화 | `E19/final-integrity.json` |
+
+### 인계
+
+실제 계산 환경에서 새 재시작 없이 기존 완료 증거로 permission·check를 끝낸 수준 3 증거다. 직원 D의 실제 파일 읽기는 사장 M6로 남아 있다. 제품 바이트 변화가 없어 같은 전체 시험은 반복하지 않았다. 추가 재시작·resume 재시도·연결 재제출·sync·운영 커밋·실제 메시지·릴리스·push는 하지 않았다.
+
+관측한 운영 저장소 HEAD는 `e5d13980d1d65be9be2392db0c964f20f42a015f`이며 상태 경로 1개다. 이는 다른 세션이 관리한 상태를 읽은 것이고 이번 작업에서 운영 커밋을 만든 것은 아니다. 계획 담당이 이 결과와 공용 checks.json 갱신을 검토한 뒤 d2에 마무리 완료를 알려야 한다. d2가 폴더 이동·worktree repair를 마치면 다음 작업 전에 AGENTS.local.md의 운영 저장소 경로를 확인/갱신해야 한다. 이 대화는 직접 다른 세션 메시지를 보내거나 저장소 폴더를 옮기지 않았다.
+
+자기 hejo impl-report 한 경로만 commit --only한다. 개인값·공백 검사와 보고 커밋 전체 해시는 `E19/report-checks.json`, `hejo-commit.log/json` 및 최종 result에 기록한다. 기존 공개·사장 확인·마지막 M7·푸시 승인은 별도다.
