@@ -39,6 +39,8 @@
    (3) `install/hejo-release`, RELEASE·공용 gate 파일 집합 대조.
    (4) Hermes venv Python `<release>/install/hejo-install --check`(설치 실행 없음).
    (5) 재시작 직전 active_agents 0 확인. 처리 중이면 2분 간격 재확인, (3판) 30분 넘으면 재시작하지 않고 보고(사장 결정 전까지 끊지 않음).
+       (3판 보충, 2026-11-23 01:14 KST 사장 지시 "재시작해") active_agents가 0이 아니어도 즉시 재시작한다. 처리 중 대화 1개가 끊기는 것은
+       사장이 받아들였다. 재시작 직전 active_agents 값을 기록만 하고 기다리지 않는다.
        (3판) 재개 시 설치는 반복하지 않는다: 공용 RELEASE가 0bcf63535df381e491c99af9cbef41179b7cd79f이고 공용 파일이 그 커밋과 같은지만 다시 대조.
        다르면(다른 작업이 그 사이 설치) 설치 범위 diff를 다시 판단하고 미검증 변경이 있으면 멈춘다.
        `hermes --profile default gateway restart` 1회.
