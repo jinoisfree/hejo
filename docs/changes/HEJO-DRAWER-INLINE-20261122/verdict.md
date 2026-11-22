@@ -56,3 +56,11 @@ diff를 읽었다. `PetPlacement.withDrawer`(오른쪽 넓힘, `over`·`shift` �
 - 조치: 수락 시험 6판 — AT-DI-34 폭을 68·212·240으로, spec REQ-DI-07 AC-01에 허용 범위(180~300) 명시.
 - 전체 시험은 아직 미실행(종료 0 미확인). main은 `0ded4b8`로 앞섰고 HEJO-TELEGRAM이 `ConversationView.swift`·`TestMain.swift`를 바꿨다 → 병합 시 충돌 가능.
 - 설계 적합성: 적합(중간). 최종 판정은 전체 시험 종료 0과 밝은 테마 AT-DI-34 확인 뒤.
+
+## 5회 · 2026-11-23 · 판정: 미완료(구현 담당 보류) — 원인: 미확정(시험 조립 또는 구현), 원인 확인을 구현에 지시
+
+- 대상: worktree HEAD `bb14bd3` + 미커밋 13개 파일(보완 3 추가: `DrawerInlineTests.swift` 입력 140→240). 보존 stash `HEJO-DRAWER-INLINE-supplement-3-preserved`도 남아 있음(작업 트리에 이미 적용됨). 검증 조건: 교차 모델.
+- [확인] 병합 충돌 없음, HEJO-TELEGRAM 변경 유지. 전체 시험 종료 1: 어두운 테마 AT-DI-34(68·212·240 중심 34·106·120pt) 통과 뒤 밝은 테마 `AT-DI-34 missing rendered ink 26..<38`(버전 줄).
+- [확인] 시험은 `window.appearance`/`view.appearance`만 바꾼다(`DrawerInlineTests.swift` AT-DI-34 반복). 버전 글자 색은 `refresh()`에서 `CardText.quiet(dark:)`로 정해지고(`ConversationView.swift` refresh), 실제 테마 변경은 `ChatAppearance.change` → `applyChatAppearance` 경로다. 시험 전환이 실제 경로를 거치지 않아 버전 색·숨김이 갱신되지 않았을 가능성이 크지만 [미확정].
+- 원인 분류: 미확정. 수락 시험에 전환 방법이 없던 것은 계획 쪽 누락이라 7판 보충으로 정했다(실제 앱 경로로 전환, 기대 불변, 그래도 안 보이면 제품 결함).
+- main `1150a27`(bb14bd3 이후 app 변경 없음).

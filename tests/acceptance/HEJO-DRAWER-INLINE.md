@@ -1,6 +1,6 @@
 # HEJO-DRAWER-INLINE 수락 시험
 
-6판 · 2026-11-23(검증 4회: AT-DI-34 폭 140→240, 140은 `ConversationSidebar.snapped`가 180으로 맞추는 허용 밖 값) · 5판 · 2026-11-23(검증 3회: 열린 칸 상태 기존 시험의 보기 폭 입력 이관 규칙) · 4판 · 2026-11-23(REQ-DI-07 로고·버전 가운데, AT-DI-34) · 3판 · 2026-11-23(검증 1차: AT-TD-41 창 프레임 단언 교체 추가, verdict.md) · 2판 · 2026-11-22(계획 검증 1회차 R1~R4 반영, [plan-review.md](../../docs/changes/HEJO-DRAWER-INLINE-20261122/plan-review.md)) · 명세 [spec.md](../../docs/changes/HEJO-DRAWER-INLINE-20261122/spec.md) · 설계 [design.md](../../docs/changes/HEJO-DRAWER-INLINE-20261122/design.md)
+7판 · 2026-11-23(검증 5회: AT-DI-20~23·34의 테마 전환은 실제 앱 경로로) · 6판 · 2026-11-23(검증 4회: AT-DI-34 폭 140→240, 140은 `ConversationSidebar.snapped`가 180으로 맞추는 허용 밖 값) · 5판 · 2026-11-23(검증 3회: 열린 칸 상태 기존 시험의 보기 폭 입력 이관 규칙) · 4판 · 2026-11-23(REQ-DI-07 로고·버전 가운데, AT-DI-34) · 3판 · 2026-11-23(검증 1차: AT-TD-41 창 프레임 단언 교체 추가, verdict.md) · 2판 · 2026-11-22(계획 검증 1회차 R1~R4 반영, [plan-review.md](../../docs/changes/HEJO-DRAWER-INLINE-20261122/plan-review.md)) · 명세 [spec.md](../../docs/changes/HEJO-DRAWER-INLINE-20261122/spec.md) · 설계 [design.md](../../docs/changes/HEJO-DRAWER-INLINE-20261122/design.md)
 
 상태: 명세 완료 · 코드 미작성 · 미실행 · 계획 검증 통과(2회차).
 모두 앱 시험(`app/Tests`, swiftc 묶음)이다. 가짜 화면(`PetController.displays` 주입), 임시 `LocalStore`, 가짜 명부(`alpha`)만 쓴다. 움직임 시험 외에는 `reducedMotion = true`.
@@ -70,4 +70,8 @@
 - 그래서 칸이 열린 상태에서 `ConversationView.frame.size.width`를 직접 정해 "채팅 칸 폭"을 겨냥한 기존 시험은 **입력 폭에 칸 폭(`drawerShownWidth`, 열림이면 290)을 더한다.** 기대값은 바꾸지 않는다.
 - 확인된 대상: `app/Tests/IslandTests.swift` AT53 "narrow header reserves title and right icons"의 `ui.frame.size.width=428` → `428 + 290 = 718`, 바로 뒤 `760` → `760 + 290 = 1050`(AT56 머리 끌기 구간). 근거: 그 앞(AT-TD-27)에서 칸을 열고 닫지 않으며, 428은 방 목록 68 + 채팅 최소 360을 뜻한다(`PetLayout.minimumChatSize`).
 - 전체 시험에서 **같은 꼴**(칸 열림 + 보기 폭 직접 지정 + 채팅 폭을 겨냥한 기대)의 충돌이 더 나오면 같은 규칙으로 입력만 이관하고 impl-report에 파일:줄·전후 값을 목록으로 적는다. 다른 꼴의 실패는 고치지 말고 멈춘다.
+
+## 7판 보충: 테마 전환 방법 (AT-DI-20~23·34 공통)
+- "어둡게·밝게"는 사용자가 바꾸는 실제 경로로 전환한다: 임시 `LocalStore`에 묶은 `ChatAppearance.change(theme:)` → 펫이 있으면 `PetController.applyChatAppearance()`, 이어서 보기 배치·그리기를 마친 뒤 캡처한다. `window.appearance`/`view.appearance`만 바꾸는 것은 실제 경로를 거치지 않으므로 이 시험의 전환으로 인정하지 않는다.
+- 기대값은 그대로다. 실제 경로로 바꿨는데도 밝은 테마에서 글자가 그려지지 않거나 바탕과 구분되지 않으면 제품 결함이다(REQ-DI-07 AC-03: 버전 글자 색은 테마에 맞는 기존 색 `CardText.quiet`).
 

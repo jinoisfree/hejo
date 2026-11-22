@@ -1,6 +1,6 @@
 # HEJO-DRAWER-INLINE TASK-01 구현 인계
 
-> 최신 상태는 아래 **보완 2** 절이다. 앞 절의 보류·충돌 기록은 각 회차 이력으로 보존한다.
+> 최신 상태는 아래 **보완 3** 절이다. 앞 절의 보류·충돌 기록은 각 회차 이력으로 보존한다.
 
 ## 기준과 판단
 
@@ -153,3 +153,45 @@
 - 계획 담당이 R-DI-I3을 처분하고 허용할 폭 입력을 확정해 재인계한다. 그 뒤 AT-DI-34 전체 및 전체 앱 시험을 실행하고, 같은 꼴의 열린 칸 보기 폭 입력만 허용된 규칙으로 이관하며, 다른 꼴 실패는 다시 보고한다. 검사와 커밋은 전체 검증을 마친 뒤 수행한다.
 - 확인 시점 main은 `0ded4b8a1b7bb2076c4232d378c1ab4ce4900fbb`로 지시 기준보다 앞서 있다. 다음 인계에서 병합 기준도 갱신해야 한다. 이번에는 지시한 19e0495만 병합했다.
 - 제품 변경·시험은 지정 worktree에만 남아 있다. 운영 공항·실제 메시지·공개·버전 올림은 하지 않았다.
+
+## 보완 3 · 2026-11-23 · 보류(2절 보고: R-DI-I4)
+
+### 받은 지시와 보존·병합
+
+- [확인] 판정 4회와 수락 시험 6판을 대조했다. 기존 13개 파일 변경을 패치(`.build/drawer-inline-evidence/before-supplement-3.patch`)와 이름 `HEJO-DRAWER-INLINE-supplement-3-preserved`의 Git stash로 보존했다. stash는 복원 후에도 안전 보관본으로 남겼다.
+- 지시한 `bb14bd3d6e59d4e4d6361240af88c10b7e187bc7`을 `git merge`로 병합했다. 종료 0, fast-forward. 이어 stash 적용도 종료 0, 충돌 없음. 현재 HEAD는 이 기준이다. rebase·force·제품 커밋·푸시는 하지 않았다.
+- `ConversationView.swift`의 기존 iMessage 메뉴 제거와 `TestMain.swift`의 telegram 시험 진입점·호출 변경을 보존했다. 보존본의 13개 경로와 현재 파일을 직접 대조했다. 위 텔레그램 변경과 이번 시험 정정 두 곳 외 차이 없음(`supplement-3-scope.log`, 종료 0).
+- 추가 수정은 `app/Tests/DrawerInlineTests.swift:243`의 입력 140 → 240, `:274`의 사진 저장 대상에 240 추가뿐이다. 로고·버전 픽셀 중심 ±1.5pt, 첫 글자 파랑, 폭 0 숨김 기대값은 변경하지 않았다. 제품 소스는 보완 2 구현 그대로다.
+- 이전 보완의 `IslandTests.swift:133` 428 → 718, `:135` 760 → 1050은 유지했다. 이번에는 해당 시험에 도달하기 전에 중단됐고, 같은 꼴의 추가 입력 이관은 없다.
+
+### 검증 결과
+
+대상은 위 기준 + 기존 13개 변경 파일이다. 현재 전체 변경본은 `.build/drawer-inline-evidence/supplement-3-candidate.patch`에 보존했다. 로그 경로는 구현 worktree 루트 기준이다.
+
+| 명령·관측 | 실제 결과 | 증거 |
+|---|---|---|
+| `HEJO_PYTHON=<gateway venv python> bash app/scripts/test.sh` | **종료 1**. 앱·시험 빌드와 서명 성공. AT-DI-33, AT-TD-20~42, AT-DC-21~34, AT-DI-01~14·31, AT-DI-20~23 통과 뒤 AT-DI-34의 버전 글자 픽셀 검출 실패 | `.build/drawer-inline-evidence/supplement-3-app-tests.log`, `supplement-3-app-tests.exit` |
+| 어두운 테마 AT-DI-34 폭 68·212·240, 칸 표시 폭 각각 0·290 | 여섯 조립 모두 로고·버전 중심이 34·106·120pt. 첫 글자 파랑 통과. 이어 폭 0 숨김 통과 | `.build/drawer-inline-evidence/logo-centers.json` |
+| AT-DI-30 `rg` 두 검색 | 각 종료 1, 일치 0건 | `.build/drawer-inline-evidence/supplement-3-obsolete-search.log` |
+| `git diff --check` | 종료 0 | `.build/drawer-inline-evidence/supplement-3-diff-check.log` |
+| 임시 홈·가짜 명부의 `scripts/scan_private.py --home <임시 홈>` | 종료 1, 선행 문서의 기존 절대 경로 4건 | `.build/drawer-inline-evidence/supplement-3-private-scan.log` |
+| 개인값 지적과 `git show HEAD:<해당 파일>`의 같은 줄 지문 대조 | 드라이버 종료 0, 네 지적 모두 기준과 동일, 새 지적 0건 | `.build/drawer-inline-evidence/supplement-3-private-baseline.log` |
+| 보존한 13개 파일의 내용 대조 | 드라이버 종료 0, 승인된 차이만 있음 | `.build/drawer-inline-evidence/supplement-3-scope.log` |
+| `git merge-base --is-ancestor bb14bd3d6e59d4e4d6361240af88c10b7e187bc7 HEAD` | 종료 0 | Git 기준 확인 |
+
+개인값 지적은 선행 HEJO-DEADLINE-CLOSE `impl-report.md` 97·109줄, `verdict.md` 127·146줄이다. 해당 문서나 검사 예외는 수정하지 않았다. 설정·다운로드 보호 검사는 로그에서 `ACTUAL_CLI_SETTINGS_METADATA_UNCHANGED`, `ACTUAL_DOWNLOADS_NAMES_UNCHANGED`를 확인했다.
+
+사진은 `logo-sidebar-68-dark.png`, `logo-sidebar-212-dark.png`, `logo-sidebar-240-dark.png`를 같은 루트 증거 폴더로 복사했다. 새 240pt 사진을 직접 열어 로고·버전 가운데 배치를 확인했다. 기존 칸 사진은 유지했다. 밝은 테마는 아래 실패로 사진 저장까지 도달하지 못했다. M-DI 사람 확인과 전체 종료 0은 미충족이다.
+
+### R-DI-I4: 밝은 테마에서 버전 글자 경계 상자를 검출하지 못함
+
+- [확인] 최종 실패는 `APP_TEST_FAILED assertion("AT-DI-34 missing rendered ink 26..<38")`다. 여섯 어두운 조립만 JSON에 기록되어 있으며, 반복 순서상 그 다음 밝은 테마 폭 68·칸 0의 버전 영역에서 실패했다. 로고 경계 검출 이후 버전 경계를 구하는 단계다(`DrawerInlineTests.swift:266`).
+- [확인] 시험은 테마를 바꿀 때 `window.appearance`·`view.appearance`만 지정한다(`:242`). 실제 제품의 `ConversationView.refresh`는 그 시점 테마로 `version.textColor=CardText.quiet(dark:)`를 정하며(`ConversationView.swift:584`), 실제 테마 설정 변경은 `ChatAppearance.didChange` → `applyChatAppearance()` → `refresh()`를 지난다. `CardText.quiet`는 지정 테마로 해석된 색을 반환한다.
+- [가정/미확정] 시험이 실제 테마 변경의 refresh 경로를 거치지 않아 이전 테마의 버전 색을 남겼을 가능성이 있다. 캐시 갱신·픽셀 관측 문제나 제품 문제인지 추가 판정은 하지 않았다. 원인을 확정하기 위한 시험·제품 수정이나 기대 완화는 수행하지 않았다.
+- 요청의 "다른 꼴 실패는 멈춤"에 따라 여기서 중단했다. 계획 담당이 시험의 테마 조립 보완을 허용할지, 제품 동작의 문제로 처리할지 판정해야 한다. 중심 오차·파랑·숨김 조건 및 입력 폭은 유지해야 한다.
+
+### 남은 작업과 인계
+
+- 제품 커밋은 없음. 지정 브랜치의 13개 변경 파일을 그대로 남겼다. AT-DI-34 밝은 테마를 포함한 전체 시험 종료 0, 여섯 로고 사진, 독립 검토가 남았다. 실패 뒤 IslandTests와 Python 네트워크 fixture는 미실행이다.
+- 확인 시점 main은 `1150a27a495323eed3b4f926d4c0f8f76c13aa51`로 지정 기준보다 앞섰다. 다음 인계는 새 병합 기준과 R-DI-I4 처분을 명시해야 한다. 푸시 승인 전 로컬 기준·원격 tip 포함 재확인이 필요하다.
+- 운영 공항·실제 메시지·버전 올림·공개는 수행하지 않았다.
