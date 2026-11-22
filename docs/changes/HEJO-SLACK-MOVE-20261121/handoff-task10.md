@@ -1,6 +1,6 @@
 # HEJO-SLACK-MOVE TASK-10 인계: 서버 적용과 전환
 
-1판 · 2026-11-22. 명세 [spec.md](spec.md), 설계 [design.md](design.md) 7·8절, 작업 [tasks.md](tasks.md), 수락 시험 [HEJO-SLACK-MOVE.md](../../../tests/acceptance/HEJO-SLACK-MOVE.md)의 M1~M7, 구현 판정 [verdict.md](verdict.md) 6차. 약어는 spec 머리말과 같다.
+2판 · 2026-11-22(구현 검토 7차: 2단계 6번의 입구 확인 요청을 정확히 적음). 명세 [spec.md](spec.md), 설계 [design.md](design.md) 7·8절, 작업 [tasks.md](tasks.md), 수락 시험 [HEJO-SLACK-MOVE.md](../../../tests/acceptance/HEJO-SLACK-MOVE.md)의 M1~M7, 구현 판정 [verdict.md](verdict.md) 6차. 약어는 spec 머리말과 같다.
 
 ## 0. 사장 결정(2026-11-22)과 이 인계의 허가 범위
 
@@ -47,7 +47,7 @@
 5. 문: 이 저장소의 기준 커밋으로 `install/hejo-release` → 게이트웨이 전체 재시작(운영 저장소 AGENTS의 재시작 규칙).
 6. 확인(하나라도 실패하면 7번으로)
    - 게이트웨이 로그에 Slack 연결 전부와 iMessage, hejo 문이 다시 연결됨. 오류 로그에 재시작 뒤 새 줄 없음. 새 프로세스 시작 시각이 교체한 파일의 수정 시각보다 뒤.
-   - 입구 소켓 파일이 있고 권한이 0600. 입구에는 **읽기 요청 하나만** 보낸다(없는 스레드 읽기의 거절 응답으로 살아 있음을 확인). 글을 올리지 않는다.
+   - 입구 소켓 파일이 있고 권한이 0600. 입구에는 **읽기 요청 하나만** 보낸다. 글을 올리지 않는다. 요청은 정확히 이것이다(2판, 구현 검토 7차): `GET /local/v1/threads/<방금 만든 무작위 UUID>?room=<방금 만든 다른 무작위 UUID>`. 쿼리에 `employee`를 함께 넣지 않는다(규격은 둘 중 하나만 받는다). 기대 응답은 HTTP 400과 오류 이름 `room_not_found`다([확인] `gate/local.py`의 스레드 읽기, 구현 담당의 격리 재현). 받은 HTTP 상태와 오류 이름을 **판정하기 전에** 기록 파일에 적는다. 기대와 다르면 실패다.
    - 스위치를 읽는 함수의 답이 `slack`.
    - `hermes-connections status --json`과 `apps --json` 성공.
    - 3번에서 멈춘 프로그램을 다시 띄우고 한 차례 정상 종료(또는 정상 대기)를 확인. 네이버톡 사건 표에 새 열 3개가 생겼고 기존 행 수가 보관본과 같음.
