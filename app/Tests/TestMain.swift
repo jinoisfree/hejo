@@ -38,8 +38,8 @@ final class MemoryCredentials: GateCredentialStore {
                 } else if args.contains("--todo-drawer") {
                     try await todoDrawerTests(resourceDirectory:URL(fileURLWithPath:args.last!))
                     try await deadlineCloseTests(resourceDirectory:URL(fileURLWithPath:args.last!))
-                } else if args.contains("--imessage") {
-                    try await imessageTests()
+                } else if args.contains("--telegram") {
+                    try await telegramTests()
                 } else if args.contains("--review56-existing") {
                     try await review56Tests();try await memberStateTests();try await settingsTests();try await sidebarTests();try await updateTests()
                 } else if args.contains("--review56") {
@@ -158,7 +158,7 @@ final class MemoryCredentials: GateCredentialStore {
         }
     }
     func unit() async throws {
-        try await imessageTests()
+        try await telegramTests()
         try workMonitorTests();try await dashboardTests()
         try await calendarTests()
         try webAddressTests()

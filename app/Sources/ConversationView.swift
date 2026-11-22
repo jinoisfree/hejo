@@ -249,7 +249,6 @@ import UniformTypeIdentifiers
             menu.addItem(pictureMenu(kind:"employee",id:employee,name:person.name))
             if person.avatarCustom==true { menu.addItem(RoomActionItem("사진 지우기") { [weak self] in Task { _=await self?.controller.changePicture(kind:"employee",id:employee,url:nil) } }) }
         }
-        IMessageMenus.append(to: menu, room: employee, state: controller.client.imessage)
         menu.addItem(RoomActionItem("목록에서 빼기") { model.hide(employee) })
         return menu
     }

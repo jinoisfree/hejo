@@ -99,7 +99,6 @@ extension ConversationView {
     func groupMenu(_ room:Room)->NSMenu {
         let menu=NSMenu(),model=controller.model
         if model.homeChannel?.id != room.id {menu.addItem(RoomActionItem("고정 방으로 지정"){[weak self] in self?.changeHomeChannel(room.id)});menu.addItem(.separator())}
-        IMessageMenus.append(to: menu, room: room.id, state: controller.client.imessage)
         appendPinMenu(menu,room:room.id);menu.addItem(.separator())
         menu.addItem(RoomActionItem(model.muted.contains(room.id) ? "알림 켜기":"알림 끄기"){model.toggleMute(room.id)});menu.addItem(.separator())
         menu.addItem(RoomActionItem("이름 바꾸기…"){[weak self] in

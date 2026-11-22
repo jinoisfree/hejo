@@ -1,4 +1,4 @@
-from legacy_feature_fixture import reject_imessage
+from legacy_feature_fixture import reject_telegram
 """AT80: real loopback sends prove home is a view and rejected recipients produce no frame."""
 import asyncio
 import json
@@ -23,7 +23,7 @@ async def main():
             async for item in ws:
                 if item.type!=web.WSMsgType.TEXT:continue
                 frame=json.loads(item.data);validator.validate(frame)
-                if await reject_imessage(ws, frame):continue
+                if await reject_telegram(ws, frame):continue
                 if frame['type']=='pong':continue
                 assert frame['type']=='send' and 'room' not in frame
                 index=len(seen);expected=[('alpha','default'),('beta','second @B'),('alpha','face @B'),('gamma','@C mention'),('beta','configured'),('alpha','reply')]
