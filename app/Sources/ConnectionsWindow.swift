@@ -171,6 +171,8 @@ import Combine
             }
             if let job=reply["job"] as? String,outcome=="pending" {startPolling(job,profile:agent.profile,verb:"job_status")}
             if outcome=="done" {closeInput();notice=reply["instruction"] as? String ?? "마쳤어요."}
+            else if reason=="UNDO_CONFLICT" {notice="서버의 연결 설정이 바뀌어 저장하지 못했어요. 기존 설정을 확인한 뒤 다시 연결해 주세요."}
+            else if outcome=="pending" {notice="아직 처리 중이에요. 잠시 기다려 주세요."}
             else if reason=="write_partial" {notice="저장이 중간에 멈췄어요. 서버에서 이 키를 확인해 주세요"}
             else if reason=="BUSY" {notice="지금 대화를 처리 중이라 시작하지 않았어요. 잠시 뒤 다시 눌러 주세요."}
             else if reason=="BUSY_CHECK_FAILED" {notice="처리 중인지 확인하지 못해 시작하지 않았어요"}
@@ -178,7 +180,10 @@ import Combine
             else {
                 var wording=reply;wording["action"]=requested
                 if let until=wording["undo_until"] as? Double{wording["undo_until"]=ISO8601DateFormatter().string(from:Date(timeIntervalSince1970:until))}
-                if let data=try? JSONSerialization.data(withJSONObject:wording),let typed=try? AgentActionReply.decode(data){notice=ConnectionSentence.notice(typed,label:target.label,kind:target.connect_kind).text}
+                if let data=try? JSONSerialization.data(withJSONObject:wording),let typed=try? AgentActionReply.decode(data){
+                    let sentence=ConnectionSentence.notice(typed,label:target.label,kind:target.connect_kind)
+                    notice=sentence.success ? "아직 연결을 마치지 못했어요. 입력과 연결 상태를 확인해 주세요." : sentence.text
+                }
                 else{notice="하지 못했어요. 연결과 입력을 확인해 주세요."}
             }
             if showingInput {inputError=notice}

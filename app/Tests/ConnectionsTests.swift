@@ -49,6 +49,32 @@ import SwiftUI
     try await finderConnectionsLevelTests()
     try await connectionsScreenTests()
     try await connectionManagementTests(outputDirectory:outputDirectory)
+    try await connectionIncompleteReplyTests(document:document)
+}
+
+/// TASK-13: replies without a check must not turn unfinished actions into completion notices.
+@MainActor private func connectionIncompleteReplyTests(document:[String:Any]) async throws {
+    var reply:[String:Any]=[:]
+    let model=ConnectionsModel(send:{frame in
+        if frame["type"] as? String=="connections" {return ["document":document]}
+        if frame["action"] as? String=="secret_guide" {return ["reply":["outcome":"done","reason":"OK","fields":[["id":"value","label":"시험 키","secure":true]]]]}
+        return ["reply":reply]
+    },confirm:{true})
+    await model.refresh();model.selected="alpha";model.detail="key:SYNTHETIC_KEY"
+    for (outcome,reason) in [("waiting","UNDO_CONFLICT"),("waiting","UNKNOWN_REASON"),("failed","command_failed"),("refused","UNKNOWN_REASON"),("partial","UNKNOWN_REASON"),("pending","JOB_PENDING")] {
+        await model.perform("secret_set");model.values=["value":"synthetic-private-value"]
+        reply=["outcome":outcome,"reason":reason,"raw_error":"synthetic-private-value"]
+        await model.submit()
+        try check(model.showingInput && model.inputError==model.notice && !model.notice.isEmpty && model.notice != "마쳤어요.","TASK-13 unfinished \(outcome) response has no completion notice")
+        try check(!model.notice.contains("synthetic-private-value") && !model.notice.contains(reason),"TASK-13 raw errors and reason codes remain hidden")
+        if reason=="UNDO_CONFLICT" {try check(model.notice=="서버의 연결 설정이 바뀌어 저장하지 못했어요. 기존 설정을 확인한 뒤 다시 연결해 주세요.","TASK-13 conflict explains why saving stopped")}
+        if outcome=="pending" {try check(model.notice=="아직 처리 중이에요. 잠시 기다려 주세요.","TASK-13 pending response stays pending")}
+        model.closeInput()
+    }
+    await model.perform("secret_set");model.values=["value":"synthetic-private-value"]
+    reply=["outcome":"done","reason":"OK"];await model.submit()
+    try check(model.notice=="마쳤어요." && !model.showingInput && model.values.isEmpty,"TASK-13 completed reply still closes and clears input")
+    print("TASK-13 INCOMPLETE REPLY PASS")
 }
 
 /// AT-101: the visible groups follow AC-05 without changing the full document or sending filter requests.
