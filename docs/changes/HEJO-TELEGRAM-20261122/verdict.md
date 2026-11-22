@@ -104,3 +104,12 @@
 - 결과: RELEASE `0bcf635` 일치 → 재시작 종료 0 → slack·photon·hejo(기본·보조 5)·telegram 모두 connected, 재시작 이후 오류·역추적 0, 텔레그램 의존성 Hermes 자동 설치, hejo 텔레그램 처리기 등록, hejo 로그 id·토큰 0. **AT-HT-60·61 충족, 증거 수준 3.**
 - 지금 서버 상태: hejo의 아이메시지 연결은 빠졌고(아이메시지는 Hermes 직통), 텔레그램 문이 켜져 있다. 짝짓기는 텔레그램 설정 화면이 있는 새 앱이 필요하다(TASK-07b).
 - 남은 일: TASK-07b 앱 공개, TASK-08 실물 M1~M8, 현재 명세 반영, 푸시(다른 작업 개인값 4건 정리 필요).
+
+## 6차 (2026-11-23) — TASK-07 교차 확인 완료
+
+- 대상: 구현 담당 보고 커밋 `8615f67`([evidence/HEJO-TELEGRAM/TASK-07.md](../../../evidence/HEJO-TELEGRAM/TASK-07.md) 마지막 절), 로그 `.build/HEJO-TELEGRAM/task07/resume3/`.
+- 의미: 5차의 재시작은 계획 담당이 사장 지시로 직접 했다(단일 모델 자체 확인). 구현 담당(다른 모델)이 그 재시작을 다시 설치·재시작하지 않고 독립 확인했다 → **TASK-07 교차 모델 확인 완료**. 구현 담당 쪽 설치·재시작·롤백 0회.
+- 직접 대조한 것: `release-comparison.json` RELEASE `0bcf635`·41파일 일치, `telegram-state-summary.json` telegram connected·오류 코드/메시지 없음·active 0, `post-restart.json` 390초 관측 hejo/Slack 기본·보조 5개씩·telegram·photon 연결·처리기 등록·ERROR/CRITICAL/Traceback 0, `selected-dependency.json` python-telegram-bot 22.8 import 성공(Hermes 자동 설치).
+- 경고 검토(계획 담당이 재시작 이후 로그를 다시 묶어 봄, 124줄): 텔레그램 네트워크 경로 경고(IPv4 고정 경로·DNS 우회 경로 `ConnectError`, 재연결 예약)와 "전송 복구됨" 안내가 짝으로 있다. Hermes 텔레그램 어댑터의 자체 재연결 동작이며 현재 상태는 connected다. hejo 코드와 무관. 판정에 영향 없음 — 실물 확인(M3·M8)에서 글이 늦거나 빠지면 다시 본다.
+- 판정: **TASK-07 완료(교차 모델, 증거 수준 3)**. AT-HT-60·61 충족.
+- 이전 실행과 충돌로 보류된 "보완 4(재시작)" 계획은 이미 수행됐으므로 폐기한다. 다음 실행은 TASK-07b([handoff-task07b.md](handoff-task07b.md))다.
