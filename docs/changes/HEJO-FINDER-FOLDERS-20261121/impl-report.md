@@ -571,3 +571,46 @@ AT-FF-30 측정과 AT-FF-32 회귀는 끝났고 AT-FF-31 전체는 **미충족**
 7차는 마지막 성능 수정이다. **추가 성능 수정 없이 검토로 넘긴다.** 사장 M7은 기존 지시대로 모든 작업의 맨 마지막 실제 탭 확인이고, 거기서 수용 여부를 사장이 결정한다. 이번 결과만으로 TASK-09 최종 완료나 TASK-08 공개를 선언하지 않는다. TASK-08은 검토와 기존 HEJO-SLACK-MOVE 문 커밋 판정 확인 절차가 남아 있다.
 
 운영 실행본·운영 main·sync·게이트웨이 재시작·릴리스·앱 버전·설치 앱·본체·ddots·gate/·schemas/·수락 기준은 건드리지 않았다. 비밀 파일·운영 연결 동작·실제 메시지·git push도 없다. hejo main에는 다른 작업 커밋이 섞여 있으므로 나중에 공개·푸시 대상을 승인받을 때 포함 범위를 명시해야 한다.
+
+## 8차-TASK-10 — 처리할 일 칸 배경
+
+### 착수·구현 판단
+
+받은 설계는 handoff.md 8차, spec REQ-FF-08 및 수락 명세 AT-FF-40~42다. 위험도 일반, 증거 수준 2, 직접 구현·자체 시험이다. 착수 hejo main HEAD는 `df2d1a46df309777940985a49b02a1c230a01d59`. 착수 상태·제품 소스 지문은 `E8/start.json`, 자기 변경 4경로의 전후 전체 SHA-256은 `E8/change-integrity.json`에 있다. 여기서 `E8`은 hejo `.build/finder-folders-evidence/round8-task10`, `P`는 확인된 게이트웨이 Python이다.
+
+[확인] TodoDrawerView는 scroll 배경을 끄고 카드만 그렸다. PetView의 겹침 배치는 서랍을 대화 영역 x=0에 올리므로, 서랍 빈 부분에 아래 방 목록이 비칠 수 있었다. 수정은 관제 화면(app/)의 기존 서랍 자신에게 배경 책임을 둔다.
+
+- `TodoDrawerView.swift`: 직접 draw에서 전달받은 바탕색을 알파 1로 그린다. 전체 bounds를 칠하므로 isOpaque도 true다. 겹침·바깥 모두 같은 불투명 색이며, 글·카드·칩의 불투명도를 바꾸지 않는다. ChatAppearance.didChange와 유효 appearance 변경 때 다시 그린다. 알림 관찰자는 해제한다.
+- `PetView.swift`: 기존 updateScrim에서 대화 창 tint에 쓰는 **동일한 color 값**을 설치된 서랍에 전달한다. 설치 때도 이 전달을 수행한다. tint 색 생성·대화 투명도 계산은 기존 자리 하나에 유지했고 새 테마 색 상수를 만들지 않았다. 서랍 단독 생성 시 기본값은 AppKit의 기존 windowBackgroundColor이며, 실제 설치 시 대화 tint로 바뀐다. 배치 좌표·겹침 판정·애니메이션은 바꾸지 않았다. 이 파일의 변경은 기존 색을 서랍에 전달하기 위한 설치·표시 연결 부분이다.
+- `TodoDrawerBackgroundTests.swift`, `TestMain.swift`: 수락 명세의 실제 PetView 픽셀 시험을 앱 시험에 추가하고 전체 실행에 등록했다. 기존 HEJO-TODO-DRAWER 시험·기대값은 그대로다.
+
+설계와 달라진 점·임시 우회·새 자료 원본은 없다. 의미 변경은 서랍 바탕이 불투명해지는 요청된 표시 동작뿐이다. TASK-09의 마지막 성능 수정 종료 상태는 유지한다. 코드 작성 중 다른 대화가 후속 계획 문서를 커밋했으나, 이번 구현은 TASK-10 범위만 처리한다. 호스트 상태 파일은 읽기 전용으로 확인했고 수정하지 않았다.
+
+### AT-FF-40·41 픽셀 검사 방법
+
+임시 LocalStore·가짜 명부로 실제 ConversationView와 PetController/PetView를 조립하고 `installConversation`·`installDrawer`를 호출한다. 실제 배치 결과의 drawerOverlay가 요청한 참/거짓인지 먼저 검사한다. 대화 영역에서 서랍 바로 아래에 선명한 자홍색/초록색 사각형을 번갈아 넣는다.
+
+각 배치에서 어두운·밝은 테마로 바꾼 뒤, 글·카드와 떨어진 빈 여백을 `cacheDisplay` 비트맵에서 검사한다. 실제 부모 대화 영역을 캡처한 픽셀과 서랍 자체 캡처의 픽셀을 모두 검사한다. 알파 1(비트맵 오차 0.001 이내), 기존 대화 tint의 불투명 색과 일치(RGB 합 차이 0.025 이내), 아래 사각형과 큰 색 차이, 사각형 색을 바꿔도 픽셀 유지(RGB 합 차이 0.005 이내), 밝고 어두운 테마가 서로 다름을 검사한다. 테마 변경 알림의 needsDisplay 재설정도 확인한다.
+
+네이티브 픽셀 비교이므로 화면을 눈으로만 본 결과나 배경 속성 검사만으로 통과시키지 않는다. 실제 카드 클릭·필터·접기·덮개·애니메이션은 기존 AT-TD-20~42 등에서 확인한다. 별도 mutation check와 사장의 설치 앱 M8은 미실행이다.
+
+
+### 검증·커밋·인계
+
+**구현자 판단: TASK-10 구현·자체 시험 완료, 검토 대기.** AT-FF-40·41은 겹침/바깥 × 어두운/밝은 네 조합 모두 PIXEL PASS, 서랍 자체 표본 알파는 모두 1.0이다. 두 아래색에 대한 부모 캡처 불변성·기존 tint와 일치·테마 간 차이·다시 그리기 알림도 통과했다. 기존 AT-TD-20..42 MODEL, INPUT, WINDOW, REQUEST PASS 및 전체 앱 시험 종료 0으로 AT-FF-42를 충족했다. 기존 시험 기대값은 수정하지 않았다.
+
+| 명령(hejo cwd) | 종료 코드 | 결과 | 로그 |
+|---|---:|---|---|
+| `pgrep -f app-tests` | 1 | 전체 시험 전 다른 앱 시험 없음 | `E8/app-pgrep.json` |
+| `HEJO_PYTHON=P bash app/scripts/test.sh` | **0** | 개발 빌드·서명, AT-FF-40/41 네 조합 픽셀 검사, 기존 AT-TD-20~42·ThreeTap·앱 본시험 및 통신 fixture·hooks 9개 통과 | `E8/app-full.log`, `E8/app-full.json` |
+| `P scripts/scan_private.py` (새 시험 intent-to-add 뒤) | 0 | 새 파일 포함 개인값 검사 | `E8/scan-private-code.log`, `E8/code-checks.json` |
+| 자기 네 경로 `git diff --check` | 0 | 공백 오류 없음 | `E8/diff-check.log`, `E8/code-checks.json` |
+| `git commit --only -- <자기 앱 네 경로>` | 0 | 아래 코드 커밋 | `E8/app-commit.log`, `E8/app-commit.json` |
+
+코드 커밋 전체 해시: **`2fffbe0610053ca59d69e1f03b83a5c4b0f5ecff`** (hejo main). 부모는 `9ef6675ee72517b3b00aa46055ab7e5fefade774`이며, 착수 뒤 들어온 계획/다른 작업 문서 커밋은 그대로 보존했다. 자기 네 파일만 커밋했다. `E8/app-tested-source.json`은 시험이 읽은 전체 앱 소스·시험의 SHA-256이며, 시험 중 변경 0개다. 네 파일의 커밋 blob과 시험한 바이트가 같음을 `E8/app-commit.json`으로 확인했다.
+
+실제 설정 메타데이터·Downloads 이름 보존 검사도 통과했다. 로그에 기존 Swift 6 모드 경고·AppKit 입력/색 공간 진단이 있으나 현재 Swift 5 빌드·시험은 종료 0이며 이번 범위에서 수정하지 않았다. 보고서 최종 개인값·공백 검사 결과 및 SHA는 `E8/final-report-checks.json`, 보고서만의 커밋은 `E8/report-commit.json`에 남긴다.
+
+다음 담당자는 이 변경과 픽셀 시험 증거를 검토한다. 실제 설치 앱에서 사장이 보는 M8은 남아 있다. 0.2.4 공개 후보를 준비하는 다른 세션의 후보에 위 TASK-10 코드 커밋이 포함돼야 한다. 이 대화는 공개 후보·버전·설치 앱을 만들거나 교체하지 않았다. TASK-09의 기준 미충족 수용은 기존 지시대로 마지막 실제 탭 M7에서 사장이 판단한다. 후속 TASK-11 계획은 이번 TASK-10 결과에 섞지 않았다.
+
+이 작업에서 gate/·schemas/·다른 작업 파일·운영 실행본·설정·게이트웨이·본체·ddots·수락 기준/시험 명세/spec/design은 바꾸지 않았다. 비밀 파일·운영 연결 동작·실제 메시지·git push 실행은 없다. main에 다른 작업 커밋이 함께 있으므로 향후 공개·푸시 승인 때 포함 범위를 명시해야 한다. 최종 완료 판정과 공개/푸시 승인은 별도다.
