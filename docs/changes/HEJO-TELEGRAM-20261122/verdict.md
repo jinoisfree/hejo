@@ -132,3 +132,9 @@
 1. 푸시 승인: 저장소 이 저장소, 원격 `github`, 브랜치 `main`, 커밋 `3f5cb6bd35c6f57e862d09f809f9b1e2b1dd1f9c`.
 2. 공개: `install/hejo-ship publish --approve-commit 3f5cb6bd35c6f57e862d09f809f9b1e2b1dd1f9c --prepared .build/release-0.2.7/prepared.json`.
 3. 앱을 0.2.7로 업데이트 → 설정 → 연결과 동기화 → 텔레그램 → 코드 받기 → HEJO 그룹에 보내기 → 켜기 → M1~M8.
+
+## 0.2.7 공개 기록 (2026-11-23)
+
+- 사장 지시 "공개해". public `3f5cb6bd35c6f57e862d09f809f9b1e2b1dd1f9c`는 이미 github main에 반영돼 있었다(`git ls-remote` 확인). 릴리즈 총괄(작업 4170ef93)에 먼저 알렸다(통합 릴리즈는 다음 판).
+- 계획 담당이 `install/hejo-ship publish --approve-commit 3f5cb6bd35c6f57e862d09f809f9b1e2b1dd1f9c --prepared .build/release-0.2.7/prepared.json` 실행 → 종료 0, "PUBLISHED v0.2.7"(로그 `.build/HEJO-TELEGRAM/publish/`). 선례: HEJO-DEADLINE-CLOSE 0.2.6.
+- 남은 일: 사장이 앱을 0.2.7로 업데이트 → 텔레그램 짝짓기·켜기 → TASK-08 M1~M8 → 현재 명세 반영.
