@@ -464,3 +464,20 @@ TASK-09의 측정은 실제 트랙패드 탭이 아니라 수락 명세 AT-FF-30
 ```
 
 (2단계, d2 재시작 뒤 별도 지시: `--resume gateway_restart` 1회 → `completed_since`로 새 재시작 없이 permission·check → done 확인.)
+
+## 19차 지시 (2026-11-22): TASK-15 마무리 2단계 — d2 재시작 뒤 직원 D 연결 마무리
+
+d2 알림(19:37): 게이트웨이 재시작 완료(새 PID 18074, 로그 7298줄 시작 19:35:53, 13 platform 재연결, 새 오류 없음). 계획 담당이 gateway.pid·로그로 확인함.
+
+```text
+[설계 인계: HEJO-FINDER-FOLDERS TASK-15 마무리 2단계]
+1. 먼저 읽기 확인: gateway.pid의 PID가 18074이고, 직원 D Finder 기록의 적용 시각이 그 프로세스 시작보다 앞서는지 본다.
+   gateway_restart.completed_since(root, 그 적용 시각)을 읽기로 계산해 True인지 기록한다. False면 멈추고 보고한다(재시작 금지).
+2. 17차와 같은 환경으로 직원 D Finder 연결을 --resume gateway_restart로 한 번 이어 한다(200초 제한).
+   PID가 18074에서 바뀌면(새 재시작) 이상이므로 결과와 함께 보고한다.
+3. 결과: done/OK면 저장 폴더 유지, 플러그인 심링크·links.json overlay false, hermes-plugin-store --check를 읽기로 확인한다.
+   PERMISSION·CHECK 실패·대기면 멈추고 보고한다.
+4. 금지: 게이트웨이 재시작, ./sync·운영 커밋(이번엔 바뀌는 운영 파일이 기록 파일뿐이어야 함 — 다른 파일이 바뀌면 보고), 비밀 파일, 실제 메시지, git push.
+   문서에는 '직원 D'. 위험도 일반, 증거 수준 3.
+5. 보고: impl-report.md '19차-TASK-15 마무리 2' 절(completed_since 결과, 명령·종료 코드·시간, PID 전후, 결과, 바뀐 운영 파일, 로그 경로), result.
+```
