@@ -51,3 +51,16 @@
 - [확인] gate 시험 422 통과·5 실패(`task-01-exception-review-gate-ready.log`): `import yaml` 없음 3건, `hermes_facility` 없음 1건, `test_delivery_parity.py:125` 승인 단추 문구가 번역 키(`platform.sl…confirm.cancel`)로 나옴 1건. 지정 게이트 Python 환경(Hermes 설치 환경)의 모듈·본체 문구 문제이고, 이 작업은 `app/`만 바꿨으므로 gate 결과에 영향을 줄 경로가 없다.
 - 판단: 사장 부재 중 같은 Mac의 다른 세션 작업과 Hermes 환경 변화로 "전체 종료 0"을 지금 얻을 수 없다. 변경 탓인지 가리는 기준을 **기준 코드와의 차이**로 바꾼다 — 같은 명령을 변경 없는 기준 복사본에서 돌려 실패 집합이 같으면 환경 예외로 기록하고 TASK 커밋 허용. main 병합 조건(앱 활성 가능·정상 Hermes 환경에서 전체 종료 0)은 그대로.
 - 설계 적합성(4.2): 5회 중간 판정(적합)에서 제품 코드 변화 없음.
+
+## 7회 · 2026-11-23 · TASK-01~03 판정: 부분 완료(구현 완료, 시험 일부 미도달) — 원인: 환경
+
+- 대상: 구현 브랜치 `role-workflow/17-96051e66` 커밋 `cc68b1c`(TASK-01)·`28cc1bc`(TASK-02)·`31b9d92`(TASK-03, HEAD), 기준 `be67d01`. 작업 트리 깨끗함. 세 커밋 모두 `app/`만. 검증 조건: 교차 모델.
+- [확인] 코드 직접 읽음:
+  - TASK-02 `IslandModel.snapshot`: `title`·`dot(todoTotal>0)`·`activity` 하나, 우선순위 끊김 > 다시 연결됨 > 권한/저장 오류 > 전송 실패 > 올리는 중 > 미리보기(질문 "이름: 첫 줄 · 답하기", action은 가장 오래된 질문) > 일하는 중("이름 일하는 중 · N분"/"N명 일하는 중", 얼굴 3). `parts`·`iconOnly`·"닫기 ‹"·owner 개수 제거. `IslandView`: `titleRect`/`activityRect` 두 영역 클릭, 점 `CAKeyframeAnimation` opacity [1, 0.35, 1] 2.4초 반복, 칸 열림·동작 줄이기면 없음, 칸 열림 테두리 강조색, 말줄임. `ConversationView`: `heading`·`subtitle` 제거, 알약 폭 한도 `right-24`, 제목·할 일 개수 입력.
+  - TASK-03: 칩 줄 `drawerOpen`이면 숨김(칩 클릭 경로 불변), 홈 줄 배지 3종 숨김, 판단 단추 표준 네 낱말은 글자만, `EmployeeSidebarCell.refreshChrome`을 `performAsCurrentDrawingAppearance` 안에서 실행(밝은 테마 묶음 글자 원인 = 색 풀림 시점, 그 자리 수정), 빈 `failureBar` 숨김(분홍 모서리 48→0 픽셀, 주인 확정). 접기 ⌄: 실제 펫 창의 옛 접기 단추는 숨김, 시안의 ⌄는 HTML 장식 — 해당 없음.
+- [확인] 화면 증거 직접 열람: `task-03-open-dark.png`(칸 한 줄 머리·0개 아닌 필터·사진 카드·급함 세로줄이 채팅 카드와 같은 자리·칩 줄 없음·알약 "hejo │ ●" 파랑 테두리·단추 글자만), `task-02-question-dark.png`(알약 "시험 방 │ ● [사진] 직원 A: 첫 질문 · 답하기").
+- [확인] 시험: 집중 실행 종료 0(AT-UC-01~06·10~19·30~35, AT88·89 포함). 전체 앱 실행은 변경본·기준 모두 같은 지점에서 종료 1 — AT-HC-27(`appActive=false`)과 `ConnectionsTests.swift:346` connectionManagementTests timeout(`verdict-6-candidate-app.log`·`verdict-6-baseline-app.log`). gate 422 통과·같은 5 실패(기준·최종 동일). 환경 예외 기준(6회) 충족.
+- 남은 틈: `TestMain.swift:294` 이후 앱 시험(progressLayout·threeTap·rooms·bubbleReply·petNotification·picturesSidebar·appIcon·login·composer)과 네트워크 fixture가 **변경본에서 한 번도 돌지 않았다**. 이번 변경이 닿는 화면(방 목록·입력 줄·알약)과 겹치므로 main 병합 전에 확인이 필요하다.
+- 관찰(범위 밖, 후속 후보): 칸 카드 제목이 시험 글의 마크다운 표시(`**…**`)를 그대로 보인다. 카드 제목 원본은 이번에 바꾸지 않았다.
+- 설계 적합성(4.2): **적합**. 알약 상태 원본 `IslandModel` 하나·그리기 `IslandView` 하나, 카드 문장 `TodoDrawerModel`, 세로줄 `AttentionRail` 한 값, 선택 원본 `drawerSelectedID`, 0개 흐림은 공용 `ComposerButton`. 옛 표현 API(`heading`·`subtitle`·`parts`·`idleStripe`)는 시험용으로 남기지 않고 제거. 두 번째 원본 없음.
+- 원격: 공개 원격 `github/main`(0.2.x 공개 스냅숏 이력, 로컬 main과 공통 조상 없음)은 직접 푸시 대상이 아니다. 공개는 릴리즈 총괄(18번)이 맡는다.

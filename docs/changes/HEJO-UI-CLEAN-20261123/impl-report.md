@@ -294,3 +294,95 @@ R-UC-I5 판정 전 **미커밋13파일 보존**, 새 후보 커밋 없음. 연�
 - 계획 담당은 추가 연결 관리 timeout의 처리 범위와 올바른 게이트 시험 환경/번역 문구 실패를 판정해야 한다. AT-HC-27 외 추가 skip·시험 기대 수정은 승인되지 않았다. 재개 시13파일을 그대로 보존하고 이번 실패 로그부터 확인한다.
 - main 병합 전에는 활성 가능한 앱 환경에서 AT-HC-27을 포함한 원문 전체 test.sh 종료0이 여전히 필수다. 앱 빌드 산출물은 임시 skip 실행본이므로 최종 검증/설치 산출물로 쓰지 않는다.
 - 저장소 구현 브랜치는 `role-workflow/17-96051e66`, HEAD는 기준 `5db23f5e08f5fafc9b211116e078f934bb73f6b8`; 새 구현 후보 해시 없음. 제품 변경은 미커밋13파일에만 있다. 푸시·main으로의 구현 병합·설치·공개·운영 반영 없음. 릴리즈 총괄18에 완료로 전달하지 말고 이 미완료/차단 상태와 로그를 호스트가 전달한다.17 제외나 운영 변경 승인을 추정하지 않는다.
+
+
+## TASK-01 · verdict6 기준 차이 확인·환경 예외 커밋
+
+- 커밋: `cc68b1c8012729c0a9e34ec5c9b63999e4047c66`(13경로만 commit --only). 메시지에 **환경 예외(verdict 6회): 기준 동일 실패**를 명시했다. 제품/시험 후보는 앞선13파일과 같고, 이번 영구 추가 변경은 없다.
+- 지정 기준 `be67d0137fc9749355821b5d28da35bb25dd3e24` merge 종료0, 문서만, 충돌 없음. 같은 커밋 git archive 복사본665파일의 Git blob 해시를 대조했다(`verdict-6-baseline-provenance.json`). 기준 복사본에는 미커밋13파일이 없다.
+- 변경본/기준 모두 같은 Python·의존성·명령 `HEJO_PYTHON=<gateway venv python> bash app/scripts/test.sh`를 사용했다. GUI 실행은 순차였다. 임시 변경은 AT-HC-27 단언 하나의 출력 교체, 시험 진입 이름 출력, 공용 waitFor의 실패 호출 파일/줄 출력뿐이다. 원래 조건·시간·나머지 단언은 그대로다. 정확한 cwd·Python 절대 경로·명령·종료·복원 SHA-256은 로컬 `verdict-6-{candidate,baseline}-app-result.json`에 기록했다(공개 문서에는 개인 경로를 넣지 않음).
+- **앱 실패 집합 동일**: 두 실행 모두 종료1, AT-HC-27 값 visible=true/key=false/fieldsEmpty=true/busy=false/appActive=false, AT-HC-20~29 통과 뒤 `connectionManagementTests`의 동일 timeout. 진단 줄 ConnectionsTests.swift:351은 출력5줄을 제외한 **원문:346 AT-CM-35의 NSApp.isActive + foremost.isKeyWindow 대기**다. 따라서 이전 판정의 progressLayout 이후 추정은 이번 관측으로 정정한다. `verdict-6-app-comparison.json`, `verdict-6-candidate-app.log`, `verdict-6-baseline-app.log` 참조.
+- **gate 실패 집합 동일**: 같은 pytest 명령에서 양쪽422통과·같은5실패(번역 키1, yaml 없음3, hermes_facility 없음1). `verdict-6-baseline-gate.log`, `verdict-6-gate-comparison.json`. 변경본 gate 로그는 앞선 `task-01-exception-review-gate-ready.log`를 재사용했다. 그때 기준5db23f5와 현 기준be67d01 사이 app/gate/tests/schemas 차이가 없고 후보13파일도 동일함을 대조했다. 같은 격리 pytest 의존성 PYTHONPATH·같은 Python이며 운영 설치/설정/재시작은 없다.
+- 임시 수정은 양쪽 모두 원문 SHA-256 일치로 복원. ConnectionsTests diff 비어 있고, 변경본 전체 app patch도 이전13파일과 바이트 동일하다. 임시 diff와 로그는 증거 폴더에만 있다. baseline은 별도 복사본이며 다른 checkout/운영 파일을 고치지 않았다.
+- 개인정보 검사 종료0(`verdict-6-task-01-private-scan.log`), git diff --check 종료0(`verdict-6-task-01-diff-check.log`). AT-UC-10~19·양 테마 정착 사진은 변경본 실행에서 통과/생성. 선택 유지·한 줄 머리·공용 세로줄 등 구현/이관 내역은 앞 절과 같다.
+- 외부 GUI 활성 상태까지 통제했다고 주장하지 않는다. 관측한 동일 실패는 TASK 커밋에만 환경 예외로 쓴다. 연결 뒤 나머지 기본 시험·네트워크 fixture는 미도달이며 전체 종료0은 아니다. main 병합 전 정상 GUI/Hermes 환경에서 원문 전체 종료0 조건은 유지한다. 임시 skip 바이너리를 설치/최종 검증 산출물로 쓰지 않는다.
+- 다음: TASK-02 → TASK-03 순차 구현·같은 기준 차이 검증. 푸시·main으로의 구현 병합·설치·공개·운영 반영 없음.
+
+
+## TASK-02 · 제목 알약 구현·환경 예외 커밋
+
+- 커밋 `28cc1bc455d21adb400225d02e678cefb355bd2d`(13경로 commit --only), 선행 TASK-01 `cc68b1c8012729c0a9e34ec5c9b63999e4047c66`. **환경 예외(verdict 6회): 기준 동일 실패**를 메시지에 명시했다.
+- 상태 원본 IslandModel의 스냅숏을 title/dot/activity 하나로 교체했다. Input.title은 기존 방 머리 문자열, todoTotal은 기존 drawerSnapshot.total(필터와 무관한 전체 개수)이다. 기존 생산자의 unread 입력 계약은 유지하되 새 점·문장 계산에는 쓰지 않는다. 문제→새 질문→직원 큐·우선순위·4초/3초 미리보기·재연결2초·초읽기·가장 오래된 asked 행동은 기존 경로를 유지했다.
+- IslandView가 제목/활동 두 영역과 사진·점·테두리를 그린다. 점8pt, CAKeyframeAnimation opacity [1,.35,1]/2.4초, 열린 칸/동작 줄이기 정지. 폭 움직임0.18초·직원 글자 빛 흐름1.6초 유지. 넘치면 활동부터 말줄임하고 레이어도 알약 경계로 자른다. 제목 x12는 상태가 바뀌어도 같다. 활동 없는 문제는 칸 토글로 연결했다.
+- ConversationView의 heading/subtitle 보기·배치·글자 갱신을 제거했다. headerDrag는 유지했다. parts/partRects/iconOnly/workerFacesOnly/idleStripe·닫기 문장·owner 개수 표시를 남기지 않았다. expanded는 미리보기 큐 시간 검증/상태로 유지하며 activity.kind와 같은 의미다. 기존 행동 처리 함수를 그대로 사용해 알약 질문 강조1.5초를 보존했다.
+- 화면 검토에서 발견한 자체 결함도 수정했다: 필요 폭 계산이 실제 활동 텍스트 배치 여백보다4pt 작아 정상 폭에서도 말줄임됐다. 얼굴 뒤 필요 폭8→12, 글자 폭 올림으로 맞추고 정상 폭 비말줄임/좁은 폭 말줄임을 함께 검사했다. 계산은 UI 내부 여백 산수이며 수락 기대를 바꾼 것이 아니다.
+
+### 기존 시험 이관(수락 기대 불변)
+
+기준은 TASK-01 커밋이다. 정확한 전후 코드·기준/후보 줄 목록은 `task-02-migrations.json`(43치환), `task-02-existing-test-migrations.diff`(원본 hunk 줄)와 최종 `task-02-candidate.patch`에 보존했다. 같은 문자열을 여러 곳에서 읽는 경우 JSON에 모든 기준 줄을 기록했다.
+
+| 파일:기준 줄 | 전 → 후·허가 |
+|---|---|
+| IslandTests.swift:13,15,16,19,24,27,44,47~48 | owner 개수/parts·idleStripe·workerFacesOnly → dot/activity·활동 말줄임·faceRects. 빈 띠는 AT-UC-01/05 대체. 작업자 개수4·사진3·2분·빛 흐름 시간은 유지(design4.1) |
+| IslandTests.swift:55~88 | parts/owner → activity/question, 질문 문장 이름+첫 줄+답하기. 3.9/4.1초·3초·문제 우선·중단 후 복귀·재연결2초·재전송 키·올림 개수 기대 그대로 |
+| IslandTests.swift:108~144 | heading 위치/옛 part 클릭 → 알약 최대 x≤머리 오른쪽−12·제목/활동 rect. hover는 활동에 새 질문 도착을 준비. 그 미리보기 시간 경과 뒤 worker를 검사해 단일 활동 규칙에 맞췄다. 드래그·선택·창 행동 기대는 그대로 |
+| TodoDrawerTests.swift:56~61,120~146 | owner/닫기 문장/part rect → 제목 클릭·drawerOpen·닫기 문구 없음(AT-UC-06), worker/problem은 활동 클릭. 창 폭·펫 위치·가장 오래된 asked·기존 행동 횟수 불변 |
+| Task17Tests.swift:204~206 | muted 질문 count 표시 → todoTotal=1 입력의 dot && activity.kind!=question. muted unread 생산자 단언은 불변 |
+| ConversationTests.swift:56, WorkspaceTests.swift:56 | heading 제목 → island.snapshot.title. subtitle 표현 단언은 제거, AT-UC-01의 실제 보기 제거 검사가 대체 |
+| ConversationUpdateTests.swift:47, ScrollTests.swift:140 | 기록용 heading → 알약 제목, 기록용 description 빈 문자열. 내용/순서/동작 단언 불변 |
+| DrawerInlineTests.swift:53 | 대표 보기 field(heading) → headerDrag. 나머지 배열·+290 좌표 비교 불변 |
+
+- TestMain에는 새 시험 집중 실행용 `--ui-clean-island` 분기만 추가했고, 기본 전체 실행은 islandTests에서 새 시험을 호출한다. 옛 API를 시험용으로 남기지 않았다. SidebarTests의 section heading 레이어는 별개 API이므로 그대로다.
+
+### 새 시험·화면·실행 결과
+
+- `UICleanIslandTests`는 실제 ConversationView+PetController·임시 LocalStore·가짜 welcome/명부/질문을 조립한다. 실제 ChatAppearance.change→applyChatAppearance로 양 테마 전환. 제목/점/구분선·애니메이션·한 활동 우선순위·고정 제목 x·3장 사진·좁은 폭·모든 제목 클릭·질문1.49/1.51초 강조·직원/재연결/재전송/업로드 행동을 검사한다. 열린 테두리는 같은 창에 실제로 칠한 강조색 표본과 RGBA≤6/255로 비교했다.
+- 자체 시험 준비 오류를 바로잡았다. 최초 AT-UC-01은 가짜 GateClient가 disconnected 기본값이라 실패→가짜 welcome으로 정상 상태를 준비. 좁은 폭은 PetController 정착이 보기 폭을 복원하고 있었음→직접 보기 배치로 실제 머리 폭140pt를 확인한 뒤 기존 최대 x/말줄임 기대 검사. 여러 새 질문 큐 대신 새 질문1건 도착을 준비했다. 기대값 변경 없음.
+- 집중3차 종료0(`task-02-focused-3.log`). 최종 전체 스크립트 종료1(`task-02-verified-final-candidate-app.log`): AT-UC-01~06·기존 칸/알약/워크스페이스/스크롤 등 도달한 회귀 통과 뒤 **기준과 동일한** AT-HC-27 피연산자 및 connectionManagementTests 원문346 timeout. 임시 단언/진단은 SHA-256 복원 확인. 비교 `task-02-comparison.json`, 정확한 명령/cwd/Python 경로·종료·복원 `task-02-verified-final-candidate-app-result.json`.
+- gate는 app 밖 코드가 바뀌지 않아 TASK-01의 동일 실패 비교 증거를 재사용했다(`verdict-6-gate-comparison.json`, 422통과/5실패). 공유 환경에 설치/설정/재시작 없음. 개인정보 검사 종료0(`task-02-private-scan.log`), git diff --check 종료0(`task-02-diff-check.log`).
+- 사진 `task-02-{idle,question,working,crowd,problem,open}-{dark,light}.png`. 원본 RGBA 보존, 흰 배경 검토 사본은 `*-light-on-white.png`. 어두운 open/working과 밝은 working 검토 사본을 직접 확인했다. 정상 작업 문장의0분까지 보인다.
+- 전체 종료0은 아니며, 연결 뒤 기본 시험·네트워크 fixture는 미도달이다. main 병합 전 정상 환경 원문 전체 종료0 조건 유지. 설치·공개·푸시·운영 반영 없음. 다음 TASK-03.
+
+
+## TASK-03 · 중복 정리·실제 표식 조사·환경 예외 커밋
+
+- 커밋 `31b9d92ce45432902febcdc89b10d8aa09b2d873`(5경로 commit --only). **환경 예외(verdict 6회): 기준 동일 실패**를 메시지에 명시했다. 제품은 ConversationView·ConversationChrome 두 파일만, 시험은 IslandTests·TestMain·새 UICleanPolishTests다.
+- 칸 열림 때 noticeScroll과 문서 noticeBar를 숨기고 같은 기존 bannerMotion 목표를0으로 둔다. 닫으면 기존 칩·동작이 돌아온다. jumpNotice의 가장 오래된 질문/1.6초 강조·기존 동작은 바꾸지 않았다.
+- 홈 줄의 counters/numbers/dots 레이어와 접근성 표식만 숨긴다. 다른 방 배지·원래 개수 데이터는 유지한다. 기존 ReplyButtonPolicy.standard를 원본으로 네 판단 단추는 글자만 그린다. FileChip의 눌림/접근성/36×30 크기·행동은 그대로이며 다른 종류 단추의 기호도 그대로다.
+- 밝은 테마 원인 확인: EmployeeSidebarCell.refreshChrome에서 동적 색을 CGColor로 풀 때 셀의 모양새가 현재 그리기 모양새에 묶이지 않았다. 원래 색식을 바꾸지 않고 **ConversationChrome.swift:37**에서 해당 셀 effectiveAppearance.performAsCurrentDrawingAppearance 안으로 기존 갱신 본문을 묶었다. 실제 light 경로 뒤 heading은 검정(alpha 약0.635), 흰 시험 바탕에 합성한 실제 글자/바탕 RGBA 차 최대 **1.90588 > .3**. 원본 투명 캡처와 밝은 검토 사본을 보존했다.
+
+### AT-UC-35: 분홍 표식 주인 확정·제거
+
+- 변경 전 실제 가짜 대화창을 렌더링해 입력 줄 근처 빨간 계열 픽셀 **48개**를 찾았다. 실제 hitTest는 대부분 ConversationView, 일부 보내기 단추였다. 각 자식 보기를 하나씩 숨겨 재캡처하니 **NSStackView frame {{78,448},{672,0}}를 숨긴 경우에만 0개**가 됐다. 둥근 ComposerButton들은 isOpaque=false였고, 숨겨도 표식은 남았다. 추측으로 단추 그리기를 바꾸지 않았다.
+- 이 보기는 **ConversationView.failureBar**다. 실패 항목이0인데도 빨간 반투명 배경·cornerRadius8 레이어가 남아 높이0인 양 끝에 표식이 그려졌다. **ConversationView.swift:519**에서 arrangedSubviews가 비면 숨기는 것이 조치의 전부다. 색·단추·직원 얼굴 줄은 바꾸지 않았다.
+- 변경 후 실제 픽셀 **0개**. 실제 가짜 전송 실패를 발생시켰을 때 안내가 보임, 실패를 지운 뒤 다시 숨김/0개 회귀도 통과했다. source·뷰 계층·픽셀 관측이 같은 주인을 가리킨다.
+- 증거: `task-03-probe.log` 종료0, `task-03-pink-probe.json`, `task-03-view-hierarchy-before.json`, `task-03-probe-before.png`, `task-03-probe-full-pet.png`, `task-03-pink-after.json/png`.
+
+### AT-UC-35: 아래 둥근 ⌄의 해당 여부
+
+- 실제 전체 펫 창/NSThemeFrame 계층을 조사했다. hejo의 기존 **PetView.swift:87 collapseButton(펫으로 접기)**은 **installConversation:203에서 숨겨져 있으며**, 이번 실제 런타임에서도 isHidden=true였다. 펼친 창 전체의 보이는 NSButton 중 ⌄ 또는 펫으로 접기 제목의 단추는 없었다. 기존 NativeThreadCard의 답글 더미 chevron은 카드 안 표시이며 아래 가운데 접기 단추가 아니다.
+- ⌄ 표시의 확인된 원본은 **초기 시안 HTML**의 장식 div다: `mockups/final.html:76,89`의 `<div class="fd">⌄</div>`(improve-1-6·improve-all에도 있음). 최종 final-4와 현재 hejo AppKit에는 그 단추가 없다. 따라서 **현재 hejo 보기에는 이동할 해당 단추가 없음**으로 보고한다. 숨겨진 옛 글자 단추를 새 둥근 단추로 만들거나 외부 앱을 임의로 지목하지 않았다.
+- 증거: 변경 전 전체 보기 계층, `task-03-collapse-owner.json`의 실제 보이는 단추 목록/legacyHidden/windowStyleMask, `task-03-full-pet.png`. 이는 현재 빌드의 실제 보기·출처 확인이며 사용자 화면에 있을 수 있는 다른 앱의 이름까지 특정했다는 뜻은 아니다.
+
+### 시험·사진·최종 기준 차이
+
+- 새 UICleanPolishTests: 실제 ConversationView+PetController, 임시 LocalStore, 가짜 welcome·명부·질문. AT-UC-30 칸 닫힘/열림/닫힘 칩, AT-UC-31 실제 홈 renderer에 질문2·알림3·안 읽음4/다른 방1을 넣어 숨김·유지, AT-UC-32 네 글자 단추, AT-UC-33 실제 테마 경로와 글자 픽셀, AT-UC-35 실제 관측과 빈/실제 실패 안내를 검사했다. 기존 단언 이관/기대 변경은 TASK-03에 없다. AT-UC-34는 기존 AT88·89 그대로다.
+- 집중 실행 종료0(`task-03-focused-1.log`). 최종 전체 스크립트 종료1(`task-03-final-candidate-app.log`): AT-UC-01~06·10~19·30~35와 AT88·89·90 등 도달한 회귀 통과 뒤 기준과 동일한 AT-HC-27 값 및 connectionManagementTests 원문346 timeout. `task-03-comparison.json`에 동일 집합을 기록했다. 임시 skip/진단은 모두 SHA-256 일치로 복원, ConnectionsTests diff 없음.
+- 최종 통합 변경본의 gate pytest도 다시 실행했다. **422통과·5실패·종료1**, 기준 복사본과 시험 이름/번역 키·모듈 누락 원인이 동일하다(`task-03-final-gate.log`). 이 결과는 TASK-02 변경까지 포함한다. root acceptance 일부가 Swift 소스도 읽으므로 최종 통합본으로 재확인했다.
+- 개인정보 검사 종료0(`task-03-private-scan.log`), git diff --check 종료0(`task-03-diff-check.log`). 새 시험·관측용 `--ui-clean-polish`/`--ui-clean-polish-probe` 분기와 기본 전체 호출만 TestMain/IslandTests에 추가했다.
+- 실제 테마 경로의 사진 `task-03-{open,closed}-{dark,light}.png`, 전체 펫 사진, light-section 원본 및 `task-03-open-light-on-white.png` 검토 사본. 열린 양 테마 화면을 직접 확인했다. 답글/새 글(홈에서는 새 대화) 토글·직원 얼굴 줄은 유지된다.
+
+## 최종 구현 인계 · 릴리즈 총괄 전달용
+
+| TASK | 전체 구현 커밋 | 앱 실행 로그(모두 증거 폴더 기준) |
+|---|---|---|
+| 01 | cc68b1c8012729c0a9e34ec5c9b63999e4047c66 | verdict-6-candidate-app.log |
+| 02 | 28cc1bc455d21adb400225d02e678cefb355bd2d | task-02-verified-final-candidate-app.log |
+| 03 | 31b9d92ce45432902febcdc89b10d8aa09b2d873 | task-03-final-candidate-app.log |
+
+- 기준 전체 커밋 **be67d0137fc9749355821b5d28da35bb25dd3e24**, 기준 앱/게이트 로그 `verdict-6-baseline-app.log`, `verdict-6-baseline-gate.log`. 원문 앱 실행은 앞선 로그에서 AT-HC-27 종료1이고, 위 세 실행은 **그 단언 하나만 임시 skip + 진단 출력** 상태다. 모두 종료1, 같은 key=false/appActive=false·같은 원문346 timeout이다. 정상 원문 전체 종료0으로 보고하지 않는다.
+- 실제 명령은 `HEJO_PYTHON=<gateway venv python> bash app/scripts/test.sh`, gate는 지정 Python `-m pytest gate/tests tests/acceptance -q --basetemp=/tmp/hejo-uc-gate-tests -o asyncio_default_fixture_loop_scope=function -p no:cacheprovider`(격리 pytest 의존성 PYTHONPATH)다. 실제 cwd·Python 실행 절대 경로·종료 코드·기준/변경본은 각 `*-app-result.json`, `verdict-6-gate-comparison.json`, `controlled-environment.json`에 로컬 기록했다. 변경본 cwd=구현 worktree 루트, 기준 cwd=그 아래 `.build/ui-clean-evidence/verdict-6-baseline`. 같은 호스트·Python·시험 의존성, GUI 실행은 순차, inherited PYTHONPATH 없음. 외부 GUI 상태는 통제하지 않았고 양쪽 비활성을 관측했다.
+- 세 커밋 각각이 임시 수정 복원 후 검사한 후보 patch와 바이트 같음을 확인했다(`final-commit-provenance.json`). 작업 트리 깨끗함. 임시 skip/진단은 커밋에 없다. 테스트 바이너리는 임시 진단/skip 실행물이므로 설치/최종 통과 산출물로 쓰지 않는다.
+- **미완료 조건**: AT-UC-40·main 반영 전 정상 GUI/Hermes 환경의 원문 전체 종료0, 연결 뒤 기본 시험·네트워크 fixture의 변경본 통과, 계획 담당 최종 검토·M-UC-1 사람 확인. 기준 동일 실패 예외는 TASK 커밋 허용까지만이다.
+- 인계 시점 로컬 main은 위 기준이고 대상에 포함(merge-base 종료0). 구성 원격 이름은 **github**(origin 없음). 로컬 추적 `github/main`은 **98a9f242a74a97a2af6885264cac49da241ad7fa**, 대상 HEAD에 미포함(merge-base 종료1). `final-basis-inventory.json`. live ls-remote는 미실행이며 이미 원격 반영됐다고 선언하지 않는다. **푸시 전 기준/추적 tip 포함 조건에 대한 계획 담당 관계 검토가 필요하다.** 이 불일치를 force/pull/rebase/임의 merge로 우회하지 않았다.
+- main으로의 구현 병합·설치·공개·푸시·운영 반영 없음. 공유 Hermes 환경 패키지 설치/설정/재시작 없음.17번을 릴리즈에서 제외하거나 총괄18의 운영 승인을 추정하지 않는다. 호스트는 총괄에 세 커밋과 위 실제 로그/정상 환경 검증 및 이력 차단을 전달한다. 계획 담당은 변경 코드·증거 검토 후 정상 환경 통과·기준 포함을 확인하고 후속 절차를 정한다.
