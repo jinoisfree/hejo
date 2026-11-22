@@ -102,3 +102,10 @@
 - 대상 찾기: `NSOpenPanel(`, `NSSavePanel(`, `NSAlert(`, `runModal`, `beginSheetModal`, 별도 `NSWindow`·`NSPanel` 창 띄우기(`makeKeyAndOrderFront`)를 `app/Sources`에서 모두 찾아 목록으로 남긴다. 시트(`beginSheet`)는 부모 창을 따라가므로 부모가 규칙을 따르면 된다.
 - 시험 경계: 펫 창 높이는 주입할 수 있게 하고(`.floating`, `mainMenu+1` 두 경우), 사진 고르기 창은 첨부 고르기처럼 띄우는 함수를 주입해 높이·활성화를 확인한다.
 
+## 9. 10판 추가 설계 (REQ-FF-12, team-kit)
+- 고치는 자리: `config_assembly.app_manifests`의 지문 비교 한 곳(`:155`). 새 저장소·새 기록 파일은 만들지 않는다.
+- 규칙: `baseline`이 있고 지문이 다를 때, 아래를 모두 만족하면 거절하지 않는다. (1) `before_host`가 링크다(`'link' in before_host`, `plugin_store.snapshot`이 이미 대상 검증). (2) `links.json`의 그 경로 항목이 `overlay: false`다. (3) 지금 `before` 바이트가 `plugin-store/<plugin>/plugin.yaml` 바이트와 같다. 하나라도 아니면 지금처럼 `UNDO_CONFLICT`.
+- 거절하지 않을 때 `template`(되돌리기용 처음 바이트)과 `original_host`는 기존 `baseline` 값을 그대로 쓴다(처음 상태 보존). 새 `after` 지문은 기존 트랜잭션이 기록한다.
+- 기본 도구 권한은 이미 정책으로 한 번 옮겨졌다(`defaults.setdefault`). 이 규칙은 그것을 바꾸지 않는다. 새 창고 도구는 기존처럼 `declared`·`additions` 규칙을 따른다.
+- 서버 적용 주의: 운영 저장소에 다른 세션의 `config_assembly.py` 미커밋 변경(hejo toolset)이 있다. 실행본 파일을 통째로 바꾸면 그 변경을 덮는다. 서버 적용은 그 세션이 커밋한 뒤 별도 지시로, 함수 한 곳만 반영하는 방식으로 한다.
+

@@ -342,3 +342,23 @@ TASK-09의 측정은 실제 트랙패드 탭이 아니라 수락 명세 AT-FF-30
 6. 위험도 일반(운영 명령 1회), 증거 수준 3.
 7. 보고: impl-report.md '12차-TASK-13' 절(재현 결과, 원인, 수정 커밋 전체 해시, 명령·종료 코드·로그 경로, 운영에 바뀐 것), result.
 ```
+
+## 13차 지시 (2026-11-22): TASK-13 계속 — 공용 창고 갱신 뒤 앱 연결 거절 해소 (검증 12차 V-6·V-7)
+
+```text
+[설계 인계: HEJO-FINDER-FOLDERS TASK-13 계속]
+1. 문서: spec 10판 REQ-FF-12, design 9절, 수락 명세 AT-FF-80~83, verdict 12차.
+2. team-kit 수정(HD worktree, d7208c11 브랜치에 새 커밋): config_assembly.app_manifests의 지문 비교(:155) 한 곳.
+   baseline 지문이 달라도 (1) before_host가 링크, (2) links.json 그 경로 항목 overlay false, (3) 지금 manifest 바이트 == plugin-store/<plugin>/plugin.yaml 바이트,
+   셋을 모두 만족하면 거절하지 않는다. template·original_host는 기존 baseline 값을 그대로 쓴다. 하나라도 아니면 지금처럼 UNDO_CONFLICT.
+   기본 도구 권한(app_tool_defaults)·declared/additions 규칙은 바꾸지 않는다.
+3. 시험: TASK-13 가짜 재현을 회귀 시험으로 옮겨 AT-FF-80~82를 만들고 AT-FF-83(관련 5파일+test_finder_folders+test_app_manifests,
+   team-kit 전체 실패 집합 ⊆ 착수 기준, ./airport-check)을 실행한다. 기존 기대값은 바꾸지 않는다.
+4. 앱 전체 회귀(V-7): pgrep -f app-tests와 다른 GUI 시험·빌드가 없는 때 HEJO_PYTHON=게이트웨이 Python bash app/scripts/test.sh를 다시 실행한다(f03b93a 이후 HEAD).
+   AT-HC-27이 또 앱 비활성으로 실패하면, 같은 때 착수 사본(f03b93a 이전)도 실행해 환경 문제인지 대조하고 멈춰 보고한다. 기대값을 완화하지 않는다.
+5. 서버 적용은 하지 않는다. 운영 저장소에 다른 세션의 config_assembly.py 미커밋 변경이 있으므로 실행본 교체·운영 저장소 커밋은 다음 지시로 한다.
+   대신 impl-report에 함수 한 곳 diff와, 그 변경이 실행본 config_assembly.py의 app_manifests 본문에도 그대로 붙는지(함수 본문 SHA 비교) 기록한다.
+6. 금지: 운영 명령 실행(이번엔 없음), 게이트웨이 재시작, 비밀 파일, 실제 메시지, 본체·ddots, 수락 기준·spec·design 수정, git push, 다른 세션 파일.
+   문서에는 직원 이름·프로필 id·경로 대신 '직원 D/B'. 자기 경로만 git commit --only. 위험도 일반, 증거 수준 2.
+7. 보고: impl-report.md '13차-TASK-13' 절(커밋 전체 해시 — HD·hejo, 명령·종료 코드·로그 경로), result.
+```
