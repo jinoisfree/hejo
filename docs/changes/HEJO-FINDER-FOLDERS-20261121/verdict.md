@@ -400,3 +400,22 @@
 6. **다음:**
    - 계획 담당이 d2에 `f1507977`을 알린다. d2가 게이트웨이를 다시 시작하고 알려 온다.
    - 그 뒤 2단계 지시(`--resume gateway_restart` 1회, 새 재시작 없이 permission·check, done 확인)를 낸다.
+
+## 검증 판정 19차: TASK-15 마무리 2단계 (2026-11-22)
+
+1. **판정: TASK-15 완료**(증거 수준 3). V-8·V-9·V-10을 모두 해소했다.
+   - 직원 D Finder 연결은 done/OK이고, 직원 D는 다시 공용 창고 링크를 쓴다.
+   - 재시작은 d2의 재시작 1회로 합쳤다(사장 결정대로, 추가 재시작 없음).
+2. **검증 조건:** 교차 모델. 대상은 hejo 보고 `5c808ed`, 증거 `round19-task15`다. 운영 저장소 커밋은 없다(운영 main 변화는 다른 세션·다른 직원 MEMORY 사본뿐).
+3. **설계 적합성(4.2):** 19차 지시 그대로다. 먼저 `completed_since`=True를 확인했고, `--resume`을 한 번 실행했으며, PID 18074가 그대로였다.
+   - 바뀐 운영 파일 중 공용 `state/connections/checks.json`은 check 단계가 원래 쓰는 확인 기록이다(`Adapters.check → save_check`). 이 작업이 의도한 결과라 받아들인다.
+4. **직접 확인한 것(읽기만):**
+   - `gateway.pid` PID 18074.
+   - 직원 D 플러그인 `readlink` → `../../../plugin-store/team-kit`.
+   - `operation-result.json` exit 0, done/OK.
+   - `preflight.json` completed_since True.
+5. **지적:** 없음.
+6. **다음:**
+   - d2에 마무리가 끝났다고 알린다(운영 저장소 폴더 이동 허용).
+   - 사장에게 M6(직원 D 폴더 읽기)를 요청한다.
+   - 남은 것: 0.2.4(다른 세션), 사장 확인 M4·M5·M8~M11과 맨 마지막 M7, 현재 명세 반영, 푸시.
