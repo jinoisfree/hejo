@@ -614,3 +614,209 @@ AT-FF-30 측정과 AT-FF-32 회귀는 끝났고 AT-FF-31 전체는 **미충족**
 다음 담당자는 이 변경과 픽셀 시험 증거를 검토한다. 실제 설치 앱에서 사장이 보는 M8은 남아 있다. 0.2.4 공개 후보를 준비하는 다른 세션의 후보에 위 TASK-10 코드 커밋이 포함돼야 한다. 이 대화는 공개 후보·버전·설치 앱을 만들거나 교체하지 않았다. TASK-09의 기준 미충족 수용은 기존 지시대로 마지막 실제 탭 M7에서 사장이 판단한다. 후속 TASK-11 계획은 이번 TASK-10 결과에 섞지 않았다.
 
 이 작업에서 gate/·schemas/·다른 작업 파일·운영 실행본·설정·게이트웨이·본체·ddots·수락 기준/시험 명세/spec/design은 바꾸지 않았다. 비밀 파일·운영 연결 동작·실제 메시지·git push 실행은 없다. main에 다른 작업 커밋이 함께 있으므로 향후 공개·푸시 승인 때 포함 범위를 명시해야 한다. 최종 완료 판정과 공개/푸시 승인은 별도다.
+
+## 9차-TASK-11 — 색과 글자 사진·옵션창 높이
+
+### 착수·구현 구조
+
+받은 설계는 handoff.md 9차, spec REQ-FF-09·10, design 8절, 수락 명세 AT-FF-50~54·60~63이다. 위험도 일반, 증거 수준 2, 직접 구현·자체 시험이다. TASK-10 검토 완료를 확인했고 반복하지 않았다. 착수 hejo main HEAD는 `61a244101e20dd06f3570716c621d06f80552a99`. 착수 상태·앱 소스 SHA는 `E9/start.json`, 자기 변경 경로 전후 SHA는 `E9/change-integrity.json`에 있다. 이 절의 `E9`는 앞 절의 round5와 구별해 **hejo `.build/finder-folders-evidence/round9-task11`**, `P`는 확인된 게이트웨이 Python이다. 호스트 인계 상태 파일은 읽기 전용 참고로만 사용했다.
+
+색·글자 사진은 app/의 기존 사진 원본으로 PNG만 올린다. 색·글자를 저장하는 두 번째 원본·설정 키·문 규격은 만들지 않았다. 창 정책은 새 OptionWindows 한 곳에 옮겼다.
+
+- `Pictures.swift`의 PictureCodec에 256×256 sRGB PNG 생성을 추가했다. UserBubbleColor의 밝은 테마 값과 UserBubblePalette의 검정/흰색 규칙을 그대로 쓴다. 글자를 보이는 글자 기준 8개로 제한하고 줄바꿈을 공백으로 바꾼다. 굵은 시스템 글꼴의 실제 glyph 경계를 재며 각 변 18% 안전 영역에 맞도록 크기를 줄인다. 글자 alpha를 같은 전경색으로 칠해 색 이모지 역시 정해진 검정/흰색을 따른다. 빈 글자는 배경만 그린다. 기존 사진 파일의 center crop·PNG 변환 함수는 그대로다.
+- `LetterPictureDialog.swift`: 기존 AppearanceSwatch를 재사용하는 14색 줄, 글자 칸(이름 첫 글자), 같은 PNG 함수의 미리보기를 NSAlert 부속 보기로 구성했다. 입력 조합 중 글자를 자르지 않고 확정 입력과 저장 시 최대 8글자를 적용한다. 매번 이름 첫 글자·기본색으로 시작하며 이전 PNG에서 값을 역산하지 않는다.
+- 직원·그룹 방·홈의 메뉴는 하나의 pictureMenu(kind/id/name)로 하위 메뉴를 만든다. **상위 표시 이름 `사진 바꾸기…`와 메뉴 순서는 기존 그대로 유지**했다. 기존 AT68·AT70·AT80 시험이 이 이름·순서를 명시하기 때문이다. 그 아래에 명세의 `사진 고르기…`, `색과 글자로 만들기…` 두 항목을 둔다. 이는 제목의 생략 부호만 보존한 구현 세부 판단이며 수락 요구인 두 선택지를 모두 제공한다. 기존 기대값은 수정하지 않는다.
+- 중복 `chooseGroupPicture`는 제거하고 공용 사진 고르기로 합쳤다. 파일 선택과 생성 PNG는 기존 ConversationController.changePicture → GateHTTP.setPicture를 공유한다. 기존 사진 변환·실패 문구·업로드 전후 address/token/epoch 검사도 같은 경로다. 홈·섹션 사진 결과를 반영하는 분기를 pictureUploaded로 함께 쓴다. 그룹 방은 종전처럼 서버의 사진 갱신을 따른다. 사진 선택이 열린 동안 연결이 바뀌면 이전 대상에 업로드하지 않는다. pictureSender와 chooser/presenter 주입은 시험 경계이며 실제 실행의 기본 경로는 기존 HTTP 업로드·AppKit이다.
+- `OptionWindows.swift`: 앱 활성화 뒤 활성 높이를 펫 창 현재 높이+1로 정한다. 비활성 연결 창의 선호 높이는 .normal이다. AppDelegate가 기존 펫 창을 공급하고 updateConnectionsLevel도 이 공용 식을 사용한다. 독립 설정·로그인·달력·대시보드·세 손가락 안내창은 show, 사진/첨부 고르기는 prepare, NSAlert·웹의 파일 고르기/확인은 runModal을 쓴다. 기존 첨부 고르기의 생성 시 .modalPanel 값은 AT88 계약대로 유지하고 실제 표시 직전에 공용 높이를 적용한다.
+- ConnectionsWindow의 confirming .normal·비활성 .normal과 입력/확인 시트 수명은 그대로다. AppDelegate.showConnections가 공용 선호 높이를 먼저 전달한다. 연결 창 자체의 updateLevel 구현은 바꾸지 않았고, 시트는 부모를 따른다. WebPane의 확인 보조 함수는 AppKit 콜백에서 쓰는 @MainActor 함수로 명시했다.
+
+구조 변경은 기존 사진/옵션창 책임 안에서의 통합이다. 덧댄 비동기 표시 경로나 다른 저장 형식, 남긴 임시 코드는 없다. 과거 raw modal 호출은 공용 입구로 교체했다. 운영 연결·메시지 전송이나 실제 프로필 사진 변경은 하지 않았다.
+
+### AT-FF-62 전체 검색 목록
+
+수정 시작 전에 다음 검색을 실행해 `E9/inventory-before.txt`에 저장했다.
+
+`rg -n 'NSOpenPanel\(|NSSavePanel\(|NSAlert\(|runModal|beginSheetModal|makeKeyAndOrderFront' app/Sources`
+
+같은 검색의 최종 결과는 `E9/inventory-after.txt`다. 별도 `NSWindow`·`NSPanel` 생성 및 orderFront/showWindow 호출도 확인했다. 대시보드·달력·설정·로그인은 모두 공용 show로 들어가고, PetController/PetView의 orderFront는 높이 기준인 펫 자체여서 제외한다. 사진 파일 chooser 생성은 주입 factory로 이동했다. 아래에는 시작 목록의 **모든 일치 행**과 최종 목록을 위치별로 남긴다.
+
+| 착수 위치 | 처리 |
+|---|---|
+| `app/Sources/AppDelegate.swift:137` | OptionWindows.runModal에서 활성화·공용 높이 적용 |
+| `app/Sources/AppDelegate.swift:316` | 독립 대시보드/달력: OptionWindows.show 적용 |
+| `app/Sources/AppDelegate.swift:327` | 독립 대시보드/달력: OptionWindows.show 적용 |
+| `app/Sources/AppDelegate.swift:396` | OptionWindows.runModal에서 활성화·공용 높이 적용 |
+| `app/Sources/AppDelegate.swift:398` | OptionWindows.runModal에서 활성화·공용 높이 적용 |
+| `app/Sources/AppDelegate.swift:401` | OptionWindows.runModal에서 활성화·공용 높이 적용 |
+| `app/Sources/AppDelegate.swift:402` | OptionWindows.runModal에서 활성화·공용 높이 적용 |
+| `app/Sources/ThreeTapController.swift:119` | notice 생성 후 OptionWindows.show에서 적용 |
+| `app/Sources/ThreeTapController.swift:134` | notice 생성 후 OptionWindows.show에서 적용 |
+| `app/Sources/LoginWindow.swift:44` | OptionWindows.runModal에서 활성화·공용 높이 적용 |
+| `app/Sources/LoginWindow.swift:45` | OptionWindows.runModal에서 활성화·공용 높이 적용 |
+| `app/Sources/LoginWindow.swift:107` | 로그인: OptionWindows.show 적용 |
+| `app/Sources/AppUpdate.swift:31` | 업데이트 상자: 기본 present가 OptionWindows.runModal 적용, 기존 주입 시험 유지 |
+| `app/Sources/AppUpdate.swift:103` | 업데이트 상자: 기본 present가 OptionWindows.runModal 적용, 기존 주입 시험 유지 |
+| `app/Sources/AppUpdate.swift:110` | 업데이트 상자: 기본 present가 OptionWindows.runModal 적용, 기존 주입 시험 유지 |
+| `app/Sources/PetController.swift:253` | 제외: 옵션창이 아니라 기준이 되는 펫/대화 창 자체 |
+| `app/Sources/WebPane.swift:381` | 웹 파일 고르기/확인: OptionWindows.prepare·runModal 적용, presenting 수명 유지 |
+| `app/Sources/WebPane.swift:385` | 웹 파일 고르기/확인: OptionWindows.prepare·runModal 적용, presenting 수명 유지 |
+| `app/Sources/WebPane.swift:389` | 웹 파일 고르기/확인: OptionWindows.prepare·runModal 적용, presenting 수명 유지 |
+| `app/Sources/WebPane.swift:395` | 웹 파일 고르기/확인: OptionWindows.prepare·runModal 적용, presenting 수명 유지 |
+| `app/Sources/PetSettingsWindow.swift:131` | 설정: OptionWindows.show 적용 |
+| `app/Sources/PetSettingsWindow.swift:195` | 상자 생성 함수. 호출자 AppDelegate의 OptionWindows.runModal에서 적용 |
+| `app/Sources/PetSettingsWindow.swift:203` | 상자 생성 함수. 호출자 AppDelegate의 OptionWindows.runModal에서 적용 |
+| `app/Sources/ConnectionsWindow.swift:288` | 시트·입력창은 부모를 따름. 부모 preferredLevel은 AppDelegate에서 공용 식 적용, confirming .normal 예외 유지 |
+| `app/Sources/ConnectionsWindow.swift:291` | 시트·입력창은 부모를 따름. 부모 preferredLevel은 AppDelegate에서 공용 식 적용, confirming .normal 예외 유지 |
+| `app/Sources/ConnectionsWindow.swift:296` | 시트·입력창은 부모를 따름. 부모 preferredLevel은 AppDelegate에서 공용 식 적용, confirming .normal 예외 유지 |
+| `app/Sources/ConnectionsWindow.swift:297` | 시트·입력창은 부모를 따름. 부모 preferredLevel은 AppDelegate에서 공용 식 적용, confirming .normal 예외 유지 |
+| `app/Sources/ConnectionsWindow.swift:310` | 시트·입력창은 부모를 따름. 부모 preferredLevel은 AppDelegate에서 공용 식 적용, confirming .normal 예외 유지 |
+| `app/Sources/ConnectionsWindow.swift:312` | 시트·입력창은 부모를 따름. 부모 preferredLevel은 AppDelegate에서 공용 식 적용, confirming .normal 예외 유지 |
+| `app/Sources/HooksHelp.swift:7` | 설정 도움·결과·실패 상자: OptionWindows.runModal 적용 |
+| `app/Sources/HooksHelp.swift:9` | 설정 도움·결과·실패 상자: OptionWindows.runModal 적용 |
+| `app/Sources/HooksHelp.swift:17` | 설정 도움·결과·실패 상자: OptionWindows.runModal 적용 |
+| `app/Sources/HooksHelp.swift:18` | 설정 도움·결과·실패 상자: OptionWindows.runModal 적용 |
+| `app/Sources/HooksHelp.swift:20` | 설정 도움·결과·실패 상자: OptionWindows.runModal 적용 |
+| `app/Sources/RoomDialogs.swift:5` | RoomDialogs.present 또는 OptionWindows.runModal에서 적용(생성 함수는 호출자에서 적용) |
+| `app/Sources/RoomDialogs.swift:38` | RoomDialogs.present 또는 OptionWindows.runModal에서 적용(생성 함수는 호출자에서 적용) |
+| `app/Sources/RoomDialogs.swift:48` | RoomDialogs.present 또는 OptionWindows.runModal에서 적용(생성 함수는 호출자에서 적용) |
+| `app/Sources/RoomDialogs.swift:50` | RoomDialogs.present 또는 OptionWindows.runModal에서 적용(생성 함수는 호출자에서 적용) |
+| `app/Sources/RoomDialogs.swift:56` | RoomDialogs.present 또는 OptionWindows.runModal에서 적용(생성 함수는 호출자에서 적용) |
+| `app/Sources/RoomDialogs.swift:62` | RoomDialogs.present 또는 OptionWindows.runModal에서 적용(생성 함수는 호출자에서 적용) |
+| `app/Sources/RoomDialogs.swift:64` | RoomDialogs.present 또는 OptionWindows.runModal에서 적용(생성 함수는 호출자에서 적용) |
+| `app/Sources/RoomDialogs.swift:69` | RoomDialogs.present 또는 OptionWindows.runModal에서 적용(생성 함수는 호출자에서 적용) |
+| `app/Sources/RoomDialogs.swift:77` | RoomDialogs.present 또는 OptionWindows.runModal에서 적용(생성 함수는 호출자에서 적용) |
+| `app/Sources/RoomDialogs.swift:83` | RoomDialogs.present 또는 OptionWindows.runModal에서 적용(생성 함수는 호출자에서 적용) |
+| `app/Sources/RoomDialogs.swift:117` | RoomDialogs.present 또는 OptionWindows.runModal에서 적용(생성 함수는 호출자에서 적용) |
+| `app/Sources/RoomDialogs.swift:118` | RoomDialogs.present 또는 OptionWindows.runModal에서 적용(생성 함수는 호출자에서 적용) |
+| `app/Sources/RoomDialogs.swift:120` | RoomDialogs.present 또는 OptionWindows.runModal에서 적용(생성 함수는 호출자에서 적용) |
+| `app/Sources/RoomDialogs.swift:124` | 중복 사진 고르기 제거, ConversationView.choosePicture 공용 경로로 통합 |
+| `app/Sources/ConversationView.swift:293` | OptionWindows.runModal에서 활성화·공용 높이 적용 |
+| `app/Sources/ConversationView.swift:295` | OptionWindows.runModal에서 활성화·공용 높이 적용 |
+| `app/Sources/ConversationView.swift:309` | 사진: 공용 choosePicture에서 OptionWindows.prepare 적용 |
+| `app/Sources/ConversationView.swift:343` | OptionWindows.runModal에서 활성화·공용 높이 적용 |
+| `app/Sources/ConversationView.swift:879` | 첨부 구성값 유지, 실제 chooseFiles 직전 OptionWindows.prepare 적용 |
+
+착수 검색은 인계서 지정 정규식의 모든 일치 행을 담았다. `NSSavePanel(` 일치 0개.
+
+추가/이동된 공용 입구와 시트:
+
+| 최종 위치 | 처리 |
+|---|---|
+| `app/Sources/AppDelegate.swift:138` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/AppDelegate.swift:398` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/AppDelegate.swift:400` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/AppDelegate.swift:403` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/AppDelegate.swift:404` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/ThreeTapController.swift:134` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/LetterPictureDialog.swift:36` | 새 색과 글자 창: 기본 present에서 OptionWindows.runModal |
+| `app/Sources/LetterPictureDialog.swift:38` | 새 색과 글자 창: 기본 present에서 OptionWindows.runModal |
+| `app/Sources/LoginWindow.swift:44` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/LoginWindow.swift:45` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/AppUpdate.swift:31` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/AppUpdate.swift:103` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/AppUpdate.swift:110` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/PetController.swift:253` | 제외: 기준이 되는 펫/대화 창 자체 |
+| `app/Sources/WebPane.swift:381` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/WebPane.swift:385` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/WebPane.swift:389` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/WebPane.swift:395` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/OptionWindows.swift:16` | 공용 정책의 AppKit 호출 지점. runModal/show 전에 prepare |
+| `app/Sources/OptionWindows.swift:18` | 공용 정책의 AppKit 호출 지점. runModal/show 전에 prepare |
+| `app/Sources/OptionWindows.swift:19` | 공용 정책의 AppKit 호출 지점. runModal/show 전에 prepare |
+| `app/Sources/OptionWindows.swift:22` | 공용 정책의 AppKit 호출 지점. runModal/show 전에 prepare |
+| `app/Sources/OptionWindows.swift:23` | 공용 정책의 AppKit 호출 지점. runModal/show 전에 prepare |
+| `app/Sources/PetSettingsWindow.swift:195` | 생성 전용 상자: AppDelegate의 공용 runModal에서 표시 |
+| `app/Sources/PetSettingsWindow.swift:203` | 생성 전용 상자: AppDelegate의 공용 runModal에서 표시 |
+| `app/Sources/ConversationView.swift:293` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/ConversationView.swift:295` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/ConversationView.swift:307` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/ConversationView.swift:349` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/ConversationView.swift:885` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/RoomDialogs.swift:5` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/RoomDialogs.swift:38` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/RoomDialogs.swift:48` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/RoomDialogs.swift:50` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/RoomDialogs.swift:56` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/RoomDialogs.swift:62` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/RoomDialogs.swift:64` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/RoomDialogs.swift:69` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/RoomDialogs.swift:77` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/RoomDialogs.swift:83` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/RoomDialogs.swift:117` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/RoomDialogs.swift:118` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/RoomDialogs.swift:120` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/HooksHelp.swift:7` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/HooksHelp.swift:9` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/HooksHelp.swift:17` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/HooksHelp.swift:18` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/HooksHelp.swift:20` | 공용 정책 적용; 생성 전용은 그 호출자에서 적용 |
+| `app/Sources/ConnectionsWindow.swift:288` | 부모 공용 preferredLevel·확인 예외를 따르는 기존 시트/복귀 경로 |
+| `app/Sources/ConnectionsWindow.swift:291` | 부모 공용 preferredLevel·확인 예외를 따르는 기존 시트/복귀 경로 |
+| `app/Sources/ConnectionsWindow.swift:296` | 부모 공용 preferredLevel·확인 예외를 따르는 기존 시트/복귀 경로 |
+| `app/Sources/ConnectionsWindow.swift:297` | 부모 공용 preferredLevel·확인 예외를 따르는 기존 시트/복귀 경로 |
+| `app/Sources/ConnectionsWindow.swift:310` | 부모 공용 preferredLevel·확인 예외를 따르는 기존 시트/복귀 경로 |
+| `app/Sources/ConnectionsWindow.swift:312` | 부모 공용 preferredLevel·확인 예외를 따르는 기존 시트/복귀 경로 |
+
+추가 창 생성·표시 검색:
+
+| 최종 위치 | 처리 |
+|---|---|
+| `app/Sources/AppDelegate.swift:312` | 생성 뒤 OptionWindows.show로 표시 |
+| `app/Sources/AppDelegate.swift:324` | 생성 뒤 OptionWindows.show로 표시 |
+| `app/Sources/LoginWindow.swift:64` | 생성 뒤 OptionWindows.show로 표시 |
+| `app/Sources/PetView.swift:15` | 제외: 기준 펫 창 자체 |
+| `app/Sources/PetController.swift:206` | 제외: 기준 펫 창 자체 |
+| `app/Sources/PetSettingsWindow.swift:45` | 생성 뒤 OptionWindows.show로 표시 |
+| `app/Sources/ConnectionsWindow.swift:232` | 부모 preferredLevel은 공용 식, 입력 시트는 부모·확인 예외를 따름 |
+| `app/Sources/ConnectionsWindow.swift:276` | 부모 preferredLevel은 공용 식, 입력 시트는 부모·확인 예외를 따름 |
+
+
+위 목록에서 실제 사용자 창을 띄우지 않은 경로의 근거: 시작 실패·설정 도움 프로세스 결과·업데이트 안내·로그인 네트워크 검색·대시보드/달력은 실제 외부 상태를 사용하지 않기 위해 호출 위치에서 공용 함수 사용을 검토했다. 공용 함수·실제 설정창·방 상자·색과 글자 상자 및 세 메뉴의 사진 chooser는 시험으로 높이·활성화 순서를 확인한다. 연결 창은 기존 실제 시트 시험 AT-FF-20~23을 그대로 실행한다. 메뉴 NSMenu 자체에는 창 높이를 적용하지 않는다.
+
+### 시험 계약
+
+- AT-FF-50: 실제 직원·그룹·홈 메뉴가 같은 두 하위 항목을 제공하고 각 항목이 그 대상 kind/id를 쓴다.
+- AT-FF-51: 14색 × `가`/빈 글자를 PNG로 디코드해 256×256·512 KiB·알파·밝은 테마 배경 모서리·전경색·빈 그림 전체를 픽셀 검사한다. UI 색 목록 순서·이름과 미리보기, 이름 첫 글자도 확인한다.
+- AT-FF-52: `가`, `AB`, 긴 한글, 8글자 초과의 다른 픽셀 경계 상자가 18% 안전 영역 안인지 검사한다. 긴 글자의 실제 높이 감소, 8글자와 초과 입력의 결과 동일성, 조합 이모지 한 글자 처리·전경색 규칙을 확인한다.
+- AT-FF-53: 가짜 pictureSender로 세 대상의 저장·생성 PNG를 확인한다. 취소는 전송·모델 변경 0회, 실패는 기존 문구, 열려 있는 동안 연결 주소가 바뀌면 전송 0회다.
+- AT-FF-54/60: 실제 공용 사진 chooser에 응답만 주입해 직원·그룹·홈의 취소/넣기를 각각 한 번 완료한다. 넣기에서는 임시 PNG가 기존 사진 변환을 거쳐 가짜 업로드로 들어간다. 기존 사진 시험도 그대로 실행한다.
+- AT-FF-60/61: 펼친 PetView의 실제 펫 창 높이를 .floating과 mainMenu+1 두 가지로 두고 사진·글자·방 상자·설정·공용 독립창의 표시 전에 활성화·펫보다 높은 높이를 확인한다. 실제 AppKit 창을 쓰며 파일 선택/모달 응답과 업로드만 가짜다.
+- AT-FF-63: 기존 첨부 설정·연결 입력/확인/비활성 예외 및 전체 앱 시험의 기대값을 유지한다.
+
+별도 mutation check는 미실행이다. 실제 그림 픽셀, 실제 메뉴·창, 가짜 전송 경계와 기존 앱/통신 회귀를 증거로 사용한다. 운영 직원 사진 업로드·다른 Mac 동기화 실물 확인 M9, 설치 앱의 모든 옵션창 체감 M10은 미실행이다.
+
+### 중간 실패와 보완 기록
+
+최종 통과 결과와 구분해 기록한다.
+
+1. 첫 전체 실행은 새 입력 코드가 NSText에 hasMarkedText를 호출해 **컴파일 종료 1**이었다(`E9/app-full-initial.log/json`). 실제 field editor를 NSTextView로 확인하도록 보완했다.
+2. 다음 전체 실행은 WebPane의 기존 private ask 함수에서 @MainActor 공용 창 함수를 호출해 **컴파일 종료 1**이었다(`E9/app-full-second.log/json`). AppKit의 WKUIDelegate에서 호출되는 해당 보조 함수에 @MainActor를 명시했다. 이후 전체 제품·시험 `xcrun swiftc -typecheck`는 **종료 0**이었다(`E9/typecheck.log/json`).
+3. 그 다음 전체 실행은 기존 AT-TD-20~42 및 AT-FF-40/41을 통과한 뒤 **새 AT-FF-51 시험**의 배경색 검사에서 종료 1이었다(`E9/app-full-pixel-failure.log/json`). 새 시험만 실행해도 같은 실패였다(`E9/focused-before-color-fix.log/json`).
+4. [재현] PNG bitmap은 sRGB인데 `colorAt`의 반환 NSColor가 calibrated RGB 표기를 썼다. 이를 다시 usingColorSpace(.sRGB)로 바꾸면 원시 sRGB 성분이 재해석됐다. 파랑의 원시 G 약 0.462745는 기대 약 0.461414와 2/255 이내지만, 이중 변환 후 약 0.548793이 돼 실패했다(`E9/pixel-probe.log`).
+5. PNG의 이미 sRGB인 표본 성분을 직접 비교하도록 **새 시험의 읽기 오류**를 고쳤다. 명세·허용 오차 2/255·기존 시험 기대값은 바꾸지 않았다. 같은 codec/palette와 새 픽셀 검사의 별도 실행은 **종료 0**, LETTER_PIXEL_PROBE_PASS였다(`E9/pixel-check.log/json`). 새 메뉴·전송·옵션창 시험을 포함한 집중 실행도 **종료 0**이었다(`E9/focused.log/json`, 빌드 `focused-build.log/json`).
+
+기존 시험 기대값의 수정이 필요한 실패나 연결 창 예외 충돌은 발견하지 않았다. `--finder-picture`는 새 시험만 선택 실행하는 TestMain의 시험 전용 갈래이며 제품 앱에는 포함되지 않는다.
+
+
+### 최종 검증·커밋·인계
+
+**구현자 판단: TASK-11 구현·자체 시험 완료, 검토 대기.** 새 시험 집중 실행과 최종 전체 시험이 모두 통과했다. 코드 커밋 전체 해시는 **`5fc60b21a2952ddbf9f0879cd4759ff73ab2f341`**, hejo main이다. 공용 옵션창·색과 글자 사진 소스, 그 호출 지점, 새 시험과 TestMain을 포함한 자기 17경로만 commit --only했다. 실제 경로 목록과 각 blob 대조는 `E9/app-commit.json`에 있다.
+
+| 명령(hejo cwd) | 종료 코드 | 결과 | 로그 |
+|---|---:|---|---|
+| `pgrep -f app-tests` | 1 | 최종 전체 시험 전 다른 앱 시험 없음 | `E9/app-pgrep.json` |
+| `xcrun swiftc -typecheck <제품 소스·시험 전체>` | 0 | 앞 절의 컴파일 오류 보완 확인 | `E9/typecheck.log/json` |
+| `xcrun swift E9/pixel-check.swift` | 0 | 새 픽셀 읽기 보완 후 전체 생성 그림 검사 통과 | `E9/pixel-check.log/json` |
+| `xcrun swiftc <앱 소스·시험>` + `app-tests --finder-picture <개발 리소스>` | 0 / 0 | 새 AT-FF-50~54·60~61 집중 실행 통과 | `E9/focused-build.log/json`, `E9/focused.log/json` |
+| **`HEJO_PYTHON=P bash app/scripts/test.sh` (최종)** | **0** | 개발 빌드·서명, APP_TEST_OK, 새 사진·옵션창, 기존 AT68/70/80 사진·메뉴, AT88 첨부, AT-FF-20~23, ThreeTap·서랍, 통신 fixture·hooks 9개 통과 | `E9/app-full.log/json` |
+| `P scripts/scan_private.py` (새 경로 intent-to-add 뒤) | 0 | 새 소스·시험 포함 개인값 검사 | `E9/scan-private-code.log`, `E9/code-checks.json` |
+| 자기 앱 경로 `git diff --check` | 0 | 공백 오류 없음 | `E9/diff-check.log`, `E9/code-checks.json` |
+| `git commit --only -- <자기 앱 17경로>` | 0 | 위 코드 커밋 | `E9/app-commit.log/json` |
+
+전체 시험의 제품 소스·시험 SHA는 `E9/app-tested-source.json`, 시험 중 변경 목록은 `E9/app-full.json`이며 변경 0개다. 커밋의 17개 blob이 이 시험 바이트와 같음을 확인했다. 기존 사진·홈·방·연결·첨부 시험 파일과 ConnectionsWindow 자체는 착수본과 같은 바이트다(`E9/protected-source-check.json`). 실제 설정 메타데이터·Downloads 이름 보존 검사도 통과했다. 기존 Swift 6 모드 경고와 AppKit 입력/색 공간 진단은 로그에 남았으나 현재 Swift 5 빌드·시험은 종료 0이다.
+
+검토자는 코드, AT-FF-62 전후 위치 목록, 픽셀 읽기 보완 이유와 최종 전체 결과를 확인한다. 최종 코드에 추가 변경·실패·증거 누락이 없다면 같은 전체 시험을 다시 돌릴 필요는 없다. 보고서 최종 개인값·공백 검사 결과 및 SHA는 `E9/final-report-checks.json`, 보고서만의 커밋 결과는 `E9/report-commit.json`에 남긴다.
+
+남은 확인은 설치 앱에서 사장 M9(색과 글자·다른 Mac 동기화)와 M10(모든 옵션창 앞에 표시)이다. 이 대화는 0.2.4 공개 후보를 만들지 않았다. 공개 후보를 준비하는 다른 세션에 위 코드 커밋을 포함해야 한다. TASK-09 성능 기준 미충족의 수용은 기존 지시대로 맨 마지막 실제 탭 M7에서 사장이 판단한다. TASK-10은 재구현하지 않았다.
+
+운영 사진 업로드·연결 동작·메시지·실행본 교체·재시작·본체·ddots·gate/·schemas/·앱 버전·설치 앱·수락 기준/시험 명세/spec/design 변경과 git push는 없다. 추적하지 않는 다른 작업의 감사 문서는 보존했다. 원격 github·브랜치 main에는 다른 작업 커밋도 함께 있으므로, 향후 공개·푸시 대상 승인 때 전체 포함 범위를 명시해야 한다. 구현 결과와 최종 검토·푸시 완료는 구분한다.
