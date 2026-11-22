@@ -1,6 +1,6 @@
 # HEJO-UI-CLEAN 명세
 
-2판 · 2026-11-23 · 상태: 초안(사장 최종 시안 승인; 2판 = 구현 담당 보류 R-UC-I1 반영: 시험 이관 목록·머리 수치·칩/툴팁 범위 정리) · 기준 커밋: main `e9f2d59` · 결정 [brainstorm.md](brainstorm.md) · 최종 시안 [mockups/final-4.png](mockups/final-4.png)
+2판 · 2026-11-23 · 상태: 적용(main 49c6d18, 2026-11-23, 사장 확인 M-UC-1 남음; 2판 = 구현 담당 보류 R-UC-I1 반영: 시험 이관 목록·머리 수치·칩/툴팁 범위 정리) · 기준 커밋: main `e9f2d59` · 결정 [brainstorm.md](brainstorm.md) · 최종 시안 [mockups/final-4.png](mockups/final-4.png)
 
 ## 칸·원본·쓰기 주체·수명
 | 다루는 것 | 칸 | 원본 위치 | 쓰기 주체 | 수명 |

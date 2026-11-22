@@ -1,6 +1,6 @@
 # HEJO-UI-CLEAN 설계
 
-4판 · 2026-11-23(4판: 보류 R-UC-I4 — AT56 칸 선택 경로, TASK-02 제거 보기 규칙. 2판: 보류 R-UC-I1 — 4.1 이관 표, 3판: 보류 R-UC-I2 — AT-DI-39, 연결 없음 접미사, AT-DI-22 준비 상태, 파생 수치 규칙) · 명세 [spec.md](spec.md) · 기준 main `e9f2d59` · 칸 표는 spec 첫 절.
+4판 · 2026-11-23 · 상태: 적용(main 49c6d18)(4판: 보류 R-UC-I4 — AT56 칸 선택 경로, TASK-02 제거 보기 규칙. 2판: 보류 R-UC-I1 — 4.1 이관 표, 3판: 보류 R-UC-I2 — AT-DI-39, 연결 없음 접미사, AT-DI-22 준비 상태, 파생 수치 규칙) · 명세 [spec.md](spec.md) · 기준 main `e9f2d59` · 칸 표는 spec 첫 절.
 
 ## 1. 지금 흐름 [확인]
 - 알약: `IslandModel.snapshot()`이 `parts`(problem/owner/worker, 미리보기 event, "닫기 ‹" 덧붙임)를 만들고(`IslandModel.swift:111-160`), `IslandView`가 여러 칸으로 그린다. `ConversationView.layout`이 알약을 `x+12`에, 그 오른쪽에 `heading`(방 이름)·`subtitle`(설명)을 둔다. 클릭은 `ConversationView` `tickIsland`/`.drawer`·`.question`·`.worker`·`.reconnect`·`.retry` 처리.

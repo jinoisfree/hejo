@@ -2,7 +2,7 @@
 
 5판 · 2026-11-23(5판: 보류 R-UC-I4 — AT-UC-05에 알약 경로 1.5초 만료 보호 추가. 4판: 보류 R-UC-I3 — AT-UC-12 표본 위치. 2판: 보류 R-UC-I1 — 이관 목록 design 4.1, 머리 수치, AT-UC-30·34 범위. 3판: 보류 R-UC-I2 — 이관 표 보완만, AT-UC 기대 불변) · 명세 [spec.md](../../docs/changes/HEJO-UI-CLEAN-20261123/spec.md) · 설계 [design.md](../../docs/changes/HEJO-UI-CLEAN-20261123/design.md) · 시안 [final-4](../../docs/changes/HEJO-UI-CLEAN-20261123/mockups/final-4.png)
 
-상태: 명세 완료 · 코드 미작성 · 미실행.
+상태: 실행·통과(main 49c6d18, 환경 예외 AT-HC-27·연결 관리 timeout은 기준 동일 — verdict 8회). 기존 시험 이관 목록은 impl-report.
 모두 앱 시험(`app/Tests`). 임시 `LocalStore`, 가짜 명부(`alpha` "직원 A", `beta` "직원 B"), 가짜 화면 1440×900, 실제 `ConversationView`+`PetController` 조립. 테마 전환은 실제 경로(`ChatAppearance.change` → `applyChatAppearance`), 픽셀 비교는 RGBA 네 성분 차이 합(HEJO-DRAWER-INLINE 10판 규칙). 시각은 주입 시계.
 기대값 출처: spec 문장과 사장 최종 시안 수치(점 8pt·2.4초·35%, 카드 52/10/7/6, 사진 26, 세로줄 6/10/3).
 
