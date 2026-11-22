@@ -122,3 +122,12 @@
 - 도달 상태: 적용 전 읽기 조사·롤백 준비. `install/hejo-release`, `hejo-install --check`, 재시작과 재시작 뒤 검증은 미실행. 따라서 AT-HT-61 및 요구 수준 3은 미도달이다. 착수 상태는 gateway running·PID 생존·active_agents 1, Telegram 모듈 없음이다(재시작 직전 판정이 아님).
 - 검증: 로컬 preflight 보조 명령 종료 0, Git diff/log 명령 각각 종료 0, Hermes venv 의존성 검사 명령 종료 0(모듈 부재 확인). 증거 폴더 `.build/HEJO-TELEGRAM/task07/`. 기록 파일을 포함한 개인값 검사는 종료 1(다른 작업 HEJO-DEADLINE-CLOSE 문서 절대 경로 4건, 이번 파일 0건; `private.log/.exit`), `git diff --check`는 종료 0이다.
 - 권고/다음: 계획 담당이 지정 확인 명령의 정상 내부 읽기를 한정 허용할지, 파일 내용을 열지 않는 대체 확인을 쓸지 결정해 인계를 정합화한다. 재개 시 최신 RELEASE·HEAD와 재시작 직전 active_agents를 다시 확인한다. 텔레그램 패키지 직접 설치·앱 교체/공개·실제 발송·본체/플러그인/team-kit 변경·푸시는 수행하지 않았다. 다른 작업 미추적 문서는 보존했다.
+
+## TASK-07 보완 2 — 릴리스 설치 후 활성 작업 대기 한도 초과
+
+- 인계 2판 `246caecda2e676a24df153355dfc4d7737a48c11`과 verdict 3차의 HT-B03 해소를 확인하고 재개했다. 실제 설치 대상은 착수 HEAD `0bcf63535df381e491c99af9cbef41179b7cd79f`다. 제품 기준 `1ef3ad2`와 이 대상의 gate/schemas/hub/install/config 차이 0건, 이전 RELEASE와의 설치 범위 변경은 이 작업 5개 커밋뿐임을 확인한 뒤 설치했다. 다른 작업 파일은 보존했다.
+- 공용 RELEASE 갱신·공용 파일 대조·설치 검사는 수행했다. **active_agents가 634.246초 동안 6번 모두 1**이어서 인계 9(5)의 10분 한도에 따라 재시작 없이 중단했다. 설치된 파일은 새 버전이고 실행 프로세스는 기존 PID다. 재시작·강제 종료·롤백은 하지 않았다. TASK-07 완료나 AT-HT-61 통과로 판단하지 않는다.
+- 최초 설치 검사 종료 1은 원시 venv의 Hermes 모듈 검색 경로 부재였다. 해당 명령의 `PYTHONPATH`만 제공해 같은 venv 재실행 종료 0을 확인했다. 패키지·본체·운영 설정은 바꾸지 않았다. 상태 조회용 native 보조 클라이언트는 Keychain 출입증 검색에서 시간 초과해 실제 조회 미실행이며, 인증값은 출력·기록하지 않았다.
+- 실제 명령·UTC 관측·41개 파일 대조·롤백 및 재개 조건은 [TASK-07 증거](../../../evidence/HEJO-TELEGRAM/TASK-07.md) 마지막 두 절에 기록했다. 로그는 추적 제외 `.build/HEJO-TELEGRAM/task07/`에 있다. `install/hejo-release` 종료 0, `compare-release.py` 종료 0, `hejo-install --check` 최초 1/환경 보완 후 0, `wait-idle.py` 종료 2(한도 초과), `final-state.py` 종료 0이다. 최종 RELEASE 일치·기존 실행 PID 생존·보호 파일 metadata 동일을 직접 확인했다.
+- AT-HT-60 사전 기록·롤백 준비는 수행했고 서버 적용 수준 3/AT-HT-61은 미도달이다. 재시작 이후 SDK 자동 설치·연결·새 오류·상태·로그 노출 검증은 남았다. 다음은 계획 담당 검토 후 활성 작업 없는 시점에 인계 9(5)부터 재개하며, 이미 설치된 릴리스를 반복 설치하지 않는다. 설정·비밀 파일 직접 열람/쓰기, 직접 패키지 설치, 본체/플러그인/team-kit 변경, 앱 사본 교체·공개, 실제 발송·푸시는 수행하지 않았다.
+- 임시 빈 HERMES_HOME에서 Hermes venv `scripts/scan_private.py` 종료 1: 다른 작업 HEJO-DEADLINE-CLOSE의 기존 절대 경로 4건만 검출, 이 작업 파일 0건이다(`private-resume.log/.exit`). `git diff --check` 종료 0. 제품 코드 시험은 이번에 바꾸지 않아 반복하지 않았다.
