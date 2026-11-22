@@ -445,3 +445,22 @@ TASK-09의 측정은 실제 트랙패드 탭이 아니라 수락 명세 AT-FF-30
 4. 이후는 16차 지시 2항 끝(관련 8파일+test_finder_manifest_updates+team-kit 전체 ⊆ 기준+airport-check)과 3·4·5·6항(운영 적용 a~d, d2 조율, 금지, 보고)을 그대로 따른다.
    보고 절 이름은 '17차-TASK-15'.
 ```
+
+## 18차 지시 (2026-11-22): TASK-15 마무리 1단계 — ./sync·운영 커밋 (재시작 없음)
+
+사장 결정(19:2x): 직원 D 적용용 재시작은 OPS-REPO-RENAME 세션(d2)의 예정 재시작에 합친다.
+
+```text
+[설계 인계: HEJO-FINDER-FOLDERS TASK-15 마무리 1단계]
+1. 운영 저장소(AGENTS.local.md의 `<운영 저장소>`)에서 ./sync를 실행한다(토큰 경고가 나오면 커밋하지 않고 멈춤).
+2. git status·git diff로 바뀐 경로가 이 작업 것인지 하나씩 확인한다:
+   실행본 config_assembly.py(이 작업 app_manifests 변경), team-kit tests 두 파일(test_finder_folders.py 복원, test_finder_manifest_updates.py 갱신),
+   직원 D 플러그인 링크, plugin-store/links.json 직원 D 항목, owner/policy.yaml 직원 D 기본 도구, 직원 D config.yaml·owner/team.yaml·owner/vault.yaml의 Finder 연결 기록.
+   다른 세션의 변경이 같은 파일에 섞였으면 그 파일은 커밋하지 말고 보고한다.
+3. 이 작업 경로만 git commit --only(한국어 메시지, 무엇을 왜). 커밋 뒤 운영 저장소 미커밋이 0인지 확인한다(AT-FF-86).
+4. 재시작·--resume·연결 재제출은 하지 않는다(d2 재시작 뒤 다음 지시로).
+5. 금지: 게이트웨이 재시작, install/hejo-release, 비밀 파일 내용 열기(diff는 경로·줄 수만 보고, vault 값은 보고서에 쓰지 않음), 실제 메시지, 본체·ddots, 수락 기준·spec·design 수정, git push.
+6. 보고: impl-report.md '18차-TASK-15 마무리 1' 절(운영 커밋 전체 해시, 커밋 경로 목록, 미커밋 0 확인, 명령·종료 코드·로그 경로), result.
+```
+
+(2단계, d2 재시작 뒤 별도 지시: `--resume gateway_restart` 1회 → `completed_since`로 새 재시작 없이 permission·check → done 확인.)
