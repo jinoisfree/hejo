@@ -43,3 +43,11 @@
 - 영향: 실행 순서상 AT-HC-27 뒤 시험(`TestMain.swift:293` 이후)과 네트워크 fixture·gate 시험은 이번 변경본으로 아직 돌지 않았다. 증거 수준 2 미도달.
 - 결정: TASK-01은 **환경 예외를 기록하고 커밋 허용**, TASK-02·03 진행. 단 main 병합 전 조건 = 앱이 활성화될 수 있는 환경에서 전체 `test.sh` 종료 0(AT-HC-27 포함). 그 전까지는 뒤쪽 시험을 별도 확인한다(아래 계획).
 - 설계 적합성(4.2) — TASK-01 중간 판정: 적합. 카드 문장 원본 `TodoDrawerModel`(status·statusUrgent·trailing), 그리기 `TodoDrawerView`, 세로줄 공용 값 `AttentionRail` 하나를 칸·채팅이 같이 씀, 선택 원본 `ConversationView.drawerSelectedID`, 0개 흐림은 공용 `ComposerButton` 인자. 두 번째 원본·시험용 옛 API 없음. 최종 판정은 전체 시험 종료 0 커밋에서.
+
+## 6회 · 2026-11-23 · TASK-01 판정: 부분 완료(커밋 전) — 원인: 환경(검증 환경 불안정), 변경 원인 근거 없음
+
+- 대상: 구현 worktree HEAD `5db23f5` + 미커밋 13파일(이전 후보와 바이트 동일, `task-01-exception-review-state.json`). 임시 AT-HC-27 건너뛰기는 원문 SHA-256으로 복원 확인. 검증 조건: 교차 모델.
+- [확인] AT-HC-27 건너뛴 전체 앱 실행: AT-HC-20~29 통과 뒤 `TestMain.swift:18` 공용 대기 "timed out"(`task-01-authorized-exception-app-tests.log:255`). 다음 순서는 `progressLayoutTests` 이후(`TestMain.swift:294-`)이며 어느 시험인지 미확정. 기준 코드에서 같은 지점이 재현되는지는 아직 안 봤다.
+- [확인] gate 시험 422 통과·5 실패(`task-01-exception-review-gate-ready.log`): `import yaml` 없음 3건, `hermes_facility` 없음 1건, `test_delivery_parity.py:125` 승인 단추 문구가 번역 키(`platform.sl…confirm.cancel`)로 나옴 1건. 지정 게이트 Python 환경(Hermes 설치 환경)의 모듈·본체 문구 문제이고, 이 작업은 `app/`만 바꿨으므로 gate 결과에 영향을 줄 경로가 없다.
+- 판단: 사장 부재 중 같은 Mac의 다른 세션 작업과 Hermes 환경 변화로 "전체 종료 0"을 지금 얻을 수 없다. 변경 탓인지 가리는 기준을 **기준 코드와의 차이**로 바꾼다 — 같은 명령을 변경 없는 기준 복사본에서 돌려 실패 집합이 같으면 환경 예외로 기록하고 TASK 커밋 허용. main 병합 조건(앱 활성 가능·정상 Hermes 환경에서 전체 종료 0)은 그대로.
+- 설계 적합성(4.2): 5회 중간 판정(적합)에서 제품 코드 변화 없음.

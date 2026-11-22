@@ -246,3 +246,51 @@ R-UC-I3의 입력/바탕 표본 조건 판정 뒤 **현재 미커밋11파일을 
 ### 다음 인계
 
 R-UC-I5 판정 전 **미커밋13파일 보존**, 새 후보 커밋 없음. 연결 시험 실행 조건/범위가 해소되면 같은 후보의 전체 test.sh 종료0을 확보하고 자기13경로만 commit --only 한다. 이어 TASK-02→03을 진행한다. 4판의 제거 보기 규칙과 알약 경로1.5초 유지 조건은 그대로다. 분홍 표식·접기 단추 주인 확정은 TASK-03에 남았다. main으로의 구현 병합·설치·공개·푸시·운영 반영 없음. 릴리즈 총괄에 전달할 후보 해시는 없으며 위 기준 위 미커밋 상태·공통 포커스 시험 실패를 호스트가 전달한다.
+
+
+## TASK-01 · 환경 예외 재개: 추가 실패로 커밋 보류(R-UC-I6)
+
+### 기준·보존·실행 범위
+
+- 지정 문서 커밋 `5db23f5e08f5fafc9b211116e078f934bb73f6b8`을 구현 브랜치에 merge했다(종료0, 문서만, 충돌 없음). 구현을 main에 병합한 것이 아니다.
+- 기존 미커밋13파일을 폐기하거나 stash하지 않았다. 이번 제품 변경·영구 시험 변경은 없다. 최종 후보 `task-01-exception-review-candidate.patch`는 이전 `task-01-edition-5-candidate.patch`와 바이트가 같다(`task-01-exception-review-state.json`). HEAD는 위 기준이며 새 구현/릴리즈 후보 커밋이 아니다.
+- 승인된 절차대로 전체 앱 스크립트를 한 번 재실행한 뒤, AT-HC-27 단언 한 곳만 임시 출력으로 교체해 다시 실행했다. 임시 수정은 복원했고 커밋하지 않았다. 다른 단언을 건너뛰거나 기대값을 바꾸지 않았다.
+
+### 앱 시험: 허용한 단언 뒤 추가 timeout
+
+- 원문 전체 실행은 다시 `ConnectionsTests.swift:219` AT-HC-27에서 종료1. 새 AT-UC-10~19와 앞선 이관/회귀 시험은 통과했으나 뒤쪽 기본 시험과 네트워크 fixture는 미도달이다.
+- 임시 실행에서 해당 단언의 실제 값은 **visible=true, key=false, fieldsEmpty=true, busy=false, appActive=false**였다. verdict5의 기준 재현 값과 같다.
+- 그 뒤 **AT-HC-20~29 APP PASS**까지 진행한 다음 `APP_TEST_FAILED assertion("timed out")`으로 종료1. `AT-CM-30~38 APP PASS`는 출력되지 않았다. 정적 호출 순서는 connectionsScreenTests → connectionManagementTests이며, 뒤 함수의 `ConnectionsTests.swift:346`은 `NSApp.isActive && foremost.isVisible && foremost.isKeyWindow`를 기다린다. 이 대기가 후보지만 실행 스택/각 피연산자는 새로 수집하지 않아 정확한 실패 줄·원인은 확정하지 않는다. 다른 실패이므로 추가 skip/제품 수정/단언 변경 없이 멈췄다.
+- 임시 diff `task-01-authorized-skip.diff`는 원래 단언 한 줄을 Boolean 출력 한 줄로 바꾼 것뿐이다. 원문은 `task-01-connections-original.swift`에 보존했다. 실행 후 바이트 SHA-256 일치, `git diff -- app/Tests/ConnectionsTests.swift` 빈 출력·종료0, 복원 결과 `task-01-authorized-exception-result.json`의 restored=true/restoredDiffEmpty=true를 확인했다.
+- 따라서 **예외를 둔 전체 앱 스크립트도 통과하지 않았다**. Connections 이후 기본 시험 및 네트워크 fixture는 이번 실행에서 여전히 미도달이다. 전체 종료0이나 나머지 앱 전체 통과로 보고하지 않는다.
+
+### 별도 게이트 시험
+
+- app/scripts/test.sh에는 gate pytest 실행이 없으므로, 나머지 gate 결과를 얻기 위해 README에 있는 gate/tests + tests/acceptance 범위를 별도로 실행했다.
+- 지정 venv에는 pytest가 없어 첫 시도는 No module named pytest로 종료1(미실행). pip도 없어 해당 의존성 설치 시도는 실행되지 않았다. 이어 uv로 pytest/pytest-asyncio와 의존성을 **무시되는 증거 폴더 test-python-deps/**에만 준비했다. 운영 venv·Hermes 본체·운영 설정은 바꾸지 않았다.
+- 지정 venv + 위 임시 PYTHONPATH에서 pytest는 **422 passed, 5 failed**, 종료1이었다. 실패 목록:
+  - `gate/tests/test_delivery_parity.py:125` test_native_labels_outcome_and_repeat_are_idempotent: 예상 한국어 버튼 문구 대신 `platform.slack.confirm.*` 키 문자열. 원인 미확정, 코드/기대 수정 없음.
+  - `gate/tests/test_gateway_progress.py:228`, `tests/acceptance/test_gate_delivery.py:18`, `tests/acceptance/test_slack_move_gate.py:547`: 자식 러너에서 No module named yaml.
+  - `tests/acceptance/test_gate_foundation.py:168` test_at_hf_08[True]: No module named hermes_facility.
+- 게이트 코드·시험은 이 작업에서 바꾸지 않았지만 새 실패들의 기준 비교는 미실행이다. 환경/본 작업 무관으로 모두 면제하지 않는다. 추가 모듈 설치·team-kit 연결·게이트웨이 러너 단독 재실행·기대값 변경은 하지 않았다. 다른 실패는 멈추라는 지시에 따라 판정을 요청한다.
+
+### 검증 명령·실제 결과
+
+로그 경로는 구현 worktree 루트 `.build/ui-clean-evidence/` 기준이다. 검증본은 위 HEAD + 보존된13파일이며, 예외 실행에만 승인된 임시 단언 교체가 더해졌다.
+
+| 명령 | 종료 | 증거·결과 |
+|---|---|---|
+| `HEJO_PYTHON=<gateway venv python> bash app/scripts/test.sh` 원문 | 1 | `task-01-exception-review-full.log`, AT-HC-27 실패 |
+| 같은 전체 명령, AT-HC-27 단언 하나 임시 skip | 1 | `task-01-authorized-exception-app-tests.log`, 같은 key=false/appActive=false 관측 뒤 AT-HC-20~29 통과·추가 timeout |
+| 원문 복원 후 `git diff --exit-code -- app/Tests/ConnectionsTests.swift` | 0 | `task-01-connections-restored.diff` 빈 파일, 원문 SHA-256 확인 JSON |
+| 지정 venv `-m pytest gate/tests tests/acceptance -q --basetemp=<temporary test directory> -o asyncio_default_fixture_loop_scope=function -p no:cacheprovider`, 임시 시험 의존성 PYTHONPATH | 1 | `task-01-exception-review-gate-ready.log`, 422통과·5실패 |
+| 지정 venv `scripts/scan_private.py --home <temporary fake owner>` | 0 | `task-01-exception-review-private-scan.log`, 지적 없음 |
+| `git diff --check` 원문 복원 후 | 0 | `task-01-exception-review-diff-check.log` |
+| 최종 후보/이전13파일 patch 바이트 대조 | 0 | `task-01-exception-review-state.json`, candidateMatchesPrevious13Files=true |
+
+### 미완료·다음 인계·릴리즈 총괄 전달
+
+- TASK-01 커밋 조건(예외 외 나머지 통과)이 충족되지 않아 새 커밋 없음. **TASK-02·03 미착수**, 분홍 표식·접기 단추 실제 관측 확정도 남았다. 기존 양 테마 정착/스크롤 사진은 보존됐다.
+- 계획 담당은 추가 연결 관리 timeout의 처리 범위와 올바른 게이트 시험 환경/번역 문구 실패를 판정해야 한다. AT-HC-27 외 추가 skip·시험 기대 수정은 승인되지 않았다. 재개 시13파일을 그대로 보존하고 이번 실패 로그부터 확인한다.
+- main 병합 전에는 활성 가능한 앱 환경에서 AT-HC-27을 포함한 원문 전체 test.sh 종료0이 여전히 필수다. 앱 빌드 산출물은 임시 skip 실행본이므로 최종 검증/설치 산출물로 쓰지 않는다.
+- 저장소 구현 브랜치는 `role-workflow/17-96051e66`, HEAD는 기준 `5db23f5e08f5fafc9b211116e078f934bb73f6b8`; 새 구현 후보 해시 없음. 제품 변경은 미커밋13파일에만 있다. 푸시·main으로의 구현 병합·설치·공개·운영 반영 없음. 릴리즈 총괄18에 완료로 전달하지 말고 이 미완료/차단 상태와 로그를 호스트가 전달한다.17 제외나 운영 변경 승인을 추정하지 않는다.
