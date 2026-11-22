@@ -1,6 +1,6 @@
 # TASK-07 서버 적용 기록
 
-현재 상태(보완 2): 공용 릴리스 설치·대조·설치 검사는 통과했다. active_agents가 10분을 넘겨 계속 1이어서 게이트웨이 재시작 없이 중단했다. 아래 첫 시도 기록은 당시 상태이며, 최신 상태는 마지막 절을 따른다.
+현재 상태: 보완 4에서 계획 담당이 사장 지시로 재시작했다. 새 프로세스에서 hejo·telegram·photon·Slack 연결을 확인했다. 구현 담당은 설치·재시작을 반복하지 않고 아래 추가 확인을 수행했다. 이전 보류 기록은 당시 상태이며, 최신 상태는 마지막 절을 따른다.
 
 ## 첫 시도 — 적용 전 보류(이력)
 
@@ -129,3 +129,14 @@ hermes --profile default gateway restart
   - hejo 관련 줄에서 그룹·계정 id·토큰 형태 **0건**.
 - 로그: `.build/HEJO-TELEGRAM/task07/planner-restart/`(before.json, restart.log/.exit, after-summary.json).
 - 판정에 쓰는 결과: AT-HT-61 충족(수준 3). 롤백 불필요.
+
+## 구현 담당 추가 확인 — 보완 4의 적용 재사용
+
+- 구현 담당의 보완 3 대기는 UTC `16:01:03`부터 2분 간격으로 8회 active_agents 1을 관측했다. 첫 대기 보조 프로세스가 종료 143으로 끝나 원래 한도를 유지해 재개했으나, 이어 기존 게이트웨이 PID 변경·starting을 발견했다. 추가 재시작은 실행하지 않았다. `16:17:03` 관측은 이미 새 프로세스의 running·active_agents 0이었다. 이후 최신 인계 보충(`8bcc4874`)·보완 4·verdict 5차(`2cffac31`)에서 사장 지시에 따른 계획 담당 실행을 확인했다. 구현 담당의 설치·재시작·롤백은 이번 재개에서 모두 0회다.
+- 구현 담당의 새 로그는 `.build/HEJO-TELEGRAM/task07/resume3/`에 있다. `planner-restart/before.json`의 실제 재시작 직전 로그 크기를 재사용해 전체 구간을 대조했다. 최초에는 사후 시작 표지로 구간을 재구성했지만, 최종 검사는 이 사전 기록을 사용했다. 새 시작은 `2026-11-23T01:16:18.766+09:00`, 최종 검사 관측은 UTC `16:22:48.823930`(시작 후 390.058초)이다.
+- `verify-restart.py` 최종 종료 **0**: hejo·Slack 각각 기본 1·보조 5 연결, telegram·photon 각각 1 연결, 텔레그램 hejo 처리기 등록 1건, PID 변경·생존·running·최근 상태 갱신·RELEASE 일치. ERROR/CRITICAL **0**, Traceback **0**, 처리기 등록 실패 **0**. hejo 자체 로거 출력 0줄, 그 범위의 그룹·계정 id·토큰 형태 0건이다. 성공 등록 줄은 본체 로거에 있다. 짝짓기·실제 송수신 구간의 노출 시험은 수행하지 않았다.
+- 경고는 위 최종 검사에서 **20줄**이며 양쪽 로그의 중복을 포함한다. 추가 분류에서 `ConnectError` 언급 10줄과 텔레그램 실패·네트워크·재시도 경고를 확인했다(`warning-summary.json`, `warning-source-summary.json`). 따라서 오류 등급·역추적 0건을 경고 0건 또는 실물 송수신 성공으로 확대하지 않는다. 후속 운영 상태 조회에서는 telegram connected·오류 코드 없음·오류 메시지 없음·active_agents 0이다(`telegram-state-summary.json`). 경고의 운영 영향은 계획 담당이 함께 검토한다.
+- 의존성 로그에 자동 설치 시도(`dependencies missing — attempting install`) 1건, 이후 텔레그램 연결 성공을 확인했다. 원래 본체 `venv` 및 실행 파일만 단독 호출한 검사는 모듈 없음이었다. Hermes는 관리형 Python에서 부팅 시 선택한 의존성 환경을 sys.path에 더한다(`pm.environments.selected_venv`·`site_packages`, 읽기 전용). 그 공식 선택 환경을 사용한 검사에서는 **python-telegram-bot 22.8 import 성공**, 종료 0이었다(`selected-dependency.json`, 최종 `post-restart.json`). 단독 Python의 검색 경로 차이를 자동 설치 실패로 판정하지 않았다. 설치 함수를 직접 호출하지 않았다.
+- 첫 자체 검사 종료 1은 시작 후 117.807초의 관측과 잘못된 단독 Python 환경 때문이었다(`initial-post-restart.json`). 위 환경 경계를 확인하고 120초 이상 관측한 최종 검사가 종료 0이다. 검사기 조건을 완화하거나 기대 판을 바꾸지 않았다. 실제 운영 경계 확인 수준은 **3**이며 실물 수준 4는 M1~M8에 남긴다.
+- 보호 파일 존재·mtime·mode는 기존 사전 기록과 같았다(`final-state.json`). Keychain·앱 출입증·상태 프레임 조회, 설정·비밀 파일 직접 열람/쓰기, 직접 패키지 설치, 앱 교체/공개, 실제 메시지 발송, 본체·플러그인·team-kit 수정, git push는 하지 않았다. 기존 설치·실행 기록과 다른 작업 변경을 보존했다.
+- 이번 두 보고 문서 작업 트리의 임시 빈 HERMES_HOME 개인값 검사(Hermes venv `scripts/scan_private.py`) 종료 1: 다른 작업 HEJO-DEADLINE-CLOSE의 기존 절대 경로 4건, 이번 작업 파일 0건(`resume3/private.log/.exit`). `git diff --check` 종료 0. 제품 코드 변경이 없어 전체 기능 시험은 반복하지 않았다.

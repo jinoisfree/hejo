@@ -131,3 +131,11 @@
 - 실제 명령·UTC 관측·41개 파일 대조·롤백 및 재개 조건은 [TASK-07 증거](../../../evidence/HEJO-TELEGRAM/TASK-07.md) 마지막 두 절에 기록했다. 로그는 추적 제외 `.build/HEJO-TELEGRAM/task07/`에 있다. `install/hejo-release` 종료 0, `compare-release.py` 종료 0, `hejo-install --check` 최초 1/환경 보완 후 0, `wait-idle.py` 종료 2(한도 초과), `final-state.py` 종료 0이다. 최종 RELEASE 일치·기존 실행 PID 생존·보호 파일 metadata 동일을 직접 확인했다.
 - AT-HT-60 사전 기록·롤백 준비는 수행했고 서버 적용 수준 3/AT-HT-61은 미도달이다. 재시작 이후 SDK 자동 설치·연결·새 오류·상태·로그 노출 검증은 남았다. 다음은 계획 담당 검토 후 활성 작업 없는 시점에 인계 9(5)부터 재개하며, 이미 설치된 릴리스를 반복 설치하지 않는다. 설정·비밀 파일 직접 열람/쓰기, 직접 패키지 설치, 본체/플러그인/team-kit 변경, 앱 사본 교체·공개, 실제 발송·푸시는 수행하지 않았다.
 - 임시 빈 HERMES_HOME에서 Hermes venv `scripts/scan_private.py` 종료 1: 다른 작업 HEJO-DEADLINE-CLOSE의 기존 절대 경로 4건만 검출, 이 작업 파일 0건이다(`private-resume.log/.exit`). `git diff --check` 종료 0. 제품 코드 시험은 이번에 바꾸지 않아 반복하지 않았다.
+
+## TASK-07 보완 3 — 기존 재시작 확인·운영 자체 검사
+
+- 받은 인계: `b4b2d63302547560c38bbec0198a1ec6de720cc9`의 3판·verdict 4차·수락 시험 명세 4판. RELEASE `0bcf63535df381e491c99af9cbef41179b7cd79f`와 설치 파일 41개 재대조 종료 0, 설치는 반복하지 않았다. 2분 간격 대기 중 다른 경로의 새 프로세스 시작을 발견해 추가 재시작을 하지 않았다. 최신 문서에서 사장 직접 지시 보충 `8bcc4874`와 계획 담당 실행·완료 기록 `2cffac313cf006d6965e3617be19bc216be8b04f`를 확인했다. 구현 담당은 이번에 재시작·롤백 0회다.
+- 자체 검사 결과와 관측 한계는 [TASK-07 증거](../../../evidence/HEJO-TELEGRAM/TASK-07.md) 마지막 절에 추가했다. 계획 담당의 실제 재시작 직전 로그 크기를 재사용한 `resume3/verify-restart.py` 최종 종료 0: 시작 후 390.058초 구간에서 새 PID·hejo/Slack 기본·보조 5개씩·telegram·photon 연결, hejo 텔레그램 처리기 등록, ERROR/CRITICAL·역추적·처리기 실패·hejo 로거 민감값 형태 각각 0건. 이 구간의 경고는 20줄(두 로그 중복 포함)이며 ConnectError·재시도 경고가 있어 운영 영향 검토가 필요하다. 현재 상태는 telegram connected·오류 코드/메시지 없음이다. 실제 송수신 성공은 주장하지 않는다.
+- 첫 검사 종료 1은 120초 전 관측과 Python 환경 차이였다. 자동 설치 시도 로그 뒤 연결 성공을 확인했고, Hermes 공식 선택 의존성 환경에서 SDK 22.8 import를 확인해 최종 검사했다. 직접 설치는 하지 않았다. 실제 환경 증거 수준 3, 실물 M1~M8은 미실행. 로그는 `.build/HEJO-TELEGRAM/task07/resume3/`, 실제 재시작 실행 로그는 `planner-restart/`다. 기존 실행을 반복하지 않았으므로 별도 재시작 성공 기록을 만들지 않았다.
+- 구조·제품 코드 변경 없음. 이번 추적 변경은 증거의 최신 상태와 이 보고다. Keychain·앱 출입증·상태 프레임 조회, 설정·비밀 파일 직접 열람/쓰기, 직접 패키지 설치, 앱 교체/공개, 실제 발송, 본체/플러그인/team-kit 수정, git push는 하지 않았다. 다른 작업 파일은 보존했다. 다음은 계획 담당이 경고를 포함한 자체 증거와 TASK-07 완료 기록을 대조하고 이미 조율 중인 TASK-07b로 이어가는 것이다.
+- 이번 보고 문서 변경본의 임시 빈 HERMES_HOME 개인값 검사(Hermes venv `scripts/scan_private.py`) 종료 1: 다른 작업의 기존 절대 경로 4건·이 작업 0건(`resume3/private.log/.exit`). `git diff --check` 종료 0. 전체 제품 시험은 무변경으로 반복하지 않았다.
