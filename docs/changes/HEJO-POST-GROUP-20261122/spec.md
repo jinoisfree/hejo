@@ -1,4 +1,4 @@
-# HEJO-POST-GROUP 명세 (2판 · 2026-11-22 · 승인: 사장 브레인스토밍 결정, 계획 검증 1회차 반영·재검증 대기)
+# HEJO-POST-GROUP 명세 (2판 · 2026-11-22 · 상태: 적용(main `aacf168`, [verdict.md](verdict.md) 완료))
 
 기준 커밋 `84e64ac3bcd50c71e2bae3e720b76d84d57a9212`. 결정 근거 [brainstorm.md](brainstorm.md). 수락 시험 [tests/acceptance/HEJO-POST-GROUP.md](../../../tests/acceptance/HEJO-POST-GROUP.md).
 
