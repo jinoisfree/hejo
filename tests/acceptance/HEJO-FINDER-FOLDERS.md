@@ -1,6 +1,6 @@
 # HEJO-FINDER-FOLDERS 수락 시험 명세
 
-11판 · 2026-11-22(AT-FF-84~86 추가: 링크 유지·직원 D 복구·시험 보존. 10판: AT-FF-80~83 추가: 공용 창고 갱신 뒤 앱 연결. 9판: AT-FF-70·71 추가: 연결 창 화면 공유. 8판: AT-FF-64 추가: 비활성 때 옵션창 높이. 7판: AT-FF-50~54 색과 글자 사진, AT-FF-60~63 옵션창 높이 추가. 6판 AT-FF-40~42, 4판 AT-FF-15~17·20~23, 3판 V-1로 AT-FF-12 정정, 계획 검증 1회차 PR-01~04 반영, [plan-review.md](../../docs/changes/HEJO-FINDER-FOLDERS-20261121/plan-review.md)) · 명세 [spec.md](../../docs/changes/HEJO-FINDER-FOLDERS-20261121/spec.md), 설계 [design.md](../../docs/changes/HEJO-FINDER-FOLDERS-20261121/design.md).
+13판 · 2026-11-22(AT-FF-90~93 추가: 칸은 대화 창 밖. 11판: AT-FF-84~86 추가: 링크 유지·직원 D 복구·시험 보존. 10판: AT-FF-80~83 추가: 공용 창고 갱신 뒤 앱 연결. 9판: AT-FF-70·71 추가: 연결 창 화면 공유. 8판: AT-FF-64 추가: 비활성 때 옵션창 높이. 7판: AT-FF-50~54 색과 글자 사진, AT-FF-60~63 옵션창 높이 추가. 6판 AT-FF-40~42, 4판 AT-FF-15~17·20~23, 3판 V-1로 AT-FF-12 정정, 계획 검증 1회차 PR-01~04 반영, [plan-review.md](../../docs/changes/HEJO-FINDER-FOLDERS-20261121/plan-review.md)) · 명세 [spec.md](../../docs/changes/HEJO-FINDER-FOLDERS-20261121/spec.md), 설계 [design.md](../../docs/changes/HEJO-FINDER-FOLDERS-20261121/design.md).
 상태: 명세 완료 · 코드 미작성 · 미실행 · 독립 검토: 계획 검증 1회차 BLOCKED → 2판 반영, 재검증 대기. 기대값 출처: spec 요구와 design 2절. 구현 담당이 코드로 옮기며 기대값·합격 기준을 바꾸지 않는다(바꿔야 하면 멈추고 보고).
 
 공통: 임시 폴더를 서버 홈(`home`)으로 넘기고(`resolve()`한 경로. macOS 임시 폴더의 `/var` 링크가 부모 링크 검사에 걸리지 않게), 임시 `HERMES_HOME`에 가짜 직원 `alpha`. 폴더 이름은 `SynologyDrive-team`, `ExampleDrive-owner`, `Projects`, `2026` 같은 가짜 이름만. 실제 이름·경로 금지. "바이트 그대로"는 실행 전후 sha256 비교.
@@ -109,6 +109,15 @@
 | AT-FF-86 | FF-12.AC-06 | 실행본 tests에 두 시험 설치 → `./sync` | 운영 저장소 작업 트리에서 두 시험 파일이 지워짐(D)이 아니고, 자기 경로 커밋에 포함 |
 | AT-FF-83 | FF-12 회귀 | 관련 5파일 + `test_finder_folders` + `test_app_manifests`, team-kit 전체(AT-FF-12 나 기준), `./airport-check` | 관련 시험 전부 통과, 전체 실패 집합 ⊆ 착수 기준, airport-check 통과 |
 
+## 앱 처리할 일 칸 바깥 배치 (13판 추가, REQ-FF-13)
+
+| ID | AC | 입력 | 기대 |
+|---|---|---|---|
+| AT-FF-90 | FF-13.AC-01 | `PetPlacement` 단위: 화면(가짜 visibleFrame) 왼쪽에 가깝게 펼친 배치에 `withLeading(290)` | `drawerOverlay` 거짓, `leading` 290, 결과 대화 영역(`contentBubble`)의 너비·높이가 원래 대화 창과 같고 x가 오른쪽으로 옮겨짐, 칸 왼쪽 끝 ≥ visibleFrame.minX+12, 오른쪽 끝 ≤ visibleFrame.maxX−12 |
+| AT-FF-91 | FF-13.AC-02 | 실제 `PetController`에서 왼쪽 끝에 둔 펫으로 칸 열기 → 닫기 | 열면 패널이 오른쪽으로 옮겨지고 칸은 대화 영역 바깥(`todoDrawer.frame.maxX ≤ 대화 영역 minX`), 닫으면 패널·펫 위치가 열기 전과 같음, 저장 위치 불변 |
+| AT-FF-92 | FF-13.AC-03 | 가짜 visibleFrame 너비 < 대화 창 + 290 + 24 | 지금처럼 겹침(`drawerOverlay` 참), AT-FF-40 픽셀 검사 통과 |
+| AT-FF-93 | FF-13.AC-04 | 칸이 원래 들어가는 배치, 기존 HEJO-TODO-DRAWER·AT-FF-40~42·ThreeTap·펫 끌기 시험, `HEJO_PYTHON` `bash app/scripts/test.sh` | 전부 통과, 기존 기대값 수정 없음 |
+
 ## 사장 확인(서버 적용 뒤, 증거 수준 4)
 spec 4절 M1~M3, 5.3절 M4~M6, REQ-FF-07~11의 M7~M11(M7은 맨 마지막). M1에서 고르기 화면이 뜨기까지 걸린 대략 시간을 사장이 알려 주면 NFR-FF-03에 적는다.
 
@@ -162,3 +171,7 @@ spec 4절 M1~M3, 5.3절 M4~M6, REQ-FF-07~11의 M7~M11(M7은 맨 마지막). M1�
 | FF-12.AC-04 | TASK-13 앱 시험(f03b93a) |
 | FF-12.AC-05 | AT-FF-84, 85 |
 | FF-12.AC-06 | AT-FF-86 |
+| FF-13.AC-01 | AT-FF-90, 91, M12 |
+| FF-13.AC-02 | AT-FF-91, M12 |
+| FF-13.AC-03 | AT-FF-92 |
+| FF-13.AC-04 | AT-FF-93 |

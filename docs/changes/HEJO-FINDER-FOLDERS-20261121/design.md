@@ -118,3 +118,10 @@
 - 9.1의 "template을 지금 창고 바이트로"는 **조립용**에만 쓴다. `manifest-bases.json`에 남기는 되돌리기 기준 `before`·`host`는 기존 baseline 값 그대로 둔다(지금 상태 기록 코드 `:199`는 `before=template.hex()`라 둘을 다른 변수로 나눈다).
 - TASK-13 시험 `test_store_update_connects_finder_and_undo_preserves_originals`의 "연결 뒤 정책 바이트 불변" 단언(52줄)은 10판 설계 결함을 그대로 옮긴 것이다. 이 작업이 만든 시험이므로 11·12판 기준으로 고친다: 연결 뒤 정책의 그 프로필 `app_tool_defaults.team-kit` = 이전 목록 + 새 창고 도구(순서대로)이고, 그 밖의 정책 바이트는 같다. 51줄(`before`·`host` 보존)과 undo 뒤 단언(정책·host·manifest 원래대로)은 그대로 둔다. 다른 기존 시험의 기대값은 바꾸지 않는다.
 
+## 10. 13판 추가 설계 (REQ-FF-13, 앱)
+- 고치는 자리: `PetPlacement.withLeading` 한 곳(칸 자리 결정의 유일한 곳, 주석 "The sole decision about expansion versus overlay").
+- 규칙: `fits`가 거짓이면 `shift = (visibleFrame.minX + 12) − (globalBubble.minX − width)`를 계산한다. 옮긴 대화 창 오른쪽 끝(`globalBubble.maxX + shift`)이 `visibleFrame.maxX − 12` 이하면, 펫·대화 창 전체(sprite·bubble)를 `shift`만큼 오른쪽으로 옮긴 배치에 바깥 칸(`leading = width`, `drawerOverlay = false`)을 붙인다. 그래도 안 되면 지금처럼 겹침(`drawerOverlay = true`).
+- 옮김은 표시용이다. 저장 위치(`anchorOrigin`·설정 저장)는 옮기기 전 배치 기준을 유지해서, 칸을 닫으면 원래 자리로 돌아온다. 끌기 중이면 끌린 위치에 같은 규칙을 적용한다.
+- 화면 경계 계산은 기존 `visibleFrame` 값만 쓴다. 새 설정·저장 키는 만들지 않는다.
+- 0.2.5 공개 후보는 TASK-16 검토 뒤 별도 지시(TASK-17, 0.2.4 절차와 같음)로 한다.
+

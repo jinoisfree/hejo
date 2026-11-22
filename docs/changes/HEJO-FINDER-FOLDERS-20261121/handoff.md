@@ -497,3 +497,22 @@ d2 알림(19:37): 게이트웨이 재시작 완료(새 PID 18074, 로그 7298줄
 - 보고: 버전 올림 커밋, 새 `public` 전체 커밋, 준비물 경로, 사장용 공개 명령 한 줄(`install/hejo-ship publish --approve-commit <새 public 커밋> --prepared .build/release-0.2.4/prepared.json`), 푸시 대상, 검증 명령·종료 코드. impl-report '20차-TASK-08' 절, result.
 - 금지: 선례와 같다(GitHub 조회·쓰기·publish·push 금지, 설치된 앱 사본 교체·공용 릴리스·운영 홈 변경·`install/hejo-release`·게이트웨이 재시작 금지, 비밀 값 열람 금지, 제품 동작 코드·spec·design·수락 시험 명세 수정 금지). 앱 시험 전 `pgrep -f app-tests`.
 - 위험·증거: 고위험(공개 배포물), 증거 수준 2. 실제 공개·업데이트 설치(수준 4)는 사장이 한 뒤 M4·M7~M11로 본다.
+
+## 21차 지시 (2026-11-22): TASK-16 처리할 일 칸 바깥 배치
+
+사장 결정: 칸은 대화 창을 덮지 않고 바깥에 연다. 왼쪽 자리가 없으면 펫과 창을 오른쪽으로 옮긴다. 이 작업에 넣어 0.2.5에 담는다.
+
+```text
+[설계 인계: HEJO-FINDER-FOLDERS TASK-16]
+1. 문서: spec 13판 REQ-FF-13, design 10절, 수락 명세 AT-FF-90~93.
+2. 고치는 자리: PetPlacement.withLeading(PetLayout.swift) 한 곳. fits가 거짓이면 shift=(visibleFrame.minX+12)−(globalBubble.minX−width)만큼 펫·대화 창 전체를 오른쪽으로 옮긴
+   배치에 바깥 칸(leading=width, drawerOverlay=false)을 붙인다. 옮긴 오른쪽 끝이 visibleFrame.maxX−12를 넘으면 지금처럼 겹침.
+   저장 위치(anchorOrigin·설정 저장)는 옮기기 전 기준을 유지해 칸을 닫으면 제자리로 돌아오게 한다. 새 설정 키 금지.
+   PetController가 withLeading 결과로 패널 위치를 정하는 곳(303줄 근처)이 이 규칙을 그대로 쓰는지 확인하고, 필요한 최소만 고친다.
+3. 확인: AT-FF-90~93을 앱 시험으로 옮긴다. 앱 시험 전 pgrep -f app-tests, HEJO_PYTHON=게이트웨이 Python bash app/scripts/test.sh 전체
+   (깊은 경로에서 소켓 경로 길이 오류가 나면 0.2.4 때처럼 짧은 TMPDIR로 같은 트리를 다시 실행하고 둘 다 기록).
+4. 범위: app/Sources/PetLayout.swift, 필요하면 PetController.swift, app/Tests. 자기 경로만 git commit --only.
+   gate/·schemas/·다른 작업 파일, 앱 버전·공개 후보 금지(TASK-17에서).
+5. 금지: 개인값, 본체·ddots, 수락 기준·spec·design 수정, git push. 기존 기대값 변경이 필요하면 멈추고 보고. 위험도 일반, 증거 수준 2.
+6. 보고: impl-report.md '21차-TASK-16' 절(커밋 전체 해시, 명령·종료 코드·로그 경로), result.
+```
