@@ -131,6 +131,8 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             if self.hub.enabled:
                 self._register_task = asyncio.ensure_future(self._register())
         except (OSError, ValueError, HejoJournalError):
+            if self.telegram:
+                await self.telegram.close()
             if self.server:
                 await self.server.stop()
             self.journal.close()

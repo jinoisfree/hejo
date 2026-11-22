@@ -279,6 +279,9 @@ async def test_at_ht_15_topic_failure_redacted(gate,client,transport,caplog):
     assert 'grp-A' not in caplog.text and 'topic-sensitive' not in caplog.text
     assert any('telegram_topic_failed' in r.message for r in caplog.records)
     assert not transport.wrapped_calls
+    await gate.send('alpha','topic failure',metadata={'thread_id':str(uuid.uuid4())})
+    await settled(gate)
+    assert not transport.calls
     transport.topic_failure=False
     await request(client,ws,'telegram_save',enabled=False)
     await request(client,ws,'telegram_save',enabled=True)
@@ -680,3 +683,37 @@ async def test_at_ht_39_same_journal_and_app_frames_when_enabled(gate,client,tra
         await ws.close();await control.close();await gate.disconnect()
     (tmp_path/'compare.json').write_text(json.dumps(outputs,indent=2))
     assert outputs[0]==outputs[1]
+
+
+async def test_at_ht_08_reconnect_retains_paired_enabled_state(gate,client,transport):
+    ws,welcome=await client.pair(features=['telegram'])
+    await activate(gate,client,ws,transport)
+    pair_before=gate.telegram.private()['pair']
+    await gate.disconnect()
+    assert await gate.connect()
+    ws,_=await client.open(token=welcome['token'],features=['telegram'])
+    state=await request(client,ws)
+    assert state['paired'] and state['enabled'] and state['platform_ready']
+    assert gate.telegram.private()['pair']==pair_before
+
+
+async def test_at_ht_10_no_feature_peer_receives_no_status_or_code(gate,client,transport):
+    ws,welcome=await client.pair(features=['telegram'])
+    old,_=await client.open(token=welcome['token'])
+    assert (await request(client,old))['code']=='unexpected_frame'
+    await activate(gate,client,ws,transport)
+    await old.send_json({'v':1,'type':'roster','id':'legacy-boundary'})
+    frames=await client.until(old,'roster')
+    assert not any(frame['type'] in {'telegram_code','telegram_status'} for frame in frames)
+
+
+async def test_at_ht_42_retired_implementation_absent():
+    root=Path(__file__).resolve().parents[2]
+    for directory in ['gate','schemas','app/Sources','app/Tests']:
+        for path in (root/directory).rglob('*'):
+            if path.suffix not in {'.py','.swift','.json'}: continue
+            for line in path.read_text().splitlines():
+                if path.name=='ConnectionsWindow.swift' and 'photon' in line: continue
+                assert not any(word in line.lower() for word in ['imessage','photon']),str(path.relative_to(root))
+    for name in ['RoomMenus.swift','RoomDialogs.swift','ConversationView.swift']:
+        assert 'telegram' not in (root/'app/Sources'/name).read_text().lower()

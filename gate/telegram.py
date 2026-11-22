@@ -42,11 +42,13 @@ def attach_telegram(native, adapter):
         if not claimed:
             return await original(event)
         try:
-            if await bridge.receive_external(event) is False:
-                return await original(event)
+            accepted = await bridge.receive_external(event)
         except Exception as exc:
             log.warning('telegram_receive_failed kind=%s', type(exc).__name__)
             await bridge.notice(event, '지금은 받지 못했어요')
+            return
+        if accepted is False:
+            return await original(event)
 
     adapter.handle_message = handle
     adapter._hejo_telegram_wrapped = True

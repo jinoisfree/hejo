@@ -58,3 +58,9 @@
 - 설계 차이 없음. 대기열·파일 저장과 네트워크 경계를 기존 책임 모듈 하나에 유지했다. 되보내기·수정/삭제 반영 경로는 만들지 않았다.
 - 검증: Hermes venv `python -m pytest tests/acceptance/test_telegram.py -q -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function --basetemp=/tmp/ht04`, 종료 0, **34 passed**, 로그 `.build/telegram-evidence/task04.log`, 수준 2. AT-HT-07의 모든 로거/저장소/앱 프레임 허용 위치, AT-HT-39의 두 임시 홈 기록장·실제 앱 프레임 비교 포함. 중간 이식 오류(버튼의 실제 style/kind, delete의 기존 호출 범위, 비교용 uuid 키 정규화)를 고쳤고 대역 러너 차례 종료 후 같은 대본을 순차 입력했다(기대값 불변).
 - AT-HT-44 수준 3·mutation·앱·전체 검사는 TASK-05·06에서 남았다.
+
+### TASK-04 자체 점검 보완
+
+- 경합 뒤 원래 처리기로 넘긴 경우 그 처리기의 예외는 원래 경로로 전파되도록 외부 호출을 차지한 수신의 예외 경계 밖으로 옮겼다. 리스너 시작 실패 시 새 작업자를 닫아 자원 누수를 막았다.
+- 실제 문 재연결의 설정 보존, 기능 없는 연결에 텔레그램 프레임 0건, 옛 구현 검색(AT-HT-42)을 추가 확인했다. 옛 연결에 전달되는 기존 방 레코드의 delete 투영은 그대로 허용하며 텔레그램 상태/코드만 0건으로 단정한다.
+- Hermes venv의 같은 명령(`--basetemp=/tmp/ht04f`), 종료 0, **37 passed**, 로그 `.build/telegram-evidence/task04-final.log`. 앱 코드까지 교체한 작업 트리를 검사했으나 앱 자체 검증은 아래 TASK-05에 따로 적는다.
