@@ -527,3 +527,17 @@ d2 알림(19:37): 게이트웨이 재시작 완료(새 PID 18074, 로그 7298줄
    AT-FF-40 픽셀 기대값, AT-TD-35 117줄, 그 밖의 기존 기대값은 바꾸지 않는다. 또 부딪히면 멈추고 보고한다.
 3. 보고 절 이름 '22차-TASK-16'. 바꾼 기존 단언마다 전후를 표로 남긴다.
 ```
+
+## 23차 지시 (2026-11-22): TASK-17 앱 0.2.5(빌드 7) 공개 후보 준비
+
+- 선례: 20차 지시(TASK-08, 0.2.4)를 **0.2.5·빌드 7**로 그대로 따른다. 다른 점만 적는다.
+- 들어가는 것: 착수 때 `main` HEAD 전체. 새 `public`의 부모는 지금 로컬 `public`(0.2.4 `eb5e62af`, 원격 github/main과 같음).
+- 확인 추가:
+  1. 새 `public` 트리가 `3695d5e`(TASK-16)를 조상으로 포함하고, `app/`이 main HEAD와 바이트가 같다.
+  2. 공개 후보 트리의 전체 시험 로그에서 AT-FF-90~93, AT-TD-33·35, AT-FF-40·41 PASS 줄을 인용한다.
+  3. 준비물 버전·빌드(0.2.5·7)가 0.2.4·6보다 크고, 업데이트 서명 키가 0.2.4와 같다.
+  4. 새 `public`의 `gate/`·`schemas/`와 지금 서버 문 실행본의 차이 파일 목록(README 제외 차이가 있으면 멈추고 보고).
+  5. 시험은 처음부터 짧은 `TMPDIR`과 resolve한 임시 `HERMES_HOME`으로 실행한다(0.2.4 때 소켓 경로 길이 문제).
+- 보고: 버전 올림 커밋, 새 `public` 전체 커밋, 준비물 경로, 사장용 명령 두 줄(`git push github <새 public 커밋>:refs/heads/main`, `install/hejo-ship publish --approve-commit <새 public 커밋> --prepared .build/release-0.2.5/prepared.json`), 푸시 대상, 검증 명령·종료 코드. impl-report '23차-TASK-17' 절, result.
+- 금지: 20차와 같다(GitHub 쓰기·publish·push 금지, 설치 앱·공용 릴리스·운영 홈·install/hejo-release·재시작 금지, 비밀 값 열람 금지, 제품 동작 코드·spec·design·수락 시험 명세 수정 금지). 앱 시험 전 `pgrep -f app-tests`.
+- 위험·증거: 고위험(공개 배포물), 증거 수준 2.
