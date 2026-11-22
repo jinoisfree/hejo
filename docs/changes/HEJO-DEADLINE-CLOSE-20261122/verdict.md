@@ -111,3 +111,65 @@
    - TD spec REQ-TD-04 AC-02·03에 대체 표시를 한다.
    - 이 작업 문서 상태를 "적용"으로 바꾼다.
    - 반영 시점은 서버 적용(TASK-04)으로 Baseline이 된 뒤다. 그 전까지 tasks에 남긴다.
+
+---
+
+## 검증 판정: HEJO-DEADLINE-CLOSE / TASK-04 서버 적용 · TASK-05 0.2.6 공개 후보 (검증 3차, 2026-11-22)
+
+1. **판정**
+   - TASK-04: 완료(증거 수준 3).
+   - TASK-05: 공개 후보 준비 완료.
+   - 작업 전체는 아직 끝나지 않았다. 공개(사장 push·publish), 사장의 실제 닫기(M-DC-2), 현재 명세 반영이 남았다.
+
+2. **검증 조건**
+   - 교차 모델: 구현 claude-sonnet-5-5, 검증 claude-opus-5-5.
+   - 대상
+     - 운영 공항 실행본과 공용 릴리스 `/Users/Shared/hejo`
+     - HD main `b32048c8`
+     - 구현 브랜치 `d88e2c8`
+     - 새 public `98a9f242a74a97a2af6885264cac49da241ad7fa`
+     - 준비물 `.build/release-0.2.6`(계획 담당 checkout)
+
+3. **설계 적합성**: 지시 2의 절차와 금지 범위 안에서 했다.
+   - 재시작 1회, 실제 장부 닫기 없음, push·publish 없음, 설치 앱 0.2.5 그대로.
+   - 보고된 추가 행동 하나: 운영 `~/.hermes` team-kit tests에 시험 파일 2개를 복사했다.
+     - 이유: `./sync`는 live → HD 사본이라 복사하지 않으면 HD 시험이 지워진다.
+     - 판단: 실행 경로가 아닌 시험 파일이라 수락한다(비차단 기록).
+
+4. **직접 확인한 것**
+   - team-kit 실행본 sha256
+     - `deadline_watch.py` = `1fa7fddb…`, `hermes-deadlines` = `ec8d7158…`. HD 브랜치 `cfe6d9d2` 파일과 같다.
+     - 보관본 `~/.cache/dc-rollback-20261122/`에 두 파일이 있다.
+   - HD `main` = `b32048c8`(merge, push 없음).
+   - 공용 릴리스
+     - `RELEASE` = `227ef160…`.
+     - `git archive 227ef160 gate schemas`와 `/Users/Shared/hejo/gate`·`schemas`를 `diff -rq`로 비교했다(`__pycache__`·tests 제외): 같음.
+   - 게이트웨이
+     - 23:38:27 "Gateway running with 13 platform(s)", hejo 재연결.
+     - 재시작 뒤 로그 `ERROR`/`CRITICAL` 0줄.
+   - `hermes-deadlines list --json`(읽기): 열린 항목 직원 1명 2건, `failed` 비어 있음. 운영 항목에는 hejo 알림 기록이 없어 `notice`가 없다(정상).
+   - 공개 후보
+     - `98a9f242` 부모 = `47a42456` = `git ls-remote github refs/heads/main`.
+     - 트리 `d520388c` = `d88e2c8` 트리.
+     - `prepared.json`: 0.2.6·빌드 8, zip sha256 `9a1c318f…5a78`(직접 계산 일치), `publicKey`가 0.2.5 준비물과 같다.
+   - `test_ship.py` 버전 고정 변경(0.2.5·7 → 0.2.6·8)은 이전 공개(`666726c`)와 같은 관례라 수락한다.
+   - 직접 실행한 검사
+     - `scan_private.py --repo <구현 worktree>` 종료 0.
+     - `pytest tests/acceptance/test_ship.py test_deadline_close.py test_deadlines.py test_slack_move_gate.py` 68 passed, 종료 0(`/tmp/dcv3-accept.log`).
+
+5. **지적**
+   - 차단: 없음.
+   - 비차단 V-3: 계획 담당 checkout의 impl-report TASK-04·05 절에 절대 경로가 있었다. 계획 담당이 자리표시자로 고쳐 main에 반영했다.
+
+6. **미검증 범위**
+   - M2 "실제 게이트웨이 로그의 `deadlines_read`"는 재시작 뒤 앱 요청이 아직 없어 줄이 없다.
+     - 공용 릴리스 코드를 직접 호출한 결과는 items=2 failed=0이었다(구현 보고).
+     - 사장이 칸을 열면 확인한다.
+   - M-DC-2(사장이 앱에서 닫기)는 0.2.6 공개와 업데이트 뒤에 한다.
+
+7. **남은 조건**
+   1. 사장이 public `98a9f242`를 github main에 푸시한다(승인 화면).
+   2. `install/hejo-ship publish --approve-commit 98a9f242a74a97a2af6885264cac49da241ad7fa --prepared .build/release-0.2.6/prepared.json`.
+   3. 앱을 0.2.6으로 업데이트하고 묵은 2건을 우클릭으로 닫는다.
+   4. 계획 담당이 `list --json`·로그·행동 기록으로 확인하고 현재 명세에 반영한다.
+   5. 롤백 보관본은 4번 뒤 정리한다.
