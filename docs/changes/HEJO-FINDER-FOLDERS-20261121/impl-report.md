@@ -1188,3 +1188,87 @@ P -B -m pytest -q -p no:cacheprovider hermes/plugin-store/team-kit/tests/test_fi
 기존 시험 변경이 명시적으로 허용되기 전에는 이 구현·운영 적용을 이어갈 수 없다. 이후에는 AT-FF-84 구현·지정 회귀를 통과한 뒤 실행본/시험 설치 → 정책 한 곳 보정 → 연결 1회 → 검사/동기/자기 경로 커밋 순서로 돌아가야 한다. 이번에는 OPS-REPO-RENAME에 새로 넘길 운영 소유 경로나 커밋이 없다.
 
 이번 보고서 한 경로의 개인값·공백 검사와 commit --only 결과·전체 해시는 `E16/report-checks.json`, `hejo-commit.log/json` 및 최종 result에 기록한다. 판정·명세·수락 시험 문서는 구현자가 고치지 않았다.
+
+
+## 17차-TASK-15 (2026-11-22)
+
+**구현자 판단: HD 구현·지정 회귀 완료, 운영 복구는 저장 후 RESTART_REQUIRED로 부분 완료.** handoff 17차와 spec 12판·design 9.1/9.2를 따르며 위험도 일반, 요구 증거 수준 3이다. E17은 `.build/finder-folders-evidence/round17-task15`다.
+
+### 운영 변경 전 보관 기록
+
+실행본 교체 직전 SHA는 `f2c64d1d908f26f5954c59d770bf8b9bdba29815e50ef14c35c48260788e7df3`다. 0700 보관본은 `E17/rollback-rxdnlsto`이며 코드·기존 시험 유무·정책을 먼저 기록했다(`E17/rollback-record.json`). 코드/기존 시험은 보관 파일을 임시 형제 파일에 복사·fsync·이름 바꾸기로 복원하고, 원래 없던 자기 시험만 제거한다. 정책은 별도 보관본으로 복원한다. 연결 트랜잭션의 되돌리기는 코드 파일 복원과 별개다. 재시작은 하지 않는다.
+
+### 착수·변경·커밋
+
+착수 hejo HEAD는 `d913d77359e9d7f6182dac503545c71525d0c08c`, HD 착수 HEAD는 `6602c04098393eff0d2a2c4ee0afd90ce5b88b76`다. HD 새 커밋 전체 해시는 **`5bd1da2be2ea6c8088163757dbcfab6adf0440a0`**이며 자기 config_assembly.py·test_finder_manifest_updates.py 두 경로만 commit --only했다. 커밋 blob은 시험한 바이트와 같다(`E17/HD-commit.log/json`, `tested-HD-sha256.json`).
+
+검증된 창고 갱신의 기존 세 조건은 유지했다. 그 갈래에서만 현재 창고 manifest를 조립용 template으로 쓰고, 옛 template에 없던 새 도구를 기존 기본 도구 끝에 창고 순서로 추가한다. recovery_template을 별도로 두어 manifest-bases의 before·host·이전 링크 복구 정보는 바뀌지 않게 했다.
+
+기존 52줄의 단언 한 곳만 허가대로 고쳤다. 이전 정책을 읽어 해당 기본 도구 목록 끝에 가짜 새 도구 하나를 더한 기대 바이트와 전체 정책을 비교한다. 나머지 기존 before/host 보존·새 도구의 연결 전 미포함·undo 뒤 복원 단언은 그대로다. 같은 시험에 심링크·overlay false를 더했다(AT-FF-84).
+
+기존 오버레이를 정책 보정 뒤 원래 공용 링크로 복구하는 가짜 시험 하나도 더했다. 이때 YAML의 서식만 달라 바이트 비교만으로 링크가 되지 않는 경우가 있어, 원래 host가 링크이고 조립 결과의 YAML 내용이 창고 전체와 같을 때만 창고 바이트·원래 링크를 사용하게 했다. 이 분기는 외부 변경 지문 검사를 통과한 뒤 실행한다. 제한된 개인 manifest가 창고 전체와 다르면 기존 오버레이 조립을 유지한다. 별도 플러그인 폴더 편집 경로는 만들지 않았다.
+
+새 정책 단언은 수정 전 구현에서 실패했다(`E17/red.log/json`: 1 failed·5 passed). 초기 통합에서 새 오버레이 복구 시험만 실패한 결과도 `related-initial.log/json`에 보존했다. YAML 내용 일치 처리 후 아래 관련 시험이 모두 통과했다. 다른 기존 시험 기대값은 고치지 않았다.
+
+### HD 검증 명령·실제 결과
+
+게이트웨이 Python, 임시 resolve HOME·HERMES_HOME·HERMES_ROOT, 팀키트 lib·기존 pytest 의존성·본체 import 경로, Node PATH, PYTHONDONTWRITEBYTECODE=1·HERMES_DISABLE_LAZY_INSTALLS=1을 사용했다. 본체 파일은 수정하지 않았다.
+
+| 명령 | 종료 코드 | 실제 결과 | 로그 |
+|---|---:|---|---|
+| `P -B -m pytest -q -p no:cacheprovider` 관련 8파일 | 0 | 114 passed | `E17/related.log/json` |
+| `P -B -m pytest -q -p no:cacheprovider` team-kit 전체 | 1 (기존 실패) | 5020 passed·64 skipped·28 failed·1 error, 58 subtests passed | `E17/full.log/json` |
+| 전체 실패 집합 비교 | 조건 충족 | 기존 66f2a44c 기준 29개 = 현재 29개, 새 node 0·부분집합 true | `E17/failure-comparison.json` |
+| `P ./airport-check --snapshot .` | 0 | 공항 스냅샷 검사 통과 | `E17/airport.log/json` |
+| 자기 HD 두 경로 `git diff --check` | 0 | 공백 오류 없음 | `E17/HD-diff-check.log/json` |
+| 자기 HD 두 경로 `git commit --only` | 0 | 위 HD 커밋·시험 blob 일치 | `E17/HD-commit.log/json` |
+
+관련 파일은 test_app_catalog·test_app_connect·test_app_setup·test_synology_app_connect·test_app_registry·test_finder_folders·test_app_manifests·test_finder_manifest_updates다. 기존 29개 기준은 13차에서 재확인한 baseline66-failures.log를 재사용했다. 전체 실패 기준·skip을 바꾸지 않았다. 기존 pytest 시험 파일은 허용한 한 단언 외에 바꾸지 않았다.
+
+### 실행본·시험 설치·정책 보정
+
+실행본과 HD의 app_manifests 본문이 변경 전 같음을 확인한 뒤, 실행본 사본의 그 함수만 HD 함수로 바꿨다. 함수 밖 다른 작업의 기존 코드는 바이트 그대로 보존했다. 완성 파일을 임시 형제 파일·fsync·이름 바꾸기로 설치했다. 운영 main을 cherry-pick하거나 실행본을 오래된 HD 전체 파일로 덮지 않았다(`E17/runtime-preflight.json`, `deploy/config_assembly.py`).
+
+| 항목 | 변경 전 | 변경 후 |
+|---|---|---|
+| 실행본 config_assembly.py SHA-256 | `f2c64d1d908f26f5954c59d770bf8b9bdba29815e50ef14c35c48260788e7df3` | `5f1bb8da1cf0bc919d1221e68a7bee597848ec7c7ed167affe66bce633beca7c` |
+| 직원 D 기본 team-kit 도구 수 | 40 | 42 |
+| 직원 D 기본 도구 추가분 | 없음 | 창고 순서대로 cctv_reference, cctv_now |
+| 직원 D 플러그인 자리 | 오버레이 | 원래 공용 창고 심링크 |
+| 직원 D links.json 항목 | overlay true | overlay false |
+
+교체 직전에도 지정 SHA를 검사했다. 정책은 그 프로필 목록 끝에 **두 줄만 삽입**했다. 파싱한 나머지 내용 동일 및 삽입 두 줄을 제외한 바이트 동일을 확인했다. 연결 제출 뒤 정책 SHA도 그 두 줄 보정 결과와 같다(`E17/deployment.json`, `final-integrity.json`). 정책 변경 전 SHA는 `421dab9abbe10e98f19a594d67734c10ea561d20cafeaa870dd83a43f278161d`, 변경 후 SHA는 `9f2d4faac2d8f9b16eb406cf56144a470836d1e13b8bc6dcb455a8f9e23e1909`다. 실제 도구 차이를 다시 계산한 결과 위 두 개뿐이었다. 처음 보조 preflight가 제시된 도구 이름의 순서까지 고정해 실패한 것은 `runtime-preflight-initial.json`에 보존했고, 실제 창고 순서를 쓰도록 확인 코드를 정정했다. 운영 쓰기는 그 뒤에만 했다.
+
+보관본은 위 `E17/rollback-rxdnlsto`이며 policy.yaml 보관 파일은 0600이다. 코드·정책·기존 시험 복원은 보관 기록의 임시 복사+이름 바꾸기 절차를 따른다. 새로 설치한 자기 시험이 원래 없었다면 그것만 제거한다. 이번에 복원은 하지 않았다. 운영 연결 트랜잭션 복구·만료된 undo는 코드 파일 복원만으로 대체하지 않는다.
+
+실행본 tests에 test_finder_folders.py(검토된 HD 바이트, SHA `6f44156030bbe7934b06e7475dd385cbc399ada33d9ebedee40371338405740f`)와 새 test_finder_manifest_updates.py(SHA `9d4f7639124087e365e2b0f302fe40dbc8fe3dda0396df8702f4bbf6c35e25dc`)를 설치했다. HD 바이트와 같으며 다른 시험은 건드리지 않았다.
+
+### 직원 D 연결 1회 결과와 멈춤
+
+14차와 동일 환경(HERMES_HOME=<HOME>, HERMES_DISABLE_LAZY_INSTALLS=1, PYTHONDONTWRITEBYTECODE=1)·동일 선택 항목 id·200초 제한으로 다음 명령을 한 번 제출했다. 표식으로 재실행을 막았다.
+
+```text
+<HOME>/bin/hermes-connections app connect --profile <직원 D> --app com.apple.finder --scope <14차와 동일 항목 id> --json
+```
+
+종료 **0**, **0.727118초**, stderr 없음, outcome=waiting·reason=RESTART_REQUIRED·committed=true·next.kind=gateway_restart다. enable·values done, restart·permission·check todo다(`E17/operation-started.json`, `operation-result.json`). 재시작 요구가 나와 지시대로 추가 쓰기를 멈췄다. 재시작·resume·undo·재제출은 하지 않았다.
+
+그 뒤에는 멈춤 보고용 읽기 확인만 했다. 플러그인 자리 심링크가 공용 창고를 가리키며, 장부 overlay false·host manifest와 창고 바이트 일치·정책 두 줄 보정 유지가 확인됐다. 저장 폴더 3개·선택 항목 포함·NFC·존재가 유지됐고 전후 목록 지문도 같다. 폴더 안 파일 내용·비밀 파일·undo 원문은 열지 않았다(`E17/final-integrity.json`, `saved-folders-before.json`, `saved-folders-after.json`).
+
+읽기 명령 `<HOME>/bin/hermes-plugin-store --check`는 종료 0이었다(`E17/plugin-store-check.log/json`). 이는 AT-FF-85의 링크/장부/저장 폴더 복구 확인이며, 재시작 뒤 실제 도구 로드나 직원의 파일 읽기 완료 증거는 아니다.
+
+### 미완료·운영 소유 경로·다음 인계
+
+RESTART_REQUIRED 멈춤 조건 때문에 뒤따르는 **./sync와 운영 저장소 commit은 미실행**이다. 따라서 AT-FF-86의 실제 sync 뒤 시험 보존·운영 미커밋 0 목표는 아직 충족하지 않았다. 실행본 시험 설치는 완료했으므로 후속 sync 때 수집할 준비는 됐다. 운영 main은 이 작업 착수 때와 같은 `3ef4105de4e377bd1230464945db09a644be6996`이며 이번 운영 커밋 전체 해시는 해당 없음이다. 다른 세션 변경·삭제는 그대로 남겼다.
+
+계획 담당이 OPS-REPO-RENAME에 알릴 이 작업 소유 목록은 다음과 같다(원본은 실행본, 운영 저장소 경로는 다음 sync의 사본).
+
+- team-kit/lib/hermes_facility/config_assembly.py: app_manifests 함수 변경만. HD 커밋 `5bd1da2be2ea6c8088163757dbcfab6adf0440a0`. 함수 밖 다른 작업의 코드는 보존.
+- team-kit/tests/test_finder_folders.py·test_finder_manifest_updates.py: 실행본 설치 완료, HD 바이트 일치.
+- owner/policy.yaml: 직원 D app_tool_defaults.team-kit에 위 두 도구만 추가.
+- 직원 D plugins/team-kit 링크와 plugin-store/links.json의 해당 항목: 연결 트랜잭션으로 복구, 손 편집 없음.
+- 연결 트랜잭션이 갱신한 설정·장부 메타데이터 9경로 목록은 `E17/changed-operating-files.json`에 있다. 미허가 비밀 파일을 직접 수집·검토·커밋하지 않는다.
+
+다음은 재시작 필요에 대한 사장 승인/새 운영 지시 → 허용된 이어 하기 → 저장/링크 재확인 → sync·자기 경로만 커밋·AT-FF-86 확인이다. 같은 파일에 다른 세션 변경이 섞이면 해당 파일을 커밋하지 않고 보고해야 한다. 운영 저장소 미커밋 0을 만들려고 다른 세션 파일을 되돌리거나 커밋하지 않는다. 계획 담당의 d2 알림은 이 대화가 직접 보내지 않았다.
+
+실제 도달 증거 수준은 3(실행본 설치·정책 한 곳 보정·실제 연결 응답)이다. 요구 중 재시작 뒤 도구 사용·실제 파일 읽기와 AT-FF-86은 남아 있다. 제품 구조/수락 기준/기존 다른 시험 변경은 없고, 명시된 목표의 링크 복구를 위해 app_manifests 안에서 YAML 내용이 같은 원래 링크를 선택하는 구현 세부를 더했다. 전체 앱 회귀는 앱 변경이 없어 반복하지 않았다. 재시작·릴리스·실제 메시지·push는 하지 않았다. 자기 보고서만 commit --only한 hejo 커밋과 개인값/공백 검사 결과는 `E17/hejo-commit.log/json`, `report-checks.json` 및 최종 result에 기록한다.
