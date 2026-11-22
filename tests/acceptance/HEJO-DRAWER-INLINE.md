@@ -1,6 +1,6 @@
 # HEJO-DRAWER-INLINE 수락 시험
 
-9판 · 2026-11-23(검증 7회: AT-DI-35 선 비교 기준을 같은 바탕의 방 목록 선으로) · 8판 · 2026-11-23(REQ-DI-08·09 고정 머리·필터 토글, AT-DI-35~38) · 7판 · 2026-11-23(검증 5회: AT-DI-20~23·34의 테마 전환은 실제 앱 경로로) · 6판 · 2026-11-23(검증 4회: AT-DI-34 폭 140→240, 140은 `ConversationSidebar.snapped`가 180으로 맞추는 허용 밖 값) · 5판 · 2026-11-23(검증 3회: 열린 칸 상태 기존 시험의 보기 폭 입력 이관 규칙) · 4판 · 2026-11-23(REQ-DI-07 로고·버전 가운데, AT-DI-34) · 3판 · 2026-11-23(검증 1차: AT-TD-41 창 프레임 단언 교체 추가, verdict.md) · 2판 · 2026-11-22(계획 검증 1회차 R1~R4 반영, [plan-review.md](../../docs/changes/HEJO-DRAWER-INLINE-20261122/plan-review.md)) · 명세 [spec.md](../../docs/changes/HEJO-DRAWER-INLINE-20261122/spec.md) · 설계 [design.md](../../docs/changes/HEJO-DRAWER-INLINE-20261122/design.md)
+10판 · 2026-11-23(검증 8회: 8판 픽셀 비교는 알파 포함 RGBA) · 9판 · 2026-11-23(검증 7회: AT-DI-35 선 비교 기준을 같은 바탕의 방 목록 선으로) · 8판 · 2026-11-23(REQ-DI-08·09 고정 머리·필터 토글, AT-DI-35~38) · 7판 · 2026-11-23(검증 5회: AT-DI-20~23·34의 테마 전환은 실제 앱 경로로) · 6판 · 2026-11-23(검증 4회: AT-DI-34 폭 140→240, 140은 `ConversationSidebar.snapped`가 180으로 맞추는 허용 밖 값) · 5판 · 2026-11-23(검증 3회: 열린 칸 상태 기존 시험의 보기 폭 입력 이관 규칙) · 4판 · 2026-11-23(REQ-DI-07 로고·버전 가운데, AT-DI-34) · 3판 · 2026-11-23(검증 1차: AT-TD-41 창 프레임 단언 교체 추가, verdict.md) · 2판 · 2026-11-22(계획 검증 1회차 R1~R4 반영, [plan-review.md](../../docs/changes/HEJO-DRAWER-INLINE-20261122/plan-review.md)) · 명세 [spec.md](../../docs/changes/HEJO-DRAWER-INLINE-20261122/spec.md) · 설계 [design.md](../../docs/changes/HEJO-DRAWER-INLINE-20261122/design.md)
 
 상태: 명세 완료 · 코드 미작성 · 미실행 · 계획 검증 통과(2회차).
 모두 앱 시험(`app/Tests`, swiftc 묶음)이다. 가짜 화면(`PetController.displays` 주입), 임시 `LocalStore`, 가짜 명부(`alpha`)만 쓴다. 움직임 시험 외에는 `reducedMotion = true`.
@@ -76,7 +76,7 @@
 - 기대값은 그대로다. 실제 경로로 바꿨는데도 밝은 테마에서 글자가 그려지지 않거나 바탕과 구분되지 않으면 제품 결함이다(REQ-DI-07 AC-03: 버전 글자 색은 테마에 맞는 기존 색 `CardText.quiet`).
 
 ## 8판 추가: 고정 머리·필터 토글 (REQ-DI-08·09)
-실제 `ConversationView`+`PetController` 조립(1440×900, 채팅 펼침, 칸 열림, 동작 줄이기 켬), 카드 12개(급한 것 6, 나머지 6)로 목록이 칸 높이보다 길게 한다. 테마 전환은 7판 보충의 실제 경로.
+(10판) 이 절의 모든 픽셀 비교 "RGB 차이 합"은 **알파를 포함한 RGBA 네 성분 차이 합**으로 읽는다(대화 창 바탕이 반투명이라 밝은 테마 캡처는 같은 RGB에 알파만 다르다 — 검증 8회 실측: 제목 선 (0,0,0,22), 바탕 (0,0,0,5)). 흰 글자 판정(R,G,B ≥ 0.85)은 그대로 RGB다. 실제 `ConversationView`+`PetController` 조립(1440×900, 채팅 펼침, 칸 열림, 동작 줄이기 켬), 카드 12개(급한 것 6, 나머지 6)로 목록이 칸 높이보다 길게 한다. 테마 전환은 7판 보충의 실제 경로.
 
 | ID | AC | 입력 | 기대 |
 |---|---|---|---|
