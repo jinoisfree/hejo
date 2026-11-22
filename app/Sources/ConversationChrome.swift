@@ -43,7 +43,7 @@ final class EmployeeSidebarCell:NSTableCellView {
             let color=row.open ? (dark ? NSColor.white:tint):SidebarTone.primary(dark ? 0.78:0.75)
             SidebarMotion.change(heading,key:"foregroundColor",to:color.cgColor,duration:duration)
         }
-        selection.backgroundColor=NSColor.controlAccentColor.withAlphaComponent(dark ? 0.22:0.12).cgColor
+        selection.backgroundColor=SidebarTone.selection(dark:dark).cgColor
         if wasChosen != chosen || duration==0 {SidebarMotion.change(selection,key:"opacity",to:chosen && !header ? 1.0:0.0,duration:duration,spring:true);wasChosen=chosen}
         let colors:[NSColor]=[list ? .systemBlue:.systemRed,MessageFormat.color("#ECB22E")!,MessageFormat.color("#36C5F0")!]
         let values=[unread,row.questions,row.alerts],labels=["안 읽은 글","답을 기다리는 질문","읽지 않은 알림"]

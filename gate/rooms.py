@@ -50,8 +50,7 @@ class RoomCommands:
 
     async def room_command(self, frame, conn):
         async with self.files.lock, self._publish_lock:
-            bridge = getattr(self, 'imessage', None)
-            before = bridge.status() if bridge else None
+            bridge = getattr(self, 'telegram', None)
             identifier = frame.get('id') or str(uuid.uuid4())
             if identifier in self.journal.deleted_rooms:
                 await self.server.error('room_deleted', identifier, conn)
@@ -82,8 +81,8 @@ class RoomCommands:
                     self.cleanup_rooms()
                 except OSError:
                     log.warning('room_cleanup_pending')
-            if bridge and bridge.status() != before:
-                await bridge.publish()
+        if bridge:
+            bridge.recorded(saved)
 
     def cleanup_rooms(self):
         self.files.cleanup()

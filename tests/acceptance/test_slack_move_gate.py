@@ -57,7 +57,8 @@ async def test_at_sm_02_edit_state_buttons_images_delete(gate, local, airport, c
     wire = Path('schemas/hejo-wire-v1.json')
     # The baseline hash was measured before adding the local contract.
     # HEJO-DEADLINE-CLOSE added definitions only (verdict V-2).
-    assert hashlib.sha256(wire.read_bytes()).hexdigest() == '4f365159c687db76249fed494627764f2e8fe741e89a56471642fe983371b7ce'
+    # HEJO-TELEGRAM replaced the external-messenger frames only (verdict 2차, HT-B02).
+    assert hashlib.sha256(wire.read_bytes()).hexdigest() == '7b3c2db703a83824ee6d173262bbefec34b5210c74954d7c5dc8556c1fb0f75b'
     assert RECORD_TYPES == {'message', 'edit', 'delete', 'state', 'room', 'room_delete'}
     ws, _ = await client.pair()
     result = await local('POST', employee='alpha', text='initial')

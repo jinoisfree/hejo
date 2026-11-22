@@ -3,6 +3,8 @@ import QuartzCore
 
 /// SwiftUI opacity multiplies the primary color's native alpha rather than replacing it.
 enum SidebarTone {
+    static func column(dark:Bool)->NSColor { primary(dark ? 0.035:0.025) }
+    static func selection(dark:Bool)->NSColor { NSColor.controlAccentColor.withAlphaComponent(dark ? 0.22:0.12) }
     static func primary(_ opacity:CGFloat=1)->NSColor {let color=NSColor.labelColor;return color.withAlphaComponent(color.alphaComponent*opacity)}
 }
 

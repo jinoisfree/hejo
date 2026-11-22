@@ -162,10 +162,6 @@ struct ConversationFailedSend: Identifiable {
             };return nil
         }
     }
-    var imessageRooms: [IMessageRoom] {
-        model.employees.map { IMessageRoom(id: $0.id, title: $0.name) } +
-        model.groups.values.filter { $0.archived != true }.sorted { $0.title < $1.title }.map { IMessageRoom(id: $0.id, title: $0.title) }
-    }
     private var makingRoom=false
     private var reopeningRoom:String?
     func sendFields(_ key:ConversationKey,recipient:String?=nil)->[String:Any] {
@@ -370,7 +366,7 @@ struct ConversationFailedSend: Identifiable {
             self?.stateFailure = failed ? IslandFailure(message: "화면 상태를 맞추지 못했어요", firstWords: "") : nil
         }
         model.memberState.onUnpinned = { [weak self] count in self?.notice = "고정 자리 5개를 넘어 \(count)개의 고정을 풀었어요." }
-        client.imessage.onChange = { [weak self] in self?.notifyChange() }
+        client.telegram.onChange = { [weak self] in self?.notifyChange() }
         client.onFrame = { [weak self] frame in self?.receive(frame) }
         timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             Task { @MainActor in

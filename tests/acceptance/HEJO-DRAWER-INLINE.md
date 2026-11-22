@@ -1,6 +1,6 @@
 # HEJO-DRAWER-INLINE 수락 시험
 
-2판 · 2026-11-22(계획 검증 1회차 R1~R4 반영, [plan-review.md](../../docs/changes/HEJO-DRAWER-INLINE-20261122/plan-review.md)) · 명세 [spec.md](../../docs/changes/HEJO-DRAWER-INLINE-20261122/spec.md) · 설계 [design.md](../../docs/changes/HEJO-DRAWER-INLINE-20261122/design.md)
+10판 · 2026-11-23(검증 8회: 8판 픽셀 비교는 알파 포함 RGBA) · 9판 · 2026-11-23(검증 7회: AT-DI-35 선 비교 기준을 같은 바탕의 방 목록 선으로) · 8판 · 2026-11-23(REQ-DI-08·09 고정 머리·필터 토글, AT-DI-35~38) · 7판 · 2026-11-23(검증 5회: AT-DI-20~23·34의 테마 전환은 실제 앱 경로로) · 6판 · 2026-11-23(검증 4회: AT-DI-34 폭 140→240, 140은 `ConversationSidebar.snapped`가 180으로 맞추는 허용 밖 값) · 5판 · 2026-11-23(검증 3회: 열린 칸 상태 기존 시험의 보기 폭 입력 이관 규칙) · 4판 · 2026-11-23(REQ-DI-07 로고·버전 가운데, AT-DI-34) · 3판 · 2026-11-23(검증 1차: AT-TD-41 창 프레임 단언 교체 추가, verdict.md) · 2판 · 2026-11-22(계획 검증 1회차 R1~R4 반영, [plan-review.md](../../docs/changes/HEJO-DRAWER-INLINE-20261122/plan-review.md)) · 명세 [spec.md](../../docs/changes/HEJO-DRAWER-INLINE-20261122/spec.md) · 설계 [design.md](../../docs/changes/HEJO-DRAWER-INLINE-20261122/design.md)
 
 상태: 명세 완료 · 코드 미작성 · 미실행 · 계획 검증 통과(2회차).
 모두 앱 시험(`app/Tests`, swiftc 묶음)이다. 가짜 화면(`PetController.displays` 주입), 임시 `LocalStore`, 가짜 명부(`alpha`)만 쓴다. 움직임 시험 외에는 `reducedMotion = true`.
@@ -47,7 +47,42 @@
 |---|---|---|---|
 | AT-DI-30 | DI-06.AC-01 | `app/Sources`에서 `drawerOverlay`, `TodoDrawerScrim`, `drawerScrim`, `withLeading`, `shownLeading`, `installDrawer(_ view:NSView)`(PetView), `TodoDrawerView`의 `backgroundColor` 검색 | 0건(impl-report에 검색 명령과 결과) |
 | AT-DI-31 | DI-06.AC-02 | 칸 열린 채 Esc / "‹ 접기" / 채팅 칸 빈 곳 클릭 | 앞의 둘은 닫힘, 마지막은 열린 채 |
-| AT-DI-32 | DI-06.AC-02 | 기존 앱 시험 전체(`HEJO_PYTHON=<게이트웨이 python> bash app/scripts/test.sh`) | 종료 0. AT-TD-27·29·36·37·41·42, HEJO-DEADLINE-CLOSE 앱 시험, `PetWindowTests`·`WebPaneTests`가 기대값 수정 없이 통과. 교체 대상(AT-TD-30의 덮개 단언, AT-TD-31·33·34·35, AT-FF-40·41·90~93)만 이 문서 시험으로 바뀌었음을 impl-report에 목록으로 적는다 |
+| AT-DI-32 | DI-06.AC-02 | 기존 앱 시험 전체(`HEJO_PYTHON=<게이트웨이 python> bash app/scripts/test.sh`) | 종료 0. AT-TD-27·29·36·37·41·42, HEJO-DEADLINE-CLOSE 앱 시험, `PetWindowTests`·`WebPaneTests`가 기대값 수정 없이 통과. 교체 대상(AT-TD-30의 덮개 단언, AT-TD-31·33·34·35, AT-FF-40·41·90~93, **3판: AT-TD-41의 창 프레임 단언 2곳**)만 이 문서 시험으로 바뀌었음을 impl-report에 목록으로 적는다 |
 
 ## 사람 확인
 - M-DI-1, M-DI-2: [spec 사람 확인](../../docs/changes/HEJO-DRAWER-INLINE-20261122/spec.md#사람-확인). 개발 빌드(`bash app/scripts/build.sh`)에서 사장이 본다. 구현 담당은 같은 조건의 화면 사진(어둡게·밝게, 오른쪽 끝 근처)을 증거 폴더에 남긴다.
+
+## 3판 정정: AT-TD-41 창 프레임 단언 (수락 시험 오류, 계획 담당)
+2판 AT-DI-32는 AT-TD-41을 "기대값 수정 없이" 통과하라고 했지만, AT-TD-41 코드(`app/Tests/TodoDrawerTests.swift`)의 두 단언 — 사장 칸 클릭 뒤 `panel.frame.minX == closed.minX - 290 && width == closed.width + 290`, 빈 알약 클릭 뒤 `minX == emptyFrame.minX - 290 && width == emptyFrame.width + 290` — 은 옛 REQ-TD-02 AC-01(왼쪽으로 늘림)의 좌표를 담고 있어 REQ-DI-02 AC-01과 함께 만족할 수 없다. 이 두 단언만 아래로 바꾼다. AT-TD-41의 나머지(열림 상태·칸 보임·두 번째 클릭으로 원래 프레임 복귀·`AT-TD-27` 라벨)는 그대로다.
+
+| ID | AC | 입력 | 기대 |
+|---|---|---|---|
+| AT-DI-33 | TD-01.AC-01 배선 + DI-02.AC-01 | AT-TD-41과 같은 조립: 가시 영역 1440×900, `placePet(at:(650,700))`, 채팅 펼침, 동작 줄이기 켬. (가) 사장 칸 클릭 (나) 빈 알약 클릭 | 두 경우 모두 열린 뒤 `panel.frame.minX == 닫힌 minX`, `panel.frame.width == 닫힌 width + 290`, 펫 상자(`placementTarget.globalSprite`) 닫힌 때와 같음. 근거: 이 배치에서 닫힌 대화 창 오른쪽 끝 + 290이 `1440 - 12` 이하라 REQ-DI-03 옮김이 없다 — 시험은 이 전제(닫힌 `globalBubble.maxX + 290 <= 1428`)도 함께 단언한다 |
+
+## 4판 추가: 로고·버전 가운데 (REQ-DI-07)
+
+| ID | AC | 입력 | 기대 |
+|---|---|---|---|
+| AT-DI-34 | DI-07.AC-01·02·03 | 실제 `ConversationView`(폭 1000, 높이 600). 시험에서 `version` 글자를 `0.2.5`로 둔다. 방 목록 폭 68 → 212 → 240 → 0, 어둡게·밝게. 각 폭에서 머리 영역(y 0~44, x 0~S)을 비트맵으로 그리고 바탕과 다른 픽셀로 로고 글자(y 7~25)·버전 글자(y 26~38)의 경계 상자를 잰다 | 폭 68·212·240에서 로고 경계 상자 가운데 x와 버전 경계 상자 가운데 x가 모두 `S/2`와 1.5pt 이내. 로고 첫 글자 영역에 파랑 픽셀(B > R + 0.3)이 있다. 폭 0에서 로고·버전 숨김. 기대값 근거: 사장 요청(칸 가운데) — 라벨 정렬 속성 값이 아니라 그려진 픽셀로 잰다 |
+
+## 5판 정정: 칸이 열린 채 대화 보기 폭을 직접 정하는 기존 시험의 입력 이관 (수락 시험 오류, 계획 담당)
+- 옛 배치에서는 칸이 대화 보기 밖에 있어 `ConversationView` 폭 = 방 목록 + 채팅이었다. 새 배치에서는 칸이 열려 있으면 대화 보기 폭 = 방 목록 + 290 + 채팅이다.
+- 그래서 칸이 열린 상태에서 `ConversationView.frame.size.width`를 직접 정해 "채팅 칸 폭"을 겨냥한 기존 시험은 **입력 폭에 칸 폭(`drawerShownWidth`, 열림이면 290)을 더한다.** 기대값은 바꾸지 않는다.
+- 확인된 대상: `app/Tests/IslandTests.swift` AT53 "narrow header reserves title and right icons"의 `ui.frame.size.width=428` → `428 + 290 = 718`, 바로 뒤 `760` → `760 + 290 = 1050`(AT56 머리 끌기 구간). 근거: 그 앞(AT-TD-27)에서 칸을 열고 닫지 않으며, 428은 방 목록 68 + 채팅 최소 360을 뜻한다(`PetLayout.minimumChatSize`).
+- 전체 시험에서 **같은 꼴**(칸 열림 + 보기 폭 직접 지정 + 채팅 폭을 겨냥한 기대)의 충돌이 더 나오면 같은 규칙으로 입력만 이관하고 impl-report에 파일:줄·전후 값을 목록으로 적는다. 다른 꼴의 실패는 고치지 말고 멈춘다.
+
+## 7판 보충: 테마 전환 방법 (AT-DI-20~23·34 공통)
+- "어둡게·밝게"는 사용자가 바꾸는 실제 경로로 전환한다: 임시 `LocalStore`에 묶은 `ChatAppearance.change(theme:)` → 펫이 있으면 `PetController.applyChatAppearance()`, 이어서 보기 배치·그리기를 마친 뒤 캡처한다. `window.appearance`/`view.appearance`만 바꾸는 것은 실제 경로를 거치지 않으므로 이 시험의 전환으로 인정하지 않는다.
+- 기대값은 그대로다. 실제 경로로 바꿨는데도 밝은 테마에서 글자가 그려지지 않거나 바탕과 구분되지 않으면 제품 결함이다(REQ-DI-07 AC-03: 버전 글자 색은 테마에 맞는 기존 색 `CardText.quiet`).
+
+## 8판 추가: 고정 머리·필터 토글 (REQ-DI-08·09)
+(10판) 이 절의 모든 픽셀 비교 "RGB 차이 합"은 **알파를 포함한 RGBA 네 성분 차이 합**으로 읽는다(대화 창 바탕이 반투명이라 밝은 테마 캡처는 같은 RGB에 알파만 다르다 — 검증 8회 실측: 제목 선 (0,0,0,22), 바탕 (0,0,0,5)). 흰 글자 판정(R,G,B ≥ 0.85)은 그대로 RGB다. 실제 `ConversationView`+`PetController` 조립(1440×900, 채팅 펼침, 칸 열림, 동작 줄이기 켬), 카드 12개(급한 것 6, 나머지 6)로 목록이 칸 높이보다 길게 한다. 테마 전환은 7판 보충의 실제 경로.
+
+| ID | AC | 입력 | 기대 |
+|---|---|---|---|
+| AT-DI-35 | DI-08.AC-01·02 | 칸 열린 상태에서 제목·접기·필터 토글·스크롤 영역 프레임을 칸 좌표로 잰다 | 제목 글자·접기 단추의 세로 가운데 = 22 ±1(칸 위에서). 필터 트랙 세로 가운데 = 44+22 = 66 ±1. 스크롤 영역 위 끝 = 88(되돌리기 바닥 줄이 없으면 아래 끝 = 칸 아래 끝). 필터 트랙 좌우 = 14 / 290−14. (9판 정정) 칸 좌표 y 43~44와 87~88에 1px 선이 있다: 제목 띠 선(y 43.5) 표본은 같은 행 방 목록 열 가운데(x = S/2, 같은 띠 바탕) 선 표본과, 필터 띠 선(y 87.5) 표본은 방 목록 오른쪽 경계선(x = S−0.5, y 200, 같은 칸 열 바탕 위 같은 선 값) 표본과 각각 RGB 차이 합 ≤ 6/255. 두 선 표본 모두 바로 아래 4pt 바탕 표본과 RGB 차이 합 > 6/255(선이 보임) |
+| AT-DI-36 | DI-08.AC-03 | 목록을 맨 아래까지 스크롤(문서 보기 스크롤 위치를 끝으로) | 스크롤 전후 제목 글자·접기 단추·필터 트랙의 창 좌표가 같다. 첫 카드의 창 좌표는 위로 옮겨졌다(스크롤이 실제로 일어남). 되돌리기 바닥 줄이 보이는 상태(카드 닫기 직후)에서도 바닥 줄 프레임이 스크롤 전후 같다 |
+| AT-DI-37 | DI-09.AC-01·02·03 | (가) 마감 받을 수 있음 (나) `available` 거짓. 각 칸을 차례로 누른다 | (가) 칸 4개 "전체 12"·"답 요청 a"·"마감 d"·"알림 n"(개수는 모델 `counts`), 폭이 서로 같고(±1) 합이 트랙 안쪽 폭. (나) 칸 3개, 마감 없음. 누를 때마다 컨트롤러 `drawerFilter`가 그 필터가 되고 목록 카드 종류가 맞게 바뀌며, 그 칸만 선택 상태(`chosen`, 접근성 선택 참) |
+| AT-DI-38 | DI-09.AC-01·04 | 어둡게·밝게 각각 필터 토글과 채팅 아래 "답글 / 새 대화" 토글을 비트맵으로 그린다 | 고른 칸 안쪽 빈 곳 표본과 "답글/새 대화"의 고른 칸 표본의 RGB 차이 합 ≤ 6/255. 트랙 빈 곳(고르지 않은 칸 사이 여백) 표본과 "답글/새 대화" 트랙 표본도 ≤ 6/255. 고른 칸 글자 픽셀이 흰색 계열(R,G,B ≥ 0.85) |
+| AT-DI-39 | DI-08.AC-04 | AT-DI-12와 같은 0.125초 시점(칸 일부만 드러남) | 필터 트랙 폭이 290−28 그대로(다시 배치되지 않음), 제목 띠·필터 띠가 칸 보기 경계에서 잘려 보인다(보기 폭 < 290). 카드 클릭·Esc·접기 회귀는 AT-DI-31·AT-TD 시험 그대로 통과 |
+

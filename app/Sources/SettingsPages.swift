@@ -38,8 +38,8 @@ enum SettingsPages {
     }
 }
 
-/// Native controls read the same server state used by both kinds of room menu.
-@MainActor final class IMessageSettingsSection: NSView {
+/// Native settings present the gate-owned forum connection state.
+@MainActor final class TelegramSettingsSection: NSView {
     override var isFlipped: Bool { true }
     let status = NSTextField(labelWithString: "서버 연결 전")
     let code = NSTextField(labelWithString: "")
@@ -49,17 +49,14 @@ enum SettingsPages {
     let copy = NSButton(title: "복사", target: nil, action: nil)
     var copyPasteboard: NSPasteboard = .general
     let unpair = NSButton(title: "연결 해제", target: nil, action: nil)
-    let enabled = NSButton(checkboxWithTitle: "아이메시지 연결 켜기", target: nil, action: nil)
-    let rooms = NSPopUpButton(frame: .zero, pullsDown: false)
-    private weak var model: IMessageState?
-    private var choices: () -> [IMessageRoom] = { [] }
-    private var roomIDs: [String?] = []
+    let enabled = NSButton(checkboxWithTitle: "텔레그램 연결 켜기", target: nil, action: nil)
+    private weak var model: TelegramState?
     private var timer: Timer?
     init() {
         super.init(frame: NSRect(x: 24, y: 0, width: 340, height: 300))
-        let title = NSTextField(labelWithString: "아이메시지")
+        let title = NSTextField(labelWithString: "텔레그램")
         title.font = .systemFont(ofSize: 14, weight: .semibold)
-        let hint = NSTextField(wrappingLabelWithString: "이 코드를 서버의 아이메시지 번호로 보내세요. 방의 ‘폰으로 보고 받기’를 켜면 앱에서 시작한 대화의 답도 폰으로 옵니다.")
+        let hint = NSTextField(wrappingLabelWithString: "텔레그램에서 포럼(토픽)을 켠 그룹을 만들고 봇을 토픽 관리 권한이 있는 관리자로 넣은 뒤, 이 코드를 그 그룹에 보내세요. 연결을 켜면 hejo의 방마다 토픽이 생깁니다.")
         hint.font = .systemFont(ofSize: 12); hint.textColor = .secondaryLabelColor
         let views: [(NSView, NSRect)] = [
             (title, NSRect(x: 0, y: 0, width: 320, height: 22)),
@@ -70,8 +67,7 @@ enum SettingsPages {
             (remaining, NSRect(x: 170, y: 94, width: 95, height: 24)),
             (copy, NSRect(x: 270, y: 90, width: 60, height: 30)),
             (enabled, NSRect(x: 0, y: 126, width: 330, height: 26)),
-            (rooms, NSRect(x: 0, y: 160, width: 330, height: 28)),
-            (hint, NSRect(x: 0, y: 200, width: 330, height: 54)),
+            (hint, NSRect(x: 0, y: 164, width: 330, height: 90)),
             (problem, NSRect(x: 0, y: 258, width: 330, height: 40))]
         for (view, rect) in views { view.frame = rect; addSubview(view) }
         code.font = .monospacedSystemFont(ofSize: 18, weight: .medium)
@@ -79,7 +75,6 @@ enum SettingsPages {
         pair.target = self; pair.action = #selector(pairPhone)
         unpair.target = self; unpair.action = #selector(unpairPhone)
         enabled.target = self; enabled.action = #selector(changeEnabled)
-        rooms.target = self; rooms.action = #selector(changeRoom)
         refresh()
         timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refreshCode() }
@@ -87,8 +82,8 @@ enum SettingsPages {
     }
     required init?(coder: NSCoder) { fatalError() }
     deinit { timer?.invalidate() }
-    func bind(_ model: IMessageState, rooms: @escaping () -> [IMessageRoom]) {
-        self.model = model; choices = rooms; refresh()
+    func bind(_ model: TelegramState) {
+        self.model = model; refresh()
     }
     func refresh() {
         status.stringValue = model?.statusText ?? "서버 연결 전"
@@ -97,10 +92,6 @@ enum SettingsPages {
         unpair.isEnabled = supported && model?.paired == true
         enabled.isEnabled = supported && model?.paired == true
         enabled.state = model?.enabled == true ? .on : .off
-        rooms.removeAllItems(); rooms.addItem(withTitle: "연결된 방 없음"); roomIDs = [nil]
-        for choice in choices() { rooms.addItem(withTitle: choice.title); roomIDs.append(choice.id) }
-        rooms.selectItem(at: roomIDs.firstIndex(where: { $0 == model?.room }) ?? 0)
-        rooms.isEnabled = supported
         problem.stringValue = model?.problem ?? ""
         refreshCode()
     }
@@ -121,12 +112,6 @@ enum SettingsPages {
         guard let model else { return }
         let value = enabled.state == .on
         refresh() // Wait for the gate's acknowledgement before displaying a changed setting.
-        Task { await model.save(enabled: value, room: model.room, reports: model.reports) }
-    }
-    @objc private func changeRoom() {
-        guard let model, roomIDs.indices.contains(rooms.indexOfSelectedItem) else { return }
-        let value = roomIDs[rooms.indexOfSelectedItem]
-        refresh()
-        Task { await model.save(enabled: model.enabled, room: value, reports: model.reports) }
+        Task { await model.save(enabled: value) }
     }
 }

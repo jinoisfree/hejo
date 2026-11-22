@@ -2,9 +2,6 @@ import AppKit
 
 @MainActor final class TodoDrawerView: NSView {
     private let scroll=NSScrollView(), stack=NSStackView()
-    // The installed PetView supplies its existing conversation tint, rather than
-    // introducing a second theme palette for the drawer.
-    var backgroundColor: NSColor = .windowBackgroundColor { didSet { needsDisplay=true } }
     private var appearanceObserver: NSObjectProtocol?
     var onClose: (() -> Void)?
     var onFilter: ((TodoDrawerModel.Filter) -> Void)?
@@ -18,7 +15,7 @@ import AppKit
     private var previous: TodoDrawerModel.Snapshot?, previousFilter: TodoDrawerModel.Filter?, previousSelection: String?
     private(set) var selectedID: String?
     override init(frame: NSRect) {
-        super.init(frame:frame);wantsLayer=true
+        super.init(frame:frame);wantsLayer=true;layer?.masksToBounds=true
         scroll.drawsBackground=false;scroll.hasVerticalScroller=true;scroll.autohidesScrollers=true
         stack.orientation = .vertical;stack.alignment = .leading;stack.spacing=10
         stack.edgeInsets=NSEdgeInsets(top:14,left:14,bottom:14,right:14)
@@ -26,27 +23,22 @@ import AppKit
         footer.orientation = .horizontal;footer.edgeInsets=NSEdgeInsets(top:6,left:14,bottom:6,right:14);footer.isHidden=true;addSubview(footer)
         setAccessibilityLabel("처리할 일")
         appearanceObserver=NotificationCenter.default.addObserver(forName:ChatAppearance.didChange,object:nil,queue:.main){ [weak self] _ in
-            MainActor.assumeIsolated { self?.needsDisplay=true }
+            MainActor.assumeIsolated { self?.needsDisplay=true;self?.cardViews.forEach{$0.needsDisplay=true} }
         }
     }
     required init?(coder:NSCoder){fatalError()}
     deinit { if let appearanceObserver { NotificationCenter.default.removeObserver(appearanceObserver) } }
-    override var isOpaque: Bool { true }
-    override func draw(_ dirtyRect: NSRect) {
-        backgroundColor.withAlphaComponent(1).setFill()
-        bounds.fill()
-    }
     override func viewDidChangeEffectiveAppearance() {
-        super.viewDidChangeEffectiveAppearance(); needsDisplay=true
+        super.viewDidChangeEffectiveAppearance(); needsDisplay=true;cardViews.forEach{$0.needsDisplay=true}
     }
     override var acceptsFirstResponder: Bool {true}
     override func cancelOperation(_ sender:Any?){onClose?()}
     override func layout(){
         super.layout()
         let footerHeight:CGFloat=footer.isHidden ? 0:32
-        footer.frame=CGRect(x:0,y:0,width:bounds.width,height:footerHeight)
-        scroll.frame=CGRect(x:0,y:footerHeight,width:bounds.width,height:max(0,bounds.height-footerHeight))
-        stack.frame.size.width=bounds.width
+        footer.frame=CGRect(x:0,y:0,width:PetController.drawerWidth,height:footerHeight)
+        scroll.frame=CGRect(x:0,y:footerHeight,width:PetController.drawerWidth,height:max(0,bounds.height-footerHeight))
+        stack.frame.size.width=PetController.drawerWidth
         stack.layoutSubtreeIfNeeded()
         stack.frame.size.height=max(scroll.frame.height,stack.fittingSize.height)
     }
@@ -130,8 +122,9 @@ final class TodoDrawerCardView: NSView {
         let urgent=card.kind == .question || card.kind == .deadline && card.urgent
         let tone: NSColor = urgent ? .systemRed:.secondaryLabelColor
         let box=NSBezierPath(roundedRect:bounds.insetBy(dx:1,dy:1),xRadius:10,yRadius:10)
-        tone.withAlphaComponent(urgent ? 0.07:0.035).setFill();box.fill()
-        (selected ? NSColor.controlAccentColor:tone.withAlphaComponent(0.18)).setStroke();box.lineWidth=selected ? 2:1;box.stroke()
+        let dark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua
+        (selected ? SidebarTone.selection(dark:dark):SidebarTone.primary(0.035)).setFill();box.fill()
+        SidebarTone.primary(0.1).setStroke();box.lineWidth=1;box.stroke()
         func text(_ value:String,_ rect:CGRect,_ size:CGFloat,_ color:NSColor,_ weight:NSFont.Weight = .regular){
             let style=NSMutableParagraphStyle();style.lineBreakMode = .byTruncatingTail
             (value as NSString).draw(in:rect,withAttributes:[.font:NSFont.systemFont(ofSize:size,weight:weight),.foregroundColor:color,.paragraphStyle:style])
@@ -145,11 +138,4 @@ final class TodoDrawerCardView: NSView {
         avatar.draw(in:CGRect(x:12,y:62,width:16,height:16),name:card.name)
         text(card.name+" · "+card.time,CGRect(x:34,y:62,width:bounds.width-46,height:18),10,.secondaryLabelColor)
     }
-}
-
-/// A real hit-testable overlay, confined to the chat while the drawer covers it.
-final class TodoDrawerScrim: NSView {
-    var onClose:(()->Void)?
-    override func mouseDown(with event:NSEvent){onClose?()}
-    override func draw(_ dirtyRect:NSRect){NSColor.black.withAlphaComponent(0.14).setFill();bounds.fill()}
 }

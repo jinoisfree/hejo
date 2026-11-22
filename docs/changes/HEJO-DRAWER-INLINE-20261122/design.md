@@ -1,6 +1,6 @@
 # HEJO-DRAWER-INLINE 설계
 
-2판 · 2026-11-22(계획 검증 1회차 R1·R2 반영, [plan-review.md](plan-review.md)) · 명세 [spec.md](spec.md) · 칸 표는 [spec 첫 절](spec.md#칸원본쓰기-주체수명)을 따른다. 기준 커밋 main `0644e9e`. 착수 때 HEJO-DEADLINE-CLOSE TASK-03 반영 뒤 기준으로 다시 확인한다(handoff 0항).
+상태: 4판(2.6) 구현 대기 · 1~3판 적용(2026-11-23) · 3판 · 2026-11-23(REQ-DI-07 로고·버전 가운데 추가, 사장 요청) · 2판 · 2026-11-22(계획 검증 1회차 R1·R2 반영, [plan-review.md](plan-review.md)) · 명세 [spec.md](spec.md) · 칸 표는 [spec 첫 절](spec.md#칸원본쓰기-주체수명)을 따른다. 기준 커밋 main `0644e9e`. 착수 때 HEJO-DEADLINE-CLOSE TASK-03 반영 뒤 기준으로 다시 확인한다(handoff 0항).
 
 ## 1. 지금 흐름 [확인]
 
@@ -65,6 +65,16 @@ TodoDrawerView: 배경 칠하지 않음(투명), 카드 색만 그림
 ### 2.4 `PetView`
 - `todoDrawer`, `installDrawer`, `drawerScrim`, `drawerOpen`(칸 표시 판단용이면), `updateScrim`의 칸 색 설정, `arrange`의 칸·덮개 프레임 줄을 없앤다. `arrange`는 `conversationContent`를 `x = 0`, `폭 = 창 - paneWidth`로 둔다.
 - Esc로 닫기(`panel.onCloseDrawer`, `PetView.swift:7,18`)는 유지한다.
+
+### 2.5 로고·버전 가운데 (3판, REQ-DI-07)
+- 원본: `ConversationView`의 `brand`·`version` 라벨과 `layout()`의 프레임 한 곳. 프레임은 지금처럼 방 목록 열 폭 전체(`x:0, width:left`)로 두고, 글자 정렬을 실제로 가운데로 만든다(예: 로고 attributed string에 가운데 문단 스타일을 넣음). 프레임을 글자 폭에 맞춰 직접 계산하는 방식도 되지만 정렬 원본은 하나만 둔다.
+- 할 일 칸과 무관하다(칸은 방 목록 오른쪽에 붙으므로 방 목록 열 폭이 바뀌지 않음).
+
+### 2.6 고정 머리·필터 토글 (4판, REQ-DI-08·09)
+- `TodoDrawerView`가 세 영역을 직접 배치한다: 제목 띠(위 44), 필터 띠(그 아래 44), 스크롤 영역(나머지, 맨 아래는 되돌리기 바닥 줄). 제목·필터는 `scroll`의 문서 보기(`stack`) 밖 고정 보기로 옮기고, `stack`에는 안내 줄·빈 상태·묶음·카드만 둔다. 세 영역 모두 폭 290(`PetController.drawerWidth`)으로 배치해 일부만 드러날 때 잘려 보인다.
+- 띠 아래 선은 `ConversationView.draw`가 방 목록·채팅 머리 선에 쓰는 같은 값(`SidebarTone.primary(0.1)`)을 쓴다. 칸 열 바탕은 지금처럼 `ConversationView.draw`가 칠하고 띠에 따로 불투명 바탕을 칠하지 않는다.
+- 필터 토글은 "답글 / 새 대화" 토글의 그리기 원본을 재사용한다: 트랙은 `ConversationView`의 `modeBackground`와 같은 값(`labelColor` 알파 0.1, 모서리 = 높이/2 수준, 안쪽 2pt), 칸은 `ComposerButton(mode:true)`의 `chosen` 그리기. 트랙·칸 크기 규칙을 새로 숫자로 복사하지 말고 두 곳이 쓰는 공용 값(예: 트랙 그리는 작은 보기 또는 공용 상수)으로 뽑는다. 글자 크기는 토글과 같은 11pt.
+- 옛 `TodoDrawerButton` 필터 글자(10pt, 강조색 글자만)는 제거한다(교체). "‹ 접기"는 지금 단추 그대로 제목 띠로 옮긴다.
 
 ## 3. 대안
 | 대안 | 판정 | 이유 |

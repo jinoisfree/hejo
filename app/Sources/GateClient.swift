@@ -21,8 +21,8 @@ struct ReconnectDelay {
     mutating func reset() { attempt = 0 }
 }
 @MainActor final class GateClient {
-    static let features = ["rooms", "imessage"]
-    lazy var imessage = IMessageState { [weak self] frame in
+    static let features = ["rooms", "telegram"]
+    lazy var telegram = TelegramState { [weak self] frame in
         guard let self else { throw GateFailure.notConnected }
         try await self.send(frame)
     }
@@ -98,7 +98,7 @@ struct ReconnectDelay {
     func stop() {
         generation += 1; worker?.cancel(); worker = nil
         socket?.cancel(with: .goingAway, reason: nil); socket = nil; pairCode = nil; signInFields = nil; token = nil
-        imessage.reset()
+        telegram.reset()
         backoff.reset(); welcomed = false; syncing = false; replayComplete = false
     }
     private func connectLoop(run: Int) async {
@@ -134,7 +134,7 @@ struct ReconnectDelay {
                 }
             } catch {
                 guard run == generation, !Task.isCancelled else { return }
-                welcomed = false; imessage.reset()
+                welcomed = false; telegram.reset()
                 if socket?.closeCode.rawValue == 1009 { status = .tooLarge }
                 if error is GateFailure { // Durable storage/protocol failures must not spin on reconnect.
                     if case GateFailure.storage = error { status = .storageError; return }
@@ -190,9 +190,9 @@ struct ReconnectDelay {
             }
         }
         if type == "welcome" {
-            imessage.reset()
-            if socket != nil { Task { await imessage.query() } }
-        } else if imessage.receive(frame) { return true }
+            telegram.reset()
+            if socket != nil { Task { await telegram.query() } }
+        } else if telegram.receive(frame) { return true }
         onFrame?(frame); return true
     }
     func authorizedRequest(components: [String], query: [URLQueryItem] = []) throws -> URLRequest {

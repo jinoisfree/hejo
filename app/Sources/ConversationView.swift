@@ -5,6 +5,13 @@ import UniformTypeIdentifiers
 @MainActor final class ConversationView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSTextViewDelegate, NSSearchFieldDelegate {
     let controller: ConversationController
     let todoDrawer=TodoDrawerView(frame:.zero)
+    var drawerShownWidth: CGFloat = 0 {
+        didSet {
+            guard oldValue != drawerShownWidth else{return}
+            todoDrawer.isHidden=drawerShownWidth<=0
+            needsLayout=true;needsDisplay=true
+        }
+    }
     var onToggleDrawer:(()->Void)?
     private(set) var drawerSelectedID:String?
     func setDrawerState(open:Bool,chatExpanded:Bool) {controller.setDrawerState(open:open,chatExpanded:chatExpanded)}
@@ -130,11 +137,13 @@ import UniformTypeIdentifiers
         composerFaceScroll.hasHorizontalScroller=true;composerFaceScroll.autohidesScrollers=true;composerFaceScroll.scrollerStyle = .overlay
         addRoom.invoke={ [weak self] in guard let self else { return };self.addMenu().popUp(positioning:nil,at:CGPoint(x:0,y:addRoom.bounds.height),in:addRoom) }
         island.avatar={ [weak controller] id in controller?.avatar(id) ?? ProfileAvatar(color:PictureCodec.color(name:id,hex:nil)) }
-        let logo=NSMutableAttributedString(string:"HEJO.",attributes:[.font:NSFont.systemFont(ofSize:14,weight:.semibold),.foregroundColor:NSColor.labelColor])
+        let sidebarAlignment:NSTextAlignment = .center
+        let logoParagraph=NSMutableParagraphStyle();logoParagraph.alignment=sidebarAlignment
+        let logo=NSMutableAttributedString(string:"HEJO.",attributes:[.font:NSFont.systemFont(ofSize:14,weight:.semibold),.foregroundColor:NSColor.labelColor,.paragraphStyle:logoParagraph])
         logo.addAttribute(.foregroundColor,value:NSColor.systemBlue,range:NSRange(location:0,length:1)); brand.attributedStringValue=logo
         brand.font = .systemFont(ofSize:14,weight:.semibold); version.font = .systemFont(ofSize:10); version.textColor = .labelColor.withAlphaComponent(0.7)
         version.stringValue=Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? ""
-        brand.alignment = .center; version.alignment = .center; heading.font = .systemFont(ofSize:14,weight:.semibold); subtitle.font = .systemFont(ofSize:10); subtitle.textColor = .labelColor.withAlphaComponent(0.7)
+        brand.alignment=sidebarAlignment; version.alignment=sidebarAlignment; heading.font = .systemFont(ofSize:14,weight:.semibold); subtitle.font = .systemFont(ofSize:10); subtitle.textColor = .labelColor.withAlphaComponent(0.7)
         employeeSearch.placeholderString="검색"; employeeSearch.delegate=self; employeeSearch.font = .systemFont(ofSize:12)
         search.placeholderString="단어나 문장으로 검색"; search.delegate=self
         findRow.onClose={ [weak self] in _=self?.closeSearchIfOpen() }
@@ -172,6 +181,7 @@ import UniformTypeIdentifiers
         history.reduceMotion={ [weak self] in self?.reduceMotion() ?? true }
         history.onBlank={ [weak self] in self?.foldAll() }
         history.onMeasured={ [weak self] in self?.reportOpenHeight() }
+        addSubview(todoDrawer);todoDrawer.isHidden=true
         todoDrawer.onFilter={ [weak self] filter in self?.controller.drawerFilter=filter;self?.refresh() }
         todoDrawer.onCard={ [weak self] card in self?.selectDrawerCard(card) }
         todoDrawer.onClose={ [weak self] in self?.onToggleDrawer?() }
@@ -249,7 +259,6 @@ import UniformTypeIdentifiers
             menu.addItem(pictureMenu(kind:"employee",id:employee,name:person.name))
             if person.avatarCustom==true { menu.addItem(RoomActionItem("사진 지우기") { [weak self] in Task { _=await self?.controller.changePicture(kind:"employee",id:employee,url:nil) } }) }
         }
-        IMessageMenus.append(to: menu, room: employee, state: controller.client.imessage)
         menu.addItem(RoomActionItem("목록에서 빼기") { model.hide(employee) })
         return menu
     }
@@ -690,7 +699,8 @@ import UniformTypeIdentifiers
         let span = ThreeTapDiagnostics.startBeforeFirstTickSpan()
         defer { ThreeTapDiagnostics.endSpan("conversation_layout", span) }
         super.layout()
-        let w=bounds.width,h=bounds.height,left=min(sidebarWidth,max(0,w-100)), x=left, right=max(1,w-left), list=ConversationSidebar.isList(sidebarWidth)
+        let w=bounds.width,h=bounds.height,left=min(sidebarWidth,max(0,w-100)), x=left+drawerShownWidth, right=max(1,w-x), list=ConversationSidebar.isList(sidebarWidth)
+        todoDrawer.frame=CGRect(x:left,y:0,width:drawerShownWidth,height:h)
         brandDrag.frame=CGRect(x:0,y:0,width:left,height:44); brand.frame=CGRect(x:0,y:7,width:left,height:18); version.frame=CGRect(x:0,y:26,width:left,height:12)
         headerDrag.frame=CGRect(x:x,y:0,width:right,height:44)
         let islandWidth=island.fittedWidth(limit:max(44,right-70-120-24))
@@ -701,7 +711,7 @@ import UniformTypeIdentifiers
         employeeScroll.frame=CGRect(x:0,y:44,width:left,height:max(1,h-72))
         employeeTable.tableColumns.first?.width=employeeScroll.contentSize.width; employeeTable.frame.size.width=employeeScroll.contentSize.width
         brandDrag.isHidden=left==0; brand.isHidden=left==0; version.isHidden=left==0; employeeScroll.isHidden=left==0
-        handle.isHidden=left==0;handle.frame=CGRect(x:max(0,left-4),y:0,width:8,height:h)
+        handle.isHidden=left==0;handle.frame=CGRect(x:max(0,x-4),y:0,width:8,height:h)
         sidebarBlank.isHidden=left==0;sidebarBlank.frame=CGRect(x:0,y:max(44,h-28),width:left,height:28)
         addRow.list=list;addRoom.isHidden=left==0 || (list && !employeeSearch.stringValue.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)
         addRoom.title=controller.model.hidden.isEmpty ? "방 추가":"방 추가 (\(controller.model.hidden.count))"
@@ -749,13 +759,16 @@ import UniformTypeIdentifiers
         defer { ThreeTapDiagnostics.endSpan("conversation_draw", span) }
         let dark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua
         (dark ? NSColor(white:0.07,alpha:0.4) : .clear).setFill(); bounds.fill()
-        NSColor.labelColor.withAlphaComponent(0.035).setFill(); CGRect(x:sidebarWidth,y:0,width:max(0,bounds.width-sidebarWidth),height:44).fill()
-        SidebarTone.primary(dark ? 0.035:0.025).setFill();CGRect(x:0,y:44,width:sidebarWidth,height:max(0,bounds.height-72)).fill()
-        if !noticeScroll.isHidden {NSColor.labelColor.withAlphaComponent(0.04).setFill();CGRect(x:sidebarWidth,y:noticeScroll.frame.minY,width:max(0,bounds.width-sidebarWidth),height:noticeScroll.frame.height).fill();NSColor.labelColor.withAlphaComponent(0.1).setFill();CGRect(x:sidebarWidth,y:noticeScroll.frame.maxY-1,width:max(0,bounds.width-sidebarWidth),height:1).fill()}
+        let left=min(sidebarWidth,max(0,bounds.width-100)), x=left+drawerShownWidth
+        NSColor.labelColor.withAlphaComponent(0.035).setFill(); CGRect(x:x,y:0,width:max(0,bounds.width-x),height:44).fill()
+        SidebarTone.column(dark:dark).setFill();CGRect(x:0,y:44,width:left,height:max(0,bounds.height-72)).fill()
+        CGRect(x:left,y:44,width:drawerShownWidth,height:max(0,bounds.height-72)).fill()
+        if drawerShownWidth>0 {SidebarTone.primary(0.1).setFill();CGRect(x:x-1,y:0,width:1,height:bounds.height).fill()}
+        if !noticeScroll.isHidden {NSColor.labelColor.withAlphaComponent(0.04).setFill();CGRect(x:x,y:noticeScroll.frame.minY,width:max(0,bounds.width-x),height:noticeScroll.frame.height).fill();NSColor.labelColor.withAlphaComponent(0.1).setFill();CGRect(x:x,y:noticeScroll.frame.maxY-1,width:max(0,bounds.width-x),height:1).fill()}
         let divideY=modeBackground.frame.minY-10
-        SidebarTone.primary(0.1).setFill();CGRect(x:sidebarWidth,y:divideY,width:max(0,bounds.width-sidebarWidth),height:1).fill()
-        if !notice.stringValue.isEmpty {SidebarTone.primary(0.06).setFill();CGRect(x:sidebarWidth,y:notice.frame.minY-7,width:bounds.width-sidebarWidth,height:notice.frame.height+10).fill()}
-        SidebarTone.primary(0.1).setFill(); CGRect(x:sidebarWidth-1,y:0,width:1,height:bounds.height).fill(); CGRect(x:0,y:43,width:bounds.width,height:1).fill()
+        SidebarTone.primary(0.1).setFill();CGRect(x:x,y:divideY,width:max(0,bounds.width-x),height:1).fill()
+        if !notice.stringValue.isEmpty {SidebarTone.primary(0.06).setFill();CGRect(x:x,y:notice.frame.minY-7,width:bounds.width-x,height:notice.frame.height+10).fill()}
+        SidebarTone.primary(0.1).setFill(); CGRect(x:left-1,y:0,width:1,height:bounds.height).fill(); CGRect(x:0,y:43,width:bounds.width,height:1).fill()
     }
     func numberOfRows(in tableView:NSTableView)->Int { renderedSidebarIDs.count }
     func tableView(_ tableView:NSTableView,heightOfRow row:Int)->CGFloat {
@@ -945,7 +958,7 @@ import UniformTypeIdentifiers
                     answer.append(.accessory(id:thread.id+":typing:"+person,height:34,view:{[weak controller] in TypingBubbleView(name:model.name(person),avatar:controller?.avatar(person) ?? ProfileAvatar(),nameColor:controller?.palette(person,dark:dark).name.nsColor,activity:"답변을 준비하고 있습니다")}))
                 }
                 let activity=messages.last(where:{$0.role != "owner" && ThreadTools.thinking($0.text)})?.text.components(separatedBy:"\n").dropFirst().first ?? (messages.contains(where:{$0.streaming}) ? "답변을 작성하고 있습니다":"답변을 준비하고 있습니다")
-                answer.append(.accessory(id:thread.id+":work",height:WorkingControlRow.height(activity,width:max(1,bounds.width-sidebarWidth-36),seconds:max(0,Int(controller.clock().timeIntervalSince(since)))),view:{ [weak self] in
+                answer.append(.accessory(id:thread.id+":work",height:WorkingControlRow.height(activity,width:max(1,bounds.width-sidebarWidth-drawerShownWidth-36),seconds:max(0,Int(controller.clock().timeIntervalSince(since)))),view:{ [weak self] in
                     let control=WorkingControlRow(since:since,activity:activity,clock:{self?.islandModel.now ?? Date()},animationTime:{self?.motionTime() ?? 0},reduceMotion:{self?.reduceMotion() ?? true},stop:{ [weak self] in Task {await self?.controller.stop(thread.key)} });control.button.isEnabled=self?.controller.canSend==true;control.alphaValue=self?.controller.canSend==true ? 1:0.4;return control
                 }))
             }
@@ -966,7 +979,7 @@ import UniformTypeIdentifiers
         return .init(id:thread.id,top:top,replies:answer.isEmpty ? nil:answer,rail:nil,actions:actions,deleting:controller.deleting.contains(thread.key) ? "삭제 중…":nil,
             style:.init(inset:ThreadAppearance.inset,fill:0,stroke:highlighted ? .controlAccentColor:target ? .controlAccentColor:NSColor.labelColor.withAlphaComponent(dark ? 0.16:0.12),lineWidth:highlighted ? 2:target ? 1.5:1,background:ThreadAppearance.surface(dark:dark),status:tone,replyBackground:ThreadAppearance.replySurface(dark:dark)),
             bell:model.bell(thread.key),onBell:{ [weak self] in self?.controller.model.toggleBell(thread.key) },clickCard:pick,textClick:!expanded && foldable ? pick:nil,
-            bubbleWidth:max(ChatMetrics.minimumBubbleWidth,(bounds.width-sidebarWidth)*ChatMetrics.bubbleWidthFraction),quiet:quiet,expanded:expanded,replyTarget:target)
+            bubbleWidth:max(ChatMetrics.minimumBubbleWidth,(bounds.width-sidebarWidth-drawerShownWidth)*ChatMetrics.bubbleWidthFraction),quiet:quiet,expanded:expanded,replyTarget:target)
     }
     static let unavailableReply="정해진 버튼이 아니라 누를 수 없어요. 이 스레드에 글로 답해 주세요."
     private func postPieces(_ message:ConversationMessage,conversational:Bool,edge:NSColor?,extras:Bool=true,continuation:Bool=false)->[NativeThreadCard.Piece] {
@@ -1048,7 +1061,7 @@ import UniformTypeIdentifiers
         }
         let pending=controller.model.assessment(message.key).buttons.contains(message.id)
         if let checklist=controller.checklistSelection(message),pending {
-            pieces.append(.accessory(id:message.id+":checklist",height:ReplyChecklistView.height(checklist.items,width:max(1,bounds.width-sidebarWidth-36-43),selected:Set(checklist.selected)),view:{ [weak self] in
+            pieces.append(.accessory(id:message.id+":checklist",height:ReplyChecklistView.height(checklist.items,width:max(1,bounds.width-sidebarWidth-drawerShownWidth-36-43),selected:Set(checklist.selected)),view:{ [weak self] in
                 let choices=ReplyChecklistView(checklist,changed:{ [weak self] selected in self?.controller.selectChecklist(message,selected:selected) }) { [weak self] text in Task {await self?.controller.sendText(text,key:message.key,recipient:message.speaker)} }
                 return MessageAccessory(choices,limit:10000)
             }))

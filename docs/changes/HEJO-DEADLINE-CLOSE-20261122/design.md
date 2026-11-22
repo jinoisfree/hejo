@@ -1,6 +1,6 @@
 # HEJO-DEADLINE-CLOSE 설계
 
-3판 · 2026-11-22(계획 검증 1·2회차 반영) · 상태: 초안(재검토 대기) · 명세 [spec.md](spec.md) · 기준 `de8bdac` / HD `eee573e6`
+3판 · 2026-11-22(계획 검증 1·2회차 반영) · 상태: 적용(2026-11-22, 운영 RELEASE 227ef160·team-kit HD b32048c8·앱 v0.2.6) · 명세 [spec.md](spec.md) · 기준 `de8bdac` / HD `eee573e6`
 
 ## 1. 책임과 흐름
 

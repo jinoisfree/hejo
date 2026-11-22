@@ -83,3 +83,62 @@
 - V-1: `TodoDrawerModel.originNames` calendar→캘린더, slack→Slack. `TodoDrawerTests.swift`에 AT-DC-21b(6종+모르는 값 other는 꼬리 없음) 추가.
 - V-2: `tests/acceptance/test_slack_move_gate.py`의 고정 해시를 4f365159c687db76249fed494627764f2e8fe741e89a56471642fe983371b7ce로, 주석 'HEJO-DEADLINE-CLOSE added definitions only (verdict V-2)' 추가. 다른 줄 불변.
 - 검사: pytest gate/tests tests/acceptance(yaml 보충, --basetemp=/tmp/dcb) 453 통과·2 실패(기준 환경 2건뿐, `.build/dc-pytest-r1.log`). TZ=Asia/Seoul bash app/scripts/test.sh 종료 0(`.build/dc-app-test-r1.log`). scan_private.py 종료 0. git diff --check 종료 0.
+
+## TASK-04 서버 적용 (고위험, 증거 3·4)
+
+### 롤백 기록 (적용 전에 씀, 2026-11-22 23:3x)
+
+- 시작 조건: 진행 중 턴 0(`gateway_restart.running_turns` 읽기 전용 호출 결과 0), 기대 채널 7개. 구현 worktree를 로컬 main(`d3f5b5f`)으로 merge한 커밋 `227ef160694635f8afde36f06515f5136f73dc30`(제품 코드는 검증본 54272ad와 동일, 차이는 문서뿐).
+- team-kit 보관본(0700 폴더 `~/.cache/dc-rollback-20261122/`, 폴더 권한 drwx------):
+  - `deadline_watch.py` sha256 `470d272578d84ed32b3bd95c6dcad876781fef2a963c1497fd4a6df2b6f1b4b2`(원 위치 `~/.hermes/plugin-store/team-kit/lib/hermes_team_services/deadline_watch.py`, 권한 644)
+  - `hermes-deadlines` sha256 `8340115fe460e76a89e529280567af1aa577f62ef6c8a4a24a975b7a55c4535d`(원 위치 `~/.hermes/bin/hermes-deadlines`, 권한 755)
+  - 복원 명령: 각 보관본을 같은 폴더의 임시 파일로 복사 후 `mv`(이름 바꾸기), 권한 644·755.
+- 교체할 새 파일(HD `cfe6d9d21a96caae8fe09396a5505e87788a4916`): `deadline_watch.py` sha256 `1fa7fddb1531fb288b3029cf25da88693a160c1c96a929e633944a8884b6ad85`, `hermes-deadlines` sha256 `ec8d7158cd8ccf37bda70f048256fabb8fb6be437178602ecda9896be2eccc5a`.
+- 문 롤백 기준: 공용 릴리스 `<공용 릴리스>` = `e68ae82458a62a1c3d3468041c3d6dee0b576a2b`. 되돌리기: 그 커밋을 임시 worktree로 꺼내 `install/hejo-release`를 실행하고 게이트웨이 재시작 1회, team-kit 보관본도 함께 복원.
+- 운영 장부 파일 2개의 sha256 목록을 적용 전·후 비교(기록에는 개수와 목록 해시만): 적용 전 목록 해시 `a32a215b432247b8908261ff22ce62ca3672440cabbbe65aa37a712657d90c1f`.
+- 릴리스 대상 확인: `e68ae824..227ef160`의 `gate/ hub/ schemas/ config/ install/` 변경 커밋은 `a43662d`(이 작업)·`91ee402`(문서, gate/README.md)뿐. 변경 파일은 gate/README.md, gate/connection_runtime.py, gate/deadlines.py, gate/server.py, schemas/hejo-wire-v1.json.
+
+### TASK-04 결과 (2026-11-22 23:3x~23:4x)
+
+- 통합: 구현 worktree 브랜치에 로컬 main(`d3f5b5f`)을 merge 커밋 `227ef160694635f8afde36f06515f5136f73dc30`으로 통합(충돌 없음, 제품 코드는 검증본 54272ad와 같음).
+- team-kit 교체: 두 실행본을 임시 파일+이름 바꾸기로 교체. 적용 후 sha256 `deadline_watch.py` 1fa7fddb…ad85, `hermes-deadlines` ec8d7158…cc5a(둘 다 HD `cfe6d9d2`와 같음), 권한 644·755 유지.
+- `~/.hermes/bin/hermes-deadlines list --json`: 종료 0, `failed` 빈 목록, 직원 6명 가운데 열린 마감 합계 2건(직원 2에만, 가명), `notice` 있는 항목 0. 운영 장부 파일 2개 sha256 목록 적용 전후 동일(LEDGER_SAME). 장부는 닫지 않음.
+- HD main: 운영 저장소 main(`99bd8856`)에 `hejo-deadline-close-20261122`를 merge 커밋 **`b32048c813aefa72be778eaa7dca51815a9de429`**로 병합(마감 관련 4파일만, 충돌 없음). `./sync` 종료 0 → 작업 트리 깨끗, `./airport-check` 종료 0. 주의: `./sync`는 원본(`~/.hermes`) 기준으로 사본을 다시 채우므로 시험 파일 2개(`test_deadline_close.py`, `test_deadline_list.py`)가 되돌려져, 원본 쪽 `~/.hermes/plugin-store/team-kit/tests/`에 같은 시험 파일 2개를 복사해 둔 뒤 다시 sync했다(실행 코드 아님, 게이트웨이가 읽지 않음). 다른 작업 파일은 커밋하지 않음, push 안 함. 별도 `commit --only`는 변경이 merge 안에 이미 있어 필요 없었다.
+- 문: 롤백 기준 `RELEASE` = `e68ae82458a62a1c3d3468041c3d6dee0b576a2b`. `e68ae824..227ef160`의 gate/hub/schemas/config/install 변경은 `a43662d`·`91ee402`뿐(gate/README.md, connection_runtime.py, deadlines.py, server.py, schemas). `install/hejo-release`(구현 worktree 227ef160 기준) → `RELEASE` = `227ef160694635f8afde36f06515f5136f73dc30`, 공용 릴리스 `gate/`·`schemas/`가 소스와 바이트 동일.
+- 재시작 1회(`hermes-connections gateway restart --json`, 시작 직전 진행 중 턴 0): `{"outcome":"done","reason":"OK","connected":7}`. 재시작 뒤 `gateway.log`에 ERROR·Traceback 0.
+- 문 읽기 확인: 공용 릴리스 코드(`<공용 릴리스>`)의 `Deadlines.list()`를 운영 홈으로 직접 호출(읽기 전용): `deadlines_read items=2 failed=0`, origin은 `reminder`만. **실제 문 로그(gateway.log)에는 재시작 뒤 `deadlines_read`가 아직 없다**(앱이 아직 목록을 요청하지 않음. 칸을 열면 남는다). `deadlines_failed`는 없음.
+- 롤백이 필요했던 일은 없었다. 보관본 `~/.cache/dc-rollback-20261122/`(0700)는 사장 확인 전까지 둔다.
+
+## TASK-05 앱 0.2.6(빌드 8) 공개 후보 (고위험, 증거 2)
+
+- 시작 조건: 원격 `github` main(`git ls-remote` 읽기) = 로컬 `public` = `47a424564d4067c697b17b23aedcc0af9ab160ee`(같음, 로컬 추적 ref `github/main`은 오래된 값 0.2.4라 ls-remote로 확인). `95b9041` 뒤 main의 제품 코드(app gate hub schemas install config) 변경 0.
+- 버전 올림 커밋 **`cec1f94e33fa06a1b87311e759d193655c756cb5`**(`app/Resources/Info.plist` 0.2.6·8, `tests/acceptance/test_ship.py` 현재 버전 단언 한 줄만).
+- 추가 문서 커밋 `d88e2c80f6a74e0f52baee9b35eb193b8758c226`: 이 보고서가 main에 들어간 판에 `<구현 worktree>`·`<HD worktree>` 절대 경로 2줄이 있어 공개 개인값 검사(`absolute_path`)에 걸려, 그 두 줄을 자리표시자로 바꿨다(문서만). 계획 담당 checkout의 impl-report는 이 두 줄이 아직 절대 경로이니 다음 커밋 때 같게 고쳐야 한다.
+- 새 public **`98a9f242a74a97a2af6885264cac49da241ad7fa`**, 부모 `47a424564d4067c697b17b23aedcc0af9ab160ee`(0.2.5), 트리 `d520388ca783c51c71162df88fa13877c4e40584`(= 구현 브랜치 HEAD 트리). `install/hejo-publish`를 로컬 작성자 대역(gh 캐시, 원격 git·curl·wget 차단)으로 실행. 차단된 원격 시도 0(`blocked-remote.jsonl` 없음).
+- 준비물: `.build/release-0.2.6/prepared.json`(계획 담당 폴더), `hejo-0.2.6-arm64.zip` 6,415,451 bytes, SHA-256 `9a1c318fd63696c5cd3905bab89071711c1779cd17d225f6126eb46ad8fc5a78`. 기본 배포 빌드(무시된 Google 입력을 기존 경로로, 링크만 두고 열람 안 함) BuildInfo `dirty:false`, 트리 일치, 압축 해제본 실행 파일이 빌드와 바이트 동일.
+- 연속성: 0.2.6·8 > 이전 준비물 0.2.5·7 > …, 설치본은 0.2.5, 업데이트 공개 키 0.2.5 준비물과 같음, 코드 서명 Authority가 설치된 앱과 같음. codesign 검증, Sparkle `sign_update --verify`, 별도 Ed25519 공개 키 검증 모두 통과. 설치 앱은 0.2.5 그대로.
+- 공개 트리 `gate/`·`schemas/`·`hub/`·`config/`·`install/` = 공용 릴리스 실행본(TASK-04 뒤 `RELEASE 227ef160`)과 바이트 동일(차이 0, README도 같음).
+- 검증(깨끗한 public checkout, 짧은 TMPDIR `/tmp/f26`, resolve한 임시 HERMES_HOME, `pgrep -f app-tests` 종료 1, TZ=Asia/Seoul):
+
+| 명령 | 결과 | 로그(`.build/dc-release-0.2.6/`) |
+|---|---|---|
+| `pytest gate/tests tests/acceptance`(yaml 보충, `HEJO_TEAM_KIT_LIB`) | 454 통과·1 실패(`test_delivery_parity::test_native_labels_outcome_and_repeat_are_idempotent`: Hermes 본체 문구 키 불일치로 기준 0644e9e에서도 실패하는 환경 문제) | `pytest.log` |
+| `gate.tests.gateway_delivery` | 종료 0 | `gwdelivery.log` |
+| `bash app/scripts/test.sh` | 종료 0 | `app-full.log` |
+| 기본 배포 빌드 / `hejo-ship prepare` | 각각 0 | `default-build.log`, `prepare.log` |
+| 압축 해제본 codesign·Sparkle·Ed25519 | 각각 0 | (명령 출력, 위 내용) |
+
+  `bash scripts/test.sh` 한 번에는 위 pytest 1건 때문에 끝까지 못 가므로 세 단계를 따로 돌렸다.
+  전체 시험 로그 PASS 줄 인용:
+```text
+AT-TD-20..42 MODEL, INPUT, WINDOW, REQUEST PASS
+AT-DC-21..34 CARD TARGET, MENU, CLOSE FLOW PASS
+AT-FF-40 dark/light PIXEL PASS alpha=1.0, AT-FF-41 dark/light PIXEL PASS alpha=1.0
+AT-FF-90/92/93 PLACEMENT BOUNDARIES PASS
+```
+  문 시험 AT-DC-10~20·35는 `tests/acceptance/test_deadline_close.py` 21건이 pytest 454 통과에 들어 있다(개별 PASS 문자열은 출력하지 않는 pytest 시험).
+- 사장용 명령 두 줄(계획 담당 폴더 `hermes-hejo`에서):
+```sh
+git push github 98a9f242a74a97a2af6885264cac49da241ad7fa:refs/heads/main
+install/hejo-ship publish --approve-commit 98a9f242a74a97a2af6885264cac49da241ad7fa --prepared .build/release-0.2.6/prepared.json
+```
