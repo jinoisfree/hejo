@@ -717,3 +717,26 @@ async def test_at_ht_42_retired_implementation_absent():
                 assert not any(word in line.lower() for word in ['imessage','photon']),str(path.relative_to(root))
     for name in ['RoomMenus.swift','RoomDialogs.swift','ConversationView.swift']:
         assert 'telegram' not in (root/'app/Sources'/name).read_text().lower()
+
+
+async def test_topic_io_rechecks_latest_message_and_typing(gate,client,transport,monkeypatch):
+    ws,_=await client.pair(features=['telegram'])
+    await activate(gate,client,ws,transport)
+    original=gate.employees
+    monkeypatch.setattr(gate,'employees',lambda: original()+[{'id':'gamma','name':'Gamma','aliases':[]}])
+    entered,release=asyncio.Event(),asyncio.Event()
+    create=transport._bot.create_forum_topic
+    async def delayed(**fields):
+        if fields['name']=='Gamma':
+            entered.set();await release.wait()
+        return await create(**fields)
+    transport._bot.create_forum_topic=delayed
+    thread=str(uuid.uuid4())
+    message=await gate.send('gamma','old',metadata={'thread_id':thread})
+    await asyncio.wait_for(entered.wait(),3)
+    assert (await gate.edit_message('gamma',message.message_id,'new')).success
+    await gate.send_typing('gamma',{'thread_id':thread})
+    release.set();await asyncio.sleep(.15)
+    assert not transport.calls
+    await gate.stop_typing('gamma',{'thread_id':thread});await settled(gate)
+    assert [call[1] for call in transport.calls]==['[Gamma] new']

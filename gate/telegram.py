@@ -410,6 +410,22 @@ class Telegram:
         if (not entry or entry['closed'] or not self.active() or self.private()['pair']['tag'] != tag
                 or key[0] not in self.rooms()):
             return
+        # Topic creation can yield for a long time; settle the current journal value again.
+        while True:
+            row = self.adapter.journal.message(msg_id)
+            if (not row or thinking(row['text']) or not self.active() or self.private()['pair']['tag'] != tag
+                    or key[0] not in self.rooms() or key in self.adapter.journal.deleted_threads):
+                return
+            if row['role'] == 'employee':
+                self.wakes[key].clear()
+                delay = self.changed[key] + self.settle_seconds - asyncio.get_running_loop().time()
+                if delay > 0:
+                    await asyncio.sleep(delay)
+                    continue
+                if self.typing(key):
+                    await self.wakes[key].wait()
+                    continue
+            break
         pair = self.private()['pair']
         names = {e['id']: e['name'] for e in self.adapter.employees()}
         label = '사장' if row['role'] == 'owner' else names.get(row['employee'], row['employee'])

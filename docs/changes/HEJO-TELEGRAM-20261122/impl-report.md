@@ -72,3 +72,8 @@
 - 앱 수락 시험은 실제 native controls의 상태·코드 복사/만료·클릭 요청·서버 ACK·GateClient 디스패치와 옛 문 미지원 경로를 확인한다. 소스 검색은 AT-HT-42(문 시험)에 포함돼 허용된 서비스 아이콘 외 옛 문 문자열 0건과 방 메뉴 텔레그램 0건을 확인했다.
 - `TZ=Asia/Seoul bash app/scripts/test.sh`(기존 Hermes venv/시험 의존성), 종료 0. 빌드·서명 검증·AT-HT-50~52·전체 native 앱 시험·대화/방/첨부/다운로드/WebKit/옛 문 통신 고정물·훅 9건 통과. 실제 CLI 설정 metadata 및 다운로드 이름 보존 guard도 통과. 로그 `.build/telegram-evidence/task05-app-final.log`. 최초 실행은 상태 문구 조사 오자로 AT-HT-50 실패(종료 1), 문구를 spec과 맞추고 최종 전체 앱 시험을 다시 실행했다.
 - 증거 수준 2. 기존 소스의 Swift 경고(사용하지 않는 값·actor 격리·deprecated SDK 등)는 변경하지 않았다. 앱 기존 화면 시험은 렌더링 때문에 시간이 걸렸으나 완료했다. 설치된 앱 사본·버전·운영 홈은 변경하지 않았다.
+
+### TASK-04 토픽 I/O 경계 보완
+
+- 자체 점검에서 토픽 생성의 await 사이에 수정·작성 중 상태가 바뀔 수 있음을 확인했다. 발신 직전 최신 기록장 글·활성·방 생존·짝 표지를 다시 확인하고 새 수정의 정착/작성 중 종료를 기다리게 했다. 첫 정착은 토픽 생성 전에 유지한다(AT-HT-14 순서 보존). 외부 I/O 전후의 서로 다른 시점 검증이다.
+- 토픽 응답을 지연시키고 그 사이 본문 수정·작성 중을 주입했다. 작성 중에는 0건, 종료 뒤 최신 본문 1건을 확인했다. Hermes venv 동일 문 시험(`--basetemp=/tmp/ht04io`), 종료 0, **38 passed**, `.build/telegram-evidence/topic-io-final.log`. 설계 차이 없음.
