@@ -181,3 +181,17 @@
 - 계획 담당이 `install/hejo-ship publish --approve-commit 98a9f242… --prepared .build/release-0.2.6/prepared.json`을 실행했다 → 종료 0, "PUBLISHED v0.2.6".
 - 릴리스 v0.2.6: 2026-11-22T14:55:59Z, 초안 아님, 대상 `98a9f242`, 첨부 appcast.xml·hejo-0.2.6-arm64.zip.
 - 남은 일: 사장이 앱을 0.2.6으로 업데이트하고 묵은 2건을 닫는다(M-DC-2). 그 뒤 계획 담당이 확인하고 현재 명세에 반영하며 롤백 보관본을 정리한다.
+
+## 최종 확인과 현재 명세 반영 (2026-11-22)
+
+- M-DC-2: 사장이 0.2.6 앱에서 묵은 2건을 "완료로 닫기"로 닫았다.
+  - `hermes-deadlines list --json`: 열린 항목 0, `failed` 없음.
+  - 게이트웨이 로그: `deadline_close outcome=done ok=1 repainted=1` 2줄, 이어서 `deadlines_read items=1`·`items=0`(M2 실제 로그 확인).
+  - 행동 기록: `deadline_close done reminder:…` 2줄.
+  - 장부: 두 항목 `closed.reason = 담당자 확인`, reply "hejo에서 사장이 완료로 닫음".
+- 현재 명세 반영
+  - ARCHITECTURE 3절 직원 사물함 행: 마감 장부와 사장 닫기 쓰기 주체를 추가했다.
+  - HEJO-TODO-DRAWER spec REQ-TD-04 AC-02·03: 대체를 표시했다.
+  - 이 작업 spec·design 상태를 "적용"으로 바꿨다.
+- 롤백 보관본 `~/.cache/dc-rollback-20261122`는 확인 뒤 삭제했다. 운영 롤백 기준은 git 이력이다(공용 릴리스 `e68ae824`, HD `eee573e6` 계열).
+- **최종 판정: 완료**(교차 모델, 원래 목표 해결: 출처 없는 묵은 마감 카드를 사장이 앱에서 닫았고, 이후 카드는 알림 글 이동 또는 "연결된 대화 없음"을 보여 준다).

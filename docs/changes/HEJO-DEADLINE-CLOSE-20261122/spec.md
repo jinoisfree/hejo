@@ -1,6 +1,6 @@
 # HEJO-DEADLINE-CLOSE 명세: 마감 카드 이동·없음 표시·우클릭 닫기
 
-3판 · 2026-11-22(2판: 계획 검증 1회차 PR-01~06, 3판: 2회차 PR-01-R2·PR-03-R2 반영, [plan-review.md](plan-review.md)) · 상태: 초안(계획 검증 재검토 대기) · 기준 커밋 `de8bdac`(이 저장소), 운영 저장소 `eee573e6`
+3판 · 2026-11-22(2판: 계획 검증 1회차 PR-01~06, 3판: 2회차 PR-01-R2·PR-03-R2 반영, [plan-review.md](plan-review.md)) · 상태: 적용(2026-11-22, 운영 RELEASE 227ef160·team-kit HD b32048c8·앱 v0.2.6) · 기준 커밋 `de8bdac`(이 저장소), 운영 저장소 `eee573e6`
 결정 기록 [brainstorm.md](brainstorm.md), 설계 [design.md](design.md), 수락 시험 [HEJO-DEADLINE-CLOSE.md](../../../tests/acceptance/HEJO-DEADLINE-CLOSE.md), 작업 [tasks.md](tasks.md).
 앞선 작업: [HEJO-TODO-DRAWER spec](../HEJO-TODO-DRAWER-20261120/spec.md)(이하 `TD`). 약어 `HD` = `<운영 저장소>`, `TK` = `HD/hermes/plugin-store/team-kit`.
 

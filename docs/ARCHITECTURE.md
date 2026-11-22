@@ -41,7 +41,7 @@ hejo 저장소의 모든 기획·설계·구현·검토가 따르는 현장 원�
 | 사장 지시서 | `<HOME>/owner/policy.yaml`, `<HOME>/config.yaml` | 보고 전송 플랫폼(`delivery.platform`), 받을 곳 규칙, 공항 기본 두뇌, 캐시 정책 | 값(금고로) | 사장 | 영구 |
 | 사장 공방(내 선반) | `<HOME>/owner/workshop/` | 사장이 만든 가이드북·도구 상자·세트 | 기본 선반 복사 이외의 시설 코드 | 사장(앱·Paseo 공방) | 영구 |
 | 직원 명부·성격 | 조립 층 원래 자리(`owner/team.yaml`, `soul/personas/`), 직원 사진은 각 프로필 홈 `assets/avatar.png`, 색은 `profile.yaml` `ui_meta.hermes-bots.color`(18판) | 이름·별칭·장착 목록·성격·사진·색 | 값, 규칙 | 사장(앱 경유) | 영구 |
-| 직원 사물함 | 각 홈의 sessions·`state.db` | 대화 원본, 기억 | 정의·규칙 | 직원·런타임 | 영구 |
+| 직원 사물함 | 각 홈의 sessions·`state.db`, 마감 장부 `state/deadline-watch.json` | 대화 원본, 기억, 마감 항목 | 정의·규칙 | 직원·런타임. 마감 닫기만 사장도 한다(앱 우클릭 → 문 → team-kit `hermes-deadlines close`, 행동 기록 남김, [HEJO-DEADLINE-CLOSE](changes/HEJO-DEADLINE-CLOSE-20261122/spec.md)) | 영구 |
 | 공용 창고 | `<HOME>/shared/` | 앱 대화 기록장(`shared/hejo/journal`), 첨부(`shared/hejo/files`), 행동 기록, 아이메시지 연결 설정과 보낸 글 대응표(`shared/hejo/imessage`), 단체방 기록 | 한 직원 전용 상태 | 시설 런타임(문 단독 쓰기) | 영구. 삭제는 사장이 따로 |
 
 **칸이 아닌 것(조립 결과).** 각 홈의 `config.yaml` 중 조립 대상 부분, `SOUL.md`, 조립된 `skills/`, `cron/jobs.json`은 조립 결과다. hejo가 직접 고치지 않고 원본 칸에 쓴 뒤 조립기를 돌린다.
