@@ -383,3 +383,20 @@
    - 먼저 `./sync`와 자기 경로 커밋을 한다(재시작 없음).
    - 그 뒤 계획 담당이 d2에 커밋 해시를 알린다. d2가 재시작한다.
    - 마지막으로 `--resume gateway_restart`로 permission·check를 마친다(새 재시작이 일어나면 안 됨).
+
+## 검증 판정 18차: TASK-15 마무리 1단계 (2026-11-22)
+
+1. **판정: 1단계 완료.**
+   - V-9(시험 파일 삭제)를 해소했다. 운영 저장소에 이 작업의 미커밋은 0이다.
+   - 남은 미커밋 1개는 다른 직원 기억 파일의 동기 사본이다(`hermes/profiles/<다른 직원>/memories/MEMORY.md`). 직원이 일하면서 바뀌는 것이라 이 작업 범위가 아니다. 그래서 미충족으로 보지 않는다.
+2. **검증 조건:** 교차 모델. 대상은 운영 main `f1507977e7702dd9e0725c5eac605f8eb62f5473`, hejo 보고 `c03638c`다.
+3. **설계 적합성(4.2):** 18차 지시 그대로다. `./sync`는 토큰 경고 없이 끝났고, 8경로만 커밋했다. vault는 줄 수만 봤다.
+4. **직접 확인한 것(읽기만):**
+   - `git log`: HEAD `f1507977`.
+   - `--stat` 8경로: policy +2, team +1, vault +4, links 1줄, config_assembly 22줄, test_finder_folders.py +412(복원), test_finder_manifest_updates.py 23줄, 직원 D config +1.
+   - `git ls-tree HEAD`에 Finder 시험 두 개가 있다(AT-FF-86).
+   - `git status`는 다른 직원 MEMORY.md 1개뿐이다.
+5. **지적:** 없음.
+6. **다음:**
+   - 계획 담당이 d2에 `f1507977`을 알린다. d2가 게이트웨이를 다시 시작하고 알려 온다.
+   - 그 뒤 2단계 지시(`--resume gateway_restart` 1회, 새 재시작 없이 permission·check, done 확인)를 낸다.
