@@ -380,18 +380,18 @@ extension WebPaneModel: WKUIDelegate {
         guard persistent else { completionHandler(nil); return }
         let panel = NSOpenPanel()
         // The conversation floats above ordinary windows, so the chooser has to float above it.
-        panel.level = .modalPanel
+        OptionWindows.prepare(panel)
         panel.allowsMultipleSelection = parameters.allowsMultipleSelection; panel.canChooseDirectories = parameters.allowsDirectories
-        completionHandler(sheet { panel.runModal() == .OK ? panel.urls : nil })
+        completionHandler(sheet { OptionWindows.runModal(panel) == .OK ? panel.urls : nil })
     }
-    private func ask(_ message: String, from frame: WKFrameInfo, choice: Bool) -> Bool {
+    @MainActor private func ask(_ message: String, from frame: WKFrameInfo, choice: Bool) -> Bool {
         guard persistent else { return false }
         let alert = NSAlert()
         alert.messageText = frame.securityOrigin.host.isEmpty ? "이 페이지의 알림" : frame.securityOrigin.host
         alert.informativeText = message
         alert.addButton(withTitle: "확인")
         if choice { alert.addButton(withTitle: "취소") }
-        alert.window.level = .modalPanel
-        return sheet { alert.runModal() == .alertFirstButtonReturn }
+        OptionWindows.prepare(alert.window)
+        return sheet { OptionWindows.runModal(alert) == .alertFirstButtonReturn }
     }
 }

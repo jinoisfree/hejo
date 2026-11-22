@@ -32,7 +32,10 @@ final class MemoryCredentials: GateCredentialStore {
         Task { @MainActor in
             do {
                 let args = CommandLine.arguments
-                if args.contains("--todo-drawer") {
+                if args.contains("--finder-picture") {
+                    try await letterPictureTests(resourceDirectory:URL(fileURLWithPath:args.last!))
+                    try await optionWindowTests(resourceDirectory:URL(fileURLWithPath:args.last!))
+                } else if args.contains("--todo-drawer") {
                     try await todoDrawerTests(resourceDirectory:URL(fileURLWithPath:args.last!))
                 } else if args.contains("--imessage") {
                     try await imessageTests()
@@ -264,6 +267,8 @@ final class MemoryCredentials: GateCredentialStore {
         try await transitionPreparationTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await todoDrawerTests(resourceDirectory:URL(fileURLWithPath:CommandLine.arguments.last!))
         try todoDrawerBackgroundTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
+        try await letterPictureTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
+        try await optionWindowTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await islandTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await typingTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await task17Tests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))

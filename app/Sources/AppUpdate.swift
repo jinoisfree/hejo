@@ -28,7 +28,7 @@ import Sparkle
              (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? AppIdentity.version,
               Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "")
          }, now: @escaping () -> Date = { Date() },
-         present: @escaping @MainActor (NSAlert) -> NSApplication.ModalResponse = { alert in NSApp.activate(ignoringOtherApps: true); return alert.runModal() }) {
+         present: @escaping @MainActor (NSAlert) -> NSApplication.ModalResponse = { alert in OptionWindows.runModal(alert) }) {
         self.client = client; self.installer = installer ?? SparkleInstaller(defaults: defaults)
         reminder = UpdateReminder(defaults: defaults); notices = UpdateNoticeSettings(defaults: defaults)
         installation = UpdateInstallation(defaults: defaults)

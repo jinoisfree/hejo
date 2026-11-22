@@ -68,13 +68,17 @@ struct ConversationFailedSend: Identifiable {
         }
         return CharacterPalette.make(hue:CharacterPalette.hues(colors:colors)[employee],dark:dark)
     }
-    func changePicture(kind:String,id:String,url:URL?) async -> String? {
+    var pictureSender: ((String,String,Data?) async throws -> String?)?
+    func changePicture(kind:String,id:String,url:URL?,png:Data?=nil) async -> String? {
         let address=client.store.settings.address,epoch=client.connectionEpoch,token=client.bearer
         do {
             let data:Data?
-            if let url { data=try await Task.detached { try PictureCodec.png(Data(contentsOf:url)) }.value } else { data=nil }
+            if let png {data=png}
+            else if let url { data=try await Task.detached { try PictureCodec.png(Data(contentsOf:url)) }.value } else { data=nil }
             guard address==client.store.settings.address,epoch==client.connectionEpoch,token==client.bearer else { return nil }
-            let picture=try await files.setPicture(kind:kind,id:id,data:data)
+            let picture:String?
+            if let pictureSender {picture=try await pictureSender(kind,id,data)}
+            else {picture=try await files.setPicture(kind:kind,id:id,data:data)}
             guard address==client.store.settings.address,epoch==client.connectionEpoch,token==client.bearer else { return nil }
             return picture
         } catch {

@@ -243,7 +243,7 @@ import UniformTypeIdentifiers
         appendPinMenu(menu,room:employee);menu.addItem(.separator())
         menu.addItem(RoomActionItem(model.muted.contains(employee) ? "알림 켜기":"알림 끄기"){model.toggleMute(employee)});menu.addItem(.separator())
         if let person=model.employees.first(where:{$0.id==employee}),person.avatarCustom != nil {
-            menu.addItem(RoomActionItem("사진 바꾸기…") { [weak self] in self?.choosePicture(kind:"employee",id:employee) })
+            menu.addItem(pictureMenu(kind:"employee",id:employee,name:person.name))
             if person.avatarCustom==true { menu.addItem(RoomActionItem("사진 지우기") { [weak self] in Task { _=await self?.controller.changePicture(kind:"employee",id:employee,url:nil) } }) }
         }
         IMessageMenus.append(to: menu, room: employee, state: controller.client.imessage)
@@ -262,7 +262,7 @@ import UniformTypeIdentifiers
         channels.addItem(RoomActionItem("기본"){[weak self] in self?.changeHomeChannel(nil)});channels.addItem(.separator())
         for room in model.groups.values.filter({$0.archived != true}).sorted(by:{$0.title<$1.title}) {let choice=RoomActionItem("#"+room.title){[weak self] in self?.changeHomeChannel(room.id)};choice.state=model.homeChannel?.id==room.id ? .on:.off;channels.addItem(choice)}
         item.submenu=channels;menu.addItem(item)
-        menu.addItem(RoomActionItem("사진 바꾸기…"){[weak self] in if let room=model.homeChannel {self?.chooseGroupPicture(room)}else{self?.choosePicture(kind:"room",id:HomeRoom.pictureID)}})
+        menu.addItem(pictureMenu(kind:"room",id:model.homeChannel?.id ?? HomeRoom.pictureID,name:model.homeChannel?.title ?? model.name(HomeRoom.id)))
         if model.homePicture != nil {menu.addItem(RoomActionItem("사진 지우기"){[weak self] in Task {if let room=model.homeChannel {_=await self?.controller.changePicture(kind:"room",id:room.id,url:nil)}else{await self?.clearHomePicture()}}})}
         menu.addItem(.separator())
         if let room=model.homeChannel {menu.addItem(RoomActionItem("직원 추가…"){[weak self] in guard let self,let members=RoomDialogs.invite(model.employees,room:room) else{return};Task{await self.controller.roomCommand("room_save",room:room,members:members)}});menu.addItem(.separator())}
@@ -292,7 +292,7 @@ import UniformTypeIdentifiers
             guard let self,let text=model.sidebar.deletion(id) else { return }
             let alert=NSAlert();alert.alertStyle = .warning;alert.messageText=text.title;alert.informativeText=text.body
             alert.addButton(withTitle:"삭제");alert.addButton(withTitle:"취소")
-            if alert.runModal() == .alertFirstButtonReturn { Task { await self.deleteSection(id) } }
+            if OptionWindows.runModal(alert) == .alertFirstButtonReturn { Task { await self.deleteSection(id) } }
         };remove.isEnabled=model.sidebar.sections.count>1;menu.addItem(remove);return menu
     }
     func deleteSection(_ id:String) async {
@@ -304,12 +304,18 @@ import UniformTypeIdentifiers
         do { try await controller.files.setPicture(kind:"room",id:"section-"+id,data:nil);controller.model.editSection(id,clearPicture:true) }
         catch { controller.notice="사진을 지우지 못했어요. 다시 시도해 주세요." }
     }
-    private func choosePicture(kind:String,id:String,section:String?=nil) {
+    var picturePicker:()->NSOpenPanel = {NSOpenPanel()}
+    var choosePictureFile:(NSOpenPanel,@escaping(NSApplication.ModalResponse)->Void)->Void = { $0.begin(completionHandler:$1) }
+    func choosePicture(kind:String,id:String,section:String?=nil) {
         let client=controller.client,address=client.store.settings.address,token=client.bearer,epoch=client.connectionEpoch
-        let picker=NSOpenPanel();picker.canChooseDirectories=false;picker.allowsMultipleSelection=false;picker.allowedContentTypes=[.png,.jpeg,.heic];picker.title="방 사진 고르기";picker.prompt="넣기"
-        picker.begin { [weak self] result in
+        let picker=picturePicker();picker.canChooseDirectories=false;picker.allowsMultipleSelection=false;picker.allowedContentTypes=[.png,.jpeg,.heic];picker.title="방 사진 고르기";picker.prompt="넣기"
+        OptionWindows.prepare(picker)
+        choosePictureFile(picker) { [weak self] result in
             guard result == .OK,let url=picker.url,let self,address==client.store.settings.address,token==client.bearer,epoch==client.connectionEpoch else { return }
-            Task { if let picture=await self.controller.changePicture(kind:kind,id:id,url:url) { if let section {self.controller.model.editSection(section,picture:picture)} else if id==HomeRoom.pictureID {self.controller.model.configureHome{$0.picture=picture}} } }
+            Task {
+                guard address==client.store.settings.address,token==client.bearer,epoch==client.connectionEpoch else{return}
+                if let picture=await self.controller.changePicture(kind:kind,id:id,url:url) {self.pictureUploaded(picture,id:id,section:section)}
+            }
         }
     }
     func addMenu()->NSMenu {
@@ -340,7 +346,7 @@ import UniformTypeIdentifiers
         guard controller.model.selected != nil else{return};let employee=controller.model.selectionIdentity
         let value=controller.model.header(employee)
         let (alert,heading,detail)=RoomDialogs.header(title:value.title,description:value.description)
-        let result=alert.runModal()
+        let result=OptionWindows.runModal(alert)
         if let room=controller.model.groups[employee] {if result == .alertFirstButtonReturn {Task {await controller.roomCommand("room_save",room:room,title:heading.stringValue,description:detail.stringValue)}};return}
         switch result {
         case .alertFirstButtonReturn: let name=heading.stringValue.trimmingCharacters(in:.whitespacesAndNewlines);controller.model.saveHeader(employee,title:name.isEmpty ? value.title:name,description:detail.stringValue.trimmingCharacters(in:.whitespacesAndNewlines))
@@ -883,6 +889,7 @@ import UniformTypeIdentifiers
     }
     private func attach() {
         let picker=attachmentPicker();pickingFiles=true;NSApp.activate(ignoringOtherApps:true)
+        OptionWindows.prepare(picker)
         chooseFiles(picker) { [weak self] response in self?.pickingFiles=false;if response == .OK {self?.controller.addAttachments(picker.urls)} }
     }
     private func paste(_ board:NSPasteboard)->Bool {

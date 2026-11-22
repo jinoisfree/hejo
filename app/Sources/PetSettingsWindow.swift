@@ -128,7 +128,7 @@ import AppKit
         appearanceControls.refresh()
         refreshLogin(); accountName.stringValue = account.isEmpty ? "로그인 전" : account; connectionStatus.stringValue = status
         if let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) ?? window.screen ?? NSScreen.main { fit(to: screen.visibleFrame) }
-        window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+        OptionWindows.show(window)
     }
     func fit(to visible: CGRect) {
         let titleBar = window.frame.height - window.contentRect(forFrameRect: window.frame).height

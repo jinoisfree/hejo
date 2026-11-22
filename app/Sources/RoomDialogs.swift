@@ -2,7 +2,7 @@ import AppKit
 
 /// Native room dialogs; they collect intent while the gate owns canonical room state.
 @MainActor enum RoomDialogs {
-    static var present:(NSAlert)->NSApplication.ModalResponse = {NSApp.activate(ignoringOtherApps:true);return $0.runModal()}
+    static var present:(NSAlert)->NSApplication.ModalResponse = {OptionWindows.runModal($0)}
     struct Choice {var title:String;var members:[String];var lead:String}
     final class Picks:NSView {
         override var isFlipped:Bool {true}
@@ -66,7 +66,7 @@ import AppKit
     }
     static func invite(_ people:[Employee],room:Room)->[String]? {
         let (alert,picks,_,_)=dialog(people:people,room:room)
-        return alert.runModal() == .alertFirstButtonReturn && !picks.chosen.isEmpty ? room.members+picks.chosen:nil
+        return OptionWindows.runModal(alert) == .alertFirstButtonReturn && !picks.chosen.isEmpty ? room.members+picks.chosen:nil
     }
     static func header(title:String,description:String)->(NSAlert,NSTextField,NSTextField) {
         let heading=NSTextField(string:title),detail=NSTextField(string:description)
@@ -105,7 +105,7 @@ extension ConversationView {
         menu.addItem(RoomActionItem("이름 바꾸기…"){[weak self] in
             guard let self,let name=RoomDialogs.renameRoom(room.title) else{return};Task{await self.controller.roomCommand("room_save",room:room,title:name)}
         })
-        menu.addItem(RoomActionItem("사진 바꾸기…"){[weak self] in self?.chooseGroupPicture(room)})
+        menu.addItem(pictureMenu(kind:"room",id:room.id,name:room.title))
         if room.picture != nil {menu.addItem(RoomActionItem("사진 지우기"){[weak self] in Task{_ = await self?.controller.changePicture(kind:"room",id:room.id,url:nil)}})}
         menu.addItem(.separator())
         menu.addItem(RoomActionItem("직원 추가…"){[weak self] in guard let self,let members=RoomDialogs.invite(model.employees,room:room) else{return};Task{await self.controller.roomCommand("room_save",room:room,members:members)}})
@@ -115,13 +115,10 @@ extension ConversationView {
         menu.addItem(RoomActionItem("목록에서 빼기"){model.hide(room.id)})
         menu.addItem(RoomActionItem("보관…"){[weak self] in
             let alert=NSAlert();alert.alertStyle = .warning;alert.messageText="#"+room.title+" 방을 보관할까요?";alert.informativeText="글은 그대로 남고, 방 목록 아래 ‘방 추가’의 ‘보관된 방’에서 다시 꺼낼 수 있어요.";alert.addButton(withTitle:"보관");alert.addButton(withTitle:"취소")
-            if alert.runModal() == .alertFirstButtonReturn {Task{await self?.controller.roomCommand("room_archive",room:room,archived:true)}}
+            if OptionWindows.runModal(alert) == .alertFirstButtonReturn {Task{await self?.controller.roomCommand("room_archive",room:room,archived:true)}}
         })
-        menu.addItem(RoomActionItem("삭제…"){[weak self] in if RoomDialogs.deletion(room).runModal() == .alertFirstButtonReturn {Task{await self?.controller.roomCommand("room_delete",room:room)}}})
+        menu.addItem(RoomActionItem("삭제…"){[weak self] in if OptionWindows.runModal(RoomDialogs.deletion(room)) == .alertFirstButtonReturn {Task{await self?.controller.roomCommand("room_delete",room:room)}}})
         return menu
     }
-    func chooseGroupPicture(_ room:Room){
-        let picker=NSOpenPanel();picker.canChooseDirectories=false;picker.allowsMultipleSelection=false;picker.allowedContentTypes=[.png,.jpeg,.heic];picker.title="방 사진 고르기";picker.prompt="넣기"
-        picker.begin{[weak self] response in if response == .OK,let url=picker.url {Task{_ = await self?.controller.changePicture(kind:"room",id:room.id,url:url)}}}
-    }
+
 }
