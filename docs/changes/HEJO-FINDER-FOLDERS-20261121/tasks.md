@@ -17,7 +17,7 @@
 | TASK-12 | 앱: 연결 창 화면 공유 숨김 없애기(REQ-FF-11) | FF-11 / AT-FF-70·71 | `H/app/Sources/ConnectionsWindow.swift`, `H/app/Tests/ConnectionsTests.swift` | TASK-11 | 일반 · 2 | 완료(검증 11차, 52e2511) |
 | TASK-13 | team-kit: 직원 D Finder 연결 저장 실패 진단·수정(M6 막힘) | FF-02·03 / AT-FF-08·12 재확인 + 재현 시험 | 진단은 `TKL` 읽기·명령 1회, 수정은 `HD` worktree `TK/lib/hermes_facility/`·`TK/tests/` | — | 일반 · 3 | 완료(검증 13차, HD 6602c040·앱 f03b93a) |
 | TASK-14 | 서버 적용: config_assembly 한 곳(TASK-13) + 직원 D Finder 연결 1회 | 운영 / M6 | 운영 main, `TKL` config_assembly.py, `HD` | TASK-13 | 일반 · 3 | 완료(검증 15차, 운영 b95e31a2, 직원 D done) |
-| TASK-15 | team-kit 보정(V-8 링크 유지) + 직원 D 링크 복구 + 시험 파일 실행본 설치(V-9) | FF-12.AC-05·06 / AT-FF-84~86 | `HD`, `TKL` config_assembly.py·tests, 운영 `owner/policy.yaml` 한 곳 | TASK-14 | 일반 · 3 | 지시함(handoff 16차) |
+| TASK-15 | team-kit 보정(V-8 링크 유지) + 직원 D 링크 복구 + 시험 파일 실행본 설치(V-9) | FF-12.AC-05·06 / AT-FF-84~86 | `HD`, `TKL` config_assembly.py·tests, 운영 `owner/policy.yaml` 한 곳 | TASK-14 | 일반 · 3 | 보류(검증 16차 V-10) → 17차 지시 |
 | TASK-04 | 사장 확인 M1~M11, 현재 명세 반영(`HD/docs/연결-상태.md`의 Finder 설명이 있으면) | 전체 | `HD/docs/연결-상태.md`(필요 시) | TASK-07·08 | — | 대기 |
 
 ## TASK-08 착수 조건 (2026-11-22, HEJO-SLACK-MOVE 세션과 조율)

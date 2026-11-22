@@ -430,3 +430,18 @@ TASK-09의 측정은 실제 트랙패드 탭이 아니라 수락 명세 AT-FF-30
    문서에는 '직원 D'. 위험도 일반(운영 적용·정책 한 곳), 증거 수준 3.
 6. 보고: impl-report.md '16차-TASK-15' 절(HD·운영 커밋 전체 해시, 교체 전후 SHA, 보관본, 정책 변경 전후, 연결 결과, 명령·종료 코드·로그 경로), result.
 ```
+
+## 17차 지시 (2026-11-22): TASK-15 다시 — 설계 모순 정리 반영 (검증 16차 V-10)
+
+```text
+[설계 인계: HEJO-FINDER-FOLDERS TASK-15 다시]
+1. 문서: spec 12판 REQ-FF-12 AC-03·05·06, design 9.1·9.2, 수락 명세 AT-FF-84~86, verdict 16차.
+2. 코드(HD worktree 새 커밋): 수락 갈래에서 조립용 template = 지금 창고 manifest 바이트, 새 창고 도구를 그 프로필 app_tool_defaults[plugin] 끝에 순서대로 추가.
+   manifest-bases.json의 before·host(되돌리기 기준)는 기존 baseline 값을 그대로 기록한다(:199의 before=template.hex()와 분리).
+3. 시험 수정 허가(이 한 곳만): tests/test_finder_manifest_updates.py의 test_store_update_connects_finder_and_undo_preserves_originals 52줄
+   "연결 뒤 정책 바이트 불변"을 "그 프로필 app_tool_defaults.team-kit = 이전 목록 + 새 창고 도구(순서대로), 그 밖의 정책 내용 같음"으로 바꾼다.
+   51줄·53줄·undo 뒤 단언(55~57줄)은 그대로 둔다. 같은 시험에 플러그인 자리 is_symlink·links.json overlay false 단언을 더한다(AT-FF-84).
+   다른 시험의 기대값은 바꾸지 않는다. 또 부딪히면 멈추고 보고한다.
+4. 이후는 16차 지시 2항 끝(관련 8파일+test_finder_manifest_updates+team-kit 전체 ⊆ 기준+airport-check)과 3·4·5·6항(운영 적용 a~d, d2 조율, 금지, 보고)을 그대로 따른다.
+   보고 절 이름은 '17차-TASK-15'.
+```

@@ -114,3 +114,7 @@
 - 직원 D 복구: 이미 오버레이가 된 직원 D는 위 갈래를 다시 타지 않는다(지문이 일치). 그래서 운영 `owner/policy.yaml`의 직원 D `app_tool_defaults.team-kit`에 창고에만 있는 도구(오늘 기준 `cctv_now`, `cctv_reference`)를 더하는 한 곳 변경(보관본 포함) 뒤, 같은 Finder 연결을 한 번 다시 제출해 재조립한다. 결과로 링크가 복원돼야 한다. 플러그인 폴더를 손으로 고치지 않는다.
 - V-9: 운영 저장소 `hermes/`는 `./sync`가 실행본(`~/.hermes`)에서 매번 다시 채우는 사본이다. 운영 저장소에만 넣은 시험 파일은 자동 기록(04:30)·`./sync`에서 지워진다(`test_finder_folders.py`는 `5824d602` 자동 기록에서 이미 지워짐, `test_finder_manifest_updates.py`는 작업 트리에서 지워진 상태). 그래서 team-kit 변경은 실행본에 설치(시험 파일 포함) → `./sync` → 자기 경로만 `git commit --only` 순서로 한다. 3·5·7·14차의 "시험 파일은 실행본에 넣지 않는다"는 틀렸다.
 
+### 9.2 12판 보정 (검증 16차 V-10)
+- 9.1의 "template을 지금 창고 바이트로"는 **조립용**에만 쓴다. `manifest-bases.json`에 남기는 되돌리기 기준 `before`·`host`는 기존 baseline 값 그대로 둔다(지금 상태 기록 코드 `:199`는 `before=template.hex()`라 둘을 다른 변수로 나눈다).
+- TASK-13 시험 `test_store_update_connects_finder_and_undo_preserves_originals`의 "연결 뒤 정책 바이트 불변" 단언(52줄)은 10판 설계 결함을 그대로 옮긴 것이다. 이 작업이 만든 시험이므로 11·12판 기준으로 고친다: 연결 뒤 정책의 그 프로필 `app_tool_defaults.team-kit` = 이전 목록 + 새 창고 도구(순서대로)이고, 그 밖의 정책 바이트는 같다. 51줄(`before`·`host` 보존)과 undo 뒤 단언(정책·host·manifest 원래대로)은 그대로 둔다. 다른 기존 시험의 기대값은 바꾸지 않는다.
+

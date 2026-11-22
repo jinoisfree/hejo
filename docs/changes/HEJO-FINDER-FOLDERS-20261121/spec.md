@@ -1,6 +1,6 @@
 # HEJO-FINDER-FOLDERS 명세: Finder 연결에서 서버 동기화 폴더 고르기
 
-11판 · 2026-11-22(REQ-FF-12 AC-05·06 추가: 링크 유지·시험 파일 보존, 검증 15차 V-8·V-9. 10판: REQ-FF-12 공용 창고 갱신 뒤 앱 연결 거절 해소 추가, 검증 12차. 9판: REQ-FF-11 연결 창 화면 공유 숨김 없애기 추가, 사장 결정 0.2.4 포함. 8판: REQ-FF-10 AC-05 추가: 비활성 때 옵션창 높이, 검증 9차 V-5. 7판: REQ-FF-09 사진 대신 색과 글자, REQ-FF-10 옵션창이 대화 창 앞에 추가, 사장 결정 0.2.4 포함. 6판 REQ-FF-08, 5판 REQ-FF-07 정정) · 상태: 1~4절 승인·적용됨, 5절 초안 · 기준 커밋: 이 저장소 `9514f0f`, `<운영 저장소>` `66f2a44c`
+12판 · 2026-11-22(REQ-FF-12 AC-03 정정: 정책 변화 범위, 검증 16차 V-10. 11판: REQ-FF-12 AC-05·06 추가: 링크 유지·시험 파일 보존, 검증 15차 V-8·V-9. 10판: REQ-FF-12 공용 창고 갱신 뒤 앱 연결 거절 해소 추가, 검증 12차. 9판: REQ-FF-11 연결 창 화면 공유 숨김 없애기 추가, 사장 결정 0.2.4 포함. 8판: REQ-FF-10 AC-05 추가: 비활성 때 옵션창 높이, 검증 9차 V-5. 7판: REQ-FF-09 사진 대신 색과 글자, REQ-FF-10 옵션창이 대화 창 앞에 추가, 사장 결정 0.2.4 포함. 6판 REQ-FF-08, 5판 REQ-FF-07 정정) · 상태: 1~4절 승인·적용됨, 5절 초안 · 기준 커밋: 이 저장소 `9514f0f`, `<운영 저장소>` `66f2a44c`
 요청 원문과 사장 결정: [brainstorm.md](brainstorm.md). 설계 [design.md](design.md), 작업 [tasks.md](tasks.md), 인계 [handoff.md](handoff.md), 수락 시험 [HEJO-FINDER-FOLDERS.md](../../../tests/acceptance/HEJO-FINDER-FOLDERS.md).
 
 ## 칸·원본·쓰기 주체·수명
@@ -137,7 +137,7 @@
 - 결정(계획 담당, 기존 계약 안): 지문 비교는 **개인 사본(오버레이)** 을 지키기 위한 것이다. 링크로 공용 창고를 그대로 쓰는 경우 manifest 변화는 키트 갱신이지 개인 수정이 아니다.
 - AC-01(정상): 직원 프로필의 team-kit이 검증된 공용 창고 링크(`overlay: false`, 링크 대상이 `plugin-store/<plugin>`과 같음)이고 지금 manifest 바이트가 공용 창고 manifest와 같으면, 기억 지문이 달라도 거절하지 않고 연결을 저장한다. 저장 뒤 기억 지문은 새 값으로 바뀐다.
 - AC-02(회귀): 개인 사본(오버레이)의 manifest가 기억과 다르면 지금처럼 `UNDO_CONFLICT`다(기존 `test_removing_one_app_preserves_other_app_tools_and_external_changes`). 링크가 공용 창고가 아닌 곳을 가리키면 지금처럼 거절한다(`UNSAFE_PATH` 또는 `UNDO_CONFLICT`).
-- AC-03(회귀): 되돌리기(app undo)는 처음 연결 전 상태(`before`·`host`)로 돌아간다. 기본 도구 권한(`owner/policy.yaml` `app_tool_defaults`)은 바뀌지 않는다.
+- AC-03(회귀, 12판 정정): 되돌리기(app undo)는 처음 연결 전 상태(`before`·`host`·`owner/policy.yaml` 바이트)로 돌아간다. 연결 중 기본 도구 권한(`app_tool_defaults`)의 변화는 AC-05가 정한 것(창고에 새로 생긴 도구 추가)뿐이다.
 - AC-04(정상, 앱): 저장이 거절되면 입력 창에 "마쳤어요" 같은 성공 문장이 아니라 이유가 보인다(TASK-13 앱 커밋 `f03b93a`).
 - AC-05(정상, 11판): 검증된 창고 갱신을 받아들여 연결할 때, 그 프로필이 연결 전에 실제로 쓰던 도구 목록(창고 목록)을 잃지 않는다. 연결 결과 manifest가 창고와 같으면 플러그인 자리는 링크로 남는다(오버레이가 생기지 않는다). 운영 저장소 원칙 "team-kit은 한 곳, 프로필은 링크"를 지킨다.
 - AC-06(운영, 11판): 이 작업의 team-kit 시험 파일(`test_finder_folders.py`, `test_finder_manifest_updates.py`)은 실행본 `~/.hermes/plugin-store/team-kit/tests/`에도 있어서 `./sync`·자동 기록이 운영 저장소에서 지우지 않는다.
