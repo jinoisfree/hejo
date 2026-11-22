@@ -1,6 +1,6 @@
 # HEJO-UI-CLEAN 수락 시험
 
-2판 · 2026-11-23(2판: 구현 보류 R-UC-I1 — 이관 목록 design 4.1, 머리 수치, AT-UC-30·34 범위) · 명세 [spec.md](../../docs/changes/HEJO-UI-CLEAN-20261123/spec.md) · 설계 [design.md](../../docs/changes/HEJO-UI-CLEAN-20261123/design.md) · 시안 [final-4](../../docs/changes/HEJO-UI-CLEAN-20261123/mockups/final-4.png)
+3판 · 2026-11-23(2판: 보류 R-UC-I1 — 이관 목록 design 4.1, 머리 수치, AT-UC-30·34 범위. 3판: 보류 R-UC-I2 — 이관 표 보완만, AT-UC 기대 불변) · 명세 [spec.md](../../docs/changes/HEJO-UI-CLEAN-20261123/spec.md) · 설계 [design.md](../../docs/changes/HEJO-UI-CLEAN-20261123/design.md) · 시안 [final-4](../../docs/changes/HEJO-UI-CLEAN-20261123/mockups/final-4.png)
 
 상태: 명세 완료 · 코드 미작성 · 미실행.
 모두 앱 시험(`app/Tests`). 임시 `LocalStore`, 가짜 명부(`alpha` "직원 A", `beta` "직원 B"), 가짜 화면 1440×900, 실제 `ConversationView`+`PetController` 조립. 테마 전환은 실제 경로(`ChatAppearance.change` → `applyChatAppearance`), 픽셀 비교는 RGBA 네 성분 차이 합(HEJO-DRAWER-INLINE 10판 규칙). 시각은 주입 시계.
@@ -43,7 +43,7 @@
 ## 회귀
 | ID | 기대 |
 |---|---|
-| AT-UC-40 | `HEJO_PYTHON=<게이트웨이 python> bash app/scripts/test.sh` 종료 0. design 4.1 표의 기존 단언만 이관했고 impl-report에 파일:줄·전후 목록. 그 밖 기대값 불변 |
+| AT-UC-40 | `HEJO_PYTHON=<게이트웨이 python> bash app/scripts/test.sh` 종료 0. design 4.1 표의 기존 단언과 파생 수치 규칙에 맞는 숫자만 이관했고 impl-report에 파일:줄·전후 목록. 그 밖 기대값 불변 |
 
 ## 사람 확인
 M-UC-1: spec 사람 확인. 구현 담당은 어둡게·밝게 칸 열림·닫힘·알약 상태별 화면 사진을 증거로 남긴다.

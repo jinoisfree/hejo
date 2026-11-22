@@ -1,6 +1,6 @@
 # HEJO-UI-CLEAN 설계
 
-2판 · 2026-11-23(2판: 구현 담당 보류 R-UC-I1 — 4.1 시험 이관 목록을 파일:줄로 확정) · 명세 [spec.md](spec.md) · 기준 main `e9f2d59` · 칸 표는 spec 첫 절.
+3판 · 2026-11-23(2판: 보류 R-UC-I1 — 4.1 이관 표, 3판: 보류 R-UC-I2 — AT-DI-39, 연결 없음 접미사, AT-DI-22 준비 상태, 파생 수치 규칙) · 명세 [spec.md](spec.md) · 기준 main `e9f2d59` · 칸 표는 spec 첫 절.
 
 ## 1. 지금 흐름 [확인]
 - 알약: `IslandModel.snapshot()`이 `parts`(problem/owner/worker, 미리보기 event, "닫기 ‹" 덧붙임)를 만들고(`IslandModel.swift:111-160`), `IslandView`가 여러 칸으로 그린다. `ConversationView.layout`이 알약을 `x+12`에, 그 오른쪽에 `heading`(방 이름)·`subtitle`(설명)을 둔다. 클릭은 `ConversationView` `tickIsland`/`.drawer`·`.question`·`.worker`·`.reconnect`·`.retry` 처리.
@@ -60,17 +60,19 @@
 
 ### 4.1 기존 시험 이관 허용 목록(2판, 기준 main `aa65bfb` 줄 번호)
 원칙: 아래 단언만 바꿀 수 있다. **지키던 뜻(행동·순서·개수·시간·출처 매핑)은 남기고** 표현 API(`parts`→`activity`, `badge`/`time`→`status`/`trailing`)·좌표·문장·수치만 새 기대로 옮긴다. 시험 준비 코드(`Card(...)` 생성 인자 등)의 기계적 이름 변경은 허용. 단언 삭제는 '대체' 칸에 적힌 AT-UC가 같은 뜻을 볼 때만. 이 밖의 단언이 새 요구와 부딪히면 멈추고 보고.
+**파생 수치 규칙(3판)**: 단언의 숫자가 spec 2판 수치(칸 290, 카드 폭 278·높이 52·사이 7, 토글 x 14~244 → 폭 230·안쪽 226, ✕ 24, 머리 44)에서 산수로 바로 나오는 값으로만 바뀌는 경우(같은 비교, 같은 뜻)는 표에 없어도 옮길 수 있다. impl-report에 파일:줄·전후·계산식을 적는다. 뜻·비교 종류·오차가 바뀌면 여전히 멈추고 보고.
 
 | TASK | 파일:줄 | ID | 새 기대 |
 |---|---|---|---|
 | 01 | `DrawerInlineTests.swift:213` | AT-DI-12 | 카드 폭 `== 278`(나머지 조건 그대로) |
-| 01 | `DrawerInlineTests.swift:150-201` | AT-DI-22 | 준비 코드 `badge`/`time` → `status`/`trailing`. 옛 배지 영역 빨강·선택 채움 표본은 AT-UC-14·16으로 대체(삭제 가능). "세 종류 카드 테두리 같음"(`:201`)은 새 카드 테두리 위치 표본으로 유지(AT-UC-14에도 포함) |
+| 01 | `DrawerInlineTests.swift:150-201` | AT-DI-22 | 준비 코드 `badge`/`time` → `status`/`trailing`. 테두리 동등 비교(`:201`)는 선택 없음(`selected:nil`) 상태에서 하도록 준비 상태를 바꾼다(선택 테두리는 AT-UC-16). 옛 배지 영역 빨강·선택 채움 표본은 AT-UC-14·16으로 대체(삭제 가능). "세 종류 카드 테두리 같음"(`:201`)은 새 카드 테두리 위치 표본으로 유지(AT-UC-14에도 포함) |
 | 01 | `DrawerHeaderTests.swift:53-54` | AT-DI-35 | 제목 띠 단언 제거, 토글 중심 22, ✕ 중심 22, 스크롤 위 끝 44, 토글 x 14~244 |
 | 01 | `DrawerHeaderTests.swift:55-63` | AT-DI-35 선 | 띠 선은 y=44 하나만, 비교 기준(방 목록 선·RGBA)은 그대로 |
+| 01 | `DrawerHeaderTests.swift:104` | AT-DI-39 | `track.frame.width == 230`(칸 폭 145·잘림·`masksToBounds` 조건 그대로) |
 | 01 | `DrawerHeaderTests.swift:86` | AT-DI-37 | 칸 폭 합 `258` → `226`(토글 230 − 안쪽 4). 균등 폭 조건 유지 |
-| 01 | `TodoDrawerTests.swift:42` | AT-TD-22 | `status`: "마감 1일 지남"·"오늘 마감"·"마감 4일 남음", `trailing`: "18:00"·"11/24" |
-| 01 | `TodoDrawerTests.swift:252` | AT-DC-21 | `status` "마감 1일 지남 · 미리알림"·"오늘 마감 · 메일"·"마감 4일 남음"(출처 없음) |
-| 01 | `TodoDrawerTests.swift:259-260` | AT-DC-21b | `status == "오늘 마감" + (tail.map{" · "+$0} ?? "")` — 알려진 7종·모르는 종류 매핑 전부 유지 |
+| 01 | `TodoDrawerTests.swift:42` | AT-TD-22 | `status`: 각 문장 + 연결 없는 카드(`linked==false`)는 끝에 " · 연결된 대화 없음"(spec UC-03 AC-02 순서: 날짜 문장 → 출처 → 연결 없음). `trailing`: "18:00"·"11/24" |
+| 01 | `TodoDrawerTests.swift:252` | AT-DC-21 | `status` "마감 1일 지남 · 미리알림"·"오늘 마감 · 메일"·"마감 4일 남음"(출처 없음), 각각 `linked==false`면 끝에 " · 연결된 대화 없음" |
+| 01 | `TodoDrawerTests.swift:259-260` | AT-DC-21b | `status == "오늘 마감" + (tail.map{" · "+$0} ?? "") + (linked ? "" : " · 연결된 대화 없음")` — 알려진 7종·모르는 종류 매핑 전부 유지 |
 | 01 | `TodoDrawerTests.swift:71-73` | AT-TD-25 | 1.49·1.51초 뒤에도 `highlightedMessageID==q1`(선택 유지). 해제는 AT-UC-17 |
 | 01 | `TodoDrawerTests.swift:294-295` | AT-DC-23 | 같음(마감 카드는 목록에 남아 선택 유지) |
 | 01 | `TodoDrawerTests.swift:76-77` | AT-TD-39 | **바꾸지 않음**(알림 카드는 사라져 1.5초 규칙) |
