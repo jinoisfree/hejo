@@ -73,3 +73,11 @@
 - 설계 적합성(4.2): 적합(7회 판정, 이후 앱 코드 변화 없음).
 - 병합: 계획 담당이 `1b26d78`을 로컬 main에 `--no-ff` 병합. 공개 원격 `github/main`은 별도 공개 스냅숏 이력이라 직접 푸시 대상 아님 — 공개는 릴리즈 총괄(18번)이 맡는다.
 - 남은 것: M-UC-1(사장이 개발 빌드에서 알약·칸 카드를 어둡게·밝게로 보기), 정상 환경 전체 `test.sh` 재실행, 후속 후보(칸 카드 제목의 마크다운 `**` 노출).
+
+## 9회 · 2026-11-23 · 사장 지시 "재실행" — 판정: 부분 완료 유지(남은 것 M-UC-1 사장 확인)
+
+- 실행: 계획 담당 checkout main `7359e3b`(app은 `31b9d92`와 동일)에서 `HEJO_PYTHON=<Hermes 설치 venv python> bash app/scripts/test.sh`, 로그 `.build/ui-clean-final/app-tests.log`(추적 안 함). 사장이 화면 공유로 접속해 있는 상태(`pmset` UserIsActive 1).
+- 결과: **종료 1**. AT-UC-01..06 TITLE, AT-UC-10..19 DRAWER, AT-UC-30..35 POLISH 등 그 앞 시험 모두 PASS. 실패는 `APP_TEST_FAILED assertion("AT-HC-27 show after onDismiss clears input and remains usable")` 하나(로그 238행), 이후 시험은 멈춤.
+- 판단: 사장이 있는 상태에서도 AT-HC-27이 같은 단언에서 실패하고, 변경 없는 기준 코드도 같은 값으로 실패한다(6~8회). 앱을 맨 앞으로 가져와야 하는 기존 연결 창 시험이 이 Mac 환경(화면 공유·다른 앱이 앞에 있음)에서 불안정한 것이며 이 작업의 결함이 아니다. "정상 환경 전체 종료 0"은 이 시험 때문에 얻을 수 없으므로 이 작업의 완료 조건에서 떼어 **별도 후속(AT-HC-27 시험 안정화)**으로 넘긴다. 연결 시험 뒤 시험들은 8회 보완 실행에서 변경본·기준 모두 통과했다.
+- gate 시험: Hermes 설치 환경 venv 3개 모두 `pytest`·`yaml`·`hermes_facility`가 없어 원래 방식으로 실행할 수 없다(Hermes 실행 구조 변경 추정, 공유 환경 수정 금지). 이 작업은 `app/`만 바꿨다. 후속: gate 시험 실행 방법 재정리.
+- 남은 것: M-UC-1 사장 화면 확인. 그 뒤 완료.
