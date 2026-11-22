@@ -406,3 +406,27 @@ TASK-09의 측정은 실제 트랙패드 탭이 아니라 수락 명세 AT-FF-30
 6. 위험도 일반(운영 재시작, 사장 승인), 증거 수준 3.
 7. 보고: impl-report.md '15차-TASK-14 계속' 절(명령·종료 코드·시간, 재시작 전후 게이트웨이 PID·로그 줄 번호, 연결 결과, 로그 경로), result.
 ```
+
+## 16차 지시 (2026-11-22): TASK-15 링크 유지 보정 + 직원 D 링크 복구 + 시험 파일 보존 (검증 15차 V-8·V-9)
+
+```text
+[설계 인계: HEJO-FINDER-FOLDERS TASK-15]
+1. 문서: spec 11판 REQ-FF-12 AC-05·06, design 9.1, 수락 명세 AT-FF-84~86, verdict 14차 V-8·15차 V-9.
+2. 코드(HD worktree 새 커밋): app_manifests의 '검증된 창고 갱신 수락' 갈래에서 template=지금 창고 manifest 바이트,
+   창고 provides_tools 중 옛 template에 없던 도구를 그 프로필 app_tool_defaults[plugin] 끝에 순서대로 더한다. original_host는 baseline 그대로.
+   AT-FF-84 시험을 test_finder_manifest_updates.py에 더한다. 기존 기대값은 바꾸지 않는다(정책 바이트 불변을 단언한 기존 시험이 이 보정과 부딪히면 멈추고 보고).
+   관련 8파일 + test_finder_manifest_updates + team-kit 전체(실패 집합 ⊆ 기준) + ./airport-check.
+3. 운영 적용 순서(운영 AGENTS.md 39·40줄: 실행본이 원본, 저장소는 ./sync 사본):
+   a. 실행본 config_assembly.py가 교체 직전 SHA f2c64d1d…인지 확인 → 보관본 → 새 파일로 교체.
+   b. 실행본 ~/.hermes/plugin-store/team-kit/tests/에 test_finder_folders.py(HD에서 검토된 바이트)와 새 test_finder_manifest_updates.py를 설치한다.
+   c. 직원 D 복구: 운영 owner/policy.yaml의 직원 D app_tool_defaults.team-kit에 창고에만 있는 도구(cctv_now, cctv_reference — 실행 시 다시 계산해 확인)만 더한다(보관본 포함, 그 밖의 줄 변경 금지).
+      그 뒤 직원 D Finder 연결을 14차와 같은 환경·같은 --scope로 한 번 제출한다. 결과 플러그인 자리가 심링크·links.json overlay false인지, hermes-plugin-store --check, 저장 폴더 유지를 확인한다(AT-FF-85).
+      RESTART_REQUIRED면 거기서 멈추고 보고한다(재시작은 사장 승인 뒤).
+   d. ./sync 후 git status로 이 작업 경로만 확인하고 자기 경로만 git commit --only(config_assembly.py, 두 시험 파일, 직원 D 링크·links.json·policy.yaml 중 이 작업 변경분).
+      다른 세션(OPS-REPO-RENAME 등)의 변경이 같은 파일에 섞여 있으면 그 파일은 커밋하지 말고 보고한다.
+4. 조율: 운영 저장소 작업 트리에 OPS-REPO-RENAME 세션(hermes-hejo-d2)의 미커밋 변경이 있다. ./sync 전후로 그 세션 파일을 되돌리거나 커밋하지 않는다.
+   끝나면 hermes-hejo-d2에 이 작업 소유 운영 경로와 커밋을 한 줄로 알린다(계획 담당이 대신 알려도 됨 — 보고에 목록만 남겨라).
+5. 금지: 게이트웨이 재시작, install/hejo-release, 비밀 파일, 실제 메시지, 본체·ddots, 수락 기준·spec·design 수정, git push, 플러그인 폴더 손 편집.
+   문서에는 '직원 D'. 위험도 일반(운영 적용·정책 한 곳), 증거 수준 3.
+6. 보고: impl-report.md '16차-TASK-15' 절(HD·운영 커밋 전체 해시, 교체 전후 SHA, 보관본, 정책 변경 전후, 연결 결과, 명령·종료 코드·로그 경로), result.
+```

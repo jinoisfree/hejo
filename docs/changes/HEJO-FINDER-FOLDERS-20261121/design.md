@@ -109,3 +109,8 @@
 - 기본 도구 권한은 이미 정책으로 한 번 옮겨졌다(`defaults.setdefault`). 이 규칙은 그것을 바꾸지 않는다. 새 창고 도구는 기존처럼 `declared`·`additions` 규칙을 따른다.
 - 서버 적용 주의: 운영 저장소에 다른 세션의 `config_assembly.py` 미커밋 변경(hejo toolset)이 있다. 실행본 파일을 통째로 바꾸면 그 변경을 덮는다. 서버 적용은 그 세션이 커밋한 뒤 별도 지시로, 함수 한 곳만 반영하는 방식으로 한다.
 
+### 9.1 11판 보정 (검증 15차 V-8·V-9)
+- V-8: 9절의 "기본 도구 권한은 바꾸지 않는다"를 고친다. 검증된 창고 갱신을 받아들이는 갈래에서는 `template`을 지금 창고 manifest 바이트로 쓴다. 그리고 창고 `provides_tools` 중 옛 `template`에 없던 도구를 그 프로필 `app_tool_defaults[plugin]` 끝에 순서대로 더한다. 링크 프로필은 연결 전에 그 도구를 이미 쓰고 있었으므로, 이것은 권한 확대가 아니라 실효 상태 보존이다. `original_host`(되돌리기 기준)는 기존 baseline 값 그대로다. 결과 manifest가 창고와 같으면 기존 plugin_store 규칙대로 링크로 남는다.
+- 직원 D 복구: 이미 오버레이가 된 직원 D는 위 갈래를 다시 타지 않는다(지문이 일치). 그래서 운영 `owner/policy.yaml`의 직원 D `app_tool_defaults.team-kit`에 창고에만 있는 도구(오늘 기준 `cctv_now`, `cctv_reference`)를 더하는 한 곳 변경(보관본 포함) 뒤, 같은 Finder 연결을 한 번 다시 제출해 재조립한다. 결과로 링크가 복원돼야 한다. 플러그인 폴더를 손으로 고치지 않는다.
+- V-9: 운영 저장소 `hermes/`는 `./sync`가 실행본(`~/.hermes`)에서 매번 다시 채우는 사본이다. 운영 저장소에만 넣은 시험 파일은 자동 기록(04:30)·`./sync`에서 지워진다(`test_finder_folders.py`는 `5824d602` 자동 기록에서 이미 지워짐, `test_finder_manifest_updates.py`는 작업 트리에서 지워진 상태). 그래서 team-kit 변경은 실행본에 설치(시험 파일 포함) → `./sync` → 자기 경로만 `git commit --only` 순서로 한다. 3·5·7·14차의 "시험 파일은 실행본에 넣지 않는다"는 틀렸다.
+
