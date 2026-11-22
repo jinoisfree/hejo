@@ -1,6 +1,6 @@
 # HEJO-UI-CLEAN 설계
 
-1판 · 2026-11-23 · 명세 [spec.md](spec.md) · 기준 main `e9f2d59` · 칸 표는 spec 첫 절.
+2판 · 2026-11-23(2판: 구현 담당 보류 R-UC-I1 — 4.1 시험 이관 목록을 파일:줄로 확정) · 명세 [spec.md](spec.md) · 기준 main `e9f2d59` · 칸 표는 spec 첫 절.
 
 ## 1. 지금 흐름 [확인]
 - 알약: `IslandModel.snapshot()`이 `parts`(problem/owner/worker, 미리보기 event, "닫기 ‹" 덧붙임)를 만들고(`IslandModel.swift:111-160`), `IslandView`가 여러 칸으로 그린다. `ConversationView.layout`이 알약을 `x+12`에, 그 오른쪽에 `heading`(방 이름)·`subtitle`(설명)을 둔다. 클릭은 `ConversationView` `tickIsland`/`.drawer`·`.question`·`.worker`·`.reconnect`·`.retry` 처리.
@@ -30,11 +30,11 @@
 - 0개 필터 흐림: `ComposerButton`에 `dimmed` 또는 글자색 알파 인자(토글 공용 원본 안에서).
 
 ### 2.3 중복 정리·다듬기 (TASK-03)
-- 칩 줄: `noticeScroll.isHidden`에 `drawerOpen` 조건 추가. 칩 클릭은 `onToggleDrawer`+`drawerFilter` 설정 경로.
+- 칩 줄: `noticeScroll.isHidden`에 `drawerOpen` 조건 추가. 칩 클릭(`jumpNotice`)은 그대로.
 - 홈 줄 배지: `EmployeeSidebarCell`에서 `row.kind == .home`이면 numbers 숨김.
 - 질문 단추: `ThreadTools` 단추 표현에서 기호 제거(글자만).
 - 묶음 글자색: 색을 해당 셀의 `effectiveAppearance.performAsCurrentDrawingAppearance` 안에서 풀거나 테마 변경 때 다시 칠함. 원인 확인 후 그 자리에서.
-- 툴팁: 방 목록 셀 `toolTip`(잘렸을 때), `ComposerFaces` 얼굴별 툴팁.
+- 툴팁: 이미 있음(2판 확인) — 변경 없음.
 - 분홍 표식·접기 단추: 조사 후 spec AC-04·05대로.
 
 ## 3. 대안
@@ -56,7 +56,36 @@
 | `SidebarBlank` 검정 덮개 | 제거 |
 | 질문 단추 기호 | 제거 |
 | 채팅 카드 세로줄 값 | 통합(공용 값) |
-| 기존 시험: AT53(알약 칸·폭)·AT56(알약 클릭)·AT-TD-27·29·41(알약 열기/닫기 라벨)·AT-TD-20·22(카드 badge·time 문장)·AT-TD-25(1.5초)·AT-DI-35(제목 띠)·AT-DI-37·38 일부·AT-DI-44 이전 기대 | 교체(AT-UC로). 목록과 근거를 impl-report에 |
+| 기존 시험 | 4.1 표의 단언만 이관. 그 밖 기대값 불변 |
+
+### 4.1 기존 시험 이관 허용 목록(2판, 기준 main `aa65bfb` 줄 번호)
+원칙: 아래 단언만 바꿀 수 있다. **지키던 뜻(행동·순서·개수·시간·출처 매핑)은 남기고** 표현 API(`parts`→`activity`, `badge`/`time`→`status`/`trailing`)·좌표·문장·수치만 새 기대로 옮긴다. 시험 준비 코드(`Card(...)` 생성 인자 등)의 기계적 이름 변경은 허용. 단언 삭제는 '대체' 칸에 적힌 AT-UC가 같은 뜻을 볼 때만. 이 밖의 단언이 새 요구와 부딪히면 멈추고 보고.
+
+| TASK | 파일:줄 | ID | 새 기대 |
+|---|---|---|---|
+| 01 | `DrawerInlineTests.swift:213` | AT-DI-12 | 카드 폭 `== 278`(나머지 조건 그대로) |
+| 01 | `DrawerInlineTests.swift:150-201` | AT-DI-22 | 준비 코드 `badge`/`time` → `status`/`trailing`. 옛 배지 영역 빨강·선택 채움 표본은 AT-UC-14·16으로 대체(삭제 가능). "세 종류 카드 테두리 같음"(`:201`)은 새 카드 테두리 위치 표본으로 유지(AT-UC-14에도 포함) |
+| 01 | `DrawerHeaderTests.swift:53-54` | AT-DI-35 | 제목 띠 단언 제거, 토글 중심 22, ✕ 중심 22, 스크롤 위 끝 44, 토글 x 14~244 |
+| 01 | `DrawerHeaderTests.swift:55-63` | AT-DI-35 선 | 띠 선은 y=44 하나만, 비교 기준(방 목록 선·RGBA)은 그대로 |
+| 01 | `DrawerHeaderTests.swift:86` | AT-DI-37 | 칸 폭 합 `258` → `226`(토글 230 − 안쪽 4). 균등 폭 조건 유지 |
+| 01 | `TodoDrawerTests.swift:42` | AT-TD-22 | `status`: "마감 1일 지남"·"오늘 마감"·"마감 4일 남음", `trailing`: "18:00"·"11/24" |
+| 01 | `TodoDrawerTests.swift:252` | AT-DC-21 | `status` "마감 1일 지남 · 미리알림"·"오늘 마감 · 메일"·"마감 4일 남음"(출처 없음) |
+| 01 | `TodoDrawerTests.swift:259-260` | AT-DC-21b | `status == "오늘 마감" + (tail.map{" · "+$0} ?? "")` — 알려진 7종·모르는 종류 매핑 전부 유지 |
+| 01 | `TodoDrawerTests.swift:71-73` | AT-TD-25 | 1.49·1.51초 뒤에도 `highlightedMessageID==q1`(선택 유지). 해제는 AT-UC-17 |
+| 01 | `TodoDrawerTests.swift:294-295` | AT-DC-23 | 같음(마감 카드는 목록에 남아 선택 유지) |
+| 01 | `TodoDrawerTests.swift:76-77` | AT-TD-39 | **바꾸지 않음**(알림 카드는 사라져 1.5초 규칙) |
+| 02 | `IslandTests.swift:13,15,19,24,27` | AT53 | `dot`·`activity`로: 질문 있음 → `dot`, 안 읽음만 → 점 기준은 처리할 일 total(spec AC-02), 일하는 중 문장·얼굴 3장 유지, 넘침 시 `workerFacesOnly` 대신 활동 말줄임(AT-UC-04) |
+| 02 | `IslandTests.swift:55,57,67` | AT54 | `expanded`·미리보기 순서·4초·문제 우선 뜻 유지, `parts.first/last` → `activity`(`iconOnly` 단언은 '활동 하나'로) |
+| 02 | `IslandTests.swift:72` | AT56 | `activity?.action == .question(...)` |
+| 02 | `IslandTests.swift:77,80,81,83,86,88` | AT55 | `parts[0]` → `activity`, 문장·action 그대로 |
+| 02 | `IslandTests.swift:108,134` | AT53 배치 | 알약 `minX == sidebarWidth+12`, 높이 30, heading 단언 → 알약 최대 폭(AT-UC-04) |
+| 02 | `IslandTests.swift:47-48,109-131` | AT56 클릭 | 클릭 좌표를 `partRects` 대신 활동 영역/제목 영역 rect로. 끊김 재연결(`:127`)은 활동 영역 클릭. 1.5초 만료(`:120`, 알약 경로)는 유지 |
+| 02 | `TodoDrawerTests.swift:56-61` | AT-TD-41·27 | owner 칸 → 제목 영역 클릭. `:60` "닫기 ‹" 단언은 AT-UC-06으로 대체 |
+| 02 | `TodoDrawerTests.swift:119-122,135-141,146` | AT-TD-41·28·29 | 빈 알약 클릭 좌표 유지(제목 영역), 일하는 중·문제는 활동 영역 클릭, `parts...action` → `activity?.action` |
+| 02 | `Task17Tests.swift:206` | AT67 | `dot == true && activity?.kind != .question`(뮤트는 미리보기를 띄우지 않음) |
+| 02 | `ConversationTests.swift:56` | AT52 | 빈 방 제목 `"HEJO."`을 알약 제목(`island.snapshot.title`)으로 |
+| 02 | `WorkspaceTests.swift:56` | AT79 | 알약 제목 == "시험 제목"; 설명 글은 화면에 없음(`subtitle` 단언 제거) |
+| 02 | `ConversationUpdateTests.swift:47`, `ScrollTests.swift:140` | 준비/기록 | `heading.stringValue` → 알약 제목, `subtitle` 기록 값은 빈 문자열 또는 키 제거(기록용) |
 
 ## 5. 유지할 계약
 통신·저장 형식, `TodoDrawerModel` 필터·개수·정렬·urgent 규칙, 마감 닫기 흐름, 칸 폭·배치, 답글/새 글 토글·직원 얼굴 줄, 알약 미리보기 시간·재연결 초읽기, 동작 줄이기.
