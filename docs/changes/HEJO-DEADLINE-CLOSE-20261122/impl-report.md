@@ -6,9 +6,9 @@
 
 | 항목 | 값 |
 |---|---|
-| 이 저장소 worktree | `/Volumes/ServerData/mac-mini-m4-homeserver/paseo-work/.worktrees/31ptpirh/role-workflow-16-a3ea9587`, 브랜치 `role-workflow/16-a3ea9587`, 기준 `0644e9e`(main과 같음) |
+| 이 저장소 worktree | `<구현 worktree>`, 브랜치 `role-workflow/16-a3ea9587`, 기준 `0644e9e`(main과 같음) |
 | 이 저장소 커밋 | TASK-02 `a43662d2be5d41efea40487d7af5f52ddddb4a94`, TASK-03 `0c8549688e26b3465da649cdce3596d4d394d380` |
-| team-kit worktree(`HD`) | `/Volumes/ServerData/mac-mini-m4-homeserver/paseo-work/.worktrees/31ptpirh/hd-deadline-close`, 브랜치 `hejo-deadline-close-20261122`, 기준 `eee573e6` |
+| team-kit worktree(`HD`) | `<HD worktree>`, 브랜치 `hejo-deadline-close-20261122`, 기준 `eee573e6` |
 | team-kit 커밋 | TASK-01 `cfe6d9d21a96caae8fe09396a5505e87788a4916` |
 | 착수 때 `deadline_watch.py` sha256 | `470d272578d84ed32b3bd95c6dcad876781fef2a963c1497fd4a6df2b6f1b4b2`(인계서와 같음) |
 | 도달 증거 수준 | 2(자동 시험 + 변이 확인). 운영 공항 실환경은 TASK-04 몫이라 미실행 |
