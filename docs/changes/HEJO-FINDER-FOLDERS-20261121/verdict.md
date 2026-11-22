@@ -443,3 +443,10 @@
    - 첫 실행은 종료 1이었다. 깊은 작업 경로 때문에 시험용 Unix 소켓 경로가 너무 길었기 때문이다(AF_UNIX 경로 길이 초과). 짧은 임시 경로로 같은 트리에서 다시 실행해 종료 0이 나왔다. 제품 결함이 아니라 시험 환경 문제다.
 5. **지적:** 없음. 참고: AT-FF-31(열기 101.3ms)은 그대로이고, 받아들일지는 사장 M7에서 정한다.
 6. **다음:** 사장 공개 → 문 설치(`install/hejo-release`)·게이트웨이 재시작(사장 승인, 21차 지시) → M4·M8~M11 → 맨 마지막 M7 → TASK-04 명세 반영.
+
+## 공개 기록 (2026-11-22 20:55)
+
+- 사장이 직접 `git push github eb5e62af:refs/heads/main`을 실행했다(f397bdb..eb5e62a). 플러그인 푸시 화면이 뜨지 않았기 때문이다.
+- 사장 지시("네가 실행해")로 계획 담당이 `install/hejo-ship publish --approve-commit eb5e62afd8ad6205e40d79386e34641d077ab898 --prepared .build/release-0.2.4/prepared.json`을 실행했다. 종료 0, `PUBLISHED v0.2.4`(로그 `/tmp/ff-publish.log`).
+- 확인(읽기): `gh release view v0.2.4`는 draft false, 자산 `appcast.xml`·`hejo-0.2.4-arm64.zip` 업로드됨, 공개 2026-11-22T11:55:16Z. `git ls-remote github refs/tags/v0.2.4` = eb5e62af, `refs/heads/main` = eb5e62af.
+- 남은 것: 서버 문 설치·게이트웨이 재시작(사장 승인), M4·M8~M11, 맨 마지막 M7, TASK-04.
