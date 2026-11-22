@@ -22,7 +22,7 @@ import Foundation
     }
     struct DeadlineRef: Equatable { let employee: String, id: String }
     struct Card: Equatable {
-        let id: String, kind: Filter, title: String, employee: String, name: String, badge: String, time: String
+        let id: String, kind: Filter, title: String, employee: String, name: String, status: String, statusUrgent: Bool, trailing: String
         var key: ConversationKey?, messageID: String?, url: URL?
         var order: Date, urgent: Bool
         /// Deadline cards only: what to close, and whether a click has anywhere to go.
@@ -60,9 +60,9 @@ import Foundation
                     guard let message=model.messages[id],!muted.contains(message.key.employee),seen.insert(id).inserted else{continue}
                     let kind: Filter = notice.questions ? .question:.alert
                     let stamp=ThreadTools.date(message.timestamp),minutes=max(0,Int(now.timeIntervalSince(stamp)/60))
-                    let relative=minutes<1 ? "방금" : minutes<60 ? "\(minutes)분 전" : minutes<1440 ? "\(minutes/60)시간 전":"\(minutes/1440)일 전"
+                    let relative=minutes<1 ? "방금" : minutes<60 ? "\(minutes)분" : minutes<1440 ? "\(minutes/60)시간":"\(calendar.component(.month,from:stamp))/\(calendar.component(.day,from:stamp))"
                     cards.append(Card(id:id,kind:kind,title:IslandModel.firstLine(message.text,limit:300),employee:message.speaker,
-                        name:model.name(message.speaker),badge:kind.rawValue,time:relative,key:message.key,messageID:id,
+                        name:model.name(message.speaker),status:notice.questions ? "답을 기다려요":"알림",statusUrgent:notice.questions,trailing:relative,key:message.key,messageID:id,
                         order:stamp,urgent:notice.questions))
                 }
             }
@@ -74,15 +74,18 @@ import Foundation
                 let days=calendar.dateComponents([.day],from:calendar.startOfDay(for:now),to:calendar.startOfDay(for:due)).day ?? 0
                 let id="deadline:"+item.employee+":"+item.id
                 guard !hidden.contains(id) else{continue}
-                let badge=(days==0 ? "D-DAY":days>0 ? "D-\(days)":"D+\(-days)")+(item.origin.map{" · "+$0} ?? "")
+                let dateStatus=days<0 ? "마감 \(-days)일 지남":days==0 ? "오늘 마감":days==1 ? "내일 마감":"마감 \(days)일 남음"
                 let message=item.notice.flatMap{model.messages[$0.messageID]}
-                var text="\(bits[1])월 \(bits[2])일까지"
+                let linked=message != nil || item.url != nil
+                let status=dateStatus+(item.origin.map{" · "+$0} ?? "")+(linked ? "":" · 연결된 대화 없음")
+                var text="\(bits[1])/\(bits[2])"
                 if days==0,let at=item.deadlineAt {
-                    let hour=calendar.component(.hour,from:ThreadTools.date(at));text="오늘 \(hour)시까지"
+                    let stamp=ThreadTools.date(at)
+                    text=String(format:"%02d:%02d",calendar.component(.hour,from:stamp),calendar.component(.minute,from:stamp))
                 }
                 cards.append(Card(id:id,kind:.deadline,title:item.title,employee:item.employee,
-                    name:model.name(item.employee),badge:badge,time:text,key:message?.key,messageID:message?.id,url:item.url,order:due,urgent:days<=1,
-                    deadlineRef:DeadlineRef(employee:item.employee,id:item.id),linked:message != nil || item.url != nil))
+                    name:model.name(item.employee),status:status,statusUrgent:days<=1,trailing:text,key:message?.key,messageID:message?.id,url:item.url,order:due,urgent:days<=1,
+                    deadlineRef:DeadlineRef(employee:item.employee,id:item.id),linked:linked))
             }
         }
         func sorted(_ input:[Card])->[Card] {

@@ -201,9 +201,9 @@ import AppKit
     try check(mutedCell?.muted == true && mutedCell?.unread == 1, "AT67 muted badge gray model")
     let islandModel = IslandModel()
     islandModel.update(.init(status: .connected))
-    islandModel.update(.init(messages: Array(model.messages.values), muted: model.muted))
+    islandModel.update(.init(messages: Array(model.messages.values), muted: model.muted, todoTotal:1))
     let island = islandModel.snapshot()
-    try check(island.parts.first(where: { $0.kind == .owner })?.redDot == true && island.expanded != .owner, "AT67 asked counted without muted highlight")
+    try check(island.dot && island.activity?.kind != .question, "AT67 asked counted without muted highlight")
     (menu(second).items.first { $0.title == "목록에서 빼기" } as? RoomActionItem)?.trigger()
     try check(model.hidden.contains(second) && !model.displayRooms.map(\.id).contains(second) && model.messages.count == 3, "AT67 hide preserves messages")
     let restore = view.addMenu().items.first { $0.title == "@둘째" }

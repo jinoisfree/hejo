@@ -13,7 +13,7 @@ private final class InlineAccentReference: NSView {
     override func draw(_ dirtyRect:NSRect){NSColor.controlAccentColor.withAlphaComponent(opacity).setFill();bounds.fill()}
 }
 
-@MainActor func drawerInlineTests(resourceDirectory:URL) throws {
+@MainActor func drawerInlineTests(resourceDirectory:URL) async throws {
     func near(_ a:CGFloat,_ b:CGFloat)->Bool {abs(a-b)<0.01}
     // AT-DI-01..04: independent screen-relative boundary cases, including a half-point shortage.
     for origin:CGFloat in [0,-1600] {
@@ -50,7 +50,7 @@ private final class InlineAccentReference: NSView {
     func global(_ v:NSView)->CGRect {pet.panel.convertToScreen(v.convert(v.bounds,to:nil))}
     place();pet.showChat();settle()
     let base=pet.placementTarget!.globalBubble
-    let representatives=[view.island,field("heading"),view.history,field("inputBackground"),field("sendButton"),field("handle")]
+    let representatives=[view.island,view.headerDrag,view.history,field("inputBackground"),field("sendButton"),field("handle")]
     let frames=representatives.map{global($0)},sidebar=global(field("employeeScroll"))
     pet.setDrawerOpen(true);settle()
     try check(view.todoDrawer.superview===view && view.todoDrawer.frame==CGRect(x:68,y:0,width:290,height:view.bounds.height),"AT-DI-05 drawer is an inline full-height column")
@@ -127,6 +127,7 @@ private final class InlineAccentReference: NSView {
     try drawerInlineColorTests(pet:pet,view:view,controller:controller,store:store)
     try drawerInlineLogoTests(resourceDirectory:resourceDirectory)
     try drawerHeaderTests(resourceDirectory:resourceDirectory)
+    try await uiCleanDrawerTests(resourceDirectory:resourceDirectory)
 }
 
 @MainActor private func drawerInlineColorTests(pet:PetController,view:ConversationView,controller:ConversationController,store:LocalStore) throws {
@@ -153,7 +154,7 @@ private final class InlineAccentReference: NSView {
     let tolerance:CGFloat=6/255
     var cards:[TodoDrawerModel.Card]=[]
     for (index,kind) in [TodoDrawerModel.Filter.question,.deadline,.alert].enumerated() {
-        cards.append(.init(id:"card-\(index)",kind:kind,title:["확인이 필요한 질문","오늘 마감할 일","새 알림"][index],employee:"alpha",name:"직원 A",badge:["답 요청","D-DAY · 노션","알림"][index],time:"방금",order:Date(timeIntervalSince1970:0),urgent:kind != .alert))
+        cards.append(.init(id:"card-\(index)",kind:kind,title:["확인이 필요한 질문","오늘 마감할 일","새 알림"][index],employee:"alpha",name:"직원 A",status:["답을 기다려요","오늘 마감 · 노션","알림"][index],statusUrgent:kind != .alert,trailing:"방금",order:Date(timeIntervalSince1970:0),urgent:kind != .alert))
     }
     let empty=TodoDrawerModel.Snapshot()
     var snapshot=TodoDrawerModel.Snapshot();snapshot.urgent=Array(cards.prefix(2));snapshot.rest=[cards[2]];snapshot.counts=[.all:3,.question:1,.deadline:1,.alert:1];snapshot.available=true
@@ -179,24 +180,14 @@ private final class InlineAccentReference: NSView {
             samples.append(drawer)
         }
         try check(distance(samples[0],samples[1])>tolerance,"AT-DI-20 opacity changes drawer pixels \(theme): \(samples)")
-        view.todoDrawer.show(snapshot,filter:.all,selected:cards[0].id);view.layoutSubtreeIfNeeded();view.todoDrawer.layoutSubtreeIfNeeded()
+        view.todoDrawer.show(snapshot,filter:.all,selected:nil);view.layoutSubtreeIfNeeded();view.todoDrawer.layoutSubtreeIfNeeded()
         let dark=theme == .dark
         var borders:[NSColor]=[]
         for (index,card) in view.todoDrawer.cardViews.enumerated() {
             let rep=try bitmap(card)
-            let border=pixel(rep,card,CGPoint(x:0.5,y:45));borders.append(border)
+            let border=pixel(rep,card,CGPoint(x:0.5,y:26));borders.append(border)
             try check(border.redComponent-max(border.greenComponent,border.blueComponent)<0.1,"AT-DI-22 neutral card border")
-            var red=false
-            for y in 10..<26 {for x in 12..<120 {let p=pixel(rep,card,CGPoint(x:x,y:y));if p.redComponent>p.greenComponent+0.3 {red=true}}}
-            try check(red == (index<2),"AT-DI-22 red only in urgent badges")
-            if index==0 {
-                let fill=pixel(rep,card,CGPoint(x:200,y:45))
-                let reference=InlineAccentReference(opacity:dark ? 0.22:0.12)
-                card.superview!.addSubview(reference)
-                let expected=pixel(try bitmap(reference),reference,CGPoint(x:200,y:45))
-                reference.removeFromSuperview()
-                try check(distance(fill,expected)<=tolerance && abs(fill.alphaComponent-expected.alphaComponent)<=tolerance,"AT-DI-22 selected accent fill uses sidebar alpha fill=\(fill) expected=\(expected)")
-            }
+            // Urgent rail and selection pixels are covered by AT-UC-14/16.
         }
         try check(distance(borders[0],borders[1])<=tolerance && distance(borders[1],borders[2])<=tolerance,"AT-DI-22 same border on all card kinds")
         try ChatAppearance.change(opacity:65);pet.applyChatAppearance();pet.pet.updateScrim()
@@ -210,7 +201,7 @@ private final class InlineAccentReference: NSView {
     pet.setDrawerOpen(false);pet.stepPlacement();view.layoutSubtreeIfNeeded()
     var now=500.0;pet.clock={now};pet.reducedMotion={false};pet.setDrawerOpen(true)
     now+=0.125;pet.stepPlacement();view.todoDrawer.show(snapshot,filter:.all,selected:cards[0].id);view.layoutSubtreeIfNeeded();view.todoDrawer.layoutSubtreeIfNeeded()
-    try check(!pet.pet.widthCoverVisible && view.drawerShownWidth>0 && view.drawerShownWidth<290 && view.history.frame.minX==68+view.drawerShownWidth && view.todoDrawer.cardViews.first?.frame.width==262,"AT-DI-12 cards retain full layout width during reveal")
+    try check(!pet.pet.widthCoverVisible && view.drawerShownWidth>0 && view.drawerShownWidth<290 && view.history.frame.minX==68+view.drawerShownWidth && view.todoDrawer.cardViews.first?.frame.width==278,"AT-DI-12 cards retain full layout width during reveal")
     now+=0.125;pet.stepPlacement();view.layoutSubtreeIfNeeded()
     try check(view.drawerShownWidth==290 && view.todoDrawer.frame.width==290,"AT-DI-12 reveal endpoint")
     print("AT-DI-20..23 PIXEL PASS; M-DI native-view captures: .build/drawer-inline-evidence")

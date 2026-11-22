@@ -32,8 +32,14 @@ final class MemoryCredentials: GateCredentialStore {
         Task { @MainActor in
             do {
                 let args = CommandLine.arguments
-                if args.contains("--drawer-inline") {
-                    try drawerInlineTests(resourceDirectory:URL(fileURLWithPath:args.last!))
+                if args.contains("--ui-clean-polish-probe") {
+                    try await uiCleanPolishTests(resourceDirectory:URL(fileURLWithPath:args.last!),diagnoseOnly:true)
+                } else if args.contains("--ui-clean-polish") {
+                    try await uiCleanPolishTests(resourceDirectory:URL(fileURLWithPath:args.last!))
+                } else if args.contains("--ui-clean-island") {
+                    try await uiCleanIslandTests(resourceDirectory:URL(fileURLWithPath:args.last!))
+                } else if args.contains("--drawer-inline") {
+                    try await drawerInlineTests(resourceDirectory:URL(fileURLWithPath:args.last!))
                 } else if args.contains("--finder-picture") {
                     try await letterPictureTests(resourceDirectory:URL(fileURLWithPath:args.last!))
                     try await optionWindowTests(resourceDirectory:URL(fileURLWithPath:args.last!))
@@ -270,7 +276,7 @@ final class MemoryCredentials: GateCredentialStore {
         try await transitionPreparationTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await todoDrawerTests(resourceDirectory:URL(fileURLWithPath:CommandLine.arguments.last!))
         try await deadlineCloseTests(resourceDirectory:URL(fileURLWithPath:CommandLine.arguments.last!))
-        try drawerInlineTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
+        try await drawerInlineTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await letterPictureTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await optionWindowTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await islandTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))

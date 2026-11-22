@@ -34,7 +34,8 @@ final class EmployeeSidebarCell:NSTableCellView {
     required init?(coder:NSCoder){nil}
     override var isFlipped:Bool{true}
     override func menu(for event:NSEvent)->NSMenu?{(enclosingScrollView?.documentView as? EmployeeMenuTable)?.menu(for:event)}
-    func refreshChrome(){
+    func refreshChrome(){effectiveAppearance.performAsCurrentDrawingAppearance{refreshChromeInCurrentAppearance()}}
+    private func refreshChromeInCurrentAppearance(){
         guard let row else{return};let dark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua,header=row.kind == .section || row.kind == .stack
         let tint=NSColor.labelColor
         heading.isHidden = !header
@@ -48,7 +49,9 @@ final class EmployeeSidebarCell:NSTableCellView {
         let colors:[NSColor]=[list ? .systemBlue:.systemRed,MessageFormat.color("#ECB22E")!,MessageFormat.color("#36C5F0")!]
         let values=[unread,row.questions,row.alerts],labels=["안 읽은 글","답을 기다리는 질문","읽지 않은 알림"]
         for i in 0..<3 {
-            let show=values[i]>0
+            let home=row.kind == .home
+            counters[i].isHidden=home;numbers[i].isHidden=home;dots[i].isHidden=home
+            let show=values[i]>0 && !home
             SidebarMotion.change(counters[i],key:"opacity",to:show && !header ? 1.0:0.0,duration:duration)
             SidebarMotion.change(counters[i],key:"backgroundColor",to:colors[i].cgColor,duration:duration)
             counters[i].borderColor=(dark ? NSColor(white:0.12,alpha:1):.white).cgColor;counters[i].borderWidth=1
@@ -232,22 +235,13 @@ final class FileChip: NSButton {
         let color=SidebarTone.primary(1),alpha:CGFloat=colorAlpha(isEnabled ? 1:0.4)
         let box=NSBezierPath(roundedRect:bounds.insetBy(dx:0.5,dy:0.5),xRadius:8,yRadius:8)
         color.withAlphaComponent(0.07*alpha).setFill();box.fill();color.withAlphaComponent(0.18*alpha).setStroke();box.lineWidth=1;box.stroke()
-        let rect=CGRect(x:bounds.midX-8,y:bounds.midY-8,width:16,height:16),path=NSBezierPath()
-        func point(_ x:CGFloat,_ y:CGFloat)->CGPoint{CGPoint(x:rect.minX+x*rect.width/24,y:isFlipped ? rect.minY+y*rect.height/24:rect.maxY-y*rect.height/24)}
-        switch word {
-        case "승인":path.appendOval(in:CGRect(x:rect.minX+rect.width/6,y:rect.minY+rect.height/6,width:rect.width*2/3,height:rect.height*2/3))
-        case "거절":path.move(to:point(4,4));path.line(to:point(20,20));path.move(to:point(20,4));path.line(to:point(4,20))
-        case "의견":path.move(to:point(4,20));path.line(to:point(5,14));path.line(to:point(15,4));path.line(to:point(20,9));path.line(to:point(10,19));path.close();path.move(to:point(13,6));path.line(to:point(18,11))
-        case "확인":path.move(to:point(4,12));path.line(to:point(10,18));path.line(to:point(20,6))
-        default:
-            if let symbol=ReplyButtonPolicy.symbol(word),let image=NSImage(systemSymbolName:symbol,accessibilityDescription:word)?.withSymbolConfiguration(.init(pointSize:14,weight:.regular)) {
-                FileTile.symbol(symbol,point:14,at:CGPoint(x:rect.midX,y:rect.midY),color:color.withAlphaComponent(alpha))
-            } else {
-                let attributes:[NSAttributedString.Key:Any]=[.font:NSFont.systemFont(ofSize:12,weight:.semibold),.foregroundColor:color.withAlphaComponent(alpha)]
-                let size=(word as NSString).size(withAttributes:attributes);(word as NSString).draw(at:CGPoint(x:bounds.midX-size.width/2,y:bounds.midY-size.height/2),withAttributes:attributes)
-            }
+        if !ReplyButtonPolicy.standard.contains(word),let symbol=ReplyButtonPolicy.symbol(word) {
+            FileTile.symbol(symbol,point:14,at:CGPoint(x:bounds.midX,y:bounds.midY),color:color.withAlphaComponent(alpha))
+        } else {
+            let attributes:[NSAttributedString.Key:Any]=[.font:NSFont.systemFont(ofSize:12,weight:.semibold),.foregroundColor:color.withAlphaComponent(alpha)]
+            let size=(word as NSString).size(withAttributes:attributes)
+            (word as NSString).draw(at:CGPoint(x:bounds.midX-size.width/2,y:bounds.midY-size.height/2),withAttributes:attributes)
         }
-        color.withAlphaComponent(alpha).setStroke();path.lineWidth=1.2;path.lineCapStyle = .round;path.lineJoinStyle = .round;path.stroke()
     }
     init(title:String) { super.init(frame:.zero); self.title=title; bezelStyle = .rounded; target=self; action = #selector(pressed); setContentCompressionResistancePriority(.defaultLow,for:.horizontal) }
     required init?(coder:NSCoder) { fatalError() }
@@ -271,6 +265,7 @@ final class ComposerModeTrack: NSView {
 
 final class ComposerButton: NSButton {
     var invoke:(() -> Void)?, chosen=false,mode=false
+    var textAlpha:CGFloat=1
     var selection:CGFloat?
     var symbol:String?, point:CGFloat=11, circle=false
     init(title:String="",symbol:String?=nil,point:CGFloat=11,circle:Bool=false) {
@@ -291,7 +286,7 @@ final class ComposerButton: NSButton {
             let tinted=image.copy() as! NSImage; tinted.lockFocus(); color.set(); CGRect(origin:.zero,size:image.size).fill(using:.sourceAtop); tinted.unlockFocus()
             tinted.draw(in:CGRect(x:(bounds.width-image.size.width)/2,y:(bounds.height-image.size.height)/2,width:image.size.width,height:image.size.height))
         } else {
-            let attrs:[NSAttributedString.Key:Any]=[.font:NSFont.systemFont(ofSize:point,weight:chosen ? .semibold : .regular),.foregroundColor:color]
+            let attrs:[NSAttributedString.Key:Any]=[.font:NSFont.systemFont(ofSize:point,weight:chosen ? .semibold : .regular),.foregroundColor:color.withAlphaComponent(color.alphaComponent*textAlpha)]
             let size=(title as NSString).size(withAttributes:attrs)
             (title as NSString).draw(at:CGPoint(x:(bounds.width-size.width)/2,y:(bounds.height-size.height)/2),withAttributes:attrs)
         }

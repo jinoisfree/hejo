@@ -8,23 +8,23 @@ private func islandMessage(_ seq:Int,_ key:ConversationKey = islandA,asked:Bool=
 @MainActor func islandTests(resourceDirectory:URL) async throws {
     var time=Date(timeIntervalSince1970:1000)
     func state(_ input:IslandModel.Input)->IslandModel.Snapshot { let model=IslandModel(clock:{time});model.update(input);return model.snapshot() }
-    var input=IslandModel.Input(messages:[islandMessage(1,asked:true),islandMessage(2,islandB,asked:true)],names:["alpha":"Alpha","beta":"Beta"],unread:5,selected:islandA)
+    var input=IslandModel.Input(messages:[islandMessage(1,asked:true),islandMessage(2,islandB,asked:true)],names:["alpha":"Alpha","beta":"Beta"],unread:5,selected:islandA,todoTotal:2)
     let model=IslandModel(clock:{time});model.update(input)
-    try check(model.snapshot().parts.map(\.kind) == [.owner] && model.snapshot().parts[0].text == "2 · 5" && model.snapshot().parts[0].redDot,"AT53 A2 U5 red dot and counts")
-    var unasked=input;unasked.messages=[];unasked.unread=3
-    try check(state(unasked).parts[0].text == "3" && !state(unasked).parts[0].redDot,"AT53 unread only no red dot")
-    unasked.unread=0;try check(state(unasked).idle,"AT53 empty state")
+    try check(model.snapshot().dot && model.snapshot().activity == nil,"AT53 A2 U5 red dot and counts")
+    var unasked=input;unasked.messages=[];unasked.unread=3;unasked.todoTotal=0
+    try check(!state(unasked).dot && state(unasked).activity == nil,"AT53 unread only no red dot")
+    unasked.unread=0;try check(!state(unasked).dot && state(unasked).activity == nil,"AT53 empty state")
     input.typing=[islandB:time.addingTimeInterval(300)];model.update(input);time.addTimeInterval(120)
     let working=model.snapshot()
-    try check(working.parts.map(\.kind) == [.owner,.worker] && working.parts[1].text == "일하는 중 · 2분","AT53 separate owner/worker and elapsed two minutes")
+    try check(working.dot && working.activity?.kind == .worker && working.activity?.text == "Beta 일하는 중 · 2분","AT53 separate owner/worker and elapsed two minutes")
     input.typing[islandA]=time.addingTimeInterval(300)
     input.typing[ConversationKey(employee:"gamma",thread:"three")]=time.addingTimeInterval(300)
     input.typing[ConversationKey(employee:"delta",thread:"four")]=time.addingTimeInterval(300)
     let crowd=state(input)
-    try check(crowd.parts[1].faces.count == 3 && crowd.parts[1].text == "4명 일하는 중","AT53 at most three initials for four workers")
+    try check(crowd.activity?.faces.count == 3 && crowd.activity?.text == "4명 일하는 중","AT53 at most three initials for four workers")
     let pill=IslandView(frame:CGRect(x:0,y:0,width:500,height:30));pill.reduceMotion={true};pill.show(crowd)
     pill.frame.size.width=pill.fittedWidth(limit:150);pill.layoutSubtreeIfNeeded()
-    try check(pill.workerFacesOnly && pill.frame.width<=150 && pill.partRects.count == 2 && pill.frame.height == 30,"AT53 width overflow collapses worker before clipping pill")
+    try check(pill.activityIsTruncated && pill.frame.width<=150 && pill.snapshot.activity?.kind == .worker && pill.frame.height == 30,"AT53 width overflow collapses worker before clipping pill")
     var shimmerClock:TimeInterval=0
     pill.reduceMotion={true};pill.animationTime={shimmerClock};pill.show(working)
     pill.frame.size.width=pill.fittedWidth(limit:300);pill.layoutSubtreeIfNeeded()
@@ -41,20 +41,20 @@ private func islandMessage(_ seq:Int,_ key:ConversationKey = islandA,asked:Bool=
         try check(pill.frame.height == 30,"AT53 state changes never alter height")
     }
     pill.show(state(unasked));pill.frame.size.width=pill.fittedWidth(limit:300)
-    try check(pill.idleStripe.size == CGSize(width:44,height:12),"AT53 idle 44 by 12 stripe")
+    // Removed idle stripe presentation: AT-UC-01 and AT-UC-05 cover the title and click.
     pill.show(crowd);pill.frame.size.width=pill.fittedWidth(limit:400);pill.layoutSubtreeIfNeeded()
     var faceAction:IslandModel.Action?;pill.onAction={faceAction=$0}
-    let faceRect=pill.partRects.first(where:{$0.0.kind == .worker})!.1
-    pill.activate(at:CGPoint(x:faceRect.minX+7+18+8,y:15))
+    let faceRect=pill.faceRects[1]
+    pill.activate(at:CGPoint(x:faceRect.midX,y:faceRect.midY))
     try check(faceAction == .worker(islandB),"AT56 each displayed worker face selects that employee")
     print("AT-HF-53 MODEL PASS")
 
     time=Date(timeIntervalSince1970:2000)
     let queued=IslandModel(clock:{time});var events=IslandModel.Input(typing:[islandB:time.addingTimeInterval(100)],names:input.names,selected:islandA)
     queued.update(events);events.messages=[islandMessage(1,asked:true),islandMessage(2,islandB)];queued.update(events)
-    try check(queued.snapshot().expanded == .owner && queued.snapshot().parts.first?.text.contains("답 요청") == true && queued.snapshot().parts.last?.iconOnly == true,"AT54 owner preview wins and other segment becomes icon")
-    time.addTimeInterval(3.9);try check(queued.snapshot().expanded == .owner,"AT54 asked preview remains at 3.9s")
-    time.addTimeInterval(0.2);try check(queued.snapshot().expanded == .worker && queued.snapshot().parts.last?.text == "답글 · 보기 ›","AT54 worker event queued after four seconds")
+    try check(queued.snapshot().expanded == .question && queued.snapshot().activity?.text == "Alpha: Question 1 · 답하기" && queued.snapshot().activity?.kind == .question,"AT54 owner preview wins and other segment becomes icon")
+    time.addTimeInterval(3.9);try check(queued.snapshot().expanded == .question,"AT54 asked preview remains at 3.9s")
+    time.addTimeInterval(0.2);try check(queued.snapshot().expanded == .worker && queued.snapshot().activity?.text == "답글 · 보기 ›","AT54 worker event queued after four seconds")
     time.addTimeInterval(3.1);try check(queued.snapshot().expanded == nil,"AT54 worker preview expires after three seconds")
     let single=IslandModel(clock:{time});single.update(IslandModel.Input());single.update(IslandModel.Input(messages:[islandMessage(3,asked:true)]))
     time.addTimeInterval(4.1);try check(single.snapshot().expanded == nil,"AT54 single asked preview folds after 4.1s")
@@ -62,30 +62,30 @@ private func islandMessage(_ seq:Int,_ key:ConversationKey = islandA,asked:Bool=
     preempt.update(low);low.messages=[islandMessage(1,islandB)];preempt.update(low)
     try check(preempt.snapshot().expanded == .worker,"AT54 worker preview begins")
     time.addTimeInterval(1);low.messages.append(islandMessage(2,asked:true));preempt.update(low)
-    try check(preempt.snapshot().expanded == .owner,"AT54 higher priority owner preempts worker")
+    try check(preempt.snapshot().expanded == .question,"AT54 higher priority owner preempts worker")
     low.failure=IslandFailure(message:"fixture failure",retryKey:islandA,isSend:true);preempt.update(low)
-    time.addTimeInterval(10);try check(preempt.snapshot().expanded == nil && preempt.snapshot().parts.first?.kind == .problem,"AT54 problem pauses preview queue")
-    low.failure=nil;preempt.update(low);try check(preempt.snapshot().expanded == .owner,"AT54 paused owner resumes")
+    time.addTimeInterval(10);try check(preempt.snapshot().expanded == nil && preempt.snapshot().activity?.kind == .problem,"AT54 problem pauses preview queue")
+    low.failure=nil;preempt.update(low);try check(preempt.snapshot().expanded == .question,"AT54 paused owner resumes")
     time.addTimeInterval(4.1);try check(preempt.snapshot().expanded == .worker,"AT54 interrupted worker resumes afterwards")
     let oldestFirst=IslandModel(clock:{time});oldestFirst.update(IslandModel.Input(messages:[islandMessage(1,asked:true)]))
     oldestFirst.update(IslandModel.Input(messages:[islandMessage(1,asked:true),islandMessage(2,islandB,asked:true)]))
-    try check(oldestFirst.snapshot().parts.first?.action == .question(islandMessage(1).id,islandA),"AT56 expanded owner preview still opens oldest asked")
+    try check(oldestFirst.snapshot().activity?.action == .question(islandMessage(1).id,islandA),"AT56 expanded owner preview still opens oldest asked")
     print("AT-HF-54 PASS")
 
     let connection=IslandModel(clock:{time});connection.update(input)
     let oversized=IslandModel(clock:{time});oversized.update(IslandModel.Input(status:.tooLarge))
-    try check(oversized.snapshot().parts.first?.kind == .problem && oversized.snapshot().parts.first?.text.contains("너무 큼") == true,"AT55 1009 and too_large status stays visible in problem segment")
+    try check(oversized.snapshot().activity?.kind == .problem && oversized.snapshot().activity?.text.contains("너무 큼") == true,"AT55 1009 and too_large status stays visible in problem segment")
     var problem=input;problem.status = .disconnected(3);connection.update(problem)
     let lost=connection.snapshot()
-    try check(lost.disconnected && lost.parts.count == 1 && lost.parts[0].text.contains("3초 뒤 다시 연결") && lost.parts[0].action == .reconnect,"AT55 disconnected replaces all count segments")
-    time.addTimeInterval(1);try check(connection.snapshot().parts[0].text.contains("2초 뒤"),"AT55 retry countdown uses injected clock")
+    try check(lost.disconnected && lost.activity?.text.contains("3초 뒤 다시 연결") == true && lost.activity?.action == .reconnect,"AT55 disconnected replaces all count segments")
+    time.addTimeInterval(1);try check(connection.snapshot().activity?.text.contains("2초 뒤") == true,"AT55 retry countdown uses injected clock")
     problem.status = .connected;connection.update(problem)
-    try check(connection.snapshot().restored && connection.snapshot().parts[0].text == "다시 연결됨","AT55 restored for two seconds")
+    try check(connection.snapshot().restored && connection.snapshot().activity?.text == "다시 연결됨","AT55 restored for two seconds")
     time.addTimeInterval(2.1);try check(!connection.snapshot().restored,"AT55 restored banner expires")
     problem.failure=IslandFailure(message:"연결을 확인해 주세요",firstWords:"Draft",retryKey:islandA,isSend:true);connection.update(problem)
-    try check(connection.snapshot().parts[0].text.contains("보내지 못함 · Draft") && connection.snapshot().parts[0].action == .retry(islandA),"AT55 failure retains first words and retry key")
+    try check(connection.snapshot().activity?.text.contains("보내지 못함 · Draft") == true && connection.snapshot().activity?.action == .retry(islandA),"AT55 failure retains first words and retry key")
     problem.failure=nil;problem.uploads=[islandA:IslandUpload(completed:2,total:3)];connection.update(problem)
-    try check(connection.snapshot().parts[0].text == "파일 올리는 중 2/3","AT55 upload completed/total")
+    try check(connection.snapshot().activity?.text == "파일 올리는 중 2/3","AT55 upload completed/total")
     print("AT-HF-55 MODEL PASS")
 
     let directory=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString);defer { try? FileManager.default.removeItem(at:directory) }
@@ -105,9 +105,13 @@ private func islandMessage(_ seq:Int,_ key:ConversationKey = islandA,asked:Bool=
     let pet=PetController(store:client.store,atlas:try SpriteAtlas(resourceDirectory:resourceDirectory));pet.reducedMotion={true}
     defer{disposeDrawerFixture(pet,controller,ui)}
     pet.preferredChatSize=CGSize(width:760,height:500);pet.pet.installConversation(ui);pet.installDrawer(ui);controller.deadlineSender={_ in};pet.showChat();pet.pet.layoutSubtreeIfNeeded();ui.layoutSubtreeIfNeeded()
-    try check(ui.island.frame.minX == ui.sidebarWidth+12 && ui.island.frame.height == 30 && ui.heading.frame.minX == ui.island.frame.maxX+12,"AT53 island placed beside logo and title follows it")
-    let owner=ui.island.partRects.first { $0.0.kind == .owner }!.1
-    ui.island.hover(at:CGPoint(x:owner.midX,y:owner.midY));ui.layoutSubtreeIfNeeded()
+    try check(ui.island.frame.minX == ui.sidebarWidth+12 && ui.island.frame.height == 30 && ui.island.frame.maxX <= ui.headerDrag.frame.maxX-12,"AT53 island placed beside logo and title follows it")
+    // Prepare a newly arrived third question for the activity hover, using the same messages.
+    var hoverInput=controller.islandInput;hoverInput.todoTotal=controller.drawerSnapshot.total
+    hoverInput.messages.removeAll{$0.id==islandMessage(3).id};uiModel.update(hoverInput)
+    hoverInput.messages=controller.islandInput.messages;uiModel.update(hoverInput);ui.tickIsland();ui.layoutSubtreeIfNeeded()
+    let owner=ui.island.titleRect, activity=ui.island.activityRect
+    ui.island.hover(at:CGPoint(x:activity.midX,y:activity.midY));ui.layoutSubtreeIfNeeded()
     try check(ui.island.accessibilityLabel()?.contains("Question 3 · 열기 ›") == true && !ui.island.subviews.contains(where:{$0 is NSButton}),"AT56 hover shows latest question and Open, without reply buttons")
     ui.island.hover(at:nil)
     ui.island.activate(at:CGPoint(x:owner.midX,y:owner.midY));ui.layoutSubtreeIfNeeded()
@@ -117,21 +121,26 @@ private func islandMessage(_ seq:Int,_ key:ConversationKey = islandA,asked:Bool=
     ui.selectDrawerCard(firstQuestion);ui.layoutSubtreeIfNeeded()
     try check(controller.model.selected == islandA && ui.history.contents.first(where:{$0.id == islandA.thread})?.expanded == true && ui.highlightedMessageID == islandMessage(1).id,"AT56 oldest asked selects its room and opens/highlights card")
     try check(ui.history.contents.first(where:{$0.id == islandA.thread})?.style.lineWidth == 2 && ui.history.contents.first(where:{$0.id == islandA.thread})?.style.stroke == .controlAccentColor,"AT56 V15 visible accent 2pt card highlight")
-    time.addTimeInterval(1.6);ui.tickIsland();try check(ui.highlightedMessageID == nil,"AT56 highlight expires at 1.5 seconds")
+    time.addTimeInterval(1.6);ui.tickIsland();try check(ui.highlightedMessageID == islandMessage(1).id,"AT56 drawer selection remains after 1.6 seconds")
+    pet.setDrawerOpen(false);ui.layoutSubtreeIfNeeded()
+    try check(ui.highlightedMessageID == nil,"AT56 closing drawer clears selection highlight")
+    // Restore the open-column fixture used by the following worker and width checks.
+    pet.setDrawerOpen(true);ui.layoutSubtreeIfNeeded()
+    time.addTimeInterval(4.1);ui.tickIsland() // Let the prepared hover preview finish before the worker check.
     try controller.model.apply(["v":1,"type":"typing","employee":"beta","thread":islandB.thread,"on":true,"ttl_seconds":6],now:time)
     ui.refresh();ui.layoutSubtreeIfNeeded()
-    let worker=ui.island.partRects.first { $0.0.kind == .worker }!.1
+    let worker=ui.island.activityRect
     ui.island.activate(at:CGPoint(x:worker.midX,y:worker.midY))
     try check(controller.model.selected == islandB,"AT56 worker segment opens worker thread")
     var reconnects=0,retries:[ConversationKey]=[];ui.reconnect={reconnects+=1};ui.retrySend={retries.append($0)}
-    ui.island.show(lost);ui.layoutSubtreeIfNeeded();ui.island.activate(at:CGPoint(x:10,y:15));try check(reconnects==1,"AT56 reconnect action exactly once")
+    ui.island.show(lost);ui.layoutSubtreeIfNeeded();ui.island.activate(at:CGPoint(x:ui.island.activityRect.midX,y:15));try check(reconnects==1,"AT56 reconnect action exactly once")
     controller.setText("Draft kept",for:islandB);await controller.sendCurrent(for:islandB)
     ui.refresh();ui.layoutSubtreeIfNeeded()
-    let fail=ui.island.partRects.first { $0.0.kind == .problem }!.1
+    let fail=ui.island.activityRect
     ui.island.activate(at:CGPoint(x:fail.midX,y:fail.midY))
     try check(retries == [islandB] && controller.failures.last?.draft.text == "Draft kept" && controller.drafts[islandB]?.isEmpty == true && controller.notice.contains("되살리기"),"AT79 retry keeps destination and failure list preserves original draft")
     ui.frame.size.width=718;ui.needsLayout=true;ui.layoutSubtreeIfNeeded()
-    try check(ui.island.frame.width <= 146 && ui.heading.frame.width>=120 && ui.island.frame.height==30,"AT53 narrow header reserves title and right icons")
+    try check(ui.island.frame.maxX <= ui.headerDrag.frame.maxX-12 && ui.island.frame.height==30,"AT53 narrow header reserves title and right icons")
     ui.frame.size.width=1050;ui.needsLayout=true;ui.layoutSubtreeIfNeeded()
     var drags=0;ui.headerDrag.onBegan={_ in drags+=1};ui.headerDrag.onChanged={_ in drags+=1}
     let point=CGPoint(x:ui.island.frame.midX,y:ui.island.frame.midY), windowPoint=ui.convert(point,to:nil), initial=pet.panel.frame
@@ -151,5 +160,7 @@ private func islandMessage(_ seq:Int,_ key:ConversationKey = islandA,asked:Bool=
     ui.island.show(working);try capture("task11-working-automatic.png")
     ui.island.show(lost);try capture("task11-disconnected-automatic.png")
     pet.panel.orderOut(nil)
+    try await uiCleanIslandTests(resourceDirectory:resourceDirectory)
+    try await uiCleanPolishTests(resourceDirectory:resourceDirectory)
     print("AT-HF-53 UI PASS");print("AT-HF-56 AUTOMATIC PASS");print("ISLAND_AUTOMATIC_CAPTURES_OK")
 }
