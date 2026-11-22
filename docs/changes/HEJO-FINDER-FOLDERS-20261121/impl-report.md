@@ -820,3 +820,38 @@ AT-FF-30 측정과 AT-FF-32 회귀는 끝났고 AT-FF-31 전체는 **미충족**
 남은 확인은 설치 앱에서 사장 M9(색과 글자·다른 Mac 동기화)와 M10(모든 옵션창 앞에 표시)이다. 이 대화는 0.2.4 공개 후보를 만들지 않았다. 공개 후보를 준비하는 다른 세션에 위 코드 커밋을 포함해야 한다. TASK-09 성능 기준 미충족의 수용은 기존 지시대로 맨 마지막 실제 탭 M7에서 사장이 판단한다. TASK-10은 재구현하지 않았다.
 
 운영 사진 업로드·연결 동작·메시지·실행본 교체·재시작·본체·ddots·gate/·schemas/·앱 버전·설치 앱·수락 기준/시험 명세/spec/design 변경과 git push는 없다. 추적하지 않는 다른 작업의 감사 문서는 보존했다. 원격 github·브랜치 main에는 다른 작업 커밋도 함께 있으므로, 향후 공개·푸시 대상 승인 때 전체 포함 범위를 명시해야 한다. 구현 결과와 최종 검토·푸시 완료는 구분한다.
+
+
+## 10차-TASK-11 보완 (2026-11-22)
+
+**구현자 판단: 구현·자체 시험 완료, 검토 대기.** 받은 설계는 `handoff.md` 10차 지시, spec 8판 REQ-FF-10 AC-05, 수락 명세 AT-FF-64, 검증 9차 V-5다. 위험도 일반, 필요한 증거 수준 2이며 앱 창과 대역 통합 시험으로 수준 2를 확인했다. 설계와 달라진 점은 없다.
+
+착수 hejo main HEAD는 `c6636dd7cc88da037dfe65799d7f53b726406fa5`다. 자기 앱 3경로만 커밋한 코드 전체 해시는 **`da3cf0b4369ed374f59f35efa06f3b1242159409`**다. 아래 `E10`은 `.build/finder-folders-evidence/round10-task11`, `P`는 게이트웨이 Python을 뜻한다. 착수 상태·세 파일 SHA-256은 `E10/start.json`, 시험 소스 목록은 `E10/tested-sources.json`, 커밋 경로·blob 대조는 `E10/app-commit.json`에 있다.
+
+### 변경과 보호 계약
+
+- 원인: `OptionWindows.prepare/show`가 옵션창을 올리지만 앱 활성 상태가 바뀔 때 그 높이를 다시 맞추지 않았다. `OptionWindows.swift`가 올린 창을 `NSHashTable`의 약한 참조로 기억하고, 공용 `updateLevels(active:)`가 보이는 창만 기존 `level(active:)` 값으로 맞춘다. 닫힌 창의 높이는 갱신하지 않으며 창 수명은 기존 소유자가 관리한다.
+- `AppDelegate.swift`는 기존 `updateConnectionsLevel()` 옆의 비활성·활성 처리 두 곳에서만 공용 함수를 호출한다. 연결 창은 공용 목록에 넣지 않았으며 확인 중 `.normal`을 포함한 자기 규칙을 유지한다. 별도 알림 등록·창 소유자·두 번째 높이 계산 규칙은 만들지 않았다.
+- `OptionWindowTests.swift`에 AT-FF-64를 옮겼다. 실제 NSOpenPanel과 독립 창을 열어 펫 높이 `.floating`·`mainMenu+1` 각각에서 공용 함수로 비활성→활성을 전달하고 `.normal`→펫+1을 검사한다. 닫은 뒤 높이 변경 횟수가 늘지 않는지, 마지막 강한 참조를 해제하면 약한 참조가 nil인지도 검사한다. 기존 시험 기대값은 수정하지 않았다.
+- 회귀 검출 확인: 추적 소스를 건드리지 않고 `E10/OptionWindows-mutant.swift` 사본에서 비활성 때도 활성 높이를 쓰게 바꿨다. 같은 새 시험이 `AT-FF-64 inactive options return to normal` 단언에서 예상대로 종료 1이었다. 변이 빌드·서명은 각각 종료 0이며 정상 소스는 그대로다.
+
+### 명령·결과·증거
+
+모든 명령의 cwd는 hejo다. 전체 시험은 지정한 게이트웨이 Python 환경으로 실행했다.
+
+| 명령 | 종료 코드 | 실제 결과 | 로그 |
+|---|---:|---|---|
+| `pgrep -f app-tests` | 1 | 전체 시험 전 다른 실행 없음 | `E10/app-pgrep.json` |
+| `HEJO_PYTHON=P bash app/scripts/test.sh` | 0 | AT-FF-64, AT-FF-50~54·60~63·20~23, 기존 앱·통신 fixture·hooks 9개 통과 | `E10/app-full.log/json` |
+| 변이 사본을 넣은 `xcrun swiftc <앱 소스·시험>` / `codesign` | 0 / 0 | 정상 소스를 보존한 별도 변이 실행 파일 | `E10/mutation-build.log/json`, `E10/mutation-sign.log/json` |
+| 변이 시험 전 `pgrep -f app-tests` | 1 | 전체 시험과 겹치지 않음 | `E10/mutation-pgrep.json` |
+| 변이 `app-tests-mutant --finder-picture <개발 리소스>` | 1 (예상) | 새 AT-FF-64가 원래 결함을 검출 | `E10/mutation-run.log/json` |
+| `P scripts/scan_private.py` | 0 | 자기 앱 변경 개인값 검사 통과 | `E10/scan-private-code.log`, `E10/code-checks.json` |
+| 자기 앱 3경로 `git diff --check` | 0 | 공백 오류 없음 | `E10/diff-check.log`, `E10/code-checks.json` |
+| 자기 앱 3경로 `git commit --only` | 0 | 위 코드 커밋 생성, 시험한 blob과 동일 | `E10/app-commit.log/json` |
+
+최종 보고서를 포함한 `P scripts/scan_private.py`와 보고서 `git diff --check`도 각각 종료 0이다(`E10/scan-private-report.log`, `E10/report-diff-check.log`, `E10/report-checks.json`).
+
+전체 시험 소스 변경 목록은 빈 목록이다. 변이 확인 뒤에도 전체 시험 소스 바이트가 유지됐고, 커밋한 세 파일은 시험 당시 SHA-256과 모두 일치했다. 컴파일의 기존 경고는 남았지만 새로운 컴파일 오류·회귀 실패는 없었다.
+
+미검증: 설치 앱에서 다른 앱으로 전환하는 사장 확인과 0.2.4 공개 후보 포함 여부는 후속 검토·공개 담당 범위다. 추가 기술 부채·설계 변경·임시 제품 코드는 없다. 다른 작업의 미추적 문서 두 폴더는 보존했다. 운영 적용·게이트웨이 재시작·앱 버전 변경·공개 후보·설치 앱 교체·push는 실행하지 않았다. 검토자는 공용 목록에 연결 창이 들어가지 않는 점, 보이는 창만 갱신하는 점, AT-FF-64의 닫힘·수명 검사를 확인하면 된다.
