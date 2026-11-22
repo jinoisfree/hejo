@@ -112,3 +112,13 @@
 - 이전에 다른 작업 보고에 적힌 locale 관련 기존 실패는 참고만 했다. 기준 계획 커밋을 임시 폴더에 추출한 `test_delivery_parity::test_native_labels_outcome_and_repeat_are_idempotent`는 이번 환경에서 종료 0/1 passed였다(`baseline-parity.log`). 최종 전체 실행의 실패는 HT-B02 하나다.
 - 필요한 수준과 도달 수준: 문·앱 기능은 대역 통합 **2**, AT-HT-44만 **3**. 실제 텔레그램 SDK·봇·안드로이드 실물은 미검증이며 TASK-07·08 몫이다. 게이트웨이 재시작·설치·운영 설정/비밀 파일·본체/플러그인/team-kit/ddots 수정·실제 메시지 발송·푸시는 하지 않았다. 새 하위 에이전트도 사용하지 않았다.
 - 다음 담당: HT-B02의 시험 계약을 판단해 보완하고, 이 작업 변경 코드와 위 로그를 검토한다. 전체 실행 실패와 다른 작업 문서의 개인값 지적이 남아 푸시 대상·승인 요청은 제안하지 않는다. 롤백은 운영 미적용 상태에서 이 작업 커밋 되돌림이다.
+
+
+## TASK-07 — 서버 적용 전 보류(HT-B03)
+
+- 받은 지시: `223a191accbb70c28f7b35cfdf2eee9490dfb109`의 [handoff-task07.md](handoff-task07.md), 사장 서버 적용 허가. 실제 적용·재시작·자동 의존성 설치 결과 확인을 맡았으나 아래 명령/금지 충돌로 운영 변경 전에 보류했다.
+- 상세 사전 기록·실제 경로 변수의 로컬 위치·롤백 명령·명령별 실행/미실행은 [TASK-07 증거](../../../evidence/HEJO-TELEGRAM/TASK-07.md)에 있다. 공용 RELEASE `227ef160694635f8afde36f06515f5136f73dc30`와 착수 HEAD의 설치 범위 diff는 검증된 텔레그램 변경뿐이다.
+- HT-B03: 인계에서 명시한 `hejo-install --check`는 운영 프로필 config.yaml 전체 읽기(`install/hejo-install:695`, `read_config:112`)와 영수증 상태에 따른 인증 토큰 파일 hejo/admin.json 지문 읽기(`install/admin_support.py:62~65`)를 수행한다. 같은 인계는 운영 설정·비밀 파일 열기를 금지한다. 명령 내부의 이 읽기를 예외로 간주할 권한이 명시되지 않아 임의로 실행하지 않았다. 운영 파일 내용은 열지 않고 설치 도우미 소스에서 확인했다.
+- 도달 상태: 적용 전 읽기 조사·롤백 준비. `install/hejo-release`, `hejo-install --check`, 재시작과 재시작 뒤 검증은 미실행. 따라서 AT-HT-61 및 요구 수준 3은 미도달이다. 착수 상태는 gateway running·PID 생존·active_agents 1, Telegram 모듈 없음이다(재시작 직전 판정이 아님).
+- 검증: 로컬 preflight 보조 명령 종료 0, Git diff/log 명령 각각 종료 0, Hermes venv 의존성 검사 명령 종료 0(모듈 부재 확인). 증거 폴더 `.build/HEJO-TELEGRAM/task07/`. 기록 파일을 포함한 개인값 검사는 종료 1(다른 작업 HEJO-DEADLINE-CLOSE 문서 절대 경로 4건, 이번 파일 0건; `private.log/.exit`), `git diff --check`는 종료 0이다.
+- 권고/다음: 계획 담당이 지정 확인 명령의 정상 내부 읽기를 한정 허용할지, 파일 내용을 열지 않는 대체 확인을 쓸지 결정해 인계를 정합화한다. 재개 시 최신 RELEASE·HEAD와 재시작 직전 active_agents를 다시 확인한다. 텔레그램 패키지 직접 설치·앱 교체/공개·실제 발송·본체/플러그인/team-kit 변경·푸시는 수행하지 않았다. 다른 작업 미추적 문서는 보존했다.
