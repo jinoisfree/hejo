@@ -6,13 +6,16 @@ import AppKit
     private static let windows=NSHashTable<NSWindow>.weakObjects()
     static var petLevel: () -> NSWindow.Level = { .floating }
     static var activate: () -> Void = { NSApp.activate(ignoringOtherApps:true) }
+    static var isActive: () -> Bool = { NSApp.isActive }
     static func level(active: Bool) -> NSWindow.Level {
         active ? NSWindow.Level(rawValue:petLevel().rawValue+1) : .normal
     }
     static func prepare(_ window:NSWindow) {
         windows.add(window)
         activate()
-        window.level=level(active:true)
+        // Activation can be refused or still pending: only an app that is really active floats above its pet.
+        // Becoming active later raises the window through updateLevels(active:true).
+        window.level=level(active:isActive())
     }
     static func updateLevels(active:Bool) {
         for window in windows.allObjects where window.isVisible {
