@@ -181,6 +181,15 @@ class GateServer:
         except (ConnectionError, RuntimeError, TimeoutError):
             log.warning('deadlines_failed reason=connection_closed')
 
+    async def send_deadline_close(self, conn, frame):
+        employees = {e['id'] for e in self.adapter.employees()} | {'default'}
+        try:
+            result = await self.deadlines.close(conn.device_id, frame['employee'], frame['deadline'],
+                                                frame['outcome'], employees)
+            await conn.send({'v': 1, 'type': 'deadline_close_status', 'ref': frame['id'], **result})
+        except (ConnectionError, RuntimeError, TimeoutError):
+            log.warning('deadline_close_failed reason=connection_closed')
+
     async def http_auth(self, request):
         if not allowed_address(request.remote):
             raise web.HTTPForbidden()
@@ -469,6 +478,11 @@ class GateServer:
                                          "employees": self.adapter.employees()})
                     elif frame['type'] == 'deadlines':
                         waiter = asyncio.create_task(self.send_deadlines(conn, frame['id']))
+                        conn.deadline_waiters.add(waiter)
+                        waiter.add_done_callback(conn.deadline_waiters.discard)
+                    elif frame['type'] == 'deadline_close':
+                        # The close itself is shielded inside Deadlines: dropping this waiter never stops it.
+                        waiter = asyncio.create_task(self.send_deadline_close(conn, frame))
                         conn.deadline_waiters.add(waiter)
                         waiter.add_done_callback(conn.deadline_waiters.discard)
                     elif frame['type'] in {'connections','connection_action'}:

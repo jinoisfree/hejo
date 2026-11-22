@@ -1,16 +1,24 @@
-"""Read-only team-kit boundary; one shielded execution belongs to the gate."""
+"""team-kit boundary: a shared read-only list and the owner's serialized close."""
 import asyncio
 from datetime import date, datetime
 import json
 import logging
 import os
 from pathlib import Path
+import re
 from hermes_constants import PROFILE_ID_RE
 from urllib.parse import urlsplit
+
+from .connection_runtime import ActionJournal
 
 log = logging.getLogger(__name__)
 MAX_OUTPUT = 512 * 1024
 PROFILE = PROFILE_ID_RE
+# team-kit ledger key; the prefix is also the origin kind shown to the owner.
+DEADLINE_ID = re.compile(r'(notion|calendar|reminder|slack|notes|gmail):\S{1,240}')
+OUTCOMES = {'done', 'cancel'}
+CLOSE_WAIT = 20  # seconds a close may wait for the one before it; expiry means "not executed"
+CLOSE_RUN = 40   # seconds the close command may run once it has its turn (wait + run = 60)
 
 
 class DeadlineFailure(ValueError):
@@ -39,6 +47,15 @@ def public_items(document):
                 raise ValueError('invalid_response')
             item = {key: record[key] for key in ('id', 'title', 'due')}
             item['employee'] = employee
+            origin = DEADLINE_ID.match(record['id'])
+            if origin:
+                item['origin'] = origin.group(1)
+            if 'notice' in record:
+                notice = record['notice']
+                if (not isinstance(notice, dict) or set(notice) != {'message_id', 'thread'}
+                        or not all(isinstance(v, str) and 1 <= len(v) <= 200 for v in notice.values())):
+                    raise ValueError('invalid_response')
+                item['notice'] = dict(notice)
             if 'deadline_at' in record:
                 if not isinstance(record['deadline_at'], str) or 'T' not in record['deadline_at']:
                     raise ValueError('invalid_response')
@@ -61,38 +78,115 @@ def public_items(document):
 
 
 class Deadlines:
-    def __init__(self, home, *, timeout=10):
+    def __init__(self, home, *, timeout=10, close_wait=CLOSE_WAIT, close_timeout=CLOSE_RUN):
         self.home = Path(home)
         self.executable = self.home / 'bin/hermes-deadlines'
         self.timeout = timeout
-        self._running = None
+        self.close_wait = close_wait
+        self.close_timeout = close_timeout
+        # Reads in flight by the close generation they started in; only same-generation requests share one.
+        self._reads = {}
+        self._closing = set()
+        self._close_lock = asyncio.Lock()
+        self.close_generation = 0
+        self.journal = ActionJournal(self.home)
         self._stopped = False
 
     @property
     def available(self):
         return self.executable.is_file() and os.access(self.executable, os.X_OK)
 
+    @property
+    def _running(self):
+        return self._reads.get(self.close_generation)
+
     async def list(self):
         if self._stopped: raise asyncio.CancelledError
-        if self._running is None:
-            self._running = asyncio.create_task(self._execute())
-        return await asyncio.shield(self._running)
+        generation = self.close_generation
+        task = self._reads.get(generation)
+        if task is None:
+            task = self._reads[generation] = asyncio.create_task(self._execute(generation))
+        return await asyncio.shield(task)
 
     async def stop(self):
         self._stopped = True
-        task = self._running
-        if task is not None:
+        tasks = [*self._reads.values(), *self._closing]
+        for task in tasks:
             task.cancel()
-            await asyncio.gather(task, return_exceptions=True)
+        await asyncio.gather(*tasks, return_exceptions=True)
 
-    async def _execute(self):
-        proc = None
+    async def close(self, device, employee, deadline, outcome, employees):
+        """Close one deadline for the owner. The command runs to its end even if the caller goes away."""
+        if (not isinstance(employee, str) or not PROFILE.fullmatch(employee) or employee not in employees
+                or not isinstance(deadline, str) or not DEADLINE_ID.fullmatch(deadline) or outcome not in OUTCOMES):
+            return {'ok': False, 'reason': 'invalid_request'}
+        if self._stopped: raise asyncio.CancelledError
+        task = asyncio.create_task(self._close(device, employee, deadline, outcome))
+        self._closing.add(task)
+        task.add_done_callback(self._closing.discard)
+        return await asyncio.shield(task)
+
+    async def _close(self, device, employee, deadline, outcome):
+        recorded = result = None
         try:
             if not self.available:
-                return {'available': False, 'items': []}
-            async with asyncio.timeout(self.timeout):
+                recorded, result = 'unavailable', {'ok': False, 'reason': 'unavailable'}
+            else:
+                try:
+                    async with asyncio.timeout(self.close_wait):
+                        await self._close_lock.acquire()
+                except TimeoutError:
+                    recorded, result = 'busy', {'ok': False, 'reason': 'busy'}
+                else:
+                    try:
+                        result = await self._run_close(employee, deadline, outcome)
+                    finally:
+                        # The ledger may have changed even if the command failed or timed out:
+                        # reads that began before this point must not answer later requests.
+                        self.close_generation += 1
+                        self._close_lock.release()
+                    recorded = ('already_closed' if result.get('already_closed') else outcome) if result['ok'] else result['reason']
+            return result
+        finally:
+            if recorded is not None:
+                self._record(device, employee, deadline, outcome, recorded, result)
+
+    def _record(self, device, employee, deadline, outcome, recorded, result):
+        try:
+            self.journal.append(device=device, profile=employee, connection='deadline:' + outcome,
+                                action='deadline_close', outcome=recorded, deadline=deadline)
+        except OSError:
+            log.warning('deadline_close journal_failed')
+        log.info('deadline_close outcome=%s ok=%d repainted=%d', recorded, result['ok'],
+                 bool(result.get('repainted')))
+
+    async def _run_close(self, employee, deadline, outcome):
+        try:
+            code, output = await self._capture('close', '--profile', employee, '--id', deadline,
+                                               '--outcome', outcome, '--json', timeout=self.close_timeout)
+            try:
+                document = json.loads(output)
+            except ValueError:
+                document = None
+            if code == 0:
+                if (isinstance(document, dict) and set(document) == {'ok', 'already_closed', 'repainted'}
+                        and document['ok'] is True and type(document['already_closed']) is bool
+                        and type(document['repainted']) is bool):
+                    return {'ok': True, 'already_closed': document['already_closed'], 'repainted': document['repainted']}
+                raise DeadlineFailure('invalid_response')
+            if code == 1 and document == {'error': 'UNKNOWN_DEADLINE'}:
+                raise DeadlineFailure('unknown_deadline')
+            raise DeadlineFailure('command_failed')
+        except (DeadlineFailure, OSError, TimeoutError) as exc:
+            return {'ok': False, 'reason': str(exc) if isinstance(exc, DeadlineFailure) else 'command_failed'}
+
+    async def _capture(self, *arguments, timeout):
+        """Run the command with the shared child-process rules: no stdin, bounded output, always reaped."""
+        proc = None
+        try:
+            async with asyncio.timeout(timeout):
                 spawning = asyncio.create_task(asyncio.create_subprocess_exec(
-                    str(self.executable), 'list', '--json', stdin=asyncio.subprocess.DEVNULL,
+                    str(self.executable), *arguments, stdin=asyncio.subprocess.DEVNULL,
                     stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
                     env={**os.environ, 'HERMES_HOME': str(self.home), 'HERMES_DISABLE_LAZY_INSTALLS': '1',
                          'PYTHONDONTWRITEBYTECODE': '1'}))
@@ -106,11 +200,25 @@ class Deadlines:
                     output.extend(part)
                     if len(output) > MAX_OUTPUT: raise DeadlineFailure('invalid_response')
                 await proc.wait()
-                if proc.returncode: raise DeadlineFailure('command_failed')
-                try:
-                    result = public_items(json.loads(output))
-                except (ValueError, TypeError, KeyError, OverflowError):
-                    raise DeadlineFailure('invalid_response') from None
+            return proc.returncode, bytes(output)
+        finally:
+            if proc is not None:
+                cleanup = asyncio.create_task(self._reap(proc))
+                try: await asyncio.shield(cleanup)
+                except asyncio.CancelledError:
+                    await cleanup
+                    raise
+
+    async def _execute(self, generation):
+        try:
+            if not self.available:
+                return {'available': False, 'items': []}
+            code, output = await self._capture('list', '--json', timeout=self.timeout)
+            if code: raise DeadlineFailure('command_failed')
+            try:
+                result = public_items(json.loads(output))
+            except (ValueError, TypeError, KeyError, OverflowError):
+                raise DeadlineFailure('invalid_response') from None
             log.info('deadlines_read items=%d failed=%d', len(result['items']), len(result['failed']))
             return result
         except (DeadlineFailure, OSError, TimeoutError) as exc:
@@ -118,15 +226,8 @@ class Deadlines:
             log.warning('deadlines_failed reason=%s', reason)
             return {'available': True, 'reason': reason}
         finally:
-            try:
-                if proc is not None:
-                    cleanup = asyncio.create_task(self._reap(proc))
-                    try: await asyncio.shield(cleanup)
-                    except asyncio.CancelledError:
-                        await cleanup
-                        raise
-            finally:
-                self._running = None
+            if self._reads.get(generation) is asyncio.current_task():
+                del self._reads[generation]
 
     @staticmethod
     async def _reap(proc):

@@ -179,7 +179,7 @@ import AppKit
         appUpdate?.stop()
         threeTap?.stop()
         if let activityMonitor { NSEvent.removeMonitor(activityMonitor) }
-        monitorTimer?.invalidate();bubbleTimer?.invalidate();client?.stop()
+        monitorTimer?.invalidate();bubbleTimer?.invalidate();conversation?.stop();client?.stop()
         // Without automatic sign-in, quitting signs this Mac out.
         if let store, !store.settings.signsInAutomatically { GateKeychain().delete(account: store.settings.credentialAccount) }
     }

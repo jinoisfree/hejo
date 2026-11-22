@@ -54,7 +54,8 @@ async def test_at_td_10_13_15_16(tmp_path, caplog):
     reader = Deadlines(tmp_path)
     result = await reader.list()
     assert result['available'] and len(result['items']) == 3 and result['failed'] == []
-    assert all(set(v) <= {'employee','id','title','due','deadline_at','url'} for v in result['items'])
+    # HEJO-DEADLINE-CLOSE 2판(AT-DC-20): origin·notice are allowed optional keys.
+    assert all(set(v) <= {'employee','id','title','due','deadline_at','url','origin','notice'} for v in result['items'])
     assert [v.get('url') for v in result['items']] == [None, 'https://example.invalid/x', None]
     assert 'synthetic-title-marker' not in caplog.text and 'synthetic-source-marker' not in caplog.text
     assert 'deadlines_read items=3 failed=0' in caplog.text
