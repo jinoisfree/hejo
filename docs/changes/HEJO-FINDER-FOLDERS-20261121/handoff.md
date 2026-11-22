@@ -481,3 +481,19 @@ d2 알림(19:37): 게이트웨이 재시작 완료(새 PID 18074, 로그 7298줄
    문서에는 '직원 D'. 위험도 일반, 증거 수준 3.
 5. 보고: impl-report.md '19차-TASK-15 마무리 2' 절(completed_since 결과, 명령·종료 코드·시간, PID 전후, 결과, 바뀐 운영 파일, 로그 경로), result.
 ```
+
+## 20차 지시 (2026-11-22): TASK-08 앱 0.2.4(빌드 6) 공개 후보 준비
+
+사장 결정(2026-11-22 19:5x): 0.2.4를 준비하던 다른 세션이 없으므로 이 작업이 직접 만든다. main의 HEJO-SLACK-MOVE 문(gate) 변경도 함께 담는다. 사장 확인 M5·M6 통과.
+
+- 선례: [HEJO-CONNECTIONS handoff "보완 지시 3"](../HEJO-CONNECTIONS-20261120/handoff.md) 절차와 [HEJO-CONN-MANAGE 8차 지시](../HEJO-CONN-MANAGE-20261120/handoff.md)를 **0.2.4·빌드 6**으로 그대로 따른다. 다른 점만 적는다.
+- 들어가는 것: 착수 때 `main` HEAD 전체. 새 `public`의 부모는 지금 로컬 `public`(0.2.3 `f397bdb`).
+- 확인 추가:
+  1. 새 `public` 트리가 이 작업 앱 커밋 `b21dd94`·`3ccda92`·`3e9400b`·`b3fc5cb`·`2fffbe0`·`5fc60b2`·`da3cf0b`·`52e2511`·`f03b93a`를 모두 조상으로 포함한다. `app/`이 main HEAD와 바이트가 같다.
+  2. `app/Sources/ConnectionsWindow.swift`에 `sharingType`이 없다. `OptionWindows.swift`·`LetterPictureDialog.swift`가 있다.
+  3. 공개 후보 트리의 전체 시험 로그에서 AT-FF-20~23·30~32·40~42·50~54·60~64·70·71 관련 PASS 줄을 impl-report에 인용한다.
+  4. 준비물 버전·빌드(0.2.4·6)가 설치본(0.2.3·5)보다 크고, 업데이트 서명 키가 0.2.3과 같다.
+  5. 문(gate) 변경 목록: 새 `public`의 `gate/`·`schemas/`가 지금 서버 문 실행본(공용 릴리스 폴더의 `gate`)과 어떻게 다른지 파일 목록만 적는다. 서버 문 설치(`install/hejo-release`)와 게이트웨이 재시작은 이번에 하지 않는다. 공개 뒤 사장 승인으로 별도 지시한다.
+- 보고: 버전 올림 커밋, 새 `public` 전체 커밋, 준비물 경로, 사장용 공개 명령 한 줄(`install/hejo-ship publish --approve-commit <새 public 커밋> --prepared .build/release-0.2.4/prepared.json`), 푸시 대상, 검증 명령·종료 코드. impl-report '20차-TASK-08' 절, result.
+- 금지: 선례와 같다(GitHub 조회·쓰기·publish·push 금지, 설치된 앱 사본 교체·공용 릴리스·운영 홈 변경·`install/hejo-release`·게이트웨이 재시작 금지, 비밀 값 열람 금지, 제품 동작 코드·spec·design·수락 시험 명세 수정 금지). 앱 시험 전 `pgrep -f app-tests`.
+- 위험·증거: 고위험(공개 배포물), 증거 수준 2. 실제 공개·업데이트 설치(수준 4)는 사장이 한 뒤 M4·M7~M11로 본다.
