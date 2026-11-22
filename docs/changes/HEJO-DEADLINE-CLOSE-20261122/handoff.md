@@ -108,3 +108,62 @@
   - `git merge-base --is-ancestor main <최종 커밋>` 종료 0(로컬 main 해시 기록).
 - 보고: `impl-report.md`에 "보완 1" 절(커밋, 바꾼 파일, 명령·종료 코드·로그 경로).
 - 금지: 기존과 같다. 운영 공항·재시작·운영 team-kit 원본·실제 장부 닫기·비밀 파일·Hermes 본체·ddots·실제 메시지·git push, TASK-04·05는 하지 않는다.
+
+## 지시 2 (2026-11-22): TASK-04 서버 적용 → TASK-05 앱 0.2.6 공개 후보 준비
+
+사장 지시 "남은 일 모두 진행". 검증 완료본은 로컬 `main`에 들어갔다: merge `5a3f123`(54272ad 병합), 문서 `95b9041`. 이 저장소 작업은 **로컬 main checkout에서 하지 않는다.** 구현 worktree 브랜치를 로컬 `main`(`95b9041` 이후)으로 merge해서 쓴다.
+
+### TASK-04 서버 적용 (고위험, 증거 수준 3·4)
+
+- 시작 조건
+  - 직원 진행 중 턴이 0이다(기존 `hermes-connections gateway restart --json`의 BUSY 검사).
+  - 적용 전에 **롤백 기록을 impl-report 'TASK-04' 절에 먼저** 쓴다. 명령마다 경로·커밋·sha256을 채우고 빈칸을 남기지 않는다.
+- **team-kit**(운영 공항 `~/.hermes`가 원본이고 `HD`는 `./sync`로 모으는 사본이다)
+  1. 실행본 sha256이 기준과 같은지 확인한다. 다르면 멈추고 보고한다.
+     - `~/.hermes/plugin-store/team-kit/lib/hermes_team_services/deadline_watch.py` = `470d2725…`
+     - `~/.hermes/bin/hermes-deadlines` = `8340115f…`
+  2. 두 실행본을 0700 임시 폴더에 그대로 보관하고 경로와 sha256을 적는다. 이 보관본이 복원 기준이다.
+  3. `HD` 브랜치 `hejo-deadline-close-20261122`(`cfe6d9d2`)의 두 파일을 임시 파일에 쓴 뒤 이름 바꾸기로 실행본에 교체한다. 권한은 기존과 같게 둔다(`hermes-deadlines` 실행 가능).
+  4. 확인: `~/.hermes/bin/hermes-deadlines list --json`이 종료 0이고 `failed`가 비어 있어야 한다. 실행 전후로 운영 장부 파일들의 sha256이 같아야 한다. 기록에는 개수와 가명만 쓴다(M-DC-1). 실패하면 즉시 보관본으로 되돌리고 같은 확인을 한 뒤 멈춘다.
+  5. `HD`(main, 다른 작업의 미커밋 변경이 있음)
+     - `hejo-deadline-close-20261122`를 merge 커밋으로 넣는다. 충돌이 나거나 다른 작업 파일과 겹치면 멈춘다.
+     - `./sync` → `./airport-check` 종료 0.
+     - `git commit --only`로 이 작업 경로만 커밋한다(sync가 모은 다른 작업 파일은 커밋하지 않는다). 우리 두 파일은 sync 뒤에 merge 결과와 바이트가 같아야 한다.
+     - HD 원격 push는 하지 않는다.
+- **문**
+  1. 지금 공용 릴리스 `RELEASE` = `e68ae82458a62a1c3d3468041c3d6dee0b576a2b`를 기록한다(롤백 기준).
+  2. 릴리스 대상은 구현 worktree 브랜치를 로컬 main(`95b9041`)으로 merge한 커밋이다.
+     - `e68ae824..대상`에 `gate/ hub/ schemas/ config/ install/` 변경이 이 작업(a43662d)과 문서 커밋(91ee402) 말고도 있으면 멈추고 보고한다.
+  3. 그 커밋 checkout에서 `install/hejo-release` → 게이트웨이 재시작 1회(`hermes-connections gateway restart --json`).
+  4. 확인: 재시작 뒤 채널 재연결, 문 로그에 `deadlines_read items=N failed=0`(M2). 실제 장부는 닫지 않는다.
+  5. 되돌리기: 기록한 커밋을 임시 worktree로 꺼내 `install/hejo-release`를 실행하고 재시작한다. team-kit 보관본도 함께 되돌린다.
+- **복구 조건**: 재시작 뒤 채널 재연결이 확인되지 않거나, `list --json`이 실패하거나, 문 로그에 `deadlines_failed`가 남으면 team-kit·문을 모두 보관본으로 되돌린다.
+- **금지**
+  - 실제 장부 닫기(사장이 앱에서 한다)
+  - Slack·고객 메시지
+  - 비밀 파일 열기
+  - Hermes 본체 변경
+  - 재시작 2회 이상
+  - 다른 작업 파일 커밋
+  - git push(HD 포함)
+
+### TASK-05 앱 0.2.6(빌드 8) 공개 후보 준비 (TASK-04 성공 뒤, 고위험 · 증거 수준 2)
+
+- 선례: HEJO-FINDER-FOLDERS handoff 23차 지시(TASK-17, 0.2.5)를 **0.2.6·빌드 8**로 그대로 따른다. 다른 점만 적는다.
+- 들어가는 것: 로컬 `main`(이 작업 merge 포함)의 HEAD. 새 `public`의 부모는 지금 로컬 `public`(0.2.5, github/main `47a42456`과 같아야 한다. 다르면 멈춘다).
+  - `95b9041` 뒤 main에 다른 작업의 **제품 코드**(`app/ gate/ hub/ schemas/ install/ config/`) 커밋이 들어왔으면 멈추고 보고한다(문서만이면 진행).
+- 확인 추가
+  1. 공개 후보 전체 시험 로그에서 AT-DC-21..34(앱), AT-DC-10~20·35(문) PASS 줄을 인용한다.
+  2. 준비물 버전·빌드(0.2.6·8)가 0.2.5·7보다 크고, 업데이트 서명 키가 0.2.5와 같다.
+  3. 새 `public`의 `gate/`·`schemas/`가 TASK-04 뒤 공용 릴리스 실행본과 같다(README 말고 차이가 있으면 멈춘다).
+  4. 짧은 `TMPDIR`과 resolve한 임시 `HERMES_HOME`을 쓴다.
+- 보고: 버전 올림 커밋, 새 `public` 전체 커밋, 준비물 경로, 사장용 명령 두 줄(`git push github <새 public 커밋>:refs/heads/main`, `install/hejo-ship publish --approve-commit <새 public 커밋> --prepared .build/release-0.2.6/prepared.json`), 검증 명령·종료 코드.
+- 금지: 23차와 같다.
+  - GitHub 쓰기·publish·push
+  - 설치 앱 교체, 비밀 값 열람
+  - 제품 동작 코드·spec·design·수락 시험 수정
+  - TASK-04 밖의 공용 릴리스·운영 홈 변경
+  - 앱 시험 전에는 `pgrep -f app-tests`로 남은 프로세스를 확인한다.
+
+### 보고
+`impl-report.md`에 'TASK-04'·'TASK-05' 절을 쓴다. TASK-04가 실패하면 되돌린 뒤 TASK-05를 하지 않고 result로 보고한다.
