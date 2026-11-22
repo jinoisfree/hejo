@@ -20,3 +20,21 @@
 같은 지시를 다시 보내면 같은 보류가 반복되므로 재인계하지 않는다. 사장 결정 대기:
 - (가) 마감 닫기 앱 작업이 main에 들어올 때까지 이 작업을 멈춰 둔다(지금 결정 유지).
 - (나) 순서를 바꿔 이 작업을 먼저 한다(그러면 HEJO-DEADLINE-CLOSE TASK-03이 바뀐 칸 배치 위에서 이어 가야 하고, 그 작업 문서의 기준 커밋을 갱신해야 한다).
+
+## 2회 · 2026-11-23 · 판정: 미완료(구현 담당 보류) — 원인: 수락 시험 오류(계획 담당)
+
+- 대상: 구현 worktree `role-workflow/17-96051e66`, HEAD `9a10cff` + 미커밋 12개 파일(증거 `.build/drawer-inline-evidence/candidate.patch`). 구현 담당 판단 "보류(2절 보고)". 검증 조건: 교차 모델.
+
+### 직접 확인 [확인]
+- `git status`: 보고된 12개 파일만 변경(app/Sources 7, app/Tests 5), 커밋 없음. 플러그인 수집 증거와 일치.
+- 전체 앱 시험 로그 `app-tests-final.log` 마지막: `APP_TEST_FAILED assertion("AT-TD-41 owner input reaches real controller and native view")`.
+- 실패 단언(`TodoDrawerTests.swift:57`, 빈 알약 `:116`)은 `panel.frame.minX == closed.minX-290`로 옛 왼쪽 늘림 좌표를 고정한다. REQ-DI-02 AC-01(왼쪽 끝 불변)과 동시에 만족할 수 없다. 구현 담당이 기대값을 고치지 않고 멈춘 것은 지시(기대값 변경 금지)와 맞다.
+- 2판 AT-DI-32가 AT-TD-41을 "수정 없이 통과"로 묶은 것이 계획 담당의 수락 시험 오류다(AT-TD-41 수락 명세 문장은 "늘림 목표로 바뀐다"였지만 코드 단언이 옛 좌표를 담고 있음을 확인하지 않았다).
+- main은 `338c35a`로 앞섰다. `9a10cff..main`의 app 변경은 `app/Resources/Info.plist`(버전)뿐.
+
+### 설계 적합성(4.2) — 중간 판단
+diff를 읽었다. `PetPlacement.withDrawer`(오른쪽 넓힘, `over`·`shift` 왼쪽 옮김, `safe.width`로 자름, `drawerShift = -shift`), `contentBubble` = 열린 상자 − 오른쪽 칸(크기 조절 계약 유지), `stepPlacement`의 `drawerSlideStart + (target.drawer - drawerSlideStart) * easedWidthProgress`(완화값은 `PetBubbleMotion.easedWidthProgress` 한 곳), `paneSplit` `available`에서 칸 몫 빼기, `PetView`의 칸·덮개 제거, `ConversationView.drawerShownWidth` 전달이 design 2판 2.1·2.2·2.4와 맞는다. 최종 판단은 전체 시험 통과 뒤 다시 한다.
+
+### 원인 분류와 조치(10-planning 7절)
+- 수락 시험 오류: `tests/acceptance/HEJO-DRAWER-INLINE.md` 3판으로 고쳤다 — AT-TD-41의 창 프레임 단언 두 곳을 교체 대상에 넣고, 대신할 AT-DI-33(같은 조립, 열린 뒤 `minX` 불변·폭 +290·펫 불변, 오른쪽 여유 전제도 단언)을 추가했다. 독립 근거: 고정 조립(1440×900, 펫 (650,700))에서 오른쪽 여유가 있어 REQ-DI-02 AC-01이 그대로 적용된다.
+- 기준 갱신: 최신 main 병합 후 전체 시험 재실행.

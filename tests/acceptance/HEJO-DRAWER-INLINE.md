@@ -1,6 +1,6 @@
 # HEJO-DRAWER-INLINE 수락 시험
 
-2판 · 2026-11-22(계획 검증 1회차 R1~R4 반영, [plan-review.md](../../docs/changes/HEJO-DRAWER-INLINE-20261122/plan-review.md)) · 명세 [spec.md](../../docs/changes/HEJO-DRAWER-INLINE-20261122/spec.md) · 설계 [design.md](../../docs/changes/HEJO-DRAWER-INLINE-20261122/design.md)
+3판 · 2026-11-23(검증 1차: AT-TD-41 창 프레임 단언 교체 추가, verdict.md) · 2판 · 2026-11-22(계획 검증 1회차 R1~R4 반영, [plan-review.md](../../docs/changes/HEJO-DRAWER-INLINE-20261122/plan-review.md)) · 명세 [spec.md](../../docs/changes/HEJO-DRAWER-INLINE-20261122/spec.md) · 설계 [design.md](../../docs/changes/HEJO-DRAWER-INLINE-20261122/design.md)
 
 상태: 명세 완료 · 코드 미작성 · 미실행 · 계획 검증 통과(2회차).
 모두 앱 시험(`app/Tests`, swiftc 묶음)이다. 가짜 화면(`PetController.displays` 주입), 임시 `LocalStore`, 가짜 명부(`alpha`)만 쓴다. 움직임 시험 외에는 `reducedMotion = true`.
@@ -47,7 +47,15 @@
 |---|---|---|---|
 | AT-DI-30 | DI-06.AC-01 | `app/Sources`에서 `drawerOverlay`, `TodoDrawerScrim`, `drawerScrim`, `withLeading`, `shownLeading`, `installDrawer(_ view:NSView)`(PetView), `TodoDrawerView`의 `backgroundColor` 검색 | 0건(impl-report에 검색 명령과 결과) |
 | AT-DI-31 | DI-06.AC-02 | 칸 열린 채 Esc / "‹ 접기" / 채팅 칸 빈 곳 클릭 | 앞의 둘은 닫힘, 마지막은 열린 채 |
-| AT-DI-32 | DI-06.AC-02 | 기존 앱 시험 전체(`HEJO_PYTHON=<게이트웨이 python> bash app/scripts/test.sh`) | 종료 0. AT-TD-27·29·36·37·41·42, HEJO-DEADLINE-CLOSE 앱 시험, `PetWindowTests`·`WebPaneTests`가 기대값 수정 없이 통과. 교체 대상(AT-TD-30의 덮개 단언, AT-TD-31·33·34·35, AT-FF-40·41·90~93)만 이 문서 시험으로 바뀌었음을 impl-report에 목록으로 적는다 |
+| AT-DI-32 | DI-06.AC-02 | 기존 앱 시험 전체(`HEJO_PYTHON=<게이트웨이 python> bash app/scripts/test.sh`) | 종료 0. AT-TD-27·29·36·37·41·42, HEJO-DEADLINE-CLOSE 앱 시험, `PetWindowTests`·`WebPaneTests`가 기대값 수정 없이 통과. 교체 대상(AT-TD-30의 덮개 단언, AT-TD-31·33·34·35, AT-FF-40·41·90~93, **3판: AT-TD-41의 창 프레임 단언 2곳**)만 이 문서 시험으로 바뀌었음을 impl-report에 목록으로 적는다 |
 
 ## 사람 확인
 - M-DI-1, M-DI-2: [spec 사람 확인](../../docs/changes/HEJO-DRAWER-INLINE-20261122/spec.md#사람-확인). 개발 빌드(`bash app/scripts/build.sh`)에서 사장이 본다. 구현 담당은 같은 조건의 화면 사진(어둡게·밝게, 오른쪽 끝 근처)을 증거 폴더에 남긴다.
+
+## 3판 정정: AT-TD-41 창 프레임 단언 (수락 시험 오류, 계획 담당)
+2판 AT-DI-32는 AT-TD-41을 "기대값 수정 없이" 통과하라고 했지만, AT-TD-41 코드(`app/Tests/TodoDrawerTests.swift`)의 두 단언 — 사장 칸 클릭 뒤 `panel.frame.minX == closed.minX - 290 && width == closed.width + 290`, 빈 알약 클릭 뒤 `minX == emptyFrame.minX - 290 && width == emptyFrame.width + 290` — 은 옛 REQ-TD-02 AC-01(왼쪽으로 늘림)의 좌표를 담고 있어 REQ-DI-02 AC-01과 함께 만족할 수 없다. 이 두 단언만 아래로 바꾼다. AT-TD-41의 나머지(열림 상태·칸 보임·두 번째 클릭으로 원래 프레임 복귀·`AT-TD-27` 라벨)는 그대로다.
+
+| ID | AC | 입력 | 기대 |
+|---|---|---|---|
+| AT-DI-33 | TD-01.AC-01 배선 + DI-02.AC-01 | AT-TD-41과 같은 조립: 가시 영역 1440×900, `placePet(at:(650,700))`, 채팅 펼침, 동작 줄이기 켬. (가) 사장 칸 클릭 (나) 빈 알약 클릭 | 두 경우 모두 열린 뒤 `panel.frame.minX == 닫힌 minX`, `panel.frame.width == 닫힌 width + 290`, 펫 상자(`placementTarget.globalSprite`) 닫힌 때와 같음. 근거: 이 배치에서 닫힌 대화 창 오른쪽 끝 + 290이 `1440 - 12` 이하라 REQ-DI-03 옮김이 없다 — 시험은 이 전제(닫힌 `globalBubble.maxX + 290 <= 1428`)도 함께 단언한다 |
+
