@@ -1,4 +1,4 @@
-# 설계 인계: HEJO-TELEGRAM / TASK-07 서버 적용 (2판, 2026-11-23 — HT-B03 반영)
+# 설계 인계: HEJO-TELEGRAM / TASK-07 서버 적용 (3판, 2026-11-23 — verdict 4차 반영. 2판: HT-B03)
 
 ```text
 [설계 인계: HEJO-TELEGRAM TASK-07 / 서버 적용]
@@ -38,19 +38,23 @@
        `python-telegram-bot[webhooks]==22.8`을 Hermes venv에 설치하는 것은 그 보고 뒤 사용자 허가가 있을 때만.
    (3) `install/hejo-release`, RELEASE·공용 gate 파일 집합 대조.
    (4) Hermes venv Python `<release>/install/hejo-install --check`(설치 실행 없음).
-   (5) 재시작 직전 active_agents 0 확인. 처리 중이면 2분 간격 재확인, 10분 넘으면 재시작하지 않고 보고.
+   (5) 재시작 직전 active_agents 0 확인. 처리 중이면 2분 간격 재확인, (3판) 30분 넘으면 재시작하지 않고 보고(사장 결정 전까지 끊지 않음).
+       (3판) 재개 시 설치는 반복하지 않는다: 공용 RELEASE가 0bcf63535df381e491c99af9cbef41179b7cd79f이고 공용 파일이 그 커밋과 같은지만 다시 대조.
+       다르면(다른 작업이 그 사이 설치) 설치 범위 diff를 다시 판단하고 미검증 변경이 있으면 멈춘다.
        `hermes --profile default gateway restart` 1회.
    (6) 확인: 새 프로세스 시작, hejo(기본·보조)·telegram·photon·Slack 연결 로그, 재시작 이후 새 오류·역추적 0건,
-       hejo의 telegram 처리기 등록(로그 또는 상태), 로컬 앱 연결로 `telegram{id}` 조회 → `telegram_status{platform_ready:true,
-       paired:false}`(앱 0.2.6은 telegram 기능을 모르므로 시험 클라이언트로 조회). 로그에서 그룹 id·계정 id·토큰 노출 여부를
+       hejo의 telegram 처리기 등록과 텔레그램 어댑터 연결(게이트웨이 로그로 확인). (3판) 앱 상태 프레임 조회는 하지 않는다 —
+       사장 기기의 앱 연결 설정·Keychain·출입증을 쓰는 시험 클라이언트 금지(verdict 4차 V4-1). `telegram_status` 화면 확인은
+       TASK-07b 뒤 사장 M1. 로그에서 그룹 id·계정 id·토큰 노출 여부를
        hejo 로거 줄에 대해 확인(0건).
-   금지: 운영 설정·비밀 파일 열기/쓰기, 앱 사본 교체·앱 공개(TASK-07b), 실제 메시지 발송, Hermes 본체·플러그인·team-kit 수정,
+   금지: 운영 설정·비밀 파일 열기/쓰기, Keychain·앱 출입증 사용, 앱 사본 교체·앱 공개(TASK-07b), 실제 메시지 발송, Hermes 본체·플러그인·team-kit 수정,
    git push, 재시작 2회 이상(롤백 재시작 제외).
    병렬 갈래: 없음(운영 단일 절차).
 10. 가정·미확정:
     - [가정] 사장이 넣은 토큰·허용 계정이 Hermes 설정에 올바르게 들어 있다. 에이전트는 내용을 보지 않고 연결 로그로만 판단한다.
     - [가정] 앱 0.2.6은 텔레그램 설정 화면이 없다. 짝짓기는 TASK-07b(앱 공개) 뒤 M1에서 한다.
-11. 사용자 확인: 사장이 서버 적용을 허가했다(2026-11-23).
+11. 사용자 확인: 사장이 서버 적용을 허가했다(2026-11-23). (3판) 사장 준비 완료: 포럼 그룹·토픽·봇 관리자(토픽 관리)·토큰·허용 계정.
+    잘못 저장된 TELEGRAM_HOME_CHANNEL은 사장 요청으로 계획 담당이 Hermes 공식 함수 remove_env_value로 지웠다(값 미열람, 결과: 토큰·허용 계정 있음, home channel·GROUP_ALLOWED_CHATS 없음).
 
 [롤백]
 - 조건: (6)의 연결·오류 확인 실패(텔레그램 의존성 부재만은 제외 — (2)대로 보고).

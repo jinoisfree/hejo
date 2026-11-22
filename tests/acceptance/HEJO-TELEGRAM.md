@@ -1,6 +1,6 @@
 # HEJO-TELEGRAM 수락 시험 명세
 
-- 소유: 기획설계. 3판(2026-11-23, 구현 보류 HT-B01 반영 — 쓸 수 있는 방 4개: 공통 환경 `default` 표시 이름 `Main` 지정, 활성 준비·AT-HT-05·12·45의 토픽 수 3 → 4. 근거 [verdict.md](../../docs/changes/HEJO-TELEGRAM-20261122/verdict.md) 1차). 2판(계획 검증 1회차 반영: F 토픽 호출·로그, AT-HT-01·05·07·12·13·15·20·34·39 수정, AT-HT-45 추가). 1판은 1회차 BLOCKED. 기대값 근거: [spec.md](../../docs/changes/HEJO-TELEGRAM-20261122/spec.md) 요구와 [design.md](../../docs/changes/HEJO-TELEGRAM-20261122/design.md) 3~7절.
+- 소유: 기획설계. 4판(2026-11-23, AT-HT-61 확인 방법을 로그로 — verdict 4차 V4-1). 3판(2026-11-23, 구현 보류 HT-B01 반영 — 쓸 수 있는 방 4개: 공통 환경 `default` 표시 이름 `Main` 지정, 활성 준비·AT-HT-05·12·45의 토픽 수 3 → 4. 근거 [verdict.md](../../docs/changes/HEJO-TELEGRAM-20261122/verdict.md) 1차). 2판(계획 검증 1회차 반영: F 토픽 호출·로그, AT-HT-01·05·07·12·13·15·20·34·39 수정, AT-HT-45 추가). 1판은 1회차 BLOCKED. 기대값 근거: [spec.md](../../docs/changes/HEJO-TELEGRAM-20261122/spec.md) 요구와 [design.md](../../docs/changes/HEJO-TELEGRAM-20261122/design.md) 3~7절.
 - 상태: 모두 "명세 완료 · 코드 미작성 · 미실행 · 미검토". 코드는 구현 담당이 `tests/acceptance/test_telegram.py`(문)와 `app/Tests/`(앱)에 옮기며 기대값·합격 기준을 바꾸지 않는다. 바꿔야 한다고 판단되면 멈추고 보고한다.
 - 공통 환경: 임시 `HERMES_HOME`, 가짜 명부(기본 프로필 `default`와 프로필 `alpha`, `beta`; 표시 이름 `Main`, `Alpha`, `Beta`. 기본 프로필도 명부의 직원이라 1:1 방이 있다 — `gate/roster.py` `employees()`), 단체방 `G`(제목 `Team`, 구성원 `alpha`·`beta`, 대표 `alpha`), 실제 Hermes 모듈 import(텔레그램 SDK 없이), 문 어댑터 단독 또는 기존 대역 러너. 증거 수준은 표시가 없으면 2.
 - **가짜 텔레그램 어댑터 `F`:** 본체 `BasePlatformAdapter` 하위, 문 이름 `telegram`. 기록하는 메서드: `handle_message`(원래 처리기), `_accept_update()`, `send(chat_id, content, reply_to=None, metadata=None)`(`tg-out-1`, `tg-out-2`… id를 차례로, `raw_response={"message_ids":[...]}`; 나눔 주입 가능: 한 호출에 id 2개; 실패 주입 가능), `send_document`·`send_image_file`(같은 id 규칙, 실패 주입), `send_typing(chat_id, metadata=None)`, 토픽 대역 `F._bot`: `create_forum_topic(chat_id, name, ...)`(돌려주는 객체의 `message_thread_id` = `topic-1`, `topic-2`…; 실패 주입 시 예외, 예외 메시지에 chat_id 포함), `edit_forum_topic(chat_id, message_thread_id, name)`, `close_forum_topic(chat_id, message_thread_id)`, `reopen_forum_topic(chat_id, message_thread_id)`. 실제 어댑터처럼 id를 로그에 쓰는 감싼 메서드 `F._create_dm_topic`·`F.rename_dm_topic`도 두되(어댑터 로거 이름으로 chat_id·토픽 id를 로그에 씀) 호출을 기록한다. `_is_sender_authorized`(기본 `None`, 값 주입). 문이 등록한 `telegram` 공장을 `F`에 적용해 감싼다.
@@ -68,7 +68,7 @@
 | ID | AC | 절차 | 기대 |
 |---|---|---|---|
 | AT-HT-60 | 09.AC-01 | 적용 전 기록: 공용 릴리스 `RELEASE`, 설정 파일 해시(내용 안 봄), 게이트웨이 상태 | 인계 보고에 세 값. 롤백 절차의 명령마다 대상 경로·커밋 채움 |
-| AT-HT-61 | 09.AC-02 | 적용 → 재시작 → 로그 | hejo·telegram·Slack 연결, 새 오류·역추적 0, 앱 재연결 뒤 `telegram_status{platform_ready:true}`. 수준 3 |
+| AT-HT-61 | 09.AC-02 | 적용 → 재시작 → 로그 | hejo·telegram·Slack 연결, 새 오류·역추적 0, 로그에 텔레그램 어댑터 연결과 hejo 텔레그램 처리기 등록(4판: 앱 상태 프레임 조회 대신 — 사장 기기 출입증 사용 금지, verdict 4차). `telegram_status{platform_ready:true}` 화면 확인은 M1. 수준 3 |
 
 ## 수동 확인 (수준 4, 사장이 안드로이드 폰으로)
 
