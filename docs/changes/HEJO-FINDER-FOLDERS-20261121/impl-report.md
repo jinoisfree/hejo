@@ -1032,3 +1032,68 @@ V-7의 앱 비활성 실패가 이번에는 재현되지 않아 조건부 수정
 게이트웨이 Python의 `scripts/scan_private.py`와 자기 보고서 `git diff --check` 결과는 `E13/report-checks.json`에, 보고서 한 경로만 `git commit --only`한 명령·종료 코드·전체 hejo 커밋 해시는 `E13/hejo-commit.log/json`과 최종 result에 기록한다.
 
 운영 저장소 main·실행본·다른 세션 파일은 건드리지 않았고 운영 명령도 실행하지 않았다. HD worktree는 커밋 후 깨끗했다. hejo의 다른 작업 미추적 문서 두 폴더도 보존했다. 재시작·릴리스·설치 앱 교체·push는 하지 않았다. 남은 일은 이 변경과 증거 검토 후, 다른 세션 변경을 보존하는 별도 서버 적용 지시 및 직원 D의 M6 확인이다. 기존 사용자 확인·공개·푸시 승인도 별도다.
+
+
+## 14차-TASK-14 (2026-11-22)
+
+**구현자 판단: 서버 파일 적용·허가된 연결 제출 완료, 연결 완료는 RESTART_REQUIRED로 보류.** 받은 설계는 handoff 14차이며 위험도 일반(운영 적용), 필요한 증거 수준 3이다. 착수 hejo HEAD `6c68e29984a530b94996f04d8dfe18989120cce1`, 운영 main HEAD `a566566737fde11e95cbc41eba0ba3bfe13a4d84`에서 시작했다. 이하 `E14`는 `.build/finder-folders-evidence/round14-task14`, `P`는 게이트웨이 Python이다.
+
+### 교체 전 롤백 기록
+
+운영 main에 지정 HD 커밋을 cherry-pick한 결과는 `b95e31a2e212521ee29ba3493193a217c6820eff`이다. 바뀐 경로는 config_assembly.py와 새 test_finder_manifest_updates.py 두 곳뿐이다. 실행본 교체 직전 SHA-256은 `2684eb46e088356e4a159d1a424669b6917224c8065c4fe128416bec7c28dfde`이며 지정 기준과 같다.
+
+실행본 변경 전에 보관한 0700 디렉터리는 `E14/rollback-3aby0zh8`이며, 안의 config_assembly.py SHA는 위 착수값과 같다. 실패 시 이 보관 파일을 실행본 옆 임시 파일에 복사·fsync한 뒤 이름 바꾸기로 복원하고 착수 SHA를 다시 확인한다. 재시작은 하지 않는다. 기계 판독용 기록은 `E14/rollback-record.json`이다. 교체는 운영 main 파일 한 개만 하며 시험 파일은 실행본에 넣지 않는다.
+
+### 적용·검증 결과
+
+운영 cherry-pick 커밋은 **`b95e31a2e212521ee29ba3493193a217c6820eff`**이며 부모는 위 착수 main이다. 다른 세션의 기존 toolset 변경은 그대로 유지했다. 변경 경로는 team-kit lib/hermes_facility/config_assembly.py와 tests/test_finder_manifest_updates.py뿐이다(`E14/cherry-pick.log/json`). merge·rebase·sync는 하지 않았다.
+
+운영 main에는 `test_finder_folders.py`가 자동 기록 커밋 `5824d602`에서 제거되어 없었다. 초기 보조 실행은 존재하는 7파일만 골라 84 passed였으므로 지정 8파일 완료로 쓰지 않았다(`E14/related.log/json`). 운영 저장소에 세 번째 경로를 추가하는 대신, HD 검토 커밋의 해당 시험 바이트를 임시 시험 트리에 그대로 복사하고 그 트리의 lib·manifest·다른 플러그인을 운영 main에 연결했다. 시험의 `__file__` 상대 경로로 실행되는 감사 훅 자식 프로세스도 main lib를 읽는다. 이 임시 시험을 기존 7파일과 함께 실행한 최종 결과가 아래 114 passed다. 시험 기대값·skip·운영 저장소 파일은 바꾸지 않았다(`E14/missing-test-source.json`, `run_backend.py`). 진행 안내에서 말한 113개는 이전 HD 결과를 잘못 인용한 것으로, 이번 main의 실제 결과는 114개다.
+
+| 명령 | 종료 코드 | 실제 결과 | 로그 |
+|---|---:|---|---|
+| `git cherry-pick 6602c04098393eff0d2a2c4ee0afd90ce5b88b76` | 0 | 위 main 커밋, 허용된 두 경로만 | `E14/cherry-pick.log/json` |
+| `P -B -m pytest -q -p no:cacheprovider` 관련 8파일 | 0 | 114 passed, 임시 resolve HOME·HERMES_HOME·HERMES_ROOT, 운영 main lib | `E14/related-complete.log/json` |
+| `P ./airport-check --snapshot .` | 0 | 공항 스냅샷 검사 통과 | `E14/airport.log/json` |
+| 실행본 한 파일 임시 복사·fsync·이름 바꾸기 | 0 | 실행본 = 운영 main = 커밋 파일, 시험 파일 미설치 | `E14/replacement.json`, `final-integrity.json` |
+
+실제 교체 후 SHA-256은 **`f2c64d1d908f26f5954c59d770bf8b9bdba29815e50ef14c35c48260788e7df3`**다. 교체 직전에 지정 착수 SHA를 다시 검사했다. 파일 교체 복원은 실행하지 않았고 보관본은 유지한다. 보관본은 이번 코드 파일만 되돌리는 용도이며, 아래 연결 설정 변화까지 되돌리는 사본은 아니다.
+
+### 재시작 판단의 범위
+
+`E14/restart-analysis.json`과 `function-callers.log`에 실행본 소스의 호출 경로를 기록했다. hejo connection_runtime.TeamKit.run은 hermes-connections를 요청마다 새 자식 프로세스로 실행하고, 그 진입점은 설치된 게이트웨이 Python으로 exec한 뒤 실행본 lib의 connections.main을 가져온다. app 요청의 run_command → app_connect.run → transact → app_manifests 경로이므로 이번 함수 수정 자체를 읽는 데 게이트웨이 재시작은 필요하지 않다.
+
+게이트웨이 도구의 mac_apps/discovery가 읽기용 pending_progress·legacy_values·settings_for를 쓰려고 app_connect를 import할 수는 있다. 검색한 소스에서 app_manifests 호출은 CLI 연결 트랜잭션 한 곳뿐이다. 이 판단은 소스 경로 수준이며, 게이트웨이 메모리를 검사하거나 재시작한 증거라는 뜻은 아니다. 아래 연결 조립 결과의 RESTART_REQUIRED는 별도 런타임 단계다.
+
+### 직원 D 연결 1회와 멈춤
+
+12차와 동일한 선택 항목 id로 허가된 제출을 **한 번** 실행했다. 환경은 HERMES_HOME=<HOME>, HERMES_DISABLE_LAZY_INSTALLS=1, PYTHONDONTWRITEBYTECODE=1이고 200초 제한을 걸었다. 원시 응답의 개인값은 기록하지 않고 stdout 키와 판정에 필요한 필드만 남겼다.
+
+```text
+<HOME>/bin/hermes-connections app connect --profile <직원 D> --app com.apple.finder --scope <12차와 동일 항목 id> --json
+```
+
+- 종료 코드 0, 0.701초, 시간 초과 아님, stderr 없음.
+- outcome=waiting, reason=RESTART_REQUIRED, next.kind=gateway_restart, committed=true.
+- enable·values는 done이며 restart·permission·check는 todo다. 기존 UNDO_CONFLICT 거절은 발생하지 않았다.
+- 결과는 `E14/operation-result.json`, 1회 제출 표식은 `operation-started.json`, 실행 방법은 `submit_once.py`에 있다. 표식이 있으면 재실행하지 못하게 했다.
+
+인계의 멈춤 조건을 충족해 추가 운영 동작을 하지 않았다. 재시작·권한 창 조작·이어서 제출·app undo는 실행하지 않았다. 연결 성공(done)이 아니므로 조건부 저장 폴더 읽기 확인도 미실행이다. 코드 파일 교체는 검증된 SHA 상태로 유지했다.
+
+연결 전후 lstat(내용 미열람)에서 메타데이터가 바뀐 운영 경로는 9개다. owner의 policy.yaml·team.yaml·vault.yaml, plugin-store/links.json, 직원 D의 config.yaml, team-kit 호스트 경로와 그 plugin.yaml, Finder 연결 기록과 manifest-bases.json이다. 원시 파일 내용 변화 9건으로 단정하지 않는다. 해당 목록과 메타데이터는 `E14/changed-operating-files.json`, `operating-before-metadata.json`, `operating-after-metadata.json`에 있다. 비밀 파일·연결 기록 안의 undo 원문은 열지 않았다.
+
+되돌리기는 기존 `app undo` 경로이며 이번에는 실행하지 않았다.
+
+```text
+<HOME>/bin/hermes-connections app undo --profile <직원 D> --app com.apple.finder --json
+```
+
+응답에 기록된 undo_until은 **2026-11-22 18:26:54 +09:00**이다(기존 600초 계약). 시간 만료나 후속 변경으로 거절되면 수동으로 원문을 덮어쓰지 않고 별도 지시를 받아야 한다. 코드 파일 복원 방법은 위 롤백 기록과 별개다.
+
+### 최종 상태와 남은 일
+
+운영 저장소 main은 위 cherry-pick 커밋이고 작업 트리는 깨끗하다. 운영 명령이 바꾼 설정은 실행 환경에 있으며 sync로 사본을 수집하거나 이번 커밋에 넣지 않았다. 실행본 config_assembly.py와 main·커밋 바이트 일치, 새 시험 파일의 실행본 부재를 다시 확인했다(`E14/final-integrity.json`).
+
+위험도 일반, 실제 도달 증거 수준 3(운영 파일 교체와 실제 CLI 응답)이다. 연결 완료·권한 확인·저장 폴더 읽기 완료 증거는 아니다. 설계의 분기와 달라진 동작은 없으며, 시험 파일 부재는 위 임시 소스로 보완했다. 게이트웨이 재시작·릴리스·설치 앱 교체·실제 메시지·push는 하지 않았다. 다른 세션 파일과 hejo 미추적 문서 두 폴더는 보존했다.
+
+남은 일은 검토 후 RESTART_REQUIRED에 대한 다음 운영 지시와 직원 D M6이다. 기존 0.2.4 및 사용자 확인·푸시 승인도 별도다. 보고서의 개인값 검사·공백 검사와 자기 한 경로 commit --only 결과는 `E14/report-checks.json`, `hejo-commit.log/json` 및 최종 result에 기록한다.
