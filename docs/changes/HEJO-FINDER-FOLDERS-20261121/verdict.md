@@ -490,3 +490,7 @@
    - AT-TD-33 새 단언: 패널 오른쪽 끝이 +shift, 대화 영역이 shift만큼 평행 이동, 칸이 대화 영역 바깥, 닫으면 처음 프레임으로 복원.
 5. **지적:** 없음.
 6. **다음:** 23차 지시(TASK-17, 0.2.5·빌드 7 공개 후보).
+
+## TASK-17 검토 때 추가 확인 (2026-11-22, HEJO-POST-GROUP 세션 요청)
+
+사장 결정으로 HEJO-POST-GROUP(main aacf168, 판정 완료 3519fdb)이 0.2.5에 함께 실린다. aacf168은 main 조상이다(확인함). TASK-17 검토 때 공개 후보 전체 시험 로그에서 "AT-PG-01…11,13 PASS" 줄도 인용한다. 판정서: `docs/changes/HEJO-POST-GROUP-20261122/verdict.md`.
