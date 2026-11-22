@@ -1516,3 +1516,61 @@ install/hejo-ship publish --approve-commit eb5e62afd8ad6205e40d79386e34641d077ab
 ### 계획 담당에게 필요한 결정
 
 [제안] AT-TD-33·35의 위 단언만 새 오른쪽 이동/바깥 배치·닫기 복원 계약에 맞게 바꾸도록 허가하고, AT-FF-40은 실제로 공간이 부족한 좁은 가짜 화면에서 overlay fixture를 만들도록 허가한다. 픽셀·불투명도·테마 단언은 그대로 유지하고, 다른 시험 기대값은 바꾸지 않는다. 이는 제안이며 아직 적용하지 않았다. 계획 담당이 해당 허용 범위와 수락 명세의 “기존 기대값 수정 없음” 예외를 확정해 새 인계로 주면 TASK-16 구현과 AT-FF-90~93·전체 앱 회귀를 재개한다. 이번 제품 커밋은 없고 보고서 커밋 전체 해시는 result에 기록한다.
+
+
+## 22차-TASK-16 — 처리할 일 칸 바깥 배치
+
+### 인계·구현 상태
+
+[확인] handoff 22차(21차 2~6항 포함), design 10·10.1, REQ-FF-13, AT-FF-90~93을 따랐다. 착수 main `d0cabc7b5d10077ef4d7d726f3036715ff5b2f51`, 코드 커밋 **`3695d5e195144857700daf67bdfe1c17628797fd`**. 위험도 일반, 필요/도달 증거 수준 **2/2**. 구현자 판단은 구현·자체 시험 완료, 독립 검토와 0.2.5 설치 후 M12 대기다. 직접 수행했고 하위 에이전트는 쓰지 않았다.
+
+- 자리 결정은 `PetPlacement.withLeading` 하나에 유지했다. 원래 들어가는 경우는 그대로, 왼쪽 자리가 부족하면 지시된 shift만큼 sprite·bubble을 함께 오른쪽으로 옮기고 leading=290으로 바깥 칸을 붙인다. 옮긴 대화 오른쪽 끝도 여백 12를 넘으면 기존 겹침을 유지한다.
+- `PetPlacement` 내부의 표시 전용 `drawerShift`를 `anchorOrigin`에서 빼서 저장 기준을 유지한다. Codable·LocalSettings·새 설정 키는 없다. `PetController`의 `setDrawerOpen`, `placePet`, `moveChatDrag`, `endPetDrag`는 target/anchorOrigin을 그대로 사용하므로 수정하지 않았다.
+- 새 `app/Tests/DrawerOutsidePlacementTests.swift`를 `TestMain.swift`에 등록했다. 0·음수 화면 원점, 오른쪽 여백의 정확한 경계 및 바로 부족한 경우, 기존에 들어가는 배치, 실제 PetController의 바깥 칸·저장 좌표·세 번 열고 닫기 복원을 확인한다. 기존 픽셀 검사는 실제 PetView에서 좁은 화면 겹침·넓은 화면 바깥 배치의 두 테마 모두를 그대로 검사한다.
+- 바깥 칸을 추가하면 패널 폭도 290 늘어난다. 따라서 패널 오른쪽 끝은 shift만큼, 왼쪽 원점은 shift−290만큼 바뀌며, 실제 펫과 대화 영역은 모두 shift만큼 오른쪽으로 옮겨진다. 시험은 이 좌표 관계와 대화 크기 불변, 칸 바깥 배치 및 닫기 복원을 직접 확인한다.
+- 바꾼 파일은 위 제품 1파일, 기존 시험 3파일 및 새 시험 1파일뿐이다. 기존 기능 경로를 대체하거나 새 설정·공개 계약을 만들지 않았다. 설계의 허용 범위 밖 기대값 변경은 없다. 버전·공개 후보·설치 앱·운영·본체·다른 앱·원격 변경은 하지 않았다.
+
+### 허가된 기존 단언 전후
+
+기준 줄 번호는 착수 HEAD 기준이다. 기존 시험의 다른 단언과 AT-TD-35 접기 단언(117줄)은 유지했다(`scope-check.json`).
+
+| 자리 | 전 | 후 |
+| --- | --- | --- |
+| `TodoDrawerTests.swift:95` AT-TD-33 | 왼쪽 공간 부족 시 overlay=true·패널 프레임 불변·scrim 표시 | 같은 배치에서 overlay=false·펫/대화 오른쪽 shift·오른쪽 패널 경계 shift·칸 바깥·scrim 숨김. 닫기 뒤 원래 프레임 단언 추가 |
+| `TodoDrawerTests.swift:116` AT-TD-35 | 왼쪽으로 끌면 overlay=true | 끌면 leading=290·overlay=false·대화 왼쪽은 화면 여백+칸 너비, 표시 sprite가 저장 anchor보다 오른쪽 |
+| `TodoDrawerTests.swift:118` AT-TD-35 | 다시 열 때 overlay=true | 다시 열 때 leading=290·overlay=false 및 실제 칸 표시 |
+| `TodoDrawerBackgroundTests.swift:48~50` AT-FF-40 고정물 | 화면 1440폭에서 펫 x=100으로 겹침 유도 | 겹침 쪽만 가짜 화면 폭 700(428+290+24보다 작음). 배치 단언·픽셀 알파/테마/아래 색 차단 기대값은 불변 |
+
+### 실행·증거
+
+증거 `E22` = `.build/finder-folders-evidence/round22-task16/`. 전체 시험 대상은 코드 커밋의 다섯 파일과 같은 바이트이며 시험 중 소스 변경 0, 커밋 blob 대조 일치(`tested-sources.json`, `code-commit.json`).
+
+| 명령·확인 | 실제 결과 | E22 증거 |
+| --- | --- | --- |
+| `pgrep -f app-tests` 및 다른 GUI 빌드 조사 | 종료 1(다른 실행 없음), 빌드 겹침 없음 | `app-pgrep.log/json`, `gui-builds.json` |
+| `HEJO_PYTHON=<게이트웨이 Python> bash app/scripts/test.sh` | **종료 0**, 앱 전체·통신 fixture·기존 ThreeTap/펫 끌기·HEJO-TODO-DRAWER·AT-FF-40~42·새 AT-FF-90~93 통과, 330.741초 | `app-full.log/json` |
+| 기존 접기 단언·픽셀 기대값·PetController·버전 보존 대조 | 통과 | `scope-check.json` |
+| 게이트웨이 Python 개인값 검사·자기 경로 `git diff --check` | 각각 종료 0 | `code-private.log`, `code-diff-check.log`, `code-checks.json` |
+| 다섯 자기 경로만 `git commit --only` | 종료 0 | `code-commit.log/json` |
+
+시험은 기존 0.2.4에서 확인한 Unix 소켓 경로 길이 문제를 피하도록 처음부터 짧은 임시 TMPDIR 및 resolve한 HERMES_HOME/HERMES_ROOT로 실행했다. 이번에 소켓 길이 오류나 실패 실행은 없었고, 같은 시험을 불필요하게 반복하지 않았다. CLI 설정 메타데이터·다운로드 이름 보존 guard도 전체 시험 안에서 통과했다. 기존 Swift 동시성 등 경고는 남아 있으며 이번 소스 변경에서 범위 밖 수정을 하지 않았다.
+
+실제 로그 줄:
+
+```text
+AT-FF-90/92/93 PLACEMENT BOUNDARIES PASS
+AT-FF-91 NATIVE OUTSIDE AND RESTORE PASS; AT-FF-93 regression in full suite
+AT-TD-20..42 MODEL, INPUT, WINDOW, REQUEST PASS
+AT-HF-86 APP PASS
+AT-FF-FIRST-FRAME AND SIDEBAR_GEOMETRY PASS
+AT-FF-40 dark PIXEL PASS alpha=1.0
+AT-FF-40 light PIXEL PASS alpha=1.0
+AT-FF-41 dark PIXEL PASS alpha=1.0
+AT-FF-41 light PIXEL PASS alpha=1.0
+```
+
+별도 mutation 빌드는 생략했다. 경계 양쪽과 음수 화면 좌표, 표시/저장 좌표 차이, 실제 컨트롤러·디스크 재조회·반복 복원, 기존 끌기·애니메이션·픽셀 회귀로 이번 일반 위험 변경의 주요 실패를 직접 검사했다. 새 수락 기준·기존 기대값 완화·skip·추가 성능 수정은 없다.
+
+### 남은 일
+
+독립 검토자는 shift/오른쪽 여백 비교, 저장 anchor와 표시 sprite의 분리, 허가된 단언 전후 표와 실제 커밋 diff를 확인한다. TASK-17(0.2.5·빌드 7 공개 후보)은 별도 지시이며 아직 수행하지 않았다. 사용자 M12와 현재 명세 반영, 푸시 승인은 남아 있다. 다른 작업의 미추적 문서 폴더는 보존했다. 보고서만의 후속 커밋은 제품 변경을 포함하지 않으며 전체 해시는 result에 기록한다.
