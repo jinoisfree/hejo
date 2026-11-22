@@ -1,0 +1,45 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+body{margin:0;background:#3a3532;font-family:-apple-system,"Apple SD Gothic Neo",sans-serif;color:#eee;padding:24px;display:flex;flex-wrap:wrap;gap:28px;width:760px}
+.col{width:358px}
+.cap{font-size:15px;font-weight:700;margin:0 0 4px}.sub{font-size:12px;color:#bbb;margin:0 0 10px;height:32px}
+.win{display:flex;height:520px;border-radius:14px;overflow:hidden;background:rgba(20,18,17,.72);box-shadow:0 8px 30px rgba(0,0,0,.4)}
+.side{width:68px;background:rgba(255,255,255,.035);border-right:1px solid rgba(255,255,255,.1)}
+.brand{height:44px;border-bottom:1px solid rgba(255,255,255,.1);text-align:center;font-size:14px;font-weight:600;padding-top:7px;box-sizing:border-box}
+.brand b{color:#2f7bf6}.brand small{display:block;font-size:10px;color:#aaa;font-weight:400}
+.drawer{width:290px;background:rgba(255,255,255,.035);border-right:1px solid rgba(255,255,255,.1);display:flex;flex-direction:column}
+.head{height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 14px;border-bottom:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.035)}
+.head .t{font-size:16px;font-weight:600}.head .c{font-size:12px;color:#bbb}
+.bar{flex:none;height:44px;display:flex;align-items:center;padding:0 14px;border-bottom:1px solid rgba(255,255,255,.08)}
+.list{flex:1;overflow:hidden;padding:12px 14px;position:relative}
+.list .fix{position:absolute;right:4px;top:14px;width:4px;height:60px;border-radius:2px;background:rgba(255,255,255,.25)}
+.g{font-size:11px;font-weight:600;color:#aaa;margin:2px 0 8px}
+.card{border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.035);border-radius:10px;height:74px;margin-bottom:10px;padding:10px 12px;box-sizing:border-box}
+.card.sel{background:rgba(10,132,255,.22)}
+.card .b{font-size:10px;font-weight:600;color:#ff6b62}.card .b.q{color:#aaa}
+.card .tt{font-size:12px;font-weight:500;margin-top:6px}.card .m{font-size:10px;color:#aaa;margin-top:8px}
+/* A segmented */
+.seg{display:flex;background:rgba(255,255,255,.1);border-radius:12px;padding:2px;width:100%}
+.seg span{flex:1;text-align:center;font-size:11px;height:24px;line-height:24px;border-radius:10px;color:#ccc}
+.seg span.on{background:#0a84ff;color:#fff;font-weight:600}
+.seg i{font-style:normal;opacity:.7;margin-left:3px}
+/* B chips */
+.chips{display:flex;gap:6px}.chips span{font-size:11px;height:26px;line-height:24px;padding:0 10px;border-radius:13px;border:1px solid rgba(255,255,255,.22);color:#ddd;box-sizing:border-box}
+.chips span.on{background:#0a84ff;border-color:#0a84ff;color:#fff;font-weight:600}
+/* C tabs */
+.bar.tabs{align-items:stretch;padding:0 6px}.tabs span{flex:1;text-align:center;font-size:12px;color:#aaa;line-height:42px;border-bottom:2px solid transparent}
+.tabs span.on{color:#fff;font-weight:600;border-bottom-color:#0a84ff}
+.pin{font-size:10px;color:#8fd18f;padding:4px 14px 0}
+</style></head><body>
+<div class="col"><p class="cap">A. 한 덩어리 토글 (추천)</p><p class="sub">아래 '답글 / 새 대화' 토글과 같은 모양. 앱 안에서 이미 쓰는 단추 모양이라 통일감</p><div class="win"><div class="side"><div class="brand"><b>H</b>EJO.<small>0.2.6</small></div></div><div class="drawer">
+<div class="head"><span class="t">처리할 일 3</span><span class="c">‹ 접기</span></div><div class="bar"><div class="seg"><span class="on">전체<i>3</i></span><span>답 요청<i>1</i></span><span>마감<i>2</i></span><span>알림<i>0</i></span></div></div><div class="list"><div class="fix"></div><div class="g">급한 것 2</div>
+<div class="card sel"><div class="b">D+34</div><div class="tt">2026 Bio innovation day - 기업 로고…</div><div class="m">자비스 · 10월 19일까지</div></div>
+<div class="card"><div class="b">답 요청</div><div class="tt">확인이 필요한 질문</div><div class="m">직원 A · 방금</div></div>
+<div class="g">나머지 1</div><div class="card"><div class="b q">알림</div><div class="tt">새 알림</div><div class="m">직원 A · 방금</div></div></div></div></div></div><div class="col"><p class="cap">B. 알약 단추 네 개</p><p class="sub">하나씩 떨어진 테두리 단추. 눌러지는 단추라는 게 가장 분명</p><div class="win"><div class="side"><div class="brand"><b>H</b>EJO.<small>0.2.6</small></div></div><div class="drawer">
+<div class="head"><span class="t">처리할 일 3</span><span class="c">‹ 접기</span></div><div class="bar"><div class="chips"><span class="on">전체 3</span><span>답 요청 1</span><span>마감 2</span><span>알림 0</span></div></div><div class="list"><div class="fix"></div><div class="g">급한 것 2</div>
+<div class="card sel"><div class="b">D+34</div><div class="tt">2026 Bio innovation day - 기업 로고…</div><div class="m">자비스 · 10월 19일까지</div></div>
+<div class="card"><div class="b">답 요청</div><div class="tt">확인이 필요한 질문</div><div class="m">직원 A · 방금</div></div>
+<div class="g">나머지 1</div><div class="card"><div class="b q">알림</div><div class="tt">새 알림</div><div class="m">직원 A · 방금</div></div></div></div></div></div><div class="col"><p class="cap">C. 밑줄 탭</p><p class="sub">글자 + 선택 밑줄. 가장 가볍지만 단추 느낌은 약함</p><div class="win"><div class="side"><div class="brand"><b>H</b>EJO.<small>0.2.6</small></div></div><div class="drawer">
+<div class="head"><span class="t">처리할 일 3</span><span class="c">‹ 접기</span></div><div class="bar tabs"><span class="on">전체 3</span><span>답 요청 1</span><span>마감 2</span><span>알림 0</span></div><div class="list"><div class="fix"></div><div class="g">급한 것 2</div>
+<div class="card sel"><div class="b">D+34</div><div class="tt">2026 Bio innovation day - 기업 로고…</div><div class="m">자비스 · 10월 19일까지</div></div>
+<div class="card"><div class="b">답 요청</div><div class="tt">확인이 필요한 질문</div><div class="m">직원 A · 방금</div></div>
+<div class="g">나머지 1</div><div class="card"><div class="b q">알림</div><div class="tt">새 알림</div><div class="m">직원 A · 방금</div></div></div></div></div></div></body></html>

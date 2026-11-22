@@ -37,3 +37,23 @@
 - 현재 코드·계약·명세가 base_commit과 호환되는가? → 착수 조건(0항) 확인 뒤 판단. 지금은 HEJO-DEADLINE-CLOSE TASK-03 대기.
 - G1–G4: G1 spec·AC·사장 확인 있음 / G2 design 1절 근거·4절 판정 / G3 AC↔AT-DI 연결, 계획 검증 2회차 APPROVED(plan-review.md) / G4 위험도·롤백·연결 완비.
 ```
+
+## 추가 인계: TASK-02 (4판, 2026-11-23)
+
+```text
+[설계 인계: HEJO-DRAWER-INLINE TASK-02 / 앱]
+0. 기준: main(이 인계 커밋 이후 최신) / spec 4판 REQ-DI-08·09, design 4판 2.6, 수락 시험 8판 AT-DI-35~39, 시안 mockups/filter-options.png A안 /
+   승인: 사장 요청(머리 고정·필터 띠 높이 44·단추 모양) + 시안 A 선택, 계획 검증 없음(TASK-01 계획 검증 통과분의 같은 칸 안 표현 변경) / 운영: 연합개발
+1. 문서: 위 4판 절, TASK-01 결과 verdict.md 6회.
+2. 요구: 제목 띠 44(가운데 정렬, 아래 1px 선) + 필터 띠 44(토글 가운데, 아래 1px 선) 고정, 카드 목록만 스크롤, 되돌리기 바닥 줄 고정 유지.
+   필터는 '답글/새 대화' 토글과 같은 그리기(트랙 + 고른 칸 강조색·흰 글자), 칸 폭 균등, 마감 불가면 3칸.
+3. 유지: TodoDrawerModel·필터 의미·개수 규칙, 카드 그리기·메뉴, onFilter/onCard/onClose, 290 폭 잘림, Esc.
+4. 책임: 세 영역 배치 = TodoDrawerView 한 곳, 토글 모양 = ComposerButton·modeBackground와 같은 공용 원본.
+5. 기존 경로: 스택 안 머리·필터 줄 → 고정 보기로 교체(스택에서 제거), TodoDrawerButton 필터 글자 제거.
+6. 위험도 일반, 증거 2 + 화면 사진.
+7. 의미 변경(표현). 비교: AT-DI-35~39, 전체 앱 시험.
+8. 수락 시험: tests/acceptance/HEJO-DRAWER-INLINE.md 8판 AT-DI-35~39, 기대값 변경 금지.
+9. 범위: tasks.md TASK-02 영향 파일만. 새 worktree면 최신 main에서 시작, 기존 role-workflow/17-96051e66을 쓰면 최신 main merge 후 시작.
+10. 미확정: 없음.
+11. 사용자 확인: 사장이 시안 A·높이 44를 골랐다.
+```
