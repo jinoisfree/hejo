@@ -113,3 +113,22 @@
 - 경고 검토(계획 담당이 재시작 이후 로그를 다시 묶어 봄, 124줄): 텔레그램 네트워크 경로 경고(IPv4 고정 경로·DNS 우회 경로 `ConnectError`, 재연결 예약)와 "전송 복구됨" 안내가 짝으로 있다. Hermes 텔레그램 어댑터의 자체 재연결 동작이며 현재 상태는 connected다. hejo 코드와 무관. 판정에 영향 없음 — 실물 확인(M3·M8)에서 글이 늦거나 빠지면 다시 본다.
 - 판정: **TASK-07 완료(교차 모델, 증거 수준 3)**. AT-HT-60·61 충족.
 - 이전 실행과 충돌로 보류된 "보완 4(재시작)" 계획은 이미 수행됐으므로 폐기한다. 다음 실행은 TASK-07b([handoff-task07b.md](handoff-task07b.md))다.
+
+## 7차 (2026-11-23) — TASK-07b 공개 후보 완료(공개는 사장 승인 대기)
+
+- 대상: 보고 커밋 `0870db1`, 개인 경로 정리 `2bdbe1b`, 버전 올림 `c3475bb`, public 후보 `3f5cb6bd35c6f57e862d09f809f9b1e2b1dd1f9c`, 준비물 `.build/release-0.2.7/`, 로그 `.build/HEJO-TELEGRAM/task07b/`.
+- 직접 확인:
+  - public 후보 부모 `98a9f242`(0.2.6), 트리 `6ea58c4c` = `c3475bb` 트리(차이 0). HEJO-DRAWER-INLINE TASK-02(`e36c8a7`)는 포함되지 않음(`c3475bb`의 조상 아님). 0.2.6 이후 앱 변경은 HEJO-TELEGRAM과 HEJO-DRAWER-INLINE TASK-01(검증·적용 완료)뿐.
+  - 공개 트리 gate·schemas·hub·install·config = RELEASE `0bcf635`(차이 0) — 서버 실행본과 같다.
+  - `2bdbe1b`는 HEJO-DEADLINE-CLOSE 문서 4줄의 공용 릴리스 절대 경로를 `<공용 릴리스>` 자리표시자로만 바꿨다(뜻 유지).
+  - 준비물: `prepared.json` 0.2.7·9, commit = public 후보, zip SHA-256 `2c14ae9b…8967`(직접 계산 일치), 6,407,499 bytes.
+  - 종료 코드 파일: public checkout 개인값 검사 0, pytest 0(427 passed), 앱 전체 0, 준비물 검증(codesign·Sparkle·Ed25519·공개 키·Authority 연속성) 0. gateway_delivery 0(보고).
+  - 원격: `git ls-remote github refs/heads/main` = `98a9f242`(아직 0.2.6).
+- 설계 적합성: 선례 절차와 같고 금지 범위 준수(푸시·publish·설치 앱 교체 없음).
+- 판정: **TASK-07b 공개 후보 완료(교차 모델, 증거 수준 2)**. 작업 전체는 공개·실물(TASK-08)·현재 명세 반영이 남아 부분 완료.
+- 조율: HEJO-DRAWER-INLINE 계획 담당에게 public 확정과 TASK-02 병합 허용을 알렸다.
+
+### 사장이 할 일
+1. 푸시 승인: 저장소 이 저장소, 원격 `github`, 브랜치 `main`, 커밋 `3f5cb6bd35c6f57e862d09f809f9b1e2b1dd1f9c`.
+2. 공개: `install/hejo-ship publish --approve-commit 3f5cb6bd35c6f57e862d09f809f9b1e2b1dd1f9c --prepared .build/release-0.2.7/prepared.json`.
+3. 앱을 0.2.7로 업데이트 → 설정 → 연결과 동기화 → 텔레그램 → 코드 받기 → HEJO 그룹에 보내기 → 켜기 → M1~M8.
