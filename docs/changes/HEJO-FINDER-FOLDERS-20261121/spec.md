@@ -1,6 +1,6 @@
 # HEJO-FINDER-FOLDERS 명세: Finder 연결에서 서버 동기화 폴더 고르기
 
-9판 · 2026-11-22(REQ-FF-11 연결 창 화면 공유 숨김 없애기 추가, 사장 결정 0.2.4 포함. 8판: REQ-FF-10 AC-05 추가: 비활성 때 옵션창 높이, 검증 9차 V-5. 7판: REQ-FF-09 사진 대신 색과 글자, REQ-FF-10 옵션창이 대화 창 앞에 추가, 사장 결정 0.2.4 포함. 6판 REQ-FF-08, 5판 REQ-FF-07 정정) · 상태: 1~4절 승인·적용됨, 5절 초안 · 기준 커밋: 이 저장소 `9514f0f`, `<운영 저장소>` `66f2a44c`
+10판 · 2026-11-22(REQ-FF-12 공용 창고 갱신 뒤 앱 연결 거절 해소 추가, 검증 12차. 9판: REQ-FF-11 연결 창 화면 공유 숨김 없애기 추가, 사장 결정 0.2.4 포함. 8판: REQ-FF-10 AC-05 추가: 비활성 때 옵션창 높이, 검증 9차 V-5. 7판: REQ-FF-09 사진 대신 색과 글자, REQ-FF-10 옵션창이 대화 창 앞에 추가, 사장 결정 0.2.4 포함. 6판 REQ-FF-08, 5판 REQ-FF-07 정정) · 상태: 1~4절 승인·적용됨, 5절 초안 · 기준 커밋: 이 저장소 `9514f0f`, `<운영 저장소>` `66f2a44c`
 요청 원문과 사장 결정: [brainstorm.md](brainstorm.md). 설계 [design.md](design.md), 작업 [tasks.md](tasks.md), 인계 [handoff.md](handoff.md), 수락 시험 [HEJO-FINDER-FOLDERS.md](../../../tests/acceptance/HEJO-FINDER-FOLDERS.md).
 
 ## 칸·원본·쓰기 주체·수명
@@ -131,4 +131,13 @@
 - AC-01(정상): 연결 입력 단계 전후 내내 연결 창과 입력 시트(확인 알림 시트 포함)의 `sharingType`이 `.none`이 아니다(기본 `.readWrite`).
 - AC-02(회귀): 비밀 칸은 계속 `secure` 입력이다. 성공·닫기 때 입력 값을 지우는 것, 원시 오류를 보이지 않는 것(HEJO-CONNECTIONS AT83 등), 연결 창 높이 규칙(REQ-FF-06·10)은 그대로다.
 - M11: 사장이 0.2.4에서 서버를 화면 공유로 보며 '에이전트 연결'을 누르면 연결 창과 입력 창이 보이고 눌린다.
+
+### REQ-FF-12 공용 창고가 갱신돼도 앱 연결이 저장된다 (10판 추가, 검증 12차 원인 확정)
+- 현황: [확인] 직원 D의 Finder 연결 제출이 `waiting/UNDO_CONFLICT`로 거절된다(TASK-13 운영 제출 1회, 운영 변화 0). `config_assembly.app_manifests`는 직원 프로필의 team-kit `plugin.yaml` 지문을 마지막 연결 때 값(`state/connections/manifest-bases.json`의 `after`)과 비교한다(`:155`). 직원 D의 team-kit은 공용 창고를 가리키는 링크(`links.json` `overlay: false`)다. 공용 창고 manifest가 다른 작업으로 도구 2개 늘어(1222→1254바이트) 지문이 달라졌다. 그래서 외부 수정으로 오인해 거절한다. 직원 B는 기억 값이 이미 새 지문이라 통과한다. 같은 상태인 다른 직원도 모든 앱 연결이 같은 이유로 막힌다.
+- 결정(계획 담당, 기존 계약 안): 지문 비교는 **개인 사본(오버레이)** 을 지키기 위한 것이다. 링크로 공용 창고를 그대로 쓰는 경우 manifest 변화는 키트 갱신이지 개인 수정이 아니다.
+- AC-01(정상): 직원 프로필의 team-kit이 검증된 공용 창고 링크(`overlay: false`, 링크 대상이 `plugin-store/<plugin>`과 같음)이고 지금 manifest 바이트가 공용 창고 manifest와 같으면, 기억 지문이 달라도 거절하지 않고 연결을 저장한다. 저장 뒤 기억 지문은 새 값으로 바뀐다.
+- AC-02(회귀): 개인 사본(오버레이)의 manifest가 기억과 다르면 지금처럼 `UNDO_CONFLICT`다(기존 `test_removing_one_app_preserves_other_app_tools_and_external_changes`). 링크가 공용 창고가 아닌 곳을 가리키면 지금처럼 거절한다(`UNSAFE_PATH` 또는 `UNDO_CONFLICT`).
+- AC-03(회귀): 되돌리기(app undo)는 처음 연결 전 상태(`before`·`host`)로 돌아간다. 기본 도구 권한(`owner/policy.yaml` `app_tool_defaults`)은 바뀌지 않는다.
+- AC-04(정상, 앱): 저장이 거절되면 입력 창에 "마쳤어요" 같은 성공 문장이 아니라 이유가 보인다(TASK-13 앱 커밋 `f03b93a`).
+- M6: 서버 적용 뒤 사장이 직원 D에서 Finder 폴더를 골라 저장하고, 그 폴더 파일을 물으면 읽힌다.
 
