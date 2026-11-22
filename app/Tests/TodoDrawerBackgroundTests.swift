@@ -44,7 +44,7 @@ private final class DrawerBackdropProbe: NSView {
     var themePixels:[NSColor]=[]
     for overlay in [true,false] {
         pet.setDrawerOpen(false)
-        screen=CGRect(x:0,y:0,width:1440,height:900)
+        screen=CGRect(x:0,y:0,width:overlay ? 700:1440,height:900)
         pet.placePet(at:CGPoint(x:overlay ? 100:650,y:700))
         pet.setDrawerOpen(true);pet.stepPlacement()
         try check(pet.placementTarget?.drawerOverlay==overlay,"FF fixture uses the actual requested drawer placement")

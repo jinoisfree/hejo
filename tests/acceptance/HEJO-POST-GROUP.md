@@ -1,7 +1,7 @@
 # HEJO-POST-GROUP 수락 시험 명세
 
 2판 · 2026-11-22(계획 검증 1회차 PG-R1·R3 반영: AT-PG-02 펼침 고정, AT-PG-05 입력·기대 고정, AT-PG-13 전환 시험 추가, [plan-review.md](../../docs/changes/HEJO-POST-GROUP-20261122/plan-review.md)) · 명세 [spec.md](../../docs/changes/HEJO-POST-GROUP-20261122/spec.md), 설계 [design.md](../../docs/changes/HEJO-POST-GROUP-20261122/design.md).
-상태: 명세 완료 · 코드 미작성 · 미실행 · 독립 검토: 계획 검증 1회차 BLOCKED → 2판 반영, 재검증 대기. 기대값 출처: spec 요구(사장 결정, brainstorm.md). 구현 담당이 코드로 옮기며 기대값·합격 기준을 바꾸지 않는다(바꿔야 하면 멈추고 보고).
+상태: 명세 완료 · 독립 검토: 계획 검증 2회차 APPROVED. 코드 작성(`app/Tests/PostGroupTests.swift`) · 실행 통과(2026-11-22, [verdict.md](../../docs/changes/HEJO-POST-GROUP-20261122/verdict.md)). 기대값 출처: spec 요구(사장 결정, brainstorm.md). 구현 담당이 코드로 옮기며 기대값·합격 기준을 바꾸지 않는다(바꿔야 하면 멈추고 보고).
 
 ## 공통 준비 (`app/Tests/PostGroupTests.swift`, 기본 앱 시험 실행에 등록)
 `TypingTests.swift`처럼 임시 `LocalStore` + `MemoryCredentials` + `testConversation`, `welcome`으로 가짜 직원 `alpha`(이름 Alpha), `beta`(이름 Beta). 스레드마다 새 UUID. 메시지는 `controller.receive(["type":"message",...])`로 넣고, 스레드 첫 글은 사장(`role:"owner"`)이 기본. 직원 파일 글은 `text:""`, `files:[{file_id, name:"a.txt", mime:"text/plain", size:1}]`(필드는 `MessageFile` 디코딩에 맞춤). `ConversationView`를 만들어 `refresh()` 뒤 `ui.history.contents`에서 해당 스레드 `Content`의 `replies` 조각을 본다.

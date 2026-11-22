@@ -497,3 +497,47 @@ d2 알림(19:37): 게이트웨이 재시작 완료(새 PID 18074, 로그 7298줄
 - 보고: 버전 올림 커밋, 새 `public` 전체 커밋, 준비물 경로, 사장용 공개 명령 한 줄(`install/hejo-ship publish --approve-commit <새 public 커밋> --prepared .build/release-0.2.4/prepared.json`), 푸시 대상, 검증 명령·종료 코드. impl-report '20차-TASK-08' 절, result.
 - 금지: 선례와 같다(GitHub 조회·쓰기·publish·push 금지, 설치된 앱 사본 교체·공용 릴리스·운영 홈 변경·`install/hejo-release`·게이트웨이 재시작 금지, 비밀 값 열람 금지, 제품 동작 코드·spec·design·수락 시험 명세 수정 금지). 앱 시험 전 `pgrep -f app-tests`.
 - 위험·증거: 고위험(공개 배포물), 증거 수준 2. 실제 공개·업데이트 설치(수준 4)는 사장이 한 뒤 M4·M7~M11로 본다.
+
+## 21차 지시 (2026-11-22): TASK-16 처리할 일 칸 바깥 배치
+
+사장 결정: 칸은 대화 창을 덮지 않고 바깥에 연다. 왼쪽 자리가 없으면 펫과 창을 오른쪽으로 옮긴다. 이 작업에 넣어 0.2.5에 담는다.
+
+```text
+[설계 인계: HEJO-FINDER-FOLDERS TASK-16]
+1. 문서: spec 13판 REQ-FF-13, design 10절, 수락 명세 AT-FF-90~93.
+2. 고치는 자리: PetPlacement.withLeading(PetLayout.swift) 한 곳. fits가 거짓이면 shift=(visibleFrame.minX+12)−(globalBubble.minX−width)만큼 펫·대화 창 전체를 오른쪽으로 옮긴
+   배치에 바깥 칸(leading=width, drawerOverlay=false)을 붙인다. 옮긴 오른쪽 끝이 visibleFrame.maxX−12를 넘으면 지금처럼 겹침.
+   저장 위치(anchorOrigin·설정 저장)는 옮기기 전 기준을 유지해 칸을 닫으면 제자리로 돌아오게 한다. 새 설정 키 금지.
+   PetController가 withLeading 결과로 패널 위치를 정하는 곳(303줄 근처)이 이 규칙을 그대로 쓰는지 확인하고, 필요한 최소만 고친다.
+3. 확인: AT-FF-90~93을 앱 시험으로 옮긴다. 앱 시험 전 pgrep -f app-tests, HEJO_PYTHON=게이트웨이 Python bash app/scripts/test.sh 전체
+   (깊은 경로에서 소켓 경로 길이 오류가 나면 0.2.4 때처럼 짧은 TMPDIR로 같은 트리를 다시 실행하고 둘 다 기록).
+4. 범위: app/Sources/PetLayout.swift, 필요하면 PetController.swift, app/Tests. 자기 경로만 git commit --only.
+   gate/·schemas/·다른 작업 파일, 앱 버전·공개 후보 금지(TASK-17에서).
+5. 금지: 개인값, 본체·ddots, 수락 기준·spec·design 수정, git push. 기존 기대값 변경이 필요하면 멈추고 보고. 위험도 일반, 증거 수준 2.
+6. 보고: impl-report.md '21차-TASK-16' 절(커밋 전체 해시, 명령·종료 코드·로그 경로), result.
+```
+
+## 22차 지시 (2026-11-22): TASK-16 다시 — 기존 시험 기대값 변경 허가 (검증 21차 V-11)
+
+```text
+[설계 인계: HEJO-FINDER-FOLDERS TASK-16 다시]
+1. 문서: spec REQ-FF-13, design 10절·10.1, 수락 명세 AT-FF-90~93, verdict 21차.
+2. 21차 지시 2·3·4·5·6항을 그대로 따르되, 기대값 변경은 design 10.1의 세 곳만 허가한다:
+   TodoDrawerTests AT-TD-33(95줄)·AT-TD-35(116·118줄)를 새 규칙으로, TodoDrawerBackgroundTests AT-FF-40 고정물(48·50줄)의 겹침 사례를 좁은 가짜 화면으로.
+   AT-FF-40 픽셀 기대값, AT-TD-35 117줄, 그 밖의 기존 기대값은 바꾸지 않는다. 또 부딪히면 멈추고 보고한다.
+3. 보고 절 이름 '22차-TASK-16'. 바꾼 기존 단언마다 전후를 표로 남긴다.
+```
+
+## 23차 지시 (2026-11-22): TASK-17 앱 0.2.5(빌드 7) 공개 후보 준비
+
+- 선례: 20차 지시(TASK-08, 0.2.4)를 **0.2.5·빌드 7**로 그대로 따른다. 다른 점만 적는다.
+- 들어가는 것: 착수 때 `main` HEAD 전체. 새 `public`의 부모는 지금 로컬 `public`(0.2.4 `eb5e62af`, 원격 github/main과 같음).
+- 확인 추가:
+  1. 새 `public` 트리가 `3695d5e`(TASK-16)를 조상으로 포함하고, `app/`이 main HEAD와 바이트가 같다.
+  2. 공개 후보 트리의 전체 시험 로그에서 AT-FF-90~93, AT-TD-33·35, AT-FF-40·41 PASS 줄을 인용한다.
+  3. 준비물 버전·빌드(0.2.5·7)가 0.2.4·6보다 크고, 업데이트 서명 키가 0.2.4와 같다.
+  4. 새 `public`의 `gate/`·`schemas/`와 지금 서버 문 실행본의 차이 파일 목록(README 제외 차이가 있으면 멈추고 보고).
+  5. 시험은 처음부터 짧은 `TMPDIR`과 resolve한 임시 `HERMES_HOME`으로 실행한다(0.2.4 때 소켓 경로 길이 문제).
+- 보고: 버전 올림 커밋, 새 `public` 전체 커밋, 준비물 경로, 사장용 명령 두 줄(`git push github <새 public 커밋>:refs/heads/main`, `install/hejo-ship publish --approve-commit <새 public 커밋> --prepared .build/release-0.2.5/prepared.json`), 푸시 대상, 검증 명령·종료 코드. impl-report '23차-TASK-17' 절, result.
+- 금지: 20차와 같다(GitHub 쓰기·publish·push 금지, 설치 앱·공용 릴리스·운영 홈·install/hejo-release·재시작 금지, 비밀 값 열람 금지, 제품 동작 코드·spec·design·수락 시험 명세 수정 금지). 앱 시험 전 `pgrep -f app-tests`.
+- 위험·증거: 고위험(공개 배포물), 증거 수준 2.

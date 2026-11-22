@@ -169,16 +169,20 @@ struct PetLayout {
 struct PetPlacement {
     private(set) var leading: CGFloat = 0
     private(set) var drawerOverlay = false
+    private var drawerShift: CGFloat = 0
     var contentBubble: CGRect {CGRect(x:globalBubble.minX+leading,y:globalBubble.minY,width:globalBubble.width-leading,height:globalBubble.height)}
-    /// The sole decision about expansion versus overlay; the existing chat/page rectangle stays put.
+    /// The sole decision about expansion versus overlay; move the chat/page together only when needed.
     func withLeading(_ width:CGFloat, visibleFrame:CGRect) -> PetPlacement {
         guard expanded,width>0 else{return self}
         let fits=globalBubble.minX-width>=visibleFrame.minX+12
-        let extra:CGFloat=fits ? width:0
-        var result=PetPlacement(globalSprite:globalSprite,
-            globalBubble:CGRect(x:globalBubble.minX-extra,y:globalBubble.minY,width:globalBubble.width+extra,height:globalBubble.height),
+        let shift:CGFloat=fits ? 0:(visibleFrame.minX+12)-(globalBubble.minX-width)
+        let outside=fits || globalBubble.maxX+shift<=visibleFrame.maxX-12
+        let moved:CGFloat=outside ? shift:0
+        let extra:CGFloat=outside ? width:0
+        var result=PetPlacement(globalSprite:globalSprite.offsetBy(dx:moved,dy:0),
+            globalBubble:CGRect(x:globalBubble.minX+moved-extra,y:globalBubble.minY,width:globalBubble.width+extra,height:globalBubble.height),
             placementScreen:visibleFrame,userScale:userScale,expanded:expanded)
-        result.leading=extra;result.drawerOverlay = !fits
+        result.leading=extra;result.drawerOverlay = !outside;result.drawerShift=moved
         return result
     }
 
@@ -192,7 +196,10 @@ struct PetPlacement {
     var globalSprite: CGRect { spriteRect.offsetBy(dx: windowFrame.minX, dy: windowFrame.minY) }
     var globalBubble: CGRect { bubbleRect.offsetBy(dx: windowFrame.minX, dy: windowFrame.minY) }
     /// A cell origin at the user's scale, keeping the rendered foot in place on save and restore.
-    var anchorOrigin: CGPoint { PetLayout.resizedSprite(globalSprite, scale:userScale).origin }
+    var anchorOrigin: CGPoint {
+        let shown=PetLayout.resizedSprite(globalSprite, scale:userScale).origin
+        return CGPoint(x:shown.x-drawerShift,y:shown.y)
+    }
 
     func dragged(by delta: CGPoint, visibleFrame: CGRect, screenFrame: CGRect? = nil) -> PetPlacement {
         let full = screenFrame ?? visibleFrame
