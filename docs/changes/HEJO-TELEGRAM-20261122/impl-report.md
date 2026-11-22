@@ -40,3 +40,12 @@
 
 - 중단 시 개인값 사전 검사: 임시 빈 HERMES_HOME, 기존 Hermes venv `python scripts/scan_private.py`, 종료 1. 다른 작업 `HEJO-DEADLINE-CLOSE-20261122/impl-report.md` 97·109행 및 `verdict.md` 127·146행의 절대 경로 4건이 보고됐다. 이번 TASK-02·03 파일에서는 지적이 없었다. 범위 밖 동시 작업 문서는 수정하지 않았다. 로그 `.build/telegram-evidence/private-stop.log`. 전체 검사 통과로 보고하지 않는다.
 - TASK-02 전체 커밋: `53acb8e4ee5c4b79aa01e23320851a0c62648092`. 중단 시 다른 작업 커밋이 더해진 HEAD는 `df79b7f6ea2b82ee5ad053b8ff6e50d9fadfd533`이었다. 이 작업의 미커밋 제품·시험은 앞서 지정한 두 파일뿐이다.
+
+## 보완 1 / TASK-03 — 토픽·수신
+
+- 받은 보완: 판정 1차와 `8148ca4792914f721f9ee4623e2d09f58dd1c5d5`의 수락 명세 3판. HT-B01은 시험 오류로 해소됐으며 default 표시 이름 Main, 토픽 4개로 이식했다. spec·design·시험 명세는 수정하지 않았다.
+- 구현: 직렬 작업자·연결 감시가 활성 전환과 방 레코드에서 토픽을 동기화한다. `_bot`의 네 Bot API만 호출하며 예외 종류만 로그한다. 수신은 현재 표지의 답장/토픽을 판정하고 첨부를 기존 파일 대기에 넣어 기존 receive 한 경로로 보낸다. 중복은 첨부 대기보다 먼저 판정한다.
+- 짝짓기 경합 관찰 처리: 금고 잠금 안에서 소유 판정을 재확인한다. 이미 쓰인 코드면 원래 처리기에 동일 이벤트를 한 번 전달한다. 최종 차지한 경우에만 `_accept_update`를 호출한다. 판정 후 코드 사용을 주입한 시험으로 무응답·중복 차지가 없음을 확인했다.
+- 시험: 코드/설정 시험과 토픽 생명주기, 실패 로그 비노출, 수신·멘션·답장·삭제 스레드·첨부·중복·무소유 통과를 검사한다. 송신 대응 답장·새 직원 발신은 TASK-04에서 이어 검사한다.
+- 명령: 기존 `.build/connections-env.sh` 환경으로 Hermes venv `python -m pytest tests/acceptance/test_telegram.py -q -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function --basetemp=/tmp/ht03r`. 종료 0, **21 passed**, 로그 `.build/telegram-evidence/task03r.log`, 증거 수준 2. 중간 실행의 삭제 스레드 시험 입력은 기존 public API의 room 필드를 사용하도록 바로잡았다(기대값 불변).
+- 설계 차이 없음. 감시 간격 0.25초·작업자 방식은 위임된 내부 세부다. 위험·롤백·금지 범위는 기준 절과 같다. TASK-04~06과 전체·mutation 검사는 남았다.

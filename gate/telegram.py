@@ -38,10 +38,8 @@ def attach_telegram(native, adapter):
         if not claimed:
             return await original(event)
         try:
-            accept = getattr(adapter, '_accept_update', None)
-            if accept:
-                accept()
-            return await bridge.receive_external(event)
+            if await bridge.receive_external(event) is False:
+                return await original(event)
         except Exception as exc:
             log.warning('telegram_receive_failed kind=%s', type(exc).__name__)
             await bridge.notice(event, '지금은 받지 못했어요')
@@ -58,6 +56,10 @@ class Telegram:
         self.settings_store.path = Path(home) / 'shared' / 'hejo' / 'telegram'
         self.topic_problem = False
         self.settle_seconds = SETTLE_SECONDS
+        self._topic_lock = asyncio.Lock()
+        self._sync_requested = asyncio.Event()
+        self._sync_task = asyncio.create_task(self._sync_worker())
+        self._connection_task = asyncio.create_task(self._watch_connection())
 
     def _private(self):
         try:
@@ -110,6 +112,7 @@ class Telegram:
             await self.adapter.server.error('unexpected_frame', ref, conn)
             return
         if kind == 'telegram':
+            self.request_sync()
             await conn.send(self.status(ref))
             return
         if kind == 'telegram_pair':
@@ -135,6 +138,7 @@ class Telegram:
         with self.settings_store.locked():
             self.settings_store.write('settings.json', settings)
         await self.publish(conn, ref)
+        self.request_sync()
 
     def pending_code(self, event, private):
         code = private.get('code')
@@ -168,6 +172,9 @@ class Telegram:
 
     async def receive_external(self, event):
         with self.vault.locked():
+            # Recheck ownership while consuming: another admission may have used the code.
+            if not self.claims_external(event):
+                return False
             private = self.private()
             pairing = self.pending_code(event, private)
             if pairing:
@@ -175,12 +182,148 @@ class Telegram:
                                    'user_id': event.source.user_id, 'tag': secrets.token_hex(4), 'paired_at': self.clock()}
                 private['code']['used'] = True
                 self.vault.write('telegram.json', private)
+        accept = getattr(_telegram, '_accept_update', None)
+        if accept:
+            accept()
         if pairing:
             await self.notice(event, '연결됐어요')
             await self.publish()
+            self.request_sync()
+            return
+        # Duplicate admission precedes file staging as well as receive().
+        tag = self.private()['pair']['tag']
+        client_id = f'telegram:{tag}:{event.message_id}'
+        if any(row.get('client_msg_id') == client_id for row in self.adapter.journal.records):
+            return
+        reply_to = event.reply_to_message_id
+        raw_reply = getattr(event.raw_message, 'reply_to_message', None)
+        if reply_to == event.source.thread_id or getattr(raw_reply, 'forum_topic_created', None):
+            reply_to = None
+        target = self.reply_thread(reply_to, tag)
+        if target:
+            room, thread = target
+        else:
+            topics = self.topics(tag)['topics']
+            room = next((room for room, entry in topics.items()
+                         if entry['topic'] == event.source.thread_id and not entry['closed']
+                         and room in self.rooms()), None)
+            thread = None
+        if room is None:
+            await self.notice(event, '앱에서 만든 방 토픽에 써 주세요')
+            return
+        text = (getattr(event.raw_message, 'caption', None) or '') if any(event.media_text_inlined or []) else event.text
+        from .server import LIMITS
+        if not event.message_id or len(text.encode()) > LIMITS['text_bytes']:
+            await self.notice(event, '지금은 받지 못했어요')
+            return
+        group = self.adapter.journal.rooms.get(room)
+        employee = group['lead'] if group else room
+        files = []
+        for path in event.media_urls:
+            staged = await self.adapter.files.copy(employee, path)
+            files.append(staged['file_id'])
+        frame = {'employee': employee, 'thread': thread, 'text': text, 'client_msg_id': client_id,
+                 'files': files, **({'room': room} if group else {})}
+        reply = ExternalReply(self, event)
+        received = await self.adapter.receive(frame, reply)
+        if not received and not reply.failed:
+            await reply.send({'type': 'error'})
+
+    def rooms(self):
+        return {**{e['id']: e['name'] for e in self.adapter.employees()},
+                **{room['id']: room['title'] for room in self.adapter.journal.rooms.values()
+                   if not room.get('archived') and room['id'] not in self.adapter.journal.deleted_rooms}}
+
+    def topics(self, tag):
+        empty = {'tag': tag, 'topics': {}}
+        try:
+            value = self.settings_store.read('topics.json', empty)
+            if value['tag'] != tag:
+                return empty
+            entries = value['topics']
+            if not isinstance(entries, dict) or not all(isinstance(room, str) and isinstance(entry, dict)
+                    and isinstance(entry['topic'], str) and isinstance(entry['name'], str)
+                    and type(entry['closed']) is bool for room, entry in entries.items()):
+                return empty
+            return value
+        except (OSError, ValueError, TypeError, KeyError):
+            return empty
+
+    def request_sync(self):
+        if self.active():
+            self._sync_requested.set()
+
+    async def _watch_connection(self):
+        previous = None
+        while True:
+            state = (platform_ready(), self.active())
+            if state != previous:
+                previous = state
+                await self.publish()
+                self.request_sync()
+            await asyncio.sleep(.25)
+
+    async def _sync_worker(self):
+        while True:
+            await self._sync_requested.wait()
+            self._sync_requested.clear()
+            await self.sync_topics()
+
+    async def sync_topics(self):
+        async with self._topic_lock:
+            if not self.active():
+                return
+            pair = self.private()['pair']
+            tag = pair['tag']
+            value = self.topics(tag)
+            desired = self.rooms()
+            problem = False
+            for room in dict.fromkeys([*desired, *value['topics']]):
+                if not self.active() or self.private()['pair']['tag'] != tag:
+                    return
+                entry = value['topics'].get(room)
+                try:
+                    bot = _telegram._bot
+                    if entry is None:
+                        result = await bot.create_forum_topic(chat_id=pair['chat_id'], name=desired[room])
+                        entry = {'topic': str(result.message_thread_id), 'name': desired[room], 'closed': False}
+                    else:
+                        args = {'chat_id': pair['chat_id'], 'message_thread_id': entry['topic']}
+                        closed = room not in desired
+                        if not closed and entry['name'] != desired[room]:
+                            await bot.edit_forum_topic(**args, name=desired[room])
+                            entry['name'] = desired[room]
+                        if entry['closed'] != closed:
+                            await (bot.close_forum_topic if closed else bot.reopen_forum_topic)(**args)
+                            entry['closed'] = closed
+                    # Pair replacement or disabling during I/O must not publish stale state.
+                    if not self.active() or self.private()['pair']['tag'] != tag:
+                        return
+                    value['topics'][room] = entry
+                    with self.settings_store.locked():
+                        self.settings_store.write('topics.json', value)
+                except Exception as exc:
+                    log.warning('telegram_topic_failed kind=%s', type(exc).__name__)
+                    problem = True
+            if self.topic_problem != problem:
+                self.topic_problem = problem
+                await self.publish()
+
+    def reply_thread(self, tg_id, tag):
+        if not tg_id:
+            return None
+        journal = self.adapter.journal
+        msg_id = next((row['msg_id'] for row in journal.records
+                       if row.get('client_msg_id') == f'telegram:{tag}:{tg_id}'), None)
+        msg_id = msg_id or getattr(self, 'sent', {}).get((tag, tg_id))
+        key = journal.message_threads.get(msg_id)
+        if (not key or not journal.message(msg_id) or key in journal.deleted_threads or key[0] not in self.rooms()):
+            return None
+        return key
 
     def recorded(self, row):
-        pass
+        if row['type'] in {'room', 'room_delete'}:
+            self.request_sync()
 
     def wake(self, key):
         pass
@@ -189,4 +332,19 @@ class Telegram:
         pass
 
     async def close(self):
-        pass
+        tasks = (self._sync_task, self._connection_task)
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+
+class ExternalReply:
+    features = {'rooms'}
+
+    def __init__(self, bridge, event):
+        self.bridge, self.event, self.failed = bridge, event, False
+
+    async def send(self, frame):
+        if frame['type'] == 'error':
+            self.failed = True
+            await self.bridge.notice(self.event, '지금은 받지 못했어요')
