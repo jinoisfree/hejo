@@ -17,7 +17,7 @@
 | TASK-09a | 계획 담당: 일 넘기기(프로젝트 허브) 흐름 조사, design 4.5 보완 | SM-08.AC-05 | 계획 문서 | — | 문서 | 완료(2026-11-22). 사장 결정 H-1 (나): 이번 작업 범위 밖 |
 | TASK-09 | (범위에서 뺌) 일 넘기기·프로젝트 허브의 hejo 대응 | — | 없음(프로젝트 허브 코드를 고치지 않는다) | — | — | **범위 밖(사장 결정 2026-11-22, design 4.5). 다음 작업** |
 | TASK-10 | 서버 적용과 전환: 코드 적용(동작 불변) → 하루 회귀 관찰 → 대조표·방 표 사장 확인 → 전환(design 7절) → 확인 | SM-04, SM-10, SM-11 / M1~M5, M7 | `TK`, `CP`, 공용 릴리스(문), `<HOME>/owner/policy.yaml`, `<HOME>/owner/vault.yaml`, `<HOME>/config.yaml`, 조립 결과, `HD`(`./sync`·`./airport-check`·커밋) | TASK-02~08, 사장 승인 | 고위험(운영) · 3·4 | 8판 6단계 적용: 반복 정책 해석 수정(577b3656), AT-SM-73·1692+822 회귀 통과. 실제 감시 6.215초·4.349초 각 종료 0. 실패 받을 곳 1건·예약 원본14건 정리, 예약 조립 통과. 앱 사용자 확인·새 DM 게시1건 확인, 초안은 미확인. 운영56경로 미커밋, airport-check는 기존 지시서 불일치1건만 실패. [impl-report](impl-report.md) 참조 |
-| TASK-11 | 다음 날 관찰(M6), 현재 명세 반영(`ARCHITECTURE.md` 3·4·7절의 입구·방 대상·Slack 은퇴 단계, `gate/README.md`, `HD` 문서) | SM-11.AC-02·05 / M6 | `H/docs/ARCHITECTURE.md`, `HD` 문서 | TASK-10 | 문서 | 대기 |
+| TASK-11 | 다음 날 관찰(M6), 현재 명세 반영(`ARCHITECTURE.md` 3·4·7절의 입구·방 대상·Slack 은퇴 단계, `gate/README.md`, `HD` 문서) | SM-11.AC-02·05 / M6 | `H/docs/ARCHITECTURE.md`, `HD` 문서 | TASK-10 | 문서 | 9판 7단계 문서 반영·자체 검사 완료. 다음 날 관찰(M6)은 계획 담당 확인 대기. 운영 구조 문서 6a2c30c9, 공개 문서 커밋은 impl-report 참조 |
 
 ## 병렬 갈래
 
