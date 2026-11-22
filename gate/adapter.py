@@ -48,7 +48,7 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
 
     def __init__(self, config):
         super().__init__(config, Platform("hejo"))
-        self.imessage = None
+        self.telegram = None
         self.journal = None
         self.files = None
         self._file_cleanup_task = None
@@ -119,8 +119,8 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             self.files = FileStore(get_hermes_home(), self.journal)
             self.files.cleanup()
             self.auth = AuthStore(get_hermes_home())
-            from .imessage import IMessage
-            self.imessage = IMessage(self, get_hermes_home())
+            from .telegram import Telegram
+            self.telegram = Telegram(self, get_hermes_home())
             self.server = GateServer(self)
             await self._finish_thread_deletions()
             self.cleanup_rooms()
@@ -143,7 +143,7 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
         return True
 
     def claims_external(self, event):
-        return bool(self.imessage and self.imessage.claims_external(event))
+        return bool(self.telegram and self.telegram.claims_external(event))
 
     async def _register(self):
         """Tell the hub which port this member's gate serves; retried until the hub answers."""
@@ -170,8 +170,8 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
         if self.forwarder:
             self._mark_disconnected()
             return
-        if self.imessage:
-            await self.imessage.close()
+        if self.telegram:
+            await self.telegram.close()
         if self._register_task:
             self._register_task.cancel()
             await asyncio.gather(self._register_task, return_exceptions=True)
@@ -209,8 +209,8 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
                 await self.server.error("journal_write_failed")
                 raise
             await self.server.broadcast(saved)
-        if self.imessage:
-            self.imessage.recorded(saved)
+        if self.telegram:
+            self.telegram.recorded(saved)
         return saved
 
     def _validate_frame(self, frame):
@@ -797,8 +797,8 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
                     continue
                 await self.server.broadcast({"v": 1, "type": "typing", "employee": employee,
                                              "thread": thread, "on": True, "ttl_seconds": 6, **({"room":room} if room else {})})
-            if self.imessage:
-                self.imessage.send_typing((room or chat_id, thread))
+            if self.telegram:
+                self.telegram.send_typing((room or chat_id, thread))
 
     async def stop_typing(self, chat_id, metadata=None):
         if self.forwarder:
@@ -823,11 +823,10 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
                     log.warning("thread_deleted_drop")
                     continue
                 await self.server.broadcast({"v": 1, "type": "typing", "employee": employee, "thread": thread, "on": False, **({"room":room} if room else {})})
-        if self.imessage:
+        if self.telegram:
             room = chat_id[5:] if chat_id.startswith("room:") else None
             for _, thread in sorted(stopping):
-                self.imessage.wake((room or chat_id, thread))
-                self.imessage.stop_typing((room or chat_id, thread))
+                self.telegram.wake((room or chat_id, thread))
 
     async def get_chat_info(self, chat_id):
         if self.forwarder:

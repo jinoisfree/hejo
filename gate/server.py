@@ -380,6 +380,11 @@ class GateServer:
             raise FrameError("invalid_frame") from None
         ref = frame.get("id") if isinstance(frame, dict) else None
         ref = ref if isinstance(ref, str) else None
+        # Removed feature frames are unknown, as are any other unregistered types.
+        kinds = {SCHEMA['$defs'][item['$ref'].split('/')[-1]]['properties']['type']['const']
+                 for item in SCHEMA['$defs']['clientFrame']['oneOf']}
+        if isinstance(frame, dict) and isinstance(frame.get('type'), str) and frame['type'] not in kinds:
+            raise FrameError("unexpected_frame", ref)
         if not CLIENT_VALIDATOR.is_valid(frame):
             raise FrameError("invalid_frame", ref)
         if len(frame.get("text", "").encode()) > LIMITS["text_bytes"]:
@@ -471,8 +476,8 @@ class GateServer:
                     await self.error(str(exc), getattr(exc, "ref", None), conn)
                     continue
                 try:
-                    if frame["type"] in {"imessage", "imessage_pair", "imessage_unpair", "imessage_save"}:
-                        await self.adapter.imessage.command(frame, conn)
+                    if frame["type"] in {"telegram", "telegram_pair", "telegram_unpair", "telegram_save"}:
+                        await self.adapter.telegram.command(frame, conn)
                     elif frame["type"] == "roster":
                         await conn.send({"v": 1, "type": "roster", "ref": frame["id"],
                                          "employees": self.adapter.employees()})
