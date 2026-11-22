@@ -1,6 +1,10 @@
 import AppKit
 
 @MainActor final class TodoDrawerView: NSView {
+    private static let bandHeight:CGFloat=44, inset:CGFloat=14
+    private let heading=NSView(), filters=NSView(), filterTrack=ComposerModeTrack()
+    private let title=NSTextField(labelWithString:"")
+    private lazy var close=TodoDrawerButton("‹ 접기"){[weak self] in self?.onClose?()}
     private let scroll=NSScrollView(), stack=NSStackView()
     private var appearanceObserver: NSObjectProtocol?
     var onClose: (() -> Void)?
@@ -16,9 +20,12 @@ import AppKit
     private(set) var selectedID: String?
     override init(frame: NSRect) {
         super.init(frame:frame);wantsLayer=true;layer?.masksToBounds=true
+        title.font = .systemFont(ofSize:16,weight:.semibold)
+        heading.addSubview(title);heading.addSubview(close);filters.addSubview(filterTrack)
+        addSubview(heading);addSubview(filters)
         scroll.drawsBackground=false;scroll.hasVerticalScroller=true;scroll.autohidesScrollers=true
         stack.orientation = .vertical;stack.alignment = .leading;stack.spacing=10
-        stack.edgeInsets=NSEdgeInsets(top:14,left:14,bottom:14,right:14)
+        stack.edgeInsets=NSEdgeInsets(top:Self.inset,left:Self.inset,bottom:Self.inset,right:Self.inset)
         scroll.documentView=stack;addSubview(scroll)
         footer.orientation = .horizontal;footer.edgeInsets=NSEdgeInsets(top:6,left:14,bottom:6,right:14);footer.isHidden=true;addSubview(footer)
         setAccessibilityLabel("처리할 일")
@@ -36,31 +43,45 @@ import AppKit
     override func layout(){
         super.layout()
         let footerHeight:CGFloat=footer.isHidden ? 0:32
+        let width=PetController.drawerWidth, band=Self.bandHeight
+        heading.frame=CGRect(x:0,y:bounds.height-band,width:width,height:band)
+        filters.frame=CGRect(x:0,y:bounds.height-2*band,width:width,height:band)
+        let closeSize=close.fittingSize
+        close.frame=CGRect(x:width-Self.inset-closeSize.width,y:(band-closeSize.height)/2,width:closeSize.width,height:closeSize.height)
+        title.frame=CGRect(x:Self.inset,y:(band-20)/2,width:max(0,close.frame.minX-Self.inset-8),height:20)
+        filterTrack.frame=CGRect(x:Self.inset,y:(band-ComposerModeTrack.height)/2,width:width-2*Self.inset,height:ComposerModeTrack.height)
+        let buttons=filterTrack.subviews.compactMap{$0 as? ComposerButton}
+        if !buttons.isEmpty {
+            let segmentWidth=(filterTrack.bounds.width-2*ComposerModeTrack.inset)/CGFloat(buttons.count)
+            for (index,button) in buttons.enumerated() {button.frame=ComposerModeTrack.segment(in:filterTrack.bounds,offset:CGFloat(index)*segmentWidth,width:segmentWidth)}
+        }
         footer.frame=CGRect(x:0,y:0,width:PetController.drawerWidth,height:footerHeight)
-        scroll.frame=CGRect(x:0,y:footerHeight,width:PetController.drawerWidth,height:max(0,bounds.height-footerHeight))
+        scroll.frame=CGRect(x:0,y:footerHeight,width:width,height:max(0,bounds.height-2*band-footerHeight))
         stack.frame.size.width=PetController.drawerWidth
         stack.layoutSubtreeIfNeeded()
         stack.frame.size.height=max(scroll.frame.height,stack.fittingSize.height)
+    }
+    override func draw(_ dirtyRect:NSRect) {
+        // ConversationView already draws the common title divider across every column.
+        SidebarTone.primary(0.1).setFill()
+        CGRect(x:0,y:bounds.height-2*Self.bandHeight,width:PetController.drawerWidth,height:1).fill()
     }
     func show(_ value:TodoDrawerModel.Snapshot, filter:TodoDrawerModel.Filter, selected:String?) {
         selectedID=selected
         guard value != previous || filter != previousFilter || selected != previousSelection else{return}
         previous=value;previousFilter=filter;previousSelection=selected
         for view in stack.arrangedSubviews {stack.removeArrangedSubview(view);view.removeFromSuperview()}
-        func add(_ view:NSView){stack.addArrangedSubview(view);view.widthAnchor.constraint(equalTo:stack.widthAnchor,constant:-28).isActive=true}
-        let heading=NSStackView();heading.orientation = .horizontal
-        let title=NSTextField(labelWithString:"처리할 일  \(value.total)");title.font = .systemFont(ofSize:16,weight:.semibold)
-        heading.addArrangedSubview(title);heading.addArrangedSubview(NSView())
-        let close=TodoDrawerButton("‹ 접기"){[weak self] in self?.onClose?()};heading.addArrangedSubview(close);add(heading)
-        let chips=NSStackView();chips.spacing=3
+        func add(_ view:NSView){stack.addArrangedSubview(view);view.widthAnchor.constraint(equalTo:stack.widthAnchor,constant:-2*Self.inset).isActive=true}
+        title.stringValue="처리할 일  \(value.total)"
+        for button in filterTrack.subviews {button.removeFromSuperview()}
         for kind in TodoDrawerModel.Filter.allCases where kind != .deadline || value.available {
-            let name=kind == .all ? kind.rawValue:"\(kind.rawValue) \(value.counts[kind] ?? 0)"
-            let button=TodoDrawerButton(name){[weak self] in self?.onFilter?(kind)}
-            button.font = .systemFont(ofSize:10,weight:kind == filter ? .bold:.regular)
-            button.contentTintColor=kind == filter ? .controlAccentColor:.secondaryLabelColor
-            chips.addArrangedSubview(button)
+            let count=kind == .all ? value.total:value.counts[kind] ?? 0
+            let button=ComposerButton(title:"\(kind.rawValue) \(count)",point:ComposerModeTrack.point)
+            button.mode=true;button.chosen=kind == filter;button.state=button.chosen ? .on:.off
+            button.setAccessibilitySelected(button.chosen)
+            button.invoke={[weak self] in self?.onFilter?(kind)}
+            filterTrack.addSubview(button)
         }
-        add(chips)
         for warning in [value.warning,value.closeWarning].compactMap({$0}) {
             let line=NSTextField(wrappingLabelWithString:warning);line.font = .systemFont(ofSize:11);line.textColor = .secondaryLabelColor;add(line)
         }

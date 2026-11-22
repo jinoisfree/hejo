@@ -84,8 +84,8 @@ import UniformTypeIdentifiers
     private let handle=SidebarHandle()
     let notice=NSTextField(wrappingLabelWithString:""),noticeIcon=NSImageView()
     private let attachments=NSStackView(), attachmentScroll=NSScrollView()
-    private let replyButton=ComposerButton(title:"답글"), newButton=ComposerButton(title:"새 글"), attachButton=ComposerButton(title:"첨부",symbol:"plus",point:20,circle:true)
-    private let sendButton=ComposerButton(title:"보내기",symbol:"arrow.up",point:21,circle:true), modeBackground=NSView(), inputBackground=NSView()
+    private let replyButton=ComposerButton(title:"답글",point:ComposerModeTrack.point), newButton=ComposerButton(title:"새 글",point:ComposerModeTrack.point), attachButton=ComposerButton(title:"첨부",symbol:"plus",point:20,circle:true)
+    private let sendButton=ComposerButton(title:"보내기",symbol:"arrow.up",point:21,circle:true), modeBackground=ComposerModeTrack(), inputBackground=NSView()
     private let draftHint=PassiveLabel(labelWithString:"")
     private let formatting=DraftFormatController(), drop=AttachmentDropView(frame:.zero)
     private let clipboard: ClipboardAttachments
@@ -163,7 +163,6 @@ import UniformTypeIdentifiers
         replyButton.mode=true;newButton.mode=true
         replyButton.invoke={ [weak self] in self?.writeReply() }; newButton.invoke={ [weak self] in self?.createThread() }
         attachButton.invoke={ [weak self] in self?.attach() }; sendButton.invoke={ [weak self] in self?.send() }; sendButton.chosen=true
-        modeBackground.wantsLayer=true; modeBackground.layer?.cornerRadius=12
         inputBackground.wantsLayer=true; inputBackground.layer?.borderWidth=1
         editor.editor.delegate=self; editor.editor.formattingController=formatting; formatting.editor=editor.editor
         editor.editor.onSubmit={ [weak self] in self?.send() }; editor.editor.onPaste={ [weak self] in self?.paste(.general) ?? false }
@@ -731,12 +730,12 @@ import UniformTypeIdentifiers
         failureBar.frame=CGRect(x:x+10,y:bottom+noticeHeight+10+38,width:right-20,height:failureHeight)
         let top=bottom+noticeHeight+10
         let faceHeight:CGFloat=32,rowHeight:CGFloat=32
-        let replyWidth=(replyButton.title as NSString).size(withAttributes:[.font:NSFont.systemFont(ofSize:11,weight:replyMode ? .semibold:.regular)]).width+20
-        let newWidth=(newButton.title as NSString).size(withAttributes:[.font:NSFont.systemFont(ofSize:11,weight:replyMode ? .regular:.semibold)]).width+20
-        let buttonHeight=(replyButton.title as NSString).size(withAttributes:[.font:NSFont.systemFont(ofSize:11)]).height+6
-        let modeHeight=buttonHeight+4,modeWidth=replyWidth+newWidth+4,modeY=top+(rowHeight-modeHeight)/2
+        let replyWidth=(replyButton.title as NSString).size(withAttributes:[.font:NSFont.systemFont(ofSize:ComposerModeTrack.point,weight:replyMode ? .semibold:.regular)]).width+20
+        let newWidth=(newButton.title as NSString).size(withAttributes:[.font:NSFont.systemFont(ofSize:ComposerModeTrack.point,weight:replyMode ? .regular:.semibold)]).width+20
+        let modeHeight=ComposerModeTrack.height,modeWidth=replyWidth+newWidth+2*ComposerModeTrack.inset,modeY=top+(rowHeight-modeHeight)/2
         modeBackground.frame=CGRect(x:x+10,y:modeY,width:modeWidth,height:modeHeight)
-        replyButton.frame=CGRect(x:x+12,y:modeY+2,width:replyWidth,height:buttonHeight);newButton.frame=CGRect(x:x+12+replyWidth,y:modeY+2,width:newWidth,height:buttonHeight)
+        replyButton.frame=ComposerModeTrack.segment(in:modeBackground.frame,offset:0,width:replyWidth)
+        newButton.frame=ComposerModeTrack.segment(in:modeBackground.frame,offset:replyWidth,width:newWidth)
         let natural=CGFloat(composerMembers.count)*34,faceWidth=min(natural,max(0,right-20-modeWidth-8-4))
         composerFaceScroll.frame=CGRect(x:w-10-faceWidth,y:top+(rowHeight-faceHeight)/2,width:faceWidth,height:faceHeight)
         composerFaces.frame=CGRect(x:0,y:0,width:natural,height:faceHeight)
@@ -751,7 +750,6 @@ import UniformTypeIdentifiers
         searchResults.frame=history.frame
         layoutSidebarRails()
         drop.frame=CGRect(x:x,y:0,width:right,height:h)
-        modeBackground.layer?.backgroundColor=NSColor.labelColor.withAlphaComponent(0.1).cgColor
         inputBackground.layer?.backgroundColor=NSColor.labelColor.withAlphaComponent(0.04).cgColor; inputBackground.layer?.borderColor=NSColor.labelColor.withAlphaComponent(0.18).cgColor
     }
     override func draw(_ dirtyRect:NSRect) {

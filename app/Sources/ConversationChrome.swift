@@ -256,6 +256,19 @@ final class FileChip: NSButton {
 }
 final class PassiveLabel: NSTextField { override func hitTest(_ point:NSPoint) -> NSView? { nil } }
 /// SwiftUI's capsule/circle controls translated into native drawing, including its hit area.
+/// Shared track and segment geometry for composer modes and drawer filters.
+final class ComposerModeTrack: NSView {
+    static let inset:CGFloat=2, point:CGFloat=11
+    static var height:CGFloat { ("답글" as NSString).size(withAttributes:[.font:NSFont.systemFont(ofSize:point)]).height+6+2*inset }
+    static func segment(in track:CGRect,offset:CGFloat,width:CGFloat)->CGRect {
+        CGRect(x:track.minX+inset+offset,y:track.minY+inset,width:width,height:track.height-2*inset)
+    }
+    override func draw(_ dirtyRect:NSRect) {
+        NSColor.labelColor.withAlphaComponent(0.1).setFill()
+        NSBezierPath(roundedRect:bounds,xRadius:bounds.height/2,yRadius:bounds.height/2).fill()
+    }
+}
+
 final class ComposerButton: NSButton {
     var invoke:(() -> Void)?, chosen=false,mode=false
     var selection:CGFloat?

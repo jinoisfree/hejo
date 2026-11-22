@@ -126,6 +126,7 @@ private final class InlineAccentReference: NSView {
     print("AT-DI-01..14,31 INLINE PLACEMENT PASS")
     try drawerInlineColorTests(pet:pet,view:view,controller:controller,store:store)
     try drawerInlineLogoTests(resourceDirectory:resourceDirectory)
+    try drawerHeaderTests(resourceDirectory:resourceDirectory)
 }
 
 @MainActor private func drawerInlineColorTests(pet:PetController,view:ConversationView,controller:ConversationController,store:LocalStore) throws {
