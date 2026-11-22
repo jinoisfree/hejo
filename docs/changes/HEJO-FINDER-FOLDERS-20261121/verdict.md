@@ -490,3 +490,27 @@
    - AT-TD-33 새 단언: 패널 오른쪽 끝이 +shift, 대화 영역이 shift만큼 평행 이동, 칸이 대화 영역 바깥, 닫으면 처음 프레임으로 복원.
 5. **지적:** 없음.
 6. **다음:** 23차 지시(TASK-17, 0.2.5·빌드 7 공개 후보).
+
+## TASK-17 검토 때 추가 확인 (2026-11-22, HEJO-POST-GROUP 세션 요청)
+
+사장 결정으로 HEJO-POST-GROUP(main aacf168, 판정 완료 3519fdb)이 0.2.5에 함께 실린다. aacf168은 main 조상이다(확인함). TASK-17 검토 때 공개 후보 전체 시험 로그에서 "AT-PG-01…11,13 PASS" 줄도 인용한다. 판정서: `docs/changes/HEJO-POST-GROUP-20261122/verdict.md`.
+
+## 검증 판정 23차: TASK-17 0.2.5(빌드 7) 공개 후보 (2026-11-22)
+
+판정: **완료(공개 후보 준비)**, 조건: 교차 모델. 공개·M12는 남음.
+
+직접 확인:
+- 버전 커밋 666726c(부모 031a14f): `app/Resources/Info.plist` 0.2.4·6 → 0.2.5·7, `tests/acceptance/test_ship.py` 현재 버전 단언 한 줄. 제품 동작 코드 변경 없음. 그 뒤 main 변경은 문서(impl-report·verdict)뿐.
+- 새 public 47a424564d4067c697b17b23aedcc0af9ab160ee: 부모 eb5e62a(0.2.4 public), 트리 9d4de757 = 666726c 트리. 원격 github/main은 아직 eb5e62a라 빨리 감기 푸시 가능.
+- 조상: 3695d5e(TASK-16), aacf168(HEJO-POST-GROUP) 모두 main 조상.
+- 전체 시험(public 트리, 짧은 임시 경로): 종료 0, 434 passed, APP_TEST_OK. 로그의 FAIL 글자는 입력기 서버 연결 소음(TSMSendMessageToUIServer)뿐. 인용: "AT-FF-90/92/93 PLACEMENT BOUNDARIES PASS", "AT-FF-91 NATIVE OUTSIDE AND RESTORE PASS", "AT-FF-40/41 dark·light PIXEL PASS alpha=1.0", "AT-TD-20..42 MODEL, INPUT, WINDOW, REQUEST PASS"(AT-TD-33·35 포함 묶음), "AT-PG-01...11,13 PASS"(HEJO-POST-GROUP 동봉 확인).
+- 준비물: `.build/release-0.2.5/hejo-0.2.5-arm64.zip` SHA256 4e2aefec…5336(직접 재계산 일치). 압축 해제본 codesign --verify --deep --strict 직접 재실행 종료 0, 버전 0.2.5·7, 업데이트 공개 키가 0.2.4와 같음(직접 대조). Sparkle 서명 검증 종료 0.
+- 문 차이: 공용 릴리스 e68ae82 대비 실행 파일 차이는 `gate/README.md`뿐(나머지는 배포에서 빠지는 시험 파일). 문 재설치·재시작 불필요.
+
+설계 적합성(4.2): 0.2.4와 같은 공개 절차(design 7.3), 제품 코드 무변경, 개인 이력 없는 public 한 커밋 — 적합.
+
+남은 일: 사장 GitHub 푸시(47a4245 → github/main) → publish → 사장 M12 → TASK-04 → 운영 저장소 커밋 원격 포함 확인.
+
+## 0.2.5 공개 기록 (2026-11-22)
+
+사장이 public 47a424564d4067c697b17b23aedcc0af9ab160ee를 github/main에 푸시(ls-remote로 확인), 사장 지시("공개 너가 실행해")로 계획 담당이 `install/hejo-ship publish --approve-commit 47a4245… --prepared .build/release-0.2.5/prepared.json` 실행 → 종료 0, "PUBLISHED v0.2.5". 릴리스 v0.2.5: 2026-11-22T13:20:27Z, 초안 아님, 대상 47a4245, 첨부 appcast.xml·hejo-0.2.5-arm64.zip. 문 재설치·재시작 없음(문 실행 차이 README뿐). 남은 일: 사장 M12.

@@ -23,32 +23,104 @@ struct ConversationFailedSend: Identifiable {
     private var drawerChatExpanded = false
     var drawerVisible: Bool { drawerOpen && drawerChatExpanded }
     private var deadlineRequestedAt: Date?
-    private var deadlineRefs = Set<String>()
+    /// List requests carry an increasing number; responses older than the last applied one are dropped.
+    private var deadlineRefs=[String:Int](), listSeq=0, lastAppliedSeq=0
     var deadlineSender: (([String:Any]) async throws -> Void)?
-    var drawerSnapshot: TodoDrawerModel.Snapshot { todoDrawer.snapshot(model,filter:drawerFilter,now:clock()) }
+    // Owner close of a deadline card. Memory only: a close waits five seconds (undo), is sent,
+    // then the card stays hidden until a list requested after the success confirms the ledger.
+    struct PendingClose { let cardID: String, ref: TodoDrawerModel.DeadlineRef, title: String, outcome: String, sendAt: Date }
+    private struct InFlightClose { let id: String, employee: String, timeoutAt: Date }
+    static let closeUndoSeconds: TimeInterval=5, closeResponseSeconds: TimeInterval=75
+    private(set) var pendingClose: PendingClose?
+    private var closesInFlight=[String:InFlightClose]()          // card id -> request
+    private var closesConfirming=[String:(seq:Int,employee:String)]()
+    private(set) var closeFailed=false
+    var hiddenDeadlineCards: Set<String> { Set(closesInFlight.keys).union(closesConfirming.keys).union(pendingClose.map{[$0.cardID]} ?? []) }
+    var drawerSnapshot: TodoDrawerModel.Snapshot {
+        var value=todoDrawer.snapshot(model,filter:drawerFilter,now:clock(),hidden:hiddenDeadlineCards)
+        value.undoTitle=pendingClose?.title;value.closeFailed=closeFailed
+        return value
+    }
     func setDrawerState(open: Bool, chatExpanded: Bool) {
         guard drawerOpen != open || drawerChatExpanded != chatExpanded else{return}
         let wasVisible=drawerVisible
         drawerOpen=open;drawerChatExpanded=chatExpanded
-        if drawerVisible && !wasVisible { requestDeadlines() }
+        if drawerVisible && !wasVisible { closeFailed=false;requestDeadlines() }
         notifyChange()
     }
     func pollDeadlines() {
+        pollDeadlineCloses()
         guard drawerVisible else{return}
         if deadlineRequestedAt.map({clock().timeIntervalSince($0)>=300}) ?? true {requestDeadlines()}
     }
-    func requestDeadlines() {
-        guard drawerVisible else{return}
+    /// `force` is the confirmation read after a close: it is asked even while the drawer is folded.
+    func requestDeadlines(force:Bool=false) {
+        guard drawerVisible || force else{return}
         deadlineRequestedAt=clock()
-        let ref=UUID().uuidString.lowercased();deadlineRefs.insert(ref)
+        let ref=UUID().uuidString.lowercased();listSeq+=1;deadlineRefs[ref]=listSeq
         let frame:[String:Any]=["v":1,"type":"deadlines","id":ref]
         Task { [weak self] in
             guard let self else{return}
-            guard self.drawerVisible else {self.deadlineRefs.remove(ref);return}
+            guard self.drawerVisible || force else {self.deadlineRefs[ref]=nil;return}
             do {if let sender=self.deadlineSender {try await sender(frame)}else{try await self.client.send(frame)}}
-            catch {self.deadlineRefs.remove(ref);self.todoDrawer.receive(["available":true,"reason":"command_failed"]);self.notifyChange()}
+            catch {self.deadlineRefs[ref]=nil;self.todoDrawer.receive(["available":true,"reason":"command_failed"]);self.notifyChange()}
         }
     }
+    func closeDeadline(_ card:TodoDrawerModel.Card,outcome:String) {
+        guard card.kind == .deadline,let ref=card.deadlineRef,!hiddenDeadlineCards.contains(card.id) else{return}
+        if let earlier=pendingClose {pendingClose=nil;sendClose(earlier)}
+        pendingClose=PendingClose(cardID:card.id,ref:ref,title:card.title,outcome:outcome,sendAt:clock().addingTimeInterval(Self.closeUndoSeconds))
+        notifyChange()
+    }
+    func undoClose() {
+        guard pendingClose != nil else{return}
+        pendingClose=nil;notifyChange()
+    }
+    /// Runs on the controller's half-second tick whether or not the drawer is visible.
+    func pollDeadlineCloses() {
+        let now=clock()
+        if let waiting=pendingClose,now>=waiting.sendAt {pendingClose=nil;sendClose(waiting);notifyChange()}
+        let lost=closesInFlight.filter{now>=$0.value.timeoutAt}.map(\.key)
+        for card in lost {failClose(card)}
+    }
+    private func sendClose(_ close:PendingClose) {
+        let ref=UUID().uuidString.lowercased()
+        closesInFlight[close.cardID]=InFlightClose(id:ref,employee:close.ref.employee,timeoutAt:clock().addingTimeInterval(Self.closeResponseSeconds))
+        let frame:[String:Any]=["v":1,"type":"deadline_close","id":ref,"employee":close.ref.employee,"deadline":close.ref.id,"outcome":close.outcome]
+        Task { [weak self] in
+            guard let self else{return}
+            do {if let sender=self.deadlineSender {try await sender(frame)}else{try await self.client.send(frame)}}
+            catch {if self.closesInFlight[close.cardID]?.id==ref {self.failClose(close.cardID)}}
+        }
+    }
+    private func failClose(_ card:String) {
+        guard closesInFlight.removeValue(forKey:card) != nil else{return}
+        closeFailed=true;notifyChange()
+    }
+    private func card(forCloseRef ref:String)->String? {closesInFlight.first{$0.value.id==ref}?.key}
+    private func receiveClose(_ frame:[String:Any]) {
+        guard let ref=frame["ref"] as? String,let card=card(forCloseRef:ref),let sent=closesInFlight[card] else{return}
+        guard frame["type"] as? String=="deadline_close_status",frame["ok"] as? Bool==true else{failClose(card);return}
+        closesInFlight[card]=nil;closeFailed=false
+        // The confirming list is the next one asked: nothing asked earlier may release this card.
+        closesConfirming[card]=(listSeq+1,sent.employee)
+        requestDeadlines(force:true)
+        notifyChange()
+    }
+    private func receiveDeadlineList(_ frame:[String:Any],number:Int) {
+        guard number>lastAppliedSeq else{return}   // an older answer arriving late never overrides a newer one
+        lastAppliedSeq=number
+        todoDrawer.receive(frame)
+        guard frame["type"] as? String != "error",frame["available"] as? Bool==true,frame["reason"]==nil else{return}
+        let failed=Set(frame["failed"] as? [String] ?? [])
+        for (card,wait) in closesConfirming where wait.seq<=number && !failed.contains(wait.employee) {closesConfirming[card]=nil}
+    }
+    /// App shutdown: a close still waiting for its five seconds is dropped, never sent.
+    func stop() {
+        pendingClose=nil;closesInFlight=[:];closesConfirming=[:];closeFailed=false
+        timer?.invalidate();timer=nil
+    }
+    private func resetCloses() {pendingClose=nil;closesInFlight=[:];closesConfirming=[:];closeFailed=false}
     let client: GateClient
     let model: ConversationModel
     let files: GateHTTP
@@ -316,9 +388,12 @@ struct ConversationFailedSend: Identifiable {
     deinit { timer?.invalidate() }
     func receive(_ frame: [String: Any]) {
         let kind=frame["type"] as? String
-        if kind=="deadlines_status" || (kind=="error" && (frame["ref"] as? String).map{deadlineRefs.contains($0)} == true) {
-            guard let ref=frame["ref"] as? String,deadlineRefs.remove(ref) != nil else{return}
-            todoDrawer.receive(frame);notifyChange();return
+        if kind=="deadline_close_status" || (kind=="error" && (frame["ref"] as? String).map{card(forCloseRef:$0) != nil} == true) {
+            receiveClose(frame);return
+        }
+        if kind=="deadlines_status" || (kind=="error" && (frame["ref"] as? String).map{deadlineRefs[$0] != nil} == true) {
+            guard let ref=frame["ref"] as? String,let number=deadlineRefs.removeValue(forKey:ref) else{return}
+            receiveDeadlineList(frame,number:number);notifyChange();return
         }
 
         if ["connections_status","connection_result"].contains(frame["type"] as? String ?? "") {onConnectionsFrame?(frame);return}
@@ -337,9 +412,14 @@ struct ConversationFailedSend: Identifiable {
             }
         }
         if frame["type"] as? String == "welcome", replicaAddress != client.store.settings.address {
-            todoDrawer.receive(["available":false]);prepareDraftAddress();model.resetReplica();newPostIDs=[];followup=nil;transferFailure=nil;bubbleProblems=[:];uploads=[:];activeUploads=[:];stoppedTargets=[:];interruptions=[:];branching=[:];deleting=[];confirmingDelete=[:];checklistSelections=[:];replicaAddress = client.store.settings.address
+            todoDrawer.receive(["available":false]);resetCloses();prepareDraftAddress();model.resetReplica();newPostIDs=[];followup=nil;transferFailure=nil;bubbleProblems=[:];uploads=[:];activeUploads=[:];stoppedTargets=[:];interruptions=[:];branching=[:];deleting=[];confirmingDelete=[:];checklistSelections=[:];replicaAddress = client.store.settings.address
         }
-        if kind=="welcome" {deadlineRefs=[];requestDeadlines()}
+        if kind=="welcome" {
+            deadlineRefs=[:]
+            // Requests that were waiting on the old connection are lost; their answers will never come.
+            for card in Array(closesInFlight.keys) {failClose(card)}
+            requestDeadlines()
+        }
         let previousRooms=Set(model.groups.keys)
         do { try model.apply(frame) } catch { notice = "대화 기록을 읽지 못했어요. 다시 연결해 주세요." }
         if frame["type"] as? String=="welcome",frame["rooms"] != nil {model.clearArchivedPins()}

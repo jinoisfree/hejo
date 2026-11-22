@@ -12,7 +12,7 @@
 
 | ID | AC | 입력 | 기대 |
 |---|---|---|---|
-| AT-TD-01 | TD-05.AC-01 | 가짜 루트 홈과 명부(alpha, beta). 장부는 이렇게 둔다: `default` 열림 1개, alpha 열림 2개 + 닫힘 1개, beta 파일 없음 | `list --json` 종료 0. `profiles.default` 1개, `profiles.alpha` 2개(닫힘 제외), `profiles.beta` 빈 목록, `failed` 빈 목록. 각 항목 키는 `{id,title,due,source}`와 있으면 `deadline_at`뿐이다(`notifications`·`history`·`replies`·`source_check` 없음) |
+| AT-TD-01 | TD-05.AC-01 | 가짜 루트 홈과 명부(alpha, beta). 장부는 이렇게 둔다: `default` 열림 1개, alpha 열림 2개 + 닫힘 1개, beta 파일 없음 | `list --json` 종료 0. `profiles.default` 1개, `profiles.alpha` 2개(닫힘 제외), `profiles.beta` 빈 목록, `failed` 빈 목록. 각 항목 키는 `{id,title,due,source}`와 있으면 `deadline_at`뿐이다(HEJO-DEADLINE-CLOSE에서 `notice?` 추가, AT-DC-08)(`notifications`·`history`·`replies`·`source_check` 없음) |
 | AT-TD-02 | TD-05.AC-04 | alpha 장부를 깨진 JSON으로, beta 장부를 심볼릭 링크로 둔다 | 종료 0. `failed`에 `{alpha, deadline_state_corrupt}`, `{beta, deadline_symlink_refused}`가 있고 `default` 항목은 정상으로 나온다 |
 | AT-TD-03 | TD-05.AC-05 | AT-TD-01·02 실행 전후 | 가짜 홈 전체의 파일 목록·sha256이 같다. `state/` 폴더나 `deadline-watch.lock`이 새로 생기지 않는다(beta처럼 폴더가 없던 홈 포함) |
 | AT-TD-04 | design 2절 | 명부 파일을 읽을 수 없음 | `{"error":"TEAM_UNAVAILABLE"}`, 종료 1 |
@@ -22,7 +22,7 @@
 
 | ID | AC | 입력 | 기대 |
 |---|---|---|---|
-| AT-TD-10 | TD-05.AC-01 | 가짜 명령이 AT-TD-01 모양을 출력. `source`는 alpha의 하나만 `https://example.invalid/x`, 나머지는 일반 문장 | `deadlines_status`: `available:true`, items 3개. 각 항목의 키 집합이 허용 목록 `{employee,id,title,due,deadline_at?,url?}`의 부분집합이다(가짜 명령이 항목에 `notifications`·`history`·`closed`·`extra`를 덧붙여 내보내도 응답에는 없다). 링크 항목에만 `url`이 있다. 어떤 항목에도 `source` 키와 일반 문장 출처의 표식 문자열이 없다. `ftp://`·`javascript:`·host 없는 `https:` 출처는 `url`이 없다. `failed: []` |
+| AT-TD-10 | TD-05.AC-01 | 가짜 명령이 AT-TD-01 모양을 출력. `source`는 alpha의 하나만 `https://example.invalid/x`, 나머지는 일반 문장 | `deadlines_status`: `available:true`, items 3개. 각 항목의 키 집합이 허용 목록 `{employee,id,title,due,deadline_at?,url?}`(HEJO-DEADLINE-CLOSE 2판에서 `origin?`·`notice?` 추가, AT-DC-20)의 부분집합이다(가짜 명령이 항목에 `notifications`·`history`·`closed`·`extra`를 덧붙여 내보내도 응답에는 없다). 링크 항목에만 `url`이 있다. 어떤 항목에도 `source` 키와 일반 문장 출처의 표식 문자열이 없다. `ftp://`·`javascript:`·host 없는 `https:` 출처는 `url`이 없다. `failed: []` |
 | AT-TD-11 | TD-05.AC-02 | `<HOME>/bin/hermes-deadlines` 없음 | `{available:false, items:[]}`. 명령을 실행하지 않는다 |
 | AT-TD-12 | TD-05.AC-03 | 가짜 명령이 (가) 종료 1 (나) JSON 아님 (다) 600 KiB 출력 (라) 항목 `due`가 날짜가 아님 (마) 20초 대기(시험에서는 제한 시간을 짧게 주입할 수 있다) | (가)(마) `reason:"command_failed"`, (나)(다)(라) `reason:"invalid_response"`. (마)에서 자식 프로세스가 남지 않는다 |
 | AT-TD-13 | TD-05.AC-04 | 출력에 `failed:[{profile:alpha,reason:deadline_state_corrupt}]` | 응답 `failed:["alpha"]`, 다른 항목은 정상 |
@@ -45,7 +45,7 @@
 | AT-TD-24 | TD-05.AC-02·03 | 마감 상태: (가) available false (나) 성공 후 실패 (다) 받은 적 없이 실패 | (가) 마감 칩·카드 없음, 회색 줄 없음. (나) 마지막 목록 유지 + "마감을 읽지 못했어요. 잠시 뒤 다시 볼게요." (다) 마감 없음 + 같은 회색 줄. 옛 문의 오류 프레임은 (가)처럼 처리 |
 | AT-TD-40 | TD-05.AC-04 (앱) | 성공 응답: items = alpha 마감 2개, `failed:["beta"]` | alpha 마감 카드 2개가 보이고 마감 칩 개수 2. 회색 줄 "마감을 읽지 못했어요. 잠시 뒤 다시 볼게요."이 함께 보인다. 다음 응답이 `failed: []`이면 회색 줄이 사라진다 |
 | AT-TD-25 | TD-04.AC-01 | 답 요청 카드 클릭 | 지금 `.question` 이동과 같은 결과(선택 방·스레드·강조 1.5초). 칸은 열린 채이고 그 카드가 선택 상태다 |
-| AT-TD-26 | TD-04.AC-02·03 | 마감 카드: `url` 있음 / 없음(alpha) | 있음은 링크 열기 경로가 그 URL로 한 번 불린다. 없음은 alpha 1:1 방이 선택된다. 카드 보기에 닫기·고치기 단추가 없다 |
+| AT-TD-26 | TD-04.AC-02·03 | 마감 카드: `url` 있음 / 없음(alpha) | 있음은 링크 열기 경로가 그 URL로 한 번 불린다. ~~없음은 alpha 1:1 방이 선택된다. 카드 보기에 닫기·고치기 단추가 없다~~ → HEJO-DEADLINE-CLOSE에서 대체: 없음은 [AT-DC-25](HEJO-DEADLINE-CLOSE.md), 메뉴·단추는 AT-DC-26 |
 | AT-TD-27 | TD-01.AC-01·03 | 알약: 사장 차례 칸이 있을 때(미리보기 아님) / 빈 알약일 때 클릭 | 둘 다 `Action.drawer`. 열림 뒤 스냅숏의 사장 칸 글자가 " · 닫기 ‹"로 끝나고 `drawerOpen` 표시가 있다. 빈 알약이 열린 경우 칸 하나 "닫기 ‹" |
 | AT-TD-41 | TD-01.AC-01 (배선) | 실제 `ConversationView`·`IslandView`·`PetController`(가짜 화면)를 조립하고, 채팅을 펼친 상태에서 `IslandView.mouseDown`(또는 `activate(at:)`)으로 (가) 사장 칸 (나) 빈 알약을 누른다. 각각 한 번 더 누른다 | 첫 클릭 뒤 컨트롤러의 열림 상태가 참이고, 창 프레임이 늘림 목표로 바뀌고, 칸 보기가 보인다. 둘째 클릭 뒤 열림 상태가 거짓이고 원래 프레임·칸 숨김. 스냅숏 단언만으로 대신하지 않는다 |
 | AT-TD-28 | TD-01.AC-02 | 직원 얼굴 클릭, 문제 칸 클릭(열림 상태) | 기존 `.worker`, `.reconnect` 동작이 일어나고 열림 상태는 그대로 |

@@ -100,7 +100,13 @@
       "$ref": "#/$defs/deadlines"
     },
     {
+      "$ref": "#/$defs/deadline_close"
+    },
+    {
       "$ref": "#/$defs/deadlines_status"
+    },
+    {
+      "$ref": "#/$defs/deadline_close_status"
     }
   ],
   "$defs": {
@@ -1085,6 +1091,9 @@
         },
         {
           "$ref": "#/$defs/deadlines"
+        },
+        {
+          "$ref": "#/$defs/deadline_close"
         }
       ]
     },
@@ -1146,6 +1155,9 @@
         },
         {
           "$ref": "#/$defs/deadlines_status"
+        },
+        {
+          "$ref": "#/$defs/deadline_close_status"
         }
       ]
     },
@@ -1864,6 +1876,36 @@
               "url": {
                 "type": "string",
                 "maxLength": 1000
+              },
+              "origin": {
+                "enum": [
+                  "notion",
+                  "calendar",
+                  "reminder",
+                  "slack",
+                  "notes",
+                  "gmail"
+                ]
+              },
+              "notice": {
+                "type": "object",
+                "properties": {
+                  "message_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "thread": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "message_id",
+                  "thread"
+                ],
+                "additionalProperties": false
               }
             },
             "required": [
@@ -1959,6 +2001,130 @@
               {
                 "required": [
                   "failed"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "deadline_close": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "deadline_close"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "employee": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+        },
+        "deadline": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "outcome": {
+          "enum": [
+            "done",
+            "cancel"
+          ]
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "id",
+        "employee",
+        "deadline",
+        "outcome"
+      ],
+      "additionalProperties": false
+    },
+    "deadline_close_status": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "deadline_close_status"
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "already_closed": {
+          "type": "boolean"
+        },
+        "repainted": {
+          "type": "boolean"
+        },
+        "reason": {
+          "enum": [
+            "unavailable",
+            "invalid_request",
+            "busy",
+            "unknown_deadline",
+            "command_failed",
+            "invalid_response"
+          ]
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "ref",
+        "ok"
+      ],
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "properties": {
+            "ok": {
+              "const": true
+            }
+          },
+          "required": [
+            "already_closed",
+            "repainted"
+          ],
+          "not": {
+            "required": [
+              "reason"
+            ]
+          }
+        },
+        {
+          "properties": {
+            "ok": {
+              "const": false
+            }
+          },
+          "required": [
+            "reason"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "already_closed"
+                ]
+              },
+              {
+                "required": [
+                  "repainted"
                 ]
               }
             ]
