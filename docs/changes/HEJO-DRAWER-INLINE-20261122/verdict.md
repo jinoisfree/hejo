@@ -86,3 +86,12 @@ diff를 읽었다. `PetPlacement.withDrawer`(오른쪽 넓힘, `over`·`shift` �
 - M-DI-1·2 사장 확인(개발 빌드에서 배치·색·오른쪽 끝 비킴). tasks.md "사람 확인" 행.
 - 공개: 사장 결정(다음 공개 판). github 원격 `main`은 공개 판 이력(`hejo 0.2.6` 등)이라 이 커밋을 그대로 푸시하는 대상이 아니다.
 - 현재 명세 반영 완료: HEJO-TODO-DRAWER spec REQ-TD-02·AC-04, HEJO-FINDER-FOLDERS spec REQ-FF-08·13, 수락 시험 AT-TD-30·31·33·34·35·41, AT-FF-40·41·90~93에 대체 표시, 이 작업 spec·design 상태 "적용".
+
+## 7회 · 2026-11-23 · TASK-02 판정: 미완료(구현 담당 보류) — 원인: 수락 시험 오류(계획 담당)
+
+- 대상: worktree HEAD `d94fb6b` + 미커밋 5파일(`TodoDrawerView`·`ConversationChrome`·`ConversationView` 토글 공용화, `DrawerHeaderTests` 새, `DrawerInlineTests` 1줄). 검증 조건: 교차 모델.
+- [확인] `ConversationView` 변경은 토글 공용화(`ComposerModeTrack` 높이·안쪽·글자 크기·칸 프레임, 트랙 바탕)뿐. AT-DI-35의 위치 단언(중심 22·66, 스크롤 위 88, 트랙 14/276)은 통과, 실패는 선 색 비교 하나(`DrawerHeaderTests.swift:61`, 차이 합 0.21).
+- [확인] 원인: 8판 AT-DI-35가 칸 띠 선을 **채팅 머리 선**과 비교하게 했는데, 채팅 머리 띠에는 `ConversationView.draw`의 머리 바탕(`labelColor` 0.035)이 더 깔려 같은 선 값이라도 합성 색이 다르다. 칸 띠는 사장 결정(REQ-DI-05, 방 목록 톤)대로 방 목록과 같은 바탕이므로 비교 기준이 틀렸다. 제품 바탕을 바꾸는 것은 범위·결정 밖.
+- 조치: 수락 시험 9판 — 제목 띠 선은 같은 행 방 목록 열 선과, 필터 띠 선은 방 목록 오른쪽 경계선(같은 칸 열 바탕 위 같은 선 값)과 비교하고, 선이 바탕과 구분되는지도 본다.
+- 설계 적합성(중간): 세 영역 배치를 `TodoDrawerView`가 갖고, 토글 모양을 `ComposerModeTrack`·`ComposerButton` 공용 원본으로 뽑아 두 토글이 같이 쓴다(design 2.6 적합). 중복된 제목 선 제거도 맞다(전폭 선은 `ConversationView.draw` 한 곳).
+- main `8bcc487`(d94fb6b 이후 app 변경 없음).
