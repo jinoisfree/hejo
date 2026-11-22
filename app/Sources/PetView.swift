@@ -91,7 +91,7 @@ final class PetView: NSView {
     private(set) var todoDrawer: NSView?
     let drawerScrim=TodoDrawerScrim(frame:.zero)
     var onCloseDrawer:(()->Void)?
-    func installDrawer(_ view:NSView){todoDrawer?.removeFromSuperview();todoDrawer=view;conversation.addSubview(drawerScrim);conversation.addSubview(view);view.isHidden=true;drawerScrim.isHidden=true;drawerScrim.onClose={ [weak self] in self?.onCloseDrawer?() }}
+    func installDrawer(_ view:NSView){todoDrawer?.removeFromSuperview();todoDrawer=view;updateScrim();conversation.addSubview(drawerScrim);conversation.addSubview(view);view.isHidden=true;drawerScrim.isHidden=true;drawerScrim.onClose={ [weak self] in self?.onCloseDrawer?() }}
     var paneWidth: CGFloat = 0, paneSliding = false
     var onResetPaneSize: (() -> Void)?
     func installWeb(_ view: WebPaneView) { webPane?.removeFromSuperview(); webPane = view; conversation.addSubview(view) }
@@ -233,6 +233,9 @@ final class PetView: NSView {
         let dark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua
         let alpha=BubbleOpacity.alpha(progress:placement?.expanded==true ? 1:0,percent:chatOpacityPercent,reduceTransparency:reduceTransparency())
         let color=(dark ? NSColor.black:.white).withAlphaComponent(alpha).cgColor
+        if let drawer=todoDrawer as? TodoDrawerView, let background=NSColor(cgColor:color) {
+            drawer.backgroundColor=background
+        }
         guard tint.layer?.backgroundColor != color else{return}
         CATransaction.begin();CATransaction.setDisableActions(true);tint.layer?.backgroundColor=color;CATransaction.commit()
     }

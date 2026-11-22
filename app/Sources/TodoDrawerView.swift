@@ -2,6 +2,10 @@ import AppKit
 
 @MainActor final class TodoDrawerView: NSView {
     private let scroll=NSScrollView(), stack=NSStackView()
+    // The installed PetView supplies its existing conversation tint, rather than
+    // introducing a second theme palette for the drawer.
+    var backgroundColor: NSColor = .windowBackgroundColor { didSet { needsDisplay=true } }
+    private var appearanceObserver: NSObjectProtocol?
     var onClose: (() -> Void)?
     var onFilter: ((TodoDrawerModel.Filter) -> Void)?
     var onCard: ((TodoDrawerModel.Card) -> Void)?
@@ -15,8 +19,20 @@ import AppKit
         stack.edgeInsets=NSEdgeInsets(top:14,left:14,bottom:14,right:14)
         scroll.documentView=stack;addSubview(scroll)
         setAccessibilityLabel("처리할 일")
+        appearanceObserver=NotificationCenter.default.addObserver(forName:ChatAppearance.didChange,object:nil,queue:.main){ [weak self] _ in
+            MainActor.assumeIsolated { self?.needsDisplay=true }
+        }
     }
     required init?(coder:NSCoder){fatalError()}
+    deinit { if let appearanceObserver { NotificationCenter.default.removeObserver(appearanceObserver) } }
+    override var isOpaque: Bool { true }
+    override func draw(_ dirtyRect: NSRect) {
+        backgroundColor.withAlphaComponent(1).setFill()
+        bounds.fill()
+    }
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance(); needsDisplay=true
+    }
     override var acceptsFirstResponder: Bool {true}
     override func cancelOperation(_ sender:Any?){onClose?()}
     override func layout(){
