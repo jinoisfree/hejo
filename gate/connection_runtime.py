@@ -24,12 +24,13 @@ class ActionJournal:
         except FileNotFoundError:
             return []
 
-    def append(self, *, device, profile, connection, action, outcome, job=None, identity=None, connected=None, expected=None):
+    def append(self, *, device, profile, connection, action, outcome, job=None, identity=None, connected=None, expected=None, deadline=None):
         row={'at':self.clock(),'device':device,'profile':profile,'connection':connection,'action':action,'outcome':outcome}
         if job:row['job']=job
         if identity:row['identity']={'pid':identity['pid'],'start_time':identity['start_time']}
         if connected is not None:row['connected']=connected
         if expected is not None:row['expected']=expected
+        if deadline:row['deadline']=deadline
         self.path.parent.mkdir(parents=True,exist_ok=True,mode=0o700)
         fd=os.open(self.path,os.O_WRONLY|os.O_CREAT|os.O_APPEND,0o600)
         try:
