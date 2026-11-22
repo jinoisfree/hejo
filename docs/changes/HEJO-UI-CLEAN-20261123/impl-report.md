@@ -386,3 +386,21 @@ R-UC-I5 판정 전 **미커밋13파일 보존**, 새 후보 커밋 없음. 연�
 - **미완료 조건**: AT-UC-40·main 반영 전 정상 GUI/Hermes 환경의 원문 전체 종료0, 연결 뒤 기본 시험·네트워크 fixture의 변경본 통과, 계획 담당 최종 검토·M-UC-1 사람 확인. 기준 동일 실패 예외는 TASK 커밋 허용까지만이다.
 - 인계 시점 로컬 main은 위 기준이고 대상에 포함(merge-base 종료0). 구성 원격 이름은 **github**(origin 없음). 로컬 추적 `github/main`은 **98a9f242a74a97a2af6885264cac49da241ad7fa**, 대상 HEAD에 미포함(merge-base 종료1). `final-basis-inventory.json`. live ls-remote는 미실행이며 이미 원격 반영됐다고 선언하지 않는다. **푸시 전 기준/추적 tip 포함 조건에 대한 계획 담당 관계 검토가 필요하다.** 이 불일치를 force/pull/rebase/임의 merge로 우회하지 않았다.
 - main으로의 구현 병합·설치·공개·푸시·운영 반영 없음. 공유 Hermes 환경 패키지 설치/설정/재시작 없음.17번을 릴리즈에서 제외하거나 총괄18의 운영 승인을 추정하지 않는다. 호스트는 총괄에 세 커밋과 위 실제 로그/정상 환경 검증 및 이력 차단을 전달한다. 계획 담당은 변경 코드·증거 검토 후 정상 환경 통과·기준 포함을 확인하고 후속 절차를 정한다.
+
+
+## 최종 보완 · 검증 7회 뒤 남은 앱 시험·fixture 확인
+
+- [확인] 지정 문서 기준 `f5f92f1312cf3bef7c9830ed5dbce1394ffeda12`를 구현 브랜치로 충돌 없이 병합했다. 병합 HEAD는 **`1b26d789f99ad0d67f853b3a353ef77d56d7eb03`**, 부모는 TASK-03 `31b9d92ce45432902febcdc89b10d8aa09b2d873`와 지정 문서 기준이다. 병합 변경은 impl-report·verdict 두 문서뿐이며, TASK-03 대비 `app/` 차이는 없다. 새 구현 수정·추가 TASK 커밋은 없다.
+- [확인] 요청대로 기본 전체 실행의 `TestMain.swift:299` **`try await connectionsTests()` 한 줄만** 임시 주석 처리했다. 기준 복사본에서는 같은 호출 `:293` 한 줄만 주석 처리했다. CLI 전용 연결 시험 호출과 ConnectionsTests의 단언·대기·진단 코드는 건드리지 않았다. 임시 diff는 `remaining-tests-{candidate,baseline}-temporary.diff`에 보존했다.
+
+| 실행 | 검증한 전체 커밋 | 종료 코드 | 증거 폴더 기준 로그 |
+|---|---|---|---|
+| 변경본 | 1b26d789f99ad0d67f853b3a353ef77d56d7eb03 | 0 | remaining-tests-candidate.log |
+| 변경 없는 기준 복사본 | be67d0137fc9749355821b5d28da35bb25dd3e24 | 0 | remaining-tests-baseline.log |
+
+- 실제 실행 명령은 두 경우 모두 **`HEJO_PYTHON=<gateway venv python> bash app/scripts/test.sh`**다. 실제 Python 실행 절대 경로·완전한 shellCommand·cwd·시작/종료 시각·종료 코드는 추적하지 않는 로컬 `remaining-tests-{candidate,baseline}-result.json`에 기록했다. 변경본 cwd는 구현 worktree 루트, 기준 cwd는 그 아래 `.build/ui-clean-evidence/verdict-6-baseline`이다. 이 보고서에 개인 절대 경로를 복사하지 않았다.
+- 같은 호스트·지정 Python·상속 환경(PYTHONPATH 없음)에서 GUI 실행을 순차로 진행했다. 외부 GUI 활성 상태는 통제하지 않았다. 기준 복사본은 실행 전과 복원 후 모두 be67d01 추적 파일 **665개**를 Git blob과 대조해 차이 0건이었다. `remaining-tests-environment.json`·`remaining-tests-comparison.json` 참조.
+- [확인] 양쪽 모두 **progressLayout·threeTap·rooms·bubbleReply·petNotification·picturesSidebar·appIcon·login·composer**를 지나 기본 앱 시험의 마지막 통과 줄과 APP_TEST_OK에 도달했다. 이어 네트워크(짝짓기·재시작·단절 복구), conversation·pictures·thread·workspace·bubble_reply·home_room·rooms·composer_target·downloads·web_pane·review55 fixture와 hook **9개** 시험까지 완료했다. 설정 metadata·Downloads 이름 불변 가드도 통과했다. 실패 집합은 양쪽 모두 빈 집합이며 변경본에만 있는 실패는 **0건**이다.
+- [확인] 두 실행 후 임시 주석을 모두 원문으로 복원했고 SHA-256 일치를 확인했다. 구현 worktree `git diff --exit-code`·`git diff --check` 종료 0, `git status --short` 빈 출력이다. ConnectionsTests도 영구 커밋 원문과 같고, 기준 복사본 전체도 원문과 같다. 제품 코드·기대값 변경이 없어 기존 개인정보 검사·집중 화면 증거를 다시 만들지 않았다. 이 보완은 새 구현 커밋을 만들 필요가 없다.
+- **제외 범위와 남은 판단:** 이번 보완에서 connectionsTests 전체가 제외됐으므로 **AT-HC-27 및 connectionManagementTests의 원문346 timeout은 미실행**이다. 이전 양쪽 동일 실패 증거(`verdict-6-candidate-app.log`·`verdict-6-baseline-app.log`)를 해결하거나 원문 전체 종료 0으로 바꿔 보고하지 않는다. gate pytest는 이번에 다시 실행하지 않았으며 이전 기준·최종 동일 5실패 기록은 그대로다. 검증 7회가 지적한 뒤쪽 앱/fixture 미도달 항목은 해소됐고, 환경 예외의 최종 처분·main 병합 판정·M-UC-1은 계획/검증 담당에게 인계한다.
+- 원격 관계는 검증 7회 판정을 따른다: 공개 `github/main`은 로컬 main과 별도 스냅숏 이력이며 이 구현 브랜치의 직접 푸시 대상이 아니다. 이 절은 앞선 최종 인계의 HEAD·뒤쪽 시험 미도달·원격 관계 검토 요청을 갱신한다. main으로의 구현 병합·설치·공개·푸시·운영 반영, 공유 Hermes 패키지 설치·설정·재시작은 하지 않았다. 총괄 전달은 호스트가 맡는다.

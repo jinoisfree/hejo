@@ -64,3 +64,12 @@
 - 관찰(범위 밖, 후속 후보): 칸 카드 제목이 시험 글의 마크다운 표시(`**…**`)를 그대로 보인다. 카드 제목 원본은 이번에 바꾸지 않았다.
 - 설계 적합성(4.2): **적합**. 알약 상태 원본 `IslandModel` 하나·그리기 `IslandView` 하나, 카드 문장 `TodoDrawerModel`, 세로줄 `AttentionRail` 한 값, 선택 원본 `drawerSelectedID`, 0개 흐림은 공용 `ComposerButton`. 옛 표현 API(`heading`·`subtitle`·`parts`·`idleStripe`)는 시험용으로 남기지 않고 제거. 두 번째 원본 없음.
 - 원격: 공개 원격 `github/main`(0.2.x 공개 스냅숏 이력, 로컬 main과 공통 조상 없음)은 직접 푸시 대상이 아니다. 공개는 릴리즈 총괄(18번)이 맡는다.
+
+## 8회 · 2026-11-23 · 판정: 구현 검증 완료(조건: 교차 모델, 환경 예외 1건) — main 병합. 사장 확인 M-UC-1 남음
+
+- 대상: 구현 브랜치 HEAD `1b26d789f99ad0d67f853b3a353ef77d56d7eb03`(앱 코드는 TASK-03 `31b9d92`와 동일, 문서 병합만). 기준 `be67d01`.
+- [확인] 보완 실행(`connectionsTests()` 호출 한 줄만 임시 제외, 같은 명령·Python·호스트): 변경본·기준 모두 종료 0, 실패 0, 변경본에만 있는 실패 없음(`remaining-tests-comparison.json`, `remaining-tests-candidate.log` `APP_TEST_FAILED` 0건·마지막 `OK`). 임시 수정 복원: 추적 파일 665개 blob 차이 0, `git diff`·`git status` 비어 있음.
+- 시험 종합: 집중 AT-UC-01~40 대상 통과, 연결 시험 앞뒤 앱 시험·네트워크 fixture·hook 통과. 미통과는 환경 예외 둘뿐이며 기준과 같은 값으로 재현된다 — AT-HC-27(`appActive=false`)과 `ConnectionsTests.swift:346` timeout. gate 5 실패(yaml·hermes_facility 없음, 승인 문구 번역 키)도 기준 동일이고, 이 작업은 `app/`만 바꿨다. 원래 main 병합 조건으로 걸었던 "정상 환경 전체 종료 0"은 환경 탓에 지금 얻을 수 없다. 변경 원인이 아님을 기준 비교로 보였으므로 병합하고, 정상 환경 재실행은 사장 확인(M-UC-1) 때 함께 한다.
+- 설계 적합성(4.2): 적합(7회 판정, 이후 앱 코드 변화 없음).
+- 병합: 계획 담당이 `1b26d78`을 로컬 main에 `--no-ff` 병합. 공개 원격 `github/main`은 별도 공개 스냅숏 이력이라 직접 푸시 대상 아님 — 공개는 릴리즈 총괄(18번)이 맡는다.
+- 남은 것: M-UC-1(사장이 개발 빌드에서 알약·칸 카드를 어둡게·밝게로 보기), 정상 환경 전체 `test.sh` 재실행, 후속 후보(칸 카드 제목의 마크다운 `**` 노출).
