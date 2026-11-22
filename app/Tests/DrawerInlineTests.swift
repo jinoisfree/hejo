@@ -50,7 +50,7 @@ private final class InlineAccentReference: NSView {
     func global(_ v:NSView)->CGRect {pet.panel.convertToScreen(v.convert(v.bounds,to:nil))}
     place();pet.showChat();settle()
     let base=pet.placementTarget!.globalBubble
-    let representatives=[view.island,field("heading"),view.history,field("inputBackground"),field("sendButton"),field("handle")]
+    let representatives=[view.island,view.headerDrag,view.history,field("inputBackground"),field("sendButton"),field("handle")]
     let frames=representatives.map{global($0)},sidebar=global(field("employeeScroll"))
     pet.setDrawerOpen(true);settle()
     try check(view.todoDrawer.superview===view && view.todoDrawer.frame==CGRect(x:68,y:0,width:290,height:view.bounds.height),"AT-DI-05 drawer is an inline full-height column")

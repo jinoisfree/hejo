@@ -81,7 +81,7 @@ import UniformTypeIdentifiers
     private var writingPlace=""
     private var lastPlaces:[String:ConversationKey]=[:]
     private var composerMembers:[String]=[]
-    let brand=PassiveLabel(labelWithString:"HEJO."), version=PassiveLabel(labelWithString:""), heading=PassiveLabel(labelWithString:""), subtitle=PassiveLabel(labelWithString:"함께 나누는 대화")
+    let brand=PassiveLabel(labelWithString:"HEJO."), version=PassiveLabel(labelWithString:"")
     private let handle=SidebarHandle()
     let notice=NSTextField(wrappingLabelWithString:""),noticeIcon=NSImageView()
     private let attachments=NSStackView(), attachmentScroll=NSScrollView()
@@ -131,7 +131,7 @@ import UniformTypeIdentifiers
         employeeScroll.onBlankDoubleClick={ [weak self] in self?.cycleSidebarWidth() }
         employeeScroll.makeBlankMenu = { [weak self] in self?.blankMenu() }
         employeeScroll.automaticallyAdjustsContentInsets=false;employeeScroll.contentInsets=NSEdgeInsets(top:4,left:0,bottom:0,right:0);employeeScroll.documentView=employeeTable; employeeScroll.drawsBackground=false; employeeScroll.hasVerticalScroller=true; employeeScroll.autohidesScrollers=true; employeeScroll.scrollerStyle = .overlay
-        for view in [headerDrag,brandDrag,island,employeeScroll,brand,version,heading,subtitle,history,findRow,noticeScroll,notice,modeBackground,replyButton,newButton,inputBackground,editor,draftHint,attachButton,sendButton,attachmentScroll,handle,drop,composerFaceScroll,searchResults,sidebarBlank,failureBar,noticeIcon] { addSubview(view) }
+        for view in [headerDrag,brandDrag,island,employeeScroll,brand,version,history,findRow,noticeScroll,notice,modeBackground,replyButton,newButton,inputBackground,editor,draftHint,attachButton,sendButton,attachmentScroll,handle,drop,composerFaceScroll,searchResults,sidebarBlank,failureBar,noticeIcon] { addSubview(view) }
         addRoom.nativeLabelGap=8;addRoom.isBordered=false;addRoom.font = .systemFont(ofSize:12,weight:.medium)
         composerFaces.reduceMotion={ [weak self] in self?.reduceMotion() ?? true }
         composerFaceScroll.documentView=composerFaces;composerFaceScroll.drawsBackground=false
@@ -144,7 +144,7 @@ import UniformTypeIdentifiers
         logo.addAttribute(.foregroundColor,value:NSColor.systemBlue,range:NSRange(location:0,length:1)); brand.attributedStringValue=logo
         brand.font = .systemFont(ofSize:14,weight:.semibold); version.font = .systemFont(ofSize:10); version.textColor = .labelColor.withAlphaComponent(0.7)
         version.stringValue=Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? ""
-        brand.alignment=sidebarAlignment; version.alignment=sidebarAlignment; heading.font = .systemFont(ofSize:14,weight:.semibold); subtitle.font = .systemFont(ofSize:10); subtitle.textColor = .labelColor.withAlphaComponent(0.7)
+        brand.alignment=sidebarAlignment; version.alignment=sidebarAlignment
         employeeSearch.placeholderString="검색"; employeeSearch.delegate=self; employeeSearch.font = .systemFont(ofSize:12)
         search.placeholderString="단어나 문장으로 검색"; search.delegate=self
         findRow.onClose={ [weak self] in _=self?.closeSearchIfOpen() }
@@ -177,7 +177,6 @@ import UniformTypeIdentifiers
         clipboard.recoverLeftovers()
         for drag in [headerDrag,brandDrag] {drag.toolTip="드래그: 채팅창과 펫 함께 이동 · 더블클릭: 가로 2배 / 기본";drag.setAccessibilityLabel("채팅창과 펫 이동")}
         headerDrag.menuHelp="오른쪽 클릭: 제목·설명 편집 및 대화 메뉴"
-        heading.toolTip=headerDrag.menuHelp;subtitle.toolTip=headerDrag.menuHelp
         history.reduceMotion={ [weak self] in self?.reduceMotion() ?? true }
         history.onBlank={ [weak self] in self?.foldAll() }
         history.onMeasured={ [weak self] in self?.reportOpenHeight() }
@@ -583,7 +582,7 @@ import UniformTypeIdentifiers
         var phase = ThreeTapDiagnostics.startSpan()
         if !controller.drawerOpen,drawerSelectedID != nil {drawerSelectedID=nil;highlightedMessageID=nil;highlightUntil=nil}
         let model=controller.model
-        let themeDark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua;subtitle.textColor=CardText.quiet(dark:themeDark);version.textColor=CardText.quiet(dark:themeDark)
+        let themeDark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua;version.textColor=CardText.quiet(dark:themeDark)
         streamReveal.receive(Array(model.messages.values),now:motionTime());streamReveal.advance(now:motionTime(),immediately:reduceMotion())
         if streamReveal.pending && streamTimer==nil {streamTimer=Timer.scheduledTimer(withTimeInterval:1.0/30,repeats:true){[weak self] _ in
             Task {@MainActor in guard let self else{return};if self.streamReveal.pending {self.refresh()}else{self.streamTimer?.invalidate();self.streamTimer=nil}}
@@ -632,7 +631,6 @@ import UniformTypeIdentifiers
         if let selected {
             let current=model.selectionIdentity
             threads=model.isHome ? model.homeThreads:(model.room(for:current).map { model.threads(room:$0,query:"") } ?? []).sorted { (model.timeline($0.key).first?.seq ?? 0) < (model.timeline($1.key).first?.seq ?? 0) }
-            heading.stringValue=model.header(current).title; subtitle.stringValue=model.header(current).description
             if identity != current { windowed.reset(); identity=current; openThread=nil }
             threads=controller.includingPending(threads,scope:model.isHome ? model.homeScope:[current])
             let shown=Set(windowed.visibleIDs(threads.map(\.id),revealing:openThread?.thread))
@@ -651,7 +649,7 @@ import UniformTypeIdentifiers
             if enteredPlace != current {enteredPlace=current;let last=threads.last?.key,newest=newest(current);history.enter(newest==last ? nil:newest?.thread)}
             if !automatic,model.timeline(selected).isEmpty,controller.timeline(selected).isEmpty {replyMode=false}
 
-        } else { threads=[]; history.show([],identity:""); heading.stringValue="HEJO." }
+        } else { threads=[]; history.show([],identity:"") }
         ThreeTapDiagnostics.endSpan("refresh_history", phase); phase = ThreeTapDiagnostics.startSpan()
         let draft=controller.draft
         if !editor.editor.hasMarkedText() && (writingKey != controller.composeKey || editorFontSize != ChatMetrics.bodyFont || MessageFormat.serialize(editor.editor.attributedString(),baseSize:editorFontSize) != draft.text) {
@@ -688,6 +686,8 @@ import UniformTypeIdentifiers
         refreshWorkspaceBars();scheduleSearch()
         ThreeTapDiagnostics.endSpan("refresh_workspace", phase); phase = ThreeTapDiagnostics.startSpan()
         var islandInput=controller.islandInput;islandInput.drawerOpen=controller.drawerOpen
+        islandInput.title=model.selected == nil ? "HEJO.":model.header(model.selectionIdentity).title
+        islandInput.todoTotal=controller.drawerSnapshot.total
         islandModel.update(islandInput);tickIsland(updateDrawer:false)
         ThreeTapDiagnostics.endSpan("refresh_island", phase); phase = ThreeTapDiagnostics.startSpan()
         if controller.drawerVisible {todoDrawer.show(controller.drawerSnapshot,filter:controller.drawerFilter,selected:drawerSelectedID)}
@@ -705,10 +705,8 @@ import UniformTypeIdentifiers
         todoDrawer.frame=CGRect(x:left,y:0,width:drawerShownWidth,height:h)
         brandDrag.frame=CGRect(x:0,y:0,width:left,height:44); brand.frame=CGRect(x:0,y:7,width:left,height:18); version.frame=CGRect(x:0,y:26,width:left,height:12)
         headerDrag.frame=CGRect(x:x,y:0,width:right,height:44)
-        let islandWidth=island.fittedWidth(limit:max(44,right-70-120-24))
+        let islandWidth=island.fittedWidth(limit:max(0,right-24))
         island.frame=CGRect(x:x+12,y:7,width:islandWidth,height:30);island.layoutSubtreeIfNeeded()
-        let titleX=island.frame.maxX+12
-        heading.frame=CGRect(x:titleX,y:7,width:max(0,w-18-titleX),height:18); subtitle.frame=CGRect(x:titleX,y:26,width:max(0,w-18-titleX),height:12)
         if employeeSearch.superview !== sidebarSearch {sidebarSearch.addSubview(employeeSearch)}
         employeeScroll.frame=CGRect(x:0,y:44,width:left,height:max(1,h-72))
         employeeTable.tableColumns.first?.width=employeeScroll.contentSize.width; employeeTable.frame.size.width=employeeScroll.contentSize.width

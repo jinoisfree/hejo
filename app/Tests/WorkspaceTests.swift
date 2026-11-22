@@ -53,7 +53,7 @@ private final class WorkspaceCanvas:NSView {
     try check(!model.notices("alpha").flatMap(\.messages).contains(closed),"AT77 settled thread stays settled after ordinary followup")
     model.saveHeader("alpha",title:"시험 제목",description:"시험 설명")
     try check(model.header("alpha").title=="시험 제목" && model.memberState.value("title:alpha") != nil,"AT79 title member key")
-    ui.refresh();try check(ui.heading.stringValue=="시험 제목" && ui.subtitle.stringValue=="시험 설명","AT79 actual header display")
+    ui.refresh();try check(ui.island.snapshot.title=="시험 제목","AT79 actual header display")
     model.saveHeader("alpha",title:"",description:"");try check(model.header("alpha").description=="함께 나누는 대화","AT79 restore header defaults")
     let menu=ui.headerMenu().items.map(\.title)
     try check(menu==["제목과 설명 편집…","","이 대화의 알림 끄기","방 목록 보이기 / 숨기기","방 목록 너비 전환","전체 검색 (⌘F)","모두 읽음","","펫으로 접기"],"AT79 original menu order")

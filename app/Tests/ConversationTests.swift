@@ -53,7 +53,7 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     try check((logo.attribute(.font,at:0,effectiveRange:nil) as? NSFont) == .systemFont(ofSize:14,weight:.semibold),"AT52 14 semibold")
     try check(ui.version.stringValue == (Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "") && ui.version.font?.pointSize == 10,"AT52 bundle version unchanged at 10pt")
     let emptyUI=ConversationView(controller:try testConversation(client:GateClient(store:try LocalStore(directory:directory.appendingPathComponent("empty")))),clipboardArea:directory.appendingPathComponent("empty-clipboard"))
-    try check(emptyUI.heading.stringValue == "HEJO.","AT52 empty-room heading")
+    try check(emptyUI.island.snapshot.title == "HEJO.","AT52 empty-room heading")
     print("AT-HF-52 PASS")
     let pet=PetController(store:store,atlas:try SpriteAtlas(resourceDirectory:resourceDirectory))
     pet.reducedMotion={true}; pet.pet.installConversation(ui); pet.preferredChatSize=CGSize(width:428,height:500)

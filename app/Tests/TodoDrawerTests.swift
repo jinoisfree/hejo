@@ -53,12 +53,12 @@ import AppKit
     let closed=pet.panel.frame
     let closedPlacement=pet.placementTarget!
     try check(closedPlacement.globalBubble.maxX+290<=1428,"AT-DI-33 owner fixture has right expansion room")
-    try check(view.island.partRects.contains{$0.0.kind == .owner},"AT-TD-41 connected owner segment is present")
-    let ownerRect=view.island.partRects.first{$0.0.kind == .owner}!.1
+    try check(!view.island.titleRect.isEmpty,"AT-TD-41 connected owner segment is present")
+    let ownerRect=view.island.titleRect
     view.island.activate(at:CGPoint(x:ownerRect.midX,y:15));settle()
     try check(pet.drawerOpen && view.todoDrawer.isHidden == false && pet.panel.frame.minX==closed.minX && pet.panel.frame.width==closed.width+290 && pet.placementTarget!.globalSprite==closedPlacement.globalSprite,"AT-TD-41 owner input reaches real controller and native view")
-    try check(view.island.snapshot.drawerOpen && view.island.snapshot.parts.first{$0.kind == .owner}!.text.hasSuffix(" · 닫기 ‹"),"AT-TD-27 close label and highlighted snapshot")
-    view.island.activate(at:CGPoint(x:view.island.partRects.first{$0.0.kind == .owner}!.1.midX,y:15));settle()
+    try check(view.island.snapshot.drawerOpen && view.island.accessibilityLabel()?.contains("닫기") == false,"AT-TD-27 close label and highlighted snapshot")
+    view.island.activate(at:CGPoint(x:view.island.titleRect.midX,y:15));settle()
     try check(!pet.drawerOpen && pet.panel.frame==closed && view.todoDrawer.isHidden == true,"AT-TD-41 second owner input restores panel")
     controller.drawerFilter = .deadline;pet.toggleDrawer();pet.toggleDrawer();pet.toggleDrawer()
     try check(controller.drawerSnapshot.urgent.count+controller.drawerSnapshot.rest.count==4 && controller.drawerFilter == .deadline,"AT-TD-21 reopen retains deadline filter")
@@ -117,7 +117,7 @@ import AppKit
     let emptyPlacement=emptyPet.placementTarget!
     try check(emptyPlacement.globalBubble.maxX+290<=1428,"AT-DI-33 empty fixture has right expansion room")
     emptyView.island.activate(at:CGPoint(x:10,y:15));emptyView.layoutSubtreeIfNeeded()
-    try check(emptyPet.drawerOpen && !emptyView.todoDrawer.isHidden && emptyPet.panel.frame.minX==emptyFrame.minX && emptyPet.panel.frame.width==emptyFrame.width+290 && emptyPet.placementTarget!.globalSprite==emptyPlacement.globalSprite && emptyView.island.snapshot.parts.map(\.text)==["닫기 ‹"],"AT-TD-27/41 empty stripe opens actual drawer")
+    try check(emptyPet.drawerOpen && !emptyView.todoDrawer.isHidden && emptyPet.panel.frame.minX==emptyFrame.minX && emptyPet.panel.frame.width==emptyFrame.width+290 && emptyPet.placementTarget!.globalSprite==emptyPlacement.globalSprite && emptyView.island.snapshot.drawerOpen && emptyView.island.accessibilityLabel()?.contains("닫기") == false,"AT-TD-27/41 empty stripe opens actual drawer")
     print("AT-DI-33 OWNER AND EMPTY PILL RIGHT EXPANSION PASS")
     emptyView.island.activate(at:CGPoint(x:10,y:15));try check(!emptyPet.drawerOpen && emptyPet.panel.frame==emptyFrame && emptyView.todoDrawer.isHidden,"AT-TD-41 empty pill second click restores frame")
     emptyPet.panel.orderOut(nil)
@@ -132,18 +132,18 @@ import AppKit
     pet.setDrawerOpen(true)
     let workerModel=IslandModel(clock:{now});workerModel.update(IslandModel.Input(typing:[model.messages[q2]!.key:now.addingTimeInterval(60)],drawerOpen:true))
     view.island.show(workerModel.snapshot());view.island.frame.size.width=view.island.fittedWidth(limit:400);view.island.layoutSubtreeIfNeeded()
-    let face=view.island.partRects.first{$0.0.kind == .worker}!.1
+    let face=view.island.activityRect
     view.island.activate(at:CGPoint(x:face.minX+8,y:15))
     try check(pet.drawerOpen && model.selected==model.messages[q2]!.key,"AT-TD-28 worker face input preserves drawer")
     var retries=0;view.reconnect={retries+=1}
     let problem=IslandModel(clock:{now});problem.update(IslandModel.Input(status:.disconnected(3),drawerOpen:true))
-    view.island.show(problem.snapshot());view.island.frame.size.width=view.island.fittedWidth(limit:400);view.island.layoutSubtreeIfNeeded();view.island.activate(at:CGPoint(x:10,y:15))
+    view.island.show(problem.snapshot());view.island.frame.size.width=view.island.fittedWidth(limit:400);view.island.layoutSubtreeIfNeeded();view.island.activate(at:CGPoint(x:view.island.activityRect.midX,y:15))
     try check(retries==1 && pet.drawerOpen,"AT-TD-28 problem action preserves drawer")
     let preview=IslandModel(clock:{now})
     var previewInput=IslandModel.Input(messages:[model.messages[q1]!],drawerOpen:true)
     previewInput.messages[0].replyState="asked";preview.update(previewInput)
     var later=model.messages[q2]!;later.replyState="asked";previewInput.messages.append(later);preview.update(previewInput)
-    try check(preview.snapshot().expanded == .owner && preview.snapshot().parts.first{$0.kind == .owner}?.action == .question(q1,model.messages[q1]!.key) && preview.snapshot().drawerOpen,"AT-TD-29 preview still targets oldest and preserves drawer")
+    try check(preview.snapshot().expanded == .question && preview.snapshot().activity?.action == .question(q1,model.messages[q1]!.key) && preview.snapshot().drawerOpen,"AT-TD-29 preview still targets oldest and preserves drawer")
     // Cadence uses controller clock and the same outgoing request path, with a fake gate sender.
     pet.setDrawerOpen(false);await pause(0.01);requests=[];now.addTimeInterval(600);controller.pollDeadlines();await pause(0.01)
     try check(requests.isEmpty,"AT-TD-37 closed ten minutes sends nothing")
