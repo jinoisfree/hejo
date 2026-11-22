@@ -355,12 +355,17 @@ import SwiftUI
     window.show();await pause(0.1)
     try check(window.window.level.rawValue==26 && window.window.isVisible && window.window.attachedSheet?.isVisible==true,"AT-FF-21 show recalculates level and brings input forward")
     guard let input=window.window.attachedSheet else{throw TestFailure.assertion("AT-FF-22 missing input")}
+    model.values=["password":"synthetic-private-value"]
+    try check(model.fields.first?.secure==true,"AT-FF-70 fixture keeps a secure input field")
+    try check(connectionWindowIsShareable(window.window),"AT-FF-70 input stage shares connection window and every sheet")
     let confirmation=Task{await model.confirmRestart()};await pause(0.1)
     let alert=input.attachedSheet
+    let shareableDuringAlert=connectionWindowIsShareable(window.window)
     let normalDuringAlert=window.window.level == .normal
     if let alert{input.endSheet(alert,returnCode:.alertSecondButtonReturn)}
     let accepted=await confirmation.value;await pause(0.1)
     try check(alert != nil && normalDuringAlert && !accepted && window.window.level.rawValue==26 && input.isVisible,"AT-FF-22 restart alert lowers then restores input")
+    try check(shareableDuringAlert,"AT-FF-70 confirmation stage shares connection window and every sheet")
     for accepted in [false,true] {
         var normalDuringAuth=false
         model.confirm={normalDuringAuth=window.window.level == .normal;return accepted}
@@ -368,8 +373,15 @@ import SwiftUI
         try check(normalDuringAuth && window.window.level.rawValue==26 && window.window.attachedSheet?.isVisible==true,"AT-FF-22 authentication success/cancellation restores input")
     }
     model.closeInput();await pause(0.1)
+    try check(window.window.sheets.isEmpty && model.values.isEmpty && connectionWindowIsShareable(window.window),"AT-FF-70 closing input clears values and keeps connection window shareable")
+    print("AT-FF-70 CONNECTION SHARING PASS; AT-FF-71 regression in full suite")
     window.setPreferredLevel(.normal)
     await model.perform("app_connect");await pause(0.1)
     try check(window.window.level == .normal && window.window.attachedSheet?.isVisible==true,"AT-FF-23 inactive preference stays normal with input")
     print("AT-FF-20~23 APP PASS")
+}
+
+// AT-FF-70 includes nested confirmation sheets, not just the immediate input sheet.
+@MainActor private func connectionWindowIsShareable(_ window:NSWindow)->Bool {
+    window.sharingType != .none && window.sheets.allSatisfy(connectionWindowIsShareable)
 }

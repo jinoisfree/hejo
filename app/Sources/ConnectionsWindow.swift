@@ -247,7 +247,6 @@ import Combine
         confirmingObservation=model.$confirming.sink{ [weak self] active in self?.updateLevel(confirming:active) }
         window.appearance=ChatAppearance.theme.appearance
         appearanceObserver=NotificationCenter.default.addObserver(forName:ChatAppearance.didChange,object:nil,queue:.main){[weak window] _ in MainActor.assumeIsolated {window?.appearance=ChatAppearance.theme.appearance} }
-        model.privacy={ [weak window] active in window?.sharingType=active ? .none:.readWrite;window?.sheets.forEach{$0.sharingType = .none} }
         request={ [weak self,weak controller] frame in
             guard let self,let controller,controller.canSend else{throw GateFailure.notConnected}
             var frame=frame;let id=UUID().uuidString.lowercased();frame["id"]=id
@@ -274,7 +273,7 @@ import Combine
         }
         guard window.isVisible,inputWindow==nil else{return}
         let sheet=NSWindow(contentRect:CGRect(x:0,y:0,width:440,height:450),styleMask:[.titled,.closable],backing:.buffered,defer:false)
-        sheet.title="연결";sheet.isReleasedWhenClosed=false;sheet.delegate=self;sheet.sharingType = .none
+        sheet.title="연결";sheet.isReleasedWhenClosed=false;sheet.delegate=self
         sheet.contentView=NSHostingView(rootView:ConnectionInputView(model:model))
         inputWindow=sheet;updateLevel(confirming:model.confirming)
         window.beginSheet(sheet){ [weak self,weak sheet] _ in
