@@ -109,3 +109,23 @@ hermes --profile default gateway restart
 | `git diff --check` | 종료 0 | 도구 실행 결과 |
 
 다음 단계는 활성 작업이 없는 시점에 인계 9(5)부터 이어가는 것이다. 설치를 반복하지 말고 최신 HEAD·RELEASE·공용 설치 파일과 현재 프로세스를 먼저 확인한다. 현재 롤백 대상은 여전히 `227ef160694635f8afde36f06515f5136f73dc30`이며 앞서 준비한 명령을 유지한다. 설정·비밀 파일 직접 열람/쓰기, 직접 패키지 설치, 본체/플러그인/team-kit 변경, 앱 사본 교체·공개, 실제 메시지 발송, git push는 수행하지 않았다.
+
+## 보완 3 — 재시작 대기부터 재개
+
+- 인계 3판 `b4b2d63302547560c38bbec0198a1ec6de720cc9`·verdict 4차·수락 시험 명세 4판을 읽었다. 착수 HEAD도 위 인계 커밋이다. V4-1에 따라 앱 상태 프레임 조회·Keychain·앱 출입증 사용은 하지 않는다. AT-HT-61은 새 게이트웨이 로그로 확인하고 화면 상태는 TASK-07b 뒤 사장 M1에 남긴다.
+- 공용 RELEASE는 `0bcf63535df381e491c99af9cbef41179b7cd79f`, 공용 파일 41개는 그 커밋과 일치했다(재대조 종료 0). 설치·설치 검사는 반복하지 않았다. 롤백 대상은 앞선 명령의 `227ef160694635f8afde36f06515f5136f73dc30`을 유지한다.
+- 첫 활성 작업 관측은 `2026-11-22T16:01:03.281976+00:00`이다. 기존 PID 생존·running·active_agents 1이어서, 인계 9(5)의 2분 간격·30분 한도로 대기를 시작했다. 이번 재개 로그는 `.build/HEJO-TELEGRAM/task07/resume3/`에 분리하며 앞선 실행 증거를 보존한다.
+
+## 보완 4 — 계획 담당 직접 재시작(사장 지시)
+
+- 근거: 사장 지시 2026-11-23 01:14 KST "재시작해", 01:16 KST "너가 개입해서 재시작진행해"(역할 변경 요청). 구현 담당의 대기 보조 프로세스(`resume3/wait-idle.py`)가 계속 돌고 있어 두 번째 재시작을 막으려고 먼저 종료했다(보조 스크립트만, 운영 프로세스 아님).
+- 재시작 전: 공용 RELEASE `0bcf63535df381e491c99af9cbef41179b7cd79f`, `compare-release.py` 종료 0(41개 파일 일치). 게이트웨이 running, active_agents 1(사장이 끊기를 허가).
+- `hermes --profile default gateway restart`: 종료 0, UTC 2026-11-22 16:16:09 요청. 기존 PID 종료, 새 프로세스 running(16:16:45 UTC).
+- 재시작 뒤 상태 파일(`gateway_state.json`, 운영 상태 — 비밀 아님): slack·photon·hejo·telegram 및 보조 프로필 hejo 5개 모두 `connected`, 오류 코드 없음, active_agents 0.
+- 재시작 이후 로그(재시작 전 크기 이후 부분, 출력 시 긴 숫자·토큰 형태 가림):
+  - `gateway.log` 108줄·`gateway.error.log` 8줄: ERROR·CRITICAL·Traceback **0건**. 경고 4건: 재시작 알림 미전달 1건(재시작 자체 알림), 텔레그램 연결 진행 안내 3건(DNS 우회 주소 찾기·연결 시도·연결 완료).
+  - 텔레그램 의존성: "Platform 'Telegram' dependencies missing — attempting install" 뒤 연결 성공 → Hermes 자동 설치 동작 확인(직접 설치 없음).
+  - "[Telegram] Wired native handlers from plugin 'hejo'" → hejo 텔레그램 처리기 등록 확인. "Connected to Telegram (polling mode)", "✓ telegram connected", "✓ hejo connected"(기본·보조).
+  - hejo 관련 줄에서 그룹·계정 id·토큰 형태 **0건**.
+- 로그: `.build/HEJO-TELEGRAM/task07/planner-restart/`(before.json, restart.log/.exit, after-summary.json).
+- 판정에 쓰는 결과: AT-HT-61 충족(수준 3). 롤백 불필요.
