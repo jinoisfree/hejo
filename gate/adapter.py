@@ -321,6 +321,10 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             mappings[button_id] = {**context, **entry, "button_id": button_id}
         return buttons, {"buttons": mappings} if mappings else None
 
+    def _sending_employee(self, chat_id, metadata):
+        return (metadata or {}).get("hermes_profile") or (
+            (getattr(self, "_owner_profile", None) or "default") if chat_id.startswith("room:") else chat_id)
+
     async def send(self, chat_id, content, reply_to=None, metadata=None):
         if self.forwarder:
             return await self._forward("send", content, chat_id=chat_id, reply_to=reply_to, metadata=metadata)
@@ -334,7 +338,7 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
         if not metadata.get("hejo_buttons"):
             content = native_buttons.plain_labels(content)
         chunks = split_text(content, LIMITS["text_bytes"])
-        employee = metadata.get("hermes_profile") or (self.journal.rooms.get(chat_id[5:], {}).get("lead", "default") if chat_id.startswith("room:") else chat_id)
+        employee = self._sending_employee(chat_id, metadata)
         if room and employee not in self.journal.rooms[room]['members']:
             return SendResult(success=False, error='room_member_required')
         thread = metadata.get("thread_id")
@@ -364,6 +368,8 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
         context = dict(msg_id=msg_id, employee=employee, thread=thread, message_text=content, **({"room":room} if room else {}))
         try:
             buttons, internal = self._buttons(metadata, context)
+            if metadata.get("_hejo_local"):
+                internal = {**(internal or {}), "local": metadata["_hejo_local"]}
             if metadata.get("_hejo_file_registration"):
                 internal = {**(internal or {}), "files": metadata["_hejo_file_registration"]}
             state = metadata.get("hejo_reply_state")
@@ -714,7 +720,7 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
                 if row.get("role") == "owner" and row.get("client_msg_id") == frame["client_msg_id"]:
                     await conn.send(self.server.project(row, conn))
                     return True
-            targets = ([employee] if frame.get('targeted') else recipients(frame["text"], room, self.employees())) if room else [employee]
+            targets = ([employee] if frame.get('targeted') else recipients(frame["text"], room, self.employees(), self.journal, thread)) if room else [employee]
             if not set(targets) <= known:
                 await self.server.error("unknown_employee", frame.get("id"), conn)
                 return
@@ -773,7 +779,7 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
         if chat_id.startswith("room:") and chat_id[5:] in self.journal.deleted_rooms:
             log.warning("room_deleted_drop")
             return
-        employee = metadata.get("hermes_profile") or (self.journal.rooms.get(chat_id[5:], {}).get("lead", "default") if chat_id.startswith("room:") else chat_id)
+        employee = self._sending_employee(chat_id, metadata)
         thread = metadata.get("thread_id")
         if thread:
             self._typing_threads.setdefault(chat_id, set()).add((employee, thread))
@@ -798,7 +804,7 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
         if self.forwarder:
             return await self._forward("stop_typing", chat_id=chat_id, metadata=metadata or {})
         active=self._typing_threads.get(chat_id,set())
-        owner=(metadata or {}).get("hermes_profile") or getattr(self,"_owner_profile","default")
+        owner=self._sending_employee(chat_id, metadata)
         selected=(metadata or {}).get("thread_id")
         stopping={entry for entry in active if (not chat_id.startswith("room:") or entry[0]==owner)
                   and (selected is None or entry[1]==selected)}
@@ -834,7 +840,7 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
         if self.forwarder:
             return await self._forward("send_document", file_path, chat_id=chat_id, caption=caption, file_name=file_name,
                                        reply_to=reply_to, metadata=metadata, **kwargs)
-        employee = (metadata or {}).get("hermes_profile") or (self.journal.rooms.get(chat_id[5:], {}).get("lead", "default") if chat_id.startswith("room:") else chat_id)
+        employee = self._sending_employee(chat_id, metadata)
         room = chat_id[5:] if chat_id.startswith("room:") else None
         if room in self.journal.deleted_rooms:
             log.warning("room_deleted_drop")
@@ -900,7 +906,7 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
                     extension = mimetypes.guess_extension(mime)
                     if not extension:
                         raise ValueError("invalid_image")
-                    employee = (metadata or {}).get("hermes_profile") or (self.journal.rooms.get(chat_id[5:], {}).get("lead", "default") if chat_id.startswith("room:") else chat_id)
+                    employee = self._sending_employee(chat_id, metadata)
                     info = await self.files.stage(employee, "image"+extension, response.aiter_bytes())
             async with self.files.lock:
                 descriptors, moved = self.files.promote(employee, [info["file_id"]])

@@ -46,8 +46,35 @@ import SwiftUI
     }
     print("AT-HF-83 APP PASS")
     try await connectionFilteringTests(outputDirectory:outputDirectory)
+    try await finderConnectionsLevelTests()
     try await connectionsScreenTests()
     try await connectionManagementTests(outputDirectory:outputDirectory)
+    try await connectionIncompleteReplyTests(document:document)
+}
+
+/// TASK-13: replies without a check must not turn unfinished actions into completion notices.
+@MainActor private func connectionIncompleteReplyTests(document:[String:Any]) async throws {
+    var reply:[String:Any]=[:]
+    let model=ConnectionsModel(send:{frame in
+        if frame["type"] as? String=="connections" {return ["document":document]}
+        if frame["action"] as? String=="secret_guide" {return ["reply":["outcome":"done","reason":"OK","fields":[["id":"value","label":"시험 키","secure":true]]]]}
+        return ["reply":reply]
+    },confirm:{true})
+    await model.refresh();model.selected="alpha";model.detail="key:SYNTHETIC_KEY"
+    for (outcome,reason) in [("waiting","UNDO_CONFLICT"),("waiting","UNKNOWN_REASON"),("failed","command_failed"),("refused","UNKNOWN_REASON"),("partial","UNKNOWN_REASON"),("pending","JOB_PENDING")] {
+        await model.perform("secret_set");model.values=["value":"synthetic-private-value"]
+        reply=["outcome":outcome,"reason":reason,"raw_error":"synthetic-private-value"]
+        await model.submit()
+        try check(model.showingInput && model.inputError==model.notice && !model.notice.isEmpty && model.notice != "마쳤어요.","TASK-13 unfinished \(outcome) response has no completion notice")
+        try check(!model.notice.contains("synthetic-private-value") && !model.notice.contains(reason),"TASK-13 raw errors and reason codes remain hidden")
+        if reason=="UNDO_CONFLICT" {try check(model.notice=="서버의 연결 설정이 바뀌어 저장하지 못했어요. 기존 설정을 확인한 뒤 다시 연결해 주세요.","TASK-13 conflict explains why saving stopped")}
+        if outcome=="pending" {try check(model.notice=="아직 처리 중이에요. 잠시 기다려 주세요.","TASK-13 pending response stays pending")}
+        model.closeInput()
+    }
+    await model.perform("secret_set");model.values=["value":"synthetic-private-value"]
+    reply=["outcome":"done","reason":"OK"];await model.submit()
+    try check(model.notice=="마쳤어요." && !model.showingInput && model.values.isEmpty,"TASK-13 completed reply still closes and clears input")
+    print("TASK-13 INCOMPLETE REPLY PASS")
 }
 
 /// AT-101: the visible groups follow AC-05 without changing the full document or sending filter requests.
@@ -323,4 +350,64 @@ import SwiftUI
     }
     live.close();window.window.close()
     print("AT-CM-30~38 APP PASS")
+}
+
+
+/// AT-FF-20~23: fake gate, real input/alert sheets alongside the floating conversation panel.
+@MainActor private func finderConnectionsLevelTests() async throws {
+    let dir=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer{try? FileManager.default.removeItem(at:dir)}
+    let store=try LocalStore(directory:dir),controller=try testConversation(client:GateClient(store:store,credentials:MemoryCredentials()))
+    let conversation=PetPanel(contentRect:CGRect(x:100,y:100,width:600,height:500),styleMask:[.borderless],backing:.buffered,defer:false)
+    conversation.isReleasedWhenClosed=false;conversation.hidesOnDeactivate=false
+    conversation.level=NSWindow.Level(rawValue:25)
+    conversation.contentView=NSTextField(labelWithString:"시험 대화 창")
+    conversation.orderFrontRegardless()
+    let window=ConnectionsWindow(controller:controller),model=window.model
+    defer{model.close();window.window.close();conversation.close()}
+    let document:[String:Any] = ["schema":"hermes-connections/1","checked_at":"2026-01-01T00:00:00Z","agents":[["profile":"alpha","display_name":"직원 A","connections":[["id":"app:synthetic","service":"synology","label":"시험 연결","group":"mac","state":"unknown","reason":"VALUES_REQUIRED","checked_at":"2026-01-01T00:00:00Z","capabilities":[],"rules":[],"actions":[["id":"app_connect","label":"이어서 하기","primary":true]]]]]]]
+    model.send={frame in
+        frame["type"] as? String=="connections" ? ["document":document]:["reply":["outcome":"waiting","next":["kind":"secret_set","fields":[["id":"password","label":"비밀번호","secure":true]]]]]
+    }
+    model.confirm={true}
+    await model.refresh();model.detail="app:synthetic"
+    try check(model.item != nil,"AT-FF fixture loads connection")
+    window.setPreferredLevel(NSWindow.Level(rawValue:26));window.show()
+    await model.perform("app_connect");await pause(0.15)
+    print("AT-FF-20 observation: conversation=\(conversation.level.rawValue), connections=\(window.window.level.rawValue), inputVisible=\(window.window.attachedSheet?.isVisible == true)")
+    try check(conversation.isVisible && window.window.attachedSheet?.isVisible==true && window.window.level.rawValue==26,"AT-FF-20 input keeps connections above conversation")
+    window.window.orderBack(nil)
+    window.window.level = .normal // A stale level must be recomputed when reopened.
+    window.show();await pause(0.1)
+    try check(window.window.level.rawValue==26 && window.window.isVisible && window.window.attachedSheet?.isVisible==true,"AT-FF-21 show recalculates level and brings input forward")
+    guard let input=window.window.attachedSheet else{throw TestFailure.assertion("AT-FF-22 missing input")}
+    model.values=["password":"synthetic-private-value"]
+    try check(model.fields.first?.secure==true,"AT-FF-70 fixture keeps a secure input field")
+    try check(connectionWindowIsShareable(window.window),"AT-FF-70 input stage shares connection window and every sheet")
+    let confirmation=Task{await model.confirmRestart()};await pause(0.1)
+    let alert=input.attachedSheet
+    let shareableDuringAlert=connectionWindowIsShareable(window.window)
+    let normalDuringAlert=window.window.level == .normal
+    if let alert{input.endSheet(alert,returnCode:.alertSecondButtonReturn)}
+    let accepted=await confirmation.value;await pause(0.1)
+    try check(alert != nil && normalDuringAlert && !accepted && window.window.level.rawValue==26 && input.isVisible,"AT-FF-22 restart alert lowers then restores input")
+    try check(shareableDuringAlert,"AT-FF-70 confirmation stage shares connection window and every sheet")
+    for accepted in [false,true] {
+        var normalDuringAuth=false
+        model.confirm={normalDuringAuth=window.window.level == .normal;return accepted}
+        await model.perform("app_connect");await pause(0.1)
+        try check(normalDuringAuth && window.window.level.rawValue==26 && window.window.attachedSheet?.isVisible==true,"AT-FF-22 authentication success/cancellation restores input")
+    }
+    model.closeInput();await pause(0.1)
+    try check(window.window.sheets.isEmpty && model.values.isEmpty && connectionWindowIsShareable(window.window),"AT-FF-70 closing input clears values and keeps connection window shareable")
+    print("AT-FF-70 CONNECTION SHARING PASS; AT-FF-71 regression in full suite")
+    window.setPreferredLevel(.normal)
+    await model.perform("app_connect");await pause(0.1)
+    try check(window.window.level == .normal && window.window.attachedSheet?.isVisible==true,"AT-FF-23 inactive preference stays normal with input")
+    print("AT-FF-20~23 APP PASS")
+}
+
+// AT-FF-70 includes nested confirmation sheets, not just the immediate input sheet.
+@MainActor private func connectionWindowIsShareable(_ window:NSWindow)->Bool {
+    window.sharingType != .none && window.sheets.allSatisfy(connectionWindowIsShareable)
 }

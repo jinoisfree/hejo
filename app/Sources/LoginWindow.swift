@@ -42,7 +42,7 @@ import AppKit
     static let passwordEntry = "saved-login-password"
     var onPasswordSaveFailure:(String)->Void = {text in
         let alert=NSAlert();alert.messageText="hejo";alert.informativeText=text;alert.addButton(withTitle:"확인")
-        NSApp.activate(ignoringOtherApps:true);alert.runModal()
+        OptionWindows.runModal(alert)
     }
     let or = NSTextField(labelWithString: "또는 아이디로")
     let address = NSTextField(string: "")
@@ -104,7 +104,7 @@ import AppKit
         let settings = client.store.settings
         if settings.keepsAccount, let saved = settings.rememberedAccount, account.stringValue.isEmpty { account.stringValue = saved }
         if settings.keepsPassword, password.stringValue.isEmpty, let saved = passwords.read(account: Self.passwordEntry) { password.stringValue = saved }
-        showWindow(nil); window?.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+        if let window { OptionWindows.show(window) }
         Task { await refresh() }
     }
     func refresh(find: () async -> String? = { await AirportFinder.findHub() }) async {

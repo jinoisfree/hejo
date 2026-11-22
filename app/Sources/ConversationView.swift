@@ -85,6 +85,7 @@ import UniformTypeIdentifiers
     private var rooms:[Room]=[], threads:[ConversationThread]=[]
     private(set) var sidebarRows:[SidebarLayout.Row]=[]
     private var renderedSidebarIDs:[String]=[]
+    private var renderedSidebarHeights:[CGFloat]=[]
     private var sidebarRails:[String:CAShapeLayer]=[:]
     private var sidebarUpdating=false
     private lazy var sidebarSearch=SidebarSearchRow(field:employeeSearch)
@@ -187,7 +188,11 @@ import UniformTypeIdentifiers
             if !newPost {self.history.scrollTo(key.thread)}
         }
         appearanceObserver=NotificationCenter.default.addObserver(forName:ChatAppearance.didChange,object:nil,queue:.main){[weak self] _ in MainActor.assumeIsolated {self?.applyChatAppearance()} }
-        controller.onShowFailure={ [weak self] failure in self?.chooseEmployee(failure.shown) };controller.onChange={ [weak self] in self?.refresh() }; controller.onRevealThread={ [weak self] key in self?.openFromBubble(key) }; refresh()
+        controller.onShowFailure={ [weak self] failure in self?.chooseEmployee(failure.shown) };controller.onChange={ [weak self] in
+            let span = ThreeTapDiagnostics.startSpan()
+            defer { ThreeTapDiagnostics.endSpan("controller_change", span) }
+            self?.refresh()
+        }; controller.onRevealThread={ [weak self] key in self?.openFromBubble(key) }; refresh()
     }
     required init?(coder:NSCoder) { fatalError() }
     deinit { if let appearanceObserver {NotificationCenter.default.removeObserver(appearanceObserver)};islandTimer?.invalidate();streamTimer?.invalidate();workspaceTimer?.invalidate() }
@@ -238,7 +243,7 @@ import UniformTypeIdentifiers
         appendPinMenu(menu,room:employee);menu.addItem(.separator())
         menu.addItem(RoomActionItem(model.muted.contains(employee) ? "알림 켜기":"알림 끄기"){model.toggleMute(employee)});menu.addItem(.separator())
         if let person=model.employees.first(where:{$0.id==employee}),person.avatarCustom != nil {
-            menu.addItem(RoomActionItem("사진 바꾸기…") { [weak self] in self?.choosePicture(kind:"employee",id:employee) })
+            menu.addItem(pictureMenu(kind:"employee",id:employee,name:person.name))
             if person.avatarCustom==true { menu.addItem(RoomActionItem("사진 지우기") { [weak self] in Task { _=await self?.controller.changePicture(kind:"employee",id:employee,url:nil) } }) }
         }
         IMessageMenus.append(to: menu, room: employee, state: controller.client.imessage)
@@ -257,7 +262,7 @@ import UniformTypeIdentifiers
         channels.addItem(RoomActionItem("기본"){[weak self] in self?.changeHomeChannel(nil)});channels.addItem(.separator())
         for room in model.groups.values.filter({$0.archived != true}).sorted(by:{$0.title<$1.title}) {let choice=RoomActionItem("#"+room.title){[weak self] in self?.changeHomeChannel(room.id)};choice.state=model.homeChannel?.id==room.id ? .on:.off;channels.addItem(choice)}
         item.submenu=channels;menu.addItem(item)
-        menu.addItem(RoomActionItem("사진 바꾸기…"){[weak self] in if let room=model.homeChannel {self?.chooseGroupPicture(room)}else{self?.choosePicture(kind:"room",id:HomeRoom.pictureID)}})
+        menu.addItem(pictureMenu(kind:"room",id:model.homeChannel?.id ?? HomeRoom.pictureID,name:model.homeChannel?.title ?? model.name(HomeRoom.id)))
         if model.homePicture != nil {menu.addItem(RoomActionItem("사진 지우기"){[weak self] in Task {if let room=model.homeChannel {_=await self?.controller.changePicture(kind:"room",id:room.id,url:nil)}else{await self?.clearHomePicture()}}})}
         menu.addItem(.separator())
         if let room=model.homeChannel {menu.addItem(RoomActionItem("직원 추가…"){[weak self] in guard let self,let members=RoomDialogs.invite(model.employees,room:room) else{return};Task{await self.controller.roomCommand("room_save",room:room,members:members)}});menu.addItem(.separator())}
@@ -287,7 +292,7 @@ import UniformTypeIdentifiers
             guard let self,let text=model.sidebar.deletion(id) else { return }
             let alert=NSAlert();alert.alertStyle = .warning;alert.messageText=text.title;alert.informativeText=text.body
             alert.addButton(withTitle:"삭제");alert.addButton(withTitle:"취소")
-            if alert.runModal() == .alertFirstButtonReturn { Task { await self.deleteSection(id) } }
+            if OptionWindows.runModal(alert) == .alertFirstButtonReturn { Task { await self.deleteSection(id) } }
         };remove.isEnabled=model.sidebar.sections.count>1;menu.addItem(remove);return menu
     }
     func deleteSection(_ id:String) async {
@@ -299,12 +304,18 @@ import UniformTypeIdentifiers
         do { try await controller.files.setPicture(kind:"room",id:"section-"+id,data:nil);controller.model.editSection(id,clearPicture:true) }
         catch { controller.notice="사진을 지우지 못했어요. 다시 시도해 주세요." }
     }
-    private func choosePicture(kind:String,id:String,section:String?=nil) {
+    var picturePicker:()->NSOpenPanel = {NSOpenPanel()}
+    var choosePictureFile:(NSOpenPanel,@escaping(NSApplication.ModalResponse)->Void)->Void = { $0.begin(completionHandler:$1) }
+    func choosePicture(kind:String,id:String,section:String?=nil) {
         let client=controller.client,address=client.store.settings.address,token=client.bearer,epoch=client.connectionEpoch
-        let picker=NSOpenPanel();picker.canChooseDirectories=false;picker.allowsMultipleSelection=false;picker.allowedContentTypes=[.png,.jpeg,.heic];picker.title="방 사진 고르기";picker.prompt="넣기"
-        picker.begin { [weak self] result in
+        let picker=picturePicker();picker.canChooseDirectories=false;picker.allowsMultipleSelection=false;picker.allowedContentTypes=[.png,.jpeg,.heic];picker.title="방 사진 고르기";picker.prompt="넣기"
+        OptionWindows.prepare(picker)
+        choosePictureFile(picker) { [weak self] result in
             guard result == .OK,let url=picker.url,let self,address==client.store.settings.address,token==client.bearer,epoch==client.connectionEpoch else { return }
-            Task { if let picture=await self.controller.changePicture(kind:kind,id:id,url:url) { if let section {self.controller.model.editSection(section,picture:picture)} else if id==HomeRoom.pictureID {self.controller.model.configureHome{$0.picture=picture}} } }
+            Task {
+                guard address==client.store.settings.address,token==client.bearer,epoch==client.connectionEpoch else{return}
+                if let picture=await self.controller.changePicture(kind:kind,id:id,url:url) {self.pictureUploaded(picture,id:id,section:section)}
+            }
         }
     }
     func addMenu()->NSMenu {
@@ -335,7 +346,7 @@ import UniformTypeIdentifiers
         guard controller.model.selected != nil else{return};let employee=controller.model.selectionIdentity
         let value=controller.model.header(employee)
         let (alert,heading,detail)=RoomDialogs.header(title:value.title,description:value.description)
-        let result=alert.runModal()
+        let result=OptionWindows.runModal(alert)
         if let room=controller.model.groups[employee] {if result == .alertFirstButtonReturn {Task {await controller.roomCommand("room_save",room:room,title:heading.stringValue,description:detail.stringValue)}};return}
         switch result {
         case .alertFirstButtonReturn: let name=heading.stringValue.trimmingCharacters(in:.whitespacesAndNewlines);controller.model.saveHeader(employee,title:name.isEmpty ? value.title:name,description:detail.stringValue.trimmingCharacters(in:.whitespacesAndNewlines))
@@ -401,8 +412,13 @@ import UniformTypeIdentifiers
         controller.model.select(key,inHome:controller.model.isHome);controller.model.markAlertSeen(key)
         if openThread==key {history.scrollTo(key.thread,bottom:true)}
     }
+    private var pendingRevealScroll: String?
+    func performUpdates(_ updates: () -> Void) { controller.performUpdates(updates) }
     func openFromBubble(_ key: ConversationKey) {
-        reveal(key,inHome:controller.model.isHome && controller.model.selected==key); refresh(); history.scrollTo(key.thread)
+        reveal(key,inHome:controller.model.isHome && controller.model.selected==key)
+        if controller.isUpdating { pendingRevealScroll = key.thread }
+        refresh()
+        if !controller.isUpdating { history.scrollTo(key.thread) }
     }
     @discardableResult func closeSearchIfOpen() -> Bool {
         guard searchOpen else { return false }
@@ -543,7 +559,15 @@ import UniformTypeIdentifiers
         return replyMode ? "스레드에 답글":model.selected.map{(model.groups[$0.employee] != nil ? "#":"@")+model.name($0.employee)+"에 새 글"} ?? "hejo에 새 글"
     }
     func refresh() {
-        guard !rendering else { return }; rendering=true; defer { rendering=false }
+        if controller.isUpdating { controller.notifyChange(); return }
+        guard !rendering else { return }; rendering=true
+        defer {
+            rendering=false
+            if let thread = pendingRevealScroll { pendingRevealScroll=nil; history.scrollTo(thread) }
+        }
+        let span = ThreeTapDiagnostics.startSpan()
+        defer { ThreeTapDiagnostics.endSpan("refresh", span) }
+        var phase = ThreeTapDiagnostics.startSpan()
         let model=controller.model
         let themeDark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua;subtitle.textColor=CardText.quiet(dark:themeDark);version.textColor=CardText.quiet(dark:themeDark)
         streamReveal.receive(Array(model.messages.values),now:motionTime());streamReveal.advance(now:motionTime(),immediately:reduceMotion())
@@ -566,6 +590,7 @@ import UniformTypeIdentifiers
             controller.moveDraft(from:controller.composeKey ?? old,to:destination,carry:true);selectAutomatic(identity,home:model.isHome)
         }
         }
+        ThreeTapDiagnostics.endSpan("refresh_selection", phase); phase = ThreeTapDiagnostics.startSpan()
         let selected=model.selected
         rooms=model.displayRooms.filter { employeeSearch.stringValue.isEmpty || $0.title.localizedCaseInsensitiveContains(employeeSearch.stringValue) }
         let layout=model.sidebar
@@ -586,8 +611,10 @@ import UniformTypeIdentifiers
         composerFaces.lit=model.isHome ? light.id.flatMap{composerMembers.firstIndex(of:$0)}:nil;composerFaces.ring=model.isHome && light.ring;composerFaces.explicitlyPicked = !replyMode && !controller.draft.picks.isEmpty
         editor.editor.mentions=(model.isHome ? model.homeRecipients.members:model.people(selected?.employee ?? "")).map(\.name)
         addRoom.toolTip="새 방·섹션 만들기, 뺀 방·보관된 방 다시 넣기";addRoom.setAccessibilityLabel("방 추가")
-        employeeTable.rowHeight=ConversationSidebar.isList(sidebarWidth) ? ConversationSidebar.rowHeight : ConversationSidebar.tabHeight
+        let rowHeight = ConversationSidebar.isList(sidebarWidth) ? ConversationSidebar.rowHeight : ConversationSidebar.tabHeight
+        if employeeTable.rowHeight != rowHeight { employeeTable.rowHeight = rowHeight }
         updateSidebarRows()
+        ThreeTapDiagnostics.endSpan("refresh_sidebar", phase); phase = ThreeTapDiagnostics.startSpan()
         if let selected {
             let current=model.selectionIdentity
             threads=model.isHome ? model.homeThreads:(model.room(for:current).map { model.threads(room:$0,query:"") } ?? []).sorted { (model.timeline($0.key).first?.seq ?? 0) < (model.timeline($1.key).first?.seq ?? 0) }
@@ -605,11 +632,13 @@ import UniformTypeIdentifiers
                 if previous==nil || !Calendar.current.isDate(previous!,inSameDayAs:date) { cards.append(dayContent(date,id:thread.id)) }
                 cards.append(threadContent(thread));previous=date
             }
+            ThreeTapDiagnostics.endSpan("refresh_cards", phase); phase = ThreeTapDiagnostics.startSpan()
             history.show(cards,identity:current,entry:newest(current)?.thread)
             if enteredPlace != current {enteredPlace=current;let last=threads.last?.key,newest=newest(current);history.enter(newest==last ? nil:newest?.thread)}
             if !automatic,model.timeline(selected).isEmpty,controller.timeline(selected).isEmpty {replyMode=false}
 
         } else { threads=[]; history.show([],identity:""); heading.stringValue="HEJO." }
+        ThreeTapDiagnostics.endSpan("refresh_history", phase); phase = ThreeTapDiagnostics.startSpan()
         let draft=controller.draft
         if !editor.editor.hasMarkedText() && (writingKey != controller.composeKey || editorFontSize != ChatMetrics.bodyFont || MessageFormat.serialize(editor.editor.attributedString(),baseSize:editorFontSize) != draft.text) {
             editor.editor.breakUndoCoalescing(); editor.editor.undoManager?.removeAllActions()
@@ -641,15 +670,22 @@ import UniformTypeIdentifiers
         for button in [replyButton,newButton,sendButton] { button.needsDisplay=true }
         modeMotion.target(replyMode ? 1:0,now:motionTime(),immediate:reduceMotion())
         notice.stringValue=controller.notice
+        ThreeTapDiagnostics.endSpan("refresh_composer", phase); phase = ThreeTapDiagnostics.startSpan()
         refreshWorkspaceBars();scheduleSearch()
+        ThreeTapDiagnostics.endSpan("refresh_workspace", phase); phase = ThreeTapDiagnostics.startSpan()
         var islandInput=controller.islandInput;islandInput.drawerOpen=controller.drawerOpen
         islandModel.update(islandInput);tickIsland(updateDrawer:false)
+        ThreeTapDiagnostics.endSpan("refresh_island", phase); phase = ThreeTapDiagnostics.startSpan()
         if controller.drawerVisible {todoDrawer.show(controller.drawerSnapshot,filter:controller.drawerFilter,selected:drawerSelectedID)}
+        ThreeTapDiagnostics.endSpan("refresh_drawer", phase); phase = ThreeTapDiagnostics.startSpan()
         onUnread?(model.visibleUnreadTotal)
         reportOpenHeight()
         startWorkspaceMotion();needsLayout=true; needsDisplay=true
+        ThreeTapDiagnostics.endSpan("refresh_finish", phase)
     }
     override func layout() {
+        let span = ThreeTapDiagnostics.startBeforeFirstTickSpan()
+        defer { ThreeTapDiagnostics.endSpan("conversation_layout", span) }
         super.layout()
         let w=bounds.width,h=bounds.height,left=min(sidebarWidth,max(0,w-100)), x=left, right=max(1,w-left), list=ConversationSidebar.isList(sidebarWidth)
         brandDrag.frame=CGRect(x:0,y:0,width:left,height:44); brand.frame=CGRect(x:0,y:7,width:left,height:18); version.frame=CGRect(x:0,y:26,width:left,height:12)
@@ -706,6 +742,8 @@ import UniformTypeIdentifiers
         inputBackground.layer?.backgroundColor=NSColor.labelColor.withAlphaComponent(0.04).cgColor; inputBackground.layer?.borderColor=NSColor.labelColor.withAlphaComponent(0.18).cgColor
     }
     override func draw(_ dirtyRect:NSRect) {
+        let span = ThreeTapDiagnostics.startBeforeFirstTickSpan()
+        defer { ThreeTapDiagnostics.endSpan("conversation_draw", span) }
         let dark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua
         (dark ? NSColor(white:0.07,alpha:0.4) : .clear).setFill(); bounds.fill()
         NSColor.labelColor.withAlphaComponent(0.035).setFill(); CGRect(x:sidebarWidth,y:0,width:max(0,bounds.width-sidebarWidth),height:44).fill()
@@ -756,8 +794,15 @@ import UniformTypeIdentifiers
         guard !sidebarUpdating else{return};sidebarUpdating=true;defer{sidebarUpdating=false}
         let ids=sidebarRows.map(\.stableID)+(employeeSearch.stringValue.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty || !ConversationSidebar.isList(sidebarWidth) ? ["add"]:[])
         let old=renderedSidebarIDs;renderedSidebarIDs=ids
+        let heights = ids.indices.map { tableView(employeeTable,heightOfRow:$0) }
+        // Ordinary rows have fixed heights. Keep content/selection updates below, but
+        // avoid asking AppKit to recreate their layout when those heights did not change.
+        // Search rows retain the existing refresh path for live hit text and wrapping.
+        let searchRows = sidebarRows.contains { $0.kind == .hit || $0.kind == .hitHeading }
+        let changedHeights = IndexSet(ids.indices.filter { searchRows || !renderedSidebarHeights.indices.contains($0) || renderedSidebarHeights[$0] != heights[$0] })
+        renderedSidebarHeights = heights
         if old != ids {SidebarMotion.update(employeeTable,old:old,new:ids,animated:!old.isEmpty && !reduceMotion() && window != nil)}
-        else {NSAnimationContext.runAnimationGroup{context in context.duration=reduceMotion() || window==nil ? 0:0.24;context.timingFunction=SidebarMotion.curve;employeeTable.noteHeightOfRows(withIndexesChanged:IndexSet(integersIn:0..<ids.count))}}
+        else if !changedHeights.isEmpty {NSAnimationContext.runAnimationGroup{context in context.duration=reduceMotion() || window==nil ? 0:0.24;context.timingFunction=SidebarMotion.curve;employeeTable.noteHeightOfRows(withIndexesChanged:changedHeights)}}
         for i in sidebarRows.indices {if let cell=employeeTable.view(atColumn:0,row:i,makeIfNecessary:false) as? EmployeeSidebarCell {configureSidebarCell(cell,row:sidebarRows[i])}}
         if let index=rowIndex(for:controller.model.selectionIdentity) {employeeTable.selectRowIndexes(IndexSet(integer:index),byExtendingSelection:false)}else{employeeTable.deselectAll(nil)}
         layoutSidebarRails()
@@ -844,6 +889,7 @@ import UniformTypeIdentifiers
     }
     private func attach() {
         let picker=attachmentPicker();pickingFiles=true;NSApp.activate(ignoringOtherApps:true)
+        OptionWindows.prepare(picker)
         chooseFiles(picker) { [weak self] response in self?.pickingFiles=false;if response == .OK {self?.controller.addAttachments(picker.urls)} }
     }
     private func paste(_ board:NSPasteboard)->Bool {

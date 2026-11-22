@@ -22,6 +22,17 @@ final class FakeThreeTapReader: ThreeTapReading {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
     let store = try LocalStore(directory: directory)
+    try check(ThreeTapDiagnostics.output == nil && ThreeTapDiagnostics.timestamp() == nil, "tap tracing defaults off")
+    try check(ThreeTapDiagnostics.traceURL(nil) == nil && ThreeTapDiagnostics.traceURL("") == nil, "tap tracing requires explicit destination")
+    try check(ThreeTapDiagnostics.traceURL(directory.appendingPathComponent("trace.jsonl").path) == nil, "tap tracing refuses output outside build directory")
+    let buildDirectory = directory.appendingPathComponent(".build")
+    try FileManager.default.createDirectory(at: buildDirectory, withIntermediateDirectories: true)
+    try check(ThreeTapDiagnostics.traceURL(buildDirectory.appendingPathComponent("trace.jsonl").path) != nil, "tap tracing accepts build directory")
+    try FileManager.default.createSymbolicLink(at: buildDirectory.appendingPathComponent("escape"), withDestinationURL: directory)
+    try check(ThreeTapDiagnostics.traceURL(buildDirectory.appendingPathComponent("escape/trace.jsonl").path) == nil, "tap tracing rejects symlink escape")
+    try FileManager.default.createSymbolicLink(at: buildDirectory.appendingPathComponent("linked.jsonl"), withDestinationURL: directory.appendingPathComponent("outside.jsonl"))
+    try check(ThreeTapDiagnostics.traceURL(buildDirectory.appendingPathComponent("linked.jsonl").path) == nil, "tap tracing refuses dangling output symlink")
+    try check(ThreeTapDiagnostics.traceURL(buildDirectory.appendingPathComponent("missing/trace.jsonl").path) == nil, "tap tracing requires existing output directory")
     func contacts(_ count: Int, drift: Double = 0) -> [TapContact] {
         (0..<count).map { TapContact(id: $0, x: 0.2 + Double($0) * 0.1 + drift, y: 0.5) }
     }

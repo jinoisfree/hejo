@@ -26,6 +26,7 @@ final class PetController: NSObject {
     private var drawerSlideActive = false
     private(set) var drawerOpen = false
     private var onDrawerStateChanged: ((Bool,Bool)->Void)?
+    private var updateConversation: ((() -> Void) -> Void)?
     func toggleDrawer(){setDrawerOpen(!drawerOpen)}
     func setDrawerOpen(_ open:Bool) {
         guard drawerOpen != open else{return}
@@ -40,6 +41,9 @@ final class PetController: NSObject {
     }
     @MainActor func installDrawer(_ view:ConversationView) {
         pet.installDrawer(view.todoDrawer)
+        updateConversation={ [weak view] updates in
+            if let view { view.performUpdates(updates) } else { updates() }
+        }
         view.onToggleDrawer={ [weak self] in self?.toggleDrawer() }
         onDrawerStateChanged={ [weak view] open,expanded in view?.setDrawerState(open:open,chatExpanded:expanded) }
         view.setDrawerState(open:drawerOpen,chatExpanded:chatExpanded)
@@ -206,10 +210,17 @@ final class PetController: NSObject {
         pet.onClick?()
     }
     @objc func showChat() { setExpanded(true) }
+    func showChat(preparing: @escaping () -> Void) { setExpanded(true, preparing: preparing) }
     @objc func collapseChat() { setExpanded(false) }
-    private func setExpanded(_ expanded: Bool) {
-        guard expanded || canCollapse(), web?.presenting != true else{return}
-        guard expanded != chatExpanded,let old=placementTarget else{return}
+    private func setExpanded(_ expanded: Bool, preparing: (() -> Void)? = nil) {
+        guard expanded || canCollapse(), web?.presenting != true,
+              expanded != chatExpanded, let old=placementTarget else {
+            if let preparing {
+                if let updateConversation { updateConversation(preparing) } else { preparing() }
+            }
+            return
+        }
+        ThreeTapDiagnostics.expanded(expanded)
         let continuing=timer != nil && !pet.genie.isHidden
         let start=continuing ? transitionProgress:(expanded ? 0:1)
         timer?.invalidate();timer=nil
@@ -224,10 +235,18 @@ final class PetController: NSObject {
         }
         chatExpanded=expanded;panel.chatExpanded=expanded
         // Capture the closing picture before folding the model, or keep the current picture on reversal.
-        if !expanded && !continuing {pet.captureGenie()}
-        onDrawerStateChanged?(drawerOpen,expanded)
-        onExpansionChanged?(expanded)
+        if !expanded && !continuing {ThreeTapDiagnostics.mark("capture_start");pet.captureGenie();ThreeTapDiagnostics.mark("capture_end")}
+        ThreeTapDiagnostics.mark("callbacks_start")
+        let updates = {
+            preparing?()
+            self.onDrawerStateChanged?(self.drawerOpen,expanded)
+            self.onExpansionChanged?(expanded)
+        }
+        // Flush the final conversation synchronously, before layout and the opening snapshot.
+        if let updateConversation { updateConversation(updates) } else { updates() }
+        ThreeTapDiagnostics.mark("callbacks_end")
         placePet(at:reopeningAnchor ?? old.anchorOrigin)
+        ThreeTapDiagnostics.mark("placement_end")
         guard let target=placementTarget else{return}
         let open=expanded ? target:old
         transitionOpenRect=open.globalBubble;transitionSteps=0;transitionProgress=start
@@ -235,18 +254,28 @@ final class PetController: NSObject {
         else {panel.makeFirstResponder(nil);panel.resignKey()}
         if let outsideMonitor {NSEvent.removeMonitor(outsideMonitor);self.outsideMonitor=nil}
         if expanded {outsideMonitor=NSEvent.addLocalMonitorForEvents(matching:[.leftMouseDown]){[weak self] event in self?.handleOutsideClick(event);return event}}
-        if reducedMotion() {transitionProgress=expanded ? 1:0;pet.endGenie(expanded:expanded);apply(target);if expanded {onFocus?()};return}
+        if reducedMotion() {transitionProgress=expanded ? 1:0;pet.endGenie(expanded:expanded);apply(target);ThreeTapDiagnostics.moved();ThreeTapDiagnostics.finished();if expanded {onFocus?()};return}
         apply(open)
-        if !continuing && expanded {pet.captureGenie()}
+        if !continuing && expanded {ThreeTapDiagnostics.mark("capture_start");pet.captureGenie();ThreeTapDiagnostics.mark("capture_end")}
         pet.updateGenie(open,progress:start)
         transitionStart=clock();genieStart=start
-        let t=Timer(timeInterval:1.0/60,repeats:true){[weak self] _ in self?.stepTransition()}
-        timer=t;RunLoop.main.add(t,forMode:.common);show()
+        ThreeTapDiagnostics.mark("timer_start")
+        let t=Timer(timeInterval:1.0/60,repeats:true){[weak self] _ in ThreeTapDiagnostics.firstTick(); self?.stepTransition()}
+        timer=t;RunLoop.main.add(t,forMode:.common);show();ThreeTapDiagnostics.mark("transition_setup_end")
+        // Preserve the synchronous starting pose, then submit the first elapsed-time
+        // frame without waiting for a 60 Hz timer. Ignore a superseded transition.
+        DispatchQueue.main.async { [weak self, weak t] in
+            guard let self, let t, self.timer === t else { return }
+            ThreeTapDiagnostics.firstTick()
+            self.stepTransition()
+        }
     }
     func stepTransition(){
+        ThreeTapDiagnostics.markFirst("step_start")
         let fraction=min(1,max(0,(clock()-transitionStart)/ChatMorph.genieDuration))
         transitionProgress=ChatMorph.genieProgress(from:genieStart,opening:chatExpanded,fraction:fraction);transitionSteps+=1
         if let p=pet.placement {pet.updateGenie(p,progress:transitionProgress)}
+        if fraction > 0 {ThreeTapDiagnostics.moved()}
         if fraction>=1 {
             timer?.invalidate();timer=nil;pet.endGenie(expanded:chatExpanded)
             if let target=placementTarget {
@@ -255,6 +284,7 @@ final class PetController: NSObject {
                 apply(target)
             }
             if chatExpanded {onFocus?()}
+            ThreeTapDiagnostics.finished()
         }
     }
     func handleOutsideClick(_ event:NSEvent){
@@ -316,6 +346,8 @@ final class PetController: NSObject {
         if point==target.globalBubble.origin && size==target.globalBubble.size && !pet.widthCoverVisible {motionTimer?.invalidate();motionTimer=nil}
     }
     private func apply(_ p: PetPlacement) {
+        let span = ThreeTapDiagnostics.startBeforeFirstTickSpan()
+        defer { ThreeTapDiagnostics.endSpan("placement_apply", span) }
         CATransaction.begin(); CATransaction.setDisableActions(true)
         panel.setFrame(p.windowFrame, display: false); pet.arrange(p)
         let screen=PetDisplay.nearest(to:CGPoint(x:p.globalSprite.midX,y:p.globalSprite.midY),in:displays())

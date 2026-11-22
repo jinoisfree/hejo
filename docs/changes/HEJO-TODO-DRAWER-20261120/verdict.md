@@ -217,3 +217,49 @@
    - 배포된 `gate/deadlines.py`는 검증본 `73a9447`과 같다(cmp 0). `gate/server.py`는 릴리스 `7811c51`과 같다(cmp 0).
 5. **지적**: 없음.
 6. **남은 조건**: 합동 TASK-06(0.2.3·빌드 5) 공개 후보 → 사장 공개 → TASK-07(사장 화면 확인 M3, 현재 명세 반영).
+
+## 기록: 0.2.3 푸시 확인과 이 Mac 설치 (2026-11-21, 사장 지시 "공개랑 설치는 너가하자")
+
+- **푸시**
+  - 사장이 HEJO-CONN-MANAGE 쪽 승인 화면에서 승인했고, 플러그인이 실행했다.
+  - 읽기 확인: `git ls-remote github refs/heads/main` = `f397bdb7bedfc766c2116ecdd07118cb3afdfc32`. 공개 후보 0.2.3·5가 원격에 반영됐다.
+- **공개(`install/hejo-ship publish`)는 실행하지 않았다.**
+  - 이 명령은 GitHub에 태그 `v0.2.3`과 릴리스를 만들고 파일을 올리는 원격 쓰기다.
+  - 이 세션의 푸시 규칙은 에이전트가 git push나 "다른 도구로의 원격 쓰기"를 직접 하지 못하게 한다. 그래서 사장이 직접 실행한다.
+  - 0.2.2 때(HEJO-CONNECTIONS verdict)는 사장 지시로 이 대화가 실행한 선례가 있다. 이번에는 위 규칙에 따라 하지 않았다.
+- **이 Mac 설치**(로컬 작업)
+  - 공개될 것과 같은 준비물 `.build/release-0.2.3/hejo-0.2.3-arm64.zip`(sha256 `12081892…`, prepared.json과 같음)을 풀었다.
+  - 압축 해제본은 `codesign --verify --deep --strict`를 통과했다. 버전은 0.2.3·5, 번들 ID는 `io.github.hermes-hejo.hejo`다.
+  - 서명 요구 조건(designated requirement)이 설치돼 있던 0.2.2와 같다. 키체인 접근이 유지된다.
+  - 실행 중이던 hejo를 정상 종료했다. 옛 0.2.2를 `~/.cache/hejo-0.2.3-install-*/old-0.2.2/`(0700)에 보관하고 `/Applications/hejo.app`을 교체했다.
+  - 교체본도 codesign 검증을 통과했다. 다시 실행해 새 프로세스를 확인했다.
+  - 되돌리기: 보관한 0.2.2를 `/Applications/hejo.app`으로 되돌린다.
+- **남은 것**
+  - 사장의 공개 명령.
+  - 다른 Mac의 업데이트("업데이트 확인…"). 공개 뒤에 할 수 있다.
+  - M3 사장 화면 확인.
+  - TASK-07 현재 명세 반영.
+
+## 검증 판정 5차: 부하 정리 뒤 추가 검증 (2026-11-21)
+
+1. **판정: 구현·검증 범위 완료(3차 판정 유지·보강).**
+   - 3차에서 열어 둔 "부하 없는 10회" 조건이 채워졌다.
+   - 기능 전체로는 아직 남은 것이 있다. 공개 명령은 사장이 하고(원격 태그 `v0.2.3` 없음, `ls-remote` 확인), 그 뒤 사장 화면 확인 M3와 현재 명세 반영(TASK-07)이 남는다.
+2. **검증 조건**
+   - 교차 모델: 구현은 codex/gpt-6.1-sol, 검증은 이 대화.
+   - 대상: `role-workflow/7-833b7c8b` @ `0368f6968e5cdd1e6b6d64c9092b304312372d54`. 작업 트리는 깨끗하다.
+3. **설계 적합성**: 3차와 같다(변경 없음).
+4. **직접 확인한 것**
+   - `git diff --exit-code 43b6994 0368f69` 종료 0이다. 이 브랜치 트리는 로컬 `main`과 같다.
+   - 73a9447 뒤로는 main 병합 커밋(`dc74579`, `0368f69`)만 있다. 제품·시험 소스에 새 변경이 없다.
+   - 구현 담당 증거(구현 worktree `.build/todo-drawer-supplement2-quiet/active-desktop/`)
+     - `app-basic-01..10.exit`가 모두 0이고, `ten-runs.json`의 10회 종료 코드도 모두 0이다.
+     - 표본으로 본 회차(01·05·10)는 각각 `AT-TD-20..42`, `AT-HF-89`, `AT-HF-92`, `APP_TEST_OK` 4줄이 있고 `APP_TEST_FAILED`는 0이다.
+     - `full-test.exit` 0, `full-test.log`는 Python 416 passed다.
+     - 보고된 시험 외 프로세스 최대 CPU는 `mediaanalysisd` 97.7%다(구현 담당 기록).
+   - 검증자의 3차 직접 실행(무거운 부하에서 7/7, 전체 시험 0)과 합치면, V-4 회귀가 남아 있다는 근거는 없다.
+5. **지적**: 없음.
+6. **남은 것**
+   - 사장: 공개 명령 `install/hejo-ship publish --approve-commit f397bdb7bedfc766c2116ecdd07118cb3afdfc32 --prepared .build/release-0.2.3/prepared.json`.
+   - 사장: 이 Mac 0.2.3(설치됨)에서 M3 확인.
+   - 그 뒤 TASK-07 현재 명세 반영. 내용은 ARCHITECTURE 문 절에 마감 읽기 한 줄, HEJO-FOUNDATION 사장 칸 클릭 서술 갱신, spec 상태 "적용"이다.

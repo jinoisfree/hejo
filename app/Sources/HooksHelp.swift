@@ -6,7 +6,7 @@ import AppKit
     static func present() {
         let alert = NSAlert(); alert.messageText = title; alert.informativeText = explanation
         for title in ["연결 안내 열기", "닫기", "연결", "연결 해제"] { alert.addButton(withTitle:title) }
-        let choice = alert.runModal()
+        let choice = OptionWindows.runModal(alert)
         if choice == .alertFirstButtonReturn {
             if let url = Bundle.main.url(forResource:"연결안내",withExtension:"html") { NSWorkspace.shared.open(url) }
         } else if choice.rawValue >= NSApplication.ModalResponse.alertThirdButtonReturn.rawValue {
@@ -14,10 +14,10 @@ import AppKit
             let process = Process(); process.executableURL = URL(fileURLWithPath:"/usr/bin/python3")
             process.arguments = [script.path,"--app",Bundle.main.bundleURL.path,choice == .alertThirdButtonReturn ? "--apply":"--disconnect"]
             process.standardOutput = FileHandle.nullDevice; process.standardError = FileHandle.nullDevice
-            do { try process.run(); process.waitUntilExit() } catch { let failed=NSAlert();failed.messageText=title;failed.informativeText="설정과 연결 기록을 확인해 주세요.";failed.runModal();return }
+            do { try process.run(); process.waitUntilExit() } catch { let failed=NSAlert();failed.messageText=title;failed.informativeText="설정과 연결 기록을 확인해 주세요.";OptionWindows.runModal(failed);return }
             let result = NSAlert(); result.messageText = title
             result.informativeText = process.terminationStatus == 0 ? (choice == .alertThirdButtonReturn ? "Codex 공식 훅은 /hooks에서 신뢰 검토가 필요합니다. 기존 작업을 중단하거나 재시작하지 않습니다.":"연결 해제") : "기존 설정 보존을 위해 중단. 기존 내용과 추가 항목을 검토한 뒤 별도로 병합해야 합니다."
-            result.addButton(withTitle:"닫기"); result.runModal()
+            result.addButton(withTitle:"닫기"); OptionWindows.runModal(result)
         }
     }
 }

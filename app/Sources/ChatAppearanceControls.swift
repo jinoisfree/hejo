@@ -1,6 +1,6 @@
 import AppKit
 
-private final class AppearanceSwatch: NSButton {
+final class AppearanceSwatch: NSButton {
     var color: UserBubbleColor = .blue
     var darkColors = false
     override func draw(_ dirtyRect: NSRect) {

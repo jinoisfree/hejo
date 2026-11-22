@@ -9,7 +9,7 @@ from .journal import HejoJournalError
 log = logging.getLogger(__name__)
 
 
-def recipients(text, room, employees):
+def recipients(text, room, employees, journal, thread):
     called = []
     matches = []
     for employee in employees:
@@ -25,10 +25,29 @@ def recipients(text, room, employees):
             if employee not in called:
                 called.append(employee)
             end = stop
-    return called or [room['lead']]
+    if called:
+        return called
+    first = next((row for row in journal.records if row['type'] == 'message'
+                  and journal.message_threads.get(row['msg_id']) == (room['id'], thread)), None)
+    owners = ([first['employee']] if first['role'] == 'employee'
+              else first.get('_meta', {}).get('recipients', [])) if first else []
+    eligible = set(room['members']) & {employee['id'] for employee in employees}
+    return [owner for owner in owners if owner in eligible] or [room['lead']]
 
 
 class RoomCommands:
+    def room_save_record(self, frame, identifier, existing=None):
+        known = {entry['id'] for entry in self.employees()}
+        members, title = frame['members'], frame['title'].strip()
+        if not title or len(set(members)) < 2 or len(set(members)) != len(members) or frame['lead'] not in members:
+            raise ValueError('invalid_room')
+        if not set(members) <= known:
+            raise ValueError('unknown_employee')
+        room = {**(existing or {}), 'id': identifier, 'title': title,
+                'description': frame.get('description', ''), 'members': members, 'lead': frame['lead'],
+                'archived': (existing or {}).get('archived', False), 'picture': (existing or {}).get('picture')}
+        return {'v': 1, 'type': 'room', 'room': room}
+
     async def room_command(self, frame, conn):
         async with self.files.lock, self._publish_lock:
             bridge = getattr(self, 'imessage', None)
@@ -42,18 +61,11 @@ class RoomCommands:
                 await self.server.error('room_not_found', identifier, conn)
                 return
             if frame['type'] == 'room_save':
-                known = {entry['id'] for entry in self.employees()}
-                members, title = frame['members'], frame['title'].strip()
-                if not title or len(set(members)) < 2 or len(set(members)) != len(members) or frame['lead'] not in members:
-                    await self.server.error('invalid_room', identifier, conn)
+                try:
+                    record = self.room_save_record(frame, identifier, existing)
+                except ValueError as exc:
+                    await self.server.error(str(exc), identifier, conn)
                     return
-                if not set(members) <= known:
-                    await self.server.error('unknown_employee', identifier, conn)
-                    return
-                room = {**(existing or {}), 'id': identifier, 'title': title,
-                        'description': frame.get('description', ''), 'members': members, 'lead': frame['lead'],
-                        'archived': (existing or {}).get('archived', False), 'picture': (existing or {}).get('picture')}
-                record = {'v': 1, 'type': 'room', 'room': room}
             elif frame['type'] == 'room_archive':
                 record = {'v': 1, 'type': 'room', 'room': {**existing, 'archived': frame['archived']}}
             else:

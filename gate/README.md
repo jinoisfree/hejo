@@ -30,8 +30,13 @@ python -m pytest gate/tests tests/acceptance/test_gate_foundation.py \
 
 예약 기본 대상은 각 프로필의 `platforms.hejo.home_channel`에
 `{platform: hejo, chat_id: <그 직원 id>}`로 둔다. 스레드 값은 넣지 않는다.
-그래서 예약 보고마다 문이 새 UUID 스레드를 만든다. 대상 문법은 `hejo:<직원 id>`이며
-`parse_target_ref_fn`·`validate_target_ref_fn`으로 경로 구분자 없는 프로필 id 문법을 검사한다.
+그래서 예약 보고마다 문이 새 UUID 스레드를 만든다. 대상 문법은 `hejo:<직원 id>` 또는 `hejo:room:<방 UUID>`이며
+`parse_target_ref_fn`·`validate_target_ref_fn`으로 프로필 id와 방 UUID 문법을 검사한다.
+방 글에 직원 표시가 없으면 기본 프로필 자신이 글쓴이다. 방 대표로 대체하지 않으며
+구성원이 아니면 `room_member_required`로 거절한다. 파일·그림과 입력 중 표시도 같은 작성자 계산을 쓴다.
+방에서 사장 글을 받을 직원은 멘션, 스레드 주인, 대표 순으로 정한다. 스레드 주인은
+첫 직원 글의 작성자 또는 첫 사장 글의 수신자이며 현재 구성원·명부에 남은 직원만 선택한다.
+다른 직원을 부른 글 뒤에도 주인은 유지된다. 1:1과 직접 고른 수신자는 기존 규칙을 따른다.
 등록의 `cron_deliver_env_var="HEJO_DELIVERY_TARGET"`는 Hermes가 예약 플랫폼을 인식하는
 공개 등록 키다. 본 플러그인은 해당 환경 값을 만들거나 읽지 않고 config의 home_channel을 쓴다.
 별도 단독 발신자나 다른 플랫폼으로의 대체 송신은 없다.
@@ -73,3 +78,25 @@ Hermes `/branch`나 세션 DB를 우회하지 않으므로 도구 호출 기록�
 정확한 필드와 한도는 [통신 규격](../schemas/hejo-wire-v1.json)을 따른다.
 
 `deadlines`는 team-kit의 `hermes-deadlines list --json`을 읽기 전용으로 실행하며, 문 전체의 진행 중 실행 하나를 공유한다.
+
+서버 안 전용 전송은 기본 프로필 문이 여는 `<HOME>/hejo/post.sock`의 HTTP JSON을 쓴다.
+같은 공항의 team-kit·보고·감시 프로그램이 사용하는 입구이며 TCP에는 등록하지 않는다.
+소켓 권한은 0600이다. 사장 글·임의 메타를 받지 않고, 직원 글의 작성자와 방 구성원 자격을
+검사하며 고치기·지우기는 작성자만 할 수 있다.
+
+주소는 메시지·스레드·방의 세 자원으로 나뉜다. 정확한 요청·응답 필드, 한도와 중복·충돌
+규칙의 원본은 [hejo-local-v1.json](../schemas/hejo-local-v1.json)의 `x-routes`·`x-semantics`다.
+
+| 자원 | HTTP 주소 |
+|---|---|
+| 메시지 | `POST /local/v1/messages`, `PATCH`·`DELETE /local/v1/messages/{msg_id}` |
+| 스레드 읽기 | `GET /local/v1/threads/{thread}` |
+| 방 만들기·재사용 | `POST /local/v1/rooms` |
+
+스레드 읽기는 `employee`와 `room` 중 하나만 지정한다. 요청·권한·방 충돌의 거절은 4xx,
+기록 실패는 `503 journal_write_failed`다. 거절을 성공으로 간주해 다음 처리를 진행하지 않는다.
+`client_id`는 직원별 요청 열쇠로 기록장 내부 메타에 남는다. 같은 열쇠의 재전송은 원래 글과
+스레드를 반환하고 삭제된 글을 되살리지 않는다. 긴 글의 분할과 조각별 열쇠·재시도 상태는
+호출자가 보존한다. 별도 중복 장부를 두지 않는다.
+
+입구 시험을 포함한 전체 pytest에는 짧은 임시 기본 경로를 지정한다(예: `PYTEST_ADDOPTS`의 `--basetemp`).

@@ -45,6 +45,7 @@ import AppKit
             instance = try InstanceLock(directory: AppIdentity.support); store = try LocalStore();ChatAppearance.bind(store)
             bubble = BubbleReveal(store:store)
             client = GateClient(store: store); pet = PetController(store: store, atlas: try SpriteAtlas())
+            OptionWindows.petLevel = { [weak self] in self?.pet?.panel.level ?? .floating }
             conversation = try ConversationController(client: client)
             calendar = MacCalendar()
             calendar.onChange = { [weak self] events in self?.conversation.calendarEvents = events }
@@ -134,7 +135,7 @@ import AppKit
         } catch GateFailure.alreadyRunning {
             for app in NSRunningApplication.runningApplications(withBundleIdentifier: AppIdentity.bundleID) where app.processIdentifier != ProcessInfo.processInfo.processIdentifier { app.activate(options: []) }
             NSApp.terminate(nil)
-        } catch { let alert = NSAlert(); alert.messageText = "hejo를 시작하지 못했어요"; alert.informativeText = "앱 파일과 저장 공간을 확인해 주세요."; alert.runModal(); NSApp.terminate(nil) }
+        } catch { let alert = NSAlert(); alert.messageText = "hejo를 시작하지 못했어요"; alert.informativeText = "앱 파일과 저장 공간을 확인해 주세요."; OptionWindows.runModal(alert); NSApp.terminate(nil) }
     }
     func installEditMenu() {NSApp.mainMenu=makeEditMenu()}
     func makeEditMenu()->NSMenu {
@@ -269,8 +270,11 @@ import AppKit
         wasSending = conversation.sending
     }
     private func openBubble(_ key:ConversationKey?) {
-        if let key {conversationView.openFromBubble(key)}
-        bubble.dismiss();pet.showChat();refreshPetActivity()
+        pet.showChat { [self] in
+            if let key { conversationView.openFromBubble(key) }
+            bubble.dismiss()
+        }
+        refreshPetActivity()
     }
     private func followLink(_ url: URL) {
         // Gateway URLs never become authenticated WebKit requests. Resolve a known attachment through GateHTTP instead.
@@ -310,7 +314,7 @@ import AppKit
             window.contentView=Dashboard(model:dashboardModel);window.minSize=CGSize(width:680,height:560);window.center();dashboardWindow=window
         }
         dashboardWindow?.title="hejo · \(store.settings.petName) · AI 작업"
-        dashboardModel.onChange?();NSApp.activate(ignoringOtherApps:true);dashboardWindow?.makeKeyAndOrderFront(nil)
+        dashboardModel.onChange?();if let dashboardWindow { OptionWindows.show(dashboardWindow) }
     }
     @objc func showHooksHelp() { HooksHelp.present() }
     @objc func showCalendar() { calendar.browse();presentCalendar() }
@@ -321,7 +325,7 @@ import AppKit
             window.title = "내 캘린더 · hejo";window.isReleasedWhenClosed = false
             window.contentView = MacCalendarView(model:calendar);window.minSize = NSSize(width:660,height:480);window.center();calendarWindow = window
         }
-        NSApp.activate(ignoringOtherApps:true);calendarWindow?.makeKeyAndOrderFront(nil)
+        if let calendarWindow { OptionWindows.show(calendarWindow) }
     }
     @objc private func openChat() { pet.showChat() }
     @objc private func signOut() { conversation.model.memberState.disconnect(); currentAccount = ""; petSettings?.accountName.stringValue = "로그인 전"; Task { await client.signOut(); petSettings?.updateConnection(client.status.text); connection.present() } }
@@ -329,10 +333,11 @@ import AppKit
     private func showConnections(_ profile:String?=nil){
         if toolsWindow==nil {toolsWindow=ConnectionsWindow(controller:conversation)}
         toolsWindow?.window.appearance=pet.panel.appearance
+        OptionWindows.activate();toolsWindow?.setPreferredLevel(OptionWindows.level(active:true))
         toolsWindow?.show(profile:profile);updateConnectionsLevel()
     }
-    private func updateConnectionsLevel() { toolsWindow?.setPreferredLevel(NSApp.isActive ? NSWindow.Level(rawValue:pet.panel.level.rawValue+1):.normal) }
-    func applicationDidResignActive(_ notification:Notification) { updateConnectionsLevel() }
+    private func updateConnectionsLevel() { toolsWindow?.setPreferredLevel(OptionWindows.level(active:NSApp.isActive)) }
+    func applicationDidResignActive(_ notification:Notification) { updateConnectionsLevel();OptionWindows.updateLevels(active:false) }
     @objc private func showOptions() {
         if petSettings == nil {
             let profile=conversation.model.employees.first
@@ -370,7 +375,7 @@ import AppKit
         petSettings?.present(name: store.settings.petName, percent: store.settings.petScalePercent ?? 100,
                              bubble: store.settings.bubbleAlwaysShown ?? false, account: currentAccount, status: client.status.text)
     }
-    func applicationDidBecomeActive(_ notification: Notification) { conversation?.model.memberState.activate();calendar?.refresh(force:true);petSettings?.refreshLogin(LoginLaunchPresentation.resolve(LoginLaunch.state,installed:LoginLaunch.isInstalled(),failed:loginChangeFailed));updateConnectionsLevel() }
+    func applicationDidBecomeActive(_ notification: Notification) { conversation?.model.memberState.activate();calendar?.refresh(force:true);petSettings?.refreshLogin(LoginLaunchPresentation.resolve(LoginLaunch.state,installed:LoginLaunch.isInstalled(),failed:loginChangeFailed));updateConnectionsLevel();OptionWindows.updateLevels(active:true) }
     func configureUpdates(_ updates: AppUpdate) {
         appUpdate = updates
         updates.onChange = { [weak self] in self?.refreshUpdates() }
@@ -390,13 +395,13 @@ import AppKit
         Task {
             // Probe the hub before showing confirmation; a cached connection is not sufficient.
             guard let fetch = state.fetch, (try? await fetch(nil)) != nil else {
-                PetSettingsWindow.layoutConfirmation(connected: false).runModal(); return
+                OptionWindows.runModal(PetSettingsWindow.layoutConfirmation(connected: false)); return
             }
-            guard PetSettingsWindow.layoutConfirmation(connected: true).runModal() == .alertFirstButtonReturn else { return }
+            guard OptionWindows.runModal(PetSettingsWindow.layoutConfirmation(connected: true)) == .alertFirstButtonReturn else { return }
             do {
                 try await state.makeLayoutStandard(); await state.sync()
-                PetSettingsWindow.layoutResult(saved:true,connected:state.pending.isEmpty).runModal()
-            } catch { state.onFailure?(true);PetSettingsWindow.layoutResult(saved:false,connected:false).runModal() }
+                OptionWindows.runModal(PetSettingsWindow.layoutResult(saved:true,connected:state.pending.isEmpty))
+            } catch { state.onFailure?(true);OptionWindows.runModal(PetSettingsWindow.layoutResult(saved:false,connected:false)) }
         }
     }
     @objc private func togglePet() { if pet.panel.isVisible { pet.panel.orderOut(nil) } else { pet.show() } }

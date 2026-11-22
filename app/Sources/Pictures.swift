@@ -1,5 +1,6 @@
 import AppKit
 import ImageIO
+import CoreText
 import UniformTypeIdentifiers
 
 enum PictureCodec {
@@ -14,6 +15,43 @@ enum PictureCodec {
         CGImageDestinationAddImage(writer,resized,nil)
         guard CGImageDestinationFinalize(writer) else { throw FileTransferFailure.invalidFile }
         guard out.length<=maximum else { throw FileTransferFailure.tooLarge };return out as Data
+    }
+    static func pictureText(_ text:String)->String {
+        String(text.map { $0.isNewline ? " " : $0 }.prefix(8))
+    }
+    /// Theme-independent picture bytes, shared by the preview and the upload.
+    static func letterPicture(color:UserBubbleColor,text:String) throws -> Data {
+        let palette=UserBubblePalette(color:color,dark:false)
+        guard let context=CGContext(data:nil,width:256,height:256,bitsPerComponent:8,bytesPerRow:0,
+                                    space:CGColorSpace(name:CGColorSpace.sRGB)!,bitmapInfo:CGImageAlphaInfo.premultipliedLast.rawValue) else {throw FileTransferFailure.invalidFile}
+        let square=CGRect(x:0,y:0,width:256,height:256),safe=square.insetBy(dx:256*0.18,dy:256*0.18)
+        context.setFillColor(palette.background.nsColor.cgColor);context.fill(square)
+        let letters=pictureText(text)
+        if !letters.isEmpty {
+            var size:CGFloat=180
+            while size>=1 {
+                let attributes:[NSAttributedString.Key:Any]=[.font:NSFont.systemFont(ofSize:size,weight:.bold),.foregroundColor:palette.foreground.nsColor]
+                let line=CTLineCreateWithAttributedString(NSAttributedString(string:letters,attributes:attributes))
+                let bounds=CTLineGetBoundsWithOptions(line,[.useGlyphPathBounds])
+                if bounds.width<=safe.width && bounds.height<=safe.height {
+                    guard let lettersContext=CGContext(data:nil,width:256,height:256,bitsPerComponent:8,bytesPerRow:0,
+                                                       space:CGColorSpace(name:CGColorSpace.sRGB)!,bitmapInfo:CGImageAlphaInfo.premultipliedLast.rawValue) else {throw FileTransferFailure.invalidFile}
+                    lettersContext.textPosition=CGPoint(x:square.midX-bounds.midX,y:square.midY-bounds.midY)
+                    CTLineDraw(line,lettersContext)
+                    // Use glyph alpha so even color emoji follows the same black/white rule.
+                    guard let mask=lettersContext.makeImage() else {throw FileTransferFailure.invalidFile}
+                    context.saveGState();context.clip(to:safe);context.clip(to:square,mask:mask)
+                    context.setFillColor(palette.foreground.nsColor.cgColor);context.fill(square)
+                    context.restoreGState();break
+                }
+                size-=1
+            }
+        }
+        let out=NSMutableData()
+        guard let image=context.makeImage(),let writer=CGImageDestinationCreateWithData(out,UTType.png.identifier as CFString,1,nil) else {throw FileTransferFailure.invalidFile}
+        CGImageDestinationAddImage(writer,image,nil)
+        guard CGImageDestinationFinalize(writer) else {throw FileTransferFailure.invalidFile}
+        guard out.length<=maximum else {throw FileTransferFailure.tooLarge};return out as Data
     }
     static func color(name: String, hex: String?) -> NSColor {
         if let hex,hex.count==7,hex.first=="#",let value=UInt32(hex.dropFirst(),radix:16) {

@@ -116,7 +116,7 @@ final class ThreeTapController: NSObject, NSWindowDelegate {
         for (index, button) in alert.buttons.enumerated() {
             button.tag = index; button.target = self; button.action = #selector(noticeButton(_:))
         }
-        alert.window.center(); alert.window.makeKeyAndOrderFront(nil)
+        alert.window.center(); OptionWindows.show(alert.window)
     }
     @objc private func noticeButton(_ button: NSButton) {
         if button.tag == 0, let noticeFailure { Self.copy(noticeFailure) }
