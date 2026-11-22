@@ -887,3 +887,75 @@ AT-FF-30 측정과 AT-FF-32 회귀는 끝났고 AT-FF-31 전체는 **미충족**
 전체 시험의 소스 변경 목록은 빈 목록이고, 커밋한 두 파일의 SHA-256은 시험 당시와 모두 일치한다. 기존 컴파일 경고는 남았지만 전체 시험은 오류 없이 끝났다. 보고서를 포함한 최종 `P scripts/scan_private.py`·보고서 `git diff --check`의 명령·종료 코드·로그 경로는 `E11/report-checks.json`에 기록한다.
 
 미검증: 실제 화면 공유로 설치 앱을 보는 사장 확인(M11)은 0.2.4 설치 후 남아 있다. 이 시험은 창 공유 속성 계약을 검사한 수준 2이며 실제 화면 공유 관측으로 주장하지 않는다. 추가 기술 부채·임시 제품 코드·설계 변경은 없다. 검토자는 두 숨김 지정이 제거됐는지, 모델 계약과 보안 입력·높이 규칙이 그대로인지, 세 시점에서 하위 시트까지 검사했는지 확인하면 된다. 다른 작업의 미추적 문서 두 폴더는 보존했다. 운영 적용·재시작·릴리스·앱 버전 변경·공개 후보·설치 앱 교체·push는 실행하지 않았다.
+
+
+## 12차-TASK-13 (2026-11-22)
+
+**구현자 판단: 부분 구현 — 운영 진단·앱 표시 수정의 모델 시험 완료, 팀키트 수정은 2절 보고로 보류, 전체 앱 시험 미통과.** 받은 설계는 `handoff.md` 12차 지시다. 위험도 일반(허가된 운영 명령 1회), 필요한 증거 수준 3이다. 직원 D의 저장 성공(M6)은 아직 달성하지 못했다. 아래 `E12`는 `.build/finder-folders-evidence/round12-task13`, `P`는 게이트웨이 Python이다. 개인값은 추적하지 않는 진단 증거에만 남겼으며 이 절에는 직원 D/B로 적는다.
+
+착수 hejo main은 `84e64ac3bcd50c71e2bae3e720b76d84d57a9212`, HD worktree는 `d7208c11c23ddb0dacddbe3e225864058f263006`이다. 착수·소스 해시는 `E12/start.json`, 실행본 대조는 `E12/backend-source-sha.json`에 있다. 착수 뒤 다른 작업의 문서 커밋이 main에 추가됐지만, 앱 제품 파일의 커밋 내용은 바뀌지 않았다.
+
+### 허가된 운영 제출 1회와 실제 원인
+
+- 고르기 응답의 지정 항목 id를 프로그램으로 하나만 선택했다. `hermes-connections app connect --profile <직원 D> --app com.apple.finder --scope <선택 후보 id> --json`을 HERMES_HOME=운영 홈, HERMES_DISABLE_LAZY_INSTALLS=1, PYTHONDONTWRITEBYTECODE=1, 200초 제한으로 **한 번만** 실행했다.
+- 실제 종료 코드 **0**, 약 **0.648초**, 응답 **waiting / UNDO_CONFLICT**, steps 빈 목록, stderr 없음이었다. stdout 최상위 키는 profile·app·outcome·reason·steps·next·undo_until이다. RESTART_REQUIRED나 성공 응답은 아니었다. 원래 문 로그의 command_failed와 같은 실패는 이 1회 실행에서 재현되지 않았으며, 과거 프로세스의 비JSON·비정상 종료·시간 초과 중 어느 것이었는지는 확정하지 않는다.
+- 운영 파일의 수집한 전후 메타데이터 차이는 **0개**였다. 새 Finder 기록은 없고, 실패는 `transact`가 desired 파일을 구성하는 동안 `config_assembly.app_manifests`의 기존 충돌 검사에서 발생해 쓰기 단계로 들어가지 못했다. 명령을 반복하거나 app undo·잠금 삭제·메타데이터 재작성·재시작을 하지 않았다.
+- 단계: enable/values 선택 검사 뒤, restart/permission/check 전에 트랜잭션 구성의 manifest 원본 기억 검사에서 거절된다. 잠금은 읽기 전용 진단 시 다른 프로세스가 보유하지 않았다.
+
+| 관측 | 직원 D | 직원 B |
+|---|---|---|
+| 도구 묶음의 team-kit | hejo·slack·photon에 있음 | hejo·slack·photon에 있음 |
+| files 활성 / 기존 폴더 개수 | true / 2 | true / 3 |
+| 앱 grant 개수 / Finder grant | 7 / 없음 | 8 / 있음 |
+| Finder 진행 기록 | 없음 | applied, 다섯 단계 완료 |
+| team-kit host | 공용 창고를 가리키는 정상 링크 | 공용 창고를 가리키는 정상 링크 |
+| 저장된 원본 기억과 현재 manifest | 불일치(1222→1254바이트, 도구 2개 추가) | 일치(1254바이트) |
+
+직원 D는 같은 정상 링크 뒤 공용 창고가 갱신됐지만 이전 manifest 해시가 남아 있다. `config_assembly.py`의 `app_manifests`는 이를 외부 수정으로 보고 UNDO_CONFLICT로 거절한다. 실행본과 HD의 config_assembly 전체 파일은 다른 작업의 hejo toolset 반영 때문에 다르지만, 원인이 된 app_manifests 함수 본문 SHA-256은 같다. app_setup·app_connect 실행본은 HD와 같다.
+
+증거: `E12/operation-started.json`, `operation-result.json`, `operation-stdout.json`, `operation-stderr.log`, `operating-before-metadata.json`, `operating-after-metadata.json`, `changed-operating-files.json`, `manifest-baseline-comparison.json`, `profile-comparison.json`, `all-record-metadata.json`, `lock-status.json`.
+
+### 가짜 홈 재현과 팀키트 보류 사유
+
+`E12/test_manifest_drift_repro.py`는 실제 프로필을 쓰지 않는다. 임시 HOME·HERMES_HOME을 resolve하고 기존 시험 fixture의 플러그인 원본을 임시 홈 안으로 복사한다. 가짜 연결로 원본 기억을 만든 뒤 공용 manifest에 가짜 도구 하나를 더하면, 새 Finder 연결이 기록 생성 전에 같은 UNDO_CONFLICT로 거절된다. 원래 manifest 바이트를 복원한 대조 실행은 성공했다. 운영 폴더를 입력으로 쓰거나 실행본을 바꾸지 않았다. 이는 결함 재현 증거이며 수락 시험 통과나 수정된 서버 동작으로 주장하지 않는다.
+
+**멈춘 근거:** `app_manifests`의 해시 비교는 개인 오버레이·외부 수정을 보존하는 기존 계약이다. 기존 `test_removing_one_app_preserves_other_app_tools_and_external_changes`도 외부 수정 시 UNDO_CONFLICT를 기대한다. 비교를 단순히 없애거나 원본 기억을 자동으로 현재 값에 맞추면, 권한의 기준과 원래 상태로 되돌리는 의미를 바꿀 수 있다. 인계서의 원인 범위는 찾았지만 이 경우의 기준 갱신 계약은 정해지지 않았다. `20-implementation.md` 2절의 설계에 없는 의미 변경에 해당해 팀키트 코드는 고치지 않았다.
+
+- 권고: 계획 담당이 정상 공용 창고 링크의 갱신과 개인 오버레이의 외부 수정을 구분하는 조건을 확정한다. 원본 링크·창고 대상을 검증하고, 기존 정책의 기본 도구 권한과 새 창고 도구 중 무엇을 유지할지, 원본 기억·링크 장부를 어떻게 원자적으로 갱신할지 정해야 한다. 개인 오버레이 외부 수정은 계속 거절하는 시험을 유지해야 한다.
+- 다른 선택: 명시적 원본 기억 갱신 절차를 별도 설계한다. 운영 기억 파일을 수동으로 고쳐 우회하는 작업은 하지 않았다.
+- 팀키트 제품·시험의 추적 변경과 커밋은 없다. 전체 team-kit의 AT-FF-12(나) 재실행은 미실행이다. 서버 적용도 별도 지시가 필요하다.
+
+### 앱 수정과 실행한 검증
+
+`ConnectionsWindow.swift`는 UNDO_CONFLICT에 저장이 멈춘 이유를 안내하고, pending에는 진행 중 문장을 표시한다. 나머지 비완료 응답은 기존 이유별 실패 문장을 쓰되 ConnectionSentence가 성공 문장을 돌려주면 비완료 안내로 바꾼다. 정상 done·비밀 칸·값 삭제·원시 오류 비노출·창 높이 코드는 유지한다. `ConnectionsTests.swift`에 waiting·failed·refused·partial·pending 응답과 정상 done 대조를 추가했다. 기존 시험 기대값은 바꾸지 않았다.
+
+| 명령 | 종료 코드 | 실제 결과 | 로그 |
+|---|---:|---|---|
+| 위 운영 app connect 1회 | 0 | waiting / UNDO_CONFLICT, 수집 메타데이터 변화 0 | `E12/operation-result.json`, `operation-stdout.json`, `operation-stderr.log` |
+| `P -m pytest -q -s -p no:cacheprovider E12/test_manifest_drift_repro.py` | 0 | 1 passed, 정상 창고 링크 갱신 충돌 재현과 원본 일치 대조 성공 | `E12/manifest-drift-repro.log/json` |
+| 관련 5파일 + test_finder_folders + test_app_manifests | 0 | 107 passed, HD d7208c11, 임시 resolve HOME·HERMES_HOME. AT-FF-08·12(가) 포함 | `E12/team-related.log/json` |
+| `HEJO_PYTHON=P bash app/scripts/test.sh` | 1 | 기존 AT-HC-27에서 멈춤, 실행 중 소스 변경 없음 | `E12/app-full.log/json` |
+| 같은 전체 시험 바이너리 `--task32-capture` | 1 | 기존 AT-HC-27 동일 실패 | `E12/focused.log/json` |
+| 착수 소스·기존 시험 사본 빌드 / 서명 / 연결 시험 | 0 / 0 / 1 | 기대값 그대로, AT-HC-27 동일 실패. visible=true, key=false, fieldsEmpty=true, busy=false, appActive=false | `E12/baseline-probe-build.log/json`, `baseline-probe-sign.log/json`, `baseline-probe-run.log/json` |
+| `P scripts/scan_private.py`, 자기 앱 경로 `git diff --check` | 0 / 0 | 자기 변경 개인값·공백 검사 통과 | `E12/code-checks.json` |
+
+AT-HC-27은 수정 전 코드에서도 앱이 비활성이어서 키 창이 아닌 상태로 실패한다. 이 기존 조건을 완화하거나 제품의 활성화 처리를 범위 밖에서 바꾸지 않았다. 새 시험 실행과 최종 커밋 상태는 아래 최종 인계에 이어 적는다.
+
+
+### 최종 인계 — 부분 구현
+
+앱 수정 커밋 전체 해시는 **`f03b93a0963c5510fb995288db939f9aaaa2de56`**다. ConnectionsWindow.swift·ConnectionsTests.swift 두 경로만 commit --only했다. 전체 시험에서 사용한 자기 두 파일과 커밋 blob SHA-256은 같으며, 전체 시험 실패를 통과로 주장하지 않는다(`E12/app-commit.log/json`).
+
+| 추가 확인 | 종료 코드 | 범위와 결과 | 로그 |
+|---|---:|---|---|
+| 수정본 모델 전용 실행기 빌드 / 실행 | 0 / 0 | 새 시험 본문 그대로, 여섯 비완료 응답과 정상 완료 대조 통과. NSApplication을 초기화하거나 창을 띄우지 않음 | `E12/model-unit-build.log/json`, `model-unit-run.log/json` |
+| 착수 표시 코드 + 같은 새 모델 시험 빌드 / 실행 | 0 / 1 (예상) | `TASK-13 conflict explains why saving stopped`에서 원래 결함 검출 | `E12/model-baseline-build.log/json`, `model-baseline-run.log/json` |
+| 수정본 GUI 개별 실행기 빌드 / 서명 | 0 / 0 | 기존 HC27 관측과 새 시험을 분리할 수 있게 준비. 다른 app-tests 빌드·실행 감지로 **실행은 미실행** | `E12/current-probe-build.log/json`, `current-probe-sign.log/json`, `current-probe-pgrep.json`, `current-probe-pgrep-retry.json`, `current-probe-pgrep-final.json` |
+
+모델 전용 실행기의 첫 빌드는 지원 파일에서 @main을 떼며 사라진 actor 문맥 때문에 종료 1이었다(`E12/model-unit-build-first-failure.log/json`). 추적하지 않는 지원 파일의 호출되지 않는 기존 main에 @MainActor를 붙여 고친 뒤 최종 빌드·실행이 각각 종료 0이었다. 제품 코드나 기존 시험 기대값은 바꾸지 않았다. 모델 실행 전 pgrep 결과와 UI를 쓰지 않는 격리는 `E12/model-unit-pgrep.json`·`model-baseline-pgrep.json`에 있다. 이 단위 실행은 전체 앱 시험 통과를 대신하지 않는다.
+
+최종 보고서를 포함한 개인값 검사와 자기 보고서 공백 검사의 명령·종료 코드·로그는 `E12/report-checks.json`에 기록한다. 증거 수준 3은 허가된 운영 명령을 실제 환경에서 실행해 거절 결과를 관측한 진단에 한정한다. 앱 수정의 모델 시험과 가짜 홈 재현은 수준 2다. 저장 성공·서버 적용·사장 M6은 미완료다.
+
+**다음 판단:** 정상 창고 링크 갱신 시 원본 기억·권한·복원 기준을 어떻게 유지할지 계획 담당이 확정해야 한다. 앱 전체 회귀도 앱 활성화와 독립된 시험 실행 구간을 확보한 뒤 다시 확인해야 한다. 팀키트 수정이 정해지면 가짜 재현을 회귀 시험으로 옮기고 관련 시험·AT-FF-12(나)·airport-check를 실행한다. 허가된 운영 제출 1회는 이미 소진됐으므로 새 지시 없이 같은 명령을 반복하지 않는다.
+
+운영의 추가 변경·복원·실행본 교체·게이트웨이 재시작·실제 메시지·앱 공개·버전 변경·push는 하지 않았다. 운영 저장소의 다른 세션 변경과 HD worktree는 손대지 않았고, hejo의 다른 작업 미추적 문서 두 폴더도 보존했다. 안전한 독립 부분(진단·앱 표시)만 처리했으며, 실패한 기존 시험을 완화하지 않았다.
