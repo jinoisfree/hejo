@@ -50,15 +50,16 @@ import AppKit
     var requests:[[String:Any]]=[]
     controller.deadlineSender={requests.append($0)}
     func settle(){pet.stepPlacement();view.layoutSubtreeIfNeeded()}
-    let closed=pet.panel.frame,closedContent=pet.placementTarget!.contentBubble
+    let closed=pet.panel.frame
+    let closedPlacement=pet.placementTarget!
+    try check(closedPlacement.globalBubble.maxX+290<=1428,"AT-DI-33 owner fixture has right expansion room")
     try check(view.island.partRects.contains{$0.0.kind == .owner},"AT-TD-41 connected owner segment is present")
     let ownerRect=view.island.partRects.first{$0.0.kind == .owner}!.1
     view.island.activate(at:CGPoint(x:ownerRect.midX,y:15));settle()
-    try check(pet.drawerOpen && pet.pet.todoDrawer?.isHidden == false && pet.panel.frame.minX==closed.minX-290 && pet.panel.frame.width==closed.width+290,"AT-TD-41 owner input reaches real controller and native view")
-    try check(pet.placementTarget!.contentBubble==closedContent,"AT-TD-31 entire chat rectangle stays fixed")
+    try check(pet.drawerOpen && view.todoDrawer.isHidden == false && pet.panel.frame.minX==closed.minX && pet.panel.frame.width==closed.width+290 && pet.placementTarget!.globalSprite==closedPlacement.globalSprite,"AT-TD-41 owner input reaches real controller and native view")
     try check(view.island.snapshot.drawerOpen && view.island.snapshot.parts.first{$0.kind == .owner}!.text.hasSuffix(" · 닫기 ‹"),"AT-TD-27 close label and highlighted snapshot")
     view.island.activate(at:CGPoint(x:view.island.partRects.first{$0.0.kind == .owner}!.1.midX,y:15));settle()
-    try check(!pet.drawerOpen && pet.panel.frame==closed && pet.pet.todoDrawer?.isHidden == true,"AT-TD-41 second owner input restores panel")
+    try check(!pet.drawerOpen && pet.panel.frame==closed && view.todoDrawer.isHidden == true,"AT-TD-41 second owner input restores panel")
     controller.drawerFilter = .deadline;pet.toggleDrawer();pet.toggleDrawer();pet.toggleDrawer()
     try check(controller.drawerSnapshot.urgent.count+controller.drawerSnapshot.rest.count==4 && controller.drawerFilter == .deadline,"AT-TD-21 reopen retains deadline filter")
     let fresh=try testConversation(client:GateClient(store:try LocalStore(directory:home.appendingPathComponent("fresh")),credentials:MemoryCredentials()))
@@ -92,43 +93,14 @@ import AppKit
     controller.todoDrawer.receive(["available":true,"items":Array(rows.prefix(2)),"failed":[]]);try check(controller.drawerSnapshot.warning==nil,"AT-TD-40 next full success clears warning")
     pet.panel.cancelOperation(nil);settle();try check(!pet.drawerOpen && pet.chatExpanded,"AT-TD-30 escape closes drawer first")
     pet.toggleDrawer();view.todoDrawer.onClose?();settle();try check(!pet.drawerOpen,"AT-TD-30 fold control closes drawer")
-    pet.placePet(at:CGPoint(x:200,y:700));let overlayFrame=pet.panel.frame
-    let beforeShift=pet.placementTarget!,shift=(visible.minX+12)-(beforeShift.globalBubble.minX-PetController.drawerWidth)
-    pet.toggleDrawer();settle()
-    try check(!pet.placementTarget!.drawerOverlay && pet.panel.frame.maxX==overlayFrame.maxX+shift && pet.placementTarget!.contentBubble==beforeShift.contentBubble.offsetBy(dx:shift,dy:0) && view.todoDrawer.frame.maxX<=view.frame.minX && pet.pet.drawerScrim.isHidden,"AT-TD-33 missing left space shifts chat right and opens outside")
-    pet.pet.drawerScrim.onClose?();try check(!pet.drawerOpen,"AT-TD-30 overlay scrim closes")
-    settle();try check(pet.panel.frame==overlayFrame,"AT-TD-33 closing restores original frame")
-    pet.placePet(at:CGPoint(x:650,y:700));pet.toggleDrawer();settle()
-    try check(pet.pet.drawerScrim.isHidden && pet.drawerOpen,"AT-TD-30 expanded chat has no intercepting scrim")
+    pet.setDrawerOpen(true);settle()
     let stateKeys=store.settings.pendingState
     try check(store.settings.todoDrawerOpen==true,"AT-TD-36 persisted local state")
     let reopened=PetController(store:try LocalStore(directory:home),atlas:try SpriteAtlas(resourceDirectory:resourceDirectory))
     defer{reopened.pet.animationsAllowed=false;reopened.panel.contentView=nil;reopened.panel.close()}
     reopened.displays=pet.displays;reopened.reducedMotion={true};reopened.showChat()
-    try check(reopened.drawerOpen && reopened.pet.drawerOpen && store.settings.pendingState==stateKeys,"AT-TD-36 restore and member state unchanged")
+    try check(reopened.drawerOpen && store.settings.pendingState==stateKeys,"AT-TD-36 restore and member state unchanged")
     reopened.panel.orderOut(nil)
-    // Deterministic motion goes through bubbleMotion, without the web width cover.
-    pet.setDrawerOpen(false);settle();pet.reducedMotion={false}
-    var motion=100.0;pet.clock={motion};let start=pet.panel.frame
-    pet.toggleDrawer();motion+=0.125;settle()
-    try check(pet.panel.frame.minX<start.minX && pet.panel.frame.minX>start.minX-290 && !pet.pet.widthCoverVisible,"AT-TD-32 intermediate frame without width cover")
-    try check(abs(view.convert(.zero,to:nil).x+pet.panel.frame.minX-(closedContent.minX))<0.5,"AT-TD-31 chat stays still during motion")
-    motion+=0.125;settle();try check(pet.panel.frame.minX==start.minX-290,"AT-TD-32 target at 0.25 seconds")
-    pet.reducedMotion={true};pet.setDrawerOpen(false);settle();pet.toggleDrawer();try check(pet.panel.frame==pet.placementTarget!.windowFrame,"AT-TD-32 reduced motion immediate")
-    // Dragging and folding recalculate placement, while retaining the preference.
-    pet.beginChatDrag(at:CGPoint(x:700,y:700));pet.moveChatDrag(to:CGPoint(x:100,y:700));pet.endChatDrag();settle()
-    try check(!pet.placementTarget!.drawerOverlay && pet.placementTarget!.leading==PetController.drawerWidth && pet.placementTarget!.contentBubble.minX==visible.minX+12+PetController.drawerWidth && pet.placementTarget!.globalSprite.minX>pet.placementTarget!.anchorOrigin.x,"AT-TD-35 drag near left shifts right and keeps drawer outside")
-    pet.collapseChat();try check(pet.pet.todoDrawer?.isHidden == true && pet.drawerOpen,"AT-TD-35 folding hides without clearing preference")
-    pet.showChat();try check(pet.drawerOpen && pet.pet.todoDrawer?.isHidden == false && !pet.placementTarget!.drawerOverlay && pet.placementTarget!.leading==PetController.drawerWidth,"AT-TD-35 reopening reevaluates outside placement")
-    // The web pane keeps the same width when the drawer cannot fit.
-    pet.setDrawerOpen(false);visible=CGRect(x:0,y:0,width:2400,height:1000);pet.placePet(at:CGPoint(x:900,y:750))
-    let web=WebPaneModel(downloads:controller.files.downloads.root);web.persistent=false;pet.installWeb(web)
-    web.open(URL(string:"https://example.invalid/x")!);settle();let webWidth=pet.pet.paneWidth,withWeb=pet.panel.frame
-    pet.toggleDrawer();settle()
-    try check(!pet.placementTarget!.drawerOverlay && pet.pet.paneWidth==webWidth && pet.panel.frame.width==withWeb.width+290,"AT-TD-34 wide screen fits both and keeps web width")
-    pet.setDrawerOpen(false);visible=CGRect(x:0,y:0,width:1300,height:1000);pet.placePet(at:CGPoint(x:700,y:750));settle();let narrowWeb=pet.pet.paneWidth
-    pet.toggleDrawer();settle();try check(pet.placementTarget!.drawerOverlay && pet.pet.paneWidth==narrowWeb,"AT-TD-34 narrow screen overlays rather than narrowing web")
-    web.close();settle();try check(pet.drawerOpen,"AT-TD-34 closing web preserves drawer")
     // A genuinely empty pill is activated through the same real view/controller wiring.
     controller.todoDrawer.receive(["available":false]);model.toggleMute("default")
     seq+=1;let deleteQuestion:[String:Any]=["type":"state","seq":seq,"msg_id":q1,"reply_state":"answered"];try store.append(deleteQuestion);controller.receive(deleteQuestion)
@@ -142,8 +114,11 @@ import AppKit
     defer{disposeDrawerFixture(emptyPet,emptyController,emptyView)}
     emptyPet.pet.installConversation(emptyView);emptyPet.installDrawer(emptyView);emptyPet.placePet(at:CGPoint(x:650,y:700));emptyPet.showChat();emptyView.layoutSubtreeIfNeeded()
     let emptyFrame=emptyPet.panel.frame
+    let emptyPlacement=emptyPet.placementTarget!
+    try check(emptyPlacement.globalBubble.maxX+290<=1428,"AT-DI-33 empty fixture has right expansion room")
     emptyView.island.activate(at:CGPoint(x:10,y:15));emptyView.layoutSubtreeIfNeeded()
-    try check(emptyPet.drawerOpen && !emptyView.todoDrawer.isHidden && emptyPet.panel.frame.minX==emptyFrame.minX-290 && emptyPet.panel.frame.width==emptyFrame.width+290 && emptyView.island.snapshot.parts.map(\.text)==["닫기 ‹"],"AT-TD-27/41 empty stripe opens actual drawer")
+    try check(emptyPet.drawerOpen && !emptyView.todoDrawer.isHidden && emptyPet.panel.frame.minX==emptyFrame.minX && emptyPet.panel.frame.width==emptyFrame.width+290 && emptyPet.placementTarget!.globalSprite==emptyPlacement.globalSprite && emptyView.island.snapshot.parts.map(\.text)==["닫기 ‹"],"AT-TD-27/41 empty stripe opens actual drawer")
+    print("AT-DI-33 OWNER AND EMPTY PILL RIGHT EXPANSION PASS")
     emptyView.island.activate(at:CGPoint(x:10,y:15));try check(!emptyPet.drawerOpen && emptyPet.panel.frame==emptyFrame && emptyView.todoDrawer.isHidden,"AT-TD-41 empty pill second click restores frame")
     emptyPet.panel.orderOut(nil)
     try check(emptyController.drawerSnapshot.empty,"AT-TD-23 empty projection")

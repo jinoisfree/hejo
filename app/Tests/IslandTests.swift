@@ -130,9 +130,9 @@ private func islandMessage(_ seq:Int,_ key:ConversationKey = islandA,asked:Bool=
     let fail=ui.island.partRects.first { $0.0.kind == .problem }!.1
     ui.island.activate(at:CGPoint(x:fail.midX,y:fail.midY))
     try check(retries == [islandB] && controller.failures.last?.draft.text == "Draft kept" && controller.drafts[islandB]?.isEmpty == true && controller.notice.contains("되살리기"),"AT79 retry keeps destination and failure list preserves original draft")
-    ui.frame.size.width=428;ui.needsLayout=true;ui.layoutSubtreeIfNeeded()
+    ui.frame.size.width=718;ui.needsLayout=true;ui.layoutSubtreeIfNeeded()
     try check(ui.island.frame.width <= 146 && ui.heading.frame.width>=120 && ui.island.frame.height==30,"AT53 narrow header reserves title and right icons")
-    ui.frame.size.width=760;ui.needsLayout=true;ui.layoutSubtreeIfNeeded()
+    ui.frame.size.width=1050;ui.needsLayout=true;ui.layoutSubtreeIfNeeded()
     var drags=0;ui.headerDrag.onBegan={_ in drags+=1};ui.headerDrag.onChanged={_ in drags+=1}
     let point=CGPoint(x:ui.island.frame.midX,y:ui.island.frame.midY), windowPoint=ui.convert(point,to:nil), initial=pet.panel.frame
     try check(ui.hitTest(ui.convert(point,to:ui.superview)) === ui.island && ui.headerDrag.hitTest(point) == nil,"AT56 island excluded from header hit testing")

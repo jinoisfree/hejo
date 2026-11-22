@@ -32,7 +32,9 @@ final class MemoryCredentials: GateCredentialStore {
         Task { @MainActor in
             do {
                 let args = CommandLine.arguments
-                if args.contains("--finder-picture") {
+                if args.contains("--drawer-inline") {
+                    try drawerInlineTests(resourceDirectory:URL(fileURLWithPath:args.last!))
+                } else if args.contains("--finder-picture") {
                     try await letterPictureTests(resourceDirectory:URL(fileURLWithPath:args.last!))
                     try await optionWindowTests(resourceDirectory:URL(fileURLWithPath:args.last!))
                 } else if args.contains("--todo-drawer") {
@@ -268,8 +270,7 @@ final class MemoryCredentials: GateCredentialStore {
         try await transitionPreparationTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await todoDrawerTests(resourceDirectory:URL(fileURLWithPath:CommandLine.arguments.last!))
         try await deadlineCloseTests(resourceDirectory:URL(fileURLWithPath:CommandLine.arguments.last!))
-        try todoDrawerBackgroundTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
-        try drawerOutsidePlacementTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
+        try drawerInlineTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await letterPictureTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await optionWindowTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await islandTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
