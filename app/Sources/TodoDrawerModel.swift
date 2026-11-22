@@ -3,28 +3,41 @@ import Foundation
 /// A memory-only projection of notices and the team-kit ledger. Never writes tasks.
 @MainActor final class TodoDrawerModel {
     enum Filter: String, CaseIterable { case all = "전체", question = "답 요청", deadline = "마감", alert = "알림" }
+    /// The gate names the source kind; this is its owner-facing name. An unknown kind shows nothing.
+    nonisolated static let originNames=["notion":"노션","calendar":"일정","reminder":"미리알림","slack":"슬랙","notes":"메모","gmail":"메일"]
+    struct Notice: Equatable { let messageID: String, thread: String }
     struct Deadline: Equatable {
         let employee: String, id: String, title: String, due: String
-        var deadlineAt: String?, url: URL?
+        var deadlineAt: String?, url: URL?, origin: String?, notice: Notice?
         init?(_ row: [String: Any]) {
             guard let employee=row["employee"] as? String,let id=row["id"] as? String,
                   let title=row["title"] as? String,let due=row["due"] as? String else{return nil}
             self.employee=employee;self.id=id;self.title=title;self.due=due
             deadlineAt=row["deadline_at"] as? String;url=(row["url"] as? String).flatMap(URL.init(string:))
+            origin=(row["origin"] as? String).flatMap{TodoDrawerModel.originNames[$0]}
+            if let value=row["notice"] as? [String:Any],let message=value["message_id"] as? String,let thread=value["thread"] as? String {
+                notice=Notice(messageID:message,thread:thread)
+            }
         }
     }
+    struct DeadlineRef: Equatable { let employee: String, id: String }
     struct Card: Equatable {
         let id: String, kind: Filter, title: String, employee: String, name: String, badge: String, time: String
         var key: ConversationKey?, messageID: String?, url: URL?
         var order: Date, urgent: Bool
+        /// Deadline cards only: what to close, and whether a click has anywhere to go.
+        var deadlineRef: DeadlineRef?, linked = true
     }
     struct Snapshot: Equatable {
         var urgent: [Card] = [], rest: [Card] = []
         var counts: [Filter: Int] = [:]
         var available = false, failed = false
+        /// Title of the deadline closing in five seconds (undo line), and whether a close just failed.
+        var undoTitle: String?, closeFailed = false
         var total: Int { counts[.all] ?? 0 }
         var empty: Bool { urgent.isEmpty && rest.isEmpty }
         var warning: String? { failed ? "마감을 읽지 못했어요. 잠시 뒤 다시 볼게요." : nil }
+        var closeWarning: String? { closeFailed ? "마감을 닫지 못했어요. 다시 해 주세요." : nil }
     }
     private(set) var deadlines: [Deadline] = []
     private(set) var available = false, failed = false
@@ -37,7 +50,7 @@ import Foundation
         deadlines=(frame["items"] as? [[String:Any]] ?? []).compactMap(Deadline.init)
         failed = !(frame["failed"] as? [String] ?? []).isEmpty
     }
-    func snapshot(_ model: ConversationModel, filter: Filter = .all, now: Date, calendar: Calendar = .current) -> Snapshot {
+    func snapshot(_ model: ConversationModel, filter: Filter = .all, now: Date, calendar: Calendar = .current, hidden: Set<String> = []) -> Snapshot {
         var cards: [Card] = [], seen=Set<String>()
         let muted=model.muted
         let rooms=model.rooms.map(\.id)+(model.home.settings.muted == true ? []:[HomeRoom.id])
@@ -59,13 +72,17 @@ import Foundation
                 let bits=item.due.split(separator:"-").compactMap{Int($0)}
                 guard bits.count==3,let due=calendar.date(from:DateComponents(year:bits[0],month:bits[1],day:bits[2])) else{continue}
                 let days=calendar.dateComponents([.day],from:calendar.startOfDay(for:now),to:calendar.startOfDay(for:due)).day ?? 0
-                let badge=days==0 ? "D-DAY":days>0 ? "D-\(days)":"D+\(-days)"
+                let id="deadline:"+item.employee+":"+item.id
+                guard !hidden.contains(id) else{continue}
+                let badge=(days==0 ? "D-DAY":days>0 ? "D-\(days)":"D+\(-days)")+(item.origin.map{" · "+$0} ?? "")
+                let message=item.notice.flatMap{model.messages[$0.messageID]}
                 var text="\(bits[1])월 \(bits[2])일까지"
                 if days==0,let at=item.deadlineAt {
                     let hour=calendar.component(.hour,from:ThreadTools.date(at));text="오늘 \(hour)시까지"
                 }
-                cards.append(Card(id:"deadline:"+item.employee+":"+item.id,kind:.deadline,title:item.title,employee:item.employee,
-                    name:model.name(item.employee),badge:badge,time:text,url:item.url,order:due,urgent:days<=1))
+                cards.append(Card(id:id,kind:.deadline,title:item.title,employee:item.employee,
+                    name:model.name(item.employee),badge:badge,time:text,key:message?.key,messageID:message?.id,url:item.url,order:due,urgent:days<=1,
+                    deadlineRef:DeadlineRef(employee:item.employee,id:item.id),linked:message != nil || item.url != nil))
             }
         }
         func sorted(_ input:[Card])->[Card] {

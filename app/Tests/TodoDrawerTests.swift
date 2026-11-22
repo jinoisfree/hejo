@@ -77,7 +77,9 @@ import AppKit
     var urls:[URL]=[];view.onOpenURL={urls.append($0)}
     var linked=snapshot.urgent[0];linked.url=URL(string:"https://example.invalid/x")!
     view.selectDrawerCard(linked);try check(urls==[linked.url!],"AT-TD-26 link follows existing URL path exactly once")
-    view.selectDrawerCard(snapshot.urgent[0]);try check(model.selected?.employee=="alpha","AT-TD-26 no URL selects direct room")
+    // AT-TD-26 "no URL selects the direct room" is replaced by AT-DC-25: nowhere to go changes nothing.
+    let selectedBefore=model.selected
+    view.selectDrawerCard(snapshot.urgent[0]);try check(model.selected==selectedBefore && view.drawerSelectedID==snapshot.urgent[0].id,"AT-DC-25 no URL and no notice keeps the room and selects the card")
     controller.todoDrawer.receive(["available":true,"reason":"command_failed"])
     try check(controller.todoDrawer.deadlines.count==4 && controller.drawerSnapshot.warning != nil,"AT-TD-24 failure preserves last list")
     let empty=TodoDrawerModel();empty.receive(["available":true,"reason":"command_failed"])
@@ -223,4 +225,208 @@ import AppKit
     try check(avatarReads>0,"V-1 unfolding projects latest cards immediately")
     view.todoDrawer.avatar=originalAvatar
     print("AT-TD-20..42 MODEL, INPUT, WINDOW, REQUEST PASS")
+}
+
+
+/// AT-DC-21..34, 27d: deadline cards go to their notice, say when they cannot, and close with a right click.
+@MainActor func deadlineCloseTests(resourceDirectory:URL) async throws {
+    let home=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer{try? FileManager.default.removeItem(at:home)}
+    let store=try LocalStore(directory:home),client=GateClient(store:store,credentials:MemoryCredentials())
+    let controller=try testConversation(client:client),model=controller.model
+    var now=ThreadTools.date("2026-11-22T10:00:00+09:00")
+    controller.clock={now}
+    try await client.receive(["v":1,"type":"welcome","employees":[["id":"alpha","name":"직원 A","aliases":[]],["id":"beta","name":"직원 B","aliases":[]]]])
+    var seq=0
+    @discardableResult func post(_ text:String,employee:String="alpha",asked:Bool=false)->String {
+        seq+=1;let id=UUID().uuidString.lowercased()
+        let frame:[String:Any]=["v":1,"type":"message","seq":seq,"msg_id":id,"employee":employee,"thread":UUID().uuidString.lowercased(),"role":"employee","text":text,"files":[],"buttons":[],"reply_state":asked ? "asked":NSNull(),"ts":ISO8601DateFormatter().string(from:now)]
+        try! store.append(frame);controller.receive(frame);return id
+    }
+    let noticeMessage=post("마감 알림 글")
+    let question=post("가짜 질문",employee:"beta",asked:true)
+    func row(_ id:String,_ title:String,due:String,origin:String?=nil,notice:String?=nil,url:String?=nil)->[String:Any] {
+        var value:[String:Any]=["employee":"alpha","id":id,"title":title,"due":due]
+        if let origin {value["origin"]=origin};if let url {value["url"]=url}
+        if let notice {value["notice"]=["message_id":notice,"thread":"thread-"+notice]}
+        return value
+    }
+    let rows=[row("reminder:r1","미리알림 마감",due:"2026-11-21",origin:"reminder"),
+              row("gmail:g1","메일 마감",due:"2026-11-22",origin:"gmail",notice:noticeMessage),
+              row("notion:n1","링크 마감",due:"2026-11-26",url:"https://example.invalid/x"),
+              row("gmail:g2","없는 글 마감",due:"2026-11-27",origin:"gmail",notice:"missing-message"),
+              row("slack:s1","갈 곳 없는 마감",due:"2026-11-28")]
+    var requests:[[String:Any]]=[]
+    controller.deadlineSender={requests.append($0)}
+    func sent(_ type:String)->[[String:Any]] {requests.filter{$0["type"] as? String==type}}
+    func answer(_ request:[String:Any],_ items:[[String:Any]],failed:[String]=[],reason:String?=nil) {
+        var frame:[String:Any]=["v":1,"type":"deadlines_status","ref":request["id"] as! String,"available":true]
+        if let reason {frame["reason"]=reason}else{frame["items"]=items;frame["failed"]=failed}
+        controller.receive(frame)
+    }
+    func cards()->[TodoDrawerModel.Card] {let value=controller.drawerSnapshot;return value.urgent+value.rest}
+    func titles()->[String] {cards().filter{$0.kind == .deadline}.map(\.title)}
+    func card(_ title:String)->TodoDrawerModel.Card {cards().first{$0.title==title}!}
+    func closeAnswer(_ request:[String:Any],ok:Bool=true,reason:String="unknown_deadline") {
+        controller.receive(ok ? ["v":1,"type":"deadline_close_status","ref":request["id"] as! String,"ok":true,"already_closed":false,"repainted":true]
+                              : ["v":1,"type":"deadline_close_status","ref":request["id"] as! String,"ok":false,"reason":reason])
+    }
+    controller.setDrawerState(open:true,chatExpanded:true);await pause(0.01)
+    answer(sent("deadlines")[0],rows)
+    // AT-DC-21: the kind line carries the source kind when the gate named one.
+    try check(card("미리알림 마감").badge=="D+1 · 미리알림" && card("메일 마감").badge=="D-DAY · 메일" && card("링크 마감").badge=="D-4","AT-DC-21 kind line with source kind")
+    // AT-DC-22: a card is linked by a notice that is in the chat or by a link.
+    try check(card("메일 마감").linked && card("링크 마감").linked && !card("없는 글 마감").linked && !card("갈 곳 없는 마감").linked && !card("미리알림 마감").linked,"AT-DC-22 linked only with notice in chat or url")
+    try check(card("메일 마감").messageID==noticeMessage && card("없는 글 마감").messageID==nil,"AT-DC-22 only a notice found in the chat becomes a target")
+    // The real view, pet window and drawer.
+    let view=ConversationView(controller:controller,clipboardArea:home.appendingPathComponent("clipboard"),islandModel:IslandModel(clock:{now}))
+    let pet=PetController(store:store,atlas:try SpriteAtlas(resourceDirectory:resourceDirectory))
+    defer{disposeDrawerFixture(pet,controller,view)}
+    let visible=CGRect(x:0,y:0,width:1440,height:900)
+    pet.displays={ [PetDisplay(frame:visible,visible:visible)] };pet.reducedMotion={true}
+    pet.pet.installConversation(view);pet.installDrawer(view)
+    pet.placePet(at:CGPoint(x:650,y:700));pet.showChat();pet.toggleDrawer();view.refresh();view.layoutSubtreeIfNeeded()
+    try check(pet.drawerOpen,"AT-DC fixture drawer is open")
+    view.todoDrawer.show(controller.drawerSnapshot,filter:.all,selected:nil)
+    let views=view.todoDrawer.cardViews
+    func cardView(_ title:String)->TodoDrawerCardView {views.first{$0.card.title==title}!}
+    try check(views.filter{$0.unlinkedText=="연결된 대화 없음"}.map{$0.card.title}.sorted()==["갈 곳 없는 마감","미리알림 마감","없는 글 마감"].sorted(),"AT-DC-22 only unlinked cards say 연결된 대화 없음")
+    try check(cardView("갈 곳 없는 마감").accessibilityLabel()?.hasSuffix("연결된 대화 없음")==true && cardView("메일 마감").accessibilityLabel()?.contains("연결된 대화 없음")==false,"AT-DC-22 accessible text matches")
+    // AT-DC-26: menus. Deadline cards only, with the source item when there is a url; no buttons on the card.
+    let event=NSEvent.mouseEvent(with:.rightMouseDown,location:.zero,modifierFlags:[],timestamp:0,windowNumber:0,context:nil,eventNumber:0,clickCount:1,pressure:1)!
+    try check(cardView("메일 마감").menu(for:event)?.items.map(\.title)==["완료로 닫기","취소로 닫기"],"AT-DC-26 deadline menu")
+    try check(cardView("링크 마감").menu(for:event)?.items.map(\.title)==["완료로 닫기","취소로 닫기","출처 열기"],"AT-DC-26 menu with source")
+    try check(cardView("메일 마감").subviews.allSatisfy{!($0 is NSButton)},"AT-DC-26 no buttons on the card")
+    var urls:[URL]=[];view.onOpenURL={urls.append($0)}
+    (cardView("링크 마감").menu(for:event)!.items[2] as! RoomActionItem).trigger()
+    try check(urls==[URL(string:"https://example.invalid/x")!],"AT-DC-26 open source goes to the link path once")
+    let questionCard=cards().first{$0.kind == .question}!
+    view.todoDrawer.show(controller.drawerSnapshot,filter:.all,selected:nil)
+    try check(view.todoDrawer.cardViews.first{$0.card.id==questionCard.id}!.menu(for:event)==nil,"AT-DC-26 answer-request card has no menu")
+    // AT-DC-23: a notice in the chat is the destination.
+    urls=[]
+    view.selectDrawerCard(card("메일 마감"))
+    try check(model.selected==model.messages[noticeMessage]!.key && view.highlightedMessageID==noticeMessage && pet.drawerOpen && view.drawerSelectedID==card("메일 마감").id,"AT-DC-23 goes to the notice")
+    now.addTimeInterval(1.49);view.tickIsland();try check(view.highlightedMessageID==noticeMessage,"AT-DC-23 highlight stays before 1.5 seconds")
+    now.addTimeInterval(0.02);view.tickIsland();try check(view.highlightedMessageID==nil,"AT-DC-23 highlight ends")
+    // AT-DC-24: link only when there is no notice in the chat.
+    view.selectDrawerCard(card("링크 마감"))
+    try check(urls==[URL(string:"https://example.invalid/x")!],"AT-DC-24 link opens when there is no notice")
+    urls=[]
+    var both=card("메일 마감");both.url=URL(string:"https://example.invalid/y")
+    view.selectDrawerCard(both);try check(urls.isEmpty && model.selected==model.messages[noticeMessage]!.key,"AT-DC-24 notice wins over link")
+    // AT-DC-25: nowhere to go leaves the room as it was.
+    model.select(employee:"beta");let betaRoom=model.selected
+    view.selectDrawerCard(card("갈 곳 없는 마감"));view.selectDrawerCard(card("없는 글 마감"))
+    try check(model.selected==betaRoom && urls.isEmpty && view.drawerSelectedID==card("없는 글 마감").id,"AT-DC-25 no room change, no link, card selected")
+    _=question
+
+    // ----- close flow on the controller (drawer folded or open as each case needs) -----
+    func fresh() async {
+        requests=[];controller.stop();controller.setDrawerState(open:false,chatExpanded:true);controller.setDrawerState(open:true,chatExpanded:true)
+        await pause(0.01)
+        let list=sent("deadlines").last!;answer(list,rows)
+    }
+    var anchor=now
+    func run(_ title:String,_ outcome:String="done") {anchor=now;controller.closeDeadline(card(title),outcome:outcome)}
+    func tick(_ seconds:Double) async {now.addTimeInterval(seconds);controller.pollDeadlineCloses();await pause(0.01)}
+    /// Absolute time from the last close choice, so a boundary is hit exactly rather than by summing fractions.
+    func at(_ seconds:Double,from:Date?=nil) async {now=(from ?? anchor).addingTimeInterval(seconds);controller.pollDeadlineCloses();await pause(0.01)}
+    // AT-DC-27
+    await fresh()
+    let before=titles()
+    run("미리알림 마감")
+    try check(!titles().contains("미리알림 마감") && controller.drawerSnapshot.counts[.deadline]==before.count-1 && controller.drawerSnapshot.undoTitle=="미리알림 마감","AT-DC-27 hidden at once with undo line")
+    await at(4.9);try check(sent("deadline_close").isEmpty,"AT-DC-27 nothing sent at 4.9 seconds")
+    await at(5)
+    let first=sent("deadline_close")
+    try check(first.count==1 && first[0]["employee"] as? String=="alpha" && first[0]["deadline"] as? String=="reminder:r1" && first[0]["outcome"] as? String=="done" && controller.drawerSnapshot.undoTitle==nil,"AT-DC-27 one request at 5.0 seconds")
+    controller.setDrawerState(open:false,chatExpanded:true);requests=requests.filter{$0["type"] as? String != "deadlines"}
+    closeAnswer(first[0]);await pause(0.01)
+    try check(sent("deadlines").count==1,"AT-DC-27 success asks for the list even with the drawer closed")
+    answer(sent("deadlines")[0],rows.filter{$0["id"] as? String != "reminder:r1"})
+    controller.setDrawerState(open:true,chatExpanded:true)
+    try check(!titles().contains("미리알림 마감") && titles().count==before.count-1,"AT-DC-27 stays gone after the new list")
+    // AT-DC-27b / 27d: an answer asked before the close never brings the card back.
+    for (name,mode) in [("가","failure"),("나","failed"),("다","empty"),("라","present")] {
+        await fresh()
+        controller.requestDeadlines();await pause(0.01)
+        let early=sent("deadlines").last!                       // asked before the close, answered late
+        let target=name=="가" ? "메일 마감":name=="나" ? "링크 마감":name=="다" ? "없는 글 마감":"갈 곳 없는 마감"
+        let id=card(target).deadlineRef!.id
+        run(target);await tick(5)
+        closeAnswer(sent("deadline_close").last!);await pause(0.01)
+        let confirm=sent("deadlines").last!
+        answer(early,rows)                                      // R0 arrives late and still lists the card
+        try check(!titles().contains(target),"AT-DC-27b(\(name)) late early answer keeps card hidden")
+        switch mode {
+        case "failure": answer(confirm,[],reason:"command_failed");try check(!titles().contains(target),"AT-DC-27b(가) failed read keeps card hidden")
+        case "failed": answer(confirm,rows,failed:["alpha"]);try check(!titles().contains(target),"AT-DC-27b(나) failed employee keeps card hidden")
+        case "empty": answer(confirm,rows.filter{$0["id"] as? String != id});try check(!titles().contains(target),"AT-DC-27b(다) confirmed gone")
+        default: answer(confirm,rows);try check(titles().contains(target),"AT-DC-27b(라) still listed: card returns")
+        }
+    }
+    await fresh()
+    controller.requestDeadlines();await pause(0.01)
+    let older=sent("deadlines").last!
+    run("메일 마감");await tick(5);closeAnswer(sent("deadline_close").last!);await pause(0.01)
+    let newer=sent("deadlines").last!
+    answer(newer,rows.filter{$0["id"] as? String != "gmail:g1"},failed:[])
+    let settled=controller.drawerSnapshot
+    answer(older,rows,failed:["alpha"])                         // older number, arrives after the newer one
+    try check(controller.drawerSnapshot==settled && !titles().contains("메일 마감") && controller.drawerSnapshot.warning==nil,"AT-DC-27d older answer is dropped entirely")
+    // AT-DC-27c: two closes tracked per card.
+    await fresh()
+    run("미리알림 마감");run("메일 마감");await pause(0.01)
+    try check(sent("deadline_close").count==1 && sent("deadline_close")[0]["deadline"] as? String=="reminder:r1","AT-DC-27c choosing B sends A at once")
+    closeAnswer(sent("deadline_close")[0]);await pause(0.01)
+    await tick(5)
+    try check(sent("deadline_close").count==2,"AT-DC-27c B is sent after its five seconds")
+    let r1=sent("deadlines").last!
+    answer(r1,rows.filter{$0["id"] as? String != "reminder:r1"})   // valid list: A gone, B still listed
+    try check(!titles().contains("미리알림 마감") && !titles().contains("메일 마감"),"AT-DC-27c B stays hidden while its request is out")
+    closeAnswer(sent("deadline_close")[1]);await pause(0.01)
+    answer(sent("deadlines").last!,rows.filter{!["reminder:r1","gmail:g1"].contains($0["id"] as! String)})
+    try check(!titles().contains("메일 마감") && sent("deadline_close").count==2,"AT-DC-27c both gone, one request each")
+    // AT-DC-28: undo sends nothing.
+    await fresh()
+    let order=titles();run("링크 마감");await tick(2);controller.undoClose();await tick(10)
+    try check(sent("deadline_close").isEmpty && titles()==order && controller.drawerSnapshot.undoTitle==nil,"AT-DC-28 undo restores order and sends nothing")
+    // AT-DC-29: a second close sends the first at once.
+    await fresh()
+    run("링크 마감");await tick(1);run("메일 마감","cancel");await pause(0.01)
+    try check(sent("deadline_close").count==1 && sent("deadline_close")[0]["outcome"] as? String=="done" && controller.drawerSnapshot.undoTitle=="메일 마감","AT-DC-29 first goes at once, undo line is the second")
+    await tick(5)
+    try check(sent("deadline_close").count==2 && sent("deadline_close")[1]["outcome"] as? String=="cancel","AT-DC-29 second after its own five seconds")
+    // AT-DC-30: folding the drawer does not stop the wait.
+    await fresh()
+    run("링크 마감");controller.setDrawerState(open:false,chatExpanded:false);await tick(5)
+    try check(sent("deadline_close").count==1,"AT-DC-30 request goes out although the drawer is closed")
+    // AT-DC-31: failures show the card again with a gray line, cleared when the drawer reopens.
+    await fresh()
+    run("링크 마감");await tick(5);closeAnswer(sent("deadline_close")[0],ok:false)
+    try check(titles().contains("링크 마감") && controller.drawerSnapshot.closeWarning=="마감을 닫지 못했어요. 다시 해 주세요.","AT-DC-31(가) refusal restores the card and shows the line")
+    controller.setDrawerState(open:false,chatExpanded:true);controller.setDrawerState(open:true,chatExpanded:true)
+    try check(controller.drawerSnapshot.closeWarning==nil,"AT-DC-31 reopening clears the line")
+    await fresh()
+    controller.deadlineSender={frame in if frame["type"] as? String=="deadline_close" {throw URLError(.cannotConnectToHost)};requests.append(frame)}
+    run("링크 마감");await tick(5)
+    try check(titles().contains("링크 마감") && controller.drawerSnapshot.closeWarning != nil,"AT-DC-31(나) send failure restores the card")
+    controller.deadlineSender={requests.append($0)}
+    await fresh()
+    run("링크 마감");await tick(5);let sentAt=now
+    await at(74.9,from:sentAt)
+    try check(!titles().contains("링크 마감"),"AT-DC-31(다) still hidden at 74.9 seconds")
+    await at(75,from:sentAt)
+    try check(titles().contains("링크 마감") && controller.drawerSnapshot.closeWarning != nil,"AT-DC-31(다) restored at 75 seconds")
+    // AT-DC-32: a new connection while waiting counts as failure, then the list is asked again.
+    await fresh()
+    run("링크 마감");await tick(5);requests=[]
+    controller.receive(["type":"welcome","employees":[]]);await pause(0.01)
+    try check(titles().contains("링크 마감") && controller.drawerSnapshot.closeWarning != nil && sent("deadlines").count==1,"AT-DC-32 reconnect fails the waiting close and asks again")
+    // AT-DC-34: shutdown drops the wait without sending.
+    await fresh()
+    run("링크 마감");await tick(2);controller.stop();await tick(10);controller.pollDeadlines();await pause(0.01)
+    try check(sent("deadline_close").isEmpty && controller.pendingClose==nil,"AT-DC-34 nothing sent after stop")
+    print("AT-DC-21..34 CARD TARGET, MENU, CLOSE FLOW PASS")
 }

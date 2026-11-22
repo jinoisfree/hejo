@@ -37,6 +37,7 @@ final class MemoryCredentials: GateCredentialStore {
                     try await optionWindowTests(resourceDirectory:URL(fileURLWithPath:args.last!))
                 } else if args.contains("--todo-drawer") {
                     try await todoDrawerTests(resourceDirectory:URL(fileURLWithPath:args.last!))
+                    try await deadlineCloseTests(resourceDirectory:URL(fileURLWithPath:args.last!))
                 } else if args.contains("--imessage") {
                     try await imessageTests()
                 } else if args.contains("--review56-existing") {
@@ -266,6 +267,7 @@ final class MemoryCredentials: GateCredentialStore {
         try conversationUpdateTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await transitionPreparationTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await todoDrawerTests(resourceDirectory:URL(fileURLWithPath:CommandLine.arguments.last!))
+        try await deadlineCloseTests(resourceDirectory:URL(fileURLWithPath:CommandLine.arguments.last!))
         try todoDrawerBackgroundTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try drawerOutsidePlacementTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await letterPictureTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))

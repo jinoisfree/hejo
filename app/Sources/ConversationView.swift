@@ -13,8 +13,8 @@ import UniformTypeIdentifiers
         if let id=card.messageID,let key=card.key {
             reveal(key);highlightedMessageID=id;highlightUntil=islandModel.now.addingTimeInterval(1.5)
             refresh();history.scrollTo(key.thread)
-        } else if let url=card.url {onOpenURL(url)}
-        else {controller.model.select(employee:card.employee);refresh()}
+        } else if let url=card.url {onOpenURL(url);refresh()}
+        else {refresh()}  // nowhere to go: the card shows "연결된 대화 없음" and only becomes selected
     }
     let island=IslandView(frame:.zero)
     let islandModel:IslandModel
@@ -175,6 +175,9 @@ import UniformTypeIdentifiers
         todoDrawer.onFilter={ [weak self] filter in self?.controller.drawerFilter=filter;self?.refresh() }
         todoDrawer.onCard={ [weak self] card in self?.selectDrawerCard(card) }
         todoDrawer.onClose={ [weak self] in self?.onToggleDrawer?() }
+        todoDrawer.onCloseDeadline={ [weak self] card,outcome in self?.controller.closeDeadline(card,outcome:outcome);self?.refresh() }
+        todoDrawer.onUndoClose={ [weak self] in self?.controller.undoClose();self?.refresh() }
+        todoDrawer.onOpenSource={ [weak self] url in self?.onOpenURL(url) }
         todoDrawer.avatar={ [weak controller] id in controller?.avatar(id) ?? ProfileAvatar(color:PictureCodec.color(name:id,hex:nil)) }
         island.onAction={ [weak self] action in self?.activateIsland(action) }
         island.onWidthChange={ [weak self] in self?.needsLayout=true }
