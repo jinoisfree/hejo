@@ -112,3 +112,9 @@ diff를 읽었다. `PetPlacement.withDrawer`(오른쪽 넓힘, `over`·`shift` �
 - 화면 증거 직접 열람: `header-after-dark.png`(스크롤 후에도 "처리할 일 12"·필터 토글 고정, "전체 12" 파랑 채움, 카드만 위로 이동).
 - 설계 적합성(4.2): 적합 — 세 영역 배치는 `TodoDrawerView` 한 곳, 토글 모양은 `ComposerModeTrack`·`ComposerButton` 공용 원본을 "답글/새 대화"와 함께 사용(design 2.6).
 - 남은 것: main 병합. main에 HEJO-TELEGRAM TASK-07b의 `c3475bb`(0.2.7 빌드 9 버전 올림)가 있어 공개 스냅샷에 섞이지 않게 hermes-hejo-f7의 확인을 받은 뒤 병합한다(합의). c5170da 이후 main의 app 변경은 `Info.plist`(버전)뿐이라 병합 충돌 위험은 낮다.
+
+## 10회 · 2026-11-23 · TASK-02 판정: 완료(조건: 교차 모델) — main 병합
+
+- hermes-hejo-f7(HEJO-TELEGRAM)이 0.2.7 public 커밋 `3f5cb6bd35c6f57e862d09f809f9b1e2b1dd1f9c`(트리 = main `c3475bb`, e36c8a7 미포함) 확정을 알려 와 병합했다.
+- 계획 담당이 `e36c8a7`을 로컬 main에 `--no-ff` 병합 → `c1e1909864781ab52223e83b907861750742b132`. 병합 뒤 `app/`은 시험한 `e36c8a7`과 `app/Resources/Info.plist`(0.2.7 버전 올림)만 다르다.
+- TASK-02는 다음 공개 판(0.2.7 다음)에 들어간다. 현재 명세 상태 갱신(spec·design 4판 '적용', tasks TASK-02 완료)은 진행 중인 TASK-03 계획 개정과 같은 파일이라 그 커밋에서 함께 한다.
