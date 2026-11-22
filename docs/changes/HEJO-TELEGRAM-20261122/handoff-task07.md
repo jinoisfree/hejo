@@ -1,4 +1,4 @@
-# 설계 인계: HEJO-TELEGRAM / TASK-07 서버 적용
+# 설계 인계: HEJO-TELEGRAM / TASK-07 서버 적용 (2판, 2026-11-23 — HT-B03 반영)
 
 ```text
 [설계 인계: HEJO-TELEGRAM TASK-07 / 서버 적용]
@@ -9,7 +9,13 @@
    선례 evidence/HEJO-IMESSAGE/TASK-10.md(절차·기록 형식).
 2. 요구와 수락 기준: REQ-HT-09.AC-01·02. 적용 전 기록과 롤백 절차를 먼저 쓰고, 공용 릴리스 갱신 → 게이트웨이 재시작 →
    hejo·telegram·Slack 연결과 새 오류 0건 확인.
-3. 유지할 계약: 운영 설정·비밀 파일(.env·config.yaml·auth.json·토큰 파일)을 열지도 쓰지도 않는다(사장이 이미 넣음).
+3. 유지할 계약: 운영 설정·비밀 파일(.env·config.yaml·auth.json·hejo/admin.json·토큰 파일)을 에이전트가 열지도(cat·편집기·
+   직접 읽는 스크립트 포함) 쓰지도 않는다(사장이 이미 넣음).
+   (2판, verdict 3차 HT-B03) 예외 — 정해진 운영 도구가 스스로 읽는 것은 허용한다: `install/hejo-release`,
+   `<release>/install/hejo-install --check`, `hermes --profile default gateway restart`와 그 게이트웨이. 이 도구들은
+   설정·출입증을 읽어 결과 이름·경로만 출력하고 값을 출력하지 않는다(`install/hejo-install:685-736`의 출력은 상태 이름과 경로뿐,
+   `install/admin_support.py`는 지문 비교만). 에이전트는 그 출력(종료 코드·상태 줄)만 기록하고, 출력에 값처럼 보이는 줄
+   (토큰·id·주소)이 있으면 증거에 옮기지 말고 멈춰 보고한다. 선례: evidence/HEJO-IMESSAGE/TASK-10.md가 같은 --check를 실행했다.
    Hermes 본체·플러그인·team-kit·ddots 무수정. 기록장·금고·공용 창고 자료 무조치(옛 imessage.json·shared/hejo/imessage 지우지 않음).
    실제 텔레그램·아이메시지·Slack 메시지를 에이전트가 보내지 않는다(짝짓기·실물은 사장 M1~M8).
 4. 흐름: (1) 적용 전 기록 → (2) 텔레그램 의존성 확인 → (3) install/hejo-release → (4) hejo-install --check →

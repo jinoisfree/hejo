@@ -62,3 +62,21 @@
 1. TASK-07 서버 적용(사용자 별도 허가 필요): 사장 준비(봇·포럼 그룹·봇 관리자 권한·`TELEGRAM_BOT_TOKEN`·허용 계정 `group_allow_from`) → Hermes 환경 텔레그램 의존성 설치 → 공용 릴리스 → 게이트웨이 재시작 → AT-HT-60·61. 적용 순간부터 hejo의 아이메시지 연결이 사라진다(아이메시지는 Hermes 직통).
 2. TASK-07b 앱 공개, TASK-08 실물 M1~M8, 현재 명세(ARCHITECTURE) 반영.
 3. 푸시는 사용자 화면 승인. 단, main에는 다른 작업의 개인값 검사 지적 4건이 있어 공개 저장소 푸시 전에 정리가 필요하다.
+
+## 3차 (2026-11-23) — TASK-07 미완료(보류 처리)
+
+- 대상: TASK-07 보류 보고(커밋 `3c299bb`, [impl-report.md](impl-report.md) TASK-07 절, [evidence/HEJO-TELEGRAM/TASK-07.md](../../../evidence/HEJO-TELEGRAM/TASK-07.md)). 인계 [handoff-task07.md](handoff-task07.md) 1판(`223a191`).
+- 판정: **미완료**(운영 변경 전 보류). 서버는 바뀌지 않았다: 구현 보고의 `stopped-state.json` — RELEASE·게이트웨이 PID·보호 파일 메타데이터가 착수 전과 같다.
+- 확인한 것: 적용 전 기록과 롤백 명령이 증거 문서에 먼저 쓰였다. 현재 공용 RELEASE `227ef160…`와 착수 HEAD의 설치 범위 차이는 이 작업 커밋뿐이다(보고 로그 `release-diff-commits.log`). Hermes venv에 텔레그램 모듈 없음(직접 설치 안 함 — 인계대로).
+
+### HT-B03 원인 분류
+
+- 보고: 인계가 실행하라고 한 `hejo-install --check`는 운영 `config.yaml`을 읽고 출입증 파일(`hejo/admin.json`) 지문을 비교한다. 같은 인계 3번이 "설정·비밀 파일을 열지 않는다"고 해서 충돌한다.
+- 직접 확인: `install/hejo-install:678-736`의 `--check`는 상태 이름·경로만 출력한다(`changed <path>`, `owner_set <label>` 등). 값을 출력하지 않는다. 같은 명령은 HEJO-IMESSAGE TASK-10에서도 실행됐다. 게이트웨이 재시작도 같은 파일을 읽는다 — 인계 3번 문구대로라면 재시작 자체가 불가능해진다.
+- **원인 분류: 설계·계약 오류(인계 문구)**. 금지의 뜻은 "에이전트가 내용을 보거나 옮기지 않는다"(AGENTS.md)인데 문구가 도구 내부 읽기까지 막는 것처럼 적혔다. 요구 불변.
+- 조치: [handoff-task07.md](handoff-task07.md) 2판 3번에 예외를 명시했다 — 정해진 운영 도구(`hejo-release`, `hejo-install --check`, 게이트웨이 재시작)의 내부 읽기는 허용, 에이전트 직접 열람은 계속 금지, 도구 출력에 값처럼 보이는 줄이 있으면 옮기지 말고 멈춤.
+
+### 재개 조건
+
+- 최신 RELEASE·HEAD 차이를 다시 확인한다(그 사이 다른 작업 커밋이 들어왔으면 설치 범위에 미검증 변경이 없는지 다시 판단).
+- 착수 때 active_agents 1이었다. 재시작 직전 0 확인 규칙은 그대로다.
