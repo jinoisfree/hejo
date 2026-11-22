@@ -19,7 +19,7 @@
 | TASK-14 | 서버 적용: config_assembly 한 곳(TASK-13) + 직원 D Finder 연결 1회 | 운영 / M6 | 운영 main, `TKL` config_assembly.py, `HD` | TASK-13 | 일반 · 3 | 완료(검증 15차, 운영 b95e31a2, 직원 D done) |
 | TASK-15 | team-kit 보정(V-8 링크 유지) + 직원 D 링크 복구 + 시험 파일 실행본 설치(V-9) | FF-12.AC-05·06 / AT-FF-84~86 | `HD`, `TKL` config_assembly.py·tests, 운영 `owner/policy.yaml` 한 곳 | TASK-14 | 일반 · 3 | 완료(검증 19차, HD 5bd1da2·운영 f1507977·직원 D done) |
 | TASK-16 | 앱: 처리할 일 칸 바깥 배치(펫·창 오른쪽으로 비키기) | FF-13 / AT-FF-90~93 | `H/app/Sources/PetLayout.swift`(withLeading), 필요하면 `PetController.swift`, `H/app/Tests/` | — | 일반 · 2 | 완료(검증 22차, 3695d5e) |
-| TASK-17 | 앱 0.2.5(빌드 7) 공개 후보 | FF-13, FF-09 재확인 / M9·M10·M12 | 0.2.4 절차 | TASK-16 | 일반(공개) · 2 | 지시함(handoff 23차) |
+| TASK-17 | 앱 0.2.5(빌드 7) 공개 후보 | FF-13, FF-09 재확인 / M9·M10·M12 | 0.2.4 절차 | TASK-16 | 일반(공개) · 2 | 완료(검증 23차, 후보 public 47a4245, 공개 대기) |
 | TASK-04 | 사장 확인 M1~M12, 현재 명세 반영(`HD/docs/연결-상태.md`의 Finder 설명이 있으면) | 전체 | `HD/docs/연결-상태.md`(필요 시) | TASK-07·08 | — | 대기 |
 
 ## TASK-08 착수 조건 (2026-11-22, HEJO-SLACK-MOVE 세션과 조율)
