@@ -913,7 +913,12 @@ import UniformTypeIdentifiers
             let faces=ThreadTools.answeredFaces(replies).map{(model.name($0),controller.avatar($0))}
             answer.append(.stack(faces:faces,title:"이전 답글 \(hidden)개",toggle:{ [weak self] in self?.togglePile(thread.key) },identifier:"stack-"+thread.id))
         }
-        for message in shown {answer += postPieces(message,conversational:true,edge:edge)}
+        let shownIDs=Set(shown.map(\.id))
+        for (index,message) in replies.enumerated() where shownIDs.contains(message.id) {
+            let previous=index>0 ? replies[index-1]:nil
+            let continuation=message.role != "owner" && previous.map{shownIDs.contains($0.id) && $0.role != "owner" && $0.speaker==message.speaker} == true
+            answer += postPieces(message,conversational:true,edge:edge,continuation:continuation)
+        }
         if controller.interruptions[thread.key] != nil {
             answer.append(.accessory(id:thread.id+":interruption",height:16,view:{
                 let label=NSTextField(labelWithString:"끼어들었어요");label.font = .systemFont(ofSize:ChatMetrics.auxiliaryFont);label.textColor = CardText.quiet(dark:dark)
@@ -933,6 +938,7 @@ import UniformTypeIdentifiers
                 let thinkers=Set(messages.filter{$0.role != "owner" && (ThreadTools.thinking($0.text) || $0.streaming)}.map(\.speaker))
                 let people=(model.typingPeople[thread.key] ?? [:]).keys.sorted()
                 for person in people where !thinkers.contains(person) {
+                    if controller.interruptions[thread.key]==nil,let last=shown.last,last.role != "owner",last.speaker==person {continue}
                     answer.append(.accessory(id:thread.id+":typing:"+person,height:34,view:{[weak controller] in TypingBubbleView(name:model.name(person),avatar:controller?.avatar(person) ?? ProfileAvatar(),nameColor:controller?.palette(person,dark:dark).name.nsColor,activity:"답변을 준비하고 있습니다")}))
                 }
                 let activity=messages.last(where:{$0.role != "owner" && ThreadTools.thinking($0.text)})?.text.components(separatedBy:"\n").dropFirst().first ?? (messages.contains(where:{$0.streaming}) ? "답변을 작성하고 있습니다":"답변을 준비하고 있습니다")
@@ -960,8 +966,9 @@ import UniformTypeIdentifiers
             bubbleWidth:max(ChatMetrics.minimumBubbleWidth,(bounds.width-sidebarWidth)*ChatMetrics.bubbleWidthFraction),quiet:quiet,expanded:expanded,replyTarget:target)
     }
     static let unavailableReply="정해진 버튼이 아니라 누를 수 없어요. 이 스레드에 글로 답해 주세요."
-    private func postPieces(_ message:ConversationMessage,conversational:Bool,edge:NSColor?,extras:Bool=true)->[NativeThreadCard.Piece] {
+    private func postPieces(_ message:ConversationMessage,conversational:Bool,edge:NSColor?,extras:Bool=true,continuation:Bool=false)->[NativeThreadCard.Piece] {
         let dark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua, mine=message.role == "owner"
+        if !mine,continuation,ThreadTools.thinking(message.text) {return []}
         if !mine,ThreadTools.thinking(message.text) {return [.accessory(id:message.id+":thinking",height:34,view:{[weak controller] in TypingBubbleView(name:controller?.model.name(message.speaker) ?? "",avatar:controller?.avatar(message.speaker) ?? ProfileAvatar(),nameColor:controller?.palette(message.speaker,dark:dark).name.nsColor,activity:message.text.components(separatedBy:"\n").dropFirst().first ?? "답변을 준비하고 있습니다")} )]}
         let received=streamReveal.frame(message.id,now:motionTime(),immediately:reduceMotion()) ?? message.text
         let streaming=message.streaming || streamReveal.revealing(message.id)
@@ -1007,6 +1014,7 @@ import UniformTypeIdentifiers
                 else if CardText.mayOpen(url) {self.onOpenURL(url)}
             })
         post.flash=message.id==highlightedMessageID && (highlightUntil.map{$0>islandModel.now} ?? false)
+        if !mine,continuation {post.continuation=true;if post.textHelp==nil {post.textHelp=post.time}}
         var pieces:[NativeThreadCard.Piece]=[.post(post)]
         if !extras {return pieces}
         let calendarActions = controller.calendarActions(for: message)
@@ -1073,7 +1081,7 @@ import UniformTypeIdentifiers
         }
         if pending,!mine,message.files.isEmpty,let parts=ReplyButtonPolicy.split(message.text) {
             var head=message,detail=message;head.text=parts.head;detail.text=parts.detail;detail.id += ":detail"
-            let first=postPieces(head,conversational:false,edge:edge,extras:false)
+            let first=postPieces(head,conversational:false,edge:edge,extras:false,continuation:continuation)
             let rest=postPieces(detail,conversational:false,edge:edge,extras:false).map { piece -> NativeThreadCard.Piece in
                 if case .post(var post)=piece {post.continuation=true;return .post(post)};return piece
             }

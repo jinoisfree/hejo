@@ -271,6 +271,7 @@ final class MemoryCredentials: GateCredentialStore {
         try await optionWindowTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await islandTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await typingTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
+        try await postGroupTests()
         try await task17Tests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await updateTests()
         try await review55Tests()
