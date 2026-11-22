@@ -49,3 +49,12 @@
 - 시험: 코드/설정 시험과 토픽 생명주기, 실패 로그 비노출, 수신·멘션·답장·삭제 스레드·첨부·중복·무소유 통과를 검사한다. 송신 대응 답장·새 직원 발신은 TASK-04에서 이어 검사한다.
 - 명령: 기존 `.build/connections-env.sh` 환경으로 Hermes venv `python -m pytest tests/acceptance/test_telegram.py -q -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function --basetemp=/tmp/ht03r`. 종료 0, **21 passed**, 로그 `.build/telegram-evidence/task03r.log`, 증거 수준 2. 중간 실행의 삭제 스레드 시험 입력은 기존 public API의 room 필드를 사용하도록 바로잡았다(기대값 불변).
 - 설계 차이 없음. 감시 간격 0.25초·작업자 방식은 위임된 내부 세부다. 위험·롤백·금지 범위는 기준 절과 같다. TASK-04~06과 전체·mutation 검사는 남았다.
+
+## TASK-04 — 발신·작성 중
+
+- 스레드별 기록 순서 대기열에서 앱 사장 글은 즉시, 직원 글은 작성 중이 끝나고 마지막 기록의 정착 시간이 지난 뒤 보낸다. 전송 시 기록장 최신 글을 읽으며 생각 중·삭제·비활성 기록은 보내지 않는다. 기록 당시 짝 표지를 대기열에 고정해 재짝짓기 뒤 옛 대기가 새 그룹으로 가지 않는다.
+- 직원/사장 이름표·알림·가장 이른 대응 닻·버튼 덧붙임, 파일 사전 판별 및 파일 발신을 구현했다. 나눠진 본문·첨부 id 전부를 표지와 함께 sent.jsonl에 저장한다. 손상 줄 건너뛰기·덜 쓰인 꼬리 절단·0600을 유지한다. 파일 실행 중 실패는 재시도/안내 없이 종류 로그 한 줄이다.
+- 작성 중은 토픽마다 4초에 한 번 이하로 비동기 요청한다. 정지 요청은 없고 앱의 기존 정지/스트림 처리 뒤 정착 대기만 깨운다. 기존 정착 측정 시험은 `gate/tests/telegram_settling.py`로 이름·참조만 옮겼다.
+- 설계 차이 없음. 대기열·파일 저장과 네트워크 경계를 기존 책임 모듈 하나에 유지했다. 되보내기·수정/삭제 반영 경로는 만들지 않았다.
+- 검증: Hermes venv `python -m pytest tests/acceptance/test_telegram.py -q -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function --basetemp=/tmp/ht04`, 종료 0, **34 passed**, 로그 `.build/telegram-evidence/task04.log`, 수준 2. AT-HT-07의 모든 로거/저장소/앱 프레임 허용 위치, AT-HT-39의 두 임시 홈 기록장·실제 앱 프레임 비교 포함. 중간 이식 오류(버튼의 실제 style/kind, delete의 기존 호출 범위, 비교용 uuid 키 정규화)를 고쳤고 대역 러너 차례 종료 후 같은 대본을 순차 입력했다(기대값 불변).
+- AT-HT-44 수준 3·mutation·앱·전체 검사는 TASK-05·06에서 남았다.

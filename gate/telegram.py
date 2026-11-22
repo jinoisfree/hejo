@@ -9,10 +9,14 @@ import time
 from pathlib import Path
 
 from .auth import AuthStore, PAIR_TTL, digest
+from .context import thinking
+from .files import UnknownFile
 
 log = logging.getLogger(__name__)
 _telegram = None
 SETTLE_SECONDS = 2.0
+TYPING_SECONDS = 4.0
+MAX_SEND_FILE_BYTES = 50 * 1024 * 1024
 
 
 def platform_ready():
@@ -56,6 +60,11 @@ class Telegram:
         self.settings_store.path = Path(home) / 'shared' / 'hejo' / 'telegram'
         self.topic_problem = False
         self.settle_seconds = SETTLE_SECONDS
+        self.pending, self.changed, self.workers, self.wakes = {}, {}, {}, {}
+        self._typing_tasks, self._typing_at = set(), {}
+        self.sent = {}
+        self.sent_path = self.settings_store.path / 'sent.jsonl'
+        self._load_sent()
         self._topic_lock = asyncio.Lock()
         self._sync_requested = asyncio.Event()
         self._sync_task = asyncio.create_task(self._sync_worker())
@@ -324,18 +333,202 @@ class Telegram:
     def recorded(self, row):
         if row['type'] in {'room', 'room_delete'}:
             self.request_sync()
+            return
+        key = self.adapter.journal.message_threads.get(row.get('msg_id'))
+        if not key:
+            return
+        if (row['type'] == 'message' and self.active() and key[0] in self.rooms()
+                and (row['role'] == 'employee' or not row.get('client_msg_id', '').startswith('telegram:'))):
+            self.pending.setdefault(key, []).append((row['msg_id'], self.private()['pair']['tag']))
+        if key in self.pending:
+            self.changed[key] = asyncio.get_running_loop().time()
+            self.wake(key)
 
     def wake(self, key):
-        pass
+        if key not in self.pending:
+            return
+        if key not in self.workers:
+            self.wakes[key] = asyncio.Event()
+            self.workers[key] = asyncio.create_task(self._settle(key))
+        self.wakes[key].set()
+
+    def typing(self, key):
+        chat = 'room:' + key[0] if key[0] in self.adapter.journal.rooms else key[0]
+        return any(thread == key[1] for _, thread in self.adapter._typing_threads.get(chat, set()))
+
+    async def _settle(self, key):
+        try:
+            while self.pending.get(key):
+                self.wakes[key].clear()
+                msg_id, tag = self.pending[key][0]
+                row = self.adapter.journal.message(msg_id)
+                if row and row['role'] == 'employee':
+                    delay = self.changed[key] + self.settle_seconds - asyncio.get_running_loop().time()
+                    if delay > 0:
+                        await asyncio.sleep(delay)
+                        continue
+                    if self.typing(key):
+                        await self.wakes[key].wait()
+                        continue
+                self.pending[key].pop(0)
+                try:
+                    await self._send_message(msg_id, key, tag)
+                except Exception as exc:
+                    log.warning('telegram_send_failed kind=%s', type(exc).__name__)
+        finally:
+            self.pending.pop(key, None)
+            self.workers.pop(key, None)
+            self.wakes.pop(key, None)
+            self.changed.pop(key, None)
+
+    def anchor(self, key, tag):
+        by_message = {}
+        for (sent_tag, tg_id), msg_id in self.sent.items():
+            if sent_tag == tag:
+                by_message.setdefault(msg_id, tg_id)
+        prefix = f'telegram:{tag}:'
+        for row in self.adapter.journal.records:
+            if self.adapter.journal.message_threads.get(row.get('msg_id')) == key:
+                client_id = row.get('client_msg_id', '')
+                if client_id.startswith(prefix):
+                    return client_id[len(prefix):]
+                if row.get('msg_id') in by_message:
+                    return by_message[row['msg_id']]
+        return None
+
+    async def _send_message(self, msg_id, key, tag):
+        row = self.adapter.journal.message(msg_id)
+        if (not row or thinking(row['text']) or not self.active() or key[0] not in self.rooms()
+                or key in self.adapter.journal.deleted_threads or self.private()['pair']['tag'] != tag):
+            return
+        entry = self.topics(tag)['topics'].get(key[0])
+        if not entry:
+            await self.sync_topics()
+            entry = self.topics(tag)['topics'].get(key[0])
+        if (not entry or entry['closed'] or not self.active() or self.private()['pair']['tag'] != tag
+                or key[0] not in self.rooms()):
+            return
+        pair = self.private()['pair']
+        names = {e['id']: e['name'] for e in self.adapter.employees()}
+        label = '사장' if row['role'] == 'owner' else names.get(row['employee'], row['employee'])
+        text = f"[{label}] " + row['text']
+        buttons = row.get('buttons', [])
+        replies = [b['label'] for b in buttons if b['kind'] == 'reply']
+        if replies:
+            text += '\n선택: ' + ' / '.join(replies)
+        if any(b['kind'] != 'reply' for b in buttons):
+            text += '\n(이 선택은 hejo 앱에서 눌러 주세요)'
+        attachments = []
+        for file in row.get('files', []):
+            try:
+                path, mime = self.adapter.files.registered(row['employee'], file['file_id'])
+                if path.stat().st_size > MAX_SEND_FILE_BYTES:
+                    raise ValueError('too_large')
+                attachments.append((path, mime))
+            except (UnknownFile, OSError, ValueError):
+                text += f"\n📎 {file['name']} (hejo 앱에서 열기)"
+        metadata = {'thread_id': entry['topic']}
+        if row['role'] == 'employee':
+            metadata['notify'] = True
+        result = await _telegram.send(pair['chat_id'], text, reply_to=self.anchor(key, tag), metadata=metadata)
+        if not result.success:
+            raise OSError('send_failed')
+        ids = self.result_ids(result)
+        for tg_id in ids:
+            self._save_sent(tag, tg_id, msg_id)
+        for path, mime in attachments:
+            if not self.active() or self.private()['pair']['tag'] != tag:
+                return
+            try:
+                send = _telegram.send_image_file if mime.startswith('image/') else _telegram.send_document
+                result = await send(pair['chat_id'], str(path), reply_to=ids[0] if ids else None, metadata=metadata)
+                if not result.success:
+                    raise OSError('send_failed')
+                for tg_id in self.result_ids(result):
+                    self._save_sent(tag, tg_id, msg_id)
+            except Exception as exc:
+                log.warning('telegram_file_send_failed kind=%s', type(exc).__name__)
+
+    @staticmethod
+    def result_ids(result):
+        raw = result.raw_response
+        values = raw.get('message_ids') if isinstance(raw, dict) else None
+        return [str(value) for value in (values or ([result.message_id] if result.message_id else []))]
+
+    def _load_sent(self):
+        try:
+            raw = self.sent_path.read_bytes()
+        except OSError:
+            return
+        lines = raw.splitlines(keepends=True)
+        for line in lines:
+            try:
+                row = json.loads(line) if line.endswith(b'\n') else None
+                if (isinstance(row, dict) and set(row) == {'tag', 'tg', 'msg_id'}
+                        and all(isinstance(value, str) for value in row.values())):
+                    self.sent[(row['tag'], row['tg'])] = row['msg_id']
+            except (ValueError, UnicodeDecodeError):
+                continue
+        try:
+            with self.sent_path.open('r+b') as stream:
+                os.fchmod(stream.fileno(), 0o600)
+                if lines and not lines[-1].endswith(b'\n'):
+                    stream.truncate(len(raw) - len(lines[-1]))
+                stream.flush()
+                os.fsync(stream.fileno())
+        except OSError:
+            log.warning('telegram_sent_read_failed')
+
+    def _save_sent(self, tag, tg_id, msg_id):
+        with self.settings_store.locked():
+            created = not self.sent_path.exists()
+            fd = os.open(self.sent_path, os.O_CREAT | os.O_WRONLY | os.O_APPEND, 0o600)
+            try:
+                os.fchmod(fd, 0o600)
+                with os.fdopen(fd, 'ab', closefd=False) as stream:
+                    stream.write((json.dumps({'tag': tag, 'tg': tg_id, 'msg_id': msg_id}) + '\n').encode())
+                    stream.flush()
+                    os.fsync(stream.fileno())
+            finally:
+                os.close(fd)
+            if created:
+                directory = os.open(self.settings_store.path, os.O_RDONLY)
+                try:
+                    os.fsync(directory)
+                finally:
+                    os.close(directory)
+        self.sent[(tag, tg_id)] = msg_id
 
     def send_typing(self, key):
-        pass
+        if not self.active() or key[0] not in self.rooms():
+            return
+        pair = self.private()['pair']
+        entry = self.topics(pair['tag'])['topics'].get(key[0])
+        if not entry or entry['closed']:
+            return
+        throttle = (pair['tag'], entry['topic'])
+        now = asyncio.get_running_loop().time()
+        if now - self._typing_at.get(throttle, float('-inf')) < TYPING_SECONDS:
+            return
+        self._typing_at[throttle] = now
+        phone = _telegram
+        async def request():
+            try:
+                await phone.send_typing(pair['chat_id'], metadata={'thread_id': entry['topic']})
+            except Exception as exc:
+                log.warning('telegram_typing_failed kind=%s', type(exc).__name__)
+        task = asyncio.create_task(request())
+        self._typing_tasks.add(task)
+        task.add_done_callback(self._typing_tasks.discard)
 
     async def close(self):
-        tasks = (self._sync_task, self._connection_task)
+        tasks = (self._sync_task, self._connection_task, *self.workers.values(), *self._typing_tasks)
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
+        self.workers.clear()
+        self.pending.clear()
+        self._typing_tasks.clear()
 
 
 class ExternalReply:

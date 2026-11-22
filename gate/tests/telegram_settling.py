@@ -1,4 +1,4 @@
-"""AT-HI-39: five successful cleanup timings in an isolated real gateway process."""
+"""AT-HT-44: five successful cleanup timings in an isolated real gateway process."""
 import asyncio
 import json
 import os
@@ -94,16 +94,16 @@ async def child(sandbox):
                 assert stops and len(deletes) == 1
                 samples.append(max(deletes) - min(stops))
             await ws.close()
-        print('AT_HI_39_SECONDS ' + json.dumps(samples), flush=True)
+        print('AT_HT_44_SECONDS ' + json.dumps(samples), flush=True)
         assert len(samples) == 5 and all(0 <= sample < 2 for sample in samples)
-        print('AT_HI_39_PASS', flush=True)
+        print('AT_HT_44_PASS', flush=True)
     finally:
         if runner: await runner.stop()
         await asyncio.wait_for(task, 40)
 
 
 def main():
-    with tempfile.TemporaryDirectory(prefix='hejo-imessage-', dir='/tmp') as directory:
+    with tempfile.TemporaryDirectory(prefix='hejo-telegram-', dir='/tmp') as directory:
         sandbox = Path(directory).resolve()
         home, root = sandbox / 'home', sandbox / 'airport'
         home.mkdir(); root.mkdir()
@@ -111,7 +111,7 @@ def main():
                'XDG_STATE_HOME': str(sandbox / 'state'), 'HERMES_GATEWAY_LOCK_DIR': str(sandbox / 'locks'),
                'HERMES_DISABLE_LAZY_INSTALLS': '1', 'PYTHONDONTWRITEBYTECODE': '1',
                'PYTHONPATH': os.pathsep.join(sys.path), 'NO_COLOR': '1'}
-        result = subprocess.run([sys.executable, '-m', 'gate.tests.imessage_settling', '--child'], cwd=sandbox,
+        result = subprocess.run([sys.executable, '-m', 'gate.tests.telegram_settling', '--child'], cwd=sandbox,
                                 env=env, capture_output=True, text=True, timeout=180)
         print(result.stdout)
         print(result.stderr)

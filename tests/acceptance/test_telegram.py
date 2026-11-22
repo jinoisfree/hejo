@@ -381,3 +381,302 @@ async def test_pair_consumed_between_claim_and_admission(gate,client,transport):
         await transport.handle_message(event)
     assert transport.originals==[event] and transport.originals[0] is event
     assert not transport.calls and transport.accepted==0 and gate.journal.head==0
+
+
+async def settled(gate):
+    await until(lambda: not gate.telegram.pending and not gate.telegram.workers)
+
+
+async def test_at_ht_14_new_roster_room_on_send(gate,client,transport,monkeypatch):
+    ws,_=await client.pair(features=['telegram'])
+    await activate(gate,client,ws,transport)
+    original=gate.employees
+    monkeypatch.setattr(gate,'employees',lambda: original()+[{'id':'gamma','name':'Gamma','aliases':[]}])
+    transport.topic_calls.clear();transport.operations.clear()
+    await gate.send('gamma','new room',metadata={'thread_id':str(uuid.uuid4())})
+    await settled(gate)
+    assert transport.topic_calls==[('create_forum_topic',{'chat_id':'grp-A','name':'Gamma'})]
+    assert transport.operations==['create_forum_topic','send']
+    assert transport.calls[-1][3]['thread_id']==gate.telegram.topics(gate.telegram.private()['pair']['tag'])['topics']['gamma']['topic']
+
+
+async def test_at_ht_30_31_32_35_order_settling_and_buttons(gate,client,transport,runner):
+    ws,_=await client.pair(features=['rooms','telegram'])
+    _,topics=await activate(gate,client,ws,transport)
+    thread=str(uuid.uuid4())
+    await client.send(ws,thread=thread,text='ping')
+    await wait_for_turns(runner,1)
+    await gate.send('alpha','pong',metadata={'thread_id':thread})
+    await settled(gate)
+    assert transport.calls[:2]==[
+        ('grp-A','[사장] ping',None,{'thread_id':topics['alpha']['topic']}),
+        ('grp-A','[Alpha] pong','tg-out-1',{'thread_id':topics['alpha']['topic'],'notify':True})]
+    thread2=str(uuid.uuid4())
+    await gate.send_typing('alpha',{'thread_id':thread2})
+    await gate.send('alpha','waiting',metadata={'thread_id':thread2})
+    await asyncio.sleep(.15)
+    assert not any(call[1]=='[Alpha] waiting' for call in transport.calls)
+    await gate.stop_typing('alpha',{'thread_id':thread2});await settled(gate)
+    assert sum(call[1]=='[Alpha] waiting' for call in transport.calls)==1
+    await gate.send('alpha','🤔 생각 중…\nprivate thought',metadata={'thread_id':str(uuid.uuid4())})
+    await settled(gate)
+    assert not any('private thought' in call[1] for call in transport.calls)
+    await transport.handle_message(transport.event(topic=topics['alpha']['topic']))
+    await settled(gate)
+    assert not any(call[1]=='[사장] hello' for call in transport.calls)
+    await gate.send('alpha','choose',metadata={'thread_id':str(uuid.uuid4()),'hejo_buttons':[{'label':'A','style':'primary'},{'label':'B','style':'default'}],
+        '_hejo_native_buttons':[{'label':'Open','kind':'approval','style':'default'}]})
+    await settled(gate)
+    assert transport.calls[-1][1]=='[Alpha] choose\n선택: A / B\n(이 선택은 hejo 앱에서 눌러 주세요)'
+
+
+async def test_at_ht_33_group_order_and_anchor(gate,client,transport):
+    ws,_=await client.pair(features=['telegram'])
+    group_id,topics=await activate(gate,client,ws,transport)
+    thread=str(uuid.uuid4())
+    for employee,text in [('beta','a'),('alpha','b'),('beta','c')]:
+        await gate.send('room:'+group_id,text,metadata={'hermes_profile':employee,'thread_id':thread})
+    await settled(gate)
+    assert [call[1] for call in transport.calls]==['[Beta] a','[Alpha] b','[Beta] c']
+    assert [call[2] for call in transport.calls]==[None,'tg-out-1','tg-out-1']
+    assert all(call[3]=={'thread_id':topics[group_id]['topic'],'notify':True} for call in transport.calls)
+
+
+async def test_at_ht_34_files_preflight_and_runtime_failure(gate,client,transport,tmp_path,caplog):
+    ws,_=await client.pair(features=['telegram'])
+    _,topics=await activate(gate,client,ws,transport)
+    picture=tmp_path/'p.png';picture.write_bytes(b'fixture picture')
+    document=tmp_path/'d.txt';document.write_text('fixture document')
+    # Existing public file sends create ordinary message rows; one row carries both files.
+    files=[]
+    for path in (picture,document):
+        staged=await gate.files.copy('alpha',path)
+        promoted,_=gate.files.promote('alpha',[staged['file_id']]);files.extend(promoted)
+    from datetime import datetime,timezone
+    thread=str(uuid.uuid4())
+    await gate._record({'type':'message','employee':'alpha','thread':thread,'role':'employee','msg_id':str(uuid.uuid4()),
+        'text':'files','files':files,'buttons':[],'reply_state':None,'ts':datetime.now(timezone.utc).isoformat()},
+        {'files':gate.files.registration('alpha','employee',files)})
+    await settled(gate)
+    assert [call[0] for call in transport.file_calls]==['image','document']
+    assert all(call[3]=='tg-out-1' and call[4]['thread_id']==topics['alpha']['topic'] for call in transport.file_calls)
+    missing={'file_id':str(uuid.uuid4()),'name':'x.bin','mime':'application/octet-stream','size':1}
+    await gate._record({'type':'message','employee':'alpha','thread':str(uuid.uuid4()),'role':'employee','msg_id':str(uuid.uuid4()),
+        'text':'missing','files':[missing],'buttons':[],'reply_state':None,'ts':datetime.now(timezone.utc).isoformat()})
+    await settled(gate)
+    assert transport.calls[-1][1].endswith('📎 x.bin (hejo 앱에서 열기)') and len(transport.file_calls)==2
+    for failure in [True,'exception']:
+        caplog.clear();transport.file_failure=failure
+        before=len(transport.calls);before_files=len(transport.file_calls)
+        await gate.send_document('alpha',str(document),caption='runtime',metadata={'thread_id':str(uuid.uuid4())})
+        await settled(gate);await asyncio.sleep(.15)
+        assert len(transport.calls)==before+1 and '📎' not in transport.calls[-1][1]
+        assert len(transport.file_calls)==before_files+1
+        logs=[r.message for r in caplog.records if r.name=='gate.telegram']
+        assert len(logs)==1 and 'grp-A' not in logs[0] and 'd.txt' not in logs[0]
+
+
+async def test_at_ht_22_23_36_45_reply_split_restart_and_repair(gate,client,transport):
+    ws,_=await client.pair(features=['telegram'])
+    _,topics=await activate(gate,client,ws,transport)
+    await transport.handle_message(transport.event(topic=topics['alpha']['topic']))
+    key=gate.journal.message_threads[gate.journal.records[-1]['msg_id']]
+    transport.split=True
+    reply=await gate.send('alpha','answer',metadata={'thread_id':key[1]})
+    await settled(gate)
+    assert transport.calls[-1][2]=='tg-in-1'
+    rows=[json.loads(line) for line in gate.telegram.sent_path.read_text().splitlines()]
+    assert len(rows)==2 and all(row['msg_id']==reply.message_id for row in rows)
+    home=gate.telegram.vault.path.parent
+    await gate.telegram.close();gate.telegram=telegram.Telegram(gate,home);gate.telegram.settle_seconds=.05
+    await transport.handle_message(transport.event('reply',topic=topics['alpha']['topic'],mid='reply',reply_to_message_id='tg-out-1-2'))
+    assert gate.journal.message_threads[gate.journal.records[-1]['msg_id']]==key
+    old_tag=gate.telegram.private()['pair']['tag']
+    await pair(client,ws,transport)
+    await request(client,ws,'telegram_save',enabled=True)
+    tag=gate.telegram.private()['pair']['tag'];assert tag!=old_tag
+    await until(lambda: len(gate.telegram.topics(tag)['topics'])==4)
+    topic=gate.telegram.topics(tag)['topics']['alpha']['topic']
+    await transport.handle_message(transport.event('old reply',topic=topic,mid='new-reply',reply_to_message_id='tg-out-1'))
+    assert gate.journal.records[-1]['thread']!=key[1]
+    before=gate.journal.head
+    await transport.handle_message(transport.event(topic=topic))
+    assert gate.journal.head==before+1 and gate.journal.records[-1]['client_msg_id']==f'telegram:{tag}:tg-in-1'
+
+
+async def test_at_ht_37_38_failure_no_retry_or_backfill(gate,client,transport,caplog):
+    ws,_=await client.pair(features=['telegram'])
+    await activate(gate,client,ws,transport)
+    transport.failure=True;caplog.clear()
+    await gate.send('alpha','sensitive-body',metadata={'thread_id':str(uuid.uuid4())})
+    await settled(gate);await asyncio.sleep(.15)
+    assert len(transport.calls)==1
+    logs=[r.message for r in caplog.records if r.name=='gate.telegram']
+    assert len(logs)==1 and all(value not in logs[0] for value in ['grp-A','sensitive-body','tg-out'])
+    await request(client,ws,'telegram_save',enabled=False)
+    await gate.send('alpha','disabled-body',metadata={'thread_id':str(uuid.uuid4())})
+    await request(client,ws,'telegram_save',enabled=True)
+    await asyncio.sleep(.15)
+    assert len(transport.calls)==1
+
+
+@pytest.mark.parametrize('broken',['telegram.json','settings.json','topics.json','sent.jsonl'])
+async def test_at_ht_40_corrupt_stores_do_not_block_connect(gate,client,transport,broken):
+    ws,_=await client.pair(features=['telegram'])
+    await activate(gate,client,ws,transport)
+    home=gate.telegram.vault.path.parent
+    sent_before={}
+    if broken=='sent.jsonl':
+        await gate.send('alpha','persisted',metadata={'thread_id':str(uuid.uuid4())});await settled(gate)
+        sent_before=dict(gate.telegram.sent)
+    path=(gate.telegram.vault.path if broken=='telegram.json' else gate.telegram.settings_store.path)/broken
+    if broken=='sent.jsonl':
+        with path.open('ab') as stream: stream.write(b'broken middle\n{"partial":')
+    else: path.write_text('{broken')
+    await gate.disconnect()
+    assert await gate.connect()
+    assert gate.is_connected
+    transport.calls.clear()
+    if broken in {'telegram.json','settings.json'}:
+        event=transport.event();await transport.handle_message(event)
+        await gate.send('alpha','blocked',metadata={'thread_id':str(uuid.uuid4())})
+        await asyncio.sleep(.15)
+        assert transport.originals==[event] and not transport.calls
+    elif broken=='topics.json':
+        tag=gate.telegram.private()['pair']['tag']
+        await until(lambda: len(gate.telegram.topics(tag)['topics'])==4)
+    else:
+        assert gate.telegram.sent==sent_before and path.read_bytes().endswith(b'\n')
+
+
+async def test_at_ht_41_typing_throttle_and_failure(gate,client,transport,caplog):
+    ws,_=await client.pair(features=['telegram'])
+    _,topics=await activate(gate,client,ws,transport)
+    thread=str(uuid.uuid4())
+    for _ in range(3): await gate.send_typing('alpha',{'thread_id':thread})
+    await asyncio.sleep(5)
+    await gate.send_typing('alpha',{'thread_id':thread})
+    await until(lambda: len(transport.typing_calls)==2)
+    assert transport.typing_calls==[('grp-A',{'thread_id':topics['alpha']['topic']})]*2 and not transport.calls
+    caplog.clear();transport.typing_failure=True
+    await gate.send_typing('beta',{'thread_id':str(uuid.uuid4())})
+    await asyncio.sleep(.02)
+    assert sum('telegram_typing_failed' in r.message for r in caplog.records)==1
+    await gate.stop_typing('alpha',{'thread_id':thread})
+    await gate.send('alpha','still works',metadata={'thread_id':thread});await settled(gate)
+    assert transport.calls[-1][1]=='[Alpha] still works'
+
+
+async def test_at_ht_07_private_values_have_only_authorized_sinks(gate,client,transport,caplog):
+    caplog.set_level(logging.DEBUG)
+    ws,welcome=await client.pair(features=['rooms','telegram'])
+    other,_=await client.open(token=welcome['token'],features=['rooms','telegram'])
+    group_id=await group(gate)
+    code=await request(client,ws,'telegram_pair')
+    await transport.handle_message(transport.event(code['code']))
+    await request(client,ws,'telegram_save',enabled=True)
+    tag=gate.telegram.private()['pair']['tag']
+    await until(lambda: len(gate.telegram.topics(tag)['topics'])==4)
+    class Sink:
+        features={'rooms'}
+        async def send(self,frame): pass
+    sink=Sink()
+    await gate.room_command({'type':'room_save','title':'Ops','members':['alpha','beta'],'lead':'alpha'},sink)
+    identifier=next(i for i,r in gate.journal.rooms.items() if r['title']=='Ops')
+    await until(lambda: identifier in gate.telegram.topics(tag)['topics'])
+    await gate.room_command({'type':'room_save','id':identifier,'title':'Ops2','members':['alpha','beta'],'lead':'alpha'},sink)
+    await until(lambda: gate.telegram.topics(tag)['topics'][identifier]['name']=='Ops2')
+    await gate.room_command({'type':'room_archive','id':identifier,'archived':True},sink)
+    await until(lambda: gate.telegram.topics(tag)['topics'][identifier]['closed'])
+    topic=gate.telegram.topics(tag)['topics']['alpha']['topic']
+    await transport.handle_message(transport.event('hello',topic=topic))
+    thread=gate.journal.records[-1]['thread']
+    await gate.send('alpha','pong',metadata={'thread_id':thread});await settled(gate)
+    frames=[]
+    for peer in [ws,other]:
+        await peer.send_json({'v':1,'type':'roster','id':'privacy-boundary'})
+        while True:
+            frame=await client.read(peer);frames.append(frame)
+            if frame.get('ref')=='privacy-boundary': break
+    # The only code frame was already read by the requester. No code appears elsewhere.
+    assert code['code'] not in json.dumps(frames)
+    private=(gate.telegram.vault.path/'telegram.json').read_text()
+    public_stores=''.join((gate.telegram.settings_store.path/name).read_text() for name in ['settings.json','topics.json','sent.jsonl'])
+    journal=json.dumps(gate.journal.records)
+    for secret in ['grp-A','user-A']:
+        assert secret in private
+        assert secret not in public_stores+json.dumps(frames)+journal+caplog.text
+    for secret in ['hello','pong',code['code']]:
+        assert secret not in private+public_stores+caplog.text
+    assert tag not in caplog.text and 'topic-' not in caplog.text and 'tg-' not in caplog.text
+    for frame in frames:
+        if frame['type']!='message':
+            assert all(secret not in json.dumps(frame) for secret in [tag,'tg-in-1','tg-out-1','hello','pong'])
+    assert not transport.wrapped_calls
+
+
+async def test_at_ht_39_same_journal_and_app_frames_when_enabled(gate,client,transport,monkeypatch,tmp_path):
+    import re
+    from hermes_cli.profiles import create_profile
+    outputs=[]
+    await gate.disconnect()
+    for enabled in [True,False]:
+        home=tmp_path/('active' if enabled else 'inactive');home.mkdir()
+        monkeypatch.setenv('HERMES_HOME',str(home))
+        for name in ['alpha','beta']: create_profile(name,no_alias=True,no_skills=True)
+        assert await gate.connect()
+        gate.telegram.settle_seconds=.05
+        handled=[]
+        async def handle(event): handled.append(event)
+        gate.set_message_handler(handle)
+        control,_=await client.pair(features=['telegram'])
+        group_id=await group(gate)
+        if enabled:
+            await pair(client,control,transport)
+            await request(client,control,'telegram_save',enabled=True)
+            tag=gate.telegram.private()['pair']['tag']
+            await until(lambda: len(gate.telegram.topics(tag)['topics'])==4)
+        transport.calls.clear()
+        ws,_=await client.pair(features=['rooms'])
+        observed=[]
+        for room in ['alpha',group_id]:
+            thread=str(uuid.uuid4())
+            before_turns=len(handled)
+            await client.send(ws,thread=thread,text='owner fixture',**({'room':room} if room==group_id else {}))
+            # Observe owner commit before delivering employee turns.
+            observed.extend(await client.until(ws,'message'))
+            await until(lambda: len(handled)>before_turns and not gate._active_sessions)
+            chat='room:'+room if room==group_id else room
+            metadata={'thread_id':thread,'hermes_profile':'alpha'}
+            await gate.send_typing(chat,metadata)
+            first=await gate.send(chat,'draft',metadata=metadata)
+            assert (await gate.edit_message(chat,first.message_id,'edited',metadata=metadata)).success
+            doomed=await gate.send(chat,'removed',metadata=metadata)
+            from gate.adapter import _delivery_scope
+            token=_delivery_scope.set(('alpha',chat,thread))
+            try:
+                assert await gate.delete_message(chat,doomed.message_id)
+            finally:
+                _delivery_scope.reset(token)
+            await gate.send(chat,'reply',reply_to=first.message_id,metadata={**metadata,'hejo_buttons':[{'label':'A','style':'primary'}]})
+            file=home/'sample.txt';file.write_text('fixture bytes')
+            await gate.send_document(chat,str(file),caption='attachment',metadata=metadata)
+            await gate.stop_typing(chat,metadata)
+        await settled(gate)
+        frames=observed
+        await ws.send_json({'v':1,'type':'roster','id':'end'})
+        while True:
+            frame=await client.read(ws)
+            if frame.get('ref')=='end': break
+            frames.append(frame)
+        def normalize(value):
+            if isinstance(value,dict): return {normalize(key):normalize(item) for key,item in value.items() if key not in {'ts','at'}}
+            if isinstance(value,list): return [normalize(item) for item in value]
+            if isinstance(value,str):
+                return re.sub(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}','<uuid>',value.replace(str(home),'<home>'))
+            return value
+        outputs.append((normalize(gate.journal.records),normalize(frames)))
+        assert bool(transport.calls)==enabled
+        await ws.close();await control.close();await gate.disconnect()
+    (tmp_path/'compare.json').write_text(json.dumps(outputs,indent=2))
+    assert outputs[0]==outputs[1]
