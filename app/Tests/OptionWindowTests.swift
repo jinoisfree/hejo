@@ -16,8 +16,9 @@ private final class OptionLevelWindow:NSWindow {
 // AT-FF-64: visible options follow app activation without retaining or updating closed windows.
 @MainActor private func optionWindowActivationTests() throws {
     let oldLevel=OptionWindows.petLevel,oldActivate=OptionWindows.activate
-    defer {OptionWindows.petLevel=oldLevel;OptionWindows.activate=oldActivate}
-    OptionWindows.activate={}
+    let oldActive=OptionWindows.isActive
+    defer {OptionWindows.petLevel=oldLevel;OptionWindows.activate=oldActivate;OptionWindows.isActive=oldActive}
+    OptionWindows.activate={};OptionWindows.isActive={true}
     for petLevel in [NSWindow.Level.floating,NSWindow.Level(rawValue:NSWindow.Level.mainMenu.rawValue+1)] {
         OptionWindows.petLevel={petLevel}
         let window=OptionLevelWindow(contentRect:CGRect(x:0,y:0,width:100,height:100),styleMask:[.titled],backing:.buffered,defer:false)
@@ -46,8 +47,70 @@ private final class OptionLevelWindow:NSWindow {
     print("AT-FF-64 OPTION ACTIVATION PASS")
 }
 
+private final class RaiseCountingWindow:NSWindow {
+    var raises=0
+    override func makeKeyAndOrderFront(_ sender:Any?){raises+=1;super.makeKeyAndOrderFront(sender)}
+    override func orderFront(_ sender:Any?){raises+=1;super.orderFront(sender)}
+    override func orderFrontRegardless(){raises+=1;super.orderFrontRegardless()}
+}
+
+// AT-AL-06: what hejo does to its own windows when the app becomes inactive (the two calls of applicationDidResignActive).
+@MainActor private func optionWindowDeactivationTests() async throws {
+    let oldLevel=OptionWindows.petLevel,oldActivate=OptionWindows.activate
+    defer {OptionWindows.petLevel=oldLevel;OptionWindows.activate=oldActivate}
+    let oldActive=OptionWindows.isActive
+    defer {OptionWindows.isActive=oldActive}
+    OptionWindows.petLevel={.floating};OptionWindows.activate={};OptionWindows.isActive={true}
+    let dir=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer {try? FileManager.default.removeItem(at:dir)}
+    let store=try LocalStore(directory:dir),controller=try testConversation(client:GateClient(store:store,credentials:MemoryCredentials()))
+    let option=RaiseCountingWindow(contentRect:CGRect(x:0,y:0,width:100,height:100),styleMask:[.titled],backing:.buffered,defer:false)
+    option.isReleasedWhenClosed=false
+    let connections=ConnectionsWindow(controller:controller),model=connections.model
+    defer {model.close();connections.window.close();option.close()}
+    let document:[String:Any]=["schema":"hermes-connections/1","checked_at":"2026-01-01T00:00:00Z","agents":[["profile":"alpha","display_name":"직원 A","connections":[["id":"app:synthetic","service":"synology","label":"시험 연결","group":"mac","state":"unknown","reason":"VALUES_REQUIRED","checked_at":"2026-01-01T00:00:00Z","capabilities":[],"rules":[],"actions":[["id":"app_connect","label":"이어서 하기","primary":true]]]]]]]
+    model.send={frame in frame["type"] as? String=="connections" ? ["document":document]:["reply":["outcome":"waiting","next":["kind":"secret_set","fields":[["id":"password","label":"비밀번호","secure":true]]]]]}
+    model.confirm={true}
+    await model.refresh();model.detail="app:synthetic"
+    connections.setPreferredLevel(OptionWindows.level(active:true));connections.show()
+    OptionWindows.show(option)
+    await model.perform("app_connect");await pause(0.15)
+    guard let sheet=connections.window.attachedSheet else{throw TestFailure.assertion("AT-AL-06 missing connection input sheet")}
+    try check(option.isVisible && sheet.isVisible && option.level.rawValue==NSWindow.Level.floating.rawValue+1 && connections.window.level.rawValue==NSWindow.Level.floating.rawValue+1,"AT-AL-06 option, connections and input sheet start above the pet")
+    let raised=option.raises
+    connections.setPreferredLevel(OptionWindows.level(active:false));OptionWindows.updateLevels(active:false)
+    await pause(0.15)
+    try check(option.level == .normal && connections.window.level == .normal && sheet.isVisible,"AT-AL-06 inactive option and connections windows are normal with the sheet still open")
+    try check(option.raises==raised,"AT-AL-06 deactivation never raises an option window again")
+    connections.setPreferredLevel(OptionWindows.level(active:true));OptionWindows.updateLevels(active:true)
+    try check(option.level.rawValue==NSWindow.Level.floating.rawValue+1 && connections.window.level.rawValue==NSWindow.Level.floating.rawValue+1,"AT-AL-06 reactivation returns both windows above the pet")
+    print("AT-AL-06 OPTION DEACTIVATION PASS")
+}
+
+// AT-AL-06U: a window opened while the app is not actually active (activation refused or still pending) must not
+// float above the user's current app; it rises only when the app really becomes active.
+@MainActor private func optionWindowInactiveOpenTests() throws {
+    let oldLevel=OptionWindows.petLevel,oldActivate=OptionWindows.activate,oldActive=OptionWindows.isActive
+    defer {OptionWindows.petLevel=oldLevel;OptionWindows.activate=oldActivate;OptionWindows.isActive=oldActive}
+    OptionWindows.petLevel={.floating};OptionWindows.activate={};OptionWindows.isActive={false}
+    let option=NSWindow(contentRect:CGRect(x:0,y:0,width:100,height:100),styleMask:[.titled],backing:.buffered,defer:false)
+    let chooser=NSOpenPanel()
+    option.isReleasedWhenClosed=false
+    defer {option.close();chooser.close()}
+    OptionWindows.show(option);OptionWindows.prepare(chooser);chooser.makeKeyAndOrderFront(nil)
+    try check(option.isVisible && chooser.isVisible,"AT-AL-06U option window and chooser are open")
+    try check(option.level == .normal && chooser.level == .normal,"AT-AL-06U windows opened while the app is inactive stay normal")
+    OptionWindows.isActive={true};OptionWindows.updateLevels(active:true)
+    try check(option.level.rawValue==NSWindow.Level.floating.rawValue+1 && chooser.level.rawValue==NSWindow.Level.floating.rawValue+1,"AT-AL-06U the app becoming active raises them above the pet")
+    OptionWindows.updateLevels(active:false)
+    try check(option.level == .normal && chooser.level == .normal,"AT-AL-06U inactive again returns them to normal")
+    print("AT-AL-06U INACTIVE OPEN PASS")
+}
+
 @MainActor func optionWindowTests(resourceDirectory:URL) async throws {
     try optionWindowActivationTests()
+    try optionWindowInactiveOpenTests()
+    try await optionWindowDeactivationTests()
     let directory=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer {try? FileManager.default.removeItem(at:directory)}
     let store=try LocalStore(directory:directory),controller=try testConversation(client:GateClient(store:store,credentials:MemoryCredentials()))
@@ -58,8 +121,9 @@ private final class OptionLevelWindow:NSWindow {
     defer {disposeDrawerFixture(pet,controller,view)}
     pet.pet.installConversation(view);pet.installDrawer(view);pet.reducedMotion={true};pet.showChat()
     let oldLevel=OptionWindows.petLevel,oldActivate=OptionWindows.activate,oldAlert=OptionWindows.alertResponse,oldLetter=LetterPictureDialog.present
-    defer {OptionWindows.petLevel=oldLevel;OptionWindows.activate=oldActivate;OptionWindows.alertResponse=oldAlert;LetterPictureDialog.present=oldLetter}
-    OptionWindows.petLevel={pet.panel.level}
+    let oldActive=OptionWindows.isActive
+    defer {OptionWindows.petLevel=oldLevel;OptionWindows.activate=oldActivate;OptionWindows.isActive=oldActive;OptionWindows.alertResponse=oldAlert;LetterPictureDialog.present=oldLetter}
+    OptionWindows.petLevel={pet.panel.level};OptionWindows.isActive={true}
     var activations=0
     OptionWindows.activate={activations+=1}
     let group=Room(id:"11111111-1111-4111-8111-111111111111",title:"가짜 방",members:["alpha","beta"],lead:"alpha")
