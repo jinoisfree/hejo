@@ -1143,3 +1143,48 @@ V-7의 앱 비활성 실패가 이번에는 재현되지 않아 조건부 수정
 이번에 자기 hejo impl-report 한 경로만 commit --only한다. 개인값·공백 검사와 커밋 결과·전체 해시는 `E15/report-checks.json`, `hejo-commit.log/json` 및 최종 result에 기록한다. 운영 저장소 커밋은 이번에 만들지 않았다. 새 테스트 실행은 요구되지 않았고 제품 바이트도 바꾸지 않아 전체 회귀를 반복하지 않았다.
 
 남은 일은 이 운영 증거 검토, 호스트/계획 담당의 다른 세션(d2) 완료 알림, 직원 D의 실제 파일 읽기 사장 M6다. 기존 0.2.4 및 사용자 확인·마지막 M7·푸시 승인도 별도다. 추가 재시작·실제 메시지 발송 명령·릴리스·push는 하지 않았다.
+
+
+## 16차-TASK-15 (2026-11-22)
+
+**구현자 판단: 보류(구현 규칙 2절 보고).** handoff 16차 2항의 "기존 기대값은 바꾸지 않는다(정책 바이트 불변을 단언한 기존 시험이 이 보정과 부딪히면 멈추고 보고)"에 해당하는 충돌을 실제 코드에서 확인했다. 제품 코드·기존 시험·수락 명세를 바꾸지 않고 운영 적용 전에 멈췄다.
+
+받은 설계는 spec 11판 REQ-FF-12 AC-05·06, design 9.1, AT-FF-84~86이다. 위험도 일반(운영 적용·정책 한 곳), 요구 증거 수준 3이다. 착수 hejo HEAD `a502285492efa1ad0c016c31399cdb136cec3165`, HD 브랜치 hejo-finder-folders-20261121 HEAD `6602c04098393eff0d2a2c4ee0afd90ce5b88b76`이다. HD 작업 트리는 깨끗했다. 이하 `E16`은 `.build/finder-folders-evidence/round16-task15`다.
+
+### 충돌 근거
+
+기존 `tests/test_finder_manifest_updates.py::test_store_update_connects_finder_and_undo_preserves_originals`는 가짜 창고에 fixture_store_tool을 더한 뒤 Finder 연결을 제출한다. 16차가 바꾸려는 바로 그 검증된 공용 창고 갱신 상황이다.
+
+| 위치 | 현재 단언/계약 | 16차 보정과 관계 |
+|---|---|---|
+| 시험 52줄 | 연결 뒤 policy.yaml 바이트가 연결 전 before_policy와 같음 | 새 창고 도구를 app_tool_defaults 끝에 더하면 정책 바이트가 달라지므로 동시에 만족할 수 없음 |
+| 시험 53줄 | 그 새 가짜 도구는 연결 전 기본 도구에 없음 | 기존 도구를 다시 더하는 무변경 사례로 해석할 수 없음을 보여 줌 |
+| 시험 51줄 | 저장한 before는 원래 baseline before, host도 원래 host와 같음 | 현행 app_manifests는 before에 template.hex()를 저장함. template을 새 창고 바이트로 바꾸는 지시를 현행 저장 경로에 그대로 적용하면 before 단언도 달라짐. 복구 바이트와 조립 template의 관계를 명확히 해야 함 |
+| spec REQ-FF-12 AC-03 | 기본 도구 권한은 바뀌지 않음 | design 9.1의 검증된 창고 새 도구 추가 예외와 적용 범위 정리가 필요함 |
+
+AT-FF-84는 동일 상황에서 새 창고 도구를 기본 도구에 추가하고 링크를 유지하라고 한다. 기존 정책 불변 시험을 삭제·완화하거나 fixture를 다른 사례로 바꾸면 "기존 기대값 불변"을 위반한다. 따라서 구현자가 임의로 해결하지 않았다. `E16/conflict-evidence.json`에 충돌 내용과 변경 없음 대조를 남겼다.
+
+### 실제 확인과 미실행
+
+기존 단언이 현재 변경본에서 활성 상태로 통과하는지는 원래 시험 하나를 그대로 실행해 확인했다. 게이트웨이 Python, 임시 resolve HOME·HERMES_HOME·HERMES_ROOT, 기존 팀키트 PYTHONPATH, Node PATH, 바이트코드 쓰기 금지 환경을 사용했다.
+
+```text
+P -B -m pytest -q -p no:cacheprovider hermes/plugin-store/team-kit/tests/test_finder_manifest_updates.py::test_store_update_connects_finder_and_undo_preserves_originals
+```
+
+종료 0, **1 passed**, 시험 자체 1.78초다(`E16/unchanged-baseline.log/json`). 이는 HD 6602c040의 기존 계약 확인이며 새 TASK-15 구현 통과 증거가 아니다. 도달 증거는 소스 대조 수준 1·기존 가짜 시험 수준 2이며, 요구한 새 운영 실행 수준 3에는 도달하지 않았다.
+
+- HD 제품·시험 수정 및 새 코드 커밋: 미실행. AT-FF-84 코드 추가도 미실행.
+- 관련 전체·team-kit 전체·airport-check: 미실행. 변경 전 계약의 충돌을 먼저 보고하는 단계이므로 전체 검사를 반복하지 않았다.
+- 실행본 config_assembly.py·시험 설치·운영 정책 보정·연결 재제출·plugin-store 검사·sync: 모두 미실행. 운영 명령 0회다.
+- 운영 main 커밋: 없음. 코드 교체·정책 변경 전후 값·보관본은 해당 없음(변경 자체를 하지 않음).
+- 실행본 config_assembly.py SHA는 착수·종료 모두 `f2c64d1d908f26f5954c59d770bf8b9bdba29815e50ef14c35c48260788e7df3`다. HD 제품·시험 SHA와 깨끗한 상태도 그대로다(`E16/start.json`, `conflict-evidence.json`).
+- 다른 세션 파일·플러그인 폴더·비밀 파일에 손대지 않았고 재시작·실제 메시지·릴리스·push도 하지 않았다.
+
+### 계획 담당에게 필요한 결정과 다음 범위
+
+권고는 새 목표(검증된 창고 갱신 시 실효 도구와 링크 유지)를 유지하면서, REQ-FF-12 AC-03 및 기존 AT-FF-80/82 시험의 정책 불변 적용 범위와 저장 before의 의미를 먼저 정리하는 것이다. 기존 시험의 어떤 단언을 어떤 독립된 기대값으로 바꿔야 하는지 새 인계에 명시해야 한다. 오버레이 외부 변경·창고 밖 링크 거절 및 undo 복원 보호는 계속 보존해야 한다.
+
+기존 시험 변경이 명시적으로 허용되기 전에는 이 구현·운영 적용을 이어갈 수 없다. 이후에는 AT-FF-84 구현·지정 회귀를 통과한 뒤 실행본/시험 설치 → 정책 한 곳 보정 → 연결 1회 → 검사/동기/자기 경로 커밋 순서로 돌아가야 한다. 이번에는 OPS-REPO-RENAME에 새로 넘길 운영 소유 경로나 커밋이 없다.
+
+이번 보고서 한 경로의 개인값·공백 검사와 commit --only 결과·전체 해시는 `E16/report-checks.json`, `hejo-commit.log/json` 및 최종 result에 기록한다. 판정·명세·수락 시험 문서는 구현자가 고치지 않았다.
