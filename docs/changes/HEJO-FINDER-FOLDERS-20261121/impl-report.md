@@ -1097,3 +1097,49 @@ V-7의 앱 비활성 실패가 이번에는 재현되지 않아 조건부 수정
 위험도 일반, 실제 도달 증거 수준 3(운영 파일 교체와 실제 CLI 응답)이다. 연결 완료·권한 확인·저장 폴더 읽기 완료 증거는 아니다. 설계의 분기와 달라진 동작은 없으며, 시험 파일 부재는 위 임시 소스로 보완했다. 게이트웨이 재시작·릴리스·설치 앱 교체·실제 메시지·push는 하지 않았다. 다른 세션 파일과 hejo 미추적 문서 두 폴더는 보존했다.
 
 남은 일은 검토 후 RESTART_REQUIRED에 대한 다음 운영 지시와 직원 D M6이다. 기존 0.2.4 및 사용자 확인·푸시 승인도 별도다. 보고서의 개인값 검사·공백 검사와 자기 한 경로 commit --only 결과는 `E14/report-checks.json`, `hejo-commit.log/json` 및 최종 result에 기록한다.
+
+
+## 15차-TASK-14 계속 (2026-11-22)
+
+**구현자 판단: 승인된 재시작 이어 하기와 연결 설정 확인 완료, 검토·사장 M6 대기.** 받은 설계는 handoff 15차, 사장 승인 시각은 2026-11-22 18:20이다. 위험도 일반(운영 재시작), 필요한 증거 수준과 실제 도달 수준은 3이다. 다른 hejo 세션의 겹침 없음 회신은 인계서에 기록돼 있다. 이번에 다시 메시지를 보내거나 다른 재시작 방법을 쓰지 않았다.
+
+착수 hejo HEAD는 `3bb1489984484260a2a98c0aa7b3d41b1ec8b8f1`, 운영 main은 `b95e31a2e212521ee29ba3493193a217c6820eff`다. 이하 `E15`는 `.build/finder-folders-evidence/round15-task14`다. 제품 코드·시험·수락 기준 변경은 없다. 앞선 적용 SHA `f2c64d1d908f26f5954c59d770bf8b9bdba29815e50ef14c35c48260788e7df3`를 착수·종료 때 확인했으며 실행본과 운영 main이 같다.
+
+### 재시작 직전 확인과 1회 실행
+
+게이트웨이 Python으로 기존 gateway_restart.running_turns를 읽기 호출한 결과 0건이었다. state/connections/restart.json은 읽기만 했고 기록된 시각은 60분 제한 밖이었다. gateway.pid의 kind=hermes-gateway, PID=83899였고 ps가 보여 준 시작 시각은 17:57:24였다. 로그의 7155줄·801365바이트 지점을 직전 위치로 기록했다(`E15/preflight.json`, `gateway-before.json`).
+
+다음 명령을 **한 번** 실행했다. HERMES_HOME=<HOME>, HERMES_DISABLE_LAZY_INSTALLS=1, PYTHONDONTWRITEBYTECODE=1을 지정하고 외부 제한은 200초로 뒀다. 1회 표식이 있으면 다시 제출하지 못하도록 했다.
+
+```text
+<HOME>/bin/hermes-connections app connect --profile <직원 D> --app com.apple.finder --resume gateway_restart --json
+```
+
+| 명령 | 종료 코드 | 실제 결과 | 로그 |
+|---|---:|---|---|
+| 위 app connect 이어 하기 | 0 | 40.670815초, timeout 없음, stderr 없음, done/OK | `E15/operation-started.json`, `operation-result.json`, `operation-stderr.log` |
+| 게이트웨이 Python 저장 폴더 읽기·is_dir 확인 | 0 | 선택 항목 포함, 폴더 3개·전부 존재·전부 NFC, files.enabled=true | `E15/saved-folder-check.json` |
+| PID·재연결 로그 판독 | 0 | PID 변경, hejo 6·Slack 6·iMessage 1, NOT_RECONNECTED 없음 | `E15/gateway-after.json`, `reconnection-check.json` |
+
+응답의 enable·values·restart·permission·check는 모두 done이고 next.kind=done이다. 별도 gateway restart 명령·kill·launchctl·hejo-release를 쓰지 않았다. BUSY·RATE_LIMITED·RESTART_FAILED·권한 대기 응답은 없었으며 재시도도 없다. 기존 drain 재시작 경로에서 권한·최종 확인까지 이어진 결과다. 원시 응답의 개인값은 남기지 않고 stdout 키와 단계·판정 필드만 기록했다.
+
+### 재시작 전후 PID·로그 줄
+
+- 전: PID **83899**, 시작 17:57:24, gateway.log **7155줄**까지 기록.
+- 후: PID **43422**, ps 시작 **18:24:41**, 명령 반환 시 **7240줄**, 읽기 검증 시 **7247줄**.
+- 같은 로그 inode에서 **7200줄**에 Starting Hermes Gateway가 나왔다.
+- **7226·7229·7231·7233·7235·7237줄**에 hejo 어댑터 연결 6건.
+- **7227·7230·7232·7234·7236·7238줄**에 Slack 연결 6건, **7228줄**에 iMessage(photon) 연결 1건.
+- 추가된 로그 구간에 NOT_RECONNECTED가 없었다. 직원·프로필 이름이나 실제 로그 본문은 옮기지 않고 줄 번호·서비스 종류만 기록했다. 이는 어댑터 재연결 증거이며 다른 Mac의 앱 화면이나 실제 메시지 송수신을 검증한 것은 아니다.
+
+### 저장 폴더 확인과 보존 범위
+
+직원 D의 config.yaml에서 files 설정만 읽어, 12차 선택 항목 id와 같은 경로가 folders에 있는지 확인했다. 총 3개이며 전부 존재하고 NFC 형식이다. 폴더 안의 파일은 열지 않았고 비밀 파일·연결 기록의 undo 원문도 열지 않았다.
+
+첫 보조 확인에서는 일반 option의 해시 id라고 잘못 가정해 일치 비교가 실패했다(종료 1, `E15/initial-hash-assumption-folder-check.json`). 실제 finder_scopes는 id=value인 NFC 경로를 반환한다는 코드를 확인한 뒤, 제품·시험·설정은 바꾸지 않고 그 계약대로 직접 비교해 종료 0을 확인했다. 최초 실패도 보존했다. 시험 기대값 완화나 연결 재제출이 아니다.
+
+착수 때 운영 작업 트리는 인계 시점 3개보다 늘어난 32개 변경·삭제와 다른 작업 문서가 있었다. 이번 작업은 이 경로를 수정·스테이징·커밋·sync하지 않았다. 진행 중 다른 세션의 OPS-REPO-RENAME 커밋이 들어와 운영 main은 `f0844bdcc43efc192f7cae9ffe399c5b8104bd23`로 바뀌었고 작업 트리 상태도 달라졌다. 이 작업의 b95e31a2는 현재 main의 조상이고 config_assembly.py의 바이트는 그대로다. 착수에 별도 해시를 기록한 owner/policy.yaml·owner/team.yaml 사본도 동일하다. 현재 상태와 대조 범위는 `E15/start.json`, `final-integrity.json`을 따른다. 다른 세션 변경을 되돌리거나 이 작업 것으로 합치지 않았다.
+
+이번에 자기 hejo impl-report 한 경로만 commit --only한다. 개인값·공백 검사와 커밋 결과·전체 해시는 `E15/report-checks.json`, `hejo-commit.log/json` 및 최종 result에 기록한다. 운영 저장소 커밋은 이번에 만들지 않았다. 새 테스트 실행은 요구되지 않았고 제품 바이트도 바꾸지 않아 전체 회귀를 반복하지 않았다.
+
+남은 일은 이 운영 증거 검토, 호스트/계획 담당의 다른 세션(d2) 완료 알림, 직원 D의 실제 파일 읽기 사장 M6다. 기존 0.2.4 및 사용자 확인·마지막 M7·푸시 승인도 별도다. 추가 재시작·실제 메시지 발송 명령·릴리스·push는 하지 않았다.
