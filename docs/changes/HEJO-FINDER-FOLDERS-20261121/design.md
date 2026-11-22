@@ -85,3 +85,20 @@
 ### 7.3 공개
 - 앱 0.2.4(빌드 6) 공개 후보 준비는 HEJO-CONNECTIONS handoff "보완 지시 3" 절차, HEJO-CONN-MANAGE 8차 지시와 같은 방식이다. 실제 공개(`hejo-ship publish`)는 사장이 한다.
 - 다른 작업(HEJO-SLACK-MOVE)이 앱을 바꾸면 공개 후보 준비 전에 두 계획 담당이 순서를 맞춘다(같은 `public` 부모 충돌 방지).
+
+## 8. 7판 추가 설계 (REQ-FF-09·10, 앱)
+
+### 8.1 색과 글자 사진
+- 칸: 새 칸 없음. 사진은 지금처럼 문의 사진 하나가 원본이다. 색·글자를 따로 저장하지 않고 그림(PNG)으로 만들어 같은 `setPicture`로 올린다. 그래서 문·저장 형식·다른 Mac 동기화는 바뀌지 않는다. 다시 열면 색·글자 창은 처음 값(이름 첫 글자, 기본 색)으로 시작한다(이전 값을 그림에서 되살리지 않음).
+- 그림 만들기는 `PictureCodec`(`Pictures.swift`)에 함수 하나를 더한다. 256×256 sRGB, 네모 전체를 색으로 칠하고, 글자는 안전 영역(각 변 안쪽 18% 여백, 아바타 둥근 모서리 `ChatMetrics.avatarCorner`에 잘리지 않는 크기) 안에 들어가도록 굵은 시스템 글꼴 크기를 큰 값에서부터 줄인다. 결과는 기존 512 KiB 한도를 지킨다.
+- 색 목록과 글자색 규칙은 `UserBubbleColor`·`UserBubblePalette`의 것을 쓴다. 새 색 상수를 만들지 않는다. 색 칸 단추는 설정의 `AppearanceSwatch`를 재사용할 수 있으면 쓴다.
+- 메뉴: 세 곳의 "사진 바꾸기…"를 하위 메뉴 "사진 바꾸기 ▸ 사진 고르기… / 색과 글자로 만들기…"로 바꾼다. 세 곳이 같은 함수 하나로 하위 메뉴를 만든다(`kind`·`id`·이름을 넘김). 올린 뒤 화면 갱신은 지금 사진 고르기와 같은 처리(홈·섹션 분기 포함)를 함께 쓴다.
+- 창: AppKit `NSAlert` + 부속 보기(색 단추 줄, 글자 칸, 미리보기) 또는 작은 `NSPanel`. 높이·활성화는 8.2 규칙을 따른다.
+
+### 8.2 옵션창 높이 규칙
+- 원인: 사진 고르기 창만 앱 활성화·높이 지정 없이 뜬다. 펫 창은 `.floating`, 화면 위쪽이면 `mainMenu+1`이다.
+- 규칙 한 곳: "옵션창 높이 = hejo 활성 시 펫 창 현재 높이 + 1"(지금 `AppDelegate.updateConnectionsLevel`의 식)을 공용 함수로 옮긴다. 옵션창을 띄우는 쪽은 앱 활성화 후 이 높이를 적용하고 띄운다. `NSAlert.runModal`은 `alert.window.level`을 띄우기 전에 정한다(`RoomDialogs.present` 같은 공용 입구가 있는 곳은 그 입구에서).
+- 연결 창은 지금의 확인 중 `.normal` 예외를 그대로 둔다(7.2).
+- 대상 찾기: `NSOpenPanel(`, `NSSavePanel(`, `NSAlert(`, `runModal`, `beginSheetModal`, 별도 `NSWindow`·`NSPanel` 창 띄우기(`makeKeyAndOrderFront`)를 `app/Sources`에서 모두 찾아 목록으로 남긴다. 시트(`beginSheet`)는 부모 창을 따라가므로 부모가 규칙을 따르면 된다.
+- 시험 경계: 펫 창 높이는 주입할 수 있게 하고(`.floating`, `mainMenu+1` 두 경우), 사진 고르기 창은 첨부 고르기처럼 띄우는 함수를 주입해 높이·활성화를 확인한다.
+

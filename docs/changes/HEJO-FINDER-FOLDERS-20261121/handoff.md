@@ -246,3 +246,26 @@ TASK-09의 측정은 실제 트랙패드 탭이 아니라 수락 명세 AT-FF-30
 6. 금지: 개인값, 본체·ddots, 수락 기준·시험 명세·spec·design 수정, git push. 위험도 일반, 증거 수준 2.
 7. 보고: impl-report.md '8차-TASK-10' 절(커밋 전체 해시, 명령·종료 코드·로그 경로), result.
 ```
+
+## 9차 지시 (2026-11-22): TASK-11 색과 글자 사진, 옵션창 높이
+
+사장 결정(2026-11-22): 둘 다 이 작업에 넣어 0.2.4에 담는다. 색을 고르면 "색 안에 글자를 넣고, 글이 컬러 네모를 벗어나지 않게 크기를 조절"한다.
+
+```text
+[설계 인계: HEJO-FINDER-FOLDERS TASK-11]
+0. 순서: 8차(TASK-10)를 먼저 끝내고 이어서 한다. 파일은 겹치지 않는다.
+1. 문서: spec REQ-FF-09·10(현황 근거 포함), design 8절, 수락 명세 AT-FF-50~54·60~63.
+2. 색과 글자(REQ-FF-09): 세 곳의 "사진 바꾸기…"를 같은 하위 메뉴 함수로 "사진 고르기… / 색과 글자로 만들기…"로 바꾼다.
+   색과 글자 창: UserBubbleColor 14색, 글자 칸(처음 값은 이름 첫 글자, 최대 8글자), 미리보기.
+   PictureCodec에 256×256 PNG 만들기 함수를 더한다(밝은 테마 색 고정, 안전 영역 각 변 18%, 글꼴 자동 축소, 글자색은 UserBubblePalette 규칙).
+   올리기는 기존 changePicture/setPicture 길. 문·schemas·저장 형식은 바꾸지 않는다.
+3. 옵션창 높이(REQ-FF-10): AppDelegate.updateConnectionsLevel의 "활성이면 펫 창 높이+1" 식을 공용 함수로 옮기고,
+   사진 고르기 창·색과 글자 창·NSAlert 상자·설정/로그인/달력/대시보드 창 등 모든 옵션창이 앱 활성화 + 그 높이로 뜨게 한다.
+   연결 창의 확인 중 .normal 예외(REQ-FF-06)는 그대로. 먼저 AT-FF-62 검색 목록을 만들고 시작한다.
+4. 확인: AT-FF-50~54·60~63. 앱 시험 전 pgrep -f app-tests, HEJO_PYTHON=게이트웨이 Python bash app/scripts/test.sh 전체.
+5. 범위: app/Sources(위 파일과 옵션창을 띄우는 파일), app/Tests. 자기 경로만 git commit --only.
+   gate/·schemas/·다른 작업 파일 금지. 앱 버전·공개 후보는 하지 않는다(0.2.4는 다른 세션).
+   기존 시험 기대값을 바꿔야 하거나 공용 규칙이 연결 창 예외와 부딪히면 멈추고 보고한다.
+6. 금지: 개인값(시험 이름은 가짜만), 본체·ddots, 수락 기준·시험 명세·spec·design 수정, git push. 위험도 일반, 증거 수준 2.
+7. 보고: impl-report.md '9차-TASK-11' 절(AT-FF-62 목록, 커밋 전체 해시, 명령·종료 코드·로그 경로), result.
+```

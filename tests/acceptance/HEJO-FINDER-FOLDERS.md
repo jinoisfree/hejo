@@ -1,6 +1,6 @@
 # HEJO-FINDER-FOLDERS 수락 시험 명세
 
-4판 · 2026-11-22(AT-FF-15~17·20~23 추가: 한글 정규화·연결 창 높이, 3판: 구현 검증 1차 V-1로 AT-FF-12 기준 정정, 계획 검증 1회차 PR-01~04 반영, [plan-review.md](../../docs/changes/HEJO-FINDER-FOLDERS-20261121/plan-review.md)) · 명세 [spec.md](../../docs/changes/HEJO-FINDER-FOLDERS-20261121/spec.md), 설계 [design.md](../../docs/changes/HEJO-FINDER-FOLDERS-20261121/design.md).
+7판 · 2026-11-22(AT-FF-50~54 색과 글자 사진, AT-FF-60~63 옵션창 높이 추가. 6판 AT-FF-40~42, 4판 AT-FF-15~17·20~23, 3판 V-1로 AT-FF-12 정정, 계획 검증 1회차 PR-01~04 반영, [plan-review.md](../../docs/changes/HEJO-FINDER-FOLDERS-20261121/plan-review.md)) · 명세 [spec.md](../../docs/changes/HEJO-FINDER-FOLDERS-20261121/spec.md), 설계 [design.md](../../docs/changes/HEJO-FINDER-FOLDERS-20261121/design.md).
 상태: 명세 완료 · 코드 미작성 · 미실행 · 독립 검토: 계획 검증 1회차 BLOCKED → 2판 반영, 재검증 대기. 기대값 출처: spec 요구와 design 2절. 구현 담당이 코드로 옮기며 기대값·합격 기준을 바꾸지 않는다(바꿔야 하면 멈추고 보고).
 
 공통: 임시 폴더를 서버 홈(`home`)으로 넘기고(`resolve()`한 경로. macOS 임시 폴더의 `/var` 링크가 부모 링크 검사에 걸리지 않게), 임시 `HERMES_HOME`에 가짜 직원 `alpha`. 폴더 이름은 `SynologyDrive-team`, `ExampleDrive-owner`, `Projects`, `2026` 같은 가짜 이름만. 실제 이름·경로 금지. "바이트 그대로"는 실행 전후 sha256 비교.
@@ -66,8 +66,29 @@
 | AT-FF-41 | FF-08.AC-02 | 바깥 배치(`drawerOverlay` 거짓)로 같은 검사 | 칸 빈 곳이 배경색으로 칠해져 있다(투명 아님) |
 | AT-FF-42 | FF-08.AC-03 | 기존 HEJO-TODO-DRAWER 앱 시험(AT-TD-20~42 등)과 `HEJO_PYTHON` `bash app/scripts/test.sh` | 전부 통과, 기대값 수정 없음 |
 
+## 앱 색과 글자 사진 (7판 추가, REQ-FF-09)
+
+가짜 이름만 쓴다(예: 방 `alpha-room`, 직원 `Alpha`, 글자 `가`, `AB`, `가나다라마바사`, `ABCDEFGHIJ`).
+
+| ID | AC | 입력 | 기대 |
+|---|---|---|---|
+| AT-FF-50 | FF-09.AC-01 | 직원·그룹 방·홈 세 메뉴를 만드는 실제 함수 | 각 메뉴에 "사진 바꾸기" 하위 메뉴가 있고 그 안에 "사진 고르기…", "색과 글자로 만들기…" 두 항목. 세 곳이 같은 하위 메뉴 함수를 쓴다 |
+| AT-FF-51 | FF-09.AC-02·03 | 그림 만들기 함수에 14색 각각 × 글자 `가`, 빈 글자 | 256×256 PNG, 512 KiB 이하. 네 모서리 안쪽 표본 픽셀이 그 색의 밝은 테마 값(허용 오차 2/255). 빈 글자면 그림 전체가 한 색. 글자색은 `UserBubblePalette` 규칙과 같은 검정·흰색 |
+| AT-FF-52 | FF-09.AC-03 | 같은 색으로 `가`, `AB`, `가나다라마바사`, 8글자 넘는 입력 | 배경색과 다른 픽셀(글자)의 경계 상자가 모두 안전 영역(각 변 18% 안쪽) 안. 긴 글자일수록 글꼴 크기가 같거나 작다. 8글자 넘는 입력은 8글자에서 잘린다(입력 칸 또는 저장 전) |
+| AT-FF-53 | FF-09.AC-02·04 | 색과 글자 창의 저장·취소를 가짜 `setPicture`(주입)로 실행 | 저장: `kind`·`id`가 메뉴 대상과 같고 데이터가 AT-FF-51 그림. 취소: 호출 0회, 모델 변화 없음. 올리기 실패: 지금 사진 실패와 같은 안내 문장 |
+| AT-FF-54 | FF-09.AC-05 | 기존 사진 시험(`PicturesSidebarTests` 등)과 "사진 고르기…" 경로 | 전부 통과, 기대값 수정 없음 |
+
+## 앱 옵션창 높이 (7판 추가, REQ-FF-10)
+
+| ID | AC | 입력 | 기대 |
+|---|---|---|---|
+| AT-FF-60 | FF-10.AC-01·02 | 펫 창 높이를 `.floating`과 `mainMenu+1` 두 경우로 두고, 대화 창을 펼친 상태에서 직원·그룹 방·홈의 "사진 고르기…"를 실행(띄우는 함수 주입) | 띄우기 전에 앱 활성화가 불리고, 창 높이 > 펫 창 높이. 주입한 응답 취소·넣기 모두 완료 처리가 한 번 불린다 |
+| AT-FF-61 | FF-10.AC-01 | 색과 글자 창, `RoomDialogs.present`를 거치는 상자, 그 밖에 시험으로 띄울 수 있는 옵션창 | 같은 공용 높이 함수를 거쳐 펫 창보다 높다. 시험으로 띄울 수 없는 것은 AT-FF-62 목록에 코드 위치로 근거를 적는다 |
+| AT-FF-62 | FF-10.AC-04 | `app/Sources`에서 `NSOpenPanel(`, `NSSavePanel(`, `NSAlert(`, `runModal`, `beginSheetModal`, 옵션 창 `makeKeyAndOrderFront`를 찾은 결과 | impl-report에 전체 목록(파일:줄, 공용 규칙 적용 / 시트라 부모 따름 / 제외 이유)이 있고 빠진 곳이 없다(검토자가 같은 검색으로 대조) |
+| AT-FF-63 | FF-10.AC-03 | AT-FF-20~23, 첨부 고르기 시험, `HEJO_PYTHON` `bash app/scripts/test.sh` | 전부 통과, 기대값 수정 없음 |
+
 ## 사장 확인(서버 적용 뒤, 증거 수준 4)
-spec 4절 M1~M3과 5.3절 M4~M6. M1에서 고르기 화면이 뜨기까지 걸린 대략 시간을 사장이 알려 주면 NFR-FF-03에 적는다.
+spec 4절 M1~M3, 5.3절 M4~M6, REQ-FF-07~10의 M7~M10(M7은 맨 마지막). M1에서 고르기 화면이 뜨기까지 걸린 대략 시간을 사장이 알려 주면 NFR-FF-03에 적는다.
 
 ## AC ↔ 시험 연결
 
@@ -101,3 +122,12 @@ spec 4절 M1~M3과 5.3절 M4~M6. M1에서 고르기 화면이 뜨기까지 걸�
 | FF-08.AC-01 | AT-FF-40, M8 |
 | FF-08.AC-02 | AT-FF-41 |
 | FF-08.AC-03 | AT-FF-42 |
+| FF-09.AC-01 | AT-FF-50, M9 |
+| FF-09.AC-02 | AT-FF-51, 53, M9 |
+| FF-09.AC-03 | AT-FF-51, 52, M9 |
+| FF-09.AC-04 | AT-FF-53 |
+| FF-09.AC-05 | AT-FF-54 |
+| FF-10.AC-01 | AT-FF-60, 61, M10 |
+| FF-10.AC-02 | AT-FF-60 |
+| FF-10.AC-03 | AT-FF-63 |
+| FF-10.AC-04 | AT-FF-62 |
