@@ -4,7 +4,7 @@ import Foundation
 @MainActor final class TodoDrawerModel {
     enum Filter: String, CaseIterable { case all = "전체", question = "답 요청", deadline = "마감", alert = "알림" }
     /// The gate names the source kind; this is its owner-facing name. An unknown kind shows nothing.
-    nonisolated static let originNames=["notion":"노션","calendar":"일정","reminder":"미리알림","slack":"슬랙","notes":"메모","gmail":"메일"]
+    nonisolated static let originNames=["notion":"노션","calendar":"캘린더","reminder":"미리알림","slack":"Slack","notes":"메모","gmail":"메일"]
     struct Notice: Equatable { let messageID: String, thread: String }
     struct Deadline: Equatable {
         let employee: String, id: String, title: String, due: String

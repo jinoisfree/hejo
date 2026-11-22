@@ -275,6 +275,15 @@ import AppKit
     answer(sent("deadlines")[0],rows)
     // AT-DC-21: the kind line carries the source kind when the gate named one.
     try check(card("미리알림 마감").badge=="D+1 · 미리알림" && card("메일 마감").badge=="D-DAY · 메일" && card("링크 마감").badge=="D-4","AT-DC-21 kind line with source kind")
+    // AT-DC-21b: every source kind the gate can name, and one it cannot.
+    let kinds=[("notion","노션"),("calendar","캘린더"),("reminder","미리알림"),("slack","Slack"),("notes","메모"),("gmail","메일"),("other",nil)]
+    let kindModel=TodoDrawerModel()
+    kindModel.receive(["available":true,"failed":[],"items":kinds.map{row($0.0+":k","종류 "+$0.0,due:"2026-11-22",origin:$0.0)}])
+    let kindCards=kindModel.snapshot(model,now:now).urgent
+    for (name,tail) in kinds {
+        let badge=kindCards.first{$0.title=="종류 "+name}!.badge
+        try check(badge=="D-DAY"+(tail.map{" · "+$0} ?? ""),"AT-DC-21b origin \(name) tail")
+    }
     // AT-DC-22: a card is linked by a notice that is in the chat or by a link.
     try check(card("메일 마감").linked && card("링크 마감").linked && !card("없는 글 마감").linked && !card("갈 곳 없는 마감").linked && !card("미리알림 마감").linked,"AT-DC-22 linked only with notice in chat or url")
     try check(card("메일 마감").messageID==noticeMessage && card("없는 글 마감").messageID==nil,"AT-DC-22 only a notice found in the chat becomes a target")
