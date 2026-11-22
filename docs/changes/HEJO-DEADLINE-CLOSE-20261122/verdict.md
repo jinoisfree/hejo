@@ -124,7 +124,7 @@
 2. **검증 조건**
    - 교차 모델: 구현 claude-sonnet-5-5, 검증 claude-opus-5-5.
    - 대상
-     - 운영 공항 실행본과 공용 릴리스 `/Users/Shared/hejo`
+     - 운영 공항 실행본과 공용 릴리스 `<공용 릴리스>`
      - HD main `b32048c8`
      - 구현 브랜치 `d88e2c8`
      - 새 public `98a9f242a74a97a2af6885264cac49da241ad7fa`
@@ -143,7 +143,7 @@
    - HD `main` = `b32048c8`(merge, push 없음).
    - 공용 릴리스
      - `RELEASE` = `227ef160…`.
-     - `git archive 227ef160 gate schemas`와 `/Users/Shared/hejo/gate`·`schemas`를 `diff -rq`로 비교했다(`__pycache__`·tests 제외): 같음.
+     - `git archive 227ef160 gate schemas`와 `<공용 릴리스>/gate`·`schemas`를 `diff -rq`로 비교했다(`__pycache__`·tests 제외): 같음.
    - 게이트웨이
      - 23:38:27 "Gateway running with 13 platform(s)", hejo 재연결.
      - 재시작 뒤 로그 `ERROR`/`CRITICAL` 0줄.

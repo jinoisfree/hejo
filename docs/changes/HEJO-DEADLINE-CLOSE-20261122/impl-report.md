@@ -94,7 +94,7 @@
   - `hermes-deadlines` sha256 `8340115fe460e76a89e529280567af1aa577f62ef6c8a4a24a975b7a55c4535d`(원 위치 `~/.hermes/bin/hermes-deadlines`, 권한 755)
   - 복원 명령: 각 보관본을 같은 폴더의 임시 파일로 복사 후 `mv`(이름 바꾸기), 권한 644·755.
 - 교체할 새 파일(HD `cfe6d9d21a96caae8fe09396a5505e87788a4916`): `deadline_watch.py` sha256 `1fa7fddb1531fb288b3029cf25da88693a160c1c96a929e633944a8884b6ad85`, `hermes-deadlines` sha256 `ec8d7158cd8ccf37bda70f048256fabb8fb6be437178602ecda9896be2eccc5a`.
-- 문 롤백 기준: 공용 릴리스 `/Users/Shared/hejo/RELEASE` = `e68ae82458a62a1c3d3468041c3d6dee0b576a2b`. 되돌리기: 그 커밋을 임시 worktree로 꺼내 `install/hejo-release`를 실행하고 게이트웨이 재시작 1회, team-kit 보관본도 함께 복원.
+- 문 롤백 기준: 공용 릴리스 `<공용 릴리스>` = `e68ae82458a62a1c3d3468041c3d6dee0b576a2b`. 되돌리기: 그 커밋을 임시 worktree로 꺼내 `install/hejo-release`를 실행하고 게이트웨이 재시작 1회, team-kit 보관본도 함께 복원.
 - 운영 장부 파일 2개의 sha256 목록을 적용 전·후 비교(기록에는 개수와 목록 해시만): 적용 전 목록 해시 `a32a215b432247b8908261ff22ce62ca3672440cabbbe65aa37a712657d90c1f`.
 - 릴리스 대상 확인: `e68ae824..227ef160`의 `gate/ hub/ schemas/ config/ install/` 변경 커밋은 `a43662d`(이 작업)·`91ee402`(문서, gate/README.md)뿐. 변경 파일은 gate/README.md, gate/connection_runtime.py, gate/deadlines.py, gate/server.py, schemas/hejo-wire-v1.json.
 
@@ -106,7 +106,7 @@
 - HD main: 운영 저장소 main(`99bd8856`)에 `hejo-deadline-close-20261122`를 merge 커밋 **`b32048c813aefa72be778eaa7dca51815a9de429`**로 병합(마감 관련 4파일만, 충돌 없음). `./sync` 종료 0 → 작업 트리 깨끗, `./airport-check` 종료 0. 주의: `./sync`는 원본(`~/.hermes`) 기준으로 사본을 다시 채우므로 시험 파일 2개(`test_deadline_close.py`, `test_deadline_list.py`)가 되돌려져, 원본 쪽 `~/.hermes/plugin-store/team-kit/tests/`에 같은 시험 파일 2개를 복사해 둔 뒤 다시 sync했다(실행 코드 아님, 게이트웨이가 읽지 않음). 다른 작업 파일은 커밋하지 않음, push 안 함. 별도 `commit --only`는 변경이 merge 안에 이미 있어 필요 없었다.
 - 문: 롤백 기준 `RELEASE` = `e68ae82458a62a1c3d3468041c3d6dee0b576a2b`. `e68ae824..227ef160`의 gate/hub/schemas/config/install 변경은 `a43662d`·`91ee402`뿐(gate/README.md, connection_runtime.py, deadlines.py, server.py, schemas). `install/hejo-release`(구현 worktree 227ef160 기준) → `RELEASE` = `227ef160694635f8afde36f06515f5136f73dc30`, 공용 릴리스 `gate/`·`schemas/`가 소스와 바이트 동일.
 - 재시작 1회(`hermes-connections gateway restart --json`, 시작 직전 진행 중 턴 0): `{"outcome":"done","reason":"OK","connected":7}`. 재시작 뒤 `gateway.log`에 ERROR·Traceback 0.
-- 문 읽기 확인: 공용 릴리스 코드(`/Users/Shared/hejo/gate`)의 `Deadlines.list()`를 운영 홈으로 직접 호출(읽기 전용): `deadlines_read items=2 failed=0`, origin은 `reminder`만. **실제 문 로그(gateway.log)에는 재시작 뒤 `deadlines_read`가 아직 없다**(앱이 아직 목록을 요청하지 않음. 칸을 열면 남는다). `deadlines_failed`는 없음.
+- 문 읽기 확인: 공용 릴리스 코드(`<공용 릴리스>`)의 `Deadlines.list()`를 운영 홈으로 직접 호출(읽기 전용): `deadlines_read items=2 failed=0`, origin은 `reminder`만. **실제 문 로그(gateway.log)에는 재시작 뒤 `deadlines_read`가 아직 없다**(앱이 아직 목록을 요청하지 않음. 칸을 열면 남는다). `deadlines_failed`는 없음.
 - 롤백이 필요했던 일은 없었다. 보관본 `~/.cache/dc-rollback-20261122/`(0700)는 사장 확인 전까지 둔다.
 
 ## TASK-05 앱 0.2.6(빌드 8) 공개 후보 (고위험, 증거 2)
