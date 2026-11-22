@@ -6,7 +6,7 @@
 
 ```text
 [설계 인계: HEJO-TELEGRAM TASK-02~06 / 문·앱]
-0. 기준: base_commit: 이 인계서를 담은 커밋(main, 계획 문서만 추가. 그 부모 0644e9e) / spec·design·수락 시험 명세 2판(계획 검증 1회차 반영)·tasks 1판 2026-11-22 /
+0. 기준: base_commit: 계획 2판 29326c53e893bd0db14bc78b5b63c6f75dd98351(계획 검증 2회차 APPROVED). 보완 1(verdict 1차)은 수락 시험 명세만 3판으로 고친 커밋 / spec·design 2판, 수락 시험 명세 3판, tasks 2판 /
    승인 상태: 브레인스토밍 결정 사장 확정(2026-11-22, brainstorm.md + 추가 결정 4건: 모든 방 전부 보냄, 앱 사장 글도 보임,
    서버 photon 그대로, 방 보관·삭제 시 토픽 닫기), 계획 검증 1회차 BLOCKED 3건·권고 2건 수용·반영(plan-review.md), 재검증 대기 / 운영 모드: 연합개발(교차 모델 + 계획 검증 켜기)
 1. 공식 문서: docs/ARCHITECTURE.md, AGENTS.md, docs/changes/HEJO-TELEGRAM-20261122/{brainstorm,spec,design,tasks}.md,
@@ -28,7 +28,7 @@
    실제 Hermes 모듈 + 가짜 텔레그램 어댑터), AT-HT-44만 3. 운영 적용(3)·실물(4)은 TASK-07·08.
    롤백: 이 저장소 커밋 되돌림(운영 적용 전이라 실행 중 동작 무영향).
 7. 변경 성격: 의미 변경(아이메시지 → 텔레그램) + 신규 기능. 보존 비교: AT-HT-39, `bash scripts/test.sh` 전체(기존 시험 통과).
-8. 수락 시험: tests/acceptance/HEJO-TELEGRAM.md(2판) AT-HT-01~45, 50~52. 상태: 명세 완료·코드 미작성·미실행·미검토.
+8. 수락 시험: tests/acceptance/HEJO-TELEGRAM.md(3판 — 쓸 수 있는 방 4개) AT-HT-01~45, 50~52. 상태: 명세 완료·코드 미작성·미실행·미검토.
    기대값 출처: spec 요구, design 3~7절. 코드는 구현 담당이 옮긴다(문: tests/acceptance/test_telegram.py, 앱: app/Tests/).
    기대값·합격 기준을 바꾸지 말고, 바꿔야 하면 멈추고 보고.
    HEJO-IMESSAGE 수락 시험(tests/acceptance/HEJO-IMESSAGE.md)은 작업 기록으로 남기고, 코드 test_imessage.py는 test_telegram.py로 대체·삭제.

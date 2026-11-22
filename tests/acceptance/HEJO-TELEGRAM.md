@@ -1,13 +1,13 @@
 # HEJO-TELEGRAM 수락 시험 명세
 
-- 소유: 기획설계. 2판(2026-11-22, 계획 검증 1회차 반영: F 토픽 호출·로그, AT-HT-01·05·07·12·13·15·20·34·39 수정, AT-HT-45 추가). 1판은 1회차 BLOCKED. 기대값 근거: [spec.md](../../docs/changes/HEJO-TELEGRAM-20261122/spec.md) 요구와 [design.md](../../docs/changes/HEJO-TELEGRAM-20261122/design.md) 3~7절.
+- 소유: 기획설계. 3판(2026-11-23, 구현 보류 HT-B01 반영 — 쓸 수 있는 방 4개: 공통 환경 `default` 표시 이름 `Main` 지정, 활성 준비·AT-HT-05·12·45의 토픽 수 3 → 4. 근거 [verdict.md](../../docs/changes/HEJO-TELEGRAM-20261122/verdict.md) 1차). 2판(계획 검증 1회차 반영: F 토픽 호출·로그, AT-HT-01·05·07·12·13·15·20·34·39 수정, AT-HT-45 추가). 1판은 1회차 BLOCKED. 기대값 근거: [spec.md](../../docs/changes/HEJO-TELEGRAM-20261122/spec.md) 요구와 [design.md](../../docs/changes/HEJO-TELEGRAM-20261122/design.md) 3~7절.
 - 상태: 모두 "명세 완료 · 코드 미작성 · 미실행 · 미검토". 코드는 구현 담당이 `tests/acceptance/test_telegram.py`(문)와 `app/Tests/`(앱)에 옮기며 기대값·합격 기준을 바꾸지 않는다. 바꿔야 한다고 판단되면 멈추고 보고한다.
-- 공통 환경: 임시 `HERMES_HOME`, 가짜 명부(기본 프로필 `default`와 프로필 `alpha`, `beta`; 표시 이름 `Alpha`, `Beta`), 단체방 `G`(제목 `Team`, 구성원 `alpha`·`beta`, 대표 `alpha`), 실제 Hermes 모듈 import(텔레그램 SDK 없이), 문 어댑터 단독 또는 기존 대역 러너. 증거 수준은 표시가 없으면 2.
+- 공통 환경: 임시 `HERMES_HOME`, 가짜 명부(기본 프로필 `default`와 프로필 `alpha`, `beta`; 표시 이름 `Main`, `Alpha`, `Beta`. 기본 프로필도 명부의 직원이라 1:1 방이 있다 — `gate/roster.py` `employees()`), 단체방 `G`(제목 `Team`, 구성원 `alpha`·`beta`, 대표 `alpha`), 실제 Hermes 모듈 import(텔레그램 SDK 없이), 문 어댑터 단독 또는 기존 대역 러너. 증거 수준은 표시가 없으면 2.
 - **가짜 텔레그램 어댑터 `F`:** 본체 `BasePlatformAdapter` 하위, 문 이름 `telegram`. 기록하는 메서드: `handle_message`(원래 처리기), `_accept_update()`, `send(chat_id, content, reply_to=None, metadata=None)`(`tg-out-1`, `tg-out-2`… id를 차례로, `raw_response={"message_ids":[...]}`; 나눔 주입 가능: 한 호출에 id 2개; 실패 주입 가능), `send_document`·`send_image_file`(같은 id 규칙, 실패 주입), `send_typing(chat_id, metadata=None)`, 토픽 대역 `F._bot`: `create_forum_topic(chat_id, name, ...)`(돌려주는 객체의 `message_thread_id` = `topic-1`, `topic-2`…; 실패 주입 시 예외, 예외 메시지에 chat_id 포함), `edit_forum_topic(chat_id, message_thread_id, name)`, `close_forum_topic(chat_id, message_thread_id)`, `reopen_forum_topic(chat_id, message_thread_id)`. 실제 어댑터처럼 id를 로그에 쓰는 감싼 메서드 `F._create_dm_topic`·`F.rename_dm_topic`도 두되(어댑터 로거 이름으로 chat_id·토픽 id를 로그에 씀) 호출을 기록한다. `_is_sender_authorized`(기본 `None`, 값 주입). 문이 등록한 `telegram` 공장을 `F`에 적용해 감싼다.
 - **가짜 식별자:** 포럼 그룹 `grp-A`(`raw_message.chat.is_forum = True`), 다른 포럼 그룹 `grp-B`, 포럼 아닌 그룹 `grp-N`, 1:1 대화 `dm-A`; 사장 계정 `user-A`, 다른 사람 `user-B`; 받은 글 id `tg-in-1`…; 일반 토픽 `"1"`.
 - **이벤트 만들기:** `MessageEvent(text, message_id, reply_to_message_id, media_urls, media_types, source=SessionSource(platform=telegram, chat_type="group"(1:1은 "dm"), chat_id, user_id, thread_id))`, `raw_message`는 `chat.is_forum`·`caption`·`reply_to_message`를 가진 간단한 대역.
 - **정착 시간:** 0.05초로 바꿔 넣는다.
-- **활성 준비:** 짝짓기(AT-HT-01) 뒤 `telegram_save{enabled:true}` → 동기화가 끝난 뒤(`topics.json`에 `alpha`·`beta`·`G`). 토픽 id는 만든 순서대로 받으며 시험은 `topics.json`에서 방별 토픽 id를 읽는다.
+- **활성 준비:** 짝짓기(AT-HT-01) 뒤 `telegram_save{enabled:true}` → 동기화가 끝난 뒤(`topics.json`에 쓸 수 있는 방 4개 `default`·`alpha`·`beta`·`G`). 토픽 id는 만든 순서대로 받으며 시험은 `topics.json`에서 방별 토픽 id를 읽는다.
 
 ## 자동 시험 — 문
 
@@ -17,14 +17,14 @@
 | AT-HT-02 | 01.AC-01 | `telegram_pair` 두 번(`p2`, `p3`) 뒤 `p2`의 코드를 보냄 | 짝 없음, 원래 처리기 1회. `p3` 코드는 짝짓기 됨 |
 | AT-HT-03 | 01.AC-03 | (a) 틀린 글 (b) 시계 +601초 뒤 맞는 코드 (c) 쓴 코드 다시 (d) `grp-N`에서 맞는 코드 (e) `dm-A`에서 맞는 코드 (f) `_is_sender_authorized`가 `False`일 때 맞는 코드 | 여섯 경우 모두 원래 처리기 1회(같은 이벤트 객체), `F.send` 0회, `telegram.json`의 `pair` 불변 |
 | AT-HT-04 | 01.AC-04 | 활성에서 `telegram_unpair{id:"u1"}` 뒤 `grp-A`/`user-A`의 `alpha` 토픽 글 | `telegram_status{ref:"u1", paired:false, enabled:false}`, 글은 원래 처리기 1회·기록장 불변, `topics.json` 바이트 불변 |
-| AT-HT-05 | 01.AC-05 | 활성(`grp-A`) 뒤 새 코드를 `grp-B`/`user-B`로 짝짓고 켬 | `grp-A` 글은 통과. `grp-B`에 방마다 새 토픽 생성(`F._bot.create_forum_topic` 대상 `grp-B` 3회). 새 `pair.tag` ≠ 이전 표지, `topics.json.tag` = 새 표지. 같은 `grp-A`로 다시 짝지어도 새 표지·토픽 새로 만들기 3회 |
+| AT-HT-05 | 01.AC-05 | 활성(`grp-A`) 뒤 새 코드를 `grp-B`/`user-B`로 짝짓고 켬 | `grp-A` 글은 통과. `grp-B`에 방마다 새 토픽 생성(`F._bot.create_forum_topic` 대상 `grp-B` 4회). 새 `pair.tag` ≠ 이전 표지, `topics.json.tag` = 새 표지. 같은 `grp-A`로 다시 짝지어도 새 표지·토픽 새로 만들기 4회 |
 | AT-HT-06 | 01.AC-06 | 공장 미적용 상태에서 `telegram_pair{id:"p4"}`, `telegram{id:"q1"}` | `error{ref:"p4", code:"telegram_unavailable"}`, `telegram.json`에 코드 없음, `telegram_status{ref:"q1", platform_ready:false}` |
 | AT-HT-07 | 01.AC-07, NFR-04 | 앱1·앱2 연결, AT-HT-01 → 활성(토픽 만들기) → AT-HT-13(a)(b)(c) → AT-HT-20(본문 `hello`) → AT-HT-30(본문 `pong`). 로그 캡처(모든 로거, 어댑터 로거 포함)·앱별 모든 프레임·기록장·`telegram.json`·`settings.json`·`topics.json`·`sent.jsonl` 검색 | 코드 평문: 앱1의 `telegram_code` 1개에만. `grp-A`·`user-A`: `telegram.json`에만 있고 로그·모든 앱 프레임·기록장·나머지 세 파일 0건. 짝 표지·토픽 id·`tg-` 글 id: `telegram.json`(표지)·`topics.json`·`sent.jsonl`·기록장 `client_msg_id`·앱 `message` 프레임의 `client_msg_id`에만, 로그 0건. `hello`·`pong`: 기록장 `message` 행, 앱 `message` 프레임, `F.send` 인자에만, 로그·`telegram_status`·`error`·네 파일 0건. `F._create_dm_topic`·`F.rename_dm_topic` 호출 0회 |
 | AT-HT-08 | 02.AC-01·02 | `telegram_save{id:"s1", enabled:true}` → 문 어댑터 끊고 다시 연결 → `telegram{id:"q2"}` | 두 앱 같은 `telegram_status`(요청 앱만 `ref:"s1"`), 재연결 뒤 같은 값, `settings.json` 0600 |
 | AT-HT-09 | 02.AC-02 | 짝 없이 `telegram_save{enabled:true}` | `error(telegram_unpaired)`, `settings.json` 바이트 불변, 방송 0 |
 | AT-HT-10 | 02.AC-03 | 기능 `telegram` 없는 앱3이 `telegram{id:"q3"}`; 앱1이 짝짓기·저장 | 앱3은 `error{ref:"q3", code:"unexpected_frame"}`, `telegram_status`·`telegram_code` 0건 |
 | AT-HT-11 | 02.AC-04, 08.AC-01 | 기능 `["rooms","imessage"]` 앱이 `imessage{id:"q4"}`·`imessage_pair{id:"q5"}`. 문의 등록된 처리기 공장 목록 조회 | 두 요청 모두 `error unexpected_frame`. `photon` 공장 0개, `telegram` 공장 1개 |
-| AT-HT-12 | 03.AC-01 | 짝 뒤 켜기 | `F._bot.create_forum_topic` 3회(`grp-A`, 이름 `Alpha`, `Beta`, `Team` 각 1회), `topics.json`에 세 방. 다시 끄고 켜면 추가 만들기 0회. `F._create_dm_topic` 호출 0회 |
+| AT-HT-12 | 03.AC-01 | 짝 뒤 켜기 | `F._bot.create_forum_topic` 4회(`grp-A`, 이름 `Main`, `Alpha`, `Beta`, `Team` 각 1회), `topics.json`에 네 방. 다시 끄고 켜면 추가 만들기 0회. `F._create_dm_topic` 호출 0회 |
 | AT-HT-13 | 03.AC-02 | 활성에서 (a) 단체방 `H`(제목 `Ops`) 만들기 (b) `H` 제목 `Ops2`로 (c) `H` 보관 (d) 보관 풀기 (e) `H` 삭제 | (a) `F._bot.create_forum_topic` 1회 `Ops` (b) `F._bot.edit_forum_topic` 1회 `Ops2` (c) `close_forum_topic` 1회 (d) `reopen_forum_topic` 1회 (e) `close_forum_topic` 1회. 각 단계 뒤 `topics.json`의 `H` 상태 일치. `F.rename_dm_topic` 호출 0회. 기록장·앱 프레임은 기능 없는 홈과 같음 |
 | AT-HT-14 | 03.AC-03 | 활성 뒤 명부에 `gamma` 추가(토픽 없음) → `gamma`가 글을 씀 | 정착 뒤 토픽 만들기 1회(`Gamma`) 다음 `F.send` 1회(`metadata.thread_id` = 새 토픽) |
 | AT-HT-15 | 03.AC-04 | `F._bot.create_forum_topic`이 예외(메시지에 `grp-A` 포함)를 내게 하고 켬 → `alpha` 글 기록 → 실패 주입 해제 → 끄고 켬 | 첫 켬 뒤 `telegram_status{topic_problem:true}`, 로그 경고 1줄 이상(`grp-A`·토픽 id 0건), `alpha` 글 발신 0. 다시 켠 뒤 만들기 성공, `topic_problem:false` 방송. 기록장·앱 프레임 영향 없음 |
