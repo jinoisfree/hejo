@@ -310,3 +310,35 @@ TASK-09의 측정은 실제 트랙패드 탭이 아니라 수락 명세 AT-FF-30
 6. 금지: 개인값, 본체·ddots, 수락 기준·시험 명세·spec·design 수정, git push. 위험도 일반, 증거 수준 2.
 7. 보고: impl-report.md '11차-TASK-12' 절(커밋 전체 해시, 명령·종료 코드·로그 경로), result.
 ```
+
+## 12차 지시 (2026-11-22): TASK-13 직원 D Finder 연결이 저장되지 않음 (M6 막힘)
+
+**사장 보고:** 직원 D 에이전트 연결에서 Finder 폴더(SynologyDrive-… › 시놀로지(…) › 0. 공용자료_PF)를 고르고 '확인하고 저장'을 누르면 연결되지 않는다. 입력 창에는 빨간 글씨로 "마쳤어요."가 뜬다. 직원 B는 다른 폴더로 저장한 뒤 파일을 잘 읽는다(M1~M3 일부 통과).
+
+**계획 담당 확인(읽기만):**
+- 문 로그: `2026-11-22 17:05:46 connections_failed type=connection_action profile=<직원 D 프로필> reason=command_failed`. 직원 B는 17:02:10에 설정 변경이 반영됐다(`Re-scanned profile '<직원 B 프로필>' after config/.env change`).
+- `command_failed`는 문 `connection_runtime.py:196·205`에서 난다. 경우는 셋이다: 출력이 JSON이 아님, 0이 아닌 종료인데 outcome이 없음, 180초 초과.
+- 직원 D 프로필에는 Finder 기록 파일(`state/connections/app-27cf6ce8eea3870712b51e12.json`)이 없다. 직원 B에는 있다(17:01). 그래서 저장(transact) 전에 실패한 것으로 보인다.
+- 고르기 단계(scope 없이) 명령을 같은 환경으로 직접 돌렸다: `~/.hermes/bin/hermes-connections app connect --profile <직원 D 프로필> --app com.apple.finder --json` → exit 0, 0초, `waiting/CHOOSE_SCOPE`. 실패는 고른 값을 제출하는 단계에서 난다.
+- 앱 표시: outcome이 done이 아니고 아는 reason도 없으면 `ConnectionSentence`가 check 없는 응답을 "마쳤어요."로 만든다. 그 글이 입력 창 오류 칸에 빨갛게 뜬다(`ConnectionsWindow.swift:184`). 실패를 "마쳤어요"로 보이는 것도 결함이다.
+
+```text
+[설계 인계: HEJO-FINDER-FOLDERS TASK-13]
+1. 목표: 직원 D에서 Finder 폴더를 골라 저장하면 연결된다(M6). 실패하면 그 이유가 사장이 알아들을 문장으로 보인다.
+2. 진단(먼저): 사장이 요청한 바로 그 연결을 한 번 실행해 재현한다.
+   ~/.hermes/bin/hermes-connections app connect --profile <직원 D 프로필> --app com.apple.finder --scope <고르기 응답에서 '0. 공용자료_PF' 항목의 id> --json
+   (환경은 문과 같게: HERMES_HOME=~/.hermes, HERMES_DISABLE_LAZY_INSTALLS=1, PYTHONDONTWRITEBYTECODE=1, 200초 제한)
+   종료 코드·걸린 시간·stdout 키·stderr 마지막 줄을 .build 증거에 남긴다(경로 문자열은 증거에만 쓰고 문서에는 쓰지 않는다).
+   - RESTART_REQUIRED가 나오면 거기서 멈춘다. 게이트웨이를 다시 시작하지 않고 보고한다.
+   - 성공하면 그것이 사장이 원한 연결이다. 바뀐 운영 파일 목록과 되돌리는 방법(app undo)을 기록한다.
+   - 실패·멈춤이면 어느 단계(enable/values/restart/permission/check, transact, 잠금)에서 왜 멈추는지 찾는다.
+     직원 B와 직원 D 프로필의 차이(도구 묶음, files 설정, 기록 상태, 잠금)를 비교한다.
+3. 수정: 원인이 team-kit이면 HD worktree에서 고치고 재현 시험을 더한다(가짜 HERMES_HOME). 관련 5파일 시험과 AT-FF-08·12 기준으로 회귀를 확인한다.
+   원인이 앱 표시("마쳤어요" 오표시)면 app/Sources/ConnectionsWindow.swift에서 실패·대기 응답을 "마쳤어요"로 보이지 않게 고치고 시험을 더한다.
+   실행본 교체는 하지 않는다. 고친 뒤 보고만 하고, 서버 적용은 다음 지시로 한다(3차 절차).
+4. 금지: 게이트웨이 재시작, install/hejo-release, 비밀 파일 열기(.env·auth.json·토큰), 실제 Slack·고객 메시지, 본체·ddots 수정, 수락 기준·spec·design 수정, git push.
+   운영 파일은 위 명령 한 번이 바꾸는 것 외에는 바꾸지 않는다. 다른 세션의 운영 저장소 미커밋 파일(files_docs/files.py 등)은 건드리거나 커밋하지 않는다.
+5. 범위: 진단 증거 .build/finder-folders-evidence/round12-task13/, 수정은 HD worktree(team-kit)·app/(필요 시). 자기 경로만 git commit --only.
+6. 위험도 일반(운영 명령 1회), 증거 수준 3.
+7. 보고: impl-report.md '12차-TASK-13' 절(재현 결과, 원인, 수정 커밋 전체 해시, 명령·종료 코드·로그 경로, 운영에 바뀐 것), result.
+```

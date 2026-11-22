@@ -14,7 +14,8 @@
 | TASK-08 | 앱 0.2.4(빌드 6) 공개 후보 준비(design 7.3) | FF-06 / M4 | `H/app/Resources/Info.plist`, 공개 산출물 | TASK-06·09 검토 통과 + 별도 인계 + SLACK-MOVE와 순서 조율 | 일반(공개) · 2 | 대기 |
 | TASK-10 | 앱: 처리할 일 칸 불투명 배경(REQ-FF-08) | FF-08 / AT-FF-40~42 | `H/app/Sources/TodoDrawerView.swift`(필요하면 `PetView.swift` 배치 부분), `H/app/Tests/` | — | 일반 · 2 | 완료(검증 8차, 2fffbe0) |
 | TASK-11 | 앱: 사진 바꾸기에서 색과 글자(REQ-FF-09), 옵션창 높이 공용 규칙(REQ-FF-10) | FF-09·10 / AT-FF-50~54·60~63 | `H/app/Sources/ConversationView.swift`·`RoomDialogs.swift`·`Pictures.swift`·`AppDelegate.swift`, 옵션창을 띄우는 파일들, `H/app/Tests/` | TASK-10과 파일 겹침 없음(차례로) | 일반 · 2 | 완료(검증 10차, 5fc60b2·da3cf0b) |
-| TASK-12 | 앱: 연결 창 화면 공유 숨김 없애기(REQ-FF-11) | FF-11 / AT-FF-70·71 | `H/app/Sources/ConnectionsWindow.swift`, `H/app/Tests/ConnectionsTests.swift` | TASK-11 | 일반 · 2 | 지시함(handoff 11차) |
+| TASK-12 | 앱: 연결 창 화면 공유 숨김 없애기(REQ-FF-11) | FF-11 / AT-FF-70·71 | `H/app/Sources/ConnectionsWindow.swift`, `H/app/Tests/ConnectionsTests.swift` | TASK-11 | 일반 · 2 | 완료(검증 11차, 52e2511) |
+| TASK-13 | team-kit: 직원 D Finder 연결 저장 실패 진단·수정(M6 막힘) | FF-02·03 / AT-FF-08·12 재확인 + 재현 시험 | 진단은 `TKL` 읽기·명령 1회, 수정은 `HD` worktree `TK/lib/hermes_facility/`·`TK/tests/` | — | 일반 · 3 | 지시함(handoff 12차) |
 | TASK-04 | 사장 확인 M1~M11, 현재 명세 반영(`HD/docs/연결-상태.md`의 Finder 설명이 있으면) | 전체 | `HD/docs/연결-상태.md`(필요 시) | TASK-07·08 | — | 대기 |
 
 ## TASK-08 착수 조건 (2026-11-22, HEJO-SLACK-MOVE 세션과 조율)
@@ -27,7 +28,7 @@ hejo main에는 HEJO-SLACK-MOVE의 문 변경 커밋이 섞여 있다(`gate/loca
 ## TASK-08 진행 방식 (2026-11-22, 사장 알림)
 
 사장이 0.2.4 공개 후보를 다른 세션(HEJO-SLACK-MOVE 쪽)에서 진행 중이라고 알렸다. 이 작업은 별도 공개 후보를 만들지 않는다. 그 공개 후보에 아래가 들어가야 한다.
-- 이 작업의 앱 커밋: `b21dd94`(연결 창), `3ccda92`·`3e9400b`·`b3fc5cb`(세 손가락 탭), `2fffbe0`(처리할 일 칸 배경), `5fc60b2`·`da3cf0b`(색과 글자 사진, 옵션창 높이), TASK-12 커밋(연결 창 화면 공유). 모두 main 조상이고, `app/`은 `b3fc5cb` 뒤 바뀌지 않았다(2026-11-22 확인).
+- 이 작업의 앱 커밋: `b21dd94`(연결 창), `3ccda92`·`3e9400b`·`b3fc5cb`(세 손가락 탭), `2fffbe0`(처리할 일 칸 배경), `5fc60b2`·`da3cf0b`(색과 글자 사진, 옵션창 높이), `52e2511`(연결 창 화면 공유). 모두 main 조상이고, `app/`은 `b3fc5cb` 뒤 바뀌지 않았다(2026-11-22 확인).
 - 검증 상태: TASK-06 완료(검증 4차), TASK-09 부분 완료·종료(검증 7차, 열기 101.3ms, 수용은 사장 M7).
 - TASK-10(처리할 일 칸 배경)·TASK-11(색과 글자 사진, 옵션창 높이, 2026-11-22 추가) 커밋도 0.2.4에 들어가야 한다. 공개 후보 준비 세션과 순서를 맞춘다(사장 경유).
 - 이 작업이 공개 후보에서 확인할 것: 공개 후보 트리의 `app/`이 `b3fc5cb` 이후 것과 같고, 앱 전체 시험이 통과하는지.

@@ -855,3 +855,35 @@ AT-FF-30 측정과 AT-FF-32 회귀는 끝났고 AT-FF-31 전체는 **미충족**
 전체 시험 소스 변경 목록은 빈 목록이다. 변이 확인 뒤에도 전체 시험 소스 바이트가 유지됐고, 커밋한 세 파일은 시험 당시 SHA-256과 모두 일치했다. 컴파일의 기존 경고는 남았지만 새로운 컴파일 오류·회귀 실패는 없었다.
 
 미검증: 설치 앱에서 다른 앱으로 전환하는 사장 확인과 0.2.4 공개 후보 포함 여부는 후속 검토·공개 담당 범위다. 추가 기술 부채·설계 변경·임시 제품 코드는 없다. 다른 작업의 미추적 문서 두 폴더는 보존했다. 운영 적용·게이트웨이 재시작·앱 버전 변경·공개 후보·설치 앱 교체·push는 실행하지 않았다. 검토자는 공용 목록에 연결 창이 들어가지 않는 점, 보이는 창만 갱신하는 점, AT-FF-64의 닫힘·수명 검사를 확인하면 된다.
+
+
+## 11차-TASK-12 (2026-11-22)
+
+**구현자 판단: 구현·자체 시험 완료, 검토 대기.** 받은 설계는 `handoff.md` 11차 지시, spec 9판 REQ-FF-11, 수락 명세 AT-FF-70·71이다. 위험도 일반, 필요한 증거 수준 2이며 가짜 연결 응답과 실제 ConnectionsWindow·입력 시트·확인 알림을 사용하는 앱 시험으로 수준 2를 확인했다. 설계와 달라진 점은 없다.
+
+착수 hejo main HEAD는 `56ddfcd8a0f18e61c5bdda0f3891e0fc17e7a50a`다. 코드 커밋 전체 해시는 **`52e25116ff43a51d0d2be16493885c6d331cd145`**다. 아래 `E11`은 `.build/finder-folders-evidence/round11-task12`, `P`는 게이트웨이 Python이다. 착수 상태·두 파일 SHA-256은 `E11/start.json`, 시험 소스 목록은 `E11/tested-sources.json`, 커밋 경로·blob 대조는 `E11/app-commit.json`에 있다.
+
+### 변경과 보호 계약
+
+- `ConnectionsWindow.swift`: 연결 창·시트를 `.none`으로 만들던 `model.privacy` 창 연결을 삭제하고, 입력 시트의 `.none` 지정도 삭제했다. 이제 기본 공유 설정을 유지한다. 아무 일도 하지 않는 창 콜백은 남기지 않았다. 모델의 privacy 계약과 기본 콜백, secure 입력·값 삭제·오류 표시·창 높이 처리 코드는 바꾸지 않았다.
+- `ConnectionsTests.swift`: 기존 실제 연결 창과 가짜 비밀 입력 fixture에 AT-FF-70 관측을 추가했다. 가짜 비밀 값을 넣고 secure 필드를 확인하며, 입력 시트 부착 뒤·확인 알림이 열린 동안·입력 닫힘 뒤에 연결 창과 모든 하위 시트의 `sharingType != .none`을 검사한다. 확인 알림의 관측값은 알림이 열린 동안 구한 뒤 닫힘을 마쳐 단언한다. 입력을 닫으면 시트가 없고 값이 비어 있는지도 확인한다. 기존 시험 기대값·수락 명세는 수정하지 않았다.
+- 회귀 검출 확인: 추적 소스를 바꾸지 않고 착수 HEAD의 ConnectionsWindow를 `E11/ConnectionsWindow-baseline.swift`에 추출해 새 시험과 빌드했다. 수정 전 사본은 새 AT-FF-70의 입력 단계 공유 단언에서 예상대로 종료 1이었다. 정상 소스로 실행한 최종 전체 시험은 통과했다.
+
+### 명령·결과·증거
+
+모든 명령의 cwd는 hejo다. 전체 시험은 지정한 게이트웨이 Python 환경으로 실행했다.
+
+| 명령 | 종료 코드 | 실제 결과 | 로그 |
+|---|---:|---|---|
+| 수정 전 사본을 넣은 `xcrun swiftc <앱 소스·현재 시험>` / `codesign` | 0 / 0 | 정상 추적 소스를 보존한 별도 실행 파일 | `E11/baseline-build.log/json`, `E11/baseline-sign.log/json` |
+| 수정 전 사본 시험 전 `pgrep -f app-tests` | 1 | 다른 실행 없음 | `E11/baseline-pgrep.json` |
+| 수정 전 사본 `app-tests-baseline --task32-capture <가짜 자료 출력 폴더>` | 1 (예상) | `AT-FF-70 input stage shares connection window and every sheet`에서 기존 결함 검출 | `E11/baseline-run.log/json` |
+| 최종 전체 시험 전 `pgrep -f app-tests` | 1 | 다른 실행 없음 | `E11/app-pgrep.json` |
+| **`HEJO_PYTHON=P bash app/scripts/test.sh`** | **0** | AT-FF-70·71, AT83 등 기존 연결 시험, AT-FF-20~23·50~54·60~64, 전체 앱·통신 fixture·hooks 9개 통과 | `E11/app-full.log/json` |
+| `P scripts/scan_private.py` | 0 | 자기 앱 변경 개인값 검사 통과 | `E11/scan-private-code.log`, `E11/code-checks.json` |
+| 자기 앱 두 경로 `git diff --check` | 0 | 공백 오류 없음 | `E11/diff-check.log`, `E11/code-checks.json` |
+| 자기 앱 두 경로 `git commit --only` | 0 | 위 코드 커밋 생성, 시험한 blob과 동일 | `E11/app-commit.log/json` |
+
+전체 시험의 소스 변경 목록은 빈 목록이고, 커밋한 두 파일의 SHA-256은 시험 당시와 모두 일치한다. 기존 컴파일 경고는 남았지만 전체 시험은 오류 없이 끝났다. 보고서를 포함한 최종 `P scripts/scan_private.py`·보고서 `git diff --check`의 명령·종료 코드·로그 경로는 `E11/report-checks.json`에 기록한다.
+
+미검증: 실제 화면 공유로 설치 앱을 보는 사장 확인(M11)은 0.2.4 설치 후 남아 있다. 이 시험은 창 공유 속성 계약을 검사한 수준 2이며 실제 화면 공유 관측으로 주장하지 않는다. 추가 기술 부채·임시 제품 코드·설계 변경은 없다. 검토자는 두 숨김 지정이 제거됐는지, 모델 계약과 보안 입력·높이 규칙이 그대로인지, 세 시점에서 하위 시트까지 검사했는지 확인하면 된다. 다른 작업의 미추적 문서 두 폴더는 보존했다. 운영 적용·재시작·릴리스·앱 버전 변경·공개 후보·설치 앱 교체·push는 실행하지 않았다.
