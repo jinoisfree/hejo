@@ -384,3 +384,25 @@ TASK-09의 측정은 실제 트랙패드 탭이 아니라 수락 명세 AT-FF-30
 6. 위험도 일반(운영 적용), 증거 수준 3.
 7. 보고: impl-report.md '14차-TASK-14' 절(운영 main 커밋 전체 해시, 교체 전후 SHA, 롤백 경로, 연결 결과, 명령·종료 코드·로그 경로), result.
 ```
+
+## 15차 지시 (2026-11-22): TASK-14 계속 — 사장 승인 재시작으로 직원 D 연결 마무리
+
+사장 결정(2026-11-22 18:20): "에이전트가 지금 재시작". 다른 hejo 세션(d2·10·02)에 재시작 예정을 알렸다.
+
+```text
+[설계 인계: HEJO-FINDER-FOLDERS TASK-14 계속]
+1. 재시작 직전 확인: 게이트웨이가 처리 중인 대화가 있으면(BUSY) 억지로 하지 않는다. 기존 drain 재시작 경로만 쓴다.
+   ~/.hermes/state/connections/restart.json 등 재시작 60분 제한 상태는 읽기만 한다.
+2. 이어 하기: 14차와 같은 환경으로 직원 D Finder 연결을 --resume gateway_restart로 한 번 이어 한다
+   (~/.hermes/bin/hermes-connections app connect --profile <직원 D 프로필> --app com.apple.finder --resume gateway_restart --json, 200초 제한).
+   이 명령이 기존 재시작 경로(gateway_restart.restart)로 게이트웨이를 다시 시작하고 permission·check로 이어 간다. 별도 kill·launchctl·hejo-release는 쓰지 않는다.
+3. 결과 처리:
+   - done이면 직원 D에 저장된 Finder 폴더를 읽기로 확인하고(비밀·파일 내용 열지 않음), 재시작 뒤 게이트웨이 로그에서 hejo·채널이 다시 연결됐는지 확인한다(NOT_RECONNECTED 여부).
+   - PERMISSION 대기(Mac 권한 창)면 멈추고 보고한다(권한 창 조작 금지).
+   - BUSY·RATE_LIMITED·RESTART_FAILED면 멈추고 보고한다. 재시도하지 않는다.
+4. 실제 확인(파일 읽기)은 사장 M6로 남긴다. 실제 Slack·고객 메시지는 보내지 않는다.
+5. 금지: 다른 재시작 방법, install/hejo-release, 비밀 파일, 본체·ddots, 수락 기준·spec·design 수정, git push, 다른 세션 파일(운영 저장소 작업 트리의 M 3개 포함).
+   문서에는 '직원 D'. 자기 경로만 git commit --only.
+6. 위험도 일반(운영 재시작, 사장 승인), 증거 수준 3.
+7. 보고: impl-report.md '15차-TASK-14 계속' 절(명령·종료 코드·시간, 재시작 전후 게이트웨이 PID·로그 줄 번호, 연결 결과, 로그 경로), result.
+```
