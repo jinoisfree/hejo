@@ -16,7 +16,7 @@
 | TASK-08 | 도구 묶음: 조립기가 `platform_toolsets.hejo`를 만듦, 앱 설치 때 hejo에도 묶음 추가, 실제 도구 집합 비교 | SM-09 / AT-SM-70~72 | `TKL/hermes_facility/config_assembly.py`와 그 시험 | — | 고위험(직원 권한 범위) · 2 | 구현·자체 시험 완료(fcdec420, 실제 도구 집합 일치·58 passed, 최종 분리 전체 검사 통과·교차 검토 대기) |
 | TASK-09a | 계획 담당: 일 넘기기(프로젝트 허브) 흐름 조사, design 4.5 보완 | SM-08.AC-05 | 계획 문서 | — | 문서 | 완료(2026-11-22). 사장 결정 H-1 (나): 이번 작업 범위 밖 |
 | TASK-09 | (범위에서 뺌) 일 넘기기·프로젝트 허브의 hejo 대응 | — | 없음(프로젝트 허브 코드를 고치지 않는다) | — | — | **범위 밖(사장 결정 2026-11-22, design 4.5). 다음 작업** |
-| TASK-10 | 서버 적용과 전환: 코드 적용(동작 불변) → 하루 회귀 관찰 → 대조표·방 표 사장 확인 → 전환(design 7절) → 확인 | SM-04, SM-10, SM-11 / M1~M5, M7 | `TK`, `CP`, 공용 릴리스(문), `<HOME>/owner/policy.yaml`, `<HOME>/owner/vault.yaml`, `<HOME>/config.yaml`, 조립 결과, `HD`(`./sync`·`./airport-check`·커밋) | TASK-02~08, 사장 승인 | 고위험(운영) · 3·4 | 중단·원복(1단계 병합 시험·M7 통과. 2단계 적용 확인 도우미의 읽기 쿼리 오류로 44개 실행본·DB·이전 문·서비스 복원 완료. 3단계 미실행. [impl-report](impl-report.md)의 TASK-10 결과 참조; 4단계 전환 미착수) |
+| TASK-10 | 서버 적용과 전환: 코드 적용(동작 불변) → 하루 회귀 관찰 → 대조표·방 표 사장 확인 → 전환(design 7절) → 확인 | SM-04, SM-10, SM-11 / M1~M5, M7 | `TK`, `CP`, 공용 릴리스(문), `<HOME>/owner/policy.yaml`, `<HOME>/owner/vault.yaml`, `<HOME>/config.yaml`, 조립 결과, `HD`(`./sync`·`./airport-check`·커밋) | TASK-02~08, 사장 승인 | 고위험(운영) · 3·4 | 미확인 반환(1단계 통과. 2단계 재적용·기술 확인 통과, 1시간 기한 내 자연 보고 Slack 도착 증거 미확인. 코드 적용 유지·Slack 유지, 운영 sync·적용 커밋 미실행. 3단계 준비물 6개 작성. [impl-report](impl-report.md) 참조; 4단계 미착수) |
 | TASK-11 | 다음 날 관찰(M6), 현재 명세 반영(`ARCHITECTURE.md` 3·4·7절의 입구·방 대상·Slack 은퇴 단계, `gate/README.md`, `HD` 문서) | SM-11.AC-02·05 / M6 | `H/docs/ARCHITECTURE.md`, `HD` 문서 | TASK-10 | 문서 | 대기 |
 
 ## 병렬 갈래
