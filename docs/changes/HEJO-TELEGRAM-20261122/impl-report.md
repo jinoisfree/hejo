@@ -16,3 +16,27 @@
 - 시험 보호 계약: 코드 회전·한 번 사용·포럼/계정 허용·만료, 요청 연결에만 코드, 기능 협상·옛 프레임 거절, 금고 0600, 설정 보존. 옛 메신저 시험은 새 수락 명세로 대체한다.
 - 검증: 기존 로컬 의존성 경로만 사용한 Hermes venv `python -m pytest tests/acceptance/test_telegram.py -q -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function --basetemp=/tmp/ht02`, 종료 0, 9 passed. 로그 `.build/telegram-evidence/task02.log`. 최초 venv 직접 실행은 pytest 모듈 부재로 종료 1; 설치 없이 기존 시험 의존성 경로를 재사용했다.
 - 증거 수준 2. mutation check·전체 검사·개인값 검사는 TASK-06에서 남은 변경본에 수행한다. 설치·재시작·패키지 설치·실물 발송 미실행. 롤백은 이 작업 커밋 되돌림(운영 미적용)이다.
+
+## TASK-03 — 보류(구현 규칙 2절 보고)
+
+[확인] 토픽 작업자·Bot API 직접 호출·토픽 저장·수신/첨부·기존 receive 경로 연결을 작업 트리에 작성했으나 TASK 완료로 판정하지 않는다. 다음 충돌 때문에 TASK-03 추가 구현 및 TASK-04~06을 멈췄다. TASK-03 제품·시험은 미커밋이며 수정 상태 그대로 보존했다.
+
+### 차단 HT-B01: 쓸 수 있는 방 수와 수락 시험 기대값 불일치
+
+- 수락 명세 공통 환경은 기본 프로필 `default`와 `alpha`, `beta`, 단체방 `G`다(`tests/acceptance/HEJO-TELEGRAM.md:5`). spec 용어의 쓸 수 있는 방은 명부에 있는 직원의 1:1 방과 삭제·보관되지 않은 단체방 모두다.
+- 실제 `gate/roster.py:26`은 `profiles_to_serve`의 모든 프로필을 직원으로 반환한다. 기준 커밋과 현재 코드 모두 같다. `default`를 빼는 계약은 없다. 기존 외부 문 `rooms()` 역시 명부 전부를 사용했다.
+- 지정 환경에서 실제 생성된 대응은 `default`, `alpha`, `beta`, 단체방의 **4개**다. 관측 파일은 추적하지 않는 `/tmp` 시험 홈의 `shared/hejo/telegram/topics.json`이고, 오류 로그는 아래 파일이다.
+- AT-HT-05는 그룹별 만들기 3회, AT-HT-12는 만들기 3회 및 Alpha·Beta·Team 각각 1회만을 요구한다. 이를 그대로 옮긴 시험은 3개 대응을 기다리다가 시간 초과했다. 시험을 4개로 바꾸거나 대역 명부에서 default를 빼면 현재 수락 명세 입력/합격 기준을 바꾸게 된다. 제품에서 default를 제외하면 spec의 모든 쓸 수 있는 방 계약을 바꾸게 된다.
+- 선택지: (A) 모든 프로필 포함을 유지하고 AT-HT-05·12 및 공통 활성 준비의 3개 기대를 4개로 정합화. (B) default를 외부 토픽 대상에서 제외하는 명시적 요구·설계·시험 입력을 계획 담당이 확정. 구현자 권고는 A(기존 명부와 모든 방 결정 유지)다. 승인 전 어느 쪽도 구현하지 않았다.
+- 보고 대기 중 진행 가능한 별도 부분은 앱이지만, TASK-02 규격 이후 TASK-03의 차단 경계에서 인계하기 위해 아직 착수하지 않았다. 이 대화에서 하위 에이전트는 사용하지 않았다.
+
+### 작성 중인 시험과 실행 증거
+
+- TASK-03 시험은 토픽 만들기·이름·보관·해제·삭제, 재짝짓기, 같은 객체 통과, 수신 본문·방 대표/멘션·답장·중복·첨부·오류를 명세대로 옮기는 중이다. 전체 이식 완료 또는 통과라고 보고하지 않는다.
+- 명령: 기존 `.build/connections-env.sh`로 Hermes venv 및 기존 시험 의존성 경로를 설정하고 `"$HEJO_PYTHON" -m pytest tests/acceptance/test_telegram.py -q -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function --basetemp=/tmp/ht03`.
+- 실제 결과: 종료 1, **9 failed, 11 passed**. 실패 9건은 공통 활성 준비에서 세 토픽을 기다린 시간 초과다. 이 단계 뒤의 수신·첨부 단정은 도달하지 못했으므로 미검증이다. 로그 `.build/telegram-evidence/task03.log`.
+- `git diff --check`: 종료 0. 대상 변경본은 TASK-02 커밋 `53acb8e` 위 `gate/telegram.py`, `tests/acceptance/test_telegram.py` 작업 트리다. 문서 추가 외 다른 작업의 변경은 미포함이다.
+- TASK-04~06, mutation check, 전체 시험·AT-HT-44 측정 미실행. 도달 증거는 TASK-02 대역 통합 수준 2에 한정한다. 운영 적용·설치·재시작·패키지 설치·실제 발송·푸시는 하지 않았다.
+
+- 중단 시 개인값 사전 검사: 임시 빈 HERMES_HOME, 기존 Hermes venv `python scripts/scan_private.py`, 종료 1. 다른 작업 `HEJO-DEADLINE-CLOSE-20261122/impl-report.md` 97·109행 및 `verdict.md` 127·146행의 절대 경로 4건이 보고됐다. 이번 TASK-02·03 파일에서는 지적이 없었다. 범위 밖 동시 작업 문서는 수정하지 않았다. 로그 `.build/telegram-evidence/private-stop.log`. 전체 검사 통과로 보고하지 않는다.
+- TASK-02 전체 커밋: `53acb8e4ee5c4b79aa01e23320851a0c62648092`. 중단 시 다른 작업 커밋이 더해진 HEAD는 `df79b7f6ea2b82ee5ad053b8ff6e50d9fadfd533`이었다. 이 작업의 미커밋 제품·시험은 앞서 지정한 두 파일뿐이다.
