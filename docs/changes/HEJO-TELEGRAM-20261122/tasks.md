@@ -12,8 +12,8 @@
 | TASK-06 | 전체 시험·개인값 검사·보고 | NFR-HT-01·03 / AT-HT-43 | 없음(실행만) | TASK-04, TASK-05 | — | 통과(verdict 2차: 전체 427 passed·종료 0. HT-B02 수락 시험 해시 갱신. 개인값 검사는 다른 작업 4건, 이 작업 0건) |
 | TASK-07 | 서버 적용(별도 허가 지시 뒤에만): 적용 전 기록, 사장 준비 확인(봇·포럼 그룹·관리자 권한·토큰·허용 계정 — 사장이 직접), Hermes 환경 텔레그램 의존성 설치, 공용 릴리스, 재시작, 로그, 롤백 절차 | HT-09.AC-01·02 / AT-HT-60·61 | 공용 릴리스 폴더, Hermes venv 패키지, `H/evidence/HEJO-TELEGRAM/` | TASK-06 검토 통과 | 고위험(운영) · 3 | 완료(verdict 5차: RELEASE 0bcf635, 재시작 2026-11-23 01:16 KST, 전 연결·오류 0) |
 | TASK-07b | 앱 공개(다음 판): 버전 올림, 공개 스냅샷, 서명, 사장 공개 | HT-07의 배포 | `H/app/Resources/Info.plist`, 공개 산출물 | TASK-07 | 고위험(공개) | 완료: public 3f5cb6b github main 반영, v0.2.7 공개(2026-11-23) |
-| TASK-08 | 실물 수락 M1~M8(사장) | HT-09.AC-03 | `verdict.md` | TASK-07b | 고위험 · 4 | 대기 |
-| (계획) | 검증 완료 뒤 현재 명세 반영: `ARCHITECTURE.md` 금고·공용 창고 칸의 아이메시지 값 → 텔레그램, 4절 아이메시지 문단 → 텔레그램 문단 | — | `H/docs/ARCHITECTURE.md` | TASK-08 | 문서 | 대기 |
+| TASK-08 | 실물 수락 M1~M8(사장) | HT-09.AC-03 | `verdict.md` | TASK-07b | 고위험 · 4 | 통과(사장 M1~M8 "다됨", 2026-11-23) |
+| (계획) | 검증 완료 뒤 현재 명세 반영: `ARCHITECTURE.md` 금고·공용 창고 칸의 아이메시지 값 → 텔레그램, 4절 아이메시지 문단 → 텔레그램 문단 | — | `H/docs/ARCHITECTURE.md` | TASK-08 | 문서 | 완료(ARCHITECTURE 금고·공용 창고·4절, README 텔레그램 연결 안내) |
 | (후속 후보) | team-kit 안내원의 `photon` hejo 양보 검사 철거(이 작업 뒤 무동작) | — | `<운영 저장소>` team-kit | — | 범위 밖 | 기록만 |
 
 ## 병렬 갈래

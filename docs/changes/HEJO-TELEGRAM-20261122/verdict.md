@@ -138,3 +138,12 @@
 - 사장 지시 "공개해". public `3f5cb6bd35c6f57e862d09f809f9b1e2b1dd1f9c`는 이미 github main에 반영돼 있었다(`git ls-remote` 확인). 릴리즈 총괄(작업 4170ef93)에 먼저 알렸다(통합 릴리즈는 다음 판).
 - 계획 담당이 `install/hejo-ship publish --approve-commit 3f5cb6bd35c6f57e862d09f809f9b1e2b1dd1f9c --prepared .build/release-0.2.7/prepared.json` 실행 → 종료 0, "PUBLISHED v0.2.7"(로그 `.build/HEJO-TELEGRAM/publish/`). 선례: HEJO-DEADLINE-CLOSE 0.2.6.
 - 남은 일: 사장이 앱을 0.2.7로 업데이트 → 텔레그램 짝짓기·켜기 → TASK-08 M1~M8 → 현재 명세 반영.
+
+## 최종 판정 (2026-11-23) — 완료
+
+- 실물(TASK-08): 사장이 0.2.7로 업데이트 후 짝짓기·켜기("연결완료"). 서버 읽기 확인: 금고 `telegram.json` 0600·짝·코드 사용됨, 켜짐, 토픽 10개(닫힘 0), 보낸 글 7, telegram·hejo connected, 실행 RELEASE `0bcf635`(텔레그램 제품 `1ef3ad2` 포함), `gate.telegram` 경고·오류 0. 사장이 M3~M8을 폰으로 확인해 "다됨"(2026-11-23). 증거 수준 4.
+- 별건(이 작업 무관): `hejo_primary_unavailable`(예약 작업 하나의 hejo 방 보고 실패)이 2026-11-22 12:44부터 반복 — 후속 조사 후보.
+- 현재 명세 반영: `docs/ARCHITECTURE.md` 금고·공용 창고 칸과 4절 문 문단을 텔레그램으로 교체, README에 공항별 텔레그램 준비 순서, spec·design 상태 "적용", tasks 완료.
+- 완료 조건: REQ-HT-01~09 · AT-HT-01~45·50~52(수준 2, AT-HT-44 3) · AT-HT-60·61(수준 3) · M1~M8(수준 4) 충족. 검증 조건: 교차 모델(계획 Claude, 구현 Codex; TASK-07 재시작만 계획 담당 실행 후 구현 담당 교차 확인).
+- 공개: v0.2.7(public `3f5cb6b`, github main·tag 반영). 이 판정 이후 문서 커밋은 main에만 있고 원격 푸시는 공개 저장소 규칙상 다음 공개 스냅샷에 실린다.
+- **판정: 완료.**

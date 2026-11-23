@@ -1,6 +1,6 @@
 # HEJO-TELEGRAM 명세: 방의 바깥 메신저 문을 아이메시지에서 텔레그램 포럼 그룹으로
 
-- 상태: 2판(2026-11-22, 계획 검증 1회차 PR-01~05 반영 — [plan-review.md](plan-review.md)). 1판은 1회차 BLOCKED. 기준 커밋: [handoff.md](handoff.md) 0번.
+- 상태: 적용(2026-11-23, v0.2.7·RELEASE 0bcf635, 실물 M1~M8 통과 — [verdict.md](verdict.md)). 2판(2026-11-22, 계획 검증 1회차 PR-01~05 반영 — [plan-review.md](plan-review.md)). 1판은 1회차 BLOCKED. 기준 커밋: [handoff.md](handoff.md) 0번.
 - 근간: [ARCHITECTURE.md](../../ARCHITECTURE.md). 결정 요약: [brainstorm.md](brainstorm.md). 구조: [design.md](design.md). 수락 시험: [HEJO-TELEGRAM.md](../../../tests/acceptance/HEJO-TELEGRAM.md). 앞선 작업: [HEJO-IMESSAGE spec](../HEJO-IMESSAGE-20261119/spec.md).
 - 작업 유형: 의미 변경(아이메시지 문 교체) + 신규 기능. 위험도: 고위험(공통 4절 — 인증·권한: 짝짓기가 사장을 정함, 운영 수신 경로를 감쌈, 운영 중인 문 제거).
 

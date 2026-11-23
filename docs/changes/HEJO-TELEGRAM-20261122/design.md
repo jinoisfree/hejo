@@ -1,6 +1,6 @@
 # HEJO-TELEGRAM 설계
 
-- 상태: 2판(2026-11-22, 계획 검증 1회차 PR-01~04 반영 — [plan-review.md](plan-review.md)). 요구는 [spec.md](spec.md), 칸 배치는 [spec.md 첫 절](spec.md#칸원본쓰기-주체수명)이 원본이다. 앞선 설계 [HEJO-IMESSAGE design](../HEJO-IMESSAGE-20261119/design.md)의 정착·나누기·수신 일반화 결정을 이어받고, 다른 점만 적는다.
+- 상태: 적용(2026-11-23). 2판(2026-11-22, 계획 검증 1회차 PR-01~04 반영 — [plan-review.md](plan-review.md)). 요구는 [spec.md](spec.md), 칸 배치는 [spec.md 첫 절](spec.md#칸원본쓰기-주체수명)이 원본이다. 앞선 설계 [HEJO-IMESSAGE design](../HEJO-IMESSAGE-20261119/design.md)의 정착·나누기·수신 일반화 결정을 이어받고, 다른 점만 적는다.
 - 경로 약어: `R` = Hermes 본체(`~/.hermes/hermes-agent`), `T` = `R/plugins/platforms/telegram/adapter.py`, `B` = `R/gateway/platforms/base.py`, `TK` = `<운영 저장소>`의 team-kit `lib/hermes_router`.
 
 ## 1. 현황 (근거, 2026-11-22 읽기)

@@ -29,6 +29,16 @@ Hermes 모듈과 ruamel.yaml을 import할 수 있는 Python으로 실행한다. 
 
 설치·재설치는 각 프로필의 `platforms.hejo.home_channel`이 없을 때 그 프로필의 1:1 대화를 설정한다. 기존 설치를 갱신하다 실패하면 이번에 더한 홈 채널 키만 되돌리고 영수증은 `installed`로 남는다. 홈 채널만 되돌리려면 `--uninstall-home-channel`을 쓴다. 설치 도우미가 넣고 사장이 바꾸지 않은 값만 지우며, 사장 변경값은 `--uninstall --force`를 포함한 모든 제거에서 보존한다. `--check`의 `missing_target`은 빠진 홈 채널(종료 1), `owner_set`은 사장이 정한 값(정상)을 뜻한다.
 
+## 텔레그램 연결(폰에서 방 쓰기)
+
+공항(서버)마다 한 번 준비한다. 봇은 공항마다 따로 만든다(한 봇을 두 공항이 쓰면 메시지를 나눠 가져간다). 한 공항에는 그룹 하나·사장 계정 하나만 짝지어진다.
+
+1. 텔레그램 @BotFather에서 봇을 만들고 토큰을 받는다.
+2. 그룹을 만들고 설정에서 토픽(Topics)을 켠다. 봇을 그룹에 넣고 토픽 관리 권한이 있는 관리자로 지정한다.
+3. 서버에서 `hermes gateway setup` → Telegram → Manual. 토큰과 자기 텔레그램 숫자 계정 번호(@userinfobot)를 넣는다. Home channel 질문은 빈칸으로 엔터, 재시작 질문은 n. `TELEGRAM_GROUP_ALLOWED_CHATS`는 쓰지 않는다(그룹 전원을 허용한다).
+4. 게이트웨이를 한 번 재시작한다. 텔레그램 의존성은 Hermes가 처음 켤 때 설치한다.
+5. 앱 설정 → 연결과 동기화 → 텔레그램 → 연결 코드 받기 → 코드를 그룹에 보낸다 → 연결 켜기. 방마다 토픽이 생긴다.
+
 ## 개인값 검사
 
 Python 3와 ruamel.yaml이 필요하다. `python3 scripts/scan_private.py`는 Git 추적 텍스트 전체를 검사하며 운영 홈에서는 owner/team.yaml·owner/vault.yaml만 읽는다. `--home`과 `--repo`로 임시 공항·시험 저장소를 지정할 수 있다. 발견값은 출력하지 않고 종류·파일·줄·SHA-256 지문을 출력한다. 종료 0은 위반 없음, 1은 탐지, 2는 검사 오류다. 바이너리는 이름만 표시하고 생략한다.
