@@ -6,7 +6,7 @@
 | 연결 입력·확인 창 | 관제 화면 | app/Sources/ConnectionsWindow.swift | 앱 개발 | 앱 갱신까지 |
 | 연결 단계 | 기존 통신 규격 | schemas/ 및 기존 connection_action 응답 | 기존 문·시설 | 기존 계약 유지 |
 
-상태: 제안 v3, 화면 계획 승인 뒤 구현. 2026-11-24.
+상태: 적용 v3. 공개 통합 e8e28a998b8bbfc8b7586e328eebc9d7746fa9d2 및 로컬 설치 검증 완료. 원격 푸시 승인 대기. 2026-11-24.
 기준 커밋: 236b0177468b90d9ea23a1b1190e996db78a0694.
 근간: [ARCHITECTURE](../../ARCHITECTURE.md). 기존 의도: [연결 명세](../HEJO-CONNECTIONS-20261120/spec.md) REQ-HC-06.
 
