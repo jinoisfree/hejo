@@ -16,6 +16,22 @@ enum ConversationSidebar {
 final class SidebarAXMark:NSView {
     override func hitTest(_ point:NSPoint)->NSView?{nil}
 }
+/// AppKit retains cell heights across animated row updates unless the row lays them out.
+final class SidebarRowView:NSTableRowView {
+    override func layout(){
+        super.layout()
+        for case let cell as EmployeeSidebarCell in subviews where cell.frame != bounds {
+            cell.frame=bounds
+        }
+    }
+}
+/// Room ink must composite above the selection, not in the backing layer below it.
+private final class SidebarRoomInk:NSView {
+    weak var cell:EmployeeSidebarCell?
+    override var isFlipped:Bool{true}
+    override func hitTest(_ point:NSPoint)->NSView?{nil}
+    override func draw(_ dirtyRect:NSRect){cell?.drawRoomContents()}
+}
 final class EmployeeSidebarCell:NSTableCellView {
     var name="",unread=0,chosen=false,muted=false,pinned=false,dropTarget=false
     var list=false {didSet{if oldValue != list,duration>0 {let fade=CATransition();fade.type = .fade;fade.duration=duration;fade.timingFunction=SidebarMotion.curve;layer?.add(fade,forKey:"sidebar-form")}}}
@@ -25,9 +41,13 @@ final class EmployeeSidebarCell:NSTableCellView {
     private let counters=(0..<3).map{_ in CALayer()},numbers=(0..<3).map{_ in CATextLayer()},dots=(0..<3).map{_ in CALayer()}
     private let marks=(0..<5).map{_ in SidebarAXMark()}
     private var wasChosen=false
+    private let roomInk=SidebarRoomInk()
     override init(frame:CGRect){
-        super.init(frame:frame);wantsLayer=true;selection.cornerRadius=10;selection.opacity=0;layer?.addSublayer(selection);layer?.addSublayer(heading)
-        for i in 0..<3 {layer?.addSublayer(counters[i]);counters[i].addSublayer(numbers[i]);layer?.addSublayer(dots[i]);numbers[i].alignmentMode = .center; numbers[i].contentsScale=NSScreen.main?.backingScaleFactor ?? 2}
+        super.init(frame:frame);wantsLayer=true
+        selection.cornerRadius=10;selection.opacity=0;layer?.addSublayer(selection)
+        roomInk.cell=self;roomInk.wantsLayer=true;roomInk.layer?.zPosition=1;addSubview(roomInk)
+        heading.zPosition=2;layer?.addSublayer(heading)
+        for i in 0..<3 {counters[i].zPosition=2;dots[i].zPosition=2;layer?.addSublayer(counters[i]);counters[i].addSublayer(numbers[i]);layer?.addSublayer(dots[i]);numbers[i].alignmentMode = .center; numbers[i].contentsScale=NSScreen.main?.backingScaleFactor ?? 2}
         heading.contentsScale=NSScreen.main?.backingScaleFactor ?? 2;heading.truncationMode = .end
         for mark in marks {addSubview(mark);mark.setAccessibilityElement(true);mark.setAccessibilityRole(.image)}
     }
@@ -66,13 +86,14 @@ final class EmployeeSidebarCell:NSTableCellView {
             setAccessibilityLabel("\(name) \(row.items.count)개"+(!row.open && !labels.isEmpty ? ", 새 글 있음":"")+(row.open ? ", 펼쳐짐":", 접힘"));setAccessibilityValue(labels.joined(separator:", "))
             toolTip=name+" · 오른쪽 클릭으로 이름 편집 · "+(row.open ? "접기":"펼치기")
         } else {setAccessibilityLabel(name+(unread>0 ? ", 새 글 \(unread)개":"")+(faces.isEmpty ? "":", "+faces.map(\.0).joined(separator:", ")));toolTip=name}
-        needsLayout=true;needsDisplay=true
+        needsLayout=true;needsDisplay=true;roomInk.needsDisplay=true
     }
     override func viewDidChangeEffectiveAppearance(){super.viewDidChangeEffectiveAppearance();effectiveAppearance.performAsCurrentDrawingAppearance{refreshChrome()}}
     var faceRect:CGRect {let box:CGFloat=34;return CGRect(x:list ? (row?.kind == .home ? 20:36):(bounds.width-box)/2,y:list ? (bounds.height-box)/2:10,width:box,height:box)}
     static func markSize(_ name:String)->CGSize {NSImage(systemSymbolName:name,accessibilityDescription:nil)!.withSymbolConfiguration(.init(pointSize:8,weight:.regular))!.size}
     override func layout(){super.layout();guard let row else{return};let header=row.kind == .section || row.kind == .stack,box=faceRect
         CATransaction.begin();CATransaction.setDisableActions(true)
+        roomInk.frame=bounds;roomInk.needsDisplay=true
         selection.frame=list ? CGRect(x:row.kind == .home ? 10:26,y:3,width:max(0,bounds.width-(row.kind == .home ? 20:36)),height:max(0,bounds.height-6)):bounds.insetBy(dx:8,dy:3)
         let point:CGFloat=list ? 16:13,font=NSFont.systemFont(ofSize:point,weight:.bold),size=(name as NSString).size(withAttributes:[.font:font]),textX:CGFloat=list ? 26:7,available=max(0,bounds.width-textX-(list ? 14:7))
         heading.frame=CGRect(x:textX,y:(bounds.height-size.height)/2,width:available,height:size.height)
@@ -96,7 +117,10 @@ final class EmployeeSidebarCell:NSTableCellView {
         if row.kind == .section || row.kind == .stack {
             if dropTarget && row.kind == .section {NSColor.controlAccentColor.setStroke();let path=NSBezierPath(roundedRect:CGRect(x:12,y:4,width:max(0,bounds.width-16),height:bounds.height-8),xRadius:10,yRadius:10);path.lineWidth=2;path.stroke()};return
         }
-        guard row.kind == .home || row.kind == .room else{return}
+    }
+    fileprivate func drawRoomContents(){
+        guard let row,row.kind == .home || row.kind == .room else{return}
+        let dark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua
         FaceGroup.draw(faces,in:faceRect,picture:picture,direct:row.items.first?.kind == .direct,dark:dark)
         let paragraph=NSMutableParagraphStyle();paragraph.lineBreakMode = .byTruncatingTail;paragraph.alignment=list ? .left:.center
         let weight:NSFont.Weight=chosen || (list && unread>0) ? .semibold:.medium

@@ -783,6 +783,9 @@ import UniformTypeIdentifiers
         default:return ConversationSidebar.isList(sidebarWidth) ? 58:72
         }
     }
+    func tableView(_ tableView:NSTableView,rowViewForRow row:Int)->NSTableRowView? {
+        SidebarRowView()
+    }
     func tableView(_ tableView:NSTableView,viewFor column:NSTableColumn?,row:Int)->NSView? {
         if row==sidebarRows.count {return addRow};guard sidebarRows.indices.contains(row) else{return nil}
         let data=sidebarRows[row],id=NSUserInterfaceItemIdentifier(data.stableID)

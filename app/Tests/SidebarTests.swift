@@ -125,5 +125,94 @@ import QuartzCore
         }
         _=waiting
     }
+    try await sidebarSelectionRenderingTests()
     print("AT-HF-89 APP PASS")
+}
+
+/// A real table must resize its retained cells; opaque avatar ink must survive selection.
+@MainActor private func sidebarSelectionRenderingTests() async throws {
+    let directory=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer {try? FileManager.default.removeItem(at:directory)}
+    let controller=try testConversation(client:GateClient(store:try LocalStore(directory:directory),credentials:MemoryCredentials())),model=controller.model
+    defer {controller.client.stop()}
+    controller.receive(["type":"roster","employees":[["id":"alpha","name":"직원 A","aliases":[]],["id":"beta","name":"직원 B","aliases":[]]]])
+    let id="00000000-0000-4000-8000-000000000001"
+    controller.receive(["v":1,"type":"room","seq":1,"room":["id":id,"title":"시험 대화방","members":["alpha","beta"],"lead":"alpha","archived":false]])
+    model.toggleSection("1");model.pin("alpha",slot:1)
+    let ui=ConversationView(controller:controller);ui.frame=CGRect(x:0,y:0,width:800,height:700);ui.reduceMotion={true}
+    let window=NSWindow(contentRect:ui.frame,styleMask:.borderless,backing:.buffered,defer:false)
+    window.isReleasedWhenClosed=false;window.contentView=ui;window.orderFrontRegardless()
+    defer {window.orderOut(nil)}
+    func cell(_ room:String)throws->EmployeeSidebarCell {
+        let index=try homeRequire(ui.sidebarRows.firstIndex{$0.id==room},"HSS visible room")
+        ui.employeeTable.scrollRowToVisible(index)
+        return try homeRequire(ui.employeeTable.view(atColumn:0,row:index,makeIfNecessary:true) as? EmployeeSidebarCell,"HSS cell")
+    }
+    func layout() {ui.layoutSubtreeIfNeeded();window.displayIfNeeded();CATransaction.flush()}
+    func geometry(_ room:String)throws {
+        let c=try cell(room),index=try homeRequire(ui.sidebarRows.firstIndex{$0.id==room},"HSS row index")
+        layout()
+        let height:CGFloat=ui.sidebarWidth<124 ? 72:58
+        try check(ui.employeeTable.rect(ofRow:index).height==height && c.bounds.height==height && c.bounds.width==ui.employeeTable.rect(ofRow:index).width,"HSS cell follows native row height after width change")
+        try check(c.visibleRect.contains(c.selection.frame),"HSS complete selection fits the visible cell after width change")
+    }
+    ui.chooseEmployee(id);ui.setSidebarWidth(68);layout();await pause(0.05)
+    for reduced in [true,false] {
+        ui.reduceMotion={reduced}
+        for width:CGFloat in [212,180,300,68,212] {
+            ui.setSidebarWidth(width);layout();await pause(reduced ? 0.04:0.4)
+            try geometry(id)
+        }
+        ui.setSidebarWidth(68);layout();await pause(0.06);ui.setSidebarWidth(212);layout();await pause(0.4)
+        try geometry(id)
+    }
+    ui.reduceMotion={true}
+    let white=NSImage(size:CGSize(width:32,height:32));white.lockFocus();NSColor.white.setFill();CGRect(x:0,y:0,width:32,height:32).fill();white.unlockFocus()
+    func sample(_ c:EmployeeSidebarCell,at point:CGPoint) async throws->NSColor {
+        layout();await pause(0.04)
+        // cacheDisplay replays view drawing and can miss CALayer z-order defects.
+        // Capture only this fake-data window after the compositor has presented it.
+        let image=try homeRequire(CGWindowListCreateImage(.null,.optionIncludingWindow,CGWindowID(window.windowNumber),[.boundsIgnoreFraming,.bestResolution]),"HSS native window composite")
+        let rep=NSBitmapImageRep(cgImage:image),pixel=ui.convert(point,from:c)
+        return try homeRequire(rep.colorAt(x:Int(pixel.x*CGFloat(rep.pixelsWide)/ui.bounds.width),y:Int(pixel.y*CGFloat(rep.pixelsHigh)/ui.bounds.height))?.usingColorSpace(.sRGB),"HSS opaque avatar pixel")
+    }
+    for appearance in [NSAppearance.Name.aqua,.darkAqua] {
+        window.appearance=NSAppearance(named:appearance)
+        for room in [HomeRoom.id,id,"alpha"] {
+            if room==HomeRoom.id {ui.chooseHome()}else{ui.chooseEmployee(room)}
+            for width:CGFloat in [68,212] {
+                ui.setSidebarWidth(width);layout();await pause(0.05);try geometry(room)
+                let c=try cell(room)
+                for count in [1,2,4,6] {
+                    c.faces=(0..<count).map{("試\($0)",ProfileAvatar(image:white))};c.picture=nil
+                    // First face centres for the existing one/two/grid layouts.
+                    let dx:CGFloat=count==1 ? 0:count==2 ? -6:-9,dy:CGFloat=count==1 ? 0:count==2 ? -5:-9
+                    let point=CGPoint(x:c.faceRect.midX+dx,y:c.faceRect.midY+dy)
+                    for chosen in [false,true] {
+                        c.chosen=chosen;c.duration=0;c.refreshChrome();layout()
+                        let color=try await sample(c,at:point)
+                        try check(color.redComponent>0.98 && color.greenComponent>0.98 && color.blueComponent>0.98,"HSS opaque face stays white above selected background")
+                    }
+                }
+                c.picture=white;c.chosen=true;c.pinned=true;c.muted=true;c.unread=7;c.refreshChrome();layout()
+                let color=try await sample(c,at:CGPoint(x:c.faceRect.midX,y:c.faceRect.midY))
+                try check(color.redComponent>0.98 && color.greenComponent>0.98 && color.blueComponent>0.98,"HSS opaque room photo stays white above selection")
+                try check(c.accessibilityLabel()?.contains(c.name)==true,"HSS room accessibility survives foreground separation")
+                // Decorations do not become the hit target for the real table's room action.
+                let hit=c.hitTest(CGPoint(x:c.faceRect.midX,y:c.faceRect.midY))
+                try check(hit === c,"HSS avatar foreground does not intercept row input")
+            }
+        }
+    }
+    ui.chooseEmployee(id);ui.setSidebarWidth(212);layout()
+    model.toggleSection("1");layout();model.toggleSection("1");layout();await pause(0.05);try geometry(id)
+    ui.employeeSearch.stringValue="시험";ui.refresh();layout();ui.employeeSearch.stringValue="";ui.refresh();layout();await pause(0.05);try geometry(id)
+    for n in 2...16 {
+        let roomID=String(format:"00000000-0000-4000-8000-%012d",n)
+        controller.receive(["v":1,"type":"room","seq":n,"room":["id":roomID,"title":"스크롤 시험 \(n)","members":["alpha","beta"],"lead":"alpha","archived":false]])
+    }
+    ui.refresh();layout();ui.employeeTable.scrollRowToVisible(ui.employeeTable.numberOfRows-1);layout();await pause(0.05)
+    try geometry(id)
+    try check((try cell(id)).chosen,"HSS selection survives scrolling out and back")
+    print("HSS SELECTION GEOMETRY AND COMPOSITE PASS")
 }
