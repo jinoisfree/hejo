@@ -32,7 +32,11 @@ final class MemoryCredentials: GateCredentialStore {
         Task { @MainActor in
             do {
                 let args = CommandLine.arguments
-                if args.count == 3 && args[1] == "--hejo-perf-regression" {
+                if args.contains("--hejo-typing-boundaries") || args.contains("--hejo-typing-manual") {
+                    try await hejoTypingBoundaryTests(manual:args.contains("--hejo-typing-manual"))
+                } else if args.count == 5 && args[1] == "--hejo-typing" {
+                    try await hejoPerf(input: URL(fileURLWithPath: args[2]), output: URL(fileURLWithPath: args[3]), measure: true, typingMode: args[4])
+                } else if args.count == 3 && args[1] == "--hejo-perf-regression" {
                     #if HEJO_PERF_TESTING
                     try await hejoPerfRegressionTests()
                     try conversationUpdateTests(resourceDirectory: URL(fileURLWithPath: args[2]))

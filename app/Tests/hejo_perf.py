@@ -53,16 +53,33 @@ def build(skip):
     with (EVIDENCE / "compile.log").open("w") as log:
         result = subprocess.run(command, cwd=REPO, stdout=log, stderr=subprocess.STDOUT)
     if result.returncode:
-        raise RuntimeError("Compile failed; see .build/hejo-perf-evidence/compile.log")
+        raise RuntimeError("Compile failed; see " + str(EVIDENCE / "compile.log"))
     write_json(receipt, {"input": fingerprint, "binary_sha256": digest(binary), "compile_exit_code": result.returncode})
     return binary
+
+
+def run_probe(command, env, log, timeout):
+    """Reap timed-out probes and preserve the actual child status."""
+    with subprocess.Popen(command, cwd=REPO, env=env, stdout=log, stderr=subprocess.STDOUT) as child:
+        try:
+            return child.wait(timeout=timeout), False
+        except subprocess.TimeoutExpired:
+            child.terminate()
+            try:
+                code = child.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                child.kill()
+                code = child.wait()
+            return code, True
 
 
 def main():
     global EVIDENCE
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=["freeze", "check", "measure", "home", "regression"])
+    parser.add_argument("mode", choices=["freeze", "check", "measure", "home", "regression", "typing-home", "typing-direct", "typing-group", "typing-home-receive", "typing-direct-receive", "typing-group-receive"])
     parser.add_argument("--no-build", action="store_true")
+    parser.add_argument("--expect-baseline", action="store_true")
+    parser.add_argument("--timeout", type=float, default=180)
     parser.add_argument("--evidence", type=Path, default=EVIDENCE)
     args = parser.parse_args()
     EVIDENCE = args.evidence.resolve()
@@ -88,20 +105,26 @@ def main():
     output.mkdir()
     with tempfile.TemporaryDirectory(prefix="isolated-home-", dir=EVIDENCE) as home:
         Path(home, "hejo-perf-isolated").touch()
-        env = os.environ | {"HERMES_HOME": home, "TZ": "UTC", "HEJO_THREE_TAP_TRACE": ""}
+        env = os.environ | {"HEJO_TYPING_BASELINE": "1" if args.expect_baseline else "0","HERMES_HOME": home, "TZ": "UTC", "HEJO_THREE_TAP_TRACE": ""}
         with (output / "run.log").open("w") as log:
             command = [str(binary), "--hejo-perf", str(FIXTURE / "input.json"), str(output),
                        args.mode if args.mode in {"measure", "home"} else "semantic"]
+            if args.mode.startswith("typing-"):
+                command = [str(binary), "--hejo-typing", str(FIXTURE / "input.json"), str(output), args.mode]
             if args.mode == "regression":
                 resources = os.environ.get("HEJO_PERF_PET_DIR", str(REPO / "app/.build/hejo.app/Contents/Resources/Pet"))
                 command = [str(binary), "--hejo-perf-regression", resources]
-            result = subprocess.run(command, cwd=REPO, env=env, stdout=log, stderr=subprocess.STDOUT)
-    write_json(output / "execution.json", {"exit_code": result.returncode, "head": git("rev-parse", "HEAD"),
+            exit_code, timed_out = run_probe(command, env, log, args.timeout)
+    stages = [line for line in (output / "run.log").read_text().splitlines() if line.startswith("HEJO_PERF_STAGE ")]
+    samples = json.loads((output / "performance.json").read_text())["runs"] if (output / "performance.json").exists() else []
+    input_samples = sum(len(json.loads(path.read_text())["events"]) for path in output.glob("typing-run-*.json"))
+    write_json(output / "execution.json", {"exit_code": exit_code, "input_samples": input_samples, "timeout": timed_out,
+               "last_stage": stages[-1] if stages else None, "samples": len(samples), "expect_baseline": args.expect_baseline, "head": git("rev-parse", "HEAD"),
                "source_tree": git("rev-parse", "HEAD:app/Sources"), "product_diff": git("diff", "HEAD", "--", "app/Sources"),
                "binary_sha256": digest(binary), "platform": platform.platform(),
                "input_sha256": digest(FIXTURE / "input.json"), "timezone": "UTC"})
-    if result.returncode:
-        raise RuntimeError("Probe failed; see run.log (exit " + str(result.returncode) + ")")
+    if timed_out or exit_code:
+        raise RuntimeError("Probe failed; see execution.json and run.log (exit " + str(exit_code) + ", timeout=" + str(timed_out) + ")")
     observed = output / "observed.json"
     if args.mode == "freeze":
         # Exclusive creation: never replace an earlier baseline, including a partial freeze.

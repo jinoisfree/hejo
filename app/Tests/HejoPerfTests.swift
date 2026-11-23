@@ -4,7 +4,7 @@ import Darwin
 
 /// TASK-01A observes unmodified production paths. Expected results live in a frozen fixture;
 /// this harness never creates or updates the expected file.
-@MainActor func hejoPerf(input: URL, output: URL, measure: Bool, startInHome: Bool = false) async throws {
+@MainActor func hejoPerf(input: URL, output: URL, measure: Bool, startInHome: Bool = false, typingMode: String? = nil) async throws {
     let fm = FileManager.default
     guard let home = ProcessInfo.processInfo.environment["HERMES_HOME"],
           fm.fileExists(atPath: home + "/hejo-perf-isolated") else {
@@ -85,7 +85,7 @@ import Darwin
     try fm.createDirectory(at: output, withIntermediateDirectories: true)
     try perfWrite(["input_sha256": perfSHA(data), "snapshots": snapshots], output.appendingPathComponent("observed.json"))
     print("HEJO_PERF_SEMANTIC_OBSERVED steps=\(snapshots.count)"); fflush(stdout)
-    if measure { try await hejoPerfMeasure(fixture["workload"] as! [String: Any], home: directory, output: output, startInHome: startInHome) }
+    if measure { try await hejoPerfMeasure(fixture["workload"] as! [String: Any], home: directory, output: output, startInHome: startInHome, typingMode: typingMode) }
 }
 
 private func perfSHA(_ data: Data) -> String { SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined() }
@@ -99,7 +99,12 @@ private func perfCPU() -> Double {
     return Double(value.ru_utime.tv_sec + value.ru_stime.tv_sec) + Double(value.ru_utime.tv_usec + value.ru_stime.tv_usec) / 1_000_000
 }
 
-@MainActor private func hejoPerfMeasure(_ config: [String: Any], home: URL, output: URL, startInHome: Bool = false) async throws {
+@MainActor private func hejoPerfMeasure(_ config: [String: Any], home: URL, output: URL, startInHome: Bool = false, typingMode: String? = nil) async throws {
+    func stage(_ name: String, run: Int = -1, frame: Int = -1) {
+        print("HEJO_PERF_STAGE time=\(ProcessInfo.processInfo.systemUptime) run=\(run) frame=\(frame) name=\(name)")
+        fflush(stdout)
+    }
+    stage("prepare")
     let rooms = config["rooms"] as! Int, count = config["threads_per_room"] as! Int, posts = config["posts_per_thread"] as! Int
     let now = Date(timeIntervalSince1970: config["now"] as! Double)
     let formatter = ISO8601DateFormatter()
@@ -121,6 +126,15 @@ private func perfCPU() -> Double {
             }
         }
     }
+    if typingMode?.contains("group") == true {
+        frames[0]["rooms"] = (0..<rooms).map { room in
+            ["id": uuid(900_000 + room), "title": "시험 방 \(room)", "description": "", "members": ["fixture-\(room)", "fixture-\((room + 1) % rooms)"], "lead": "fixture-\(room)", "archived": false] as [String: Any]
+        }
+        for index in 1..<frames.count {
+            let room = (index - 1) / (count * posts)
+            frames[index]["room"] = uuid(900_000 + room)
+        }
+    }
     // Streaming uses the journal's edit path; initial loading has no view attached.
     for room in 0..<rooms {
         seq += 1
@@ -130,23 +144,43 @@ private func perfCPU() -> Double {
     let wire = try JSONSerialization.data(withJSONObject: frames, options: [.sortedKeys])
     try wire.write(to: output.appendingPathComponent("workload-frames.json"))
     let workloadHash = perfSHA(wire)
+    stage("fixture-ready")
     var results = [[String: Any]]()
     // One warm-up and five independent stores/views, with identical frame order each time.
     for run in 0...5 {
+        stage("store", run: run)
         let store = try LocalStore(directory: home.appendingPathComponent("performance-\(run)"))
         let client = GateClient(store: store, credentials: MemoryCredentials())
         let controller = try testConversation(client: client)
         controller.stop(); controller.clock = { now }
-        for frame in frames { _ = try await client.receive(frame) }
-        if startInHome { controller.model.selectHome() }
-        else { controller.model.select(ConversationKey(employee: "fixture-0", thread: uuid(1))) }
+        stage("fixture-load", run: run)
+        for (index, frame) in frames.enumerated() {
+            _ = try await client.receive(frame)
+            if index % 100 == 0 { stage("fixture-load", run: run, frame: index) }
+        }
+        stage("fixture-loaded", run: run)
+        if startInHome || typingMode?.contains("home") == true { controller.model.selectHome() }
+        else { controller.model.select(ConversationKey(employee: typingMode?.contains("group") == true ? uuid(900_000) : "fixture-0", thread: uuid(1))) }
+        stage("view-create", run: run)
         let view = ConversationView(controller: controller, clipboardArea: store.directory.appendingPathComponent("clipboard"), islandModel: IslandModel(clock: { now }))
         view.frame = CGRect(x: 0, y: 0, width: 840, height: 760)
         view.reduceMotion = { true }
         view.motionTime = { 10 }
         let window = NSWindow(contentRect: view.frame, styleMask: [.titled], backing: .buffered, defer: false)
         window.contentView = view
-        view.refresh(); view.layoutSubtreeIfNeeded()
+        stage("initial-refresh", run: run)
+        view.refresh()
+        stage("initial-layout", run: run)
+        view.layoutSubtreeIfNeeded()
+        stage(run == 0 ? "warm-up" : "measure", run: run)
+        if let typingMode {
+            let row = try await hejoTypingSample(view: view, controller: controller, run: run, mode: typingMode, sequence: seq, message: uuid(10_000 + posts * 4), output: output)
+            results.append(row)
+            try perfWrite(["config": config, "runs": results], output.appendingPathComponent("performance.json"))
+            controller.onChange = nil; controller.onRevealThread = nil; controller.stop(); client.stop()
+            window.contentView = nil; window.orderOut(nil)
+            continue
+        }
         var receiveCosts = [Double](), refreshCosts = [Double]()
         var queuedAt = 0.0, inputLatency = -1.0, switchLatency = -1.0, switchCost = -1.0
         var inputBeforeEnd = false, switchBeforeEnd = false, ended = false
@@ -157,9 +191,12 @@ private func perfCPU() -> Double {
                 queuedAt = begin
                 // Queue real AppKit editor/room actions while the first receive is rendering.
                 // This is a synthetic main-queue probe, not an OS keyboard or socket-rate measurement.
+                stage("input-submit", run: run)
                 DispatchQueue.main.async {
+                    stage("input-start", run: run)
                     inputLatency = ProcessInfo.processInfo.systemUptime - queuedAt
                     view.editor.editor.insertText("x", replacementRange: NSRange(location: 0, length: 0))
+                    stage("input-complete", run: run)
                     inputBeforeEnd = !ended
                 }
                 DispatchQueue.main.async {
@@ -198,6 +235,7 @@ private func perfCPU() -> Double {
                                 "input_before_end": inputBeforeEnd, "switch_before_end": switchBeforeEnd,
                                 "messages": controller.model.messages.count, "frames_in_window": 4,
                                 "rendered_cards": view.history.contents.filter { UUID(uuidString: $0.id) != nil }.count]
+        stage("sample-complete", run: run)
         results.append(row)
         try perfWrite(["config": config, "runs": results], output.appendingPathComponent("performance.json"))
         print("HEJO_PERF_RUN \(run) wall=\(elapsed) cpu=\(100 * cpuSeconds / elapsed) input=\(inputLatency) switch=\(switchLatency) refreshes=\(refreshCosts.count)"); fflush(stdout)

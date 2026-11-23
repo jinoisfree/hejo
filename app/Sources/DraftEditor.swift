@@ -28,7 +28,22 @@ final class DraftTextView: NSTextView {
         let values=mentions.map{"@"+$0}.filter{$0.lowercased().hasPrefix(prefix.lowercased())}
         completingMention = !values.isEmpty;index?.pointee=0;return values
     }
-    override func insertCompletion(_ word:String,forPartialWordRange range:NSRange,movement:Int,isFinal:Bool){super.insertCompletion(word,forPartialWordRange:range,movement:movement,isFinal:isFinal);if isFinal {completingMention=false}}
+    // AppKit completion edits synchronously notify the conversation delegate.
+    // Keep those notifications from reopening completion while it is being applied.
+    private var updatingCompletion=false
+    override func complete(_ sender: Any?) {
+        guard !updatingCompletion else {return}
+        updatingCompletion=true
+        defer {updatingCompletion=false}
+        super.complete(sender)
+    }
+    override func insertCompletion(_ word:String,forPartialWordRange range:NSRange,movement:Int,isFinal:Bool) {
+        let wasUpdating=updatingCompletion
+        updatingCompletion=true
+        defer {updatingCompletion=wasUpdating}
+        super.insertCompletion(word,forPartialWordRange:range,movement:movement,isFinal:isFinal)
+        if isFinal {completingMention=false}
+    }
     var onSubmit: (() -> Void)?
     override func keyDown(with event: NSEvent) {
         if completingMention,[36,76,48,53,123,124,125,126].contains(event.keyCode) {super.keyDown(with:event);return}

@@ -91,6 +91,7 @@ import AppKit
     try client.pair(address:args[3],code:"test_code-12",device:"fake composer")
     try await waitFor{controller.canSend && controller.model.messages.count==1}
     let ui=ConversationView(controller:controller);ui.frame=CGRect(x:0,y:0,width:820,height:640);ui.chooseEmployee("alpha")
+    try hejoTypingConnectedChecks(view:ui,controller:controller)
     let key=controller.model.selected!;try await waitFor{controller.model.typing[key] != nil};controller.setText("delay");ui.refresh()
     await controller.sendCurrent();ui.refresh()
     let echo=try homeRequire(controller.timeline(key).first{$0.pending},"AT88 optimistic echo exists before confirmation")
@@ -133,5 +134,6 @@ import AppKit
     do{_=try await controller.files.upload(changed,employee:"alpha",expectedSize:1);throw TestFailure.assertion("AT88 changed file accepted")}
     catch let error as OutgoingFileProblem {try check(error.message=="보내는 사이 파일이 바뀌었어요. 다시 보내 주세요: changed.txt","AT88 real loader reports changed filename")}
     try check(echo.clientMessageID != nil,"AT88 echo uses actual confirmation identity")
+    try hejoTypingNoSelectionChecks(view:ui,controller:controller)
     print("AT-HF-88 NETWORK PASS")
 }

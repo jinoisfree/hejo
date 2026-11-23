@@ -624,8 +624,6 @@ import UniformTypeIdentifiers
             if !model.isHome && composerMembers.count<2 {composerMembers=[]}
             composerFaces.faces=composerMembers.map { (model.name($0),controller.avatar($0)) }
             composerFaces.homeStyle=model.isHome
-            let light=model.homeRecipients.light(text:controller.draft.text,picked:controller.draft.picks.first,replying:replyMode ? selected?.employee:nil)
-            composerFaces.lit=model.isHome ? light.id.flatMap{composerMembers.firstIndex(of:$0)}:nil;composerFaces.ring=model.isHome && light.ring;composerFaces.explicitlyPicked = !replyMode && !controller.draft.picks.isEmpty
             editor.editor.mentions=(model.isHome ? model.homeRecipients.members:model.people(selected?.employee ?? "")).map(\.name)
             addRoom.toolTip="새 방·섹션 만들기, 뺀 방·보관된 방 다시 넣기";addRoom.setAccessibilityLabel("방 추가")
             let rowHeight = ConversationSidebar.isList(sidebarWidth) ? ConversationSidebar.rowHeight : ConversationSidebar.tabHeight
@@ -662,8 +660,7 @@ import UniformTypeIdentifiers
                 editor.editor.typingAttributes=MessageFormat.Style(size:ChatMetrics.bodyFont).attributes;editorFontSize=ChatMetrics.bodyFont;editor.measure()
             }
             displayedKey=selected;writingKey=controller.composeKey;writingPlace=placeNamespace
-            draftHint.stringValue=composerPrompt
-            draftHint.isHidden = !editor.editor.string.isEmpty; editor.editor.setAccessibilityLabel(draftHint.stringValue+" · Enter 보내기, Shift Enter 줄바꿈")
+            refreshInputPresentation()
             if attachmentURLs != draft.attachments {
                 let removed=attachments.arrangedSubviews.filter{view in guard let index=attachments.arrangedSubviews.firstIndex(of:view),attachmentURLs.indices.contains(index) else{return true};return !draft.attachments.contains(attachmentURLs[index])}
                 for view in removed {attachments.removeArrangedSubview(view)
@@ -677,7 +674,6 @@ import UniformTypeIdentifiers
             }
             chipMotion.target(draft.attachments.isEmpty ? 0:1,now:motionTime(),immediate:reduceMotion())
             editor.editor.isEditable=selected != nil
-            sendButton.isEnabled=selected != nil && controller.canSend && (!draft.text.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty || !draft.attachments.isEmpty)
             attachButton.isEnabled=selected != nil
             replyButton.isEnabled = model.isHome ? !model.homeThreads.isEmpty : newest(model.selectionIdentity) != nil
             replyButton.isEnabled = replyButton.isEnabled && !replyMode;newButton.isEnabled=replyMode
@@ -890,11 +886,23 @@ import UniformTypeIdentifiers
     private var appearanceObserver: NSObjectProtocol?
     private var editorFontSize=ChatMetrics.bodyFont
     func applyChatAppearance(){refresh();needsLayout=true;needsDisplay=true}
+    // Shared by model refresh and editing; never restores text storage or rebuilds history.
+    private func refreshInputPresentation() {
+        let model=controller.model,draft=controller.draft
+        let light=model.homeRecipients.light(text:draft.text,picked:draft.picks.first,replying:replyMode ? model.selected?.employee:nil)
+        composerFaces.lit=model.isHome ? light.id.flatMap{composerMembers.firstIndex(of:$0)}:nil
+        composerFaces.ring=model.isHome && light.ring
+        composerFaces.explicitlyPicked = !replyMode && !draft.picks.isEmpty
+        draftHint.stringValue=composerPrompt
+        draftHint.isHidden = !editor.editor.string.isEmpty
+        editor.editor.setAccessibilityLabel(draftHint.stringValue+" · Enter 보내기, Shift Enter 줄바꿈")
+        sendButton.isEnabled=model.selected != nil && controller.canSend && (!draft.text.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty || !draft.attachments.isEmpty)
+        sendButton.needsDisplay=true
+    }
     func textDidChange(_ notification:Notification) {
         if let key=displayedKey { controller.setText(MessageFormat.serialize(editor.editor.attributedString(),baseSize:editorFontSize),for:controller.composeKey ?? key) }
-        draftHint.isHidden = !editor.editor.string.isEmpty; formatting.refresh(); editor.measure()
-        if controller.model.isHome {refresh()}
-        sendButton.isEnabled=controller.canSend && (!editor.editor.string.isEmpty || !controller.draft.attachments.isEmpty); sendButton.needsDisplay=true
+        formatting.refresh(); editor.measure()
+        refreshInputPresentation()
         if !editor.editor.hasMarkedText(),editor.editor.rangeForUserCompletion.location != NSNotFound {editor.editor.complete(nil)}
     }
     func textViewDidChangeSelection(_ notification:Notification) { formatting.refresh() }
