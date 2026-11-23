@@ -45,6 +45,10 @@ final class MemoryCredentials: GateCredentialStore {
                     #endif
                 } else if args.count == 5 && args[1] == "--hejo-perf" {
                     try await hejoPerf(input: URL(fileURLWithPath: args[2]), output: URL(fileURLWithPath: args[3]), measure: args[4] == "measure" || args[4] == "home", startInHome: args[4] == "home")
+                } else if args.contains("--pet-position") {
+                    try await petPositionTests(resourceDirectory:URL(fileURLWithPath:args.last!))
+                } else if args.contains("--pet-position-manual") {
+                    try await petPositionManual(args)
                 } else if args.contains("--ui-clean-polish-probe") {
                     try await uiCleanPolishTests(resourceDirectory:URL(fileURLWithPath:args.last!),diagnoseOnly:true)
                 } else if args.contains("--ui-clean-polish") {
@@ -182,6 +186,7 @@ final class MemoryCredentials: GateCredentialStore {
         #if HEJO_PERF_TESTING
         try await hejoPerfRegressionTests()
         #endif
+        try await petPositionTests(resourceDirectory:URL(fileURLWithPath:CommandLine.arguments.last!))
         try await telegramTests()
         try workMonitorTests();try await dashboardTests()
         try await calendarTests()
@@ -272,18 +277,14 @@ final class MemoryCredentials: GateCredentialStore {
         controller.displays = { [first] }
         NotificationCenter.default.post(name: NSApplication.didChangeScreenParametersNotification, object: nil)
         try check(first.visible.contains(controller.placementTarget!.globalBubble), "AT48 removed display clamps placement")
-        // Original PetCarrySmoke invariant: carrying from the top holds the bottom, then grows downward past the top.
-        let topOrigin = PetLayout.sprite(foot: CGPoint(x: first.visible.midX, y: first.frame.maxY + 500), scale: controller.pet.petScale).origin
-        controller.preferredChatSize.height = 600; controller.placePet(at: topOrigin)
-        let carry = controller.placementTarget!
-        try check(carry.bubbleBelow, "carry opens below at top")
-        let anchor = carry.anchorOrigin
-        controller.movePet(to: CGPoint(x: anchor.x, y: anchor.y - 40))
-        let down = controller.placementTarget!.globalBubble
-        try check(abs(down.minY - carry.globalBubble.minY) < 1 && abs(down.height - carry.globalBubble.height + 40) < 1, "carry down keeps bottom and shrinks")
-        controller.movePet(to: CGPoint(x: anchor.x, y: anchor.y + 40))
-        let up = controller.placementTarget!.globalBubble
-        try check(abs(up.minY - carry.globalBubble.minY + 40) < 1 && abs(up.height - carry.globalBubble.height - 40) < 1, "carry beyond top grows downward")
+        // REQ-PP-02 replaces carried-height: movement never rewrites preferred chat height.
+        let topOrigin = PetLayout.sprite(foot: CGPoint(x:first.visible.midX,y:first.frame.maxY+500),scale:controller.pet.petScale).origin
+        controller.preferredChatSize.height=600;controller.placePet(at:topOrigin)
+        let carry=controller.placementTarget!, preferred=controller.preferredChatSize
+        controller.movePet(to:CGPoint(x:carry.anchorOrigin.x,y:carry.anchorOrigin.y-40))
+        try check(abs(controller.placementTarget!.globalSprite.minY-carry.globalSprite.minY+40)<0.01 && controller.preferredChatSize==preferred,"carry down translates pet without resizing chat")
+        controller.movePet(to:CGPoint(x:carry.anchorOrigin.x,y:carry.anchorOrigin.y+40))
+        try check(controller.preferredChatSize==preferred,"carry beyond screen does not grow chat preference")
         controller.endPetDrag()
         controller.panel.orderOut(nil)
         try check(LoginLaunchPresentation.resolve(.enabled, installed: false).canChange == false, "login registration requires installation")

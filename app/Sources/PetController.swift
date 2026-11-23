@@ -12,7 +12,7 @@ struct PetDisplay {
         pow(max(r.minX-p.x, 0, p.x-r.maxX), 2) + pow(max(r.minY-p.y, 0, p.y-r.maxY), 2)
     }
 }
-/// Owns one panel. All placements derive from the sprite's foot, including screen changes.
+/// Owns one panel. The pet follows input; the conversation independently avoids it and screen edges.
 final class PetController: NSObject {
     let panel: PetPanel
     let pet: PetView
@@ -61,8 +61,6 @@ final class PetController: NSObject {
     var fittedThreadHeight: CGFloat?
     private(set) var web: WebPaneModel?
     private var savedPaneWidth: CGFloat?, savedPaneHeight: CGFloat?
-    private var paneAnchor: CGPoint?, paneBelow: Bool?
-    private var paneWasOpen = false
     private var paneBase: CGFloat = 0
     private var paneTargetWidth: CGFloat = 0
     func installWeb(_ model: WebPaneModel) {
@@ -76,7 +74,7 @@ final class PetController: NSObject {
         guard let p = placementTarget else { return false }
         let screen = PetDisplay.nearest(to: p.globalSprite.origin, in: displays())
         return PetLayout.paneSplit(base: preferredChatSize.width, minimumBase: PetLayout.minimumChatSize.width + ConversationSidebar.width,
-                                  wanted: savedPaneWidth ?? PetLayout.defaultPaneWidth, available: screen.visible.width - 24 - (drawerOpen && chatExpanded ? Self.drawerWidth:0)).pane >= PetLayout.usablePaneWidth
+                                  wanted: savedPaneWidth ?? PetLayout.defaultPaneWidth, available: max(0,screen.visible.width - 24 - (drawerOpen && chatExpanded ? Self.drawerWidth:0))).pane >= PetLayout.usablePaneWidth
     }
     func showBeside(_ file: URL) -> Bool {
         guard chatExpanded, WebAddress.showsFile(file), paneFits, let web else { return false }
@@ -95,10 +93,7 @@ final class PetController: NSObject {
     }
     private func webChanged() {
         guard let web else { return }
-        if web.open && !paneWasOpen { paneAnchor = placementTarget?.anchorOrigin; paneBelow = resizedBelow }
-        let anchor = paneAnchor ?? placementTarget?.anchorOrigin
-        if !web.open && paneWasOpen { resizedBelow = paneBelow; paneAnchor = nil; paneBelow = nil }
-        paneWasOpen = web.open
+        let anchor = placementTarget?.anchorOrigin
         guard chatExpanded, let anchor else { if !web.open { web.unload() }; return }
         let animated = timer == nil && !reducedMotion()
         web.sliding = animated
@@ -149,7 +144,6 @@ final class PetController: NSObject {
     private var bubbleMotion=PetBubbleMotion()
     private var widthFadeStart:Double?
     private var transitionStart:Double=0,genieStart:CGFloat=0
-    private var foldedPerchAnchor:CGPoint?
     private var chatDrag:(point:CGPoint,placement:PetPlacement)?
     var onFocus:(()->Void)?
     private var outsideMonitor:Any?
@@ -157,7 +151,6 @@ final class PetController: NSObject {
     var onReadingResizeBegan:(()->Void)?,onReadingResizeEnded:(()->Void)?
     var shownChatHeight:CGFloat? { guard let target=placementTarget,abs(bubbleMotion.size.height-target.globalBubble.height)>0.2 else{return nil};return bubbleMotion.size.height }
 
-    private var petDragBottom: CGFloat?
     private var resizedBelow: Bool?
     private var resizeStart: PetPlacement?
     init(store: LocalStore, atlas: SpriteAtlas) {
@@ -227,14 +220,7 @@ final class PetController: NSObject {
         let start=continuing ? transitionProgress:(expanded ? 0:1)
         timer?.invalidate();timer=nil
         bubbleMotion.glide(now:clock())
-        let reopeningAnchor=expanded ? foldedPerchAnchor:nil
-        if expanded {
-            if reopeningAnchor != nil {resizedBelow=true}
-            foldedPerchAnchor=nil
-        } else {
-            foldedPerchAnchor=old.globalSprite.width < pet.petScale*192 ? old.anchorOrigin:nil
-            pet.disarmBubbleHover();resizedBelow=nil
-        }
+        if !expanded { pet.disarmBubbleHover(); resizedBelow=nil }
         chatExpanded=expanded;panel.chatExpanded=expanded
         // Capture the closing picture before folding the model, or keep the current picture on reversal.
         if !expanded && !continuing {ThreeTapDiagnostics.mark("capture_start");pet.captureGenie();ThreeTapDiagnostics.mark("capture_end")}
@@ -247,7 +233,7 @@ final class PetController: NSObject {
         // Flush the final conversation synchronously, before layout and the opening snapshot.
         if let updateConversation { updateConversation(updates) } else { updates() }
         ThreeTapDiagnostics.mark("callbacks_end")
-        placePet(at:reopeningAnchor ?? old.anchorOrigin)
+        placePet(at:old.anchorOrigin)
         ThreeTapDiagnostics.mark("placement_end")
         guard let target=placementTarget else{return}
         let open=expanded ? target:old
@@ -301,14 +287,13 @@ final class PetController: NSObject {
     func moveChatDrag(to point:CGPoint){
         guard let drag=chatDrag else{return}
         let screen=PetDisplay.nearest(to:point,in:displays())
-        let base=PetPlacement(globalSprite:drag.placement.globalSprite,globalBubble:drag.placement.contentBubble,userScale:pet.petScale,expanded:true)
-        let p=base.dragged(by:CGPoint(x:point.x-drag.point.x,y:point.y-drag.point.y),visibleFrame:screen.visible,screenFrame:screen.frame).withDrawer(drawerOpen ? Self.drawerWidth:0,visibleFrame:screen.visible)
+        let p=drag.placement.dragged(by:CGPoint(x:point.x-drag.point.x,y:point.y-drag.point.y),visibleFrame:screen.visible,screenFrame:screen.frame)
         placementTarget=p;resizedBelow=p.bubbleBelow
         bubbleMotion.retarget(p.globalBubble.origin,visibleFrame:screen.visible,now:clock(),immediately:true,size:p.globalBubble.size,headerAtTop:p.expanded && p.bubbleBelow)
         apply(p)
     }
-    func endChatDrag(){guard chatDrag != nil else{return};chatDrag=nil;if drawerOpen,let p=placementTarget {placePet(at:p.anchorOrigin)};endPetDrag()}
-    func placePet(at origin: CGPoint) {
+    func endChatDrag(){guard chatDrag != nil else{return};chatDrag=nil;endPetDrag()}
+    func placePet(at origin: CGPoint, bubble: CGRect? = nil) {
         guard chatDrag==nil else{return}
         let sprite = CGRect(origin: origin, size: PetLayout(scale: pet.petScale).spriteSize)
         let foot = PetLayout.visibleSprite(in: sprite)
@@ -316,14 +301,26 @@ final class PetController: NSObject {
         var size = preferredChatSize
         if chatExpanded {size.height=max(size.height,fittedThreadHeight ?? 0)}
         let wanted = chatExpanded && web?.open == true ? savedPaneWidth ?? PetLayout.defaultPaneWidth : 0
-        let split = PetLayout.paneSplit(base: size.width, minimumBase: PetLayout.minimumChatSize.width + ConversationSidebar.width, wanted: wanted, available: screen.visible.width - 24 - (drawerOpen && chatExpanded ? Self.drawerWidth:0))
+        let split = PetLayout.paneSplit(base: size.width, minimumBase: PetLayout.minimumChatSize.width + ConversationSidebar.width, wanted: wanted, available: max(0,screen.visible.width - 24 - (drawerOpen && chatExpanded ? Self.drawerWidth:0)))
         size.width = split.base
         size.height = PetLayout.paneHeight(base: size.height, open: wanted > 0, saved: savedPaneHeight)
         paneBase = split.base; paneTargetWidth = split.pane
         if web?.sliding == true { pet.paneSliding = true }
         else { pet.paneWidth = split.pane; web?.width = split.pane; if split.pane > 0 { web?.layoutWidth = split.pane } }
-        let target = PetPlacement(spriteOrigin: origin, scale: pet.petScale, visibleFrame: screen.visible, screenFrame: screen.frame,
-                                  bubbleSize: pet.foldedSize, expanded: chatExpanded, preferredSize: size, below: resizedBelow, trailing: split.pane, expandToFit: wanted > 0, drawer: drawerOpen ? Self.drawerWidth:0)
+        var target = PetPlacement(spriteOrigin: origin, scale: pet.petScale, visibleFrame: screen.visible, screenFrame: screen.frame,
+                                  bubbleSize: pet.foldedSize, expanded: chatExpanded, preferredSize: size, below: resizedBelow, trailing: split.pane, drawer: drawerOpen ? Self.drawerWidth:0)
+        if chatExpanded, let old=placementTarget, old.expanded {
+            let dx=target.globalSprite.minX-old.globalSprite.minX, dy=target.globalSprite.minY-old.globalSprite.minY
+            let size=CGSize(width:split.base+split.pane+(drawerOpen ? Self.drawerWidth:0),height:size.height)
+            let candidate=bubble ?? CGRect(x:old.globalBubble.minX+dx,
+                y:(old.bubbleBelow ? old.globalBubble.maxY-size.height : old.globalBubble.minY)+dy,
+                width:size.width,height:size.height)
+            target=PetPlacement(globalSprite:target.globalSprite,globalBubble:PetLayout.constrainedBubble(candidate,screen:screen.visible,avoiding:target.globalSprite,headerOverlap:chatExpanded ? PetLayout.headerPerch:0),
+                                expanded:true,drawer:drawerOpen ? Self.drawerWidth:0)
+        }
+        let finalSplit=PetLayout.paneSplit(base:split.base,minimumBase:PetLayout.minimumChatSize.width + ConversationSidebar.width,
+            wanted:split.pane,available:target.contentBubble.width)
+        paneBase=finalSplit.base;paneTargetWidth=finalSplit.pane
         placementTarget = target
         bubbleMotion.retarget(target.globalBubble.origin,visibleFrame:screen.visible,now:clock(),immediately:pet.placement==nil || reducedMotion() || resizeStart != nil,size:target.globalBubble.size,headerAtTop:target.expanded && target.bubbleBelow)
         if timer==nil {stepPlacement()}
@@ -338,7 +335,9 @@ final class PetController: NSObject {
         }
         let point=bubbleMotion.step(now:clock()),size=bubbleMotion.size
         let shown=chatExpanded ? (drawerSlideActive ? drawerSlideStart+(target.drawer-drawerSlideStart)*bubbleMotion.easedWidthProgress:target.drawer):0
-        let p=PetPlacement(globalSprite:target.globalSprite,globalBubble:CGRect(origin:point,size:size),userScale:pet.petScale,expanded:chatExpanded,drawer:shown)
+        let screen=PetDisplay.nearest(to:CGPoint(x:target.globalSprite.midX,y:target.globalSprite.midY),in:displays())
+        let bubble=PetLayout.constrainedBubble(CGRect(origin:point,size:size),screen:screen.visible,avoiding:target.globalSprite,headerOverlap:chatExpanded ? PetLayout.headerPerch:0)
+        let p=PetPlacement(globalSprite:target.globalSprite,globalBubble:bubble,expanded:chatExpanded,drawer:shown)
         apply(p)
         if bubbleMotion.widthProgress>=1 {drawerSlideActive=false}
         if pet.widthCoverVisible {
@@ -351,6 +350,10 @@ final class PetController: NSObject {
         let span = ThreeTapDiagnostics.startBeforeFirstTickSpan()
         defer { ThreeTapDiagnostics.endSpan("placement_apply", span) }
         CATransaction.begin(); CATransaction.setDisableActions(true)
+        let split=PetLayout.paneSplit(base:paneBase,minimumBase:PetLayout.minimumChatSize.width + ConversationSidebar.width,
+            wanted:chatExpanded && web?.open == true ? paneTargetWidth:0,available:p.contentBubble.width)
+        pet.paneWidth=split.pane;web?.width=split.pane
+        if split.pane > 0 {web?.layoutWidth=split.pane}
         panel.setFrame(p.windowFrame, display: false); pet.arrange(p)
         shownDrawer=p.drawer;onDrawerWidth?(p.drawer)
         let screen=PetDisplay.nearest(to:CGPoint(x:p.globalSprite.midX,y:p.globalSprite.midY),in:displays())
@@ -359,20 +362,11 @@ final class PetController: NSObject {
     }
     func movePet(to origin: CGPoint) {
         timer?.invalidate(); timer = nil; pet.endGenie(expanded: chatExpanded)
-        if chatExpanded, petDragBottom == nil, let target = placementTarget, target.bubbleBelow { petDragBottom = target.globalBubble.minY }
-        let cell = CGRect(origin: origin, size: PetLayout(scale: pet.petScale).spriteSize)
-        let foot = PetLayout.visibleSprite(in: cell)
-        let screen = PetDisplay.nearest(to: CGPoint(x: foot.midX, y: foot.minY), in: displays())
-        if let bottom = petDragBottom {
-            preferredChatSize.height = PetLayout.carriedChatHeight(foot: foot.minY, bottom: bottom, visibleFrame: screen.visible, screenFrame: screen.frame)
-            resizedBelow = true
-        }
         placePet(at: origin)
-        if web?.open == true { paneAnchor = placementTarget?.anchorOrigin }
     }
     func endPetDrag() {
         if resizeStart != nil {onReadingResizeEnded?()}
-        petDragBottom = nil; resizeStart = nil
+        resizeStart = nil
         guard let p = placementTarget else { return }
         try? store.update { $0.petX = Double(p.anchorOrigin.x); $0.petY = Double(p.anchorOrigin.y) }
         saveChatSize(); savePaneSize()
@@ -385,19 +379,26 @@ final class PetController: NSObject {
         if resizeStart == nil {resizeStart=placementTarget;onReadingResizeBegan?();}
         guard let start = resizeStart else { return }
         let screen = PetDisplay.nearest(to: CGPoint(x: start.globalSprite.midX, y: start.globalSprite.midY), in: displays())
-        let chatStart=PetPlacement(globalSprite:start.globalSprite,globalBubble:start.contentBubble,userScale:pet.petScale,expanded:true)
+        let chatStart=PetPlacement(globalSprite:start.globalSprite,globalBubble:start.contentBubble,expanded:true,below:start.bubbleBelow)
         let resized = PetLayout.resized(chatStart, edge: edge, delta: delta, screen: screen.visible, trailing: pet.paneWidth, screenFrame: screen.frame)
         if web?.open == true {savedPaneHeight = resized.height; preferredChatSize.width = resized.width}
         else { preferredChatSize = resized }
         fittedThreadHeight = nil
         resizedBelow = start.bubbleBelow
         let effective = CGSize(width:preferredChatSize.width,height:web?.open == true ? savedPaneHeight ?? preferredChatSize.height:preferredChatSize.height)
-        placePet(at: PetLayout.resizedSpriteOrigin(start, edge: edge, size: effective))
+        let content=start.contentBubble
+        var box=CGRect(x:content.midX-effective.width/2-pet.paneWidth/2,y:content.minY,
+                       width:effective.width+pet.paneWidth+start.drawer,height:effective.height)
+        if edge.contains(.left), pet.paneWidth > 0 { box.origin.x=content.maxX-(effective.width+pet.paneWidth) }
+        if (start.bubbleBelow && !edge.contains(.near)) || (!start.bubbleBelow && edge.contains(.near)) {
+            box.origin.y=content.maxY-effective.height
+        }
+        placePet(at:start.anchorOrigin,bubble:box)
     }
     @objc func screensChanged() {
         timer?.invalidate(); timer = nil; pet.endGenie(expanded: chatExpanded)
-        foldedPerchAnchor=nil;resizedBelow=nil;chatDrag=nil
-        if let p = placementTarget { placePet(at: p.anchorOrigin) }
+        chatDrag=nil
+        if let p = placementTarget { placePet(at: p.anchorOrigin, bubble:p.globalBubble) }
     }
     @objc private func motionChanged() {pet.updateScrim(); if reducedMotion() { screensChanged() } }
     @objc private func powerChanged() { pet.animationsAllowed = screenAwake() }

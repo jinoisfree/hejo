@@ -15,14 +15,14 @@ private final class InlineAccentReference: NSView {
 
 @MainActor func drawerInlineTests(resourceDirectory:URL) async throws {
     func near(_ a:CGFloat,_ b:CGFloat)->Bool {abs(a-b)<0.01}
-    // AT-DI-01..04: independent screen-relative boundary cases, including a half-point shortage.
+    // AT-DI-01..04: pet above each chat; isolate horizontal boundary cases, including a half-point shortage.
     for origin:CGFloat in [0,-1600] {
         let screen=CGRect(x:origin,y:0,width:1440,height:900)
-        func base(_ x:CGFloat)->PetPlacement {PetPlacement(globalSprite:CGRect(x:origin+500,y:650,width:192,height:208),globalBubble:CGRect(x:x,y:100,width:428,height:500),expanded:true)}
+        func base(_ x:CGFloat)->PetPlacement {PetPlacement(globalSprite:CGRect(x:x+101,y:650,width:192,height:208),globalBubble:CGRect(x:x,y:100,width:428,height:500),expanded:true)}
         let b=base(origin+200),p=b.withDrawer(290,visibleFrame:screen)
         try check(p.globalBubble==CGRect(x:origin+200,y:100,width:718,height:500) && p.globalSprite==b.globalSprite && p.anchorOrigin==b.anchorOrigin,"AT-DI-01 right expansion on both displays")
         let edge=base(screen.maxX-12-100-428),m=edge.withDrawer(290,visibleFrame:screen)
-        try check(m.globalBubble.minX==edge.globalBubble.minX-190 && m.globalBubble.maxX==screen.maxX-12 && m.globalSprite==edge.globalSprite.offsetBy(dx:-190,dy:0) && m.anchorOrigin==edge.anchorOrigin,"AT-DI-02 exact left shift and unchanged anchor")
+        try check(m.globalBubble.minX==edge.globalBubble.minX-190 && m.globalBubble.maxX==screen.maxX-12 && m.globalSprite==edge.globalSprite && m.anchorOrigin==edge.anchorOrigin,"AT-DI-02 chat-only left shift and unchanged pet")
         let exact=base(screen.maxX-12-290-428),e=exact.withDrawer(290,visibleFrame:screen)
         try check(e.globalSprite==exact.globalSprite && e.globalBubble.minX==exact.globalBubble.minX,"AT-DI-03 inclusive right margin")
         let narrow=CGRect(x:origin,y:0,width:741.5,height:900),n=base(origin+12).withDrawer(290,visibleFrame:narrow)
@@ -38,6 +38,8 @@ private final class InlineAccentReference: NSView {
     controller.deadlineSender={_ in};controller.clock={ThreadTools.date("2026-11-22T10:00:00+09:00")}
     controller.receive(["type":"roster","employees":[["id":"alpha","name":"직원 A","aliases":[]]]])
     let view=ConversationView(controller:controller,clipboardArea:home.appendingPathComponent("clipboard"))
+    // Keep this horizontal split fixture clear of the pet; T6 covers constrained tall panes.
+    try store.update{$0.webPaneHeight=500}
     let pet=PetController(store:store,atlas:try SpriteAtlas(resourceDirectory:resourceDirectory))
     defer {disposeDrawerFixture(pet,controller,view)}
     view.reduceMotion={true};view.island.reduceMotion={true}
@@ -45,7 +47,15 @@ private final class InlineAccentReference: NSView {
     pet.displays={ [PetDisplay(frame:screen,visible:screen)] };pet.reducedMotion={true};pet.pet.animationsAllowed=false
     pet.pet.installConversation(view);pet.installDrawer(view)
     func settle(){pet.stepPlacement();view.layoutSubtreeIfNeeded();view.todoDrawer.layoutSubtreeIfNeeded()}
-    func place(center:CGFloat=600){pet.placePet(at:PetLayout.sprite(foot:CGPoint(x:center,y:680),scale:1).origin);settle()}
+    // Each geometry case starts with a fresh pet-relative opening. Reflow now preserves
+    // a moved chat instead of implicitly centering it every time placePet is called.
+    func place(center:CGFloat=600){
+        let open=pet.chatExpanded
+        if open {pet.collapseChat()}
+        pet.placePet(at:PetLayout.sprite(foot:CGPoint(x:center,y:680),scale:1).origin)
+        if open {pet.showChat()}
+        settle()
+    }
     func field(_ name:String)->NSView {Mirror(reflecting:view).children.first{$0.label==name}!.value as! NSView}
     func global(_ v:NSView)->CGRect {pet.panel.convertToScreen(v.convert(v.bounds,to:nil))}
     place();pet.showChat();settle()
@@ -78,15 +88,15 @@ private final class InlineAccentReference: NSView {
     place(center:1114);pet.endPetDrag();settle()
     let edge=pet.placementTarget!,savedX=store.settings.petX,savedY=store.settings.petY
     pet.setDrawerOpen(true);settle()
-    try check(pet.placementTarget!.globalBubble.maxX==1428 && pet.placementTarget!.globalSprite==edge.globalSprite.offsetBy(dx:-190,dy:0),"AT-DI-09 actual controller shifts 190 left")
+    try check(pet.placementTarget!.globalBubble.maxX==1428 && pet.placementTarget!.globalSprite==edge.globalSprite,"AT-DI-09 only chat shifts 190 left")
     let disk=try LocalStore(directory:home)
     try check(store.settings.petX==savedX && store.settings.petY==savedY && disk.settings.petX==savedX && disk.settings.petY==savedY,"AT-DI-09 temporary shift never saved")
-    pet.setDrawerOpen(false);settle();try check(pet.placementTarget!.globalBubble==edge.globalBubble && pet.placementTarget!.globalSprite==edge.globalSprite,"AT-DI-09 close restores pet and bubble")
+    pet.setDrawerOpen(false);settle();try check(pet.placementTarget!.globalBubble.minX==edge.globalBubble.minX-190 && pet.placementTarget!.globalSprite==edge.globalSprite,"AT-DI-09 closing retains current chat edge and pet")
     screen.size.width=552;place(center:276)
     let narrowBase=pet.placementTarget!.globalBubble,savedWidth=store.settings.chatWidth
     pet.setDrawerOpen(true);settle()
     try check(pet.placementTarget!.globalBubble.width==528 && view.todoDrawer.frame.width==290 && view.history.frame.width==170,"AT-DI-10 narrow chat yields 190")
-    pet.setDrawerOpen(false);settle();try check(pet.placementTarget!.globalBubble==narrowBase && store.settings.chatWidth==savedWidth,"AT-DI-10 close restores without saving narrowed width")
+    pet.setDrawerOpen(false);settle();try check(pet.placementTarget!.globalBubble.size==narrowBase.size && pet.placementTarget!.globalBubble.minX==12 && store.settings.chatWidth==savedWidth,"AT-DI-10 close restores width at current edge without saving narrowed width")
     screen.size.width=1440;place();let resizeBase=pet.placementTarget!.globalBubble
     try check(resizeBase.minX==386 && resizeBase.width==428,"AT-DI-11 fixed resize fixture")
     pet.setDrawerOpen(true);settle();pet.pet.onResize?(.right,CGPoint(x:40,y:0));pet.endPetDrag();settle()

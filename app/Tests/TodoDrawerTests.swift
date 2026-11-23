@@ -41,6 +41,7 @@ import AppKit
     try check(snapshot.urgent.map(\.title)==["지남","오늘","내일","질문 B","질문 A"] && snapshot.rest.map(\.title)==["나중","가짜 알림"] && snapshot.total==7,"AT-TD-20 ordering, deduplication, muted exclusion, total")
     try check(snapshot.urgent[0].status=="마감 1일 지남 · 연결된 대화 없음" && snapshot.urgent[1].status=="오늘 마감 · 연결된 대화 없음" && snapshot.urgent[1].trailing=="18:00" && snapshot.rest[0].status=="마감 4일 남음 · 연결된 대화 없음" && snapshot.rest[0].trailing=="11/24","AT-TD-22 calendar labels")
     let view=ConversationView(controller:controller,clipboardArea:home.appendingPathComponent("clipboard"),islandModel:IslandModel(clock:{now}))
+    view.island.reduceMotion={true}
     let pet=PetController(store:store,atlas:try SpriteAtlas(resourceDirectory:resourceDirectory))
     defer{disposeDrawerFixture(pet,controller,view)}
     var visible=CGRect(x:0,y:0,width:1440,height:900)
@@ -110,6 +111,7 @@ import AppKit
     emptyController.deadlineSender={_ in}
     try await emptyController.client.receive(["v":1,"type":"welcome","employees":[]])
     let emptyView=ConversationView(controller:emptyController,clipboardArea:emptyHome.appendingPathComponent("clipboard"))
+    emptyView.island.reduceMotion={true}
     let emptyPet=PetController(store:emptyStore,atlas:try SpriteAtlas(resourceDirectory:resourceDirectory));emptyPet.displays={ [PetDisplay(frame:visible,visible:visible)] };emptyPet.reducedMotion={true}
     defer{disposeDrawerFixture(emptyPet,emptyController,emptyView)}
     emptyPet.pet.installConversation(emptyView);emptyPet.installDrawer(emptyView);emptyPet.placePet(at:CGPoint(x:650,y:700));emptyPet.showChat();emptyView.layoutSubtreeIfNeeded()
@@ -264,6 +266,7 @@ import AppKit
     try check(card("메일 마감").messageID==noticeMessage && card("없는 글 마감").messageID==nil,"AT-DC-22 only a notice found in the chat becomes a target")
     // The real view, pet window and drawer.
     let view=ConversationView(controller:controller,clipboardArea:home.appendingPathComponent("clipboard"),islandModel:IslandModel(clock:{now}))
+    view.island.reduceMotion={true}
     let pet=PetController(store:store,atlas:try SpriteAtlas(resourceDirectory:resourceDirectory))
     defer{disposeDrawerFixture(pet,controller,view)}
     let visible=CGRect(x:0,y:0,width:1440,height:900)
