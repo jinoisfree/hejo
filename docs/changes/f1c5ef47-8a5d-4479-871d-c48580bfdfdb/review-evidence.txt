@@ -1,0 +1,18 @@
+$ git rev-parse HEAD
+exitCode=0
+236b0177468b90d9ea23a1b1190e996db78a0694
+
+$ git status --porcelain
+exitCode=0
+
+
+$ git diff 236b0177468b90d9ea23a1b1190e996db78a0694 --stat
+exitCode=0
+
+
+$ git diff --check
+exitCode=0
+
+
+impl-report.md exists: False
+Product build/tests/AppKit: NOT RUN

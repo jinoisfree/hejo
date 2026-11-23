@@ -1,6 +1,50 @@
 import AppKit
 import SwiftUI
 
+@MainActor private func restartDocument()->[String:Any] {
+    ["schema":"hermes-connections/1","checked_at":"2026-01-01T00:00:00Z","agents":[["profile":"alpha","display_name":"직원 A","connections":[
+        ["id":"app:synthetic","service":"synology","label":"시험 연결","group":"mac","state":"unknown","reason":"VALUES_REQUIRED","checked_at":"2026-01-01T00:00:00Z","capabilities":[],"rules":[],"actions":[["id":"app_connect","label":"이어서 하기","primary":true]]],
+        ["id":"gateway","service":"gateway","label":"시험 게이트웨이","group":"channel","state":"unknown","reason":"VALUES_REQUIRED","checked_at":"2026-01-01T00:00:00Z","capabilities":[],"rules":[],"actions":[["id":"gateway_restart","label":"다시 시작","primary":true]]]
+    ]]]]
+}
+
+/// Reproduces the two independent UI failures with synthetic replies and actual AppKit sheets.
+@MainActor func connectionStuckReproduction() async throws {
+    let dir=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer{try? FileManager.default.removeItem(at:dir)}
+    let controller=try testConversation(client:GateClient(store:try LocalStore(directory:dir),credentials:MemoryCredentials()))
+    let window=ConnectionsWindow(controller:controller),model=window.model
+    let conversation=PetPanel(contentRect:CGRect(x:100,y:100,width:600,height:500),styleMask:[.borderless],backing:.buffered,defer:false)
+    conversation.isReleasedWhenClosed=false;conversation.level=NSWindow.Level(rawValue:25)
+    conversation.contentView=NSTextField(labelWithString:"가짜 대화 창")
+    defer{model.close();window.window.close();conversation.close()}
+    model.confirm={true}
+    var mutations=0,queries=0
+    model.send={frame in
+        if frame["type"] as? String=="connections" {return ["document":restartDocument()]}
+        if frame["action"] as? String=="job_status" {
+            queries += 1
+            let reply:[String:Any]=mutations==0 ? ["outcome":"refused","reason":"UNKNOWN_JOB"]:["outcome":"done","job":"synthetic-job","connected":1]
+            return ["reply":reply]
+        }
+        if frame["values"] != nil {mutations += 1;await pause(0.03);throw GateFailure.notConnected}
+        return ["reply":["outcome":"waiting","committed":true,"next":["kind":"gateway_restart","hint":"가짜 재시작 안내"]]]
+    }
+    await model.refresh();model.detail="app:synthetic";window.show();window.setPreferredLevel(NSWindow.Level(rawValue:26))
+    await model.perform("app_connect");await pause(0.15)
+    guard let input=window.window.attachedSheet else{throw TestFailure.assertion("CS probe input missing")}
+    conversation.setFrame(window.window.frame,display:true);conversation.orderFrontRegardless()
+    queries=0
+    let confirmation=Task{await model.submit()};await pause(0.15)
+    let alert=input.attachedSheet ?? window.window.attachedSheet
+    let visible=(alert?.level.rawValue ?? -1)>conversation.level.rawValue
+    print("CS REPRO confirmation: parent=\(window.window.level.rawValue), input=\(input.level.rawValue), alert=\(alert?.level.rawValue ?? -1), conversation=25, key=\(alert?.isKeyWindow == true), aboveConversation=\(visible)")
+    if let alert,let parent=alert.sheetParent {parent.endSheet(alert,returnCode:.alertFirstButtonReturn)}
+    await confirmation.value;await pause(0.1)
+    print("CS REPRO response loss: mutations=\(mutations), queries=\(queries), busy=\(model.busy), inputError=\(model.inputError), notice=\(model.notice)")
+    try check(visible && queries>0 && !model.inputError.contains("다시 해"),"CS reproduced: internal alert hidden by floating conversation and lost reply offers mutation retry without job lookup")
+}
+
 @MainActor func connectionsTests(outputDirectory:URL?=nil) async throws {
     let document:[String:Any] = ["schema":"hermes-connections/1","checked_at":"2026-01-01T12:00:00Z","agents":[["profile":"alpha","display_name":"직원 A","connections":[["id":"key:SYNTHETIC_KEY","service":"key","label":"시험 서비스","reason":"KEY_UNVERIFIED","checked_at":"2026-01-01T12:00:00Z","group":"account","state":"unknown","capabilities":["키 저장됨(확인 안 함)"],"rules":["동작은 서버에서 실행해요."],"actions":[["id":"secret_set","label":"키 바꾸기","primary":true]]]]]]]
     var frames:[[String:Any]]=[],confirmed=false,privacy=false
@@ -50,6 +94,7 @@ import SwiftUI
     try await connectionsScreenTests()
     try await connectionManagementTests(outputDirectory:outputDirectory)
     try await connectionIncompleteReplyTests(document:document)
+    try await connectionRestartTests(outputDirectory:outputDirectory)
 }
 
 /// TASK-13: replies without a check must not turn unfinished actions into completion notices.
@@ -220,8 +265,9 @@ import SwiftUI
     // The production confirmation uses beginSheetModal; resolve the real alert via its parent sheet.
     window.setPreferredLevel(NSWindow.Level(rawValue:26))
     let confirmation=Task{await live.confirmRestart()};await pause(0.1)
+    try await waitFor{window.window.attachedSheet?.isVisible==true && window.window.attachedSheet?.isKeyWindow==true}
     let alert=window.window.attachedSheet
-    try check(alert != nil && NSApp.modalWindow==nil && window.window.level == .normal,"AT-HC-26 restart confirmation is a sheet at a visible level")
+    try check(alert != nil && NSApp.modalWindow==nil && window.window.level.rawValue==26 && alert?.level.rawValue==26 && alert?.isVisible==true && alert?.isKeyWindow==true,"AT-HC-26 restart confirmation is visible and key at the preferred level without app modality")
     if let alert {window.window.endSheet(alert,returnCode:.alertSecondButtonReturn)}
     let accepted=await confirmation.value
     try check(accepted==false,"AT-HC-26 cancellation resolves asynchronously")
@@ -387,10 +433,10 @@ import SwiftUI
     let confirmation=Task{await model.confirmRestart()};await pause(0.1)
     let alert=input.attachedSheet
     let shareableDuringAlert=connectionWindowIsShareable(window.window)
-    let normalDuringAlert=window.window.level == .normal
+    let visibleDuringAlert=(alert?.level.rawValue ?? 0)>conversation.level.rawValue
     if let alert{input.endSheet(alert,returnCode:.alertSecondButtonReturn)}
     let accepted=await confirmation.value;await pause(0.1)
-    try check(alert != nil && normalDuringAlert && !accepted && window.window.level.rawValue==26 && input.isVisible,"AT-FF-22 restart alert lowers then restores input")
+    try check(alert != nil && visibleDuringAlert && !accepted && window.window.level.rawValue==26 && input.isVisible,"AT-FF-22 internal restart alert stays above the floating conversation")
     try check(shareableDuringAlert,"AT-FF-70 confirmation stage shares connection window and every sheet")
     for accepted in [false,true] {
         var normalDuringAuth=false
@@ -410,4 +456,282 @@ import SwiftUI
 // AT-FF-70 includes nested confirmation sheets, not just the immediate input sheet.
 @MainActor private func connectionWindowIsShareable(_ window:NSWindow)->Bool {
     window.sharingType != .none && window.sheets.allSatisfy(connectionWindowIsShareable)
+}
+
+/// AT-CS-01~04: literal acceptance expectations, fake gate and real AppKit event dispatch.
+@MainActor func connectionRestartTests(outputDirectory:URL?=nil) async throws {
+    setbuf(stdout,nil)
+    try await restartModelTests()
+    try await restartTransportTests()
+    try await restartWindowTests(outputDirectory:outputDirectory)
+    print("AT-CS-01~04 PASS (fake gate; real AppKit sheets and mouse events; no operational restart)")
+}
+
+@MainActor private func restartModelTests() async throws {
+    let document=restartDocument()
+    var frames:[[String:Any]]=[]
+    var original:CheckedContinuation<[String:Any],Error>?
+    var queries=0
+    let model=ConnectionsModel(send:{frame in
+        frames.append(frame)
+        if frame["type"] as? String=="connections" {return ["document":document]}
+        if frame["action"] as? String=="job_status" {
+            queries += 1
+            return ["reply":["outcome":queries==1 ? "pending":"done","job":"synthetic-job","connected":1]]
+        }
+        if frame["values"] != nil {return try await withCheckedThrowingContinuation{original=$0}}
+        return ["reply":["outcome":"waiting","committed":true,"next":["kind":"gateway_restart"]]]
+    },confirm:{true})
+    model.confirmRestart={true};model.pollingInterval=1_000_000
+    await model.refresh();model.detail="app:synthetic";await model.perform("app_connect")
+    try check(ConnectionInputView(model:model).primaryTitle=="다시 시작" && ConnectionInputView(model:model).storageHint.isEmpty,"AT-CS-01 restart label has no storage instruction")
+    let submitted=Task{await model.submit()};try await waitFor{original != nil}
+    try check(model.busy && model.restartInFlight && model.notice.contains("응답을 기다리고"),"AT-CS-03a response delay is visible before a reply exists")
+    model.selected="beta" // Queries must retain the request profile even if the selection changes.
+    original?.resume(returning:["reply":["outcome":"pending","job":"synthetic-job"]]);original=nil
+    await submitted.value;try await waitFor{model.notice.contains("완료됐고")}
+    try check(!model.trackingRestart && !model.showingInput,"AT-CS-03a acknowledged completion releases the old restart step for a new connection")
+    let resumes=frames.filter{($0["values"] as? [String:String])?["resume"]=="gateway_restart"}
+    try check(resumes.count==1 && resumes[0]["values"] as? [String:String]==["resume":"gateway_restart"],"AT-CS-03a resume request is sent exactly once without saved inputs")
+    let lookups=frames.filter{$0["action"] as? String=="job_status"}
+    try check(lookups.count==2 && lookups.allSatisfy{$0["connection"] as? String=="synthetic-job" && $0["profile"] as? String=="alpha" && $0["reauth"] as? Bool==false},"AT-CS-03a known job/profile stay fixed through pending and done")
+    model.close()
+
+    for (outcome,reason,expected) in [("failed","RESTART_FAILED","작업에 실패"),("refused","RESTART_FAILED","작업이 거절"),("partial","OK","일부 채널"),("unknown","OK","실행 여부를 확인할 수 없"),("timeout","OK","확인 기한"),("refused","UNKNOWN_JOB","확인할 기록이 없")] {
+        var mutations=0,reads=0
+        let m=ConnectionsModel(send:{frame in
+            if frame["type"] as? String=="connections" {return ["document":document]}
+            if frame["action"] as? String=="job_status" {reads += 1;return ["reply":["outcome":outcome,"reason":reason]]}
+            mutations += 1;return ["reply":["outcome":"pending","job":"synthetic-job"]]
+        },confirm:{true})
+        m.confirmRestart={true};m.pollingInterval=1_000_000
+        await m.refresh();m.detail="gateway";await m.perform("gateway_restart")
+        try await waitFor{m.notice.contains(expected)}
+        await m.perform("gateway_restart");try await waitFor{reads==2}
+        try check(mutations==1 && !m.notice.contains("동의") && !m.notice.contains("다시 연결을"),"AT-CS-03c \(outcome)/\(reason) permits only read-only rechecking")
+        m.close()
+    }
+    for exhaustedByFailure in [false,true] {
+        var mutations=0,reads=0
+        let m=ConnectionsModel(send:{frame in
+            if frame["type"] as? String=="connections" {return ["document":document]}
+            if frame["action"] as? String=="job_status" {
+                reads += 1
+                if exhaustedByFailure {throw GateFailure.notConnected}
+                return ["reply":["outcome":"pending","job":"synthetic-job"]]
+            }
+            mutations += 1;return ["reply":["outcome":"pending","job":"synthetic-job"]]
+        },confirm:{true})
+        m.confirmRestart={true};m.pollingInterval=1_000_000;m.pollingAttempts=2
+        await m.refresh();m.detail="gateway";await m.perform("gateway_restart")
+        try await waitFor{m.notice.contains("읽기 전용")}
+        try check(reads==2 && mutations==1 && !m.busy && !m.notice.contains("동의"),"AT-CS-03c bounded polling exhaustion: failure=\(exhaustedByFailure)")
+        m.close()
+    }
+    var mutations=0
+    let busy=ConnectionsModel(send:{frame in
+        if frame["type"] as? String=="connections" {return ["document":document]}
+        if frame["values"] != nil {mutations += 1;return ["reply":["outcome":"refused","reason":"BUSY"]]}
+        return ["reply":["outcome":"waiting","committed":true,"next":["kind":"gateway_restart"]]]
+    },confirm:{true})
+    busy.confirmRestart={true};await busy.refresh();busy.detail="app:synthetic";await busy.perform("app_connect");await busy.submit()
+    try check(mutations==1 && !busy.busy && !busy.trackingRestart && busy.showingInput && busy.inputError.contains("시작하지 않았"),"AT-CS-03c explicit BUSY restores editable input and explains nonexecution")
+    busy.close()
+
+    var authentication:CheckedContinuation<Bool,Never>?
+    let auth=ConnectionsModel(send:{frame in
+        if frame["type"] as? String=="connections" {return ["document":document]}
+        throw TestFailure.assertion("AT-CS-04 closed authentication must not send")
+    },confirm:{await withCheckedContinuation{authentication=$0}})
+    await auth.refresh();auth.detail="gateway"
+    let task=Task{await auth.perform("gateway_restart")};try await waitFor{authentication != nil}
+    print("AT-CS-04 authentication entered; busy=\(auth.busy), confirming=\(auth.confirming)")
+    auth.close();authentication?.resume(returning:true);await task.value
+    try check(!auth.busy && !auth.confirming && !auth.showingInput,"AT-CS-04 late authentication cannot submit after close")
+
+    // Ordinary stages retain their label and storage help independently of the restart stage.
+    try check(ConnectionInputView(model:busy).primaryTitle=="확인하고 저장" && ConnectionInputView(model:busy).storageHint.contains("저장"),"AT-CS-01 ordinary input keeps saving language")
+    print("AT-CS MODEL PASS: delayed send, known-job polling, terminal outcomes, bounded failures, BUSY, authentication dismissal")
+}
+
+/// Uses the production request continuation/timer; only the transport and timeout duration are injected.
+@MainActor private func restartTransportTests() async throws {
+    for direct in [false,true] {
+        for disconnect in [false,true] {
+            let dir=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            defer{try? FileManager.default.removeItem(at:dir)}
+            let controller=try testConversation(client:GateClient(store:try LocalStore(directory:dir),credentials:MemoryCredentials()))
+            var frames:[[String:Any]]=[],mutations=0,queries=0,originalRef:String?
+            let window=ConnectionsWindow(controller:controller,requestTimeout:30_000_000,transmit:{frame in
+                frames.append(frame)
+                let ref=frame["id"] as! String
+                var reply:[String:Any]
+                if frame["type"] as? String=="connections" {controller.receive(["v":1,"type":"connections_status","ref":ref,"document":restartDocument()]);return}
+                if frame["action"] as? String=="job_status" {
+                    if mutations==0 {reply=["outcome":"refused","reason":"UNKNOWN_JOB"]}
+                    else {
+                        queries += 1
+                        if queries==1 {throw GateFailure.notConnected}
+                        reply=["outcome":queries==2 ? "pending":"done","job":"synthetic-job","connected":1]
+                    }
+                } else if frame["action"] as? String=="gateway_restart" || (frame["values"] as? [String:String])?["resume"]=="gateway_restart" {
+                    mutations += 1;originalRef=ref
+                    if disconnect {throw GateFailure.notConnected}
+                    return // The actual production request timer must expire.
+                } else {reply=["outcome":"waiting","committed":true,"next":["kind":"gateway_restart"]]}
+                controller.receive(["v":1,"type":"connection_result","ref":ref,"reply":reply])
+            })
+            let m=window.model
+            defer{m.close();window.window.close()}
+            m.confirm={true};m.confirmRestart={true};m.pollingInterval=1_000_000
+            await m.refresh();m.detail=direct ? "gateway":"app:synthetic"
+            if !direct {await m.perform("app_connect")}
+            let operation=Task{if direct {await m.perform("gateway_restart")}else{await m.submit()}}
+            try await waitFor{mutations==1}
+            await operation.value;try await waitFor{m.notice.contains("완료됐고")}
+            try check(mutations==1 && queries==3 && !m.busy && m.notice.hasPrefix("최근 재시작 결과:"),"AT-CS-03b direct=\(direct), disconnect=\(disconnect): one mutation, latest recovery, honest recent result")
+            let mutation=frames.first{$0["action"] as? String=="gateway_restart" || ($0["values"] as? [String:String])?["resume"]=="gateway_restart"}!
+            try check(direct ? mutation["values"]==nil:mutation["values"] as? [String:String]==["resume":"gateway_restart"],"AT-CS-03b direct and resume retain distinct frame contracts")
+            let reads=frames.filter{$0["action"] as? String=="job_status"}
+            try check(reads.prefix(2).allSatisfy{$0["connection"] as? String=="latest"} && reads.last?["connection"] as? String=="synthetic-job","AT-CS-03b latest lookup switches to the returned job")
+            let before=m.notice
+            if let ref=originalRef {controller.receive(["v":1,"type":"connection_result","ref":ref,"reply":["outcome":"pending","job":"late-job"]])}
+            await pause(0.02)
+            try check(m.notice==before && mutations==1,"AT-CS-03d expired original reply cannot start a second recovery path")
+            let previousQueries=queries
+            if direct {await m.perform("gateway_restart")}else{await m.submit()}
+            try await waitFor{queries==previousQueries+1}
+            let recheck=frames.last{$0["type"] as? String=="connection_action"}
+            try check(mutations==1 && recheck?["action"] as? String=="job_status" && recheck?["reauth"] as? Bool==false,"AT-CS-03b a recent result after response loss still permits only read-only rechecking")
+            if direct {try check(!m.showingInput && !m.notice.isEmpty,"AT-CS-03b direct restart result is visible in connection notice without input")}
+            print("AT-CS-03b transport direct=\(direct), disconnect=\(disconnect), mutations=\(mutations), queries=\(queries), result=\(m.notice)")
+        }
+    }
+    try await restartReopenTests()
+}
+
+@MainActor private func restartReopenTests() async throws {
+    let dir=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer{try? FileManager.default.removeItem(at:dir)}
+    let controller=try testConversation(client:GateClient(store:try LocalStore(directory:dir),credentials:MemoryCredentials()))
+    var mutations=0,queries=0,originalRef:String?,staleQuery:String?,profiles:[String]=[]
+    let window=ConnectionsWindow(controller:controller,requestTimeout:60_000_000,transmit:{frame in
+        let ref=frame["id"] as! String
+        if frame["type"] as? String=="connections" {controller.receive(["v":1,"type":"connections_status","ref":ref,"document":restartDocument()]);return}
+        var reply:[String:Any]
+        if frame["action"] as? String=="job_status" {
+            if mutations==0 {reply=["outcome":"refused","reason":"UNKNOWN_JOB"]}
+            else {
+                profiles.append(frame["profile"] as! String);queries += 1
+                if queries==1 {staleQuery=ref;return}
+                reply=["outcome":queries==2 ? "pending":"done","job":"synthetic-job","connected":1]
+            }
+        } else if frame["values"] != nil {mutations += 1;originalRef=ref;return}
+        else {reply=["outcome":"waiting","committed":true,"next":["kind":"gateway_restart"]]}
+        controller.receive(["v":1,"type":"connection_result","ref":ref,"reply":reply])
+    })
+    let m=window.model
+    defer{m.close();window.window.close()}
+    m.confirm={true};m.confirmRestart={true};m.pollingInterval=1_000_000
+    window.show();try await waitFor{m.agent != nil};m.detail="app:synthetic";await m.perform("app_connect");await pause(0.1)
+    let task=Task{await m.submit()};try await waitFor{mutations==1}
+    m.closeInput() // Close during the initial response wait.
+    await task.value;try await waitFor{staleQuery != nil}
+    window.window.close();m.selected="beta"
+    m.known["beta"]=AgentConnectionProfile(profile:"beta",display_name:"직원 B",connections:[])
+    window.show(profile:"beta")
+    try await waitFor{m.notice.contains("완료됐고")}
+    for ref in [originalRef,staleQuery].compactMap({$0}) {controller.receive(["v":1,"type":"connection_result","ref":ref,"reply":["outcome":"pending","job":"late-job"]])}
+    await pause(0.04)
+    try check(mutations==1 && profiles.allSatisfy{$0=="alpha"} && queries==3 && !m.showingInput && window.window.sheets.isEmpty && m.notice.hasPrefix("최근 재시작 결과:"),"AT-CS-03d/04 close, selection change, reopen and late replies preserve one request and its original profile")
+    print("AT-CS-03d/04 reopen: mutations=\(mutations), queries=\(queries), profiles=\(profiles), input=false")
+}
+
+@MainActor private func restartWindowTests(outputDirectory:URL?) async throws {
+    if let outputDirectory {try FileManager.default.createDirectory(at:outputDirectory,withIntermediateDirectories:true)}
+    for level in [0,26] {
+        for disposition in ["cancel","accept","close-input","close-window"] {
+            let dir=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            defer{try? FileManager.default.removeItem(at:dir)}
+            let controller=try testConversation(client:GateClient(store:try LocalStore(directory:dir),credentials:MemoryCredentials()))
+            let window=ConnectionsWindow(controller:controller),m=window.model
+            let conversation=PetPanel(contentRect:CGRect(x:100,y:100,width:600,height:500),styleMask:[.borderless],backing:.buffered,defer:false)
+            conversation.isReleasedWhenClosed=false;conversation.level=NSWindow.Level(rawValue:25);conversation.hidesOnDeactivate=false
+            conversation.contentView=NSTextField(labelWithString:"가짜 대화 창")
+            defer{m.close();window.window.close();conversation.close()}
+            var mutations=0
+            m.send={frame in
+                if frame["type"] as? String=="connections" {return ["document":restartDocument()]}
+                if frame["action"] as? String=="job_status" {return ["reply":["outcome":"refused","reason":"UNKNOWN_JOB"]]}
+                if frame["values"] != nil {mutations += 1;return ["reply":["outcome":"done","connected":1]]}
+                return ["reply":["outcome":"waiting","committed":true,"next":["kind":"gateway_restart","hint":"가짜 재시작 안내"]]]
+            }
+            m.confirm={true};await m.refresh();m.detail="app:synthetic";window.setPreferredLevel(NSWindow.Level(rawValue:level));window.show()
+            await m.perform("app_connect");try await waitFor{window.window.attachedSheet != nil}
+            let input=window.window.attachedSheet!
+            var completed=false
+            let operation=Task{await m.submit();completed=true}
+            try await waitFor{input.attachedSheet != nil}
+            let alert=input.attachedSheet!
+            if level>0 {conversation.setFrame(alert.frame,display:true);conversation.orderFrontRegardless();alert.makeKeyAndOrderFront(nil)}
+            await pause(0.05)
+            let cancel=try restartButton(alert,title:"취소"),accept=try restartButton(alert,title:"다시 시작")
+            let buttonFrame=alert.convertToScreen(cancel.convert(cancel.bounds,to:nil))
+            let screen=alert.screen?.visibleFrame ?? .zero
+            let ordered=((CGWindowListCopyWindowInfo(.optionOnScreenOnly,kCGNullWindowID) as? [[String:Any]]) ?? []).compactMap{$0[kCGWindowNumber as String] as? Int}
+            // Newer AppKit can composite a nested sheet into its parent's WindowServer surface.
+            var surface=alert
+            while !ordered.contains(surface.windowNumber),let parent=surface.sheetParent {surface=parent}
+            print("AT-CS-02 surface: alert=\(alert.windowNumber), host=\(surface.windowNumber), hostFrame=\(surface.frame), level=\(surface.level.rawValue), visible=\(surface.isVisible)")
+            try check(screen.contains(buttonFrame) && alert.isVisible && alert.isKeyWindow,"AT-CS-02 confirmation button lies on screen and receives key input: \(level)/\(disposition)")
+            if level>0 {
+                let surfaceIndex=ordered.firstIndex(of:surface.windowNumber) ?? Int.max,conversationIndex=ordered.firstIndex(of:conversation.windowNumber) ?? -1
+                try check(alert.frame.intersects(conversation.frame) && alert.level.rawValue>25 && surface.level.rawValue>25 && surface.frame.contains(buttonFrame) && surfaceIndex<conversationIndex,"AT-CS-02 overlapped floating conversation cannot cover confirmation")
+            }
+            print("AT-CS-02 GUI \(level)/\(disposition): levels=\(window.window.level.rawValue),\(input.level.rawValue),\(alert.level.rawValue); windows=\(ordered.filter{[window.window.windowNumber,input.windowNumber,alert.windowNumber,conversation.windowNumber].contains($0)}); button=\(buttonFrame); alert=\(alert.frame); conversation=\(conversation.frame); key=\(alert.isKeyWindow)")
+            if let outputDirectory,disposition=="cancel" {
+                // Capture only these synthetic views; z-order/occlusion is independently checked above.
+                for (name,view) in [("confirm",alert.contentView),("input",input.contentView)] {
+                    guard let view,let bitmap=view.bitmapImageRepForCachingDisplay(in:view.bounds) else{throw TestFailure.assertion("AT-CS-02 AppKit capture unavailable")}
+                    view.cacheDisplay(in:view.bounds,to:bitmap)
+                    try bitmap.representation(using:.png,properties:[:])!.write(to:outputDirectory.appendingPathComponent("cs-\(name)-\(level).png"))
+                }
+                print("AT-CS-02 capture: actual AppKit view rendering; visibility evidence is window order, frame overlap and mouse events")
+            }
+            switch disposition {
+            case "cancel":try restartClick(cancel,in:alert)
+            case "accept":try restartClick(accept,in:alert)
+            // AppKit disables performClose on a parent while a modal sheet is attached.
+            // Exercise the real close notification (also used when the owner tears down a window).
+            case "close-input":input.close()
+            default:window.window.close()
+            }
+            try await waitFor{completed};await operation.value;await pause(0.04)
+            try check(!m.busy && input.attachedSheet==nil && mutations==(disposition=="accept" ? 1:0),"AT-CS-02/04 confirmation completes once and cancelled/closed confirmation never resumes")
+            if disposition=="cancel" {try check(m.showingInput && input.isVisible,"AT-CS-02 cancellation restores input")}
+            if disposition.hasPrefix("close") {
+                window.show();await pause(0.05)
+                try check(!m.showingInput && window.window.sheets.isEmpty,"AT-CS-04 reopen leaves no hidden confirmation or reopened input")
+            }
+        }
+    }
+}
+
+@MainActor private func restartButton(_ window:NSWindow,title:String) throws ->NSButton {
+    func find(_ view:NSView)->NSButton? {
+        if let button=view as? NSButton,button.title==title {return button}
+        return view.subviews.lazy.compactMap(find).first
+    }
+    guard let content=window.contentView,let button=find(content) else{throw TestFailure.assertion("CS missing AppKit button: "+title)}
+    return button
+}
+
+/// Dispatches mouse down/up through the application event queue, never an alert callback or performClick.
+@MainActor private func restartClick(_ button:NSButton,in window:NSWindow) throws {
+    let point=button.convert(CGPoint(x:button.bounds.midX,y:button.bounds.midY),to:nil)
+    print("AT-CS-02 post mouse down/up: \(button.title), window=\(window.windowNumber), point=\(point), enabled=\(button.isEnabled)")
+    for type in [NSEvent.EventType.leftMouseDown,.leftMouseUp] {
+        guard let event=NSEvent.mouseEvent(with:type,location:point,modifierFlags:[],timestamp:ProcessInfo.processInfo.systemUptime,windowNumber:window.windowNumber,context:nil,eventNumber:1,clickCount:1,pressure:type == .leftMouseDown ? 1:0) else{throw TestFailure.assertion("CS mouse event unavailable")}
+        NSApp.postEvent(event,atStart:false)
+    }
 }

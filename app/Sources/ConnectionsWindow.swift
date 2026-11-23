@@ -46,6 +46,21 @@ import Combine
     var avatar:(String)->ProfileAvatar={_ in ProfileAvatar()}
     private var pendingAction:String?
     private var polling:Task<Void,Never>?
+    // The request's profile/job survive UI selection changes and local window dismissal.
+    private struct Restart {
+        let profile:String
+        var job:String?
+        let recent:Bool
+        var awaitingReply=false
+    }
+    private var restart:Restart?
+    private var restartVisible=true
+    private var pollingID:UUID?
+    private var inputVersion=UUID()
+    @Published private(set) var trackingRestart=false
+    @Published private(set) var restartInFlight=false
+    var pollingInterval:UInt64=2_000_000_000
+    var pollingAttempts=450
     init(send:@escaping([String:Any]) async throws->[String:Any],confirm:@escaping() async->Bool){self.send=send;self.confirm=confirm}
     var roster:[AgentConnectionProfile] {let current=people();return (current.isEmpty ? document?.agents ?? []:current).map{known[$0.profile] ?? $0}}
     var agent:AgentConnectionProfile? {selected.flatMap{known[$0]} ?? (selected==nil ? document?.agents.first:nil)}
@@ -104,7 +119,7 @@ import Combine
         } catch GateFailure.notConnected {readFailures[key]=Self.readFailure("not_connected")}
         catch {readFailures[key]=Self.readFailure("invalid_response")}
     }
-    func closeInput(){clearChange();values=[:];fields=[];guide=nil;next=nil;choices=[];defaultChoice="";pendingAction=nil;inputError="";showingInput=false;privacy(false)}
+    func closeInput(){inputVersion=UUID();clearChange();values=[:];fields=[];guide=nil;next=nil;choices=[];defaultChoice="";pendingAction=nil;inputError="";showingInput=false;privacy(false)}
     func inputDismissed(){
         showingInput=false
         if !busy {closeInput()}
@@ -120,24 +135,32 @@ import Combine
     }
     private func authenticated() async ->Bool {confirming=true;defer{confirming=false;restoreFocus()};return await confirm()}
 
-    func close(){polling?.cancel();polling=nil;closeInput()}
+    func close(){restartVisible=false;polling?.cancel();polling=nil;pollingID=nil;closeInput()}
     func perform(_ verb:String,item:AgentConnectionItem?=nil,submitted:Bool=false) async {
         guard !busy,let agent,let target=item ?? self.item else{return}
+        let isRestart=verb=="gateway_restart" || (submitted && values["resume"]=="gateway_restart")
+        if isRestart,trackingRestart {await resumeRestart();return}
         if verb=="app_connect" && !submitted && target.primaryAction?.label=="설정 바꾸기" {
             detail=target.id
             if let settings=target.settings,settings.count==1 {await change(settings[0].step,item:target)}
             return
         }
         busy=true;defer{busy=false}
+        let version=inputVersion
         let requested=verb=="secret_set" && !submitted ? "secret_guide":verb
         let read=["secret_guide","check","check_all","oauth_guide","mcp_login"].contains(requested)
         if !submitted && ["app_disconnect","account_disconnect"].contains(requested) {
             guard await confirmDisconnect("\(agent.display_name)의 \(target.label) 연결을 해제할까요? 넣어 둔 값은 남아 다시 연결할 때 그대로 써요.") else{return}
         }
         if requested=="app_undo" {guard await confirmUndo(target.actions?.first{$0.id=="app_undo"}?.label ?? "되돌리기") else{return}}
-        if !read {guard await authenticated() else{return}}
-        if requested=="gateway_restart" || (submitted && values["resume"]=="gateway_restart") {
-            guard await confirmRestart() else{return}
+        if !read {guard await authenticated(),version==inputVersion else{return}}
+        if isRestart {
+            guard await confirmRestart(),version==inputVersion else{return}
+            polling?.cancel();polling=nil;pollingID=nil
+            restart=Restart(profile:agent.profile,recent:false,awaitingReply:true)
+            restartVisible=true;trackingRestart=true;restartInFlight=true
+            notice="다시 시작 요청의 응답을 기다리고 있어요. 창을 닫아도 보낸 작업은 취소되지 않아요."
+            if showingInput {inputError=""}
         }
         var frame:[String:Any]=["v":1,"type":"connection_action","profile":agent.profile,"connection":target.id,"action":requested,"reauth":!read]
         let session=changeSession
@@ -147,6 +170,21 @@ import Combine
         }
         do {
             let result=try await send(frame)
+            if isRestart {
+                clearChange();values=[:]
+                restart?.awaitingReply=false;restartInFlight=false
+                let reply=result["reply"] as? [String:Any] ?? [:]
+                if let job=reply["job"] as? String {restart?.job=job}
+                if reply["outcome"] as? String=="refused",["BUSY","BUSY_CHECK_FAILED","RATE_LIMITED"].contains(reply["reason"] as? String ?? "") {
+                    restart=nil;trackingRestart=false
+                    guard restartVisible,version==inputVersion else{return}
+                } else {
+                    guard restartVisible else{return}
+                    if !applyRestartReply(reply),let restart {startPolling(restart.job ?? "latest",profile:restart.profile,verb:"job_status")}
+                    if reply["outcome"] as? String=="done" {await refresh()}
+                    return
+                }
+            }
             if let session,session != changeSession{return}
             let reply=result["reply"] as? [String:Any] ?? [:]
             if reply["committed"] as? Bool==true || ["done","failed","refused"].contains(reply["outcome"] as? String ?? "") {
@@ -188,7 +226,20 @@ import Combine
             }
             if showingInput {inputError=notice}
             await refresh()
-        } catch {clearChange();values=[:];inputError="응답을 받지 못했어요. 잠시 뒤 다시 해 주세요.";if !showingInput{notice=inputError}}
+        } catch {
+            clearChange();values=[:]
+            if isRestart {
+                restart?.awaitingReply=false;restartInFlight=false
+                // A lost acknowledgement does not prove the side effect was never executed.
+                if let current=restart {
+                    restart=Restart(profile:current.profile,job:current.job,recent:current.job==nil)
+                    guard restartVisible else{return}
+                    notice="응답을 받지 못해 실행 여부를 확인하고 있어요. 다시 시작 요청은 보내지 않아요."
+                    if showingInput {inputError=""}
+                    startPolling(current.job ?? "latest",profile:current.profile,verb:"job_status")
+                }
+            } else {inputError="응답을 받지 못했어요. 잠시 뒤 다시 해 주세요.";if !showingInput{notice=inputError}}
+        }
     }
     func submit() async {
         guard let verb=pendingAction else{return}
@@ -198,22 +249,57 @@ import Combine
         await perform(verb,submitted:true)
     }
     func resumeRestart() async {
-        guard let agent else{return}
-        if let result=try? await send(["v":1,"type":"connection_action","profile":agent.profile,"connection":"latest","action":"job_status","reauth":false]),let reply=result["reply"] as? [String:Any],reply["outcome"] as? String=="pending",let job=reply["job"] as? String {startPolling(job,profile:agent.profile,verb:"job_status")}
+        guard let profile=restart?.profile ?? agent?.profile else{return}
+        restartVisible=true
+        guard polling==nil,restart?.awaitingReply != true else{return}
+        if restart==nil {restart=Restart(profile:profile,recent:true)}
+        if let restart {startPolling(restart.job ?? "latest",profile:restart.profile,verb:"job_status")}
+    }
+    /// Returns true on a terminal result; latest is always described as a recent result.
+    private func applyRestartReply(_ reply:[String:Any])->Bool {
+        guard let current=restart else{return true}
+        let outcome=reply["outcome"] as? String ?? "unknown"
+        if reply["reason"] as? String=="UNKNOWN_JOB",!trackingRestart {restart=nil;return true}
+        trackingRestart=trackingRestart || outcome=="pending"
+        if let job=reply["job"] as? String {restart?.job=job}
+        let subject=current.recent ? "최근 재시작 결과: ":"다시 시작 결과: "
+        switch outcome {
+        case "pending":notice=subject+"아직 처리 중이에요. 창을 닫아도 작업은 취소되지 않아요."
+        case "done":notice=subject+"완료됐고 채널 \(reply["connected"] as? Int ?? 0)개가 다시 연결됐어요."
+        case "failed":notice=subject+"작업에 실패했어요. 결과를 다시 확인할 수 있어요."
+        case "refused":notice=subject+(reply["reason"] as? String=="UNKNOWN_JOB" ? "실행 여부를 확인할 기록이 없어요.":"작업이 거절됐어요.")
+        case "partial":notice=subject+"일부 채널만 다시 연결됐어요."
+        case "timeout":notice=subject+"확인 기한이 지나 실행 여부를 확인할 수 없어요."
+        default:notice=subject+"실행 여부를 확인할 수 없어요."
+        }
+        if showingInput,next?.kind=="gateway_restart" {inputError=""}
+        if outcome=="done",!current.recent {
+            restart=nil;trackingRestart=false
+            if showingInput,next?.kind=="gateway_restart" {closeInput()}
+        }
+        return outcome != "pending"
     }
     func startPolling(_ id:String,profile:String,verb:String){
-        polling?.cancel();polling=Task { [weak self] in
-            for _ in 0..<450 {
-                guard let self,!Task.isCancelled else{return}
-                try? await Task.sleep(nanoseconds:2_000_000_000)
+        polling?.cancel();let token=UUID();pollingID=token
+        polling=Task { [weak self] in
+            guard let self else{return}
+            defer{if pollingID==token {polling=nil;pollingID=nil}}
+            for attempt in 0..<pollingAttempts {
+                guard !Task.isCancelled,pollingID==token else{return}
+                if attempt>0 || verb != "job_status" || id != "latest" {try? await Task.sleep(nanoseconds:pollingInterval)}
+                guard !Task.isCancelled,pollingID==token else{return}
                 do {
-                    let result=try await send(["v":1,"type":"connection_action","profile":profile,"connection":id,"action":verb,"reauth":false])
+                    let connection=verb=="job_status" ? restart?.job ?? id:id
+                    let result=try await send(["v":1,"type":"connection_action","profile":profile,"connection":connection,"action":verb,"reauth":false])
+                    guard !Task.isCancelled,pollingID==token else{return}
                     let reply=result["reply"] as? [String:Any] ?? [:],state=reply["status"] as? String ?? reply["outcome"] as? String ?? "unknown"
-                    if state=="approved" || state=="done" {code="";loginURL=nil;notice=verb=="job_status" ? "다시 시작했고 채널 \(reply["connected"] as? Int ?? 0)개가 다시 연결됐어요":"연결을 확인했어요.";await refresh();return}
+                    if verb=="job_status" {if applyRestartReply(reply) {if state=="done" {await refresh()};return};continue}
+                    if state=="approved" || state=="done" {code="";loginURL=nil;notice="연결을 확인했어요.";await refresh();return}
                     if !["pending","running","waiting"].contains(state) {notice="결과를 확인하지 못했어요. 서버에서 확인해 주세요.";return}
                 } catch {continue} // The saved restart job is queried after reconnection; the side effect is never retried.
             }
-            self?.notice="동의 시간이 초과됐어요. 다시 연결을 눌러 시작할 수 있어요."
+            guard !Task.isCancelled,pollingID==token else{return}
+            notice=verb=="job_status" ? "재시작 결과를 확인할 수 없어요. 읽기 전용으로 결과를 다시 확인할 수 있어요.":"동의 시간이 초과됐어요. 다시 연결을 눌러 시작할 수 있어요."
         }
     }
 }
@@ -228,7 +314,8 @@ import Combine
     private var appearanceObserver:NSObjectProtocol?
     private var pending:[String:CheckedContinuation<[String:Any],Error>]=[:]
     private var timeouts:[String:Task<Void,Never>]=[:]
-    init(controller:ConversationController){
+    private var confirmation:(alert:NSAlert,parent:NSWindow)?
+    init(controller:ConversationController,requestTimeout:UInt64=180_000_000_000,transmit:(([String:Any]) async throws->Void)?=nil){
         var request:(([String:Any])async throws->[String:Any])!
         model=ConnectionsModel(send:{try await request($0)},confirm:{
             let context=LAContext()
@@ -253,13 +340,18 @@ import Combine
         window.appearance=ChatAppearance.theme.appearance
         appearanceObserver=NotificationCenter.default.addObserver(forName:ChatAppearance.didChange,object:nil,queue:.main){[weak window] _ in MainActor.assumeIsolated {window?.appearance=ChatAppearance.theme.appearance} }
         request={ [weak self,weak controller] frame in
-            guard let self,let controller,controller.canSend else{throw GateFailure.notConnected}
+            guard let self,let controller,transmit != nil || controller.canSend else{throw GateFailure.notConnected}
             var frame=frame;let id=UUID().uuidString.lowercased();frame["id"]=id
-            return try await withCheckedThrowingContinuation { continuation in
-                self.pending[id]=continuation
-                self.timeouts[id]=Task { [weak self] in try? await Task.sleep(nanoseconds:180_000_000_000);guard !Task.isCancelled else{return};self?.pending.removeValue(forKey:id)?.resume(throwing:GateFailure.notConnected);self?.timeouts[id]=nil }
-                Task {do{try await controller.client.send(frame)}catch{self.timeouts.removeValue(forKey:id)?.cancel();self.pending.removeValue(forKey:id)?.resume(throwing:GateFailure.notConnected)}}
-            }
+            return try await withTaskCancellationHandler(operation:{
+                try Task.checkCancellation()
+                return try await withCheckedThrowingContinuation { continuation in
+                    self.pending[id]=continuation
+                    self.timeouts[id]=Task { [weak self] in try? await Task.sleep(nanoseconds:requestTimeout);guard !Task.isCancelled else{return};self?.pending.removeValue(forKey:id)?.resume(throwing:GateFailure.notConnected);self?.timeouts[id]=nil }
+                    Task {do{if let transmit {try await transmit(frame)}else{try await controller.client.send(frame)}}catch{self.timeouts.removeValue(forKey:id)?.cancel();self.pending.removeValue(forKey:id)?.resume(throwing:GateFailure.notConnected)}}
+                }
+            },onCancel:{Task { @MainActor [weak self] in
+                self?.timeouts.removeValue(forKey:id)?.cancel();self?.pending.removeValue(forKey:id)?.resume(throwing:CancellationError())
+            }})
         }
         controller.onConnectionsFrame={ [weak self] frame in
             guard let self,let ref=frame["ref"] as? String else{return}
@@ -269,10 +361,15 @@ import Combine
     }
     deinit {if let appearanceObserver {NotificationCenter.default.removeObserver(appearanceObserver)}}
     func setPreferredLevel(_ level:NSWindow.Level){preferredLevel=level;updateLevel(confirming:model.confirming)}
-    private func updateLevel(confirming:Bool){window.level=confirming ? .normal:preferredLevel}
+    private func updateLevel(confirming:Bool){
+        let level:NSWindow.Level=confirming ? .normal:preferredLevel
+        func apply(_ parent:NSWindow){parent.level=level;for sheet in parent.sheets{apply(sheet)}}
+        apply(window)
+    }
     private func presentInput(_ active:Bool){
         guard active==model.showingInput else{return}
         if !active {
+            dismissConfirmation()
             if let inputWindow {window.endSheet(inputWindow);inputWindow.orderOut(nil);self.inputWindow=nil}
             updateLevel(confirming:model.confirming);return
         }
@@ -288,23 +385,40 @@ import Combine
         }
     }
     private func ask(_ title:String,text:String,button:String) async ->Bool {
-        model.confirming=true;defer{model.confirming=false;model.restoreFocus()}
+        guard confirmation==nil,window.isVisible else{return false}
+        defer{model.restoreFocus()}
         let alert=NSAlert();alert.messageText=title;alert.informativeText=text
         alert.addButton(withTitle:button);alert.addButton(withTitle:"취소")
+        let parent=inputWindow ?? window
         return await withCheckedContinuation { continuation in
-            alert.beginSheetModal(for:inputWindow ?? window){continuation.resume(returning:$0 == .alertFirstButtonReturn)}
+            confirmation=(alert,parent)
+            alert.beginSheetModal(for:parent){ [weak self] response in
+                self?.confirmation=nil
+                continuation.resume(returning:response == .alertFirstButtonReturn)
+            }
+            updateLevel(confirming:false)
+            alert.window.makeKeyAndOrderFront(nil)
         }
     }
+    private func dismissConfirmation(){
+        guard let confirmation else{return}
+        self.confirmation=nil
+        confirmation.parent.endSheet(confirmation.alert.window,returnCode:.alertSecondButtonReturn)
+    }
     func restoreFocus(){
+        guard window.isVisible else{return}
         NSApp.activate(ignoringOtherApps:true)
         window.makeKeyAndOrderFront(nil)
-        if let inputWindow {inputWindow.makeKeyAndOrderFront(nil)}
+        (confirmation?.alert.window ?? inputWindow)?.makeKeyAndOrderFront(nil)
     }
     func windowShouldClose(_ sender:NSWindow)->Bool {
-        if sender === inputWindow {window.endSheet(sender);return false}
+        if sender === inputWindow {dismissConfirmation();model.closeInput();presentInput(false);return false}
         return true
     }
-    func windowWillClose(_ notification:Notification){if notification.object as? NSWindow === window {model.close();presentInput(false)}}
+    func windowWillClose(_ notification:Notification){
+        if notification.object as? NSWindow === window {dismissConfirmation();model.close();presentInput(false)}
+        else if let inputWindow,notification.object as? NSWindow === inputWindow {dismissConfirmation();model.closeInput();presentInput(false)}
+    }
     func show(profile:String?=nil){
         NSApp.activate(ignoringOtherApps:true)
         if let profile{model.selected=profile}
@@ -313,8 +427,8 @@ import Combine
         updateLevel(confirming:model.confirming)
         window.makeKeyAndOrderFront(nil)
         presentInput(model.showingInput)
-        if let inputWindow {inputWindow.makeKeyAndOrderFront(nil)}
-        Task{await model.refresh();await model.resumeRestart()}
+        (confirmation?.alert.window ?? inputWindow)?.makeKeyAndOrderFront(nil)
+        Task{await model.refresh();guard window.isVisible else{return};await model.resumeRestart()}
     }
 
 }
@@ -336,6 +450,7 @@ struct ConnectionsView:View {
                     HStack(spacing:12){face(agent,44);Text(agent.display_name).font(.system(size:18,weight:.bold));Spacer();Text(ConnectionTime.label(model.document?.checked_at)).font(.caption).foregroundColor(.secondary);Button("모두 확인"){Task{if let item=agent.connections.first{await model.perform("check_all",item:item)}}};Button("새로 확인"){Task{await model.refresh()}}}
                     if !model.readNotice.isEmpty{Text(model.readNotice).font(.caption).foregroundColor(.secondary).fixedSize(horizontal:false,vertical:true)}
                     if !model.notice.isEmpty{Text(model.notice).font(.caption).foregroundColor(.secondary).fixedSize(horizontal:false,vertical:true)}
+                    if model.trackingRestart {Button("재시작 결과 다시 확인"){Task{await model.resumeRestart()}}.disabled(model.busy)}
                     if let n=model.document?.unavailable_providers,n>0 {Text("이 서버에서 불러오지 못한 제공자 \(n)개").font(.caption).foregroundColor(.secondary)}
                     if !model.code.isEmpty{Text(model.code).textSelection(.enabled);if let url=model.loginURL{Link("동의 페이지 열기",destination:url)}}
                     HStack(spacing:8){summary(agent,[.connected],"연결됨",.green);summary(agent,[.needsReconnect,.notConnected],"다시 연결 필요",.yellow);summary(agent,[.unknown],"확인 안 됨",.gray)}
@@ -365,16 +480,18 @@ struct ConnectionsView:View {
         return Group{if count>0{HStack(spacing:5){Circle().fill(color).frame(width:6,height:6);Text("\(title) \(count)")}.font(.caption).foregroundColor(.secondary).padding(.horizontal,9).padding(.vertical,4).background(card).clipShape(Capsule())}}
     }
     private func button(_ action:ConnectionAction,_ item:AgentConnectionItem)->some View {
-        Button{model.detail=item.id;Task{await model.perform(action.id,item:item)}}label:{
-            HStack(spacing:5){if model.busy{ProgressView().controlSize(.small)};Text(model.busy ? "…":action.label)}.font(.system(size:11,weight:.medium)).foregroundColor(action.resolves ? .white:.primary)
+        let title=actionTitle(action)
+        return Button{model.detail=item.id;Task{await model.perform(action.id,item:item)}}label:{
+            HStack(spacing:5){if model.busy{ProgressView().controlSize(.small)};Text(model.busy ? "…":title)}.font(.system(size:11,weight:.medium)).foregroundColor(action.resolves ? .white:.primary)
                 .padding(.horizontal,12).padding(.vertical,7).background(action.resolves ? Color.blue:Color.clear).cornerRadius(6)
                 .overlay(RoundedRectangle(cornerRadius:6).stroke(action.resolves ? Color.clear:Color.secondary.opacity(0.35),lineWidth:1))
-        }.buttonStyle(.plain).disabled(model.busy).accessibilityLabel("\(model.agent?.display_name ?? ""), \(item.label), \(action.label)")
+        }.buttonStyle(.plain).disabled(model.busy).accessibilityLabel("\(model.agent?.display_name ?? ""), \(item.label), \(title)")
     }
+    private func actionTitle(_ action:ConnectionAction)->String {action.id=="gateway_restart" && model.trackingRestart ? "결과 다시 확인":action.label}
     private func row(_ item:AgentConnectionItem)->some View {
         HStack(spacing:10){Button{model.detail=item.id}label:{HStack(spacing:10){tile(item.service);VStack(alignment:.leading,spacing:3){Text(item.label).font(.system(size:12,weight:.semibold));Text(item.account ?? item.explanation).font(.system(size:11)).foregroundColor(.secondary).lineLimit(1)}.frame(maxWidth:.infinity,alignment:.leading)}}.buttonStyle(.plain);pill(item.state);if let primary=item.primaryAction{button(primary,item)}else{Button("›"){model.detail=item.id}.buttonStyle(.plain).foregroundColor(.secondary)}
             if !item.otherActions.isEmpty {
-                Menu {ForEach(item.otherActions,id:\.id){action in Button(action.label){model.detail=item.id;Task{await model.perform(action.id,item:item)}}}}
+                Menu {ForEach(item.otherActions,id:\.id){action in Button(actionTitle(action)){model.detail=item.id;Task{await model.perform(action.id,item:item)}}}}
                     label:{Text("⋯").font(.title3)}.menuStyle(.borderlessButton).fixedSize().accessibilityLabel("다른 동작")
             }}.padding(.horizontal,12).padding(.vertical,10)
     }
@@ -416,6 +533,8 @@ struct ConnectionsView:View {
 
 struct ConnectionInputView:View {
     @ObservedObject var model:ConnectionsModel
+    var primaryTitle:String {model.next?.kind=="gateway_restart" ? (model.trackingRestart ? "결과 다시 확인":"다시 시작"):"확인하고 저장"}
+    var storageHint:String {model.next?.kind=="gateway_restart" ? "":"입력한 값은 확인을 통과해야 저장해요. 화면과 기록에는 남기지 않아요."}
     var body:some View {
         VStack(alignment:.leading,spacing:14) {
             Text("\(model.agent?.display_name ?? "") · \(model.item?.label ?? "") 연결").font(.title3.bold())
@@ -459,12 +578,13 @@ struct ConnectionInputView:View {
                     }
                 }.frame(maxWidth:.infinity,alignment:.leading)
             }.frame(height:min(340,max(180,(NSScreen.main?.visibleFrame.height ?? 700)-260)))
-            Text("입력한 값은 확인을 통과해야 저장해요. 화면과 기록에는 남기지 않아요.").font(.caption).foregroundColor(.secondary)
+            if !storageHint.isEmpty {Text(storageHint).font(.caption).foregroundColor(.secondary)}
+            if model.next?.kind=="gateway_restart",model.restartInFlight || model.trackingRestart {Text(model.notice).font(.caption).foregroundColor(.secondary);if model.busy{ProgressView().controlSize(.small)}}
             Text(model.inputError).font(.caption).foregroundColor(.red)
             HStack {
                 Spacer()
-                Button("취소"){model.closeInput()}.keyboardShortcut(.cancelAction).disabled(model.busy)
-                Button("확인하고 저장"){Task{await model.submit()}}.keyboardShortcut(.defaultAction)
+                Button(model.restartInFlight || model.trackingRestart ? "닫기":"취소"){model.closeInput()}.keyboardShortcut(.cancelAction).disabled(model.busy && !model.restartInFlight)
+                Button(primaryTitle){Task{await model.submit()}}.keyboardShortcut(.defaultAction)
                     .disabled(model.busy || model.fields.contains{$0.required != false && (model.values[$0.id] ?? "").isEmpty} || (model.next?.needs_default==true && model.defaultChoice.isEmpty) || (model.next?.options != nil && model.choices.isEmpty) || model.guide?.error(model.values) != nil)
             }
         }.padding(22).frame(width:440)

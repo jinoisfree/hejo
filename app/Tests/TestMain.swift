@@ -32,7 +32,13 @@ final class MemoryCredentials: GateCredentialStore {
         Task { @MainActor in
             do {
                 let args = CommandLine.arguments
-                if args.contains("--hejo-typing-boundaries") || args.contains("--hejo-typing-manual") {
+                if args.contains("--connection-stuck-probe") {
+                    try await connectionStuckReproduction()
+                } else if args.contains("--connection-stuck") {
+                    try await connectionRestartTests(outputDirectory:args.last=="--connection-stuck" ? nil:URL(fileURLWithPath:args.last!))
+                } else if args.contains("--connections") {
+                    try await connectionsTests()
+                } else if args.contains("--hejo-typing-boundaries") || args.contains("--hejo-typing-manual") {
                     try await hejoTypingBoundaryTests(manual:args.contains("--hejo-typing-manual"))
                 } else if args.count == 5 && args[1] == "--hejo-typing" {
                     try await hejoPerf(input: URL(fileURLWithPath: args[2]), output: URL(fileURLWithPath: args[3]), measure: true, typingMode: args[4])

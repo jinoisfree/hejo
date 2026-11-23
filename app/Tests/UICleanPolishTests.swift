@@ -25,7 +25,28 @@ import AppKit
     pet.preferredChatSize=CGSize(width:760,height:500)
     pet.pet.installConversation(view);pet.installDrawer(view);pet.placePet(at:CGPoint(x:600,y:650));pet.showChat();view.chooseThread(question.key)
     func all(_ root:NSView)->[NSView]{[root]+root.subviews.flatMap{all($0)}}
-    func settle(){pet.stepPlacement();view.layoutSubtreeIfNeeded();CATransaction.flush()}
+    let observationStart=ProcessInfo.processInfo.systemUptime
+    var layoutPasses=0
+    func settle(){pet.stepPlacement();view.layoutSubtreeIfNeeded();CATransaction.flush();layoutPasses+=1}
+    func observeJudgments(_ phase:String)throws {
+        func key(_ value:ConversationKey?)->String {value.map{"\($0.employee)/\($0.thread)"} ?? "none"}
+        let open=Mirror(reflecting:view).children.first{$0.label=="openThread"}!.value as! ConversationKey?
+        let chips=all(view.history).compactMap{$0 as? FileChip}.filter{$0.replyWord != nil}
+        let rows=view.history.contents.enumerated().map{index,content->[String:Any] in
+            ["id":content.id,"frame":NSStringFromRect(view.history.table.rect(ofRow:index)),"realized":view.history.table.view(atColumn:0,row:index,makeIfNecessary:false) != nil]
+        }
+        let record:[String:Any]=[
+            "phase":phase,"elapsed":ProcessInfo.processInfo.systemUptime-observationStart,"layoutPasses":layoutPasses,
+            "buttons":chips.map{["title":$0.title,"replyWord":$0.replyWord ?? "","hasImage":$0.image != nil,"frame":NSStringFromRect($0.frame),"visibleRect":NSStringFromRect($0.visibleRect),"hidden":$0.isHiddenOrHasHiddenAncestor] as [String:Any]},
+            "modelButtons":controller.model.messages[question.id]!.buttons.map(\.label),
+            "assessmentButtons":controller.model.assessment(question.key).buttons.sorted(),
+            "question":key(question.key),"selected":key(controller.model.selected),"openThread":key(open),"isHome":controller.model.isHome,
+            "historyFrame":NSStringFromRect(view.history.frame),"displayedRect":NSStringFromRect(view.history.documentVisibleRect),"tableBounds":NSStringFromRect(view.history.table.bounds),"rows":rows,
+            "viewFrame":NSStringFromRect(view.frame),"viewVisibleRect":NSStringFromRect(view.visibleRect),"viewHidden":view.isHiddenOrHasHiddenAncestor,
+            "windowVisible":view.window?.isVisible ?? false,"windowKey":view.window?.isKeyWindow ?? false,"windowLevel":view.window?.level.rawValue ?? 0,"windowFrame":NSStringFromRect(view.window?.frame ?? .zero)
+        ]
+        print("AT-UC-32 OBSERVATION "+String(decoding:try JSONSerialization.data(withJSONObject:record,options:[.sortedKeys]),as:UTF8.self))
+    }
     func bitmap(_ target:NSView)->NSBitmapImageRep{target.needsDisplay=true;target.displayIfNeeded();let rep=target.bitmapImageRepForCachingDisplay(in:target.bounds)!;target.cacheDisplay(in:target.bounds,to:rep);return rep}
     let cwd=URL(fileURLWithPath:FileManager.default.currentDirectoryPath)
     let evidence=(cwd.lastPathComponent=="app" ? cwd.deletingLastPathComponent():cwd).appendingPathComponent(".build/ui-clean-evidence")
@@ -89,8 +110,24 @@ import AppKit
     func counters(_ cell:EmployeeSidebarCell)->[CALayer]{Mirror(reflecting:cell).children.first{$0.label=="counters"}!.value as! [CALayer]}
     try check(counters(homeCell).allSatisfy{$0.isHidden && $0.sublayers?.allSatisfy{$0.isHidden} == true},"AT-UC-31 all home badge layers hidden with 2 questions, 3 alerts and 4 unread")
     try check(!counters(otherCell)[0].isHidden && counters(otherCell)[0].opacity==1,"AT-UC-31 another room retains its unread badge")
-    view.chooseThread(question.key);view.refresh();settle();await pause(0.5);settle()
-    let words=all(view.history).compactMap{$0 as? FileChip}.filter{$0.replyWord != nil}
+    try observeJudgments("before-question-reveal")
+    // Home rows share a timestamp and sort by UUID. Reveal the question rather than
+    // toggling it closed, then observe its realized row instead of unrelated cards.
+    view.openFromBubble(question.key);settle()
+    func questionRow()->NSView? {
+        guard let index=view.history.contents.firstIndex(where:{$0.id==question.key.thread}),
+              view.history.table.rect(ofRow:index).intersects(view.history.documentVisibleRect) else{return nil}
+        return view.history.table.view(atColumn:0,row:index,makeIfNecessary:false)
+    }
+    do {
+        // Use the suite's bounded readiness wait; the button contract is asserted below.
+        try await waitFor {
+            settle();view.history.displayIfNeeded()
+            return view.window?.isVisible==true && !view.isHiddenOrHasHiddenAncestor && questionRow() != nil
+        }
+    } catch {try observeJudgments("question-readiness-failed");throw error}
+    try observeJudgments("question-ready")
+    let words=all(questionRow()!).compactMap{$0 as? FileChip}.filter{$0.replyWord != nil}
     try check(words.map(\.title)==["승인","거절","의견","확인"] && words.allSatisfy{$0.image == nil},"AT-UC-32 four word-only judgment buttons without image")
     for theme in [ChatTheme.dark,.light]{
         try ChatAppearance.change(theme:theme);pet.applyChatAppearance();view.refresh();settle();await pause(0.25);settle()
