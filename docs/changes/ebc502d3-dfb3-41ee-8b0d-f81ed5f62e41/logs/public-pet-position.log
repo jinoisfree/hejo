@@ -1,0 +1,10 @@
+PET_POSITION_T1_T6_PASS · simulated input/display integration; no physical mouse claim
+APP_TEST_OK
+Traceback (most recent call last):
+  File "<로컬 경로>", line 30, in <module>
+    assert json.loads(Path(path).read_text()) == snapshot(), 'Real settings metadata changed'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Real settings metadata changed
+ACTUAL_DOWNLOADS_METADATA_UNCHANGED · contents not opened
+PRIVATE_DIAGNOSTIC_ROOT=<로컬 경로>
+exit_code=1

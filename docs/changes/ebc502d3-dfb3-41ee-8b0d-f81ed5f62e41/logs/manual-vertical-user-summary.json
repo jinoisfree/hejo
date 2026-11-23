@@ -1,0 +1,18 @@
+{
+  "commit": "8df04a02f57ae1f3e07292969c52925724101e9b",
+  "events": 6826,
+  "kinds": {
+    "startup": 1,
+    "frame": 5325,
+    "input-1": 5,
+    "input-2": 5,
+    "after-event": 750,
+    "input-6": 739,
+    "input-10": 1
+  },
+  "userAccepted": true,
+  "wrapperExitCode": 1,
+  "settingsGuard": "failed",
+  "downloadsGuard": "passed",
+  "termination": "SIGTERM after user acceptance"
+}

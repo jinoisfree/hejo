@@ -1,0 +1,7 @@
+MANUAL_FIXTURE_AUTOMATION_PASS · programmatic controls, not physical input
+PET_POSITION_MANUAL_READY · click/drag pet; drag header; Control-D drawer; Control-W local web; Control-R size; Control-Q finish
+STARTUP_SMOKE_ONLY · actual mouse validation not performed
+APP_TEST_OK
+ACTUAL_SETTINGS_METADATA_UNCHANGED · contents not opened
+ACTUAL_DOWNLOADS_METADATA_UNCHANGED · contents not opened
+Probe evidence retained in temporary root: <임시 경로>

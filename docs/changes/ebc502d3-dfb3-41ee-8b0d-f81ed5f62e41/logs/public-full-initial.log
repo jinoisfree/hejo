@@ -1,0 +1,66 @@
+...............................서버의 Hermes를 업데이트해 주세요(hermes update); admin skipped
+.......................................
+2026-11-24 00:46:11,490 WARNING gateway.run: Agent turn failed; reply sanitized for chat. Detail: fixture model failure
+2026-11-24 00:46:13,839 WARNING gateway.run: Agent turn failed; reply sanitized for chat. Detail: fixture model failure
+GATEWAY_PROGRESS_PASS
+GATEWAY_PROGRESS_TRACE [{"order": 0, "kind": "register", "adapter": "default", "key": "agent:main:hejo:dm:default:1e6d10db-9a76-48bb-9262-45267a05c256", "generation": 1, "active_keys": ["agent:main:hejo:dm:default:1e6d10db-9a76-48bb-9262-45267a05c256"]}, {"order": 1, "kind": "send", "adapter": "default", "msg_id": "e0d9d827-5c5f-45cb-8e8a-bfd995811312", "success": true}, {"order": 2, "kind": "edit", "adapter": "default", "msg_id": "e0d9d827-5c5f-45cb-8e8a-bfd995811312", "success": true, "finalize": null}, {"order": 3, "kind": "schedule", "adapter": "default", "key": "agent:main:hejo:dm:default:1e6d10db-9a76-48bb-9262-45267a05c256", "generation": 1, "cleanup": true, "ids": ["e0d9d827-5c5f-45cb-8e8a-bfd995811312"], "failed": false}, {"order": 4, "kind": "register", "adapter": "default", "key": "agent:main:hejo:dm:default:1e6d10db-9a76-48bb-9262-45267a05c256", "generation": 1, "active_keys": ["agent:main:hejo:dm:default:1e6d10db-9a76-48bb-9262-45267a05c256"]}, {"order": 5, "kind": "send", "adapter": "default", "msg_id": "6d73fd30-7496-4491-8ea1-ed205125b648", "success": true}, {"order": 6, "kind": "fire", "adapter": "default", "key": "agent:main:hejo:dm:default:1e6d10db-9a76-48bb-9262-45267a05c256", "generation": 1}, {"order": 7, "kind": "pop", "adapter": "default", "key": "agent:main:hejo:dm:default:1e6d10db-9a76-48bb-9262-45267a05c256", "generation": 1, "found": true}, {"order": 8, "kind": "delete", "adapter": "default", "chat": "default", "msg_id": "e0d9d827-5c5f-45cb-8e8a-bfd995811312", "employee": "default", "success": true}, {"order": 9, "kind": "case", "adapter": "default", "profile": "default", "failed": false, "cleaned": true, "rows": [{"seq": 1, "type": "message", "msg_id": "557fff07-ae52-43ac-9aaa-b95e5bcad3b0"}, {"seq": 2, "type": "message", "msg_id": "e0d9d827-5c5f-45cb-8e8a-bfd995811312"}, {"seq": 3, "type": "edit", "msg_id": "e0d9d827-5c5f-45cb-8e8a-bfd995811312", "final": false}, {"seq": 4, "type": "edit", "msg_id": "e0d9d827-5c5f-45cb-8e8a-bfd995811312", "final": true}, {"seq": 5, "type": "message", "msg_id": "6d73fd30-7496-4491-8ea1-ed205125b648"}, {"seq": 6, "type": "delete", "msg_id": "e0d9d827-5c5f-45cb-8e8a-bfd995811312"}]}, {"order": 10, "kind": "register", "adapter": "default", "key": "agent:beta:hejo:dm:beta:2199cb13-69a9-484e-91ca-bcafd98a208c", "generation": 1, "active_keys": ["agent:beta:hejo:dm:beta:2199cb13-69a9-484e-91ca-bcafd98a208c"]}, {"order": 11, "kind": "send", "adapter": "default", "msg_id": "5a019541-2376-47cc-878a-2f136b948307", "success": true}, {"order": 12, "kind": "edit", "adapter": "default", "msg_id": "5a019541-2376-47cc-878a-2f136b948307", "success": true, "finalize": null}, {"order": 13, "kind": "schedule", "adapter": "default", "key": "agent:beta:hejo:dm:beta:2199cb13-69a9-484e-91ca-bcafd98a208c", "generation": 1, "cleanup": true, "ids": ["5a019541-2376-47cc-878a-2f136b948307"], "failed": false}, {"order": 14, "kind": "register", "adapter": "default", "key": "agent:beta:hejo:dm:beta:2199cb13-69a9-484e-91ca-bcafd98a208c", "generation": 1, "active_keys": ["agent:beta:hejo:dm:beta:2199cb13-69a9-484e-91ca-bcafd98a208c"]}, {"order": 15, "kind": "send", "adapter": "default", "msg_id": "501919a2-5d31-457a-af1c-e5b69bf1d513", "success": true}, {"order": 16, "kind": "fire", "adapter": "default", "key": "agent:beta:hejo:dm:beta:2199cb13-69a9-484e-91ca-bcafd98a208c", "generation": 1}, {"order": 17, "kind": "pop", "adapter": "default", "key": "agent:beta:hejo:dm:beta:2199cb13-69a9-484e-91ca-bcafd98a208c", "generation": 1, "found": true}, {"order": 18, "kind": "delete", "adapter": "default", "chat": "beta", "msg_id": "5a019541-2376-47cc-878a-2f136b948307", "employee": "beta", "success": true}, {"order": 19, "kind": "case", "adapter": "default", "profile": "beta", "failed": false, "cleaned": true, "rows": [{"seq": 7, "type": "message", "msg_id": "fbc517ab-35df-491c-9af7-c6979b29c545"}, {"seq": 8, "type": "message", "msg_id": "5a019541-2376-47cc-878a-2f136b948307"}, {"seq": 9, "type": "edit", "msg_id": "5a019541-2376-47cc-878a-2f136b948307", "final": false}, {"seq": 10, "type": "edit", "msg_id": "5a019541-2376-47cc-878a-2f136b948307", "final": true}, {"seq": 11, "type": "message", "msg_id": "501919a2-5d31-457a-af1c-e5b69bf1d513"}, {"seq": 12, "type": "delete", "msg_id": "5a019541-2376-47cc-878a-2f136b948307"}]}, {"order": 20, "kind": "register", "adapter": "default", "key": "agent:main:hejo:dm:default:a3aebc8a-c640-4f09-983a-750b9969cace", "generation": 1, "active_keys": ["agent:main:hejo:dm:default:a3aebc8a-c640-4f09-983a-750b9969cace"]}, {"order": 21, "kind": "send", "adapter": "default", "msg_id": "99f63b45-18b8-4d23-958f-8e4b70d80ba9", "success": true}, {"order": 22, "kind": "edit", "adapter": "default", "msg_id": "99f63b45-18b8-4d23-958f-8e4b70d80ba9", "success": true, "finalize": null}, {"order": 23, "kind": "schedule", "adapter": "default", "key": "agent:main:hejo:dm:default:a3aebc8a-c640-4f09-983a-750b9969cace", "generation": 1, "cleanup": true, "ids": ["99f63b45-18b8-4d23-958f-8e4b70d80ba9"], "failed": true}, {"order": 24, "kind": "send", "adapter": "default", "msg_id": "dc033a38-9f2b-4d48-9cbe-980b1758c6bb", "success": true}, {"order": 25, "kind": "fire", "adapter": "default", "key": "agent:main:hejo:dm:default:a3aebc8a-c640-4f09-983a-750b9969cace", "generation": 1}, {"order": 26, "kind": "pop", "adapter": "default", "key": "agent:main:hejo:dm:default:a3aebc8a-c640-4f09-983a-750b9969cace", "generation": 1, "found": true}, {"order": 27, "kind": "case", "adapter": "default", "profile": "default", "failed": true, "cleaned": false, "rows": [{"seq": 13, "type": "message", "msg_id": "a08bb3fa-706e-499f-a19b-100307f3da97"}, {"seq": 14, "type": "message", "msg_id": "99f63b45-18b8-4d23-958f-8e4b70d80ba9"}, {"seq": 15, "type": "edit", "msg_id": "99f63b45-18b8-4d23-958f-8e4b70d80ba9", "final": false}, {"seq": 16, "type": "edit", "msg_id": "99f63b45-18b8-4d23-958f-8e4b70d80ba9", "final": true}, {"seq": 17, "type": "message", "msg_id": "dc033a38-9f2b-4d48-9cbe-980b1758c6bb"}]}, {"order": 28, "kind": "register", "adapter": "default", "key": "agent:beta:hejo:dm:beta:17a61f65-acfb-4180-aef3-53c8eff4de74", "generation": 1, "active_keys": ["agent:beta:hejo:dm:beta:17a61f65-acfb-4180-aef3-53c8eff4de74"]}, {"order": 29, "kind": "send", "adapter": "default", "msg_id": "99f598ce-c6b8-44a0-809e-60b1c90bd26d", "success": true}, {"order": 30, "kind": "edit", "adapter": "default", "msg_id": "99f598ce-c6b8-44a0-809e-60b1c90bd26d", "success": true, "finalize": null}, {"order": 31, "kind": "schedule", "adapter": "default", "key": "agent:beta:hejo:dm:beta:17a61f65-acfb-4180-aef3-53c8eff4de74", "generation": 1, "cleanup": true, "ids": ["99f598ce-c6b8-44a0-809e-60b1c90bd26d"], "failed": true}, {"order": 32, "kind": "send", "adapter": "default", "msg_id": "7e3ada9c-568c-4628-a9d0-e2454f0c8fcf", "success": true}, {"order": 33, "kind": "fire", "adapter": "default", "key": "agent:beta:hejo:dm:beta:17a61f65-acfb-4180-aef3-53c8eff4de74", "generation": 1}, {"order": 34, "kind": "pop", "adapter": "default", "key": "agent:beta:hejo:dm:beta:17a61f65-acfb-4180-aef3-53c8eff4de74", "generation": 1, "found": true}, {"order": 35, "kind": "case", "adapter": "default", "profile": "beta", "failed": true, "cleaned": false, "rows": [{"seq": 18, "type": "message", "msg_id": "29a16f44-08df-4c55-a318-fe3d63e8ae90"}, {"seq": 19, "type": "message", "msg_id": "99f598ce-c6b8-44a0-809e-60b1c90bd26d"}, {"seq": 20, "type": "edit", "msg_id": "99f598ce-c6b8-44a0-809e-60b1c90bd26d", "final": false}, {"seq": 21, "type": "edit", "msg_id": "99f598ce-c6b8-44a0-809e-60b1c90bd26d", "final": true}, {"seq": 22, "type": "message", "msg_id": "7e3ada9c-568c-4628-a9d0-e2454f0c8fcf"}]}]
+
+.............................................................................................................................................................................F.......................hub_link_failed no_member
+linked; restart that Hermes gateway
+.....install_failed OSError
+.install_failed OSError
+.install_failed OSError
+.install_failed OSError
+...install_failed OSError
+.........Installed; gateway was not restarted. Review changes before restarting it.
+.Installed; gateway was not restarted. Review changes before restarting it.
+upgrade_failed config.yaml#platforms.hejo.home_channel OSError
+upgrade_failed profiles/beta/config.yaml#platforms.hejo.home_channel OSError
+upgrade_failed profiles/gamma/config.yaml#platforms.hejo.home_channel OSError
+.Installed; gateway was not restarted. Review changes before restarting it.
+.Installed; gateway was not restarted. Review changes before restarting it.
+.Installed; gateway was not restarted. Review changes before restarting it.
+.Installed; gateway was not restarted. Review changes before restarting it.
+.Installed; gateway was not restarted. Review changes before restarting it.
+.Installed; gateway was not restarted. Review changes before restarting it.
+..install_error OSError
+.restore_failed config.yaml#platforms.hejo.home_channel OSError
+..preserved_owner_change config.yaml#platforms.hejo.home_channel
+preserved_owner_change config.yaml#platforms.hejo.home_channel
+.Installed; gateway was not restarted. Review changes before restarting it.
+................install_failed OSError
+.Installed; gateway was not restarted. Review changes before restarting it.
+upgrade_failed config.yaml#platforms.hejo.home_channel OSError
+upgrade_failed profiles/beta/config.yaml#platforms.hejo.home_channel OSError
+upgrade_failed profiles/gamma/config.yaml#platforms.hejo.home_channel OSError
+...Installed; gateway was not restarted. Review changes before restarting it.
+upgrade_failed config.yaml#display.platforms.hejo.cleanup_progress OSError
+upgrade_failed profiles/beta/config.yaml#display.platforms.hejo.cleanup_progress OSError
+..............................PUBLISHED v0.2.1
+.............................................................................
+=================================== FAILURES ===================================
+_____________________________ test_at_hf_08[True] ______________________________
+
+gate = <gate.adapter.HejoAdapter object at 0x1104d5950>
+client = <gate.tests.support.client.<locals>.Client object at 0x110462ba0>
+airport = PosixPath('<로컬 경로>')
+with_roster = True
+
+    @pytest.mark.parametrize("with_roster", [True, False])
+    async def test_at_hf_08(gate, client, airport, with_roster):
+        """Both roster response types use the serving set and optional team-kit metadata."""
+        if with_roster:
+            # Use the real optional registry, no replacement parser or fake module.
+>           from hermes_facility import team_registry
+E           ModuleNotFoundError: No module named 'hermes_facility'
+
+tests/acceptance/test_gate_foundation.py:168: ModuleNotFoundError
+=============================== warnings summary ===============================
+tests/acceptance/test_hub.py::test_operator_links_a_member_hermes_without_password
+  tests/acceptance/test_hub.py:183: PytestWarning: The test <Function test_operator_links_a_member_hermes_without_password> is marked with '@pytest.mark.asyncio' but it is not an async function. Please remove the asyncio mark. If the test is not marked explicitly, check for global marks applied via 'pytestmark'.
+    def test_operator_links_a_member_hermes_without_password(tmp_path):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/acceptance/test_gate_foundation.py::test_at_hf_08[True] - Module...
+1 failed, 426 passed, 1 warning in 100.19s (0:01:40)

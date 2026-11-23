@@ -1,0 +1,47 @@
+Sources/AirportFinder.swift:45:18: warning: concurrently-executed local function 'finish' must be marked as '@Sendable'; this is an error in the Swift 6 language mode
+43 |             let connection = NWConnection(host: NWEndpoint.Host(host), port: NWEndpoint.Port(integerLiteral: UInt16(port)), using: .tcp)
+44 |             let lock = NSLock(); var done = false
+45 |             func finish(_ value: Bool) {
+   |                  `- warning: concurrently-executed local function 'finish' must be marked as '@Sendable'; this is an error in the Swift 6 language mode
+46 |                 lock.lock(); defer { lock.unlock() }
+47 |                 guard !done else { return }; done = true; connection.cancel(); continuation.resume(returning: value)
+Sources/AppDelegate.swift:301:26: warning: capture of 'monitor' with non-Sendable type 'StatusMonitor' in a '@Sendable' closure [#SendableClosureCaptures]
+299 |         monitorBusy=true
+300 |         monitorQueue.async { [weak self] in
+301 |             let snapshot=monitor.poll(forceDiscovery:force)
+    |                          `- warning: capture of 'monitor' with non-Sendable type 'StatusMonitor' in a '@Sendable' closure [#SendableClosureCaptures]
+302 |             DispatchQueue.main.async {
+303 |                 guard let self else{return};self.monitorBusy=false
+
+Sources/Monitor.swift:3:13: note: class 'StatusMonitor' does not conform to the 'Sendable' protocol
+  1 | import Foundation
+  2 |
+  3 | final class StatusMonitor {
+    |             `- note: class 'StatusMonitor' does not conform to the 'Sendable' protocol
+  4 |     let codexRoot: URL
+  5 |     let claudeRoot: URL
+
+[#SendableClosureCaptures]: <https://docs.swift.org/compiler/documentation/diagnostics/sendable-closure-captures>
+Sources/ConversationView.swift:75:255: warning: call to main actor-isolated instance method 'tickWorkspaceMotion()' in a synchronous nonisolated context [#ActorIsolatedCall]
+  67 |     func beginReadingResize(){isReadingResize=true;longReplyBases.removeAll();longReplyWindowBase=nil;history.beginReadingResize()}
+  68 |     func endReadingResize(){history.endReadingResize();isReadingResize=false;reportOpenHeight()}
+  69 |     func tickWorkspaceMotion(){
+     |          `- note: calls to instance method 'tickWorkspaceMotion()' from outside of its actor context are implicitly asynchronous
+  70 |         let now=motionTime();bannerFraction=bannerMotion.value(now);chipFraction=chipMotion.value(now)
+  71 |         replyButton.selection=modeMotion.value(now);newButton.selection=1-(replyButton.selection ?? 1)
+     :
+  73 |         if ![bannerMotion,chipMotion,modeMotion].contains(where:{$0.pending(now)}) {workspaceTimer?.invalidate();workspaceTimer=nil}
+  74 |     }
+  75 |     private func startWorkspaceMotion(){tickWorkspaceMotion();guard workspaceTimer==nil,[bannerMotion,chipMotion,modeMotion].contains(where:{$0.pending(motionTime())}) else{return};let timer=Timer(timeInterval:1.0/60,repeats:true){[weak self] _ in self?.tickWorkspaceMotion()};workspaceTimer=timer;RunLoop.main.add(timer,forMode:.common)}
+     |                                                                                                                                                                                                                                                               `- warning: call to main actor-isolated instance method 'tickWorkspaceMotion()' in a synchronous nonisolated context [#ActorIsolatedCall]
+  76 |     private var noticeCursor:[String:Int]=[:]
+  77 |     private var automatic=false
+
+[#ActorIsolatedCall]: <https://docs.swift.org/compiler/documentation/diagnostics/actor-isolated-call>
+.build/hejo.app/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc: replacing existing signature
+.build/hejo.app/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc: replacing existing signature
+.build/hejo.app/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate: replacing existing signature
+.build/hejo.app/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app: replacing existing signature
+.build/hejo.app/Contents/Frameworks/Sparkle.framework: replacing existing signature
+.build/hejo.app: replacing existing signature
+BUILD_OK app/.build/hejo.app

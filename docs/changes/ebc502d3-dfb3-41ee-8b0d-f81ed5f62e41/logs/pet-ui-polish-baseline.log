@@ -1,0 +1,5 @@
+APP_TEST_FAILED assertion("AT-UC-32 four word-only judgment buttons without image")
+ACTUAL_SETTINGS_METADATA_UNCHANGED · contents not opened
+ACTUAL_DOWNLOADS_METADATA_UNCHANGED · contents not opened
+PRIVATE_DIAGNOSTIC_ROOT=/tmp/hejo-pp-run.8LRL9W
+exit_code=1

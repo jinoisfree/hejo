@@ -1,0 +1,5 @@
+APP_TEST_FAILED assertion("AT-DI-02 chat-only left shift and unchanged pet")
+ACTUAL_SETTINGS_METADATA_UNCHANGED · contents not opened
+ACTUAL_DOWNLOADS_METADATA_UNCHANGED · contents not opened
+PRIVATE_DIAGNOSTIC_ROOT=<임시 경로>
+exit_code=1

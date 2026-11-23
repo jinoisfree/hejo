@@ -1,0 +1,4 @@
+start_test_process_present False
+end_test_process_present False
+CHANGED_CATEGORY hejo
+exit_code=0

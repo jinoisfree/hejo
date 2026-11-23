@@ -1,0 +1,10 @@
+PET_POSITION_MANUAL_READY · click/drag pet; drag header; Control-D drawer; Control-W local web; Control-R size; Control-Q finish
+2026-11-24 00:37:31.415 app-tests[71592:93977270] TSM AdjustCapsLockLEDForKeyTransitionHandling - _ISSetPhysicalKeyboardCapsLockLED Inhibit
+Terminated: 15
+Traceback (most recent call last):
+  File "<구현 작업공간>/app/Tests/settings_guard.py", line 30, in <module>
+    assert json.loads(Path(path).read_text()) == snapshot(), 'Real settings metadata changed'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Real settings metadata changed
+ACTUAL_DOWNLOADS_METADATA_UNCHANGED · contents not opened
+Probe evidence retained in temporary root: <임시 경로>
