@@ -1,3 +1,5 @@
+> 최신 구현 상태: 공개 통합·전체 자체 시험·배포 빌드·로컬 앱 설치 및 재실행 확인을 마쳤다. 최종 완료 판정과 푸시 대상 확정은 기획·검토 담당에게 남는다. 아래의 이전 실패·미설치 절은 당시 이력이며 마지막 적용 기록이 최신이다. 원본 verdict의 4회차 판정은 이번 실행 이전 검토 기록으로 그대로 보존했다.
+
 # 구현 인계: 연결 재시작 단계 멈춤
 
 최신 적용 상태: 공개 통합 회귀 차단으로 설치 보류. 상세는 마지막 TASK-CS-04~05 절을 따른다.
@@ -109,3 +111,16 @@ gate・schemas・scripts의 보완 기준 대비 diff가 비어 있음을 직접
 수정 전 대상 행이 미실현이던 같은 전체 순서에서 수정 후 질문은 열린 상태를 유지하고 약 0.065초 뒤 실현됐다. 표시 영역 y=99.5..417.5 안에 대상 행 y=169..348이 들어왔으며 그 행의 원래 네 버튼 단언이 통과했다. 홈 목록에 다른 질문의 캐시된 버튼들이 남아 있어도 검사 결과에 섞이지 않는다. 새로운 제품 변경 없이 관측 책임만 바로잡았다.
 
 `public-regression-fixed-privacy.log`의 격리 개인값 검사는 종료 0(텍스트 지적 없음·바이너리 생략)이다. `public-regression-fixed-static.log`는 종료 0으로 16개 선별 파일·문서 링크·공백, 개발 제품 2파일 동일성·공개 TestMain 기존 분기 보존·UC-32 원래 기대값 보존을 확인했다. 이번 보완의 추가 파일은 UICleanPolishTests와 승인된 regression-plan 문서이며 unrelated merge·트리 치환은 없다. 원인 자체의 실패·수정 후 성공과 기존 단언 보존을 직접 확인했으므로 별도 mutation 추가는 생략했다. 다음 단계는 공개 커밋과 배포·설치이며 아직 수행 결과를 선행 표시하지 않는다.
+
+
+### 공개 커밋·배포·실제 설치 결과
+
+- 공개 통합 커밋: `e8e28a998b8bbfc8b7586e328eebc9d7746fa9d2`. 부모는 `c880e52c15a5ffafb187f04d7236232e40a5af08` 한 개이며 커밋 직전 실제 github/main도 같은 공개 기준임을 확인했다. 개발·공개 이력 병합은 없고 개발 fd49c1de와 worktree·이전 증거를 보존했다. 추가 보고서 갱신은 문서만의 후속 커밋으로 남기며 배포 소스는 위 통합 커밋으로 고정한다.
+- 배포 빌드: 깨끗한 통합 커밋에서 `python3 app/.build/connection-stuck-evidence/deployment-build.py e8e28a998b8bbfc8b7586e328eebc9d7746fa9d2` 실행, 종료 0. 내부 `bash app/scripts/build.sh`도 종료 0(`deployment-build.log`). 테스트 빌드 옵션을 제거하고 기존 설치 번들의 Google 로그인 구성을 값 출력 없이 보존했다. 필요한 리소스·Sparkle·서명·BuildInfo를 확인한 결과는 `candidate.json`이다. BuildInfo는 tree `2a212d609fc20ed361e3e8e01e1a883065f82bec`, dirty=false이며 위 커밋의 전체 tree와 같다.
+- 최종 새 AC: `python3 app/.build/connection-stuck-evidence/run-check.py public-final-cs-ac.log app/.build/app-tests --connection-stuck app/.build/connection-stuck-evidence` 종료 0. 직접 gateway_restart와 resume 각각의 응답 유실·끊김에서 부작용 1회와 읽기 전용 회복, 실제 AppKit sheet 수락·취소·닫기를 통과했다. PNG는 AppKit view 렌더이며 창 순서·영역·실제 마우스 이벤트 기록을 함께 사용했다.
+- 설치: `python3 app/.build/connection-stuck-evidence/install-app.py` 종료 0. 기존 실제 앱 경로를 번들 ID·프로세스로 확인했고 시험 전에 정상 종료했다. 새 후보를 별도 staging에 복사·검증한 뒤 기존 앱을 새 작업 전용 백업 `hejo-connection-stuck-f1c5ef47-20261123T173925Z-previous.app`에 보존하고 정상 교체·재실행했다. 이전 작업 백업은 덮지 않았다. 설치 실제 경로·실행 파일·PID와 단계별 명령은 `installation.json`·`installation.log`에 남겼다. 최종 PID는 17300, finishedLaunching=true이며 예상 설치 번들/실행 파일 경로와 일치한다.
+- 기존 실행 파일 SHA-256: `8cdfe0305fed219044f65e361493596224f1852635fdcf6e84a6d397732aa252`. 백업도 같은 해시와 유효한 서명이다. 새 설치 실행 파일 SHA-256: `395eedfc01f0d386324d27f80d41cddbdbf0727db06692ba939da50083105665`. 검증된 배포 후보와 같고 새 설치의 deep/strict 서명도 통과했다. 번들 ID `io.github.hermes-hejo.hejo`, 표시 버전 `0.2.7`·빌드 `9`는 유지하며 배포 소스는 위 BuildInfo로 구별한다.
+- 실제 실행 확인: 메뉴의 에이전트 연결 창을 열어 표시 영역을 확인하고 창 닫기를 수행했다. `INSTALLED_CONNECTION_WINDOW_OPEN_CLOSE_OK`, 설치 완료·재실행 후 동일 PID·해시를 확인했다. 운영 게이트웨이·허브·설정·Hermes 비밀 파일·실제 메시지는 변경하거나 실행하지 않았다. 운영 화면에서 원래 멈춤의 직접 await 위치를 확정하거나 실제 재시작을 시험한 것은 아니다.
+- 복구: 실패가 없어 백업 복원은 실행하지 않았다. 기존 번들은 위 새 백업에 남아 있다. 필요 시 공개 worktree에서 `python3 app/.build/connection-stuck-evidence/restore-app.py`로 현재/백업 해시·서명 확인 후 앱만 정상 종료하고 현재 후보를 보존한 채 이전 번들을 원위치로 돌려 재실행한다. 이 수동 복구 명령은 미실행이며 자동 실패 복구 경로도 실제 고장 주입으로 실행하지 않았다.
+
+공개 문서 사본은 최신 원본 작업 문서 10개와 맞췄으며 이번 보고서의 설치 결과만 문서 후속 커밋으로 반영한다. 제품·시험 4파일은 전체 회귀 이후 바꾸지 않았다. 원본 전체 로그와 도구·경로·백업은 공개 worktree의 `app/.build/connection-stuck-evidence/` 로컬 증거에 보존한다. 푸시를 실행하지 않았으며 기획 담당은 V-CS-04 해소, UC-32 준비·관측 수정 적합성, 공개 통합/문서 커밋과 배포 소스의 관계, 전체 검사 및 실제 설치 증거를 재검토한다. 검토 전 최종 완료나 원격 반영을 선언하지 않는다.
