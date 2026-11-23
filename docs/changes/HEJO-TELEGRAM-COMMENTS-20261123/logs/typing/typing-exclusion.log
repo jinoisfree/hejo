@@ -1,0 +1,49 @@
+F....                                                                    [100%]
+=================================== FAILURES ===================================
+____________ test_hub_typing_in_original_topic_rechecks_state[None] ____________
+
+native = namespace(app=Application[bot=ExtBot[token=900:fixture]], api=<test_telegram_comments.BotAPI object at 0x10a8512b0>, bridge=<gate.telegram.Telegram object at 0x10a7b0590>, now=[1000.0], core=[], observed=[10, 10, 10])
+gate = <gate.adapter.HejoAdapter object at 0x10a7b06e0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10809c640>
+blocked = None
+
+    @pytest.mark.parametrize('blocked', [None, 'paused', 'disabled', 'closed', 'unpaired'])
+    async def test_hub_typing_in_original_topic_rechecks_state(native, gate, monkeypatch, blocked):
+        """Comments keep forum typing; deferred actions cannot outlive routing changes."""
+        await ready(native)
+        async def send_typing(chat_id, metadata=None):
+            await native.app.bot.send_chat_action(chat_id=chat_id, action='typing',
+                                                 message_thread_id=int(metadata['thread_id']))
+        monkeypatch.setattr(door._telegram, 'send_typing', send_typing, raising=False)
+        for _ in range(3):
+            await gate.send_typing('default', {'thread_id': 'fixture-thread'})
+        if blocked in {'paused', 'unpaired'}:
+            with native.bridge.vault.locked():
+                value = native.bridge.private()
+                if blocked == 'paused':
+                    value['comments'][0]['state'] = 'paused'
+                else:
+                    value['pair'] = None
+                native.bridge.vault.write('telegram.json', value)
+        elif blocked == 'disabled':
+            with native.bridge.settings_store.locked():
+                native.bridge.settings_store.write('settings.json', {'enabled': False})
+        elif blocked == 'closed':
+            with native.bridge.settings_store.locked():
+                value = native.bridge.topics('12345678')
+                value['topics']['default']['closed'] = True
+                native.bridge.settings_store.write('topics.json', value)
+        await asyncio.gather(*native.bridge._typing_tasks)
+        actions = [args for method, args in native.api.calls if method == 'sendChatAction']
+>       assert actions == ([] if blocked else [dict(chat_id=str(FORUM), action='typing', message_thread_id=8)])
+E       AssertionError: assert [] == [{'chat_id': ...hread_id': 8}]
+E         
+E         Right contains one more item: {'chat_id': '-1000000000100', 'action': 'typing', 'message_thread_id': 8}
+E         Use -v to get more diff
+
+gate/tests/test_telegram_comments.py:560: AssertionError
+------------------------------ Captured log setup ------------------------------
+WARNING  hermes_facility.team_registry:team_registry.py:34 team registry /private<temporary-home>/typing-exclusion-test/test_hub_typing_in_original_to0/owner/team.yaml: file not found; running with an empty roster (role features stay off)
+=========================== short test summary info ============================
+FAILED gate/tests/test_telegram_comments.py::test_hub_typing_in_original_topic_rechecks_state[None]
+1 failed, 4 passed in 0.49s

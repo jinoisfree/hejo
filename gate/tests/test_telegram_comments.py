@@ -63,6 +63,8 @@ class BotAPI(BaseRequest):
             if self.extra_admin:
                 result.append(dict(status='creator', user=dict(id=101, is_bot=False, first_name='Other'),
                                    is_anonymous=False))
+        elif action == 'sendChatAction':
+            result = True
         elif action in {'sendMessage', 'sendPhoto', 'sendDocument', 'editMessageText'}:
             if self.before_send:
                 result = self.before_send(args)
@@ -527,6 +529,38 @@ async def ready(native):
     native.api.calls.clear()
 
 
+@pytest.mark.parametrize('blocked', [None, 'paused', 'disabled', 'closed', 'unpaired'])
+async def test_hub_typing_in_original_topic_rechecks_state(native, gate, monkeypatch, blocked):
+    """Comments keep forum typing; deferred actions cannot outlive routing changes."""
+    await ready(native)
+    async def send_typing(chat_id, metadata=None):
+        await native.app.bot.send_chat_action(chat_id=chat_id, action='typing',
+                                             message_thread_id=int(metadata['thread_id']))
+    monkeypatch.setattr(door._telegram, 'send_typing', send_typing, raising=False)
+    for _ in range(3):
+        await gate.send_typing('default', {'thread_id': 'fixture-thread'})
+    if blocked in {'paused', 'unpaired'}:
+        with native.bridge.vault.locked():
+            value = native.bridge.private()
+            if blocked == 'paused':
+                value['comments'][0]['state'] = 'paused'
+            else:
+                value['pair'] = None
+            native.bridge.vault.write('telegram.json', value)
+    elif blocked == 'disabled':
+        with native.bridge.settings_store.locked():
+            native.bridge.settings_store.write('settings.json', {'enabled': False})
+    elif blocked == 'closed':
+        with native.bridge.settings_store.locked():
+            value = native.bridge.topics('12345678')
+            value['topics']['default']['closed'] = True
+            native.bridge.settings_store.write('topics.json', value)
+    await asyncio.gather(*native.bridge._typing_tasks)
+    actions = [args for method, args in native.api.calls if method == 'sendChatAction']
+    assert actions == ([] if blocked else [dict(chat_id=str(FORUM), action='typing', message_thread_id=8)])
+    assert not [m for m, _ in native.api.calls if m in {'sendMessage', 'editMessageText'}]
+
+
 def incoming(native, number, chat=DISCUSSION, reply=None, raw=None, **extra):
     data = dict(message_id=number, date=1001, chat=dict(id=chat, type='supergroup', is_forum=chat==FORUM),
                 text='fixture question')
@@ -571,6 +605,37 @@ async def question(native, number=100, room='default', anchor=200):
     op=next(o for o in deliveries(native,'channel') if o['room']==room and o['status']=='receipt')
     await forward_root(native,op,anchor)
     return op
+
+@pytest.mark.parametrize('failure', [None, 'stopped', 'permission', 'network'])
+async def test_hub_typing_targets_exact_comment_thread(native, gate, runner, monkeypatch, failure):
+    """Typing reaches only the question's comment thread without new chat messages."""
+    await ready(native)
+    async def send_typing(chat_id, metadata=None):
+        if failure == 'network' and int(chat_id) == DISCUSSION:
+            raise OSError('fixture typing unavailable')
+        await native.app.bot.send_chat_action(chat_id=chat_id, action='typing',
+                                             message_thread_id=int(metadata['thread_id']))
+    monkeypatch.setattr(door._telegram, 'send_typing', send_typing, raising=False)
+    monkeypatch.setattr(door._telegram, '_bot', native.app.bot, raising=False)
+    first = await question(native)
+    await question(native, number=101, room='alpha', anchor=201)
+    # Start a new heartbeat window after setup's automatic runner typing.
+    native.bridge._typing_at.clear()
+    native.api.calls.clear()
+    for _ in range(3):
+        await gate.send_typing('default', {'thread_id': first['thread']})
+    if failure == 'stopped':
+        await gate.stop_typing('default', {'thread_id': first['thread']})
+    elif failure == 'permission':
+        native.api.extra_admin = True
+    await asyncio.gather(*native.bridge._typing_tasks)
+    actions = [args for method, args in native.api.calls if method == 'sendChatAction']
+    expected = [] if failure == 'stopped' else [dict(chat_id=str(FORUM), action='typing', message_thread_id=8)]
+    if failure is None:
+        expected.append(dict(chat_id=str(DISCUSSION), action='typing', message_thread_id=200))
+    assert actions == expected
+    assert not [m for m, _ in native.api.calls if m in {'sendMessage', 'editMessageText'}]
+
 
 async def test_hub_two_rooms_cards_and_comment_routing(native,gate,runner):
     await ready(native)

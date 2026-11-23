@@ -1,0 +1,146 @@
+.........................................F.FF........................... [ 55%]
+.........................................................                [100%]
+=================================== FAILURES ===================================
+______________ test_hub_typing_targets_exact_comment_thread[None] ______________
+
+native = namespace(app=Application[bot=ExtBot[token=900:fixture]], api=<test_telegram_comments.BotAPI object at 0x10f9d0050>, bridge=<gate.telegram.Telegram object at 0x10f880050>, now=[1000.0], core=[], observed=[10, 10, 10, 200, 201])
+gate = <gate.adapter.HejoAdapter object at 0x10f98da90>
+runner = <gate.tests.support.runner.<locals>.TurnRunner object at 0x10f972ba0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10f8cd160>
+failure = None
+
+    @pytest.mark.parametrize('failure', [None, 'stopped', 'permission', 'network'])
+    async def test_hub_typing_targets_exact_comment_thread(native, gate, runner, monkeypatch, failure):
+        """Typing reaches only the question's comment thread without new chat messages."""
+        await ready(native)
+        first = await question(native)
+        await question(native, number=101, room='alpha', anchor=201)
+        async def send_typing(chat_id, metadata=None):
+            if failure == 'network' and int(chat_id) == DISCUSSION:
+                raise OSError('fixture typing unavailable')
+            await native.app.bot.send_chat_action(chat_id=chat_id, action='typing',
+                                                 message_thread_id=int(metadata['thread_id']))
+        monkeypatch.setattr(door._telegram, 'send_typing', send_typing, raising=False)
+        monkeypatch.setattr(door._telegram, '_bot', native.app.bot, raising=False)
+        native.api.calls.clear()
+        for _ in range(3):
+            await gate.send_typing('default', {'thread_id': first['thread']})
+        if failure == 'stopped':
+            await gate.stop_typing('default', {'thread_id': first['thread']})
+        elif failure == 'permission':
+            native.api.extra_admin = True
+        await asyncio.gather(*native.bridge._typing_tasks)
+        actions = [args for method, args in native.api.calls if method == 'sendChatAction']
+        expected = [] if failure == 'stopped' else [dict(chat_id=str(FORUM), action='typing', message_thread_id=8)]
+        if failure is None:
+            expected.append(dict(chat_id=str(DISCUSSION), action='typing', message_thread_id=200))
+>       assert actions == expected
+E       AssertionError: assert [{'chat_id': ...ead_id': 200}] == [{'chat_id': ...ead_id': 200}]
+E         
+E         At index 0 diff: {'chat_id': '-1000000000300', 'action': 'typing', 'message_thread_id': 200} != {'chat_id': '-1000000000100', 'action': 'typing', 'message_thread_id': 8}
+E         Right contains one more item: {'chat_id': '-1000000000300', 'action': 'typing', 'message_thread_id': 200}
+E         Use -v to get more diff
+
+gate/tests/test_telegram_comments.py:634: AssertionError
+------------------------------ Captured log setup ------------------------------
+WARNING  hermes_facility.team_registry:team_registry.py:34 team registry /private<temporary-home>/target-test/test_hub_typing_targets_exact_0/owner/team.yaml: file not found; running with an empty roster (role features stay off)
+------------------------------ Captured log call -------------------------------
+WARNING  gate.telegram:telegram.py:615 telegram_typing_failed kind=AttributeError
+WARNING  gate.telegram:telegram.py:615 telegram_typing_failed kind=AttributeError
+___________ test_hub_typing_targets_exact_comment_thread[permission] ___________
+
+native = namespace(app=Application[bot=ExtBot[token=900:fixture]], api=<test_telegram_comments.BotAPI object at 0x10fa6f550>, bridge=<gate.telegram.Telegram object at 0x10f815a50>, now=[1000.0], core=[], observed=[10, 10, 10, 200, 201])
+gate = <gate.adapter.HejoAdapter object at 0x10f83d6d0>
+runner = <gate.tests.support.runner.<locals>.TurnRunner object at 0x10f826ba0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10f9bbd90>
+failure = 'permission'
+
+    @pytest.mark.parametrize('failure', [None, 'stopped', 'permission', 'network'])
+    async def test_hub_typing_targets_exact_comment_thread(native, gate, runner, monkeypatch, failure):
+        """Typing reaches only the question's comment thread without new chat messages."""
+        await ready(native)
+        first = await question(native)
+        await question(native, number=101, room='alpha', anchor=201)
+        async def send_typing(chat_id, metadata=None):
+            if failure == 'network' and int(chat_id) == DISCUSSION:
+                raise OSError('fixture typing unavailable')
+            await native.app.bot.send_chat_action(chat_id=chat_id, action='typing',
+                                                 message_thread_id=int(metadata['thread_id']))
+        monkeypatch.setattr(door._telegram, 'send_typing', send_typing, raising=False)
+        monkeypatch.setattr(door._telegram, '_bot', native.app.bot, raising=False)
+        native.api.calls.clear()
+        for _ in range(3):
+            await gate.send_typing('default', {'thread_id': first['thread']})
+        if failure == 'stopped':
+            await gate.stop_typing('default', {'thread_id': first['thread']})
+        elif failure == 'permission':
+            native.api.extra_admin = True
+        await asyncio.gather(*native.bridge._typing_tasks)
+        actions = [args for method, args in native.api.calls if method == 'sendChatAction']
+        expected = [] if failure == 'stopped' else [dict(chat_id=str(FORUM), action='typing', message_thread_id=8)]
+        if failure is None:
+            expected.append(dict(chat_id=str(DISCUSSION), action='typing', message_thread_id=200))
+>       assert actions == expected
+E       AssertionError: assert [] == [{'chat_id': ...hread_id': 8}]
+E         
+E         Right contains one more item: {'chat_id': '-1000000000100', 'action': 'typing', 'message_thread_id': 8}
+E         Use -v to get more diff
+
+gate/tests/test_telegram_comments.py:634: AssertionError
+------------------------------ Captured log setup ------------------------------
+WARNING  hermes_facility.team_registry:team_registry.py:34 team registry /private<temporary-home>/target-test/test_hub_typing_targets_exact_2/owner/team.yaml: file not found; running with an empty roster (role features stay off)
+------------------------------ Captured log call -------------------------------
+WARNING  gate.telegram:telegram.py:615 telegram_typing_failed kind=AttributeError
+WARNING  gate.telegram:telegram.py:615 telegram_typing_failed kind=AttributeError
+WARNING  gate.telegram:telegram.py:615 telegram_typing_failed kind=Rejected
+____________ test_hub_typing_targets_exact_comment_thread[network] _____________
+
+native = namespace(app=Application[bot=ExtBot[token=900:fixture]], api=<test_telegram_comments.BotAPI object at 0x10f8f5ad0>, bridge=<gate.telegram.Telegram object at 0x10f815650>, now=[1000.0], core=[], observed=[10, 10, 10, 200, 201])
+gate = <gate.adapter.HejoAdapter object at 0x10f6851d0>
+runner = <gate.tests.support.runner.<locals>.TurnRunner object at 0x10f827230>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10f993770>
+failure = 'network'
+
+    @pytest.mark.parametrize('failure', [None, 'stopped', 'permission', 'network'])
+    async def test_hub_typing_targets_exact_comment_thread(native, gate, runner, monkeypatch, failure):
+        """Typing reaches only the question's comment thread without new chat messages."""
+        await ready(native)
+        first = await question(native)
+        await question(native, number=101, room='alpha', anchor=201)
+        async def send_typing(chat_id, metadata=None):
+            if failure == 'network' and int(chat_id) == DISCUSSION:
+                raise OSError('fixture typing unavailable')
+            await native.app.bot.send_chat_action(chat_id=chat_id, action='typing',
+                                                 message_thread_id=int(metadata['thread_id']))
+        monkeypatch.setattr(door._telegram, 'send_typing', send_typing, raising=False)
+        monkeypatch.setattr(door._telegram, '_bot', native.app.bot, raising=False)
+        native.api.calls.clear()
+        for _ in range(3):
+            await gate.send_typing('default', {'thread_id': first['thread']})
+        if failure == 'stopped':
+            await gate.stop_typing('default', {'thread_id': first['thread']})
+        elif failure == 'permission':
+            native.api.extra_admin = True
+        await asyncio.gather(*native.bridge._typing_tasks)
+        actions = [args for method, args in native.api.calls if method == 'sendChatAction']
+        expected = [] if failure == 'stopped' else [dict(chat_id=str(FORUM), action='typing', message_thread_id=8)]
+        if failure is None:
+            expected.append(dict(chat_id=str(DISCUSSION), action='typing', message_thread_id=200))
+>       assert actions == expected
+E       AssertionError: assert [] == [{'chat_id': ...hread_id': 8}]
+E         
+E         Right contains one more item: {'chat_id': '-1000000000100', 'action': 'typing', 'message_thread_id': 8}
+E         Use -v to get more diff
+
+gate/tests/test_telegram_comments.py:634: AssertionError
+------------------------------ Captured log setup ------------------------------
+WARNING  hermes_facility.team_registry:team_registry.py:34 team registry /private<temporary-home>/target-test/test_hub_typing_targets_exact_3/owner/team.yaml: file not found; running with an empty roster (role features stay off)
+------------------------------ Captured log call -------------------------------
+WARNING  gate.telegram:telegram.py:615 telegram_typing_failed kind=AttributeError
+WARNING  gate.telegram:telegram.py:615 telegram_typing_failed kind=AttributeError
+WARNING  gate.telegram:telegram.py:615 telegram_typing_failed kind=OSError
+=========================== short test summary info ============================
+FAILED gate/tests/test_telegram_comments.py::test_hub_typing_targets_exact_comment_thread[None]
+FAILED gate/tests/test_telegram_comments.py::test_hub_typing_targets_exact_comment_thread[permission]
+FAILED gate/tests/test_telegram_comments.py::test_hub_typing_targets_exact_comment_thread[network]
+3 failed, 126 passed in 14.95s

@@ -1,0 +1,9 @@
+{
+  "base": "09ddcece1aeb940a71c1f926b6883de32c2d3863",
+  "installedReleaseMatches": true,
+  "installedGateMatches": {
+    "gate/telegram.py": true,
+    "gate/telegram_comments.py": true,
+    "gate/adapter.py": true
+  }
+}

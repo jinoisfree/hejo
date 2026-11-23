@@ -582,26 +582,46 @@ class Telegram:
         self.sent_epochs[(tag, tg_id)] = epoch
 
     def send_typing(self, key):
-        if not self.active() or key[0] not in self.rooms() or self.comments.route(key[0]) != 'topic':
+        if (not self.active() or key[0] not in self.rooms()
+                or self.comments.route(key[0]) not in {'topic', 'comments'}):
             return
         pair = self.private()['pair']
         entry = self.topics(pair['tag'])['topics'].get(key[0])
         if not entry or entry['closed']:
             return
-        throttle = (pair['tag'], entry['topic'])
+        targets = [(pair['chat_id'], entry['topic'], None)]
+        if self.comments.route(key[0]) == 'comments':
+            binding = self.comments.binding_for(key[0])
+            anchor = self.comments.thread_anchor(binding, key[1])
+            if anchor and not self.adapter.journal.deleted(*key):
+                targets.append((binding['discussion_id'], str(anchor['anchor']), binding))
         now = asyncio.get_running_loop().time()
-        if now - self._typing_at.get(throttle, float('-inf')) < TYPING_SECONDS:
-            return
-        self._typing_at[throttle] = now
         phone = _telegram
-        async def request():
+
+        async def request(chat_id, thread_id, binding):
             try:
-                await phone.send_typing(pair['chat_id'], metadata={'thread_id': entry['topic']})
+                if (not self.active() or self.private()['pair'] != pair
+                        or key[0] not in self.rooms()
+                        or self.comments.route(key[0]) not in {'topic', 'comments'}
+                        or self.topics(pair['tag'])['topics'].get(key[0]) != entry
+                        or not self.typing(key) or self.adapter.journal.deleted(*key)):
+                    return
+                if binding:
+                    await self.comments.validate_live(phone._bot, binding)
+                    if not self.typing(key) or self.adapter.journal.deleted(*key):
+                        return
+                await phone.send_typing(chat_id, metadata={'thread_id': thread_id})
             except Exception as exc:
                 log.warning('telegram_typing_failed kind=%s', type(exc).__name__)
-        task = asyncio.create_task(request())
-        self._typing_tasks.add(task)
-        task.add_done_callback(self._typing_tasks.discard)
+
+        for chat_id, thread_id, binding in targets:
+            throttle = (pair['tag'], chat_id, thread_id)
+            if now - self._typing_at.get(throttle, float('-inf')) < TYPING_SECONDS:
+                continue
+            self._typing_at[throttle] = now
+            task = asyncio.create_task(request(chat_id, thread_id, binding))
+            self._typing_tasks.add(task)
+            task.add_done_callback(self._typing_tasks.discard)
 
     async def close(self):
         await self.comments.close()
