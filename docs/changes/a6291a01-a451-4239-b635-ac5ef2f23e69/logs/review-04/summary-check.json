@@ -1,0 +1,82 @@
+{
+  "command": "python3 .build/telegram-comments/m0/check_summary.py",
+  "exitCode": 0,
+  "cases": [
+    {
+      "case": "complete",
+      "exitCode": 0,
+      "result": {
+        "all_receipts_within_deadline": true,
+        "complete_with_receipts": true,
+        "contract_matches": true,
+        "owner_matches": true,
+        "pair_matches": true,
+        "receipt_present": {
+          "channel": true,
+          "comment": true,
+          "forward": true
+        },
+        "reserved": true,
+        "status": "complete"
+      }
+    },
+    {
+      "case": "missing",
+      "exitCode": 0,
+      "result": {
+        "all_receipts_within_deadline": false,
+        "complete_with_receipts": false,
+        "contract_matches": true,
+        "owner_matches": true,
+        "pair_matches": true,
+        "receipt_present": {
+          "channel": true,
+          "comment": false,
+          "forward": true
+        },
+        "reserved": true,
+        "status": "complete"
+      }
+    },
+    {
+      "case": "late",
+      "exitCode": 0,
+      "result": {
+        "all_receipts_within_deadline": false,
+        "complete_with_receipts": false,
+        "contract_matches": true,
+        "owner_matches": true,
+        "pair_matches": true,
+        "receipt_present": {
+          "channel": true,
+          "comment": true,
+          "forward": true
+        },
+        "reserved": true,
+        "status": "complete"
+      }
+    },
+    {
+      "case": "partial",
+      "exitCode": 1,
+      "result": {
+        "status": "invalid_snapshot"
+      }
+    },
+    {
+      "case": "duplicate",
+      "exitCode": 1,
+      "result": {
+        "status": "invalid_snapshot"
+      }
+    },
+    {
+      "case": "unknown_state",
+      "exitCode": 1,
+      "result": {
+        "status": "invalid_snapshot"
+      }
+    }
+  ],
+  "toolSha256": "bcf4057ebdf5015c0e68797e29f751f731c7b2e95a11ab2cb816df175393f80c"
+}

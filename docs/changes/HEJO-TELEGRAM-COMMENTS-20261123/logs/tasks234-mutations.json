@@ -1,0 +1,13 @@
+[
+  {
+    "mutation": "dedupe-before-download",
+    "exitCode": 1
+  },
+  {
+    "mutation": "personal-owner",
+    "exitCode": 1
+  },
+  {
+    "restored": true
+  }
+]

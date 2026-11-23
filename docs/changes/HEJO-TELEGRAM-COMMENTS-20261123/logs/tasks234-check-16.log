@@ -1,0 +1,460 @@
+........................................................................ [ 14%]
+........................................................................ [ 28%]
+........................................................................ [ 42%]
+........................................................................ [ 56%]
+........................................................................ [ 71%]
+........................................................................ [ 85%]
+........................................................................ [ 99%]
+..                                                                       [100%]
+=============================== warnings summary ===============================
+tests/acceptance/test_hub.py::test_operator_links_a_member_hermes_without_password
+  tests/acceptance/test_hub.py:183: PytestWarning: The test <Function test_operator_links_a_member_hermes_without_password> is marked with '@pytest.mark.asyncio' but it is not an async function. Please remove the asyncio mark. If the test is not marked explicitly, check for global marks applied via 'pytestmark'.
+    def test_operator_links_a_member_hermes_without_password(tmp_path):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+506 passed, 1 warning in 94.49s (0:01:34)
+2026-11-24 00:14:59,173 INFO hermes_cli.plugins: Plugin 'browser-browser-use' registered browser provider: browser-use
+2026-11-24 00:14:59,174 INFO hermes_cli.plugins: Plugin 'browser-browserbase' registered browser provider: browserbase
+2026-11-24 00:14:59,174 INFO hermes_cli.plugins: Plugin 'browser-firecrawl' registered browser provider: firecrawl
+2026-11-24 00:14:59,201 INFO hermes_cli.plugins: Plugin 'deepinfra' registered image_gen provider: deepinfra
+2026-11-24 00:14:59,201 INFO hermes_cli.plugins: Plugin 'fal' registered image_gen provider: fal
+2026-11-24 00:14:59,202 INFO hermes_cli.plugins: Plugin 'krea' registered image_gen provider: krea
+2026-11-24 00:14:59,202 INFO hermes_cli.plugins: Plugin 'meta-ai-image-gen' registered image_gen provider: meta-ai
+2026-11-24 00:14:59,203 INFO hermes_cli.plugins: Plugin 'openai' registered image_gen provider: openai
+2026-11-24 00:14:59,203 INFO hermes_cli.plugins: Plugin 'openai-codex' registered image_gen provider: openai-codex
+2026-11-24 00:14:59,204 INFO hermes_cli.plugins: Plugin 'openrouter' registered image_gen provider: openrouter
+2026-11-24 00:14:59,204 INFO hermes_cli.plugins: Plugin 'openrouter' registered image_gen provider: nous
+2026-11-24 00:14:59,205 INFO hermes_cli.plugins: Plugin 'xai' registered image_gen provider: xai
+2026-11-24 00:14:59,209 INFO hermes_cli.plugins: Plugin 'deepinfra' registered video_gen provider: deepinfra
+2026-11-24 00:14:59,209 INFO hermes_cli.plugins: Plugin 'fal' registered video_gen provider: fal
+2026-11-24 00:14:59,210 INFO hermes_cli.plugins: Plugin 'openrouter' registered video_gen provider: openrouter
+2026-11-24 00:14:59,210 INFO hermes_cli.plugins: Plugin 'xai' registered video_gen provider: xai
+2026-11-24 00:14:59,211 INFO hermes_cli.plugins: Plugin 'web-brave-free' registered web provider: brave-free
+2026-11-24 00:14:59,212 INFO hermes_cli.plugins: Plugin 'web-ddgs' registered web provider: ddgs
+2026-11-24 00:14:59,212 INFO hermes_cli.plugins: Plugin 'web-exa' registered web provider: exa
+2026-11-24 00:14:59,214 INFO hermes_cli.plugins: Plugin 'web-firecrawl' registered web provider: firecrawl
+2026-11-24 00:14:59,214 INFO hermes_cli.plugins: Plugin 'web-keenable' registered web provider: keenable
+2026-11-24 00:14:59,215 INFO hermes_cli.plugins: Plugin 'web-openai-native' registered web provider: openai-native
+2026-11-24 00:14:59,215 INFO hermes_cli.plugins: Plugin 'web-parallel' registered web provider: parallel
+2026-11-24 00:14:59,216 INFO hermes_cli.plugins: Plugin 'web-perplexity' registered web provider: perplexity
+2026-11-24 00:14:59,217 INFO hermes_cli.plugins: Plugin 'web-searxng' registered web provider: searxng
+2026-11-24 00:14:59,217 INFO hermes_cli.plugins: Plugin 'web-tavily' registered web provider: tavily
+2026-11-24 00:14:59,218 INFO hermes_cli.plugins: Plugin 'web-xai' registered web provider: xai
+2026-11-24 00:14:59,222 INFO hermes_cli.plugin_capabilities: capability_check plugin=hejo capability=tools.override decision=deny checked_by=plugin_capability_granted evidence=not granted
+2026-11-24 00:14:59,229 INFO hermes_cli.plugins: Plugin discovery complete: 58 found, 53 enabled
+2026-11-24 00:14:59,745 INFO gateway.control_socket: Gateway control socket listening at /private/tmp/hejo-gateway-20ap7ajs/airport/gateway.sock
+2026-11-24 00:14:59,842 INFO hermes_cli.plugins: Plugin 'browser-browser-use' registered browser provider: browser-use
+2026-11-24 00:14:59,843 INFO hermes_cli.plugins: Plugin 'browser-browserbase' registered browser provider: browserbase
+2026-11-24 00:14:59,843 INFO hermes_cli.plugins: Plugin 'browser-firecrawl' registered browser provider: firecrawl
+2026-11-24 00:14:59,866 INFO hermes_cli.plugins: Plugin 'deepinfra' registered image_gen provider: deepinfra
+2026-11-24 00:14:59,867 INFO hermes_cli.plugins: Plugin 'fal' registered image_gen provider: fal
+2026-11-24 00:14:59,867 INFO hermes_cli.plugins: Plugin 'krea' registered image_gen provider: krea
+2026-11-24 00:14:59,868 INFO hermes_cli.plugins: Plugin 'meta-ai-image-gen' registered image_gen provider: meta-ai
+2026-11-24 00:14:59,868 INFO hermes_cli.plugins: Plugin 'openai' registered image_gen provider: openai
+2026-11-24 00:14:59,869 INFO hermes_cli.plugins: Plugin 'openai-codex' registered image_gen provider: openai-codex
+2026-11-24 00:14:59,870 INFO hermes_cli.plugins: Plugin 'openrouter' registered image_gen provider: openrouter
+2026-11-24 00:14:59,870 INFO hermes_cli.plugins: Plugin 'openrouter' registered image_gen provider: nous
+2026-11-24 00:14:59,870 INFO hermes_cli.plugins: Plugin 'xai' registered image_gen provider: xai
+2026-11-24 00:14:59,873 INFO hermes_cli.plugins: Plugin 'deepinfra' registered video_gen provider: deepinfra
+2026-11-24 00:14:59,873 INFO hermes_cli.plugins: Plugin 'fal' registered video_gen provider: fal
+2026-11-24 00:14:59,874 INFO hermes_cli.plugins: Plugin 'openrouter' registered video_gen provider: openrouter
+2026-11-24 00:14:59,874 INFO hermes_cli.plugins: Plugin 'xai' registered video_gen provider: xai
+2026-11-24 00:14:59,874 INFO hermes_cli.plugins: Plugin 'web-brave-free' registered web provider: brave-free
+2026-11-24 00:14:59,875 INFO hermes_cli.plugins: Plugin 'web-ddgs' registered web provider: ddgs
+2026-11-24 00:14:59,875 INFO hermes_cli.plugins: Plugin 'web-exa' registered web provider: exa
+2026-11-24 00:14:59,876 INFO hermes_cli.plugins: Plugin 'web-firecrawl' registered web provider: firecrawl
+2026-11-24 00:14:59,876 INFO hermes_cli.plugins: Plugin 'web-keenable' registered web provider: keenable
+2026-11-24 00:14:59,876 INFO hermes_cli.plugins: Plugin 'web-openai-native' registered web provider: openai-native
+2026-11-24 00:14:59,877 INFO hermes_cli.plugins: Plugin 'web-parallel' registered web provider: parallel
+2026-11-24 00:14:59,877 INFO hermes_cli.plugins: Plugin 'web-perplexity' registered web provider: perplexity
+2026-11-24 00:14:59,878 INFO hermes_cli.plugins: Plugin 'web-searxng' registered web provider: searxng
+2026-11-24 00:14:59,878 INFO hermes_cli.plugins: Plugin 'web-tavily' registered web provider: tavily
+2026-11-24 00:14:59,878 INFO hermes_cli.plugins: Plugin 'web-xai' registered web provider: xai
+2026-11-24 00:14:59,879 INFO hermes_cli.plugin_capabilities: capability_check plugin=hejo capability=tools.override decision=deny checked_by=plugin_capability_granted evidence=not granted
+2026-11-24 00:14:59,880 INFO hermes_cli.plugins: Plugin discovery complete: 58 found, 53 enabled
+2026-11-24 00:14:59,880 INFO gateway.run: Starting Hermes Gateway...
+2026-11-24 00:14:59,881 INFO gateway.run: Session storage: /private/tmp/hejo-gateway-20ap7ajs/airport/sessions
+2026-11-24 00:14:59,883 INFO gateway.run: Agent budget: max_iterations=unlimited (agent.max_turns from config.yaml, else the HERMES_MAX_ITERATIONS bridge)
+2026-11-24 00:14:59,883 INFO gateway.run: Secret redaction: ENABLED (tool output, logs, and chat responses are scrubbed before delivery)
+2026-11-24 00:14:59,927 INFO gateway.run: Connecting to hejo...
+2026-11-24 00:14:59,927 INFO gateway.run: Connecting to probe_peer...
+2026-11-24 00:14:59,938 WARNING hermes_facility.team_registry: team registry /private/tmp/hejo-gateway-20ap7ajs/airport/owner/team.yaml: file not found; running with an empty roster (role features stay off)
+2026-11-24 00:14:59,942 INFO gateway.run: ✓ hejo connected
+2026-11-24 00:14:59,943 INFO gateway.run: ✓ probe_peer connected
+2026-11-24 00:15:00,115 INFO gateway.run: ✓ hejo connected (profile: beta)
+2026-11-24 00:15:00,116 INFO gateway.run: ✓ probe_peer connected (profile: beta)
+2026-11-24 00:15:00,448 INFO gateway.run: Gateway running with 4 platform(s)
+2026-11-24 00:15:00,450 INFO gateway.run: Channel directory built: 0 target(s)
+2026-11-24 00:15:01,454 INFO gateway.run: Press Ctrl+C to stop
+2026-11-24 00:15:01,464 INFO gateway.run: kanban dispatcher: holding singleton dispatcher lock (/private/tmp/hejo-gateway-20ap7ajs/airport/kanban/.dispatcher.lock)
+2026-11-24 00:15:01,467 INFO gateway.run: Cron scheduler will tick 2 profile(s): ['default', 'beta']
+2026-11-24 00:15:01,468 INFO cron.scheduler_provider: In-process cron scheduler started (interval=60s)
+2026-11-24 00:15:01,468 INFO cron.scheduler_provider: Multiplex cron scheduler started for 2 profile(s): ['default', 'beta'] (re-enumerated every cycle)
+2026-11-24 00:15:01,471 INFO gateway.run: Gateway housekeeping started (interval=60s)
+2026-11-24 00:15:01,775 WARNING gateway.mirror: Mirror: no session found for hejo:beta thread=None user=None (explicit_id=none, origin-scan bailed)
+2026-11-24 00:15:01,783 INFO cron.scheduler: Job 'fixture-job': delivered to hejo:beta via live adapter thread=- message_id=3d339570-46ce-474e-a619-c821ae86afe9
+2026-11-24 00:15:01,792 INFO cron.scheduler: Job 'fixture-job': delivered to hejo:beta via live adapter thread=- message_id=1e82213a-3c94-461a-9f13-5de99c63f126
+2026-11-24 00:15:01,795 WARNING gateway.mirror: Mirror: no session found for hejo:beta thread=None user=None (explicit_id=none, origin-scan bailed)
+2026-11-24 00:15:01,806 INFO gateway.delivery: Cron output preserved for chunking adapter (5007 chars) — full output saved to /private/tmp/hejo-gateway-20ap7ajs/airport/profiles/beta/cron/output/fixture-job_20261124_001501.txt
+2026-11-24 00:15:01,807 INFO cron.scheduler: Job 'fixture-job': delivered to hejo:beta via live adapter thread=- message_id=065b5d0f-06a1-4ead-bb39-ad2485db818e
+2026-11-24 00:15:01,812 WARNING gateway.mirror: Mirror: no session found for hejo:beta thread=None user=None (explicit_id=none, origin-scan bailed)
+AT99_OFFICIAL_DELIVERY_PASS
+ACCEPTANCE_RESULT {"acceptance": "AT-HF-22", "tcp_listeners": 1, "delivered": 4, "new_threads": 4, "offline_replayed": 2, "employee": "beta", "other_platform_sends": 0, "duplicate_checks": [{"profile": "beta", "platform": "hejo", "kind": "credential", "has_claim": false, "refused": false}, {"profile": "beta", "platform": "hejo", "kind": "listener", "has_claim": false, "refused": false}, {"profile": "beta", "platform": "probe_peer", "kind": "credential", "has_claim": true, "refused": false}, {"profile": "beta", "platform": "probe_peer", "kind": "listener", "has_claim": false, "refused": false}]}
+2026-11-24 00:15:01,813 INFO gateway.run: Stopping gateway...
+2026-11-24 00:15:01,813 INFO gateway.run: Sent shutdown notification to home channel hejo:default
+2026-11-24 00:15:01,814 INFO gateway.run: Sent shutdown notification to home channel hejo:beta
+2026-11-24 00:15:01,814 INFO gateway.run: Shutdown phase: notify_active_sessions done at +0.00s
+2026-11-24 00:15:01,815 INFO gateway.run: Shutdown phase: drain done at +0.00s (drain took 0.00s, timed_out=False, active_at_start=0, active_now=0, cron_at_start=0, cron_now=0, api_at_start=0, api_now=0, deferred_at_start=0, deferred_now=0)
+2026-11-24 00:15:01,816 INFO gateway.run: ✓ hejo disconnected (0.00s)
+2026-11-24 00:15:01,817 INFO gateway.run: ✓ probe_peer disconnected (0.00s)
+2026-11-24 00:15:01,817 INFO gateway.run: ✓ hejo disconnected (0.00s) (profile: beta)
+2026-11-24 00:15:01,818 INFO gateway.run: ✓ probe_peer disconnected (0.00s) (profile: beta)
+2026-11-24 00:15:01,818 INFO gateway.run: Shutdown phase: all adapters disconnected at +0.01s
+2026-11-24 00:15:01,819 INFO gateway.run: Gateway housekeeping stopped
+2026-11-24 00:15:01,819 INFO gateway.run: Shutdown phase: final-cleanup tool kill done at +0.01s
+2026-11-24 00:15:01,819 INFO gateway.run: Shutdown phase: executor quiesced at +0.01s
+2026-11-24 00:15:01,831 INFO gateway.run: Shutdown phase: SessionDB close done at +0.02s
+2026-11-24 00:15:01,832 INFO gateway.run: Gateway stopped (total teardown 0.02s)
+GATEWAY_EXIT clean
+Sources/AirportFinder.swift:45:18: warning: concurrently-executed local function 'finish' must be marked as '@Sendable'; this is an error in the Swift 6 language mode
+43 |             let connection = NWConnection(host: NWEndpoint.Host(host), port: NWEndpoint.Port(integerLiteral: UInt16(port)), using: .tcp)
+44 |             let lock = NSLock(); var done = false
+45 |             func finish(_ value: Bool) {
+   |                  `- warning: concurrently-executed local function 'finish' must be marked as '@Sendable'; this is an error in the Swift 6 language mode
+46 |                 lock.lock(); defer { lock.unlock() }
+47 |                 guard !done else { return }; done = true; connection.cancel(); continuation.resume(returning: value)
+Sources/AppDelegate.swift:301:26: warning: capture of 'monitor' with non-Sendable type 'StatusMonitor' in a '@Sendable' closure [#SendableClosureCaptures]
+299 |         monitorBusy=true
+300 |         monitorQueue.async { [weak self] in
+301 |             let snapshot=monitor.poll(forceDiscovery:force)
+    |                          `- warning: capture of 'monitor' with non-Sendable type 'StatusMonitor' in a '@Sendable' closure [#SendableClosureCaptures]
+302 |             DispatchQueue.main.async {
+303 |                 guard let self else{return};self.monitorBusy=false
+
+Sources/Monitor.swift:3:13: note: class 'StatusMonitor' does not conform to the 'Sendable' protocol
+  1 | import Foundation
+  2 | 
+  3 | final class StatusMonitor {
+    |             `- note: class 'StatusMonitor' does not conform to the 'Sendable' protocol
+  4 |     let codexRoot: URL
+  5 |     let claudeRoot: URL
+
+[#SendableClosureCaptures]: <https://docs.swift.org/compiler/documentation/diagnostics/sendable-closure-captures>
+Sources/ConversationView.swift:75:255: warning: call to main actor-isolated instance method 'tickWorkspaceMotion()' in a synchronous nonisolated context [#ActorIsolatedCall]
+  67 |     func beginReadingResize(){isReadingResize=true;longReplyBases.removeAll();longReplyWindowBase=nil;history.beginReadingResize()}
+  68 |     func endReadingResize(){history.endReadingResize();isReadingResize=false;reportOpenHeight()}
+  69 |     func tickWorkspaceMotion(){
+     |          `- note: calls to instance method 'tickWorkspaceMotion()' from outside of its actor context are implicitly asynchronous
+  70 |         let now=motionTime();bannerFraction=bannerMotion.value(now);chipFraction=chipMotion.value(now)
+  71 |         replyButton.selection=modeMotion.value(now);newButton.selection=1-(replyButton.selection ?? 1)
+     :
+  73 |         if ![bannerMotion,chipMotion,modeMotion].contains(where:{$0.pending(now)}) {workspaceTimer?.invalidate();workspaceTimer=nil}
+  74 |     }
+  75 |     private func startWorkspaceMotion(){tickWorkspaceMotion();guard workspaceTimer==nil,[bannerMotion,chipMotion,modeMotion].contains(where:{$0.pending(motionTime())}) else{return};let timer=Timer(timeInterval:1.0/60,repeats:true){[weak self] _ in self?.tickWorkspaceMotion()};workspaceTimer=timer;RunLoop.main.add(timer,forMode:.common)}
+     |                                                                                                                                                                                                                                                               `- warning: call to main actor-isolated instance method 'tickWorkspaceMotion()' in a synchronous nonisolated context [#ActorIsolatedCall]
+  76 |     private var noticeCursor:[String:Int]=[:]
+  77 |     private var automatic=false
+
+[#ActorIsolatedCall]: <https://docs.swift.org/compiler/documentation/diagnostics/actor-isolated-call>
+.build/hejo.app/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc: replacing existing signature
+.build/hejo.app/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc: replacing existing signature
+.build/hejo.app/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate: replacing existing signature
+.build/hejo.app/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app: replacing existing signature
+.build/hejo.app/Contents/Frameworks/Sparkle.framework: replacing existing signature
+.build/hejo.app: replacing existing signature
+BUILD_OK app/.build/hejo.app
+Sources/AirportFinder.swift:45:18: warning: concurrently-executed local function 'finish' must be marked as '@Sendable'; this is an error in the Swift 6 language mode
+43 |             let connection = NWConnection(host: NWEndpoint.Host(host), port: NWEndpoint.Port(integerLiteral: UInt16(port)), using: .tcp)
+44 |             let lock = NSLock(); var done = false
+45 |             func finish(_ value: Bool) {
+   |                  `- warning: concurrently-executed local function 'finish' must be marked as '@Sendable'; this is an error in the Swift 6 language mode
+46 |                 lock.lock(); defer { lock.unlock() }
+47 |                 guard !done else { return }; done = true; connection.cancel(); continuation.resume(returning: value)
+Sources/AppDelegate.swift:301:26: warning: capture of 'monitor' with non-Sendable type 'StatusMonitor' in a '@Sendable' closure [#SendableClosureCaptures]
+299 |         monitorBusy=true
+300 |         monitorQueue.async { [weak self] in
+301 |             let snapshot=monitor.poll(forceDiscovery:force)
+    |                          `- warning: capture of 'monitor' with non-Sendable type 'StatusMonitor' in a '@Sendable' closure [#SendableClosureCaptures]
+302 |             DispatchQueue.main.async {
+303 |                 guard let self else{return};self.monitorBusy=false
+
+Sources/Monitor.swift:3:13: note: class 'StatusMonitor' does not conform to the 'Sendable' protocol
+  1 | import Foundation
+  2 | 
+  3 | final class StatusMonitor {
+    |             `- note: class 'StatusMonitor' does not conform to the 'Sendable' protocol
+  4 |     let codexRoot: URL
+  5 |     let claudeRoot: URL
+
+[#SendableClosureCaptures]: <https://docs.swift.org/compiler/documentation/diagnostics/sendable-closure-captures>
+Sources/ConversationView.swift:75:255: warning: call to main actor-isolated instance method 'tickWorkspaceMotion()' in a synchronous nonisolated context [#ActorIsolatedCall]
+  67 |     func beginReadingResize(){isReadingResize=true;longReplyBases.removeAll();longReplyWindowBase=nil;history.beginReadingResize()}
+  68 |     func endReadingResize(){history.endReadingResize();isReadingResize=false;reportOpenHeight()}
+  69 |     func tickWorkspaceMotion(){
+     |          `- note: calls to instance method 'tickWorkspaceMotion()' from outside of its actor context are implicitly asynchronous
+  70 |         let now=motionTime();bannerFraction=bannerMotion.value(now);chipFraction=chipMotion.value(now)
+  71 |         replyButton.selection=modeMotion.value(now);newButton.selection=1-(replyButton.selection ?? 1)
+     :
+  73 |         if ![bannerMotion,chipMotion,modeMotion].contains(where:{$0.pending(now)}) {workspaceTimer?.invalidate();workspaceTimer=nil}
+  74 |     }
+  75 |     private func startWorkspaceMotion(){tickWorkspaceMotion();guard workspaceTimer==nil,[bannerMotion,chipMotion,modeMotion].contains(where:{$0.pending(motionTime())}) else{return};let timer=Timer(timeInterval:1.0/60,repeats:true){[weak self] _ in self?.tickWorkspaceMotion()};workspaceTimer=timer;RunLoop.main.add(timer,forMode:.common)}
+     |                                                                                                                                                                                                                                                               `- warning: call to main actor-isolated instance method 'tickWorkspaceMotion()' in a synchronous nonisolated context [#ActorIsolatedCall]
+  76 |     private var noticeCursor:[String:Int]=[:]
+  77 |     private var automatic=false
+
+[#ActorIsolatedCall]: <https://docs.swift.org/compiler/documentation/diagnostics/actor-isolated-call>
+Tests/DrawerInlineTests.swift:184:13: warning: initialization of immutable value 'dark' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+182 |         try check(distance(samples[0],samples[1])>tolerance,"AT-DI-20 opacity changes drawer pixels \(theme): \(samples)")
+183 |         view.todoDrawer.show(snapshot,filter:.all,selected:nil);view.layoutSubtreeIfNeeded();view.todoDrawer.layoutSubtreeIfNeeded()
+184 |         let dark=theme == .dark
+    |             `- warning: initialization of immutable value 'dark' was never used; consider replacing with assignment to '_' or removing it [#NoUsage]
+185 |         var borders:[NSColor]=[]
+186 |         for (index,card) in view.todoDrawer.cardViews.enumerated() {
+
+Tests/DrawerInlineTests.swift:186:14: warning: immutable value 'index' was never used; consider replacing with '_' or removing it [#NoUsage]
+184 |         let dark=theme == .dark
+185 |         var borders:[NSColor]=[]
+186 |         for (index,card) in view.todoDrawer.cardViews.enumerated() {
+    |              `- warning: immutable value 'index' was never used; consider replacing with '_' or removing it [#NoUsage]
+187 |             let rep=try bitmap(card)
+188 |             let border=pixel(rep,card,CGPoint(x:0.5,y:26));borders.append(border)
+
+[#NoUsage]: <https://docs.swift.org/compiler/documentation/diagnostics/no-usage>
+Tests/Task17Tests.swift:282:70: warning: capture of 'menu' with non-Sendable type 'NSMenu' in a '@Sendable' closure [#SendableClosureCaptures]
+280 |             try? command.run(); command.waitUntilExit(); group.leave()
+281 |         }
+282 |         let cancel = Timer(timeInterval: 1.3, repeats: false) { _ in menu.cancelTracking() }
+    |                                                                      `- warning: capture of 'menu' with non-Sendable type 'NSMenu' in a '@Sendable' closure [#SendableClosureCaptures]
+283 |         RunLoop.main.add(cancel, forMode: .eventTracking)
+284 |         RunLoop.main.add(cancel, forMode: .default)
+
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/AppKit.framework/Headers/NSMenu.h:56:12: note: class 'NSMenu' does not conform to the 'Sendable' protocol
+ 54 | @protocol NSMenuDelegate;
+ 55 | 
+ 56 | @interface NSMenu : NSObject <NSCopying, NSCoding, NSUserInterfaceItemIdentification, NSAppearanceCustomization, NSAccessibilityElement, NSAccessibility>
+    |            `- note: class 'NSMenu' does not conform to the 'Sendable' protocol
+ 57 | 
+ 58 | /* Designated initializer.  If this menu is used as a submenu of an item in the application's main menu, then the title is what appears in the menu bar.  Otherwise, the title is ignored.  Do not pass nil (an exception will result), but you may pass an empty string.
+
+[#SendableClosureCaptures]: <https://docs.swift.org/compiler/documentation/diagnostics/sendable-closure-captures>
+Tests/TodoDrawerTests.swift:46:9: warning: variable 'visible' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+ 44 |     let pet=PetController(store:store,atlas:try SpriteAtlas(resourceDirectory:resourceDirectory))
+ 45 |     defer{disposeDrawerFixture(pet,controller,view)}
+ 46 |     var visible=CGRect(x:0,y:0,width:1440,height:900)
+    |         `- warning: variable 'visible' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+ 47 |     pet.displays={ [PetDisplay(frame:visible,visible:visible)] };pet.reducedMotion={true}
+ 48 |     pet.pet.installConversation(view);pet.installDrawer(view)
+
+[#VariableNeverMutated]: <https://docs.swift.org/compiler/documentation/diagnostics/variable-never-mutated>
+Tests/TypingTests.swift:38:9: warning: variable 'rows' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+36 |     ui.refresh();ui.layoutSubtreeIfNeeded()
+37 |     // (a) waiting: shimmering words and elapsed seconds, no dots.
+38 |     var rows=descendants(ui,TypingRow.self)
+   |         `- warning: variable 'rows' was never mutated; consider changing to 'let' constant [#VariableNeverMutated]
+39 |     try check(rows.count == 1 && rows[0].frame.height == 22,"AT57 one typing row at accessory height 22")
+40 |     let row=rows[0];row.layoutSubtreeIfNeeded()
+
+[#VariableNeverMutated]: <https://docs.swift.org/compiler/documentation/diagnostics/variable-never-mutated>
+Tests/UpdateTests.swift:50:16: warning: 'init(dictionary:)' is deprecated: Properties that depend on the system or application version are not supported when used with this initializer. The designated initializer is available in SUAppcastItem+Private.h. Please first explore other APIs or contact us to describe your use case. [#DeprecatedDeclaration]
+ 48 |     try check(!allows(installation:"package") && !allows(notes:URL(string:archive)) && !allows(information:URL(string:archive)) && !allows(deltas:true), "AT84 only full app no notes information deltas")
+ 49 |     // Exercise the actual SDK appcast decoder and the delegate's validation path.
+ 50 |     let item = SUAppcastItem(dictionary:["enclosure":["url":archive,"length":"4096","sparkle:version":"3","sparkle:shortVersionString":"0.2.1","sparkle:installationType":"application"]])!
+    |                `- warning: 'init(dictionary:)' is deprecated: Properties that depend on the system or application version are not supported when used with this initializer. The designated initializer is available in SUAppcastItem+Private.h. Please first explore other APIs or contact us to describe your use case. [#DeprecatedDeclaration]
+ 51 |     let version = try SparkleInstaller.validate(item, release:release)
+ 52 |     try check(version.0 == "0.2.1" && version.1 == "3", "AT84 SDK item delegate validation")
+
+Tests/UpdateTests.swift:53:19: warning: 'init(dictionary:)' is deprecated: Properties that depend on the system or application version are not supported when used with this initializer. The designated initializer is available in SUAppcastItem+Private.h. Please first explore other APIs or contact us to describe your use case. [#DeprecatedDeclaration]
+ 51 |     let version = try SparkleInstaller.validate(item, release:release)
+ 52 |     try check(version.0 == "0.2.1" && version.1 == "3", "AT84 SDK item delegate validation")
+ 53 |     let badItem = SUAppcastItem(dictionary:["enclosure":["url":"https://invalid.test/archive.zip","length":"4096","sparkle:version":"3","sparkle:shortVersionString":"0.2.1"]])!
+    |                   `- warning: 'init(dictionary:)' is deprecated: Properties that depend on the system or application version are not supported when used with this initializer. The designated initializer is available in SUAppcastItem+Private.h. Please first explore other APIs or contact us to describe your use case. [#DeprecatedDeclaration]
+ 54 |     do { _ = try SparkleInstaller.validate(badItem, release:release); throw TestFailure.assertion("AT84 SDK delegate accepted foreign archive") }
+ 55 |     catch UpdateFailure.invalidRelease {}
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+Tests/WebPaneTests.swift:129:14: warning: weak variable 'unloadedPage' was never mutated; consider changing to 'let' constant [#VariableNeverMutated::WeakMutability]
+127 |     try await waitFor{web.current?.title=="합성 페이지" && !web.sliding}
+128 |     if args.count>5 {try await captureWebPane(pet.pet.webPane!,at:URL(fileURLWithPath:args[5]))}
+129 |     weak var unloadedPage=web.current?.loadedView
+    |              `- warning: weak variable 'unloadedPage' was never mutated; consider changing to 'let' constant [#VariableNeverMutated::WeakMutability]
+130 |     pet.reducedMotion={true};web.close()
+131 |     try await waitFor { unloadedPage == nil }
+
+[#VariableNeverMutated]: <https://docs.swift.org/compiler/documentation/diagnostics/variable-never-mutated>
+[#WeakMutability]: <https://docs.swift.org/compiler/documentation/diagnostics/weak-mutability>
+.build/app-tests: replacing existing signature
+AT-HF-23 PASS
+INSTANCE_LOCK_REJECTED_EXPECTED
+2026-11-24 00:17:44.149 app-tests[41988:93895859] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-11-24 00:17:44.149 app-tests[41988:93895859] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-11-24 00:17:44.149 app-tests[41988:93895859] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+2026-11-24 00:17:44.149 app-tests[41988:93895859] TSMSendMessageToUIServer: CFMessagePortSendRequest FAILED(-1) to send to port com.apple.tsm.uiserver
+AT-HT-50~52 PASS
+AT-HF-98 MONITOR PASS
+AT-HF-98 APP PASS · temporary sessions/settings only
+AT-HF-97 APP PASS · fake CalendarSource only; no system calendar permission or write API
+AT-HF-96 ADDRESS PASS
+AT-HF-95 FILE STORE PASS
+AT-HF-94 APP PASS
+AT-HF-93 APP PASS
+AT-HF-52 PASS
+CONVERSATION_DDOTS_LAYOUT_PASS
+CONVERSATION_MODEL_UI_PASS
+AT-FF-AC04 UPDATE_CONTENT_EQUIVALENCE PASS
+AT-FF-FIRST-FRAME AND SIDEBAR_GEOMETRY PASS
+AT-DI-33 OWNER AND EMPTY PILL RIGHT EXPANSION PASS
+AT-TD-20..42 MODEL, INPUT, WINDOW, REQUEST PASS
+AT-DC-21..34 CARD TARGET, MENU, CLOSE FLOW PASS
+AT-DI-01..14,31 INLINE PLACEMENT PASS
+AT-DI-20..23 PIXEL PASS; M-DI native-view captures: .build/drawer-inline-evidence
+AT-DI-34 LOGO AND VERSION PIXEL CENTERS PASS
+AT-DI-35 line samples dark y=43.5: reference delta=0.0, background delta=0.403292747221741
+AT-DI-35 line samples light y=43.5: reference delta=0.0, background delta=0.06666666666666667
+AT-DI-35..39 FIXED HEADER AND FILTER TOGGLE PASS
+AT-UC-14 rail samples: drawer=Device RGB colorspace hdrm(1) 0.912082 0.222331 0.426862 1 chat=Device RGB colorspace hdrm(1) 0.912082 0.222331 0.426862 1 status=Optional(sRGB IEC61966-2.1 colorspace 0.878431 0.117647 0.352941 1)
+AT-UC-14 rail samples: drawer=Device RGB colorspace hdrm(1) 0.912082 0.222331 0.426862 1 chat=Device RGB colorspace hdrm(1) 0.912082 0.222331 0.426862 1 status=Optional(sRGB IEC61966-2.1 colorspace 0.878431 0.117647 0.352941 1)
+AT-UC-16 accent samples: border=Device RGB colorspace hdrm(1) 0 0.569464 1 1 reference=Device RGB colorspace hdrm(1) 0 0.569464 1 1
+AT-UC-10..19 DRAWER PASS
+AT-FF-50..54 LETTER PICTURE PASS
+AT-FF-64 OPTION ACTIVATION PASS
+AT-AL-06U INACTIVE OPEN PASS
+AT-AL-06 OPTION DEACTIVATION PASS
+AT-FF-60..61 OPTION WINDOW PASS; AT-FF-63 regression in full suite
+AT-HF-53 MODEL PASS
+AT-HF-54 PASS
+AT-HF-55 MODEL PASS
+AT-UC-01..06 TITLE CAPSULE PASS
+AT-UC-30..35 POLISH PASS; AT-UC-34 protected by AT88/AT89
+AT-HF-53 UI PASS
+AT-HF-56 AUTOMATIC PASS
+ISLAND_AUTOMATIC_CAPTURES_OK
+AT-HF-57 PASS
+TYPING_AUTOMATIC_CAPTURES_OK
+AT-PG-01...11,13 PASS
+AT-HF-61 PASS; AT-HF-62 PASS; AT-HF-63 PASS; AT-HF-64 PASS; AT-HF-65 PASS
+AT-HF-67 PASS
+AT-HF-84 APP PASS
+REVIEW55_UNIT_PASS
+REVIEW56_UNIT_PASS
+AT-HF-74 PASS (fake hub, migration, interruption, offline, layout, native UI)
+HSS SELECTION GEOMETRY AND COMPOSITE PASS
+AT-HF-89 APP PASS
+AT-HF-90 APP PASS
+AT-HF-91 APP PASS
+AT-HF-92 APP PASS
+AT-HF-88 APP PASS
+AT-HF-87 APP PASS
+THREAD_TOOLS_UNIT_PASS
+AT-HF-77/78/79 WORKSPACE PASS
+AT-HF-80 PASS
+AT-HF-83 APP PASS
+AT-101 APP PASS
+AT-FF-20 observation: conversation=25, connections=26, inputVisible=true
+AT-FF-70 CONNECTION SHARING PASS; AT-FF-71 regression in full suite
+AT-FF-20~23 APP PASS
+AT-HC-20~29 APP PASS
+AT-CM-30~38 APP PASS
+TASK-13 INCOMPLETE REPLY PASS
+AT-HF-85 APP PASS
+AT-HF-86 APP PASS
+AT-HF-70/71/80 ROOMS PASS
+AT-HF-82 PASS
+AT-HF-81 PASS
+AT-HF-68 automatic PASS; AT-HF-69 automatic PASS
+AT-HF-66 PASS
+AT-HF-58 APP PASS
+AT-HF-59 APP PASS
+AT-HF-60 APP PASS
+COMPOSER_PLAIN_PASS
+AT-HF-47 automatic PASS; AT-HF-48 PASS; cache/backoff/size/instance PASS
+APP_TEST_OK
+STATUS 서버에 연결 중
+STATUS 서버에 연결됨
+APP_TEST_OK
+STATUS 서버에 연결 중
+STATUS 서버에 연결됨
+AT-HF-24 restart welcome PASS
+APP_TEST_OK
+STATUS 서버에 연결 중
+STATUS 서버에 연결됨
+STATUS 너무 큼 · 보낼 내용을 줄여 주세요
+RETRY 1
+APP_TEST_OK
+STATUS 서버에 연결 중
+STATUS 서버에 연결됨
+STATUS 너무 큼 · 보낼 내용을 줄여 주세요
+APP_TEST_OK
+STATUS 서버에 연결 중
+STATUS 서버에 연결됨
+STATUS 서버와 연결이 끊겼어요 · 1초 뒤 다시 연결
+RETRY 1
+STATUS 서버에 연결 중
+STATUS 서버와 연결이 끊겼어요 · 2초 뒤 다시 연결
+RETRY 2
+STATUS 서버에 연결 중
+STATUS 서버와 연결이 끊겼어요 · 4초 뒤 다시 연결
+RETRY 4
+STATUS 서버에 연결 중
+STATUS 서버와 연결이 끊겼어요 · 8초 뒤 다시 연결
+RETRY 8
+STATUS 서버에 연결 중
+STATUS 서버에 연결됨
+AT-HF-25 PASS
+APP_TEST_OK
+AT-HF-24 PASS: pair/keychain/restart; gap/duplicate/pages/ping PASS
+AT-HF-25 PASS: ten-second outage; recovery within thirty seconds of listener restart
+FRAME_SIZE PASS: 1009 and too_large surfaced; abnormal disconnect recovered
+TEST_CREDENTIAL_CLEANUP_OK
+CONVERSATION_STAGE replay
+CONVERSATION_STAGE click
+CONVERSATION_STAGE unknown_file
+CONVERSATION_STAGE send
+CONVERSATION_AUTOMATIC_CAPTURE_OK
+CONVERSATION_STAGE too_large
+AT-HF-55 NETWORK PASS
+CONVERSATION_NETWORK_PASS
+APP_TEST_OK
+CONVERSATION_FIXTURE_OBSERVED {'uploads': 2, 'clicks': 1, 'sends': 6, 'downloads': 1, 'redirect_followed': 0} []
+CONVERSATION_HTTP_WS_PASS {'uploads': 2, 'clicks': 1, 'sends': 6, 'downloads': 1, 'redirect_followed': 0}
+CONVERSATION_CREDENTIAL_CLEANUP_OK
+AT68 app picture HTTP/cache PASS
+APP_TEST_OK
+AT-HF-68 app authenticated HTTP/cache/redirect PASS
+THREAD_NETWORK_PASS
+APP_TEST_OK
+THREAD_CONTROL_FIXTURE_PASS
+AT-HF-79 WORKSPACE NETWORK PASS
+APP_TEST_OK
+WORKSPACE_FIXTURE_PASS ['follow-empty', 'follow-typed', 'fail']
+AT-HF-82 BUBBLE NETWORK PASS
+APP_TEST_OK
+BUBBLE_REPLY_FIXTURE_PASS ['interrupt', 'reject']
+2026-11-24 00:21:33.192 app-tests[48716:93914787] Unrecognized colorspace number -1
+2026-11-24 00:21:33.192 app-tests[48716:93914787] Unknown number of components for colorspace model -1
+AT-HF-80 HOME NETWORK PASS
+APP_TEST_OK
+HOME_ROOM_FIXTURE_PASS [('alpha', 'default'), ('beta', 'second @B'), ('alpha', 'face @B'), ('gamma', '@C mention'), ('beta', 'configured'), ('alpha', 'reply')]
+ROOMS_APP_NETWORK_PASS
+APP_TEST_OK
+ROOMS_GATE_APP_FIXTURE_PASS 13
+AT-HF-88 NETWORK PASS
+APP_TEST_OK
+COMPOSER_FIXTURE_PASS ['delay', 'reject', 'unconfirmed', 'new-reject', 'home-reject']
+AT-HF-95 NETWORK PASS
+APP_TEST_OK
+DOWNLOADS_FIXTURE_PASS received=3 each-once accepted=1 rejected=1 temporary-only
+sandbox_extension_issue_file failed for : 2 (No such file or directory)
+AT-HF-96 ADDRESS PASS
+AT-HF-96 WEBKIT PASS
+APP_TEST_OK
+WEB_FIXTURE_PASS credentialed-app-file=1 credential-free-web=true temporary-downloads=true
+REVIEW55_NETWORK_PASS
+APP_TEST_OK
+REVIEW55_FIXTURE_PASS
+.........
+----------------------------------------------------------------------
+Ran 9 tests in 0.212s
+
+OK
+ACTUAL_CLI_SETTINGS_METADATA_UNCHANGED · contents not opened
+ACTUAL_DOWNLOADS_NAMES_UNCHANGED

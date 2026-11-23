@@ -1,0 +1,4 @@
+base_commit=236b0177468b90d9ea23a1b1190e996db78a0694
+markdown_files=14 ac_total=24 mapped=24
+scope=plan documents only; no runtime tests or owner-specific private inputs
+PASS

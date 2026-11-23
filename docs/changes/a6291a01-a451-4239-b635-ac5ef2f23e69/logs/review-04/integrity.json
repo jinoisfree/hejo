@@ -1,0 +1,48 @@
+{
+  "git": [
+    {
+      "repository": "candidate",
+      "command": "git rev-parse HEAD",
+      "exitCode": 0,
+      "output": "6621b74e0b78d1012d761924d9a664b8259534c1"
+    },
+    {
+      "repository": "candidate",
+      "command": "git status --porcelain",
+      "exitCode": 0,
+      "output": ""
+    },
+    {
+      "repository": "candidate",
+      "command": "git remote",
+      "exitCode": 0,
+      "output": ""
+    },
+    {
+      "repository": "rollback",
+      "command": "git rev-parse HEAD",
+      "exitCode": 0,
+      "output": "0bcf63535df381e491c99af9cbef41179b7cd79f"
+    },
+    {
+      "repository": "rollback",
+      "command": "git status --porcelain",
+      "exitCode": 0,
+      "output": ""
+    },
+    {
+      "repository": "rollback",
+      "command": "git remote",
+      "exitCode": 0,
+      "output": ""
+    }
+  ],
+  "candidateChangedFiles": [
+    "gate/adapter.py",
+    "gate/telegram.py",
+    "gate/telegram_comments.py",
+    "gate/tests/test_telegram_comments.py"
+  ],
+  "reviewedHashesMatch": true,
+  "installedFilesMatch": 42
+}

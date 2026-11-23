@@ -1,0 +1,35 @@
+F.                                                                       [100%]
+=================================== FAILURES ===================================
+____________ test_comments_channel_root_echo_race_and_split[False] _____________
+
+native = namespace(app=Application[bot=ExtBot[token=900:fixture]], api=<test_telegram_comments.BotAPI object at 0x10f4a1fd0>, bridge=<gate.telegram.Telegram object at 0x10f2012b0>, now=[1000.0], core=[], observed=[10, 10, 10, 100])
+gate = <gate.adapter.HejoAdapter object at 0x10f201400>
+runner = <gate.tests.support.runner.<locals>.TurnRunner object at 0x10f4a2510>
+early = False
+
+    @pytest.mark.parametrize('early', [False, True])
+    async def test_comments_channel_root_echo_race_and_split(native, gate, runner, early):
+        await outbound_ready(native)
+        async def before(args):
+            if int(args['chat_id']) == -200 and early:
+                await native.app.process_update(fresh(native, 100, root=native.api.next_message + 1))
+        native.api.before_send = before
+        thread = str(uuid.uuid4())
+        await gate.send('default', 'x' * 9000, metadata={'thread_id': thread})
+        await settled_comments(native)
+        if not early:
+            assert len(sent_calls(native)) == 1
+            op = next(r for r in native.bridge.comments.operations.values() if r['root'])
+            await process(native, fresh(native, 100, root=op['message_id']))
+            await settled_comments(native)
+        calls = sent_calls(native)
+>       assert len(calls) == 3
+E       AssertionError: assert 1 == 3
+E        +  where 1 = len([{'chat_id': '-200', 'text': '[default] xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'}])
+
+gate/tests/test_telegram_comments.py:804: AssertionError
+------------------------------ Captured log setup ------------------------------
+WARNING  hermes_facility.team_registry:team_registry.py:34 team registry /private/tmp/hejo-tgc-full/test_comments_channel_root_ech0/owner/team.yaml: file not found; running with an empty roster (role features stay off)
+=========================== short test summary info ============================
+FAILED gate/tests/test_telegram_comments.py::test_comments_channel_root_echo_race_and_split[False]
+1 failed, 1 passed, 83 deselected in 0.55s

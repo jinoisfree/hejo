@@ -1,0 +1,19 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+________________ test_control_results_and_silent_reserved_input ________________
+
+native = namespace(app=Application[bot=ExtBot[token=900:fixture]], api=<test_telegram_comments.BotAPI object at 0x108d6f8c0>, bridge=<gate.telegram.Telegram object at 0x10b568ec0>, now=[1000.0], core=[], observed=[10])
+
+    async def test_control_results_and_silent_reserved_input(native):
+        await dispatch(native, text='/hejo_comments_bind default')
+>       assert sent_texts(native)[-1].startswith('probe_required:')
+               ^^^^^^^^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+gate/tests/test_telegram_comments.py:450: IndexError
+------------------------------ Captured log call -------------------------------
+WARNING  hermes_facility.team_registry:team_registry.py:34 team registry /private/tmp/hejo-tgc-mutation/test_control_results_and_silen0/owner/team.yaml: file not found; running with an empty roster (role features stay off)
+WARNING  gate.telegram:telegram_comments.py:356 telegram_comments_rejected kind=Rejected
+=========================== short test summary info ============================
+FAILED gate/tests/test_telegram_comments.py::test_control_results_and_silent_reserved_input
+1 failed, 35 deselected in 0.44s

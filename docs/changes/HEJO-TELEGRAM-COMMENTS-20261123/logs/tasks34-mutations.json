@@ -1,0 +1,21 @@
+[
+  {
+    "mutation": "reply-no-fallback",
+    "exitCode": 1
+  },
+  {
+    "mutation": "bot-root-echo",
+    "exitCode": 1
+  },
+  {
+    "mutation": "serialize-room",
+    "exitCode": 1
+  },
+  {
+    "mutation": "unknown-no-send",
+    "exitCode": 1
+  },
+  {
+    "restored": true
+  }
+]

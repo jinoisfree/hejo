@@ -1,0 +1,80 @@
+[
+  {
+    "command": [
+      "git",
+      "rev-parse",
+      "HEAD"
+    ],
+    "exitCode": 0,
+    "stdout": "6bf9c3c6f6b9c563e3b4d44bf69d1014569579c0\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "git",
+      "branch",
+      "--show-current"
+    ],
+    "exitCode": 0,
+    "stdout": "main\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "git",
+      "diff",
+      "--exit-code"
+    ],
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "git",
+      "diff",
+      "--cached",
+      "--exit-code"
+    ],
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "git",
+      "status",
+      "--porcelain",
+      "--untracked-files=all",
+      "--",
+      "gate",
+      "app",
+      "scripts"
+    ],
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "rg",
+      "--files",
+      "docs/changes/a6291a01-a451-4239-b635-ac5ef2f23e69",
+      "docs/changes/HEJO-TELEGRAM-COMMENTS-20261123"
+    ],
+    "exitCode": 0,
+    "stdout": "(no impl-report.md in task folders)",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "rg",
+      "-n",
+      "hejo_comments|probe_reserved",
+      "gate"
+    ],
+    "exitCode": 1,
+    "stdout": "",
+    "stderr": ""
+  }
+]

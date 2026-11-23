@@ -1,0 +1,258 @@
+[
+  {
+    "command": [
+      "$HEJO_PYTHON",
+      "-m",
+      "pytest",
+      "gate/tests/test_telegram_comments.py",
+      "tests/acceptance/test_telegram.py",
+      "-q",
+      "--basetemp=/tmp/hejo-tgc-task1",
+      "-o",
+      "asyncio_default_fixture_loop_scope=function",
+      "-p",
+      "no:cacheprovider"
+    ],
+    "cwd": ".",
+    "exitCode": 0,
+    "logPath": "docs/changes/HEJO-TELEGRAM-COMMENTS-20261123/logs/task1-check-01.log",
+    "files": {
+      "gate/adapter.py": "58b9ea80abde36ecb8347d645b0f43e093a3f5ab46a15780a713173f612a714f",
+      "gate/telegram.py": "b319d62c263bfe0ba952032a66ac191c8fc5fdc9b57c57d879b9cda55947e71a",
+      "gate/telegram_comments.py": "6b8c99b4e23901dd89506c9adf8995dc517ad1554b2e10860edad1b4c104cd29",
+      "gate/tests/test_telegram_comments.py": "26ec53f90f5e3482d0a3a45b9335373b5f0150e96b1b7499794ca1a5222cac4a"
+    }
+  },
+  {
+    "command": [
+      "$HEJO_PYTHON",
+      "-c",
+      "import subprocess, sys; sys.exit(subprocess.run([\"bash\", \"scripts/test.sh\"]).returncode)"
+    ],
+    "cwd": ".",
+    "exitCode": 0,
+    "logPath": "docs/changes/HEJO-TELEGRAM-COMMENTS-20261123/logs/task1-check-02.log",
+    "files": {
+      "gate/adapter.py": "58b9ea80abde36ecb8347d645b0f43e093a3f5ab46a15780a713173f612a714f",
+      "gate/telegram.py": "b91a733771eed4db301f919d64866766cdfd3110225e77128095ac2718bed2ce",
+      "gate/telegram_comments.py": "6b8c99b4e23901dd89506c9adf8995dc517ad1554b2e10860edad1b4c104cd29",
+      "gate/tests/test_telegram_comments.py": "26ec53f90f5e3482d0a3a45b9335373b5f0150e96b1b7499794ca1a5222cac4a"
+    }
+  },
+  {
+    "command": [
+      "$HEJO_PYTHON",
+      "-m",
+      "pytest",
+      "gate/tests/test_telegram_comments.py",
+      "tests/acceptance/test_telegram.py",
+      "-q",
+      "--basetemp=/tmp/hejo-tgc-task1",
+      "-o",
+      "asyncio_default_fixture_loop_scope=function",
+      "-p",
+      "no:cacheprovider"
+    ],
+    "cwd": ".",
+    "exitCode": 0,
+    "logPath": "docs/changes/HEJO-TELEGRAM-COMMENTS-20261123/logs/task1-check-03.log",
+    "files": {
+      "gate/adapter.py": "58b9ea80abde36ecb8347d645b0f43e093a3f5ab46a15780a713173f612a714f",
+      "gate/telegram.py": "e577ccd07f00beaf95ae0de16982a06c22d78c310bf42d53970f6e97520d803e",
+      "gate/telegram_comments.py": "5c0feffdc23f1edac285e88e49399d653e3f8e2861524c187b3313641244231c",
+      "gate/tests/test_telegram_comments.py": "99f6d0c48fe7aa55ed1156f81ceafeef7102bede76d4d13e372cd72648898b83"
+    }
+  },
+  {
+    "command": [
+      "$HEJO_PYTHON",
+      "-m",
+      "pytest",
+      "gate/tests/test_telegram_comments.py::test_startup_without_primary_still_consumes_reserved_updates",
+      "-q",
+      "--basetemp=/tmp/hejo-tgc-mutant",
+      "-o",
+      "asyncio_default_fixture_loop_scope=function",
+      "-p",
+      "no:cacheprovider"
+    ],
+    "cwd": ".",
+    "exitCode": 1,
+    "logPath": "docs/changes/HEJO-TELEGRAM-COMMENTS-20261123/logs/task1-check-04.log",
+    "files": {
+      "gate/adapter.py": "58b9ea80abde36ecb8347d645b0f43e093a3f5ab46a15780a713173f612a714f",
+      "gate/telegram.py": "e577ccd07f00beaf95ae0de16982a06c22d78c310bf42d53970f6e97520d803e",
+      "gate/telegram_comments.py": "0527304c6be6b5085466a7f49e29032ab59bbf62258a044954feecbaba1e0a08",
+      "gate/tests/test_telegram_comments.py": "99f6d0c48fe7aa55ed1156f81ceafeef7102bede76d4d13e372cd72648898b83"
+    }
+  },
+  {
+    "command": [
+      "$HEJO_PYTHON",
+      "-m",
+      "pytest",
+      "gate/tests/test_telegram_comments.py::test_receipt_integrity_and_identity_required",
+      "-q",
+      "--basetemp=/tmp/hejo-tgc-mutant",
+      "-o",
+      "asyncio_default_fixture_loop_scope=function",
+      "-p",
+      "no:cacheprovider"
+    ],
+    "cwd": ".",
+    "exitCode": 1,
+    "logPath": "docs/changes/HEJO-TELEGRAM-COMMENTS-20261123/logs/task1-check-05.log",
+    "files": {
+      "gate/adapter.py": "58b9ea80abde36ecb8347d645b0f43e093a3f5ab46a15780a713173f612a714f",
+      "gate/telegram.py": "e577ccd07f00beaf95ae0de16982a06c22d78c310bf42d53970f6e97520d803e",
+      "gate/telegram_comments.py": "6e6a9b6908d66a0110e65cc92475d58b11293fdc8345653a806352551d5528da",
+      "gate/tests/test_telegram_comments.py": "99f6d0c48fe7aa55ed1156f81ceafeef7102bede76d4d13e372cd72648898b83"
+    }
+  },
+  {
+    "command": [
+      "$HEJO_PYTHON",
+      "-m",
+      "pytest",
+      "gate/tests",
+      "tests/acceptance",
+      "-q",
+      "--basetemp=/tmp/hejo-tgc-final",
+      "-o",
+      "asyncio_default_fixture_loop_scope=function",
+      "-p",
+      "no:cacheprovider"
+    ],
+    "cwd": ".",
+    "exitCode": 0,
+    "logPath": "docs/changes/HEJO-TELEGRAM-COMMENTS-20261123/logs/task1-check-06.log",
+    "files": {
+      "gate/adapter.py": "58b9ea80abde36ecb8347d645b0f43e093a3f5ab46a15780a713173f612a714f",
+      "gate/telegram.py": "e577ccd07f00beaf95ae0de16982a06c22d78c310bf42d53970f6e97520d803e",
+      "gate/telegram_comments.py": "5c0feffdc23f1edac285e88e49399d653e3f8e2861524c187b3313641244231c",
+      "gate/tests/test_telegram_comments.py": "99f6d0c48fe7aa55ed1156f81ceafeef7102bede76d4d13e372cd72648898b83"
+    }
+  },
+  {
+    "command": [
+      "$HEJO_PYTHON",
+      "-m",
+      "pytest",
+      "gate/tests/test_telegram_comments.py",
+      "tests/acceptance/test_telegram.py",
+      "-q",
+      "--basetemp=/tmp/hejo-tgc-task1",
+      "-o",
+      "asyncio_default_fixture_loop_scope=function",
+      "-p",
+      "no:cacheprovider"
+    ],
+    "cwd": ".",
+    "exitCode": 0,
+    "logPath": "docs/changes/HEJO-TELEGRAM-COMMENTS-20261123/logs/task1-check-07.log",
+    "files": {
+      "gate/adapter.py": "58b9ea80abde36ecb8347d645b0f43e093a3f5ab46a15780a713173f612a714f",
+      "gate/telegram.py": "e577ccd07f00beaf95ae0de16982a06c22d78c310bf42d53970f6e97520d803e",
+      "gate/telegram_comments.py": "5c0feffdc23f1edac285e88e49399d653e3f8e2861524c187b3313641244231c",
+      "gate/tests/test_telegram_comments.py": "4ac33d2af3e401cd30d209f101f3507bc6f293bea0c3ecbf24304074a20eee0b"
+    }
+  },
+  {
+    "command": [
+      "$HEJO_PYTHON",
+      "-m",
+      "pytest",
+      "gate/tests/test_telegram_comments.py",
+      "tests/acceptance/test_telegram.py",
+      "docs/changes/a6291a01-a451-4239-b635-ac5ef2f23e69/logs/review-02/test_review.py",
+      "-q",
+      "--basetemp=/tmp/hejo-tgc-task1",
+      "-o",
+      "asyncio_default_fixture_loop_scope=function",
+      "-p",
+      "no:cacheprovider"
+    ],
+    "cwd": ".",
+    "exitCode": 0,
+    "logPath": "docs/changes/HEJO-TELEGRAM-COMMENTS-20261123/logs/task1-check-08.log",
+    "files": {
+      "gate/adapter.py": "58b9ea80abde36ecb8347d645b0f43e093a3f5ab46a15780a713173f612a714f",
+      "gate/telegram.py": "b768c2c4b5977f95eb9e0ce5cb32f3350ce31ee97139101d238b869716fa9fa5",
+      "gate/telegram_comments.py": "b1382d3adb0edfb06077f91a63fdd66b707ea073862d4b31ff1c8c04afcf3781",
+      "gate/tests/test_telegram_comments.py": "48195cf3a5af801478fffabe673b59fb6686cca3c37391fc20ef407ec8862877"
+    }
+  },
+  {
+    "command": [
+      "$HEJO_PYTHON",
+      "-m",
+      "pytest",
+      "gate/tests/test_telegram_comments.py",
+      "-k",
+      "test_sync_preserves_converted_topics_and_updates_other_rooms",
+      "-q",
+      "--basetemp=/tmp/hejo-tgc-mutation",
+      "-o",
+      "asyncio_default_fixture_loop_scope=function",
+      "-p",
+      "no:cacheprovider"
+    ],
+    "cwd": ".",
+    "exitCode": 1,
+    "logPath": "docs/changes/HEJO-TELEGRAM-COMMENTS-20261123/logs/task1-check-09.log",
+    "files": {
+      "gate/adapter.py": "58b9ea80abde36ecb8347d645b0f43e093a3f5ab46a15780a713173f612a714f",
+      "gate/telegram.py": "187b9bad31adba5f8d17c687e922271481ef814e71cdcfb08d9b37223fab8bdf",
+      "gate/telegram_comments.py": "b1382d3adb0edfb06077f91a63fdd66b707ea073862d4b31ff1c8c04afcf3781",
+      "gate/tests/test_telegram_comments.py": "48195cf3a5af801478fffabe673b59fb6686cca3c37391fc20ef407ec8862877"
+    }
+  },
+  {
+    "command": [
+      "$HEJO_PYTHON",
+      "-m",
+      "pytest",
+      "gate/tests/test_telegram_comments.py",
+      "-k",
+      "test_control_results_and_silent_reserved_input",
+      "-q",
+      "--basetemp=/tmp/hejo-tgc-mutation",
+      "-o",
+      "asyncio_default_fixture_loop_scope=function",
+      "-p",
+      "no:cacheprovider"
+    ],
+    "cwd": ".",
+    "exitCode": 1,
+    "logPath": "docs/changes/HEJO-TELEGRAM-COMMENTS-20261123/logs/task1-check-10.log",
+    "files": {
+      "gate/adapter.py": "58b9ea80abde36ecb8347d645b0f43e093a3f5ab46a15780a713173f612a714f",
+      "gate/telegram.py": "b768c2c4b5977f95eb9e0ce5cb32f3350ce31ee97139101d238b869716fa9fa5",
+      "gate/telegram_comments.py": "f39fce70a0c8b8a01885853e4d0eb442578b4238b5911807b93fe4e419f6430e",
+      "gate/tests/test_telegram_comments.py": "48195cf3a5af801478fffabe673b59fb6686cca3c37391fc20ef407ec8862877"
+    }
+  },
+  {
+    "command": [
+      "$HEJO_PYTHON",
+      "-m",
+      "pytest",
+      ".build/telegram-comments/test_m0_command_boundary.py",
+      "-q",
+      "--basetemp=/tmp/hejo-m0-boundary",
+      "-o",
+      "asyncio_default_fixture_loop_scope=function",
+      "-p",
+      "no:cacheprovider"
+    ],
+    "cwd": ".",
+    "exitCode": 0,
+    "logPath": "docs/changes/HEJO-TELEGRAM-COMMENTS-20261123/logs/task1-check-11.log",
+    "files": {
+      "gate/adapter.py": "58b9ea80abde36ecb8347d645b0f43e093a3f5ab46a15780a713173f612a714f",
+      "gate/telegram.py": "b768c2c4b5977f95eb9e0ce5cb32f3350ce31ee97139101d238b869716fa9fa5",
+      "gate/telegram_comments.py": "b1382d3adb0edfb06077f91a63fdd66b707ea073862d4b31ff1c8c04afcf3781",
+      "gate/tests/test_telegram_comments.py": "48195cf3a5af801478fffabe673b59fb6686cca3c37391fc20ef407ec8862877"
+    }
+  }
+]

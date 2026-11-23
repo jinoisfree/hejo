@@ -1,0 +1,128 @@
+FF.F                                                                     [100%]
+=================================== FAILURES ===================================
+___________________ test_comments_attachment_lifecycle[none] ___________________
+
+native = namespace(app=Application[bot=ExtBot[token=900:fixture]], api=<test_telegram_comments.BotAPI object at 0x10d6f5010>, bridge=<gate.telegram.Telegram object at 0x10d67c440>, now=[1000.0], core=[], observed=[10, 10, 10, 100, 100])
+gate = <gate.adapter.HejoAdapter object at 0x10d67c590>
+runner = <gate.tests.support.runner.<locals>.TurnRunner object at 0x10d6f5550>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10ae8e520>
+failure = 'none'
+
+    @pytest.mark.parametrize('failure', ['none', 'download', 'revoke', 'receive'])
+    async def test_comments_attachment_lifecycle(native, gate, runner, monkeypatch, failure):
+        await activate(native)
+        downloads = []
+        async def get_file(bot, file_id):
+            async def download_to_drive(custom_path):
+                downloads.append(custom_path)
+                assert custom_path.stat().st_mode & 0o777 == 0o600
+                custom_path.write_bytes(b'fixture document')
+                if failure == 'download':
+                    raise OSError('fixture download failed')
+                if failure == 'revoke':
+                    with native.bridge.settings_store.locked():
+                        native.bridge.settings_store.write('settings.json', {'enabled': False})
+            return SimpleNamespace(file_size=16, download_to_drive=download_to_drive)
+        monkeypatch.setattr(type(native.app.bot), 'get_file', get_file)
+        if failure == 'receive':
+            async def receive(*args):
+                raise OSError('fixture receive failed')
+            monkeypatch.setattr(gate, 'receive', receive)
+        message = fresh(native, root=500, text=None, caption='fixture caption', document=dict(
+            file_id='fixture', file_unique_id='fixture', file_size=16, file_name='fixture.txt'))
+        await process(native, message)
+        await process(native, message)
+>       assert len(downloads) == 1
+E       AssertionError: assert 2 == 1
+E        +  where 2 = len([PosixPath('/private/tmp/hejo-tgc-full/test_comments_attachment_lifec0/shared/hejo/files/.telegram-f67zffdn/download'), PosixPath('/private/tmp/hejo-tgc-full/test_comments_attachment_lifec0/shared/hejo/files/.telegram-4d78ttmq/download')])
+
+gate/tests/test_telegram_comments.py:626: AssertionError
+------------------------------ Captured log call -------------------------------
+WARNING  hermes_facility.team_registry:team_registry.py:34 team registry /private/tmp/hejo-tgc-full/test_comments_attachment_lifec0/owner/team.yaml: file not found; running with an empty roster (role features stay off)
+_________________ test_comments_attachment_lifecycle[download] _________________
+
+native = namespace(app=Application[bot=ExtBot[token=900:fixture]], api=<test_telegram_comments.BotAPI object at 0x10d888410>, bridge=<gate.telegram.Telegram object at 0x10d8887d0>, now=[1000.0], core=[], observed=[10, 10, 10, 100, 100])
+gate = <gate.adapter.HejoAdapter object at 0x10d8882d0>
+runner = <gate.tests.support.runner.<locals>.TurnRunner object at 0x10d6f74d0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10aef4490>
+failure = 'download'
+
+    @pytest.mark.parametrize('failure', ['none', 'download', 'revoke', 'receive'])
+    async def test_comments_attachment_lifecycle(native, gate, runner, monkeypatch, failure):
+        await activate(native)
+        downloads = []
+        async def get_file(bot, file_id):
+            async def download_to_drive(custom_path):
+                downloads.append(custom_path)
+                assert custom_path.stat().st_mode & 0o777 == 0o600
+                custom_path.write_bytes(b'fixture document')
+                if failure == 'download':
+                    raise OSError('fixture download failed')
+                if failure == 'revoke':
+                    with native.bridge.settings_store.locked():
+                        native.bridge.settings_store.write('settings.json', {'enabled': False})
+            return SimpleNamespace(file_size=16, download_to_drive=download_to_drive)
+        monkeypatch.setattr(type(native.app.bot), 'get_file', get_file)
+        if failure == 'receive':
+            async def receive(*args):
+                raise OSError('fixture receive failed')
+            monkeypatch.setattr(gate, 'receive', receive)
+        message = fresh(native, root=500, text=None, caption='fixture caption', document=dict(
+            file_id='fixture', file_unique_id='fixture', file_size=16, file_name='fixture.txt'))
+        await process(native, message)
+        await process(native, message)
+>       assert len(downloads) == 1
+E       AssertionError: assert 2 == 1
+E        +  where 2 = len([PosixPath('/private/tmp/hejo-tgc-full/test_comments_attachment_lifec1/shared/hejo/files/.telegram-f7b2qjw0/download'), PosixPath('/private/tmp/hejo-tgc-full/test_comments_attachment_lifec1/shared/hejo/files/.telegram-mo69msey/download')])
+
+gate/tests/test_telegram_comments.py:626: AssertionError
+------------------------------ Captured log call -------------------------------
+WARNING  hermes_facility.team_registry:team_registry.py:34 team registry /private/tmp/hejo-tgc-full/test_comments_attachment_lifec1/owner/team.yaml: file not found; running with an empty roster (role features stay off)
+WARNING  gate.telegram:telegram_comments.py:366 telegram_comments_rejected kind=OSError
+WARNING  gate.telegram:telegram_comments.py:366 telegram_comments_rejected kind=OSError
+_________________ test_comments_attachment_lifecycle[receive] __________________
+
+native = namespace(app=Application[bot=ExtBot[token=900:fixture]], api=<test_telegram_comments.BotAPI object at 0x10d79e250>, bridge=<gate.telegram.Telegram object at 0x10d792ea0>, now=[1000.0], core=[], observed=[10, 10, 10, 100, 100])
+gate = <gate.adapter.HejoAdapter object at 0x10d87c690>
+runner = <gate.tests.support.runner.<locals>.TurnRunner object at 0x10d8781a0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10d864950>
+failure = 'receive'
+
+    @pytest.mark.parametrize('failure', ['none', 'download', 'revoke', 'receive'])
+    async def test_comments_attachment_lifecycle(native, gate, runner, monkeypatch, failure):
+        await activate(native)
+        downloads = []
+        async def get_file(bot, file_id):
+            async def download_to_drive(custom_path):
+                downloads.append(custom_path)
+                assert custom_path.stat().st_mode & 0o777 == 0o600
+                custom_path.write_bytes(b'fixture document')
+                if failure == 'download':
+                    raise OSError('fixture download failed')
+                if failure == 'revoke':
+                    with native.bridge.settings_store.locked():
+                        native.bridge.settings_store.write('settings.json', {'enabled': False})
+            return SimpleNamespace(file_size=16, download_to_drive=download_to_drive)
+        monkeypatch.setattr(type(native.app.bot), 'get_file', get_file)
+        if failure == 'receive':
+            async def receive(*args):
+                raise OSError('fixture receive failed')
+            monkeypatch.setattr(gate, 'receive', receive)
+        message = fresh(native, root=500, text=None, caption='fixture caption', document=dict(
+            file_id='fixture', file_unique_id='fixture', file_size=16, file_name='fixture.txt'))
+        await process(native, message)
+        await process(native, message)
+>       assert len(downloads) == 1
+E       AssertionError: assert 2 == 1
+E        +  where 2 = len([PosixPath('/private/tmp/hejo-tgc-full/test_comments_attachment_lifec3/shared/hejo/files/.telegram-tjo_vdpi/download'), PosixPath('/private/tmp/hejo-tgc-full/test_comments_attachment_lifec3/shared/hejo/files/.telegram-inxj7gss/download')])
+
+gate/tests/test_telegram_comments.py:626: AssertionError
+------------------------------ Captured log call -------------------------------
+WARNING  hermes_facility.team_registry:team_registry.py:34 team registry /private/tmp/hejo-tgc-full/test_comments_attachment_lifec3/owner/team.yaml: file not found; running with an empty roster (role features stay off)
+WARNING  gate.telegram:telegram_comments.py:366 telegram_comments_rejected kind=OSError
+WARNING  gate.telegram:telegram_comments.py:366 telegram_comments_rejected kind=OSError
+=========================== short test summary info ============================
+FAILED gate/tests/test_telegram_comments.py::test_comments_attachment_lifecycle[none]
+FAILED gate/tests/test_telegram_comments.py::test_comments_attachment_lifecycle[download]
+FAILED gate/tests/test_telegram_comments.py::test_comments_attachment_lifecycle[receive]
+3 failed, 1 passed, 54 deselected in 1.01s

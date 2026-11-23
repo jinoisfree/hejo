@@ -1,0 +1,20 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________________ test_receipt_integrity_and_identity_required _________________
+
+native = namespace(app=Application[bot=ExtBot[token=900:fixture]], api=<test_telegram_comments.BotAPI object at 0x10cc67a10>, bridge=<gate.telegram.Telegram object at 0x10e860ad0>, now=[1000.0], core=[], observed=[10, 10])
+
+    async def test_receipt_integrity_and_identity_required(native):
+        probe = await finish_probe(native)
+        identity = {key: probe[key] for key in ('bot_id', 'channel_id', 'discussion_id', 'owner_id', 'pair', 'room', 'contract')}
+        saved = native.bridge.comments.receipts.pop((probe['tag'], 'forward'))
+>       with pytest.raises(Rejected, match='probe_required'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE Rejected
+
+gate/tests/test_telegram_comments.py:279: Failed
+------------------------------ Captured log call -------------------------------
+WARNING  hermes_facility.team_registry:team_registry.py:34 team registry /private/tmp/hejo-tgc-mutant/test_receipt_integrity_and_ide0/owner/team.yaml: file not found; running with an empty roster (role features stay off)
+=========================== short test summary info ============================
+FAILED gate/tests/test_telegram_comments.py::test_receipt_integrity_and_identity_required
+1 failed in 0.38s

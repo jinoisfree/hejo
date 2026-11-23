@@ -1,0 +1,533 @@
+{
+  "candidateCommit": "6621b74e0b78d1012d761924d9a664b8259534c1",
+  "rollbackCommit": "0bcf63535df381e491c99af9cbef41179b7cd79f",
+  "reviewedFiles": {
+    "gate/adapter.py": "58b9ea80abde36ecb8347d645b0f43e093a3f5ab46a15780a713173f612a714f",
+    "gate/telegram.py": "b768c2c4b5977f95eb9e0ce5cb32f3350ce31ee97139101d238b869716fa9fa5",
+    "gate/telegram_comments.py": "b1382d3adb0edfb06077f91a63fdd66b707ea073862d4b31ff1c8c04afcf3781",
+    "gate/tests/test_telegram_comments.py": "48195cf3a5af801478fffabe673b59fb6686cca3c37391fc20ef407ec8862877"
+  },
+  "installed": {
+    "gate/rooms.py": {
+      "sha256": "9fd1475588f02f8ec476584d6ba8f34f1e88ae4f68e190ab71a8e3b7dfb47905",
+      "executable": false
+    },
+    "gate/auth.py": {
+      "sha256": "7f6b24c6b12688e91dd2ebab9a919dcb0204b5eb7058bad2b1eb6536ed58dbf0",
+      "executable": false
+    },
+    "gate/files.py": {
+      "sha256": "f2f95f2de0d885f2b89b75f03e1eefa12b2b50195d8069f35bef07226581c3fd",
+      "executable": false
+    },
+    "gate/deadlines.py": {
+      "sha256": "dc4643b47f6556f9980d8cf90dd4c6de527861fcff2ad2d6bbc4cd6f1b3d78f5",
+      "executable": false
+    },
+    "gate/server.py": {
+      "sha256": "3fd46d150bb5407673719d0773e4827f39a8052bd8259e179d48163723d8c20b",
+      "executable": false
+    },
+    "gate/journal.py": {
+      "sha256": "448af577b52a12bd495f3f56653008f0a4212a4e58b3135bc67b89e17344c9e4",
+      "executable": false
+    },
+    "gate/connection_runtime.py": {
+      "sha256": "1d589ee53e196d3aa6cc72543ba6f190da19d75879806a78dd4bfaf62c635ea9",
+      "executable": false
+    },
+    "gate/adapter.py": {
+      "sha256": "71f70aaec0bd0d8d2124b5978fae99aeba157e3a19dc1979662c876f9d487a0e",
+      "executable": false
+    },
+    "gate/local.py": {
+      "sha256": "153c5f68df0392bcec05b5f6f9b2b6e137611e9c4975214f6cd6897d67979e07",
+      "executable": false
+    },
+    "gate/telegram.py": {
+      "sha256": "a83f2bf082aee40edbc7a06c201582c8dacb94d646dd15558a9cd91d4d755598",
+      "executable": false
+    },
+    "gate/plugin.yaml": {
+      "sha256": "cb3165c0a524758d6fc8a4046bd5e76a0bb32fe1b2eff857d1d642e73abab382",
+      "executable": false
+    },
+    "gate/connections.py": {
+      "sha256": "19e3b2dbcce7b58271c95e077ed79903bb12b01d0e248e7e01fc69e8534df540",
+      "executable": false
+    },
+    "gate/__init__.py": {
+      "sha256": "c5d1acd02d10a45d29dab6ab2156f2fffc53b9a9db92b63ca54443bdddbd3f66",
+      "executable": false
+    },
+    "gate/hub.py": {
+      "sha256": "f308dcaa081987dd7014163d24376a23a84d42056656fc334b6782c2956e8c13",
+      "executable": false
+    },
+    "gate/README.md": {
+      "sha256": "b50c1e847abe84fd62e49d61febcfb3c7cbcd6d6229940db250bf31b8569a474",
+      "executable": false
+    },
+    "gate/context.py": {
+      "sha256": "a357ac5d237590c07c4f47a9a3f97a0af92b0a2c281c863924f31faed7687855",
+      "executable": false
+    },
+    "gate/cli.py": {
+      "sha256": "cd77ccddc7b2460a8eedfa022ffcaac1e18267c82382903bb2cf15e363c906b4",
+      "executable": false
+    },
+    "gate/buttons.py": {
+      "sha256": "ed8ac30d5566d78303ef7952016dfed80abeaa9f1d4ea757c93e0561213e0b23",
+      "executable": false
+    },
+    "gate/connection_manager.py": {
+      "sha256": "ccb4803878caba530488a09236a56f4f188eba53a685c2324ed5bbdfe2cf38a4",
+      "executable": false
+    },
+    "gate/pictures.py": {
+      "sha256": "6d57d0d98f925ca85d3f1cbd738066b1c0734eabcc7f2368ab227d81b4eac61f",
+      "executable": false
+    },
+    "gate/roster.py": {
+      "sha256": "b9cdf89e9c9af771c0e125258db54fbd8662bc56bd099f330f5b862f8a3e71bd",
+      "executable": false
+    },
+    "hub/store.py": {
+      "sha256": "2c636420ffa86da33eb87ac17bc3c2eea2a563983792c6f9325594fd8ba6cf6d",
+      "executable": false
+    },
+    "hub/server.py": {
+      "sha256": "dfbb11e4247210267a68736d75e2970630bacc8e7515fa82a0dd28d271ece071",
+      "executable": false
+    },
+    "hub/__init__.py": {
+      "sha256": "bb2da7dca6442e668fc1a01489c41fb9941d86a86938d403aa8546caa0e15f07",
+      "executable": false
+    },
+    "hub/google.py": {
+      "sha256": "a3bacbb3b79b3e53b780a719fd9e3fcdf44b760497e0402b280393ca8de4a9c6",
+      "executable": false
+    },
+    "hub/__main__.py": {
+      "sha256": "a6293fea667da0e9a9a6ed586aa93f579d45ad3921387bb8f515ea11edbc0d5d",
+      "executable": false
+    },
+    "hub/state.py": {
+      "sha256": "0f3ed1cfff08d0e64764afe383bc2976dba8e190825405304934dfc909b082fa",
+      "executable": false
+    },
+    "schemas/pictures.md": {
+      "sha256": "7c641a9843525c3cf7199ea2aa34f387a9cf11fc0cfffcf8dc8e0c2d457a2edb",
+      "executable": false
+    },
+    "schemas/hejo-wire-v1.json": {
+      "sha256": "7b3c2db703a83824ee6d173262bbefec34b5210c74954d7c5dc8556c1fb0f75b",
+      "executable": false
+    },
+    "schemas/hejo-local-v1.json": {
+      "sha256": "c45aca161a0b4066ff50bdbe4b013d3f146211934f2028672cc11304994fb739",
+      "executable": false
+    },
+    "config/google-oauth.json": {
+      "sha256": "ee026e7ff02e555d8f1ac7927b5506d6e36bea6b5e89a89042e34363f368b3dc",
+      "executable": false
+    },
+    "install/hejo-join": {
+      "sha256": "4e7fc19232e3969ffab9c545b28933da9de16198e9f1c290ada6a753db051ce0",
+      "executable": true
+    },
+    "install/hejo-admin": {
+      "sha256": "f6c6aa4204ac524a6cad45342b3c4bbb42dfb3e85eeb362fd45ab298d79f06d1",
+      "executable": true
+    },
+    "install/hejo-publish": {
+      "sha256": "1c11c2cc780d29d5a0997242ecf11d0749a8b6b4d5e30e77ee4cd02d1a4c5023",
+      "executable": true
+    },
+    "install/hejo-hub": {
+      "sha256": "d7b483be9d7281c9327d03a82ffc16a137ceadc89264363fb4623d57bd3df1ae",
+      "executable": true
+    },
+    "install/get-hejo": {
+      "sha256": "b076711c63375f244000f859f952c82413a84c093ecde4f28edf3b327050f575",
+      "executable": true
+    },
+    "install/admin_support.py": {
+      "sha256": "c3bd31200160ba1e0d739b1bb964011a023372720d7c184fb271106d975a4a37",
+      "executable": false
+    },
+    "install/hejo-release": {
+      "sha256": "8dea837d83c389f67ea656c5eed93b28ad4faeff66f1369c340a24d713badfa1",
+      "executable": true
+    },
+    "install/hejo-hub-run": {
+      "sha256": "41d51588dbaaebc72e400d82a5fbb6b1f63fba0d4f4e3ef672619a2f21b6f35d",
+      "executable": true
+    },
+    "install/hejo-install": {
+      "sha256": "2c7ce6e3e55b92c1916c9bc6ece3b18662709405989d6254c7bb88f85cb8bc4f",
+      "executable": true
+    },
+    "install/hejo-ship": {
+      "sha256": "35efadff8a68ae6fcc9b997ca411fad6c39b8e23577610b9c3c36f8243613cb7",
+      "executable": true
+    },
+    "LICENSE": {
+      "sha256": "df0868a15ca70b27b75a3e27aef61784921b9247f33aff215a509a83a3c45e28",
+      "executable": false
+    }
+  },
+  "candidateManifest": {
+    "gate/rooms.py": {
+      "sha256": "9fd1475588f02f8ec476584d6ba8f34f1e88ae4f68e190ab71a8e3b7dfb47905",
+      "executable": false
+    },
+    "gate/auth.py": {
+      "sha256": "7f6b24c6b12688e91dd2ebab9a919dcb0204b5eb7058bad2b1eb6536ed58dbf0",
+      "executable": false
+    },
+    "gate/files.py": {
+      "sha256": "f2f95f2de0d885f2b89b75f03e1eefa12b2b50195d8069f35bef07226581c3fd",
+      "executable": false
+    },
+    "gate/deadlines.py": {
+      "sha256": "dc4643b47f6556f9980d8cf90dd4c6de527861fcff2ad2d6bbc4cd6f1b3d78f5",
+      "executable": false
+    },
+    "gate/server.py": {
+      "sha256": "3fd46d150bb5407673719d0773e4827f39a8052bd8259e179d48163723d8c20b",
+      "executable": false
+    },
+    "gate/journal.py": {
+      "sha256": "448af577b52a12bd495f3f56653008f0a4212a4e58b3135bc67b89e17344c9e4",
+      "executable": false
+    },
+    "gate/connection_runtime.py": {
+      "sha256": "1d589ee53e196d3aa6cc72543ba6f190da19d75879806a78dd4bfaf62c635ea9",
+      "executable": false
+    },
+    "gate/adapter.py": {
+      "sha256": "58b9ea80abde36ecb8347d645b0f43e093a3f5ab46a15780a713173f612a714f",
+      "executable": false
+    },
+    "gate/local.py": {
+      "sha256": "153c5f68df0392bcec05b5f6f9b2b6e137611e9c4975214f6cd6897d67979e07",
+      "executable": false
+    },
+    "gate/telegram.py": {
+      "sha256": "b768c2c4b5977f95eb9e0ce5cb32f3350ce31ee97139101d238b869716fa9fa5",
+      "executable": false
+    },
+    "gate/telegram_comments.py": {
+      "sha256": "b1382d3adb0edfb06077f91a63fdd66b707ea073862d4b31ff1c8c04afcf3781",
+      "executable": false
+    },
+    "gate/plugin.yaml": {
+      "sha256": "cb3165c0a524758d6fc8a4046bd5e76a0bb32fe1b2eff857d1d642e73abab382",
+      "executable": false
+    },
+    "gate/connections.py": {
+      "sha256": "19e3b2dbcce7b58271c95e077ed79903bb12b01d0e248e7e01fc69e8534df540",
+      "executable": false
+    },
+    "gate/__init__.py": {
+      "sha256": "c5d1acd02d10a45d29dab6ab2156f2fffc53b9a9db92b63ca54443bdddbd3f66",
+      "executable": false
+    },
+    "gate/hub.py": {
+      "sha256": "f308dcaa081987dd7014163d24376a23a84d42056656fc334b6782c2956e8c13",
+      "executable": false
+    },
+    "gate/README.md": {
+      "sha256": "b50c1e847abe84fd62e49d61febcfb3c7cbcd6d6229940db250bf31b8569a474",
+      "executable": false
+    },
+    "gate/context.py": {
+      "sha256": "a357ac5d237590c07c4f47a9a3f97a0af92b0a2c281c863924f31faed7687855",
+      "executable": false
+    },
+    "gate/cli.py": {
+      "sha256": "cd77ccddc7b2460a8eedfa022ffcaac1e18267c82382903bb2cf15e363c906b4",
+      "executable": false
+    },
+    "gate/buttons.py": {
+      "sha256": "ed8ac30d5566d78303ef7952016dfed80abeaa9f1d4ea757c93e0561213e0b23",
+      "executable": false
+    },
+    "gate/connection_manager.py": {
+      "sha256": "ccb4803878caba530488a09236a56f4f188eba53a685c2324ed5bbdfe2cf38a4",
+      "executable": false
+    },
+    "gate/pictures.py": {
+      "sha256": "6d57d0d98f925ca85d3f1cbd738066b1c0734eabcc7f2368ab227d81b4eac61f",
+      "executable": false
+    },
+    "gate/roster.py": {
+      "sha256": "b9cdf89e9c9af771c0e125258db54fbd8662bc56bd099f330f5b862f8a3e71bd",
+      "executable": false
+    },
+    "hub/store.py": {
+      "sha256": "2c636420ffa86da33eb87ac17bc3c2eea2a563983792c6f9325594fd8ba6cf6d",
+      "executable": false
+    },
+    "hub/server.py": {
+      "sha256": "dfbb11e4247210267a68736d75e2970630bacc8e7515fa82a0dd28d271ece071",
+      "executable": false
+    },
+    "hub/__init__.py": {
+      "sha256": "bb2da7dca6442e668fc1a01489c41fb9941d86a86938d403aa8546caa0e15f07",
+      "executable": false
+    },
+    "hub/google.py": {
+      "sha256": "a3bacbb3b79b3e53b780a719fd9e3fcdf44b760497e0402b280393ca8de4a9c6",
+      "executable": false
+    },
+    "hub/__main__.py": {
+      "sha256": "a6293fea667da0e9a9a6ed586aa93f579d45ad3921387bb8f515ea11edbc0d5d",
+      "executable": false
+    },
+    "hub/state.py": {
+      "sha256": "0f3ed1cfff08d0e64764afe383bc2976dba8e190825405304934dfc909b082fa",
+      "executable": false
+    },
+    "schemas/pictures.md": {
+      "sha256": "7c641a9843525c3cf7199ea2aa34f387a9cf11fc0cfffcf8dc8e0c2d457a2edb",
+      "executable": false
+    },
+    "schemas/hejo-wire-v1.json": {
+      "sha256": "7b3c2db703a83824ee6d173262bbefec34b5210c74954d7c5dc8556c1fb0f75b",
+      "executable": false
+    },
+    "schemas/hejo-local-v1.json": {
+      "sha256": "c45aca161a0b4066ff50bdbe4b013d3f146211934f2028672cc11304994fb739",
+      "executable": false
+    },
+    "config/google-oauth.json": {
+      "sha256": "ee026e7ff02e555d8f1ac7927b5506d6e36bea6b5e89a89042e34363f368b3dc",
+      "executable": false
+    },
+    "install/hejo-join": {
+      "sha256": "4e7fc19232e3969ffab9c545b28933da9de16198e9f1c290ada6a753db051ce0",
+      "executable": true
+    },
+    "install/hejo-admin": {
+      "sha256": "f6c6aa4204ac524a6cad45342b3c4bbb42dfb3e85eeb362fd45ab298d79f06d1",
+      "executable": true
+    },
+    "install/hejo-publish": {
+      "sha256": "1c11c2cc780d29d5a0997242ecf11d0749a8b6b4d5e30e77ee4cd02d1a4c5023",
+      "executable": true
+    },
+    "install/hejo-hub": {
+      "sha256": "d7b483be9d7281c9327d03a82ffc16a137ceadc89264363fb4623d57bd3df1ae",
+      "executable": true
+    },
+    "install/get-hejo": {
+      "sha256": "b076711c63375f244000f859f952c82413a84c093ecde4f28edf3b327050f575",
+      "executable": true
+    },
+    "install/admin_support.py": {
+      "sha256": "c3bd31200160ba1e0d739b1bb964011a023372720d7c184fb271106d975a4a37",
+      "executable": false
+    },
+    "install/hejo-release": {
+      "sha256": "8dea837d83c389f67ea656c5eed93b28ad4faeff66f1369c340a24d713badfa1",
+      "executable": true
+    },
+    "install/hejo-hub-run": {
+      "sha256": "41d51588dbaaebc72e400d82a5fbb6b1f63fba0d4f4e3ef672619a2f21b6f35d",
+      "executable": true
+    },
+    "install/hejo-install": {
+      "sha256": "2c7ce6e3e55b92c1916c9bc6ece3b18662709405989d6254c7bb88f85cb8bc4f",
+      "executable": true
+    },
+    "install/hejo-ship": {
+      "sha256": "35efadff8a68ae6fcc9b997ca411fad6c39b8e23577610b9c3c36f8243613cb7",
+      "executable": true
+    },
+    "LICENSE": {
+      "sha256": "df0868a15ca70b27b75a3e27aef61784921b9247f33aff215a509a83a3c45e28",
+      "executable": false
+    }
+  },
+  "rollbackManifest": {
+    "gate/rooms.py": {
+      "sha256": "9fd1475588f02f8ec476584d6ba8f34f1e88ae4f68e190ab71a8e3b7dfb47905",
+      "executable": false
+    },
+    "gate/auth.py": {
+      "sha256": "7f6b24c6b12688e91dd2ebab9a919dcb0204b5eb7058bad2b1eb6536ed58dbf0",
+      "executable": false
+    },
+    "gate/files.py": {
+      "sha256": "f2f95f2de0d885f2b89b75f03e1eefa12b2b50195d8069f35bef07226581c3fd",
+      "executable": false
+    },
+    "gate/deadlines.py": {
+      "sha256": "dc4643b47f6556f9980d8cf90dd4c6de527861fcff2ad2d6bbc4cd6f1b3d78f5",
+      "executable": false
+    },
+    "gate/server.py": {
+      "sha256": "3fd46d150bb5407673719d0773e4827f39a8052bd8259e179d48163723d8c20b",
+      "executable": false
+    },
+    "gate/journal.py": {
+      "sha256": "448af577b52a12bd495f3f56653008f0a4212a4e58b3135bc67b89e17344c9e4",
+      "executable": false
+    },
+    "gate/connection_runtime.py": {
+      "sha256": "1d589ee53e196d3aa6cc72543ba6f190da19d75879806a78dd4bfaf62c635ea9",
+      "executable": false
+    },
+    "gate/adapter.py": {
+      "sha256": "71f70aaec0bd0d8d2124b5978fae99aeba157e3a19dc1979662c876f9d487a0e",
+      "executable": false
+    },
+    "gate/local.py": {
+      "sha256": "153c5f68df0392bcec05b5f6f9b2b6e137611e9c4975214f6cd6897d67979e07",
+      "executable": false
+    },
+    "gate/telegram.py": {
+      "sha256": "a83f2bf082aee40edbc7a06c201582c8dacb94d646dd15558a9cd91d4d755598",
+      "executable": false
+    },
+    "gate/plugin.yaml": {
+      "sha256": "cb3165c0a524758d6fc8a4046bd5e76a0bb32fe1b2eff857d1d642e73abab382",
+      "executable": false
+    },
+    "gate/connections.py": {
+      "sha256": "19e3b2dbcce7b58271c95e077ed79903bb12b01d0e248e7e01fc69e8534df540",
+      "executable": false
+    },
+    "gate/__init__.py": {
+      "sha256": "c5d1acd02d10a45d29dab6ab2156f2fffc53b9a9db92b63ca54443bdddbd3f66",
+      "executable": false
+    },
+    "gate/hub.py": {
+      "sha256": "f308dcaa081987dd7014163d24376a23a84d42056656fc334b6782c2956e8c13",
+      "executable": false
+    },
+    "gate/README.md": {
+      "sha256": "b50c1e847abe84fd62e49d61febcfb3c7cbcd6d6229940db250bf31b8569a474",
+      "executable": false
+    },
+    "gate/context.py": {
+      "sha256": "a357ac5d237590c07c4f47a9a3f97a0af92b0a2c281c863924f31faed7687855",
+      "executable": false
+    },
+    "gate/cli.py": {
+      "sha256": "cd77ccddc7b2460a8eedfa022ffcaac1e18267c82382903bb2cf15e363c906b4",
+      "executable": false
+    },
+    "gate/buttons.py": {
+      "sha256": "ed8ac30d5566d78303ef7952016dfed80abeaa9f1d4ea757c93e0561213e0b23",
+      "executable": false
+    },
+    "gate/connection_manager.py": {
+      "sha256": "ccb4803878caba530488a09236a56f4f188eba53a685c2324ed5bbdfe2cf38a4",
+      "executable": false
+    },
+    "gate/pictures.py": {
+      "sha256": "6d57d0d98f925ca85d3f1cbd738066b1c0734eabcc7f2368ab227d81b4eac61f",
+      "executable": false
+    },
+    "gate/roster.py": {
+      "sha256": "b9cdf89e9c9af771c0e125258db54fbd8662bc56bd099f330f5b862f8a3e71bd",
+      "executable": false
+    },
+    "hub/store.py": {
+      "sha256": "2c636420ffa86da33eb87ac17bc3c2eea2a563983792c6f9325594fd8ba6cf6d",
+      "executable": false
+    },
+    "hub/server.py": {
+      "sha256": "dfbb11e4247210267a68736d75e2970630bacc8e7515fa82a0dd28d271ece071",
+      "executable": false
+    },
+    "hub/__init__.py": {
+      "sha256": "bb2da7dca6442e668fc1a01489c41fb9941d86a86938d403aa8546caa0e15f07",
+      "executable": false
+    },
+    "hub/google.py": {
+      "sha256": "a3bacbb3b79b3e53b780a719fd9e3fcdf44b760497e0402b280393ca8de4a9c6",
+      "executable": false
+    },
+    "hub/__main__.py": {
+      "sha256": "a6293fea667da0e9a9a6ed586aa93f579d45ad3921387bb8f515ea11edbc0d5d",
+      "executable": false
+    },
+    "hub/state.py": {
+      "sha256": "0f3ed1cfff08d0e64764afe383bc2976dba8e190825405304934dfc909b082fa",
+      "executable": false
+    },
+    "schemas/pictures.md": {
+      "sha256": "7c641a9843525c3cf7199ea2aa34f387a9cf11fc0cfffcf8dc8e0c2d457a2edb",
+      "executable": false
+    },
+    "schemas/hejo-wire-v1.json": {
+      "sha256": "7b3c2db703a83824ee6d173262bbefec34b5210c74954d7c5dc8556c1fb0f75b",
+      "executable": false
+    },
+    "schemas/hejo-local-v1.json": {
+      "sha256": "c45aca161a0b4066ff50bdbe4b013d3f146211934f2028672cc11304994fb739",
+      "executable": false
+    },
+    "config/google-oauth.json": {
+      "sha256": "ee026e7ff02e555d8f1ac7927b5506d6e36bea6b5e89a89042e34363f368b3dc",
+      "executable": false
+    },
+    "install/hejo-join": {
+      "sha256": "4e7fc19232e3969ffab9c545b28933da9de16198e9f1c290ada6a753db051ce0",
+      "executable": true
+    },
+    "install/hejo-admin": {
+      "sha256": "f6c6aa4204ac524a6cad45342b3c4bbb42dfb3e85eeb362fd45ab298d79f06d1",
+      "executable": true
+    },
+    "install/hejo-publish": {
+      "sha256": "1c11c2cc780d29d5a0997242ecf11d0749a8b6b4d5e30e77ee4cd02d1a4c5023",
+      "executable": true
+    },
+    "install/hejo-hub": {
+      "sha256": "d7b483be9d7281c9327d03a82ffc16a137ceadc89264363fb4623d57bd3df1ae",
+      "executable": true
+    },
+    "install/get-hejo": {
+      "sha256": "b076711c63375f244000f859f952c82413a84c093ecde4f28edf3b327050f575",
+      "executable": true
+    },
+    "install/admin_support.py": {
+      "sha256": "c3bd31200160ba1e0d739b1bb964011a023372720d7c184fb271106d975a4a37",
+      "executable": false
+    },
+    "install/hejo-release": {
+      "sha256": "8dea837d83c389f67ea656c5eed93b28ad4faeff66f1369c340a24d713badfa1",
+      "executable": true
+    },
+    "install/hejo-hub-run": {
+      "sha256": "41d51588dbaaebc72e400d82a5fbb6b1f63fba0d4f4e3ef672619a2f21b6f35d",
+      "executable": true
+    },
+    "install/hejo-install": {
+      "sha256": "2c7ce6e3e55b92c1916c9bc6ece3b18662709405989d6254c7bb88f85cb8bc4f",
+      "executable": true
+    },
+    "install/hejo-ship": {
+      "sha256": "35efadff8a68ae6fcc9b997ca411fad6c39b8e23577610b9c3c36f8243613cb7",
+      "executable": true
+    },
+    "LICENSE": {
+      "sha256": "df0868a15ca70b27b75a3e27aef61784921b9247f33aff215a509a83a3c45e28",
+      "executable": false
+    }
+  },
+  "deployImpact": [
+    "gate/adapter.py",
+    "gate/telegram.py",
+    "gate/telegram_comments.py"
+  ],
+  "indexUnchanged": true,
+  "operationsUnchanged": true,
+  "receiptSummarySha256": "bcf4057ebdf5015c0e68797e29f751f731c7b2e95a11ab2cb816df175393f80c",
+  "scope": "Local preparation only; no deployment, restart, bind, real messages or push."
+}

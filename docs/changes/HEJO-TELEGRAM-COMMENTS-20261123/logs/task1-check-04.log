@@ -1,0 +1,25 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________ test_startup_without_primary_still_consumes_reserved_updates _________
+
+native = namespace(app=Application[bot=ExtBot[token=900:fixture]], api=<test_telegram_comments.BotAPI object at 0x109343a10>, bridge=<gate.telegram.Telegram object at 0x10af84ad0>, now=[1000.0], core=[10, 10], observed=[10, 10, 10])
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1093cd810>
+
+    async def test_startup_without_primary_still_consumes_reserved_updates(native, monkeypatch):
+        from gate import adapter
+        await dispatch(native, text='/hejo_comments_probe default')
+        monkeypatch.setattr(adapter, '_primary', None)
+        await dispatch(native)
+        await dispatch(native, edit=True)
+>       assert native.core == []
+E       assert [10, 10] == []
+E         
+E         Left contains 2 more items, first extra item: 10
+E         Use -v to get more diff
+
+gate/tests/test_telegram_comments.py:337: AssertionError
+------------------------------ Captured log call -------------------------------
+WARNING  hermes_facility.team_registry:team_registry.py:34 team registry /private/tmp/hejo-tgc-mutant/test_startup_without_primary_s0/owner/team.yaml: file not found; running with an empty roster (role features stay off)
+=========================== short test summary info ============================
+FAILED gate/tests/test_telegram_comments.py::test_startup_without_primary_still_consumes_reserved_updates
+1 failed in 0.48s

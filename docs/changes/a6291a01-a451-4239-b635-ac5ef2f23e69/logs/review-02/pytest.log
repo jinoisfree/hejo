@@ -1,0 +1,20 @@
+....................................................................FF   [100%]
+=================================== FAILURES ===================================
+_______________________ test_bound_topic_is_not_modified _______________________
+docs/changes/a6291a01-a451-4239-b635-ac5ef2f23e69/logs/review-02/test_review.py:19: in test_bound_topic_is_not_modified
+    assert bot.close_forum_topic.await_count == 0, 'bound topic must remain unchanged'
+E   AssertionError: bound topic must remain unchanged
+E   assert 1 == 0
+E    +  where 1 = <AsyncMock id='4561103440'>.await_count
+E    +    where <AsyncMock id='4561103440'> = namespace(close_forum_topic=<AsyncMock id='4561103440'>, reopen_forum_topic=<AsyncMock id='4561105792'>, edit_forum_topic=<AsyncMock id='4561106464'>).close_forum_topic
+_______________________ test_busy_command_reports_reason _______________________
+docs/changes/a6291a01-a451-4239-b635-ac5ef2f23e69/logs/review-02/test_review.py:27: in test_busy_command_reports_reason
+    assert sends, 'authorized owner must receive busy result'
+E   AssertionError: authorized owner must receive busy result
+E   assert []
+------------------------------ Captured log call -------------------------------
+WARNING  gate.telegram:telegram_comments.py:351 telegram_comments_rejected kind=Rejected
+=========================== short test summary info ============================
+FAILED docs/changes/a6291a01-a451-4239-b635-ac5ef2f23e69/logs/review-02/test_review.py::test_bound_topic_is_not_modified
+FAILED docs/changes/a6291a01-a451-4239-b635-ac5ef2f23e69/logs/review-02/test_review.py::test_busy_command_reports_reason
+2 failed, 68 passed in 9.95s

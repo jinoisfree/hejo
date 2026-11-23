@@ -1,0 +1,62 @@
+{
+  "releaseMatches": true,
+  "installedManifestMatches": true,
+  "boundaryTest": {
+    "command": [
+      "$HEJO_PYTHON",
+      "-m",
+      "pytest",
+      ".build/telegram-comments/test_m0_command_boundary.py",
+      "-q",
+      "--basetemp=/tmp/hejo-m0-boundary",
+      "-o",
+      "asyncio_default_fixture_loop_scope=function",
+      "-p",
+      "no:cacheprovider"
+    ],
+    "cwd": ".",
+    "exitCode": 0,
+    "logPath": "docs/changes/HEJO-TELEGRAM-COMMENTS-20261123/logs/task1-check-11.log",
+    "files": {
+      "gate/adapter.py": "58b9ea80abde36ecb8347d645b0f43e093a3f5ab46a15780a713173f612a714f",
+      "gate/telegram.py": "b768c2c4b5977f95eb9e0ce5cb32f3350ce31ee97139101d238b869716fa9fa5",
+      "gate/telegram_comments.py": "b1382d3adb0edfb06077f91a63fdd66b707ea073862d4b31ff1c8c04afcf3781",
+      "gate/tests/test_telegram_comments.py": "48195cf3a5af801478fffabe673b59fb6686cca3c37391fc20ef407ec8862877"
+    }
+  },
+  "authBoundary": {
+    "pairPresent": true,
+    "factoryEvents": [
+      {
+        "time": "2026-11-23 23:32:30",
+        "telegram": true,
+        "log": "gateway.log"
+      },
+      {
+        "time": "2026-11-23 23:34:51",
+        "telegram": true,
+        "log": "gateway.log"
+      }
+    ],
+    "blockedEvents": [
+      {
+        "time": "2026-11-23 23:33:56",
+        "log": "gateway.log",
+        "senderMatchesPair": false,
+        "chatMatchesPair": false,
+        "chatHasSupergroupIdShape": true
+      },
+      {
+        "time": "2026-11-23 23:33:56",
+        "log": "gateway.error.log",
+        "senderMatchesPair": false,
+        "chatMatchesPair": false,
+        "chatHasSupergroupIdShape": true
+      }
+    ]
+  },
+  "admissionTimes": [
+    "2026-11-23T14:33:56.115229+00:00"
+  ],
+  "commandTextInLogs": false
+}

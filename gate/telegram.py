@@ -27,6 +27,8 @@ def attach_telegram(native, adapter):
     """Factories run before connection; never start network work here."""
     global _telegram
     _telegram = adapter
+    from .telegram_comments import attach
+    attach(native)
     if getattr(adapter, '_hejo_telegram_wrapped', False):
         return
     original = adapter.handle_message
@@ -64,9 +66,13 @@ class Telegram:
         self.settle_seconds = SETTLE_SECONDS
         self.pending, self.changed, self.workers, self.wakes = {}, {}, {}, {}
         self._typing_tasks, self._typing_at = set(), {}
+        self.incoming = {}
         self.sent = {}
+        self.sent_epochs = {}
         self.sent_path = self.settings_store.path / 'sent.jsonl'
         self._load_sent()
+        from .telegram_comments import Comments
+        self.comments = Comments(self)
         self._topic_lock = asyncio.Lock()
         self._sync_requested = asyncio.Event()
         self._sync_task = asyncio.create_task(self._sync_worker())
@@ -75,7 +81,9 @@ class Telegram:
     def _private(self):
         try:
             value = self.vault.read('telegram.json', {'pair': None, 'code': None})
-            pair, code = value['pair'], value['code']
+            if not isinstance(value, dict):
+                return None
+            pair, code = value.setdefault('pair', None), value.setdefault('code', None)
             if pair is not None and not (isinstance(pair, dict) and pair.get('platform') == 'telegram'
                     and all(isinstance(pair.get(k), str) for k in ('chat_id', 'user_id', 'tag'))
                     and len(pair['tag']) == 8 and type(pair.get('paired_at')) in (int, float)):
@@ -109,7 +117,7 @@ class Telegram:
     def status(self, ref=None):
         return {'v': 1, 'type': 'telegram_status', 'platform_ready': platform_ready(),
                 'paired': self.private()['pair'] is not None, **self.settings(),
-                'topic_problem': self.topic_problem, **({'ref': ref} if ref is not None else {})}
+                'topic_problem': self.topic_problem or any(self.comments.route(room) == 'paused' for room in self.rooms()), **({'ref': ref} if ref is not None else {})}
 
     async def publish(self, conn=None, ref=None):
         status = self.status()
@@ -139,7 +147,10 @@ class Telegram:
             return
         if kind == 'telegram_unpair':
             with self.vault.locked():
-                self.vault.write('telegram.json', {'pair': None, 'code': None})
+                value = self.private()
+                self.retire_comments(value)
+                value.update(pair=None, code=None)
+                self.vault.write('telegram.json', value)
             settings = {'enabled': False}
         else:
             settings = {'enabled': frame['enabled']}
@@ -148,8 +159,17 @@ class Telegram:
                 return
         with self.settings_store.locked():
             self.settings_store.write('settings.json', settings)
+        if not settings['enabled']:
+            self.comments.cancel_queued()
         await self.publish(conn, ref)
         self.request_sync()
+
+    def retire_comments(self, value):
+        for binding in value.get('comments', []):
+            if binding['state'] != 'retired':
+                binding['state'] = 'retired'
+                value.setdefault('route_epochs', {})[binding['room']] = {
+                    'epoch': secrets.token_hex(16), 'cutover_seq': self.adapter.journal.head}
 
     def pending_code(self, event, private):
         code = private.get('code')
@@ -189,6 +209,7 @@ class Telegram:
             private = self.private()
             pairing = self.pending_code(event, private)
             if pairing:
+                self.retire_comments(private)
                 private['pair'] = {'platform': 'telegram', 'chat_id': event.source.chat_id,
                                    'user_id': event.source.user_id, 'tag': secrets.token_hex(4), 'paired_at': self.clock()}
                 private['code']['used'] = True
@@ -222,6 +243,8 @@ class Telegram:
         if room is None:
             await self.notice(event, '앱에서 만든 방 토픽에 써 주세요')
             return
+        if self.comments.route(room) != 'topic':
+            return
         text = (getattr(event.raw_message, 'caption', None) or '') if any(event.media_text_inlined or []) else event.text
         from .server import LIMITS
         if not event.message_id or len(text.encode()) > LIMITS['text_bytes']:
@@ -235,6 +258,8 @@ class Telegram:
             files.append(staged['file_id'])
         frame = {'employee': employee, 'thread': thread, 'text': text, 'client_msg_id': client_id,
                  'files': files, **({'room': room} if group else {})}
+        if self.comments.route(room) != 'topic':
+            return
         reply = ExternalReply(self, event)
         received = await self.adapter.receive(frame, reply)
         if not received and not reply.failed:
@@ -287,9 +312,15 @@ class Telegram:
             pair = self.private()['pair']
             tag = pair['tag']
             value = self.topics(tag)
-            desired = self.rooms()
+            rooms = self.rooms()
+            desired = {room: name for room, name in rooms.items()
+                       if self.comments.route(room) == 'topic'}
             problem = False
             for room in dict.fromkeys([*desired, *value['topics']]):
+                # A living comments/paused room keeps its old topic untouched.
+                # A removed room still follows the existing close path.
+                if room in rooms and room not in desired:
+                    continue
                 if not self.active() or self.private()['pair']['tag'] != tag:
                     return
                 entry = value['topics'].get(room)
@@ -340,6 +371,7 @@ class Telegram:
         if not key:
             return
         if (row['type'] == 'message' and self.active() and key[0] in self.rooms()
+                and self.comments.route(key[0]) in {'topic', 'comments'}
                 and (row['role'] == 'employee' or not row.get('client_msg_id', '').startswith('telegram:'))):
             self.pending.setdefault(key, []).append((row['msg_id'], self.private()['pair']['tag']))
         if key in self.pending:
@@ -385,14 +417,15 @@ class Telegram:
 
     def anchor(self, key, tag):
         by_message = {}
+        epoch = self.comments.epoch(key[0])
         for (sent_tag, tg_id), msg_id in self.sent.items():
-            if sent_tag == tag:
+            if sent_tag == tag and self.sent_epochs.get((sent_tag, tg_id), 'legacy') == epoch:
                 by_message.setdefault(msg_id, tg_id)
         prefix = f'telegram:{tag}:'
         for row in self.adapter.journal.records:
             if self.adapter.journal.message_threads.get(row.get('msg_id')) == key:
                 client_id = row.get('client_msg_id', '')
-                if client_id.startswith(prefix):
+                if epoch == 'legacy' and client_id.startswith(prefix):
                     return client_id[len(prefix):]
                 if row.get('msg_id') in by_message:
                     return by_message[row['msg_id']]
@@ -403,6 +436,12 @@ class Telegram:
         if (not row or thinking(row['text']) or not self.active() or key[0] not in self.rooms()
                 or key in self.adapter.journal.deleted_threads or self.private()['pair']['tag'] != tag):
             return
+        route = self.comments.route(key[0])
+        if route == 'comments':
+            await self.comments.deliver(row, key, tag)
+            return
+        if route != 'topic' or not self.comments.new_since_cutover(key[0], msg_id):
+            return
         entry = self.topics(tag)['topics'].get(key[0])
         if not entry:
             await self.sync_topics()
@@ -410,41 +449,13 @@ class Telegram:
         if (not entry or entry['closed'] or not self.active() or self.private()['pair']['tag'] != tag
                 or key[0] not in self.rooms()):
             return
-        # Topic creation can yield for a long time; settle the current journal value again.
-        while True:
-            row = self.adapter.journal.message(msg_id)
-            if (not row or thinking(row['text']) or not self.active() or self.private()['pair']['tag'] != tag
-                    or key[0] not in self.rooms() or key in self.adapter.journal.deleted_threads):
-                return
-            if row['role'] == 'employee':
-                self.wakes[key].clear()
-                delay = self.changed[key] + self.settle_seconds - asyncio.get_running_loop().time()
-                if delay > 0:
-                    await asyncio.sleep(delay)
-                    continue
-                if self.typing(key):
-                    await self.wakes[key].wait()
-                    continue
-            break
+        row = await self.settled_row(msg_id, key, tag)
+        if not row:
+            return
         pair = self.private()['pair']
-        names = {e['id']: e['name'] for e in self.adapter.employees()}
-        label = '사장' if row['role'] == 'owner' else names.get(row['employee'], row['employee'])
-        text = f"[{label}] " + row['text']
-        buttons = row.get('buttons', [])
-        replies = [b['label'] for b in buttons if b['kind'] == 'reply']
-        if replies:
-            text += '\n선택: ' + ' / '.join(replies)
-        if any(b['kind'] != 'reply' for b in buttons):
-            text += '\n(이 선택은 hejo 앱에서 눌러 주세요)'
-        attachments = []
-        for file in row.get('files', []):
-            try:
-                path, mime = self.adapter.files.registered(row['employee'], file['file_id'])
-                if path.stat().st_size > MAX_SEND_FILE_BYTES:
-                    raise ValueError('too_large')
-                attachments.append((path, mime))
-            except (UnknownFile, OSError, ValueError):
-                text += f"\n📎 {file['name']} (hejo 앱에서 열기)"
+        text, attachments = self.render(row)
+        if not self.anchor(key, tag) and self.comments.continuation(*key):
+            text = '이전 대화 이어쓰기 — 전환 이후 내용\n' + text
         metadata = {'thread_id': entry['topic']}
         if row['role'] == 'employee':
             metadata['notify'] = True
@@ -467,6 +478,44 @@ class Telegram:
             except Exception as exc:
                 log.warning('telegram_file_send_failed kind=%s', type(exc).__name__)
 
+    async def settled_row(self, msg_id, key, tag):
+        while True:
+            row = self.adapter.journal.message(msg_id)
+            if (not row or thinking(row['text']) or not self.active() or self.private()['pair']['tag'] != tag
+                    or key[0] not in self.rooms() or key in self.adapter.journal.deleted_threads):
+                return
+            if row['role'] == 'employee':
+                self.wakes[key].clear()
+                delay = self.changed[key] + self.settle_seconds - asyncio.get_running_loop().time()
+                if delay > 0:
+                    await asyncio.sleep(delay)
+                    continue
+                if self.typing(key):
+                    await self.wakes[key].wait()
+                    continue
+            return row
+
+    def render(self, row):
+        names = {e['id']: e['name'] for e in self.adapter.employees()}
+        label = '사장' if row['role'] == 'owner' else names.get(row['employee'], row['employee'])
+        text = f"[{label}] " + row['text']
+        buttons = row.get('buttons', [])
+        replies = [b['label'] for b in buttons if b['kind'] == 'reply']
+        if replies:
+            text += '\n선택: ' + ' / '.join(replies)
+        if any(b['kind'] != 'reply' for b in buttons):
+            text += '\n(이 선택은 hejo 앱에서 눌러 주세요)'
+        attachments = []
+        for file in row.get('files', []):
+            try:
+                path, mime = self.adapter.files.registered(row['employee'], file['file_id'])
+                if path.stat().st_size > MAX_SEND_FILE_BYTES:
+                    raise ValueError('too_large')
+                attachments.append((path, mime))
+            except (UnknownFile, OSError, ValueError):
+                text += f"\n📎 {file['name']} (hejo 앱에서 열기)"
+        return text, attachments
+
     @staticmethod
     def result_ids(result):
         raw = result.raw_response
@@ -485,6 +534,11 @@ class Telegram:
                 if (isinstance(row, dict) and set(row) == {'tag', 'tg', 'msg_id'}
                         and all(isinstance(value, str) for value in row.values())):
                     self.sent[(row['tag'], row['tg'])] = row['msg_id']
+                elif (isinstance(row, dict) and row.get('v') == 2 and row.get('kind') == 'topic'
+                      and set(row) == {'v', 'kind', 'tag', 'tg', 'msg_id', 'route_epoch'}
+                      and all(isinstance(row[k], str) for k in ('tag', 'tg', 'msg_id', 'route_epoch'))):
+                    self.sent[(row['tag'], row['tg'])] = row['msg_id']
+                    self.sent_epochs[(row['tag'], row['tg'])] = row['route_epoch']
             except (ValueError, UnicodeDecodeError):
                 continue
         try:
@@ -498,13 +552,18 @@ class Telegram:
             log.warning('telegram_sent_read_failed')
 
     def _save_sent(self, tag, tg_id, msg_id):
+        key = self.adapter.journal.message_threads.get(msg_id)
+        epoch = self.comments.epoch(key[0]) if key else 'legacy'
+        receipt = {'tag': tag, 'tg': tg_id, 'msg_id': msg_id}
+        if epoch != 'legacy':
+            receipt.update(v=2, kind='topic', route_epoch=epoch)
         with self.settings_store.locked():
             created = not self.sent_path.exists()
             fd = os.open(self.sent_path, os.O_CREAT | os.O_WRONLY | os.O_APPEND, 0o600)
             try:
                 os.fchmod(fd, 0o600)
                 with os.fdopen(fd, 'ab', closefd=False) as stream:
-                    stream.write((json.dumps({'tag': tag, 'tg': tg_id, 'msg_id': msg_id}) + '\n').encode())
+                    stream.write((json.dumps(receipt) + '\n').encode())
                     stream.flush()
                     os.fsync(stream.fileno())
             finally:
@@ -516,9 +575,10 @@ class Telegram:
                 finally:
                     os.close(directory)
         self.sent[(tag, tg_id)] = msg_id
+        self.sent_epochs[(tag, tg_id)] = epoch
 
     def send_typing(self, key):
-        if not self.active() or key[0] not in self.rooms():
+        if not self.active() or key[0] not in self.rooms() or self.comments.route(key[0]) != 'topic':
             return
         pair = self.private()['pair']
         entry = self.topics(pair['tag'])['topics'].get(key[0])
@@ -540,6 +600,7 @@ class Telegram:
         task.add_done_callback(self._typing_tasks.discard)
 
     async def close(self):
+        await self.comments.close()
         tasks = (self._sync_task, self._connection_task, *self.workers.values(), *self._typing_tasks)
         for task in tasks:
             task.cancel()

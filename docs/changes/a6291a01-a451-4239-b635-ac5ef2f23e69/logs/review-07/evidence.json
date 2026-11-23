@@ -1,0 +1,61 @@
+{
+  "candidateCommit": "6621b74e0b78d1012d761924d9a664b8259534c1",
+  "machine": {
+    "newProbeCount": 1,
+    "receiptCount": 3,
+    "uniqueSteps": [
+      "channel",
+      "comment",
+      "forward"
+    ],
+    "roomMatchesSelected": true,
+    "bindingsUnchanged": true,
+    "receiptsBeforeDeadline": true,
+    "receiptSpanSeconds": 6.805,
+    "snapshotSummary": {
+      "all_receipts_within_deadline": true,
+      "complete_with_receipts": true,
+      "contract_matches": true,
+      "owner_matches": true,
+      "pair_matches": true,
+      "receipt_present": {
+        "channel": true,
+        "comment": true,
+        "forward": true
+      },
+      "reserved": true,
+      "status": "complete"
+    },
+    "journalUnchanged": true,
+    "humanScreenConfirmed": true,
+    "candidateCommit": "6621b74e0b78d1012d761924d9a664b8259534c1",
+    "installedMatches": true,
+    "clientVersion": "unconfirmed",
+    "osVersion": "unconfirmed"
+  },
+  "snapshotSummaryExitCode": 0,
+  "screens": {
+    "files": [
+      {
+        "file": "channel.png",
+        "sha256": "9b02081cec86bdb3697e7d90ec2dca1f607b29ef99f895703b8b8830a54d6d37"
+      },
+      {
+        "file": "discussion.png",
+        "sha256": "43f889ecfb184cb1cb1ba9d965d4e3760864da7b4de493596e2fadd62f24dac4"
+      }
+    ],
+    "channelCommentCountVisible": 1,
+    "discussionShowsRootAndBotReply": true,
+    "displayedMessageTime": "23:48",
+    "clientAppearance": "macOS desktop",
+    "clientVersion": "unconfirmed",
+    "osVersion": "unconfirmed",
+    "scope": "User supplied screenshots; no new execution"
+  },
+  "reviewerViewedBothScreens": true,
+  "screenHashesVerified": true,
+  "screenPermissions": "0600",
+  "currentInstalledProductHashesMatch": true,
+  "newExecution": false
+}

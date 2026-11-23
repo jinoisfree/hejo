@@ -1,0 +1,174 @@
+....................................FFFFFFF...                           [100%]
+=================================== FAILURES ===================================
+_______________ test_comments_ingress_root_reply_dedupe_restart ________________
+
+native = namespace(app=Application[bot=ExtBot[token=900:fixture]], api=<test_telegram_comments.BotAPI object at 0x10e8a96d0>, bridge=<gate.telegram.Telegram object at 0x10e8df850>, now=[1000.0], core=[], observed=[10, 10, 10, 100])
+gate = <gate.adapter.HejoAdapter object at 0x10e8bd310>
+runner = <gate.tests.support.runner.<locals>.TurnRunner object at 0x10e973a10>
+
+    async def test_comments_ingress_root_reply_dedupe_restart(native, gate, runner):
+        await activate(native)
+        root = fresh(native, root=500)
+        await native.app.process_update(root)
+>       assert len(runner.events) == 1
+E       assert 0 == 1
+E        +  where 0 = len([])
+E        +    where [] = <gate.tests.support.runner.<locals>.TurnRunner object at 0x10e973a10>.events
+
+gate/tests/test_telegram_comments.py:532: AssertionError
+------------------------------ Captured log call -------------------------------
+WARNING  hermes_facility.team_registry:team_registry.py:34 team registry /private/tmp/hejo-tgc-full/test_comments_ingress_root_rep0/owner/team.yaml: file not found; running with an empty roster (role features stay off)
+________________ test_comments_rejects_untrusted_reply[change0] ________________
+
+native = namespace(app=Application[bot=ExtBot[token=900:fixture]], api=<test_telegram_comments.BotAPI object at 0x10e9fdd50>, bridge=<gate.telegram.Telegram object at 0x10ea7ca50>, now=[1000.0], core=[], observed=[10, 10, 10, 100])
+runner = <gate.tests.support.runner.<locals>.TurnRunner object at 0x10ea2d7f0>
+change = {'sender_chat': {'id': -300, 'type': 'supergroup', 'title': 'Fixture'}}
+
+    @pytest.mark.parametrize('change', [
+        {'sender_chat': {'id': -300, 'type': 'supergroup', 'title': 'Fixture'}},
+        {'from': {'id': 101, 'is_bot': False, 'first_name': 'Other'}},
+        {'from': {'id': 100, 'is_bot': True, 'first_name': 'Bot'}},
+        {'message_thread_id': 999}, {'date': 1000},
+    ])
+    async def test_comments_rejects_untrusted_reply(native, runner, change):
+        await activate(native)
+        await native.app.process_update(fresh(native, root=500))
+>       assert len(runner.events) == 1
+E       assert 0 == 1
+E        +  where 0 = len([])
+E        +    where [] = <gate.tests.support.runner.<locals>.TurnRunner object at 0x10ea2d7f0>.events
+
+gate/tests/test_telegram_comments.py:556: AssertionError
+------------------------------ Captured log call -------------------------------
+WARNING  hermes_facility.team_registry:team_registry.py:34 team registry /private/tmp/hejo-tgc-full/test_comments_rejects_untruste0/owner/team.yaml: file not found; running with an empty roster (role features stay off)
+________________ test_comments_rejects_untrusted_reply[change1] ________________
+
+native = namespace(app=Application[bot=ExtBot[token=900:fixture]], api=<test_telegram_comments.BotAPI object at 0x10e87b5d0>, bridge=<gate.telegram.Telegram object at 0x10ea7da50>, now=[1000.0], core=[], observed=[10, 10, 10, 100])
+runner = <gate.tests.support.runner.<locals>.TurnRunner object at 0x10ea2de80>
+change = {'from': {'id': 101, 'is_bot': False, 'first_name': 'Other'}}
+
+    @pytest.mark.parametrize('change', [
+        {'sender_chat': {'id': -300, 'type': 'supergroup', 'title': 'Fixture'}},
+        {'from': {'id': 101, 'is_bot': False, 'first_name': 'Other'}},
+        {'from': {'id': 100, 'is_bot': True, 'first_name': 'Bot'}},
+        {'message_thread_id': 999}, {'date': 1000},
+    ])
+    async def test_comments_rejects_untrusted_reply(native, runner, change):
+        await activate(native)
+        await native.app.process_update(fresh(native, root=500))
+>       assert len(runner.events) == 1
+E       assert 0 == 1
+E        +  where 0 = len([])
+E        +    where [] = <gate.tests.support.runner.<locals>.TurnRunner object at 0x10ea2de80>.events
+
+gate/tests/test_telegram_comments.py:556: AssertionError
+------------------------------ Captured log call -------------------------------
+WARNING  hermes_facility.team_registry:team_registry.py:34 team registry /private/tmp/hejo-tgc-full/test_comments_rejects_untruste1/owner/team.yaml: file not found; running with an empty roster (role features stay off)
+________________ test_comments_rejects_untrusted_reply[change2] ________________
+
+native = namespace(app=Application[bot=ExtBot[token=900:fixture]], api=<test_telegram_comments.BotAPI object at 0x10eb1cbd0>, bridge=<gate.telegram.Telegram object at 0x10ea7ea50>, now=[1000.0], core=[], observed=[10, 10, 10, 100])
+runner = <gate.tests.support.runner.<locals>.TurnRunner object at 0x10ea2dfd0>
+change = {'from': {'id': 100, 'is_bot': True, 'first_name': 'Bot'}}
+
+    @pytest.mark.parametrize('change', [
+        {'sender_chat': {'id': -300, 'type': 'supergroup', 'title': 'Fixture'}},
+        {'from': {'id': 101, 'is_bot': False, 'first_name': 'Other'}},
+        {'from': {'id': 100, 'is_bot': True, 'first_name': 'Bot'}},
+        {'message_thread_id': 999}, {'date': 1000},
+    ])
+    async def test_comments_rejects_untrusted_reply(native, runner, change):
+        await activate(native)
+        await native.app.process_update(fresh(native, root=500))
+>       assert len(runner.events) == 1
+E       assert 0 == 1
+E        +  where 0 = len([])
+E        +    where [] = <gate.tests.support.runner.<locals>.TurnRunner object at 0x10ea2dfd0>.events
+
+gate/tests/test_telegram_comments.py:556: AssertionError
+------------------------------ Captured log call -------------------------------
+WARNING  hermes_facility.team_registry:team_registry.py:34 team registry /private/tmp/hejo-tgc-full/test_comments_rejects_untruste2/owner/team.yaml: file not found; running with an empty roster (role features stay off)
+________________ test_comments_rejects_untrusted_reply[change3] ________________
+
+native = namespace(app=Application[bot=ExtBot[token=900:fixture]], api=<test_telegram_comments.BotAPI object at 0x10ebb39d0>, bridge=<gate.telegram.Telegram object at 0x10ea7fb50>, now=[1000.0], core=[], observed=[10, 10, 10, 100])
+runner = <gate.tests.support.runner.<locals>.TurnRunner object at 0x10ea2e270>
+change = {'message_thread_id': 999}
+
+    @pytest.mark.parametrize('change', [
+        {'sender_chat': {'id': -300, 'type': 'supergroup', 'title': 'Fixture'}},
+        {'from': {'id': 101, 'is_bot': False, 'first_name': 'Other'}},
+        {'from': {'id': 100, 'is_bot': True, 'first_name': 'Bot'}},
+        {'message_thread_id': 999}, {'date': 1000},
+    ])
+    async def test_comments_rejects_untrusted_reply(native, runner, change):
+        await activate(native)
+        await native.app.process_update(fresh(native, root=500))
+>       assert len(runner.events) == 1
+E       assert 0 == 1
+E        +  where 0 = len([])
+E        +    where [] = <gate.tests.support.runner.<locals>.TurnRunner object at 0x10ea2e270>.events
+
+gate/tests/test_telegram_comments.py:556: AssertionError
+------------------------------ Captured log call -------------------------------
+WARNING  hermes_facility.team_registry:team_registry.py:34 team registry /private/tmp/hejo-tgc-full/test_comments_rejects_untruste3/owner/team.yaml: file not found; running with an empty roster (role features stay off)
+________________ test_comments_rejects_untrusted_reply[change4] ________________
+
+native = namespace(app=Application[bot=ExtBot[token=900:fixture]], api=<test_telegram_comments.BotAPI object at 0x10eb728d0>, bridge=<gate.telegram.Telegram object at 0x10ec11050>, now=[1000.0], core=[], observed=[10, 10, 10, 100])
+runner = <gate.tests.support.runner.<locals>.TurnRunner object at 0x10ea2e660>
+change = {'date': 1000}
+
+    @pytest.mark.parametrize('change', [
+        {'sender_chat': {'id': -300, 'type': 'supergroup', 'title': 'Fixture'}},
+        {'from': {'id': 101, 'is_bot': False, 'first_name': 'Other'}},
+        {'from': {'id': 100, 'is_bot': True, 'first_name': 'Bot'}},
+        {'message_thread_id': 999}, {'date': 1000},
+    ])
+    async def test_comments_rejects_untrusted_reply(native, runner, change):
+        await activate(native)
+        await native.app.process_update(fresh(native, root=500))
+>       assert len(runner.events) == 1
+E       assert 0 == 1
+E        +  where 0 = len([])
+E        +    where [] = <gate.tests.support.runner.<locals>.TurnRunner object at 0x10ea2e660>.events
+
+gate/tests/test_telegram_comments.py:556: AssertionError
+------------------------------ Captured log call -------------------------------
+WARNING  hermes_facility.team_registry:team_registry.py:34 team registry /private/tmp/hejo-tgc-full/test_comments_rejects_untruste4/owner/team.yaml: file not found; running with an empty roster (role features stay off)
+_________ test_comments_prebind_origin_edit_channel_and_deleted_target _________
+
+native = namespace(app=Application[bot=ExtBot[token=900:fixture]], api=<test_telegram_comments.BotAPI object at 0x10ecc1950>, b...=<gate.telegram.Telegram object at 0x10ec12050>, now=[1000.0], core=[], observed=[10, 10, 10, 100, 100, 100, 100, 101])
+gate = <gate.adapter.HejoAdapter object at 0x10eab3750>
+runner = <gate.tests.support.runner.<locals>.TurnRunner object at 0x10ea2eba0>
+
+    async def test_comments_prebind_origin_edit_channel_and_deleted_target(native, gate, runner):
+        await activate(native)
+        old = fresh(native, root=500).to_dict()
+        old['message']['forward_origin']['date'] = 999
+        await native.app.process_update(Update.de_json(old, native.app.bot))
+        root = fresh(native, root=501)
+        data = root.to_dict()
+        data['edited_message'] = data.pop('message')
+        await native.app.process_update(Update.de_json(data, native.app.bot))
+        data['channel_post'] = data.pop('edited_message')
+        await native.app.process_update(Update.de_json(data, native.app.bot))
+        assert not runner.events
+        await native.app.process_update(root)
+        row = next(r for r in gate.journal.records if r.get('role') == 'owner')
+        gate.journal.deleted_messages.add(row['msg_id'])
+        await native.app.process_update(fresh(native, 101, reply=100))
+>       assert len(runner.events) == 1
+E       assert 0 == 1
+E        +  where 0 = len([])
+E        +    where [] = <gate.tests.support.runner.<locals>.TurnRunner object at 0x10ea2eba0>.events
+
+gate/tests/test_telegram_comments.py:579: AssertionError
+------------------------------ Captured log call -------------------------------
+WARNING  hermes_facility.team_registry:team_registry.py:34 team registry /private/tmp/hejo-tgc-full/test_comments_prebind_origin_e0/owner/team.yaml: file not found; running with an empty roster (role features stay off)
+=========================== short test summary info ============================
+FAILED gate/tests/test_telegram_comments.py::test_comments_ingress_root_reply_dedupe_restart
+FAILED gate/tests/test_telegram_comments.py::test_comments_rejects_untrusted_reply[change0]
+FAILED gate/tests/test_telegram_comments.py::test_comments_rejects_untrusted_reply[change1]
+FAILED gate/tests/test_telegram_comments.py::test_comments_rejects_untrusted_reply[change2]
+FAILED gate/tests/test_telegram_comments.py::test_comments_rejects_untrusted_reply[change3]
+FAILED gate/tests/test_telegram_comments.py::test_comments_rejects_untrusted_reply[change4]
+FAILED gate/tests/test_telegram_comments.py::test_comments_prebind_origin_edit_channel_and_deleted_target
+7 failed, 39 passed in 3.24s

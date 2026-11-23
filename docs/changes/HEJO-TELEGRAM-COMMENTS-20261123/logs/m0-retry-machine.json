@@ -1,0 +1,33 @@
+{
+  "newProbeCount": 1,
+  "receiptCount": 3,
+  "uniqueSteps": [
+    "channel",
+    "comment",
+    "forward"
+  ],
+  "roomMatchesSelected": true,
+  "bindingsUnchanged": true,
+  "receiptsBeforeDeadline": true,
+  "receiptSpanSeconds": 6.805,
+  "snapshotSummary": {
+    "all_receipts_within_deadline": true,
+    "complete_with_receipts": true,
+    "contract_matches": true,
+    "owner_matches": true,
+    "pair_matches": true,
+    "receipt_present": {
+      "channel": true,
+      "comment": true,
+      "forward": true
+    },
+    "reserved": true,
+    "status": "complete"
+  },
+  "journalUnchanged": true,
+  "humanScreenConfirmed": true,
+  "candidateCommit": "6621b74e0b78d1012d761924d9a664b8259534c1",
+  "installedMatches": true,
+  "clientVersion": "unconfirmed",
+  "osVersion": "unconfirmed"
+}

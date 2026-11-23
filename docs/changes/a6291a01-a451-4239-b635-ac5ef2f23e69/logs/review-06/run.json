@@ -1,0 +1,12 @@
+{
+  "command": "$HEJO_PYTHON -m pytest .build/telegram-comments/test_m0_command_boundary.py -q --basetemp=/tmp/hejo-m0-review06 -o asyncio_default_fixture_loop_scope=function -p no:cacheprovider",
+  "exitCode": 0,
+  "logPath": "pytest.log",
+  "filesMatch": {
+    "gate/adapter.py": true,
+    "gate/telegram.py": true,
+    "gate/telegram_comments.py": true,
+    "gate/tests/test_telegram_comments.py": true
+  },
+  "evidence": "m0-investigation.json and private auth-boundary-evidence.json read; no operational API calls; original user screenshot not independently reopened in this review"
+}

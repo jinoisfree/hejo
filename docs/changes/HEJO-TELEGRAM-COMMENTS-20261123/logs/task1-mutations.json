@@ -1,0 +1,17 @@
+[
+  {
+    "mutation": "reservation_consumption",
+    "exitCode": 1,
+    "detected": true,
+    "logPath": "docs/changes/HEJO-TELEGRAM-COMMENTS-20261123/logs/task1-check-04.log"
+  },
+  {
+    "mutation": "receipt_completeness",
+    "exitCode": 1,
+    "detected": true,
+    "logPath": "docs/changes/HEJO-TELEGRAM-COMMENTS-20261123/logs/task1-check-05.log"
+  },
+  {
+    "restored": true
+  }
+]

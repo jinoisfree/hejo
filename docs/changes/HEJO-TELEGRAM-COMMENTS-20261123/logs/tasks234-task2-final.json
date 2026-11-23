@@ -1,0 +1,11 @@
+{
+  "command": "git diff --check",
+  "exitCode": 0,
+  "logPath": "logs/tasks234-task2-diff-check.log",
+  "files": {
+    "gate/adapter.py": "58b9ea80abde36ecb8347d645b0f43e093a3f5ab46a15780a713173f612a714f",
+    "gate/telegram.py": "b768c2c4b5977f95eb9e0ce5cb32f3350ce31ee97139101d238b869716fa9fa5",
+    "gate/telegram_comments.py": "2279caee91ef643d0fc9c7b0e70db8b685d3f4548754c5479deb6663a87f4ff4",
+    "gate/tests/test_telegram_comments.py": "bddecf04cd47ba369fe49de7570932ca06ef9d0946a479c4785ceb4f66cb3a30"
+  }
+}

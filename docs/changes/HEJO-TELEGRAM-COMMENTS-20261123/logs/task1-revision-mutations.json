@@ -1,0 +1,24 @@
+[
+  {
+    "file": "gate/telegram.py",
+    "mutation": {
+      "before": "if room in rooms and room not in desired:",
+      "after": "if False:"
+    },
+    "exitCode": 1,
+    "logPath": "docs/changes/HEJO-TELEGRAM-COMMENTS-20261123/logs/task1-check-09.log",
+    "restored": true,
+    "sha256": "b768c2c4b5977f95eb9e0ce5cb32f3350ce31ee97139101d238b869716fa9fa5"
+  },
+  {
+    "file": "gate/telegram_comments.py",
+    "mutation": {
+      "before": "if cmd and result:",
+      "after": "if False:"
+    },
+    "exitCode": 1,
+    "logPath": "docs/changes/HEJO-TELEGRAM-COMMENTS-20261123/logs/task1-check-10.log",
+    "restored": true,
+    "sha256": "b1382d3adb0edfb06077f91a63fdd66b707ea073862d4b31ff1c8c04afcf3781"
+  }
+]

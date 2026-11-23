@@ -1,0 +1,10 @@
+{
+  "command": "$HEJO_PYTHON -m pytest gate/tests/test_telegram_comments.py tests/acceptance/test_telegram.py docs/changes/a6291a01-a451-4239-b635-ac5ef2f23e69/logs/review-02/test_review.py -q --basetemp=/tmp/hejo-review-tgc-02 -o asyncio_default_fixture_loop_scope=function -p no:cacheprovider --tb=short",
+  "cwd": ".",
+  "baseCommit": "6bf9c3c6f6b9c563e3b4d44bf69d1014569579c0",
+  "exitCode": 1,
+  "logPath": "pytest.log",
+  "result": "68 passed, 2 failed",
+  "environment": "Hermes venv Python; existing pytest, Hermes source, installed PTB site-packages and repository on PYTHONPATH; PYTHONDONTWRITEBYTECODE=1, HERMES_DISABLE_LAZY_INSTALLS=1. Fixtures use temporary HERMES_HOME and fake Bot API. No environment scripts sourced.",
+  "integrity": "integrity.json; four source hashes match implementer final record before and after review"
+}

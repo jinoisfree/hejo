@@ -1,0 +1,25 @@
+{
+  "candidateCommit": "6621b74e0b78d1012d761924d9a664b8259534c1",
+  "deploymentStepExitCodes": [
+    0,
+    0
+  ],
+  "reportedManifestMatches": true,
+  "currentRelease": "6621b74e0b78d1012d761924d9a664b8259534c1",
+  "currentProductHashesMatch": {
+    "gate/adapter.py": true,
+    "gate/telegram.py": true,
+    "gate/telegram_comments.py": true
+  },
+  "firstSummary": {
+    "status": "no_probe"
+  },
+  "firstSummaryExitCode": 0,
+  "finalSummary": {
+    "status": "no_probe"
+  },
+  "finalSummaryExitCode": 0,
+  "journalUnchanged": true,
+  "userObserved": "no_response",
+  "scope": "Existing execution evidence read and current installed product hashes checked. No live probe, restart, rollback or product tests executed in this review."
+}

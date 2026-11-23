@@ -1,0 +1,104 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_____ test_sync_preserves_converted_topics_and_updates_other_rooms[False] ______
+
+native = namespace(app=Application[bot=ExtBot[token=900:fixture]], api=<test_telegram_comments.BotAPI object at 0x10b5457f0>, bridge=<gate.telegram.Telegram object at 0x10b4b4c20>, now=[1000.0], core=[], observed=[10, 10, 10])
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x108cd5a70>
+paused = False
+
+    @pytest.mark.parametrize('paused', [False, True])
+    async def test_sync_preserves_converted_topics_and_updates_other_rooms(native, monkeypatch, paused):
+        from unittest.mock import AsyncMock
+        await finish_probe(native)
+        await dispatch(native, text='/hejo_comments_bind default')
+        bridge = native.bridge
+        if paused:
+            with bridge.vault.locked():
+                value = bridge.private()
+                value['comments'][0]['state'] = 'paused'
+                bridge.vault.write('telegram.json', value)
+        preserved = dict(topic='8', name='Old', closed=False)
+        with bridge.settings_store.locked():
+            bridge.settings_store.write('topics.json', dict(tag='12345678', topics={
+                'default': preserved, 'alpha': dict(topic='9', name='Old', closed=True),
+                'removed': dict(topic='10', name='Removed', closed=False)}))
+        bot = SimpleNamespace(close_forum_topic=AsyncMock(), reopen_forum_topic=AsyncMock(),
+            edit_forum_topic=AsyncMock(), create_forum_topic=AsyncMock(return_value=SimpleNamespace(message_thread_id=11)))
+        monkeypatch.setattr(door, '_telegram', SimpleNamespace(is_connected=True, _bot=bot))
+        monkeypatch.setattr(bridge, 'rooms', lambda: dict(default='Changed', alpha='Renamed', beta='New'))
+        await bridge.sync_topics()
+>       bot.close_forum_topic.assert_awaited_once_with(chat_id='-100', message_thread_id='10')
+
+gate/tests/test_telegram_comments.py:432: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <AsyncMock id='4485049248'>, args = ()
+kwargs = {'chat_id': '-100', 'message_thread_id': '10'}
+
+    def assert_awaited_once_with(self, /, *args, **kwargs):
+        """
+        Assert that the mock was awaited exactly once and with the specified
+        arguments.
+        """
+        if not self.await_count == 1:
+            msg = (f"Expected {self._mock_name or 'mock'} to have been awaited once."
+                   f" Awaited {self.await_count} times.")
+>           raise AssertionError(msg)
+E           AssertionError: Expected mock to have been awaited once. Awaited 2 times.
+
+<HOME>/.hermes/tools/python-3.14.7+20260901-darwin-arm64/lib/python3.14/unittest/mock.py:2404: AssertionError
+------------------------------ Captured log call -------------------------------
+WARNING  hermes_facility.team_registry:team_registry.py:34 team registry /private/tmp/hejo-tgc-mutation/test_sync_preserves_converted_0/owner/team.yaml: file not found; running with an empty roster (role features stay off)
+______ test_sync_preserves_converted_topics_and_updates_other_rooms[True] ______
+
+native = namespace(app=Application[bot=ExtBot[token=900:fixture]], api=<test_telegram_comments.BotAPI object at 0x10b61ead0>, bridge=<gate.telegram.Telegram object at 0x10b61d450>, now=[1000.0], core=[], observed=[10, 10, 10])
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x108c93460>
+paused = True
+
+    @pytest.mark.parametrize('paused', [False, True])
+    async def test_sync_preserves_converted_topics_and_updates_other_rooms(native, monkeypatch, paused):
+        from unittest.mock import AsyncMock
+        await finish_probe(native)
+        await dispatch(native, text='/hejo_comments_bind default')
+        bridge = native.bridge
+        if paused:
+            with bridge.vault.locked():
+                value = bridge.private()
+                value['comments'][0]['state'] = 'paused'
+                bridge.vault.write('telegram.json', value)
+        preserved = dict(topic='8', name='Old', closed=False)
+        with bridge.settings_store.locked():
+            bridge.settings_store.write('topics.json', dict(tag='12345678', topics={
+                'default': preserved, 'alpha': dict(topic='9', name='Old', closed=True),
+                'removed': dict(topic='10', name='Removed', closed=False)}))
+        bot = SimpleNamespace(close_forum_topic=AsyncMock(), reopen_forum_topic=AsyncMock(),
+            edit_forum_topic=AsyncMock(), create_forum_topic=AsyncMock(return_value=SimpleNamespace(message_thread_id=11)))
+        monkeypatch.setattr(door, '_telegram', SimpleNamespace(is_connected=True, _bot=bot))
+        monkeypatch.setattr(bridge, 'rooms', lambda: dict(default='Changed', alpha='Renamed', beta='New'))
+        await bridge.sync_topics()
+>       bot.close_forum_topic.assert_awaited_once_with(chat_id='-100', message_thread_id='10')
+
+gate/tests/test_telegram_comments.py:432: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <AsyncMock id='4485990784'>, args = ()
+kwargs = {'chat_id': '-100', 'message_thread_id': '10'}
+
+    def assert_awaited_once_with(self, /, *args, **kwargs):
+        """
+        Assert that the mock was awaited exactly once and with the specified
+        arguments.
+        """
+        if not self.await_count == 1:
+            msg = (f"Expected {self._mock_name or 'mock'} to have been awaited once."
+                   f" Awaited {self.await_count} times.")
+>           raise AssertionError(msg)
+E           AssertionError: Expected mock to have been awaited once. Awaited 2 times.
+
+<HOME>/.hermes/tools/python-3.14.7+20260901-darwin-arm64/lib/python3.14/unittest/mock.py:2404: AssertionError
+------------------------------ Captured log call -------------------------------
+WARNING  hermes_facility.team_registry:team_registry.py:34 team registry /private/tmp/hejo-tgc-mutation/test_sync_preserves_converted_1/owner/team.yaml: file not found; running with an empty roster (role features stay off)
+=========================== short test summary info ============================
+FAILED gate/tests/test_telegram_comments.py::test_sync_preserves_converted_topics_and_updates_other_rooms[False]
+FAILED gate/tests/test_telegram_comments.py::test_sync_preserves_converted_topics_and_updates_other_rooms[True]
+2 failed, 34 deselected in 0.55s

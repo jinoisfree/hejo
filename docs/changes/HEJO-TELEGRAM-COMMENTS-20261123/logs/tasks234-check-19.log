@@ -1,0 +1,29 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____________ test_comments_outbound_two_questions_and_file_alias ______________
+
+native = namespace(app=Application[bot=ExtBot[token=900:fixture]], api=<test_telegram_comments.BotAPI object at 0x108ee0440>, bridge=<gate.telegram.Telegram object at 0x10b419550>, now=[1000.0], core=[], observed=[10, 10, 10, 100, 200])
+gate = <gate.adapter.HejoAdapter object at 0x10b4196a0>
+runner = <gate.tests.support.runner.<locals>.TurnRunner object at 0x10b72e660>
+
+    async def test_comments_outbound_two_questions_and_file_alias(native, gate, runner):
+        await outbound_ready(native)
+        await process(native, fresh(native, 100, root=500))
+        await process(native, fresh(native, 200, root=600))
+        for event, text in zip(runner.events, ['first answer', 'second answer']):
+            await gate.send('default', text, metadata={'thread_id': event.source.thread_id})
+        await settled_comments(native)
+        calls = sent_calls(native)
+        assert len(calls) == 2
+        assert [c['reply_parameters']['message_id'] for c in calls] == [100, 200]
+        assert all(int(c['chat_id']) == -300 and 'message_thread_id' not in c for c in calls)
+>       assert all(c['reply_parameters']['allow_sending_without_reply'] is False for c in calls)
+E       assert False
+E        +  where False = all(<generator object test_comments_outbound_two_questions_and_file_alias.<locals>.<genexpr> at 0x10b776190>)
+
+gate/tests/test_telegram_comments.py:781: AssertionError
+------------------------------ Captured log setup ------------------------------
+WARNING  hermes_facility.team_registry:team_registry.py:34 team registry /private/tmp/hejo-tgc-full/test_comments_outbound_two_que0/owner/team.yaml: file not found; running with an empty roster (role features stay off)
+=========================== short test summary info ============================
+FAILED gate/tests/test_telegram_comments.py::test_comments_outbound_two_questions_and_file_alias
+1 failed, 84 deselected in 0.80s

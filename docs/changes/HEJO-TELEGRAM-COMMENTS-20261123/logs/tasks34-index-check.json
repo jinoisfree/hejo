@@ -1,0 +1,5 @@
+{
+  "command": "git diff --cached --check (isolated index)",
+  "exitCode": 2,
+  "logPath": "logs/tasks34-index-check.log"
+}

@@ -1,0 +1,32 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____ test_comments_concurrent_threads_each_get_root_without_stranded_queue _____
+
+native = namespace(app=Application[bot=ExtBot[token=900:fixture]], api=<test_telegram_comments.BotAPI object at 0x10c0e8440>, bridge=<gate.telegram.Telegram object at 0x10e58d550>, now=[1000.0], core=[], observed=[10, 10, 10])
+gate = <gate.adapter.HejoAdapter object at 0x10e58d6a0>
+
+    async def test_comments_concurrent_threads_each_get_root_without_stranded_queue(native, gate):
+        await outbound_ready(native)
+        entered, release = asyncio.Event(), asyncio.Event()
+        async def before(args):
+            if int(args['chat_id']) == -200 and not entered.is_set():
+                entered.set()
+                await release.wait()
+        native.api.before_send = before
+        await gate.send('default', 'first', metadata={'thread_id': str(uuid.uuid4())})
+        await asyncio.wait_for(entered.wait(), 2)
+        await gate.send('default', 'second', metadata={'thread_id': str(uuid.uuid4())})
+        await asyncio.sleep(.02)
+        release.set()
+        await settled_comments(native)
+>       assert len(sent_calls(native)) == 2
+E       AssertionError: assert 1 == 2
+E        +  where 1 = len([{'chat_id': '-200', 'text': '[default] first'}])
+E        +    where [{'chat_id': '-200', 'text': '[default] first'}] = sent_calls(namespace(app=Application[bot=ExtBot[token=900:fixture]], api=<test_telegram_comments.BotAPI object at 0x10c0e8440>, bridge=<gate.telegram.Telegram object at 0x10e58d550>, now=[1000.0], core=[], observed=[10, 10, 10]))
+
+gate/tests/test_telegram_comments.py:1120: AssertionError
+------------------------------ Captured log setup ------------------------------
+WARNING  hermes_facility.team_registry:team_registry.py:34 team registry /private/tmp/hejo-tgc-full/test_comments_concurrent_threa0/owner/team.yaml: file not found; running with an empty roster (role features stay off)
+=========================== short test summary info ============================
+FAILED gate/tests/test_telegram_comments.py::test_comments_concurrent_threads_each_get_root_without_stranded_queue
+1 failed, 84 deselected in 0.51s

@@ -1,0 +1,39 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____________ test_comments_partial_send_unknown_keeps_first_receipt ____________
+
+native = namespace(app=Application[bot=ExtBot[token=900:fixture]], api=<test_telegram_comments.BotAPI object at 0x10a830440>, bridge=<gate.telegram.Telegram object at 0x10ccd5550>, now=[1000.0], core=[], observed=[10, 10, 10, 100])
+gate = <gate.adapter.HejoAdapter object at 0x10ccd56a0>
+runner = <gate.tests.support.runner.<locals>.TurnRunner object at 0x10cfd2660>
+
+    async def test_comments_partial_send_unknown_keeps_first_receipt(native, gate, runner):
+        await outbound_ready(native)
+        await process(native, fresh(native, root=500))
+        count = [0]
+        def before(args):
+            count[0] += 1
+            if count[0] == 2:
+                raise OSError('fixture lost response')
+        native.api.before_send = before
+        await gate.send('default', 'x' * 9000, metadata={'thread_id': runner.events[0].source.thread_id})
+        await settled_comments(native)
+        states = [r['status'] for r in native.bridge.comments.operations.values()]
+        assert states == ['receipt', 'unknown', 'queued']
+        native.bridge.comments = Comments(native.bridge)
+        assert [r['status'] for r in native.bridge.comments.operations.values()] == states
+        assert len(sent_calls(native)) == 2
+        await gate.send('default', 'next while unknown', metadata={'thread_id': runner.events[0].source.thread_id})
+        await settled_comments(native)
+>       assert len(sent_calls(native)) == 2
+E       AssertionError: assert 3 == 2
+E        +  where 3 = len([{'chat_id': '-300', 'text': '[default] xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...'text': '[default] next while unknown', 'reply_parameters': {'allow_sending_without_reply': False, 'message_id': 100}}])
+E        +    where [{'chat_id': '-300', 'text': '[default] xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...'text': '[default] next while unknown', 'reply_parameters': {'allow_sending_without_reply': False, 'message_id': 100}}] = sent_calls(namespace(app=Application[bot=ExtBot[token=900:fixture]], api=<test_telegram_comments.BotAPI object at 0x10a830440>, bridge=<gate.telegram.Telegram object at 0x10ccd5550>, now=[1000.0], core=[], observed=[10, 10, 10, 100]))
+
+gate/tests/test_telegram_comments.py:1026: AssertionError
+------------------------------ Captured log setup ------------------------------
+WARNING  hermes_facility.team_registry:team_registry.py:34 team registry /private/tmp/hejo-tgc-full/test_comments_partial_send_unk0/owner/team.yaml: file not found; running with an empty roster (role features stay off)
+------------------------------ Captured log call -------------------------------
+WARNING  gate.telegram:telegram.py:411 telegram_send_failed kind=NetworkError
+=========================== short test summary info ============================
+FAILED gate/tests/test_telegram_comments.py::test_comments_partial_send_unknown_keeps_first_receipt
+1 failed, 84 deselected in 0.50s
