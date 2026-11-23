@@ -720,6 +720,10 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             if room_id and not room:
                 await self.server.error("room_not_found", frame.get("id"), conn)
                 return
+            if room and frame.get('expected_lead') and (room.get('archived')
+                    or room['lead'] != frame['expected_lead'] or employee != frame['expected_lead']):
+                await self.server.error('room_lead_changed', frame.get('id'), conn)
+                return
             if room and employee not in room['members']:
                 await self.server.error('room_member_required', frame.get('id'), conn)
                 return

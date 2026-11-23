@@ -1049,3 +1049,154 @@ async def test_hub_document_outbound_stays_in_comment_and_alias(native,gate,runn
     assert native.bridge.sent_path.stat().st_mode & 0o777==0o600
     ledger=native.bridge.sent_path.read_text()
     assert 'fixture document' not in ledger and 'fixture.txt' not in ledger
+
+
+async def group_room(native, gate):
+    room = dict(id=str(uuid.uuid4()), title='Fixture group', description='',
+                members=['alpha', 'beta'], lead='alpha', archived=False, picture=None)
+    await gate.journal.append(dict(v=1, type='room', room=room))
+    with native.bridge.settings_store.locked():
+        topics = native.bridge.topics('12345678')
+        topics['topics'][room['id']] = dict(topic='11', name=room['title'], closed=False)
+        native.bridge.settings_store.write('topics.json', topics)
+    return room
+
+
+async def group_question(native, room):
+    await native.app.process_update(incoming(native, 400, chat=FORUM, raw=11, text='@beta fixture question'))
+    await settled(native)
+    root = next(o for o in deliveries(native, 'channel') if o['room'] == room['id'])
+    await forward_root(native, root, 450)
+    return root
+
+
+async def test_group_comments_current_lead_and_existing_hub_preserved(native, gate, runner):
+    await ready(native)
+    room = await group_room(native, gate)
+    old = json.loads(json.dumps(native.bridge.private()))
+    await dispatch(native, text='/hejo_comments_add ' + room['id'])
+    value = native.bridge.private()
+    assert value['comments'][0]['rooms'] == sorted(['default', 'alpha', room['id']])
+    assert value['comments'][0]['binding'] == old['comments'][0]['binding']
+    assert value['comments'][0]['generation'] == old['comments'][0]['generation']
+    assert all(value['route_epochs'][r] == e for r, e in old['route_epochs'].items())
+    await dispatch(native, text='/hejo_comments_add ' + room['id'])
+    assert native.bridge.private() == value
+    root = await group_question(native, room)
+    assert len(runner.events) == 1
+    assert runner.events[-1].source.chat_id == 'room:' + room['id']
+    assert runner.events[-1].source.profile == 'alpha'  # Mentions do not override the representative.
+    await gate.journal.append(dict(v=1, type='room', room={**room, 'lead': 'beta'}))
+    assert native.bridge.comments.thread_anchor(native.bridge.comments.binding_for(room['id']), root['thread'])
+    target = native.bridge.comments.lookup(native.bridge.comments.hub(), 'discussion', 450)
+    assert target and gate.journal.message_threads.get(target['msg_id']) == (room['id'], root['thread']), target
+    u = incoming(native, 451, reply=450, raw=450)
+    await native.app.process_update(u)
+    await native.app.process_update(u)
+    await settled(native)
+    assert len(runner.events) == 2
+    assert runner.events[-1].source.profile == 'beta'
+    assert runner.events[-1].source.thread_id == root['thread']
+    result = await gate.send('room:' + room['id'], 'group answer',
+                             metadata=dict(thread_id=root['thread'], hermes_profile='beta'))
+    assert result.success
+    await settled(native)
+    replies = [o for o in deliveries(native, 'discussion') if o['room'] == room['id']]
+    assert len(replies) == 1 and replies[0]['anchor'] == 450
+    await native.bridge.comments.close()
+    native.bridge.comments = Comments(native.bridge)
+    assert not native.bridge.comments.damaged
+    assert native.bridge.comments.route(room['id']) == 'comments'
+    assert native.bridge.comments.thread_anchor(native.bridge.comments.binding_for(room['id']), root['thread'])
+
+
+@pytest.mark.parametrize('block', ['incoming', 'typing', 'session', 'inflight', 'stranger', 'archived'])
+async def test_group_add_rejects_busy_or_unauthorized_without_mutation(native, gate, block):
+    await ready(native)
+    room = await group_room(native, gate)
+    key = room['id']
+    if block == 'incoming':
+        native.bridge.incoming[key] = 1
+    elif block == 'typing':
+        gate._typing_threads['room:' + key] = {('alpha', 'fixture-thread')}
+    elif block == 'session':
+        await gate.journal.append(dict(v=1, type='message', msg_id=str(uuid.uuid4()), employee='alpha',
+            room=key, thread='fixture-thread', role='employee', text='fixture', files=[], buttons=[],
+            reply_state=None, client_msg_id='fixture-session', ts='2026-01-01T00:00:00Z'))
+        source = gate.build_source(chat_id='room:' + key, chat_type='dm', user_id='owner', thread_id='fixture-thread')
+        source.profile = 'alpha'
+        gate._active_sessions[gate._source_session_key(source)] = True
+    elif block == 'inflight':
+        native.bridge.comments.inflight.add('fixture-operation')
+    elif block == 'archived':
+        await gate.journal.append(dict(v=1, type='room', room={**room, 'archived': True}))
+    before = native.bridge.vault.read('telegram.json', {})
+    await dispatch(native, text='/hejo_comments_add ' + key, user=777 if block == 'stranger' else 100)
+    assert native.bridge.vault.read('telegram.json', {}) == before
+    native.bridge.incoming.clear()
+    gate._typing_threads.clear()
+    gate._active_sessions.clear()
+    native.bridge.comments.inflight.clear()
+
+
+@pytest.mark.parametrize('change', ['lead', 'archive'])
+async def test_group_rechecks_representative_after_file_lock_wait(native, gate, runner, change):
+    await ready(native)
+    room = await group_room(native, gate)
+    await dispatch(native, text='/hejo_comments_add ' + room['id'])
+    await gate.files.lock.acquire()
+    task = asyncio.create_task(native.app.process_update(incoming(native, 400, chat=FORUM, raw=11)))
+    try:
+        async with asyncio.timeout(2):
+            while not native.bridge.incoming.get(room['id']):
+                await asyncio.sleep(.001)
+        await gate.journal.append(dict(v=1, type='room', room={**room, **({'lead': 'beta'} if change == 'lead' else {'archived': True})}))
+    finally:
+        gate.files.lock.release()
+    await task
+    assert not runner.events
+    assert not any(r.get('role') == 'owner' for r in gate.journal.records)
+
+
+@pytest.mark.parametrize('change_lead', [False, True])
+async def test_group_attachment_stages_for_representative(native, gate, runner, monkeypatch, change_lead):
+    await ready(native)
+    room = await group_room(native, gate)
+    await dispatch(native, text='/hejo_comments_add ' + room['id'])
+    from telegram.ext import ExtBot
+    class File:
+        file_size = 3
+        async def download_to_drive(self, custom_path):
+            custom_path.write_bytes(b'abc')
+            if change_lead:
+                await gate.journal.append(dict(v=1, type='room', room={**room, 'lead': 'beta'}))
+    async def get_file(self, file_id):
+        return File()
+    monkeypatch.setattr(ExtBot, 'get_file', get_file)
+    u = incoming(native, 400, chat=FORUM, raw=11, text=None, caption='attachment',
+                 document=dict(file_id='fixture', file_unique_id='fixture', file_name='fixture.txt', file_size=3))
+    await native.app.process_update(u)
+    await settled(native)
+    if change_lead:
+        assert not runner.events
+        assert not any(r.get('role') == 'owner' for r in gate.journal.records)
+        assert not list(gate.files.root.rglob('fixture.txt'))
+        return
+    assert len(runner.events) == 1 and runner.events[0].source.profile == 'alpha'
+    row = next(r for r in gate.journal.records if r.get('role') == 'owner')
+    assert row['room'] == room['id'] and row['employee'] == 'alpha' and len(row['files']) == 1
+
+
+async def test_archived_group_rejects_input_without_pausing_other_rooms(native, gate, runner):
+    await ready(native)
+    room = await group_room(native, gate)
+    await dispatch(native, text='/hejo_comments_add ' + room['id'])
+    await group_question(native, room)
+    await gate.journal.append(dict(v=1, type='room', room={**room, 'archived': True}))
+    await native.app.process_update(incoming(native, 451, reply=450, raw=450))
+    await settled(native)
+    assert len(runner.events) == 1
+    assert native.bridge.comments.hub()['state'] == 'active'
+    await question(native, number=500, anchor=550)
+    assert len(runner.events) == 2
+    assert runner.events[-1].source.chat_id == 'default'

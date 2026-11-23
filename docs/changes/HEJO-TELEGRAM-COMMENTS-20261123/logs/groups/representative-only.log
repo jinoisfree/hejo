@@ -1,0 +1,42 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________ test_group_comments_current_lead_and_existing_hub_preserved __________
+
+native = namespace(app=Application[bot=ExtBot[token=900:fixture]], api=<test_telegram_comments.BotAPI object at 0x10a623e00>, bridge=<gate.telegram.Telegram object at 0x10cee06e0>, now=[1000.0], core=[], observed=[10, 10, 10, 10, 10, 400, 450])
+gate = <gate.adapter.HejoAdapter object at 0x10cee0830>
+runner = <gate.tests.support.runner.<locals>.TurnRunner object at 0x10cf717f0>
+
+    async def test_group_comments_current_lead_and_existing_hub_preserved(native, gate, runner):
+        await ready(native)
+        room = await group_room(native, gate)
+        old = json.loads(json.dumps(native.bridge.private()))
+        await dispatch(native, text='/hejo_comments_add ' + room['id'])
+        value = native.bridge.private()
+        assert value['comments'][0]['rooms'] == sorted(['default', 'alpha', room['id']])
+        assert value['comments'][0]['binding'] == old['comments'][0]['binding']
+        assert value['comments'][0]['generation'] == old['comments'][0]['generation']
+        assert all(value['route_epochs'][r] == e for r, e in old['route_epochs'].items())
+        await dispatch(native, text='/hejo_comments_add ' + room['id'])
+        assert native.bridge.private() == value
+        root = await group_question(native, room)
+        assert len(runner.events) == 1
+        assert runner.events[-1].source.chat_id == 'room:' + room['id']
+>       assert runner.events[-1].source.profile == 'alpha'  # Mentions do not override the representative.
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: assert 'beta' == 'alpha'
+E         
+E         - alpha
+E         + beta
+
+gate/tests/test_telegram_comments.py:1088: AssertionError
+------------------------------ Captured log setup ------------------------------
+WARNING  hermes_facility.team_registry:team_registry.py:34 team registry /private<temporary-home>/representative-only-test/test_group_comments_current_le0/owner/team.yaml: file not found; running with an empty roster (role features stay off)
+------------------------------ Captured log call -------------------------------
+WARNING  gate.telegram:telegram.py:350 telegram_topic_failed kind=AttributeError
+WARNING  gate.telegram:telegram.py:350 telegram_topic_failed kind=AttributeError
+WARNING  gate.telegram:telegram.py:350 telegram_topic_failed kind=AttributeError
+WARNING  gate.telegram:telegram.py:350 telegram_topic_failed kind=AttributeError
+WARNING  gate.telegram:telegram.py:618 telegram_typing_failed kind=AttributeError
+=========================== short test summary info ============================
+FAILED gate/tests/test_telegram_comments.py::test_group_comments_current_lead_and_existing_hub_preserved
+1 failed in 0.53s

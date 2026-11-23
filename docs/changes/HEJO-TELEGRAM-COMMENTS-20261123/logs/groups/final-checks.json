@@ -1,0 +1,27 @@
+{
+  "privateExit": 0,
+  "diffCheckExit": 0,
+  "scope": [
+    "docs/changes/HEJO-TELEGRAM-COMMENTS-20261123/group-rooms.md",
+    "docs/changes/HEJO-TELEGRAM-COMMENTS-20261123/handoff.md",
+    "docs/changes/HEJO-TELEGRAM-COMMENTS-20261123/impl-report.md",
+    "docs/changes/HEJO-TELEGRAM-COMMENTS-20261123/logs/groups/debug-runs.json",
+    "docs/changes/HEJO-TELEGRAM-COMMENTS-20261123/logs/groups/debug.log",
+    "docs/changes/HEJO-TELEGRAM-COMMENTS-20261123/logs/groups/gateway.log",
+    "docs/changes/HEJO-TELEGRAM-COMMENTS-20261123/logs/groups/lead-recheck.log",
+    "docs/changes/HEJO-TELEGRAM-COMMENTS-20261123/logs/groups/mutation-runs.json",
+    "docs/changes/HEJO-TELEGRAM-COMMENTS-20261123/logs/groups/representative-only.log",
+    "docs/changes/HEJO-TELEGRAM-COMMENTS-20261123/logs/groups/server-runs.json",
+    "docs/changes/HEJO-TELEGRAM-COMMENTS-20261123/logs/groups/server.log",
+    "docs/changes/HEJO-TELEGRAM-COMMENTS-20261123/logs/groups/target-runs.json",
+    "docs/changes/HEJO-TELEGRAM-COMMENTS-20261123/logs/groups/target.log",
+    "docs/changes/HEJO-TELEGRAM-COMMENTS-20261123/logs/typing/deployment.json",
+    "docs/changes/HEJO-TELEGRAM-COMMENTS-20261123/typing-fix.md",
+    "docs/changes/a6291a01-a451-4239-b635-ac5ef2f23e69/verdict.md",
+    "gate/README.md",
+    "gate/adapter.py",
+    "gate/telegram.py",
+    "gate/telegram_comments.py",
+    "gate/tests/test_telegram_comments.py"
+  ]
+}

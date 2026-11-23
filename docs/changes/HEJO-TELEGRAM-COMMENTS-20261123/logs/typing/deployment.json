@@ -1,0 +1,12 @@
+{
+  "candidate": "5ea5a03e7a9d148b79e802602b416f6b736acee4",
+  "releaseExit": 0,
+  "restartExit": 0,
+  "installedManifestMatches": true,
+  "newPid": true,
+  "state": "running",
+  "activeAgents": 0,
+  "telegram": "connected",
+  "hejo": "connected",
+  "bindingUnchanged": true
+}

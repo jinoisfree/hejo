@@ -488,6 +488,9 @@ class Telegram:
             if (not row or thinking(row['text']) or not self.active() or self.private()['pair']['tag'] != tag
                     or key[0] not in self.rooms() or key in self.adapter.journal.deleted_threads):
                 return
+            group = self.adapter.journal.rooms.get(key[0])
+            if group and row['role'] == 'employee' and row['employee'] not in group['members']:
+                return
             if row['role'] == 'employee':
                 self.wakes[key].clear()
                 delay = self.changed[key] + self.settle_seconds - asyncio.get_running_loop().time()

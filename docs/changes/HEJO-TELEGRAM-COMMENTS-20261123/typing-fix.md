@@ -26,3 +26,6 @@
 후속 변경은 일반 방 식별/대표 유효성, adapter.receive의 room 및 targeted 전달, 직원별 첨부 staging, 방 세션 busy 검사, 발신 구성원 검사와 기존 hub에 방을 안전하게 추가하는 계약을 함께 설계해야 한다. 대표가 없거나 유효한 구성원이 아니면 임의 fallback하지 않는다. 앱의 멘션/주인 선택 규칙을 전역 변경하지 않는다. 기존 대화/방/외부 쌍은 보존하며 실제 연결 확대는 구체 인계 후 승인한다.
 
 초기 댓글 시험은 준비 단계의 자동 typing이 같은 throttle 창을 이미 사용하여 3개가 실패했다. 준비 완료 후 새 heartbeat 창으로 시험하도록 fixture를 수정했으며 실패 로그는 target-before-fixture-fix.log에 보존했다. 제품의 전송 제한은 완화하지 않았다.
+
+
+운영 적용: 사용자 진행 승인 뒤 후보 5ea5a03e7a9d148b79e802602b416f6b736acee4 설치와 유휴 재시작 1회 완료. logs/typing/deployment.json의 연결·manifest·binding 보존 증거를 확인했다. 실제 클라이언트 표시는 사용자 확인 대기다.

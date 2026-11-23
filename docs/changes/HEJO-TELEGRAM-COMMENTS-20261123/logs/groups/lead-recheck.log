@@ -1,0 +1,77 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+________ test_group_rechecks_representative_after_file_lock_wait[lead] _________
+
+native = namespace(app=Application[bot=ExtBot[token=900:fixture]], api=<test_telegram_comments.BotAPI object at 0x10f3c9400>, bridge=<gate.telegram.Telegram object at 0x10f31c440>, now=[1000.0], core=[], observed=[10, 10, 10, 10, 400])
+gate = <gate.adapter.HejoAdapter object at 0x10f31c590>
+runner = <gate.tests.support.runner.<locals>.TurnRunner object at 0x10f3c9940>
+change = 'lead'
+
+    @pytest.mark.parametrize('change', ['lead', 'archive'])
+    async def test_group_rechecks_representative_after_file_lock_wait(native, gate, runner, change):
+        await ready(native)
+        room = await group_room(native, gate)
+        await dispatch(native, text='/hejo_comments_add ' + room['id'])
+        await gate.files.lock.acquire()
+        task = asyncio.create_task(native.app.process_update(incoming(native, 400, chat=FORUM, raw=11)))
+        try:
+            async with asyncio.timeout(2):
+                while not native.bridge.incoming.get(room['id']):
+                    await asyncio.sleep(.001)
+            await gate.journal.append(dict(v=1, type='room', room={**room, **({'lead': 'beta'} if change == 'lead' else {'archived': True})}))
+        finally:
+            gate.files.lock.release()
+        await task
+        assert not runner.events
+>       assert not any(r.get('role') == 'owner' for r in gate.journal.records)
+E       assert not True
+E        +  where True = any(<generator object test_group_rechecks_representative_after_file_lock_wait.<locals>.<genexpr> at 0x10f478660>)
+
+gate/tests/test_telegram_comments.py:1158: AssertionError
+------------------------------ Captured log setup ------------------------------
+WARNING  hermes_facility.team_registry:team_registry.py:34 team registry /private<temporary-home>/lead-recheck-test/test_group_rechecks_representa0/owner/team.yaml: file not found; running with an empty roster (role features stay off)
+------------------------------ Captured log call -------------------------------
+WARNING  gate.telegram:telegram.py:350 telegram_topic_failed kind=AttributeError
+WARNING  gate.telegram:telegram.py:350 telegram_topic_failed kind=AttributeError
+WARNING  gate.telegram:telegram.py:350 telegram_topic_failed kind=AttributeError
+WARNING  gate.telegram:telegram.py:350 telegram_topic_failed kind=AttributeError
+WARNING  gate.telegram:telegram.py:618 telegram_typing_failed kind=AttributeError
+_______ test_group_rechecks_representative_after_file_lock_wait[archive] _______
+
+native = namespace(app=Application[bot=ExtBot[token=900:fixture]], api=<test_telegram_comments.BotAPI object at 0x10f4cc7d0>, bridge=<gate.telegram.Telegram object at 0x10f4ccb90>, now=[1000.0], core=[], observed=[10, 10, 10, 10, 400])
+gate = <gate.adapter.HejoAdapter object at 0x10f4cc690>
+runner = <gate.tests.support.runner.<locals>.TurnRunner object at 0x10f3caf90>
+change = 'archive'
+
+    @pytest.mark.parametrize('change', ['lead', 'archive'])
+    async def test_group_rechecks_representative_after_file_lock_wait(native, gate, runner, change):
+        await ready(native)
+        room = await group_room(native, gate)
+        await dispatch(native, text='/hejo_comments_add ' + room['id'])
+        await gate.files.lock.acquire()
+        task = asyncio.create_task(native.app.process_update(incoming(native, 400, chat=FORUM, raw=11)))
+        try:
+            async with asyncio.timeout(2):
+                while not native.bridge.incoming.get(room['id']):
+                    await asyncio.sleep(.001)
+            await gate.journal.append(dict(v=1, type='room', room={**room, **({'lead': 'beta'} if change == 'lead' else {'archived': True})}))
+        finally:
+            gate.files.lock.release()
+        await task
+        assert not runner.events
+>       assert not any(r.get('role') == 'owner' for r in gate.journal.records)
+E       assert not True
+E        +  where True = any(<generator object test_group_rechecks_representative_after_file_lock_wait.<locals>.<genexpr> at 0x10f4a6ea0>)
+
+gate/tests/test_telegram_comments.py:1158: AssertionError
+------------------------------ Captured log setup ------------------------------
+WARNING  hermes_facility.team_registry:team_registry.py:34 team registry /private<temporary-home>/lead-recheck-test/test_group_rechecks_representa1/owner/team.yaml: file not found; running with an empty roster (role features stay off)
+------------------------------ Captured log call -------------------------------
+WARNING  gate.telegram:telegram.py:350 telegram_topic_failed kind=AttributeError
+WARNING  gate.telegram:telegram.py:350 telegram_topic_failed kind=AttributeError
+WARNING  gate.telegram:telegram.py:350 telegram_topic_failed kind=AttributeError
+WARNING  gate.telegram:telegram.py:350 telegram_topic_failed kind=AttributeError
+=========================== short test summary info ============================
+FAILED gate/tests/test_telegram_comments.py::test_group_rechecks_representative_after_file_lock_wait[lead]
+FAILED gate/tests/test_telegram_comments.py::test_group_rechecks_representative_after_file_lock_wait[archive]
+2 failed in 0.51s

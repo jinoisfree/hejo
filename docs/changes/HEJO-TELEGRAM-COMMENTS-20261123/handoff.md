@@ -180,3 +180,51 @@ H1~H4 서버 구현은 현재 대화에서 수행했다. 기존 사람별 토픽
 최종 서버 및 gateway 증거는 logs/hub/server-runs.json, 최종 관련 시험과 해시는 target-runs.json, 변이는 mutation-runs.json에 있다. 전체 scripts/test.sh의 앱 버튼 시험 실패는 full-runs.json/full.log에 보존했다. 기존 후보의 앱 소스·시험과 동일하며 변경하지 않았다. 운영 M0 후보는 그대로이고 실제 bind/배포/재시작/발신/푸시는 하지 않았다.
 
 남은 작업은 H5의 구체 운영 인계와 별도 승인 뒤 실물 수락이다. M0 성공이나 대역 링크 문자열을 공용 댓글 이동 실물 성공으로 주장하지 않는다. 새 독립 계획 검증 화면을 찾으라는 동일 왕복을 반복하지 않는다. 원격 등록 여부는 과거 보고와 달라졌으므로 푸시 시 실제 설정을 다시 확인한다.
+
+
+## H5 준비 및 연결 범위 확정
+
+사용자 진행 요청에 따라 배포 후보/현재 M0 복구 원본의 전체 설치 manifest와 기존 receipt를 확인했다. 사용자는 기존 사람 방 전체 연결, 기존 지정 방에서만 실물 시험을 선택했다. 현재 서버의 사람 방 6개와 열린 토픽 대응을 확인했다. 구체 실행/복구 범위는 [H5 인계](handoff-h5.md), 공개 준비 근거는 logs/h5-preparation.json이다. 새 운영 배포/재시작/bind/발신 승인은 이 실행안 기준으로 요청한다. 이번에는 격리 clone과 문서만 준비했고 운영 쓰기·푸시는 하지 않았다.
+
+
+## H5 배포 실행 — 사장 bind 입력 대기
+
+사용자가 “ㄱㄱ”로 고정 운영 범위를 승인했다. 유휴 상태와 빈 active_sessions, 동일 PID/방/토픽/짝/설치 해시를 재확인한 뒤 후보 09ddcece1aeb940a71c1f926b6883de32c2d3863 배포 및 정상 gateway 재시작을 각각 1회 실행했다(각 종료 0). 설치 manifest 일치, 새 PID의 running, Telegram/hejo connected, active_agents=0, restart_requested=false를 확인했다. bind 목록은 비어 있고 기존 짝/사람 방 6개는 그대로다. logs/h5-deployment.json 참조.
+
+사장이 기존 공용 토론 그룹에서 개인 명의로 비공개 준비 기록의 정확한 bind 명령을 한 번 보낼 차례다. 에이전트가 명령을 대신 보내지 않았다. 사용자 전송 뒤 저장된 단일 hub의 6개 방/짝/공용 쌍 일치를 제한 조회로 확인하고 첫 질문을 안내한다. 재배포·재시작·probe 반복 금지. 직원 질문 실물 시험·푸시는 아직 미실행이다.
+
+
+## H5 전체 연결 확인 — 첫 질문 대기
+
+사장이 bind 명령 전송을 알렸다. 제한 상태 조회로 금고 v2, hub 하나 active, 지정 6개 rooms/짝/사장/공용 채널·그룹 일치를 확인했다. Telegram/hejo connected, active_agents=0, delivery operation 0, unresolved 0이다. logs/h5-bind.json에 공개 요약, 추적 제외 h5/bind-baseline.json에 이후 대조 기준을 저장했다. 운영 추가 쓰기·메시지·재시작 없이 확인했다. 다음은 지정 직원의 기존 HEJO 사람 토픽에서 도구 없이 짧게 답하는 첫 질문 1개이며, 카드/댓글 확인 전 두 번째 질문을 안내하지 않는다.
+
+
+## H5 첫 질문 관측
+
+사용자가 표시됨을 알렸다. 제한 ledger 조회에서 지정 방 thread 1개, channel root/forward anchor/card/comment receipt 각 1개, unknown/intent 0, 다른 방 발신 operation 0을 확인했다(logs/h5-question1.json). 사용자 표현만으로 실제 링크 이동까지 확인됐다고 확장하지 않았다. 다음은 같은 사람 토픽에 두 번째 새 질문 1개를 보내 두 카드의 댓글 분리를 확인하는 순서다. 질문1의 비공개 비교 기준은 h5/question1-baseline.json이다. 추가 발신·재시작·운영 변경 없음.
+
+
+## H5 두 질문 카드·대응 확인
+
+사용자 화면에서 동일 사람 토픽의 새 질문 두 개와 각각의 대화 열기 카드 하나를 직접 확인했다. 서버 기록도 서로 다른 thread/원문 닻 2개, 각 root/card/comment receipt 1개, 댓글과 해당 닻 일치, unresolved 0, 다른 방 operation 0이다(logs/h5-question2.json). 원본 화면은 추적 제외 h5/screen-evidence/question-cards.png에 0600으로 보관했다. 화면은 토픽 목록이므로 댓글 링크 이동 자체의 증거로 해석하지 않는다. 사용자에게 두 카드의 실제 댓글창 분리를 확인하고, 확인된 경우 첫 댓글창에서만 승인된 후속 질문 1개를 보내도록 안내한다.
+
+
+## H5 승인된 소규모 실물 시험 종료
+
+사용자의 완료 입력 후 ledger를 대조했다. thread/root/card는 각각 2개 유지, 첫 thread의 댓글만 1개에서 2개로 증가, 두 번째 댓글 1개 유지, 신규 operation 1개가 첫 thread의 discussion receipt이며 unresolved/다른 방 operation 0이다. 6개 참여 방의 hub는 active다(logs/h5-followup.json). 승인된 질문 2개+댓글 후속 1개 시험은 정상 동작을 확인했다. 사용자 완료 보고와 서버 대응을 근거로 하며 댓글창 원본 화면·클라이언트 버전·복귀 버튼은 별도 증거가 없다. 추가 실물 시험을 자동 실행하지 않는다.
+
+현재 배포 후보는 그대로 유지한다. 앱 시험 AT-UC-32 실패, 전체 직원/미디어/장애 실물 수락 및 푸시는 별도 남아 있으며 이 소규모 성공으로 전체 검증·푸시 완료를 선언하지 않는다. 사용자는 기존 사람 토픽에서 새 질문, 카드에서 댓글 대화를 이어갈 수 있다.
+
+
+## 작성 중 표시 보완 — 로컬 후보, 적용 대기
+
+사용자는 현재 댓글 구조를 유지하기로 했고 개별 방과 댓글창에서 작성 중 표시 누락을 보고했다. 원인은 comments 경로의 typing 배제 및 댓글 anchor 대상 전송 부재다. 후보 5ea5a03e7a9d148b79e802602b416f6b736acee4(hejo-telegram-comments-typing)는 기준 09ddcece1aeb940a71c1f926b6883de32c2d3863에서 제품 gate/telegram.py와 개발자 시험만 변경한다. 상세는 typing-fix.md 및 logs/typing. 관련 129개 통과, 변이 결함 검출, 개인값/공백 검사 통과. 공유 HEAD·인덱스 보존, 별도 로컬 후보 준비, 운영 변경·실제 발신·푸시 없음. 새 후보 배포와 유휴 gateway 재시작 1회는 구체 인계 승인 대기다. 기존 기준 후보는 같은 hub 저장 계약의 복구 원본이다. 실제 모바일 댓글창 표시는 적용 후 사용자 확인이 필요하다.
+
+다수방 묶음이 안 되는 이유도 확인했다. Comments.rooms는 직원 명부만 받고 활성 hub의 rooms 변경을 거부한다. 사용자는 다수방 수신자를 hejo의 대표직원과 일치시키도록 지정했다. 이 요구를 typing 수정에 몰래 포함하지 않았으며 상세 후속 범위는 typing-fix.md에 기록했다. 새 방별 그룹/질문별 토픽/Mini App 대안은 이번 요청 범위 밖이다. Telegram 앱과 hejo 앱은 변경하지 않는다.
+
+
+## 작성 중 표시 적용 및 일반 방 추가 구현
+
+사용자의 진행 승인으로 typing 후보 5ea5a03e7a9d148b79e802602b416f6b736acee4를 설치하고 유휴 gateway를 1회 재시작했다. 설치 manifest·새 PID·Telegram/hejo connected·기존 binding 불변을 확인했다(logs/typing/deployment.json). 실제 모바일 작성 중 표시의 사용자 확인은 아직 없다. 추가 시험 메시지는 보내지 않았다.
+
+사용자는 일반 방의 대표직원 연결도 진행하도록 승인했다. group-rooms.md의 GR-01~06에 따라 기존 hub에 명시적으로 방을 추가하는 명령과 현재 대표에게만 입력하는 경로를 구현한다. 앱·Telegram 앱·Hermes 본체는 그대로다. 일반 방 후보는 typing 배포 후보를 기준으로 별도 커밋한다. 이번 새 후보의 운영 배포·재시작·실제 add와 발신은 아직 실행하지 않았으며 다음 운영 인계에서 대상을 고정한다.

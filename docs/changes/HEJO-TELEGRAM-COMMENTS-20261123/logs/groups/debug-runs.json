@@ -1,0 +1,26 @@
+{
+  "files": {
+    "gate/README.md": "5786af86e9aba0ef6f30c10e9a7ccc3dfcd03569801cdc1428ea8e47af1d198c",
+    "gate/adapter.py": "3dd4b28fb86b5444ac6fcb443d299d395cf22290a667731bf3df2e823737b205",
+    "gate/telegram.py": "4f82db23f240c2fd4f97c10c7141e7d5a1226afad6dc168aa1a2f220d8d919ab",
+    "gate/telegram_comments.py": "24bcb4924a945b1d0251935b17b32a16e504176da5804afd21cb7b044ddecb59",
+    "gate/tests/test_telegram_comments.py": "4aa9106e6470e7eb87a6a8b91900022cf9bd944095fd5678a749457e67461873"
+  },
+  "runs": [
+    {
+      "name": "debug",
+      "command": [
+        "$HEJO_PYTHON",
+        "-m",
+        "pytest",
+        "gate/tests/test_telegram_comments.py::test_group_comments_current_lead_and_existing_hub_preserved",
+        "-q",
+        "-p",
+        "no:cacheprovider"
+      ],
+      "cwd": ".",
+      "exitCode": 0,
+      "logPath": "debug.log"
+    }
+  ]
+}

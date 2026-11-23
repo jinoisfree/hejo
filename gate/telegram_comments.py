@@ -14,7 +14,7 @@ from urllib.parse import urlsplit
 CONTRACT = 'hejo-comments-probe-1'
 PROBE_SECONDS = 60
 _native_bot = None
-COMMAND = re.compile(r'/hejo_comments_(rooms|probe|bind|status|resolve|off|abort)(?: ([^\n]+))?\Z')
+COMMAND = re.compile(r'/hejo_comments_(rooms|probe|bind|add|status|resolve|off|abort)(?: ([^\n]+))?\Z')
 
 
 class Rejected(Exception):
@@ -117,7 +117,17 @@ class Comments:
         return value
 
     def rooms(self):
-        return {e['id']: e['name'] for e in self.bridge.adapter.employees()}
+        return self.bridge.rooms()
+
+    def recipient(self, room):
+        if room not in self.rooms():
+            raise Rejected('unknown_room')
+        group = self.bridge.adapter.journal.rooms.get(room)
+        employee = group['lead'] if group else room
+        if (employee not in {e['id'] for e in self.bridge.adapter.employees()}
+                or group and employee not in group['members']):
+            raise Rejected('unknown_employee')
+        return employee
 
     def command(self, message):
         pair = self.bridge.private().get('pair')
@@ -238,14 +248,17 @@ class Comments:
     def busy(self, room):
         bridge = self.bridge
         adapter = bridge.adapter
+        group = adapter.journal.rooms.get(room)
+        chat = 'room:' + room if group else room
         for scope, thread in set(adapter.journal.message_threads.values()):
             if scope != room:
                 continue
-            source = adapter.build_source(chat_id=room, chat_type='dm', user_id='owner', thread_id=thread)
-            source.profile = room
-            if adapter._source_session_key(source) in adapter._active_sessions:
-                return True
-        return (bool(bridge.incoming.get(room)) or bool(bridge.adapter._typing_threads.get(room))
+            source = adapter.build_source(chat_id=chat, chat_type='dm', user_id='owner', thread_id=thread)
+            for employee in group['members'] if group else [room]:
+                source.profile = employee
+                if adapter._source_session_key(source) in adapter._active_sessions:
+                    return True
+        return (bool(bridge.incoming.get(room)) or bool(bridge.adapter._typing_threads.get(chat))
                 or any(key[0] == room for key in bridge.pending)
                 or any(key[0] == room for key in bridge.workers))
 
@@ -314,6 +327,8 @@ class Comments:
         rooms = sorted(set(rooms or [identity['room']]))
         if not rooms or any(room not in self.rooms() for room in rooms):
             raise Rejected('unknown_room')
+        for room in rooms:
+            self.recipient(room)
         async with self.bridge._topic_lock:
             with self.bridge.vault.locked():
                 value = self.current(identity)
@@ -340,6 +355,31 @@ class Comments:
                 self.bridge.vault.write('telegram.json', value)
         self.bridge.request_sync()
         return 'bound'
+
+    async def add_rooms(self, identity, rooms):
+        async with self.bridge._topic_lock:
+            with self.bridge.vault.locked():
+                value = self.current(identity)
+                hub = self.hub()
+                if (not hub or hub['state'] != 'active'
+                        or any(hub.get(k) != v for k, v in identity.items() if k != 'room')):
+                    raise Rejected('binding_changed')
+                added = sorted(set(rooms) - set(hub['rooms']))
+                for room in rooms:
+                    self.recipient(room)
+                if not added:
+                    return 'already_bound'
+                if (any(self.busy(room) for room in [*hub['rooms'], *added])
+                        or self.unresolved(hub) or self.inflight):
+                    raise Rejected('busy')
+                current = next(b for b in value['comments'] if b['binding'] == hub['binding'])
+                current['rooms'] = sorted([*hub['rooms'], *added])
+                for room in added:
+                    value.setdefault('route_epochs', {})[room] = dict(
+                        epoch=secrets.token_hex(16), cutover_seq=self.bridge.adapter.journal.head)
+                self.bridge.vault.write('telegram.json', value)
+        self.bridge.request_sync()
+        return 'added'
 
     async def forward(self, bot, update):
         message = update.message
@@ -393,7 +433,8 @@ class Comments:
 
     async def validate_binding(self, bot, binding):
         try:
-            identity = await self.validate(bot, binding['discussion_id'], self.member_rooms(binding)[0], self.private()['pair'])
+            available_room = next(room for room in self.member_rooms(binding) if room in self.rooms())
+            identity = await self.validate(bot, binding['discussion_id'], available_room, self.private()['pair'])
             self.current(identity)
             if any(binding.get(k) != v for k, v in identity.items() if k != 'room'):
                 raise Rejected('binding_changed')
@@ -428,13 +469,14 @@ class Comments:
                         if not self.bridge.settings()['enabled']:
                             raise Rejected('disabled')
                         pair = self.private()['pair']
-                        requested = room.split() if name == 'bind' else [room]
+                        requested = room.split() if name in {'bind', 'add'} else [room]
                         identity = await self.validate(context.bot, update.message.chat_id, requested[0], pair)
                         if name == 'probe':
                             await self.probe(context.bot, identity)
                             result = 'probe_started: 연결 시험을 시작했습니다. 댓글 확인이 끝난 뒤 bind를 실행하세요.'
                         else:
-                            status = await self.bind(identity, requested)
+                            status = (await self.add_rooms(identity, requested) if name == 'add'
+                                      else await self.bind(identity, requested))
                             result = ('already_bound: 이미 같은 대상으로 연결되어 있습니다.'
                                       if status == 'already_bound' else 'bound: 댓글 연결을 저장했습니다.')
                 elif self.forum_room(update.effective_message) is not None:
@@ -517,7 +559,8 @@ class Comments:
                      and r['side'] == side and r['message_id'] == message_id), None)
 
     def live(self, binding):
-        identity = dict(binding, room=self.member_rooms(binding)[0])
+        room = binding.get('room') or next(room for room in self.member_rooms(binding) if room in self.rooms())
+        identity = dict(binding, room=room)
         value = self.current(identity)
         current = next((c for c in value.get('comments', []) if c['binding'] == binding['binding']), None)
         expected = {k: v for k, v in binding.items() if k != 'room'}
@@ -626,6 +669,8 @@ class Comments:
         room = binding['room']
         if (room, thread) in journal.deleted_threads or room in journal.deleted_rooms:
             return
+        employee = self.recipient(room)
+        group = journal.rooms.get(room)
         client_id = f"telegram:comments:{binding['binding']}:{binding['generation']}:{side}:{message.message_id}"
         existing = self.lookup(binding, side, message.message_id)
         saved = next((r for r in journal.records if r.get('client_msg_id') == client_id), None)
@@ -636,8 +681,10 @@ class Comments:
         self.record(binding, 'input', side, message.message_id, thread, anchor)
         files = []
         try:
-            text, files = await self.stage_input(bot, message, room)
+            text, files = await self.stage_input(bot, message, employee)
             self.live(binding)
+            if self.recipient(room) != employee:
+                raise Rejected('room_lead_changed')
             class Reply:
                 features = {'rooms'}
                 failed = False
@@ -645,8 +692,9 @@ class Comments:
                     if frame['type'] == 'error':
                         self.failed = True
             result = Reply()
-            await self.bridge.adapter.receive(dict(employee=room, thread=thread, text=text,
-                files=files, client_msg_id=client_id), result)
+            await self.bridge.adapter.receive(dict(employee=employee, thread=thread, text=text,
+                files=files, client_msg_id=client_id,
+                **(dict(room=room, targeted=True, expected_lead=employee) if group else {})), result)
             saved = next((r for r in journal.records if r.get('client_msg_id') == client_id), None)
             if saved:
                 self.record(binding, 'alias', side, message.message_id, thread, anchor, saved['msg_id'])
@@ -657,7 +705,7 @@ class Comments:
             raise
         finally:
             for file_id in files:
-                path = self.bridge.adapter.files.pending(room, file_id)
+                path = self.bridge.adapter.files.pending(employee, file_id)
                 if path.exists():
                     shutil.rmtree(path)
 
@@ -904,7 +952,7 @@ class Comments:
                 if not topic or topic['closed']:
                     raise Rejected('topic_unavailable')
                 back = self.message_link(self.private()['pair']['chat_id'], topic['topic'])
-                kwargs['reply_markup'] = InlineKeyboardMarkup([[InlineKeyboardButton('사람별 방으로', url=back)]])
+                kwargs['reply_markup'] = InlineKeyboardMarkup([[InlineKeyboardButton('방으로' if key[0] in self.bridge.adapter.journal.rooms else '사람별 방으로', url=back)]])
             destination = binding['channel_id'] if op['root'] else binding['discussion_id']
             op = self.delivery_record(op, status='intent', anchor=0 if op['root'] else anchor['anchor'])
             self.inflight.add(op['operation'])

@@ -1,0 +1,45 @@
+........................................................................ [ 51%]
+........F............................................................    [100%]
+=================================== FAILURES ===================================
+___________ test_hub_attachment_input_claim_before_download[success] ___________
+
+native = namespace(app=Application[bot=ExtBot[token=900:fixture]], api=<test_telegram_comments.BotAPI object at 0x10acc88d0>, bridge=<gate.telegram.Telegram object at 0x10ab69e50>, now=[1000.0], core=[], observed=[10, 10, 10, 200, 300, 300])
+gate = <gate.adapter.HejoAdapter object at 0x10ac2e990>
+runner = <gate.tests.support.runner.<locals>.TurnRunner object at 0x10acdc050>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10ab42ba0>
+fault = 'success'
+
+    @pytest.mark.parametrize('fault',['oversize','download','success'])
+    async def test_hub_attachment_input_claim_before_download(native,gate,runner,monkeypatch,fault):
+        await ready(native);await question(native)
+        calls=[]
+        class File:
+            file_size=3
+            async def download_to_drive(self,custom_path):
+                calls.append('download')
+                assert any(r['kind']=='input' and r['message_id']==300 for r in native.bridge.comments.records)
+                if fault=='download':raise OSError('fixture')
+                custom_path.write_bytes(b'abc')
+                if change_lead:
+                    await gate.journal.append(dict(v=1, type='room', room={**room, 'lead': 'beta'}))
+        async def get_file(self,file_id):return File()
+        from telegram.ext import ExtBot
+        monkeypatch.setattr(ExtBot,'get_file',get_file)
+        data=dict(file_id='fixture',file_unique_id='fixture',file_name='fixture.txt',file_size=30000000 if fault=='oversize' else 3)
+        u=incoming(native,300,reply=200,text=None,caption='attachment',document=data)
+        await native.app.process_update(u);await settled(native)
+        await native.app.process_update(u);await settled(native)
+>       assert len(runner.events)==(2 if fault=='success' else 1)
+E       AssertionError: assert 1 == 2
+E        +  where 1 = len([MessageEvent(text='fixture question', message_type=<MessageType.TEXT: 'text'>, user_id='owner', user_name=None, sourc...data={}, timestamp=datetime.datetime(2026, 11, 24, 2, 6, 19, 141700), allow_gateway_control=True, reply_expected=None)])
+E        +    where [MessageEvent(text='fixture question', message_type=<MessageType.TEXT: 'text'>, user_id='owner', user_name=None, sourc...data={}, timestamp=datetime.datetime(2026, 11, 24, 2, 6, 19, 141700), allow_gateway_control=True, reply_expected=None)] = <gate.tests.support.runner.<locals>.TurnRunner object at 0x10acdc050>.events
+
+gate/tests/test_telegram_comments.py:915: AssertionError
+------------------------------ Captured log setup ------------------------------
+WARNING  hermes_facility.team_registry:team_registry.py:34 team registry /private<temporary-home>/target-test/test_hub_attachment_input_clai2/owner/team.yaml: file not found; running with an empty roster (role features stay off)
+------------------------------ Captured log call -------------------------------
+WARNING  gate.telegram:telegram.py:618 telegram_typing_failed kind=AttributeError
+WARNING  gate.telegram:telegram_comments.py:495 telegram_comments_rejected kind=NameError
+=========================== short test summary info ============================
+FAILED gate/tests/test_telegram_comments.py::test_hub_attachment_input_claim_before_download[success]
+1 failed, 140 passed in 15.80s
