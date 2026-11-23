@@ -137,7 +137,7 @@ import AppKit
         try check(controller.canSend,"AT91 connected capture")
         try FileManager.default.createDirectory(at:outputDirectory,withIntermediateDirectories:true)
         ui.openSearch();ui.search.stringValue="일정";ui.scheduleSearch();await pause(0.4)
-        let fixture:[String:Any] = ["title":ui.heading.stringValue,"description":ui.subtitle.stringValue,"query":"일정","groups":ui.searchGroups.map {g in ["room":"hejo","latest":g.latest.timeIntervalSince1970,"root":g.root.text,"matches":g.matches.map {m in ["id":m.id,"body":m.text,"speaker":model.name(m.speaker),"date":ThreadTools.date(m.timestamp).timeIntervalSince1970]}] as [String:Any]}]
+        let fixture:[String:Any] = ["title":ui.island.snapshot.title,"description":"","query":"일정","groups":ui.searchGroups.map {g in ["room":"hejo","latest":g.latest.timeIntervalSince1970,"root":g.root.text,"matches":g.matches.map {m in ["id":m.id,"body":m.text,"speaker":model.name(m.speaker),"date":ThreadTools.date(m.timestamp).timeIntervalSince1970]}] as [String:Any]}]
         try JSONSerialization.data(withJSONObject:fixture,options:[.prettyPrinted,.sortedKeys]).write(to:outputDirectory.appendingPathComponent("source-fixture.json"))
         for (theme,name) in [(NSAppearance.Name.aqua,"light"),(.darkAqua,"dark")] {
             NSApp.appearance=NSAppearance(named:theme);win.appearance=NSAppearance(named:theme);ui.appearance=NSAppearance(named:theme)

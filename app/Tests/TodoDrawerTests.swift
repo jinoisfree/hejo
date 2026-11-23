@@ -39,7 +39,7 @@ import AppKit
     controller.todoDrawer.receive(["available":true,"items":rows,"failed":[]])
     let snapshot=controller.todoDrawer.snapshot(model,now:now,calendar:calendar)
     try check(snapshot.urgent.map(\.title)==["지남","오늘","내일","질문 B","질문 A"] && snapshot.rest.map(\.title)==["나중","가짜 알림"] && snapshot.total==7,"AT-TD-20 ordering, deduplication, muted exclusion, total")
-    try check(snapshot.urgent[0].badge=="D+1" && snapshot.urgent[1].badge=="D-DAY" && snapshot.urgent[1].time=="오늘 18시까지" && snapshot.rest[0].badge=="D-4" && snapshot.rest[0].time=="11월 24일까지","AT-TD-22 calendar labels")
+    try check(snapshot.urgent[0].status=="마감 1일 지남 · 연결된 대화 없음" && snapshot.urgent[1].status=="오늘 마감 · 연결된 대화 없음" && snapshot.urgent[1].trailing=="18:00" && snapshot.rest[0].status=="마감 4일 남음 · 연결된 대화 없음" && snapshot.rest[0].trailing=="11/24","AT-TD-22 calendar labels")
     let view=ConversationView(controller:controller,clipboardArea:home.appendingPathComponent("clipboard"),islandModel:IslandModel(clock:{now}))
     let pet=PetController(store:store,atlas:try SpriteAtlas(resourceDirectory:resourceDirectory))
     defer{disposeDrawerFixture(pet,controller,view)}
@@ -53,12 +53,12 @@ import AppKit
     let closed=pet.panel.frame
     let closedPlacement=pet.placementTarget!
     try check(closedPlacement.globalBubble.maxX+290<=1428,"AT-DI-33 owner fixture has right expansion room")
-    try check(view.island.partRects.contains{$0.0.kind == .owner},"AT-TD-41 connected owner segment is present")
-    let ownerRect=view.island.partRects.first{$0.0.kind == .owner}!.1
+    try check(!view.island.titleRect.isEmpty,"AT-TD-41 connected owner segment is present")
+    let ownerRect=view.island.titleRect
     view.island.activate(at:CGPoint(x:ownerRect.midX,y:15));settle()
     try check(pet.drawerOpen && view.todoDrawer.isHidden == false && pet.panel.frame.minX==closed.minX && pet.panel.frame.width==closed.width+290 && pet.placementTarget!.globalSprite==closedPlacement.globalSprite,"AT-TD-41 owner input reaches real controller and native view")
-    try check(view.island.snapshot.drawerOpen && view.island.snapshot.parts.first{$0.kind == .owner}!.text.hasSuffix(" · 닫기 ‹"),"AT-TD-27 close label and highlighted snapshot")
-    view.island.activate(at:CGPoint(x:view.island.partRects.first{$0.0.kind == .owner}!.1.midX,y:15));settle()
+    try check(view.island.snapshot.drawerOpen && view.island.accessibilityLabel()?.contains("닫기") == false,"AT-TD-27 close label and highlighted snapshot")
+    view.island.activate(at:CGPoint(x:view.island.titleRect.midX,y:15));settle()
     try check(!pet.drawerOpen && pet.panel.frame==closed && view.todoDrawer.isHidden == true,"AT-TD-41 second owner input restores panel")
     controller.drawerFilter = .deadline;pet.toggleDrawer();pet.toggleDrawer();pet.toggleDrawer()
     try check(controller.drawerSnapshot.urgent.count+controller.drawerSnapshot.rest.count==4 && controller.drawerFilter == .deadline,"AT-TD-21 reopen retains deadline filter")
@@ -70,7 +70,7 @@ import AppKit
     view.selectDrawerCard(question)
     try check(model.selected==model.messages[q1]!.key && view.highlightedMessageID==q1 && pet.drawerOpen && view.drawerSelectedID==q1,"AT-TD-25 selection and reveal preserve drawer")
     now.addTimeInterval(1.49);view.tickIsland();try check(view.highlightedMessageID==q1,"AT-TD-25 highlight remains before 1.5 seconds")
-    now.addTimeInterval(0.02);view.tickIsland();try check(view.highlightedMessageID==nil,"AT-TD-25 highlight ends at 1.5 seconds")
+    now.addTimeInterval(0.02);view.tickIsland();try check(view.highlightedMessageID==q1,"AT-TD-25 drawer selection persists after 1.5 seconds")
     let notice=snapshot.rest.first{$0.messageID==alert}!
     view.selectDrawerCard(notice)
     try check(model.selected==model.messages[alert]!.key && view.highlightedMessageID==alert && pet.drawerOpen && !controller.drawerSnapshot.rest.contains{$0.messageID==alert},"AT-TD-39 alert reveal marks bell and removes the card")
@@ -117,7 +117,7 @@ import AppKit
     let emptyPlacement=emptyPet.placementTarget!
     try check(emptyPlacement.globalBubble.maxX+290<=1428,"AT-DI-33 empty fixture has right expansion room")
     emptyView.island.activate(at:CGPoint(x:10,y:15));emptyView.layoutSubtreeIfNeeded()
-    try check(emptyPet.drawerOpen && !emptyView.todoDrawer.isHidden && emptyPet.panel.frame.minX==emptyFrame.minX && emptyPet.panel.frame.width==emptyFrame.width+290 && emptyPet.placementTarget!.globalSprite==emptyPlacement.globalSprite && emptyView.island.snapshot.parts.map(\.text)==["닫기 ‹"],"AT-TD-27/41 empty stripe opens actual drawer")
+    try check(emptyPet.drawerOpen && !emptyView.todoDrawer.isHidden && emptyPet.panel.frame.minX==emptyFrame.minX && emptyPet.panel.frame.width==emptyFrame.width+290 && emptyPet.placementTarget!.globalSprite==emptyPlacement.globalSprite && emptyView.island.snapshot.drawerOpen && emptyView.island.accessibilityLabel()?.contains("닫기") == false,"AT-TD-27/41 empty stripe opens actual drawer")
     print("AT-DI-33 OWNER AND EMPTY PILL RIGHT EXPANSION PASS")
     emptyView.island.activate(at:CGPoint(x:10,y:15));try check(!emptyPet.drawerOpen && emptyPet.panel.frame==emptyFrame && emptyView.todoDrawer.isHidden,"AT-TD-41 empty pill second click restores frame")
     emptyPet.panel.orderOut(nil)
@@ -132,18 +132,18 @@ import AppKit
     pet.setDrawerOpen(true)
     let workerModel=IslandModel(clock:{now});workerModel.update(IslandModel.Input(typing:[model.messages[q2]!.key:now.addingTimeInterval(60)],drawerOpen:true))
     view.island.show(workerModel.snapshot());view.island.frame.size.width=view.island.fittedWidth(limit:400);view.island.layoutSubtreeIfNeeded()
-    let face=view.island.partRects.first{$0.0.kind == .worker}!.1
+    let face=view.island.activityRect
     view.island.activate(at:CGPoint(x:face.minX+8,y:15))
     try check(pet.drawerOpen && model.selected==model.messages[q2]!.key,"AT-TD-28 worker face input preserves drawer")
     var retries=0;view.reconnect={retries+=1}
     let problem=IslandModel(clock:{now});problem.update(IslandModel.Input(status:.disconnected(3),drawerOpen:true))
-    view.island.show(problem.snapshot());view.island.frame.size.width=view.island.fittedWidth(limit:400);view.island.layoutSubtreeIfNeeded();view.island.activate(at:CGPoint(x:10,y:15))
+    view.island.show(problem.snapshot());view.island.frame.size.width=view.island.fittedWidth(limit:400);view.island.layoutSubtreeIfNeeded();view.island.activate(at:CGPoint(x:view.island.activityRect.midX,y:15))
     try check(retries==1 && pet.drawerOpen,"AT-TD-28 problem action preserves drawer")
     let preview=IslandModel(clock:{now})
     var previewInput=IslandModel.Input(messages:[model.messages[q1]!],drawerOpen:true)
     previewInput.messages[0].replyState="asked";preview.update(previewInput)
     var later=model.messages[q2]!;later.replyState="asked";previewInput.messages.append(later);preview.update(previewInput)
-    try check(preview.snapshot().expanded == .owner && preview.snapshot().parts.first{$0.kind == .owner}?.action == .question(q1,model.messages[q1]!.key) && preview.snapshot().drawerOpen,"AT-TD-29 preview still targets oldest and preserves drawer")
+    try check(preview.snapshot().expanded == .question && preview.snapshot().activity?.action == .question(q1,model.messages[q1]!.key) && preview.snapshot().drawerOpen,"AT-TD-29 preview still targets oldest and preserves drawer")
     // Cadence uses controller clock and the same outgoing request path, with a fake gate sender.
     pet.setDrawerOpen(false);await pause(0.01);requests=[];now.addTimeInterval(600);controller.pollDeadlines();await pause(0.01)
     try check(requests.isEmpty,"AT-TD-37 closed ten minutes sends nothing")
@@ -249,15 +249,15 @@ import AppKit
     controller.setDrawerState(open:true,chatExpanded:true);await pause(0.01)
     answer(sent("deadlines")[0],rows)
     // AT-DC-21: the kind line carries the source kind when the gate named one.
-    try check(card("미리알림 마감").badge=="D+1 · 미리알림" && card("메일 마감").badge=="D-DAY · 메일" && card("링크 마감").badge=="D-4","AT-DC-21 kind line with source kind")
+    try check(card("미리알림 마감").status=="마감 1일 지남 · 미리알림 · 연결된 대화 없음" && card("메일 마감").status=="오늘 마감 · 메일" && card("링크 마감").status=="마감 4일 남음","AT-DC-21 kind line with source kind")
     // AT-DC-21b: every source kind the gate can name, and one it cannot.
     let kinds=[("notion","노션"),("calendar","캘린더"),("reminder","미리알림"),("slack","Slack"),("notes","메모"),("gmail","메일"),("other",nil)]
     let kindModel=TodoDrawerModel()
     kindModel.receive(["available":true,"failed":[],"items":kinds.map{row($0.0+":k","종류 "+$0.0,due:"2026-11-22",origin:$0.0)}])
     let kindCards=kindModel.snapshot(model,now:now).urgent
     for (name,tail) in kinds {
-        let badge=kindCards.first{$0.title=="종류 "+name}!.badge
-        try check(badge=="D-DAY"+(tail.map{" · "+$0} ?? ""),"AT-DC-21b origin \(name) tail")
+        let status=kindCards.first{$0.title=="종류 "+name}!.status
+        try check(status=="오늘 마감"+(tail.map{" · "+$0} ?? "")+" · 연결된 대화 없음","AT-DC-21b origin \(name) tail")
     }
     // AT-DC-22: a card is linked by a notice that is in the chat or by a link.
     try check(card("메일 마감").linked && card("링크 마감").linked && !card("없는 글 마감").linked && !card("갈 곳 없는 마감").linked && !card("미리알림 마감").linked,"AT-DC-22 linked only with notice in chat or url")
@@ -292,7 +292,7 @@ import AppKit
     view.selectDrawerCard(card("메일 마감"))
     try check(model.selected==model.messages[noticeMessage]!.key && view.highlightedMessageID==noticeMessage && pet.drawerOpen && view.drawerSelectedID==card("메일 마감").id,"AT-DC-23 goes to the notice")
     now.addTimeInterval(1.49);view.tickIsland();try check(view.highlightedMessageID==noticeMessage,"AT-DC-23 highlight stays before 1.5 seconds")
-    now.addTimeInterval(0.02);view.tickIsland();try check(view.highlightedMessageID==nil,"AT-DC-23 highlight ends")
+    now.addTimeInterval(0.02);view.tickIsland();try check(view.highlightedMessageID==noticeMessage,"AT-DC-23 drawer selection persists")
     // AT-DC-24: link only when there is no notice in the chat.
     view.selectDrawerCard(card("링크 마감"))
     try check(urls==[URL(string:"https://example.invalid/x")!],"AT-DC-24 link opens when there is no notice")

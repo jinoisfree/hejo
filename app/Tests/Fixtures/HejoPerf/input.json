@@ -1,0 +1,655 @@
+{
+  "keys": [
+    {
+      "room": "alpha",
+      "thread": "00000000-0000-4000-8000-000000000001"
+    },
+    {
+      "room": "alpha",
+      "thread": "00000000-0000-4000-8000-000000000002"
+    },
+    {
+      "room": "beta",
+      "thread": "00000000-0000-4000-8000-000000000003"
+    },
+    {
+      "room": "fixture-group",
+      "thread": "00000000-0000-4000-8000-000000000004"
+    },
+    {
+      "room": "alpha",
+      "thread": "00000000-0000-4000-8000-000000000005"
+    },
+    {
+      "room": "missing-room",
+      "thread": "00000000-0000-4000-8000-000000000006"
+    }
+  ],
+  "now": 1794000000,
+  "operations": [
+    {
+      "action": "frame",
+      "frame": {
+        "employees": [
+          {
+            "aliases": [],
+            "id": "alpha",
+            "name": "직원 A"
+          },
+          {
+            "aliases": [],
+            "id": "beta",
+            "name": "직원 B"
+          }
+        ],
+        "type": "roster",
+        "v": 1
+      },
+      "label": "invalid-before-welcome"
+    },
+    {
+      "action": "frame",
+      "frame": {
+        "employees": [],
+        "head_seq": 0,
+        "rooms": [],
+        "type": "welcome",
+        "v": 1
+      },
+      "label": "empty-welcome"
+    },
+    {
+      "action": "frame",
+      "frame": {
+        "employees": [
+          {
+            "aliases": [],
+            "id": "alpha",
+            "name": "직원 A"
+          },
+          {
+            "aliases": [],
+            "id": "beta",
+            "name": "직원 B"
+          }
+        ],
+        "type": "roster",
+        "v": 1
+      },
+      "label": "roster"
+    },
+    {
+      "action": "frame",
+      "frame": {
+        "room": {
+          "archived": false,
+          "id": "fixture-group",
+          "lead": "alpha",
+          "members": [
+            "alpha",
+            "beta"
+          ],
+          "title": "가짜 방"
+        },
+        "seq": 1,
+        "type": "room",
+        "v": 1
+      },
+      "label": "group"
+    },
+    {
+      "action": "frame",
+      "frame": {
+        "more": false,
+        "through": 1,
+        "type": "sync_done",
+        "v": 1
+      },
+      "label": "replay-complete"
+    },
+    {
+      "action": "frame",
+      "frame": {
+        "buttons": [],
+        "employee": "alpha",
+        "files": [],
+        "msg_id": "00000000-0000-4000-8000-000000000105",
+        "reply_state": null,
+        "role": "employee",
+        "seq": 2,
+        "text": "새 알림",
+        "thread": "00000000-0000-4000-8000-000000000001",
+        "ts": "2026-11-06T21:18:00Z",
+        "type": "message",
+        "v": 1
+      },
+      "label": "direct-alert"
+    },
+    {
+      "action": "frame",
+      "frame": {
+        "buttons": [],
+        "employee": "alpha",
+        "files": [],
+        "msg_id": "00000000-0000-4000-8000-000000000106",
+        "reply_state": "asked",
+        "role": "employee",
+        "seq": 3,
+        "text": "승인해줘",
+        "thread": "00000000-0000-4000-8000-000000000002",
+        "ts": "2026-11-06T21:18:10Z",
+        "type": "message",
+        "v": 1
+      },
+      "label": "direct-question"
+    },
+    {
+      "action": "frame",
+      "frame": {
+        "buttons": [],
+        "employee": "beta",
+        "files": [],
+        "msg_id": "00000000-0000-4000-8000-000000000107",
+        "reply_state": "closed",
+        "role": "employee",
+        "seq": 4,
+        "text": "완료한 작업",
+        "thread": "00000000-0000-4000-8000-000000000003",
+        "ts": "2026-11-06T21:18:20Z",
+        "type": "message",
+        "v": 1
+      },
+      "label": "beta-complete"
+    },
+    {
+      "action": "frame",
+      "frame": {
+        "buttons": [],
+        "employee": "alpha",
+        "files": [],
+        "msg_id": "00000000-0000-4000-8000-000000000108",
+        "reply_state": "asked",
+        "role": "employee",
+        "room": "fixture-group",
+        "seq": 5,
+        "text": "승인해줘",
+        "thread": "00000000-0000-4000-8000-000000000004",
+        "ts": "2026-11-06T21:18:30Z",
+        "type": "message",
+        "v": 1
+      },
+      "label": "group-question"
+    },
+    {
+      "action": "frame",
+      "frame": {
+        "buttons": [],
+        "employee": "alpha",
+        "files": [],
+        "msg_id": "00000000-0000-4000-8000-000000000109",
+        "reply_state": null,
+        "role": "employee",
+        "seq": 6,
+        "text": "시간 경계 알림",
+        "thread": "00000000-0000-4000-8000-000000000005",
+        "ts": "2026-11-06T21:20:01Z",
+        "type": "message",
+        "v": 1
+      },
+      "label": "future-alert"
+    },
+    {
+      "action": "clock",
+      "label": "before-future",
+      "value": 1794000000
+    },
+    {
+      "action": "clock",
+      "label": "at-future",
+      "value": 1794000001
+    },
+    {
+      "action": "clock",
+      "label": "24h-before",
+      "value": 1794086279
+    },
+    {
+      "action": "clock",
+      "label": "24h-exact",
+      "value": 1794086280
+    },
+    {
+      "action": "clock",
+      "label": "24h-after",
+      "value": 1794086281
+    },
+    {
+      "action": "clock",
+      "label": "restore-clock",
+      "value": 1794000000
+    },
+    {
+      "action": "select",
+      "key": 1,
+      "label": "select-question"
+    },
+    {
+      "action": "draft",
+      "key": 1,
+      "label": "draft-question",
+      "text": "가짜 초안"
+    },
+    {
+      "action": "draft",
+      "key": 0,
+      "label": "draft-other",
+      "text": "다른 초안"
+    },
+    {
+      "action": "visible",
+      "label": "visible",
+      "value": true
+    },
+    {
+      "action": "mute",
+      "label": "mute-room",
+      "room": "alpha"
+    },
+    {
+      "action": "mute",
+      "label": "unmute-room",
+      "room": "alpha"
+    },
+    {
+      "action": "bell",
+      "key": 1,
+      "label": "silence-bell"
+    },
+    {
+      "action": "bell",
+      "key": 1,
+      "label": "restore-bell"
+    },
+    {
+      "action": "confirm",
+      "label": "confirm-question",
+      "message": "00000000-0000-4000-8000-000000000106"
+    },
+    {
+      "action": "frame",
+      "frame": {
+        "final": false,
+        "msg_id": "00000000-0000-4000-8000-000000000105",
+        "seq": 7,
+        "text": "진행 내용…",
+        "type": "edit",
+        "v": 1
+      },
+      "label": "streaming"
+    },
+    {
+      "action": "frame",
+      "frame": {
+        "final": true,
+        "msg_id": "00000000-0000-4000-8000-000000000105",
+        "seq": 8,
+        "text": "고친 새 알림",
+        "type": "edit",
+        "v": 1
+      },
+      "label": "final-edit"
+    },
+    {
+      "action": "frame",
+      "frame": {
+        "msg_id": "00000000-0000-4000-8000-000000000106",
+        "reply_state": "answered",
+        "seq": 9,
+        "type": "state",
+        "v": 1
+      },
+      "label": "working-state"
+    },
+    {
+      "action": "frame",
+      "frame": {
+        "msg_id": "00000000-0000-4000-8000-000000000106",
+        "reply_state": "closed",
+        "seq": 10,
+        "type": "state",
+        "v": 1
+      },
+      "label": "closed-state"
+    },
+    {
+      "action": "frame",
+      "frame": {
+        "employee": "alpha",
+        "on": true,
+        "thread": "00000000-0000-4000-8000-000000000001",
+        "ttl_seconds": 6,
+        "type": "typing",
+        "v": 1
+      },
+      "label": "typing-on"
+    },
+    {
+      "action": "frame",
+      "frame": {
+        "employee": "alpha",
+        "on": false,
+        "thread": "00000000-0000-4000-8000-000000000001",
+        "type": "typing",
+        "v": 1
+      },
+      "label": "typing-off"
+    },
+    {
+      "action": "frame",
+      "frame": {
+        "employee": "beta",
+        "on": true,
+        "thread": "00000000-0000-4000-8000-000000000003",
+        "ttl_seconds": 6,
+        "type": "typing",
+        "v": 1
+      },
+      "label": "typing-expire-start"
+    },
+    {
+      "action": "expire",
+      "label": "typing-expire"
+    },
+    {
+      "action": "read",
+      "key": 0,
+      "label": "read-alert"
+    },
+    {
+      "action": "home",
+      "channel": "fixture-group",
+      "label": "home-channel"
+    },
+    {
+      "action": "home",
+      "label": "home-all"
+    },
+    {
+      "action": "visible",
+      "label": "hidden",
+      "value": false
+    },
+    {
+      "action": "frame",
+      "frame": {
+        "msg_id": "00000000-0000-4000-8000-000000000106",
+        "reply_state": "asked",
+        "seq": 10,
+        "type": "state",
+        "v": 1
+      },
+      "label": "duplicate-frame"
+    },
+    {
+      "action": "controller",
+      "frame": {
+        "seq": 12,
+        "type": "message",
+        "v": 1
+      },
+      "label": "model-gap"
+    },
+    {
+      "action": "controller",
+      "frame": {
+        "msg_id": "00000000-0000-4000-8000-000000000999",
+        "seq": 11,
+        "type": "message",
+        "v": 1
+      },
+      "label": "invalid-model"
+    },
+    {
+      "action": "frame",
+      "frame": {
+        "buttons": [],
+        "employee": "alpha",
+        "files": [],
+        "msg_id": "00000000-0000-4000-8000-000000000140",
+        "reply_state": null,
+        "role": "employee",
+        "seq": 11,
+        "text": "오류 뒤 정상 글",
+        "thread": "00000000-0000-4000-8000-000000000001",
+        "ts": "2026-11-06T21:19:10Z",
+        "type": "message",
+        "v": 1
+      },
+      "label": "normal-after-error"
+    },
+    {
+      "action": "frame",
+      "frame": {
+        "seq": 12,
+        "type": "message",
+        "v": 2
+      },
+      "label": "protocol-version"
+    },
+    {
+      "action": "frame",
+      "frame": {
+        "code": "unknown_file",
+        "type": "error",
+        "v": 1
+      },
+      "label": "error-response"
+    },
+    {
+      "action": "frame",
+      "frame": {
+        "available": true,
+        "type": "connections_status",
+        "v": 1
+      },
+      "label": "connections-response"
+    },
+    {
+      "action": "frame",
+      "frame": {
+        "available": false,
+        "ref": "fixture-ref",
+        "type": "deadlines_status",
+        "v": 1
+      },
+      "label": "dedicated-response"
+    },
+    {
+      "action": "frame",
+      "frame": {
+        "employees": [
+          {
+            "aliases": [],
+            "id": "alpha",
+            "name": "직원 A"
+          },
+          {
+            "aliases": [],
+            "id": "beta",
+            "name": "직원 B"
+          }
+        ],
+        "head_seq": 11,
+        "rooms": [
+          {
+            "archived": false,
+            "id": "fixture-group",
+            "lead": "alpha",
+            "members": [
+              "alpha",
+              "beta"
+            ],
+            "title": "가짜 방"
+          }
+        ],
+        "type": "welcome",
+        "v": 1
+      },
+      "label": "reconnect-welcome"
+    },
+    {
+      "action": "frame",
+      "frame": {
+        "msg_id": "00000000-0000-4000-8000-000000000500",
+        "seq": 1,
+        "type": "message",
+        "v": 1
+      },
+      "label": "duplicate-replay"
+    },
+    {
+      "action": "frame",
+      "frame": {
+        "more": false,
+        "through": 11,
+        "type": "sync_done",
+        "v": 1
+      },
+      "label": "reconnect-done"
+    },
+    {
+      "action": "frame",
+      "frame": {
+        "room": {
+          "archived": true,
+          "id": "fixture-group",
+          "lead": "alpha",
+          "members": [
+            "alpha",
+            "beta"
+          ],
+          "title": "가짜 방"
+        },
+        "seq": 12,
+        "type": "room",
+        "v": 1
+      },
+      "label": "archive-group"
+    },
+    {
+      "action": "frame",
+      "frame": {
+        "room": {
+          "archived": false,
+          "id": "fixture-group",
+          "lead": "alpha",
+          "members": [
+            "alpha",
+            "beta"
+          ],
+          "title": "가짜 방"
+        },
+        "seq": 13,
+        "type": "room",
+        "v": 1
+      },
+      "label": "restore-group"
+    },
+    {
+      "action": "frame",
+      "frame": {
+        "employees": [
+          {
+            "aliases": [],
+            "id": "alpha",
+            "name": "직원 A"
+          }
+        ],
+        "type": "roster",
+        "v": 1
+      },
+      "label": "remove-beta"
+    },
+    {
+      "action": "frame",
+      "frame": {
+        "employees": [
+          {
+            "aliases": [],
+            "id": "alpha",
+            "name": "직원 A"
+          },
+          {
+            "aliases": [],
+            "id": "beta",
+            "name": "직원 B"
+          }
+        ],
+        "type": "roster",
+        "v": 1
+      },
+      "label": "restore-beta"
+    },
+    {
+      "action": "frame",
+      "frame": {
+        "msg_id": "00000000-0000-4000-8000-000000000140",
+        "seq": 14,
+        "type": "delete",
+        "v": 1
+      },
+      "label": "delete-message"
+    },
+    {
+      "action": "frame",
+      "frame": {
+        "room": "alpha",
+        "scope": "thread",
+        "seq": 15,
+        "thread": "00000000-0000-4000-8000-000000000002",
+        "type": "delete",
+        "v": 1
+      },
+      "label": "delete-thread"
+    },
+    {
+      "action": "frame",
+      "frame": {
+        "id": "fixture-group",
+        "seq": 16,
+        "type": "room_deleted",
+        "v": 1
+      },
+      "label": "delete-group"
+    },
+    {
+      "action": "select",
+      "key": 3,
+      "label": "select-deleted-group"
+    },
+    {
+      "action": "select",
+      "key": 5,
+      "label": "select-missing-room"
+    },
+    {
+      "action": "send-disconnected",
+      "label": "send-without-socket"
+    }
+  ],
+  "workload": {
+    "burst_frames": 4,
+    "clock": "fixed",
+    "motion": "reduced",
+    "now": 1794000000,
+    "posts_per_thread": 4,
+    "repetitions": 5,
+    "rooms": 8,
+    "threads_per_room": 100,
+    "viewport": [
+      840,
+      760
+    ],
+    "warm_up": 1
+  }
+}

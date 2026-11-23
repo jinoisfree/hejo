@@ -11,7 +11,7 @@ sources=()
 for source in Sources/*.swift; do
   [[ "$source" == Sources/AppMain.swift ]] || sources+=("$source")
 done
-xcrun swiftc -swift-version 5 -parse-as-library -g -target "$(uname -m)-apple-macosx13.0" \
+xcrun swiftc -swift-version 5 -parse-as-library -g -D HEJO_PERF_TESTING -target "$(uname -m)-apple-macosx13.0" \
   "${sources[@]}" Tests/*.swift -o .build/app-tests \
   -framework AppKit -framework EventKit -framework WebKit -framework Accelerate -framework ServiceManagement \
   -F .build/sparkle-2.10.0 -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/hejo.app/Contents/Frameworks

@@ -37,7 +37,7 @@ struct ConversationFailedSend: Identifiable {
     private(set) var closeFailed=false
     var hiddenDeadlineCards: Set<String> { Set(closesInFlight.keys).union(closesConfirming.keys).union(pendingClose.map{[$0.cardID]} ?? []) }
     var drawerSnapshot: TodoDrawerModel.Snapshot {
-        var value=todoDrawer.snapshot(model,filter:drawerFilter,now:clock(),hidden:hiddenDeadlineCards)
+        var value=todoDrawer.snapshot(model,filter:drawerFilter,now:model.renderTime,hidden:hiddenDeadlineCards)
         value.undoTitle=pendingClose?.title;value.closeFailed=closeFailed
         return value
     }
@@ -383,6 +383,9 @@ struct ConversationFailedSend: Identifiable {
     }
     deinit { timer?.invalidate() }
     func receive(_ frame: [String: Any]) {
+        performUpdates { receiveFrame(frame) }
+    }
+    private func receiveFrame(_ frame: [String: Any]) {
         let kind=frame["type"] as? String
         if kind=="deadline_close_status" || (kind=="error" && (frame["ref"] as? String).map{card(forCloseRef:$0) != nil} == true) {
             receiveClose(frame);return

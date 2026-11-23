@@ -44,7 +44,7 @@ import AppKit
             let selection = selected == key ? "first" : selected == other ? "other" : "new"
             return [selected?.employee ?? "", selection, String(controller.model.visible),
                     String(controller.drawerVisible), String(controller.composeKey == selected),
-                    view.editor.editor.string, view.composerPrompt, view.heading.stringValue,
+                    view.editor.editor.string, view.composerPrompt, view.island.snapshot.title,
                     String(controller.model.unread(employee: "alpha"))]
                 + view.history.contents.map { "\($0.id):\($0.expanded):\($0.replyTarget):\($0.top.count):\($0.replies?.count ?? 0)" }
         }

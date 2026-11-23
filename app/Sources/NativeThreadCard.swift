@@ -722,8 +722,7 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
         else if c.style.fill > 0 { NSColor.labelColor.withAlphaComponent(c.style.fill).setFill(); path.fill() }
         if let status = c.style.status {
             status.setFill()
-            NSBezierPath(roundedRect: NSRect(x: dx + 5, y: 12, width: ThreadAppearance.statusWidth,
-                                            height: max(0, value.height - 24)), xRadius: 2, yRadius: 2).fill()
+            NSBezierPath(roundedRect: AttentionRail.rect(in:card), xRadius: 2, yRadius: 2).fill()
         }
         if let stroke = c.style.stroke {
             stroke.setStroke()

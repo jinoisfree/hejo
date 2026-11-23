@@ -5,6 +5,8 @@ import QuartzCore
 enum SidebarTone {
     static func column(dark:Bool)->NSColor { primary(dark ? 0.035:0.025) }
     static func selection(dark:Bool)->NSColor { NSColor.controlAccentColor.withAlphaComponent(dark ? 0.22:0.12) }
+    static func cardFill(selected:Bool,hovered:Bool,dark:Bool)->NSColor {selected ? selection(dark:dark):primary(hovered ? 0.075:0.035)}
+    static func cardBorder(selected:Bool,hovered:Bool)->NSColor {selected ? .controlAccentColor:primary(hovered ? 0.22:0.1)}
     static func primary(_ opacity:CGFloat=1)->NSColor {let color=NSColor.labelColor;return color.withAlphaComponent(color.alphaComponent*opacity)}
 }
 
@@ -85,7 +87,7 @@ final class SidebarBlank:NSView {
     required init?(coder:NSCoder){nil}
     override func mouseDown(with event:NSEvent){if event.clickCount==2 {toggle?()}}
     override func accessibilityPerformPress()->Bool{toggle?();return true}
-    override func draw(_ dirtyRect:NSRect){let dark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua;NSColor.black.withAlphaComponent(dark ? 0.32:0.05).setFill();bounds.fill()}
+
 }
 
 final class SidebarHitsHeading:NSTableCellView {
@@ -94,4 +96,11 @@ final class SidebarHitsHeading:NSTableCellView {
     required init?(coder:NSCoder){nil}
     override var isFlipped:Bool{true}
     override func layout(){super.layout();title.frame=CGRect(x:16,y:10,width:max(1,bounds.width-28),height:14)}
+}
+
+/// One inset and colour for the attention rail in chat and the todo column.
+enum AttentionRail {
+    static let width:CGFloat=3, inset:CGFloat=6, vertical:CGFloat=10
+    static var color:NSColor {MessageFormat.color("#E01E5A")!}
+    static func rect(in bounds:CGRect)->CGRect {CGRect(x:bounds.minX+inset,y:bounds.minY+vertical,width:width,height:max(0,bounds.height-2*vertical))}
 }

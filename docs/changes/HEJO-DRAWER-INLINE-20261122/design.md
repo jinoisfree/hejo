@@ -1,6 +1,6 @@
 # HEJO-DRAWER-INLINE 설계
 
-상태: 4판(2.6) 구현 대기 · 1~3판 적용(2026-11-23) · 3판 · 2026-11-23(REQ-DI-07 로고·버전 가운데 추가, 사장 요청) · 2판 · 2026-11-22(계획 검증 1회차 R1·R2 반영, [plan-review.md](plan-review.md)) · 명세 [spec.md](spec.md) · 칸 표는 [spec 첫 절](spec.md#칸원본쓰기-주체수명)을 따른다. 기준 커밋 main `0644e9e`. 착수 때 HEJO-DEADLINE-CLOSE TASK-03 반영 뒤 기준으로 다시 확인한다(handoff 0항).
+상태: 적용(2026-11-23) · 3판 · 2026-11-23(REQ-DI-07 로고·버전 가운데 추가, 사장 요청) · 2판 · 2026-11-22(계획 검증 1회차 R1·R2 반영, [plan-review.md](plan-review.md)) · 명세 [spec.md](spec.md) · 칸 표는 [spec 첫 절](spec.md#칸원본쓰기-주체수명)을 따른다. 기준 커밋 main `0644e9e`. 착수 때 HEJO-DEADLINE-CLOSE TASK-03 반영 뒤 기준으로 다시 확인한다(handoff 0항).
 
 ## 1. 지금 흐름 [확인]
 

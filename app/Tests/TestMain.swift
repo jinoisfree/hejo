@@ -32,8 +32,23 @@ final class MemoryCredentials: GateCredentialStore {
         Task { @MainActor in
             do {
                 let args = CommandLine.arguments
-                if args.contains("--drawer-inline") {
-                    try drawerInlineTests(resourceDirectory:URL(fileURLWithPath:args.last!))
+                if args.count == 3 && args[1] == "--hejo-perf-regression" {
+                    #if HEJO_PERF_TESTING
+                    try await hejoPerfRegressionTests()
+                    try conversationUpdateTests(resourceDirectory: URL(fileURLWithPath: args[2]))
+                    #else
+                    throw TestFailure.assertion("HEJO_PERF_TESTING is required")
+                    #endif
+                } else if args.count == 5 && args[1] == "--hejo-perf" {
+                    try await hejoPerf(input: URL(fileURLWithPath: args[2]), output: URL(fileURLWithPath: args[3]), measure: args[4] == "measure" || args[4] == "home", startInHome: args[4] == "home")
+                } else if args.contains("--ui-clean-polish-probe") {
+                    try await uiCleanPolishTests(resourceDirectory:URL(fileURLWithPath:args.last!),diagnoseOnly:true)
+                } else if args.contains("--ui-clean-polish") {
+                    try await uiCleanPolishTests(resourceDirectory:URL(fileURLWithPath:args.last!))
+                } else if args.contains("--ui-clean-island") {
+                    try await uiCleanIslandTests(resourceDirectory:URL(fileURLWithPath:args.last!))
+                } else if args.contains("--drawer-inline") {
+                    try await drawerInlineTests(resourceDirectory:URL(fileURLWithPath:args.last!))
                 } else if args.contains("--finder-picture") {
                     try await letterPictureTests(resourceDirectory:URL(fileURLWithPath:args.last!))
                     try await optionWindowTests(resourceDirectory:URL(fileURLWithPath:args.last!))
@@ -160,6 +175,9 @@ final class MemoryCredentials: GateCredentialStore {
         }
     }
     func unit() async throws {
+        #if HEJO_PERF_TESTING
+        try await hejoPerfRegressionTests()
+        #endif
         try await telegramTests()
         try workMonitorTests();try await dashboardTests()
         try await calendarTests()
@@ -270,7 +288,7 @@ final class MemoryCredentials: GateCredentialStore {
         try await transitionPreparationTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await todoDrawerTests(resourceDirectory:URL(fileURLWithPath:CommandLine.arguments.last!))
         try await deadlineCloseTests(resourceDirectory:URL(fileURLWithPath:CommandLine.arguments.last!))
-        try drawerInlineTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
+        try await drawerInlineTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await letterPictureTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await optionWindowTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await islandTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))

@@ -1,0 +1,11 @@
+{
+  "base_commit": "39f954c1bd3a50fd27d4f11a3b03774d0e74aa41",
+  "expected_sha256": "16584d4f21003bc187448f6e97251d90dc06e9474b2d3760d60a11fcd6ce062f",
+  "input_sha256": "f08a9ae72e1d21dc7a93e204f702080439f441268ab525fd65cbb378ce7718ca",
+  "normalization": [
+    "Unknown generated selection thread UUIDs become <generated-thread>; fixture IDs remain exact.",
+    "Dictionary/set observations are sorted; timeline, thread and notice order remains exact.",
+    "Wall-clock member-state metadata and typing expiry timestamps are excluded; values/typing presence are observed."
+  ],
+  "product_tree": "6b226925bc7fa9887a4b3edaab43ce82cc1c11dc"
+}

@@ -139,3 +139,51 @@
 - 첫 검사 종료 1은 120초 전 관측과 Python 환경 차이였다. 자동 설치 시도 로그 뒤 연결 성공을 확인했고, Hermes 공식 선택 의존성 환경에서 SDK 22.8 import를 확인해 최종 검사했다. 직접 설치는 하지 않았다. 실제 환경 증거 수준 3, 실물 M1~M8은 미실행. 로그는 `.build/HEJO-TELEGRAM/task07/resume3/`, 실제 재시작 실행 로그는 `planner-restart/`다. 기존 실행을 반복하지 않았으므로 별도 재시작 성공 기록을 만들지 않았다.
 - 구조·제품 코드 변경 없음. 이번 추적 변경은 증거의 최신 상태와 이 보고다. Keychain·앱 출입증·상태 프레임 조회, 설정·비밀 파일 직접 열람/쓰기, 직접 패키지 설치, 앱 교체/공개, 실제 발송, 본체/플러그인/team-kit 수정, git push는 하지 않았다. 다른 작업 파일은 보존했다. 다음은 계획 담당이 경고를 포함한 자체 증거와 TASK-07 완료 기록을 대조하고 이미 조율 중인 TASK-07b로 이어가는 것이다.
 - 이번 보고 문서 변경본의 임시 빈 HERMES_HOME 개인값 검사(Hermes venv `scripts/scan_private.py`) 종료 1: 다른 작업의 기존 절대 경로 4건·이 작업 0건(`resume3/private.log/.exit`). `git diff --check` 종료 0. 전체 제품 시험은 무변경으로 반복하지 않았다.
+
+## TASK-07b — 앱 0.2.7(빌드 9) 공개 후보
+
+- 받은 설계: [handoff-task07b.md](handoff-task07b.md), 기준 `576204f63e042a7f84fb7983a2f56d2ec3b19aaa`·TASK-07 verdict 6차 `de5f54c`. 위험도 고위험, 필요/도달 증거 수준 **2**. 구현자 판단은 **공개 후보 준비 완료, 실제 푸시·공개 미실행**이다. 제품 코드는 바꾸지 않았고 버전·현재 버전 단언·허가된 개인 경로 문서·이 보고만 변경했다. 하위 에이전트 없음, 새 mutation은 배포 메타데이터 변경이라 생략했다.
+
+### 시작 조건·후보 소스
+
+- 착수 시 `git ls-remote github refs/heads/main`과 로컬 `public`은 모두 `98a9f242a74a97a2af6885264cac49da241ad7fa`(0.2.6)였다. 그 공개 트리는 이전 main의 `d88e2c8` 트리와 같다. 그 뒤 설치 범위 커밋 목록은 검증된 HEJO-TELEGRAM과 DRAWER-INLINE TASK-01 `94b06ef`뿐이다. TASK-01은 verdict 6회 통과·main 병합 `18de43e`; TASK-02 제품 코드는 후보에 없다.
+- `gate/`·`schemas/`·`hub/`·`install/`·`config/`는 공용 RELEASE `0bcf63535df381e491c99af9cbef41179b7cd79f`와 Git diff 0이며, 실제 설치된 공용 파일 41개도 공개 후보와 바이트 동일하다(누락·추가·불일치 0). 서버 설치·재시작은 반복하지 않았다.
+- 알려진 개인값 4건만 처음 검사에서 검출했다. 허가된 HEJO-DEADLINE-CLOSE impl-report 97·109행과 verdict 127·146행을 `<공용 릴리스>`(gate 비교는 `/gate` 유지) 자리표시자로 바꾼 커밋은 **`2bdbe1b049486cb8fbf5ad97e3e721dc3f0b162d`**다. 검사 재실행 종료 **0**, 뜻·기대값 변경 없음.
+- 버전 커밋 **`c3475bb95489150497f0a4d365523f0941ac2034`**는 Info.plist 0.2.7·9와 test_ship.py 현재 버전 단언 한 줄만 바꿨다.
+- 새 public **`3f5cb6bd35c6f57e862d09f809f9b1e2b1dd1f9c`**, 부모 `98a9f242a74a97a2af6885264cac49da241ad7fa`, 트리 **`6ea58c4ca582c38b26b45c52d7bd1b96371a6fab`** = 후보 생성 전 고정한 main HEAD `c3475bb`의 트리다. main의 다른 작업 미커밋 문서를 보존하기 위해 별도 깨끗한 checkout에서 `install/hejo-publish`를 실행했다. gh는 이전 public 작성자와 같은 로컬 캐시만 사용하고 git 원격 명령·curl·wget은 차단했다. 원격 쓰기 0, 차단 대역 호출 0.
+- 생성 뒤 main에 다른 작업 문서 커밋 `ea9bee5`가 추가됐다. live main 트리와 비교한 사후 단정이 한 번 실패했으나, 차이가 DRAWER-INLINE 보고/판정 문서 두 개뿐임을 확인했다. 공개 후보는 위 버전 커밋의 트리로 유지했고 이후 문서 커밋은 포함하지 않았다. 제품 차이 0·후보 소스 고정은 `public-candidate.json`, `snapshot-stability.json`에 기록했다.
+
+### 깨끗한 public checkout 검증·준비물
+
+검증 checkout은 `.build/HEJO-TELEGRAM/task07b/source-worktree`(HEAD = 위 public), 짧은 TMPDIR·임시 HERMES_HOME·TZ=Asia/Seoul, 기존 Hermes 시험 의존성을 사용했다. 패키지는 설치하지 않았다. 아래 로그는 `.build/HEJO-TELEGRAM/task07b/` 기준이다.
+
+| 명령/검사 | 실제 결과 | 로그 |
+|---|---|---|
+| Hermes venv `scripts/scan_private.py`(정리 전/후) | 종료 1(알려진 4건만) → 종료 **0** | `private-before.log/.exit`, `private-fixed.log/.exit` |
+| `install/hejo-publish`(로컬 대역) | 종료 **0**, 위 public·부모·트리. 캐시 외 원격 호출 0 | `publish-local.log/.exit`, `public-candidate.json`, `offline-gh.jsonl` |
+| public checkout 개인값 검사 | 종료 **0** | `public-private.log/.exit` |
+| Hermes 시험 Python `-m pytest gate/tests tests/acceptance -q -o asyncio_default_fixture_loop_scope=function -p no:cacheprovider --basetemp=/tmp/ht27/pytest` | 종료 **0**, **427 passed**, 기존 async-mark 경고 1. 선례의 parity 환경 실패는 발생하지 않아 기준 재시험 없음 | `pytest.log/.exit` |
+| `python -m gate.tests.gateway_delivery` | 종료 **0**, 격리 게이트웨이 배달 통과 | `gateway-delivery.log/.exit` |
+| `bash app/scripts/test.sh` | 종료 **0**, AT-HT-50~52·AT-TD-20~42·AT-DC-21~34·AT-DI-01~14/20~23/34·전체 앱/통신/WebKit/훅 9건 통과. 실제 CLI 설정 metadata·다운로드 이름 보존 guard 통과 | `app-full.log/.exit` |
+| 기본 `bash app/scripts/build.sh` | 종료 **0**. 선례처럼 기존 미추적 Google 빌드 입력은 링크만 두고 직접 열람하지 않았다. 테스트용 secret 생략 옵션을 해제한 기본 빌드, Sparkle는 검증된 로컬 고정 압축본 사용 | `default-build.log/.exit` |
+| `install/hejo-ship prepare --output <저장소>/.build/release-0.2.7` | 종료 **0**, 준비물 생성 | `prepare.log/.exit` |
+| 압축 해제본 codesign·Sparkle sign_update --verify | 각각 종료 **0** | `archive-codesign.log/.exit`, `archive-sparkle.log/.exit` |
+| 독립 Ed25519·연속성·BuildInfo·설치 앱 metadata 검사 | 종료 **0**, 아래 모든 조건 통과 | `verify-prepared.log/.exit`, `prepared-verification.json` |
+| 보고 포함 main 작업 트리 최종 개인값 검사·`git diff --check` | 각각 종료 **0** | `private-final.log/.exit`, 도구 실행 결과 |
+| 최종 `git ls-remote github refs/heads/main`·읽기 ancestry 확인 | ls-remote 종료 **0**, 원격은 기존 0.2.6. 후보가 원격에 없고 비공개 소스 커밋이 public 이력에 없음을 확인한 두 merge-base 명령은 각각 **1**(의도한 비포함) | `remote-final.json` |
+
+- 준비물: **`.build/release-0.2.7/prepared.json`**, **`.build/release-0.2.7/hejo-0.2.7-arm64.zip`**. 압축 크기 **6,407,499 bytes**, SHA-256 **`2c14ae9b872ef33312a21582e0953ac11873dbf00793d7fe139f32382fe78967`**.
+- BuildInfo `dirty:false`·트리 일치, manifest public 커밋/트리/크기/해시 일치, 압축 해제 실행 파일과 기본 빌드 실행 파일 바이트 동일. Ed25519는 별도 cryptography 공개 키 검증으로 성공했다.
+- 0.2.6(빌드 8) 준비물의 해시·codesign을 먼저 확인하고 새 준비물과 비교했다. 업데이트 공개 키 동일, 코드 서명 Authority가 0.2.6 준비물 및 설치 앱과 동일, 버전/빌드 증가. 설치 앱은 **0.2.6 그대로**, bundle/Info.plist/실행 파일 inode·mtime·size도 같다.
+- 설계의 배포 흐름·키·저장 형식 변경 없음. 실제 푸시·GitHub 공개·앱 업데이트·텔레그램 짝짓기·실물 M1~M8은 미실행이다. 공개 전 롤백은 이 후보와 준비물을 사용하지 않는 것이다. 검토자는 고정한 후보 소스 및 모든 서명/연속성 결과를 확인한 뒤 사장에게 푸시·공개를 인계한다.
+
+### 사장용 대상 명령과 공개 노트 초안
+
+아래 두 줄은 실행 대상 기록이며 에이전트는 실행하지 않았다. 첫 줄의 Git 푸시는 `/push` 또는 화면의 **푸시 대상 확인**에서 사장이 승인한 뒤 플러그인이 실행한다. 둘째 공개 명령은 승인된 대상이 원격에 반영된 뒤 사장이 실행한다.
+
+```sh
+git push github 3f5cb6bd35c6f57e862d09f809f9b1e2b1dd1f9c:refs/heads/main
+install/hejo-ship publish --approve-commit 3f5cb6bd35c6f57e862d09f809f9b1e2b1dd1f9c --prepared .build/release-0.2.7/prepared.json
+```
+
+공개 노트 초안: 아이메시지 설정을 텔레그램 설정으로 교체했습니다. **설정 → 연결과 동기화 → 텔레그램**에서 코드를 받아 포럼 그룹에 보내 짝짓고, 연결을 켜면 방마다 토픽이 생깁니다. 그룹의 답장은 앱의 스레드로 이어집니다.

@@ -15,12 +15,13 @@ import UniformTypeIdentifiers
     var onToggleDrawer:(()->Void)?
     private(set) var drawerSelectedID:String?
     func setDrawerState(open:Bool,chatExpanded:Bool) {controller.setDrawerState(open:open,chatExpanded:chatExpanded)}
-    func selectDrawerCard(_ card:TodoDrawerModel.Card) {
-        drawerSelectedID=card.id
+    func selectDrawerCard(_ card:TodoDrawerModel.Card,activate:Bool=true) {
+        drawerSelectedID=card.kind == .alert ? nil:card.id
+        highlightedMessageID=nil;highlightUntil=nil
         if let id=card.messageID,let key=card.key {
-            reveal(key);highlightedMessageID=id;highlightUntil=islandModel.now.addingTimeInterval(1.5)
+            reveal(key);highlightedMessageID=id;highlightUntil=card.kind == .alert ? islandModel.now.addingTimeInterval(1.5):nil
             refresh();history.scrollTo(key.thread)
-        } else if let url=card.url {onOpenURL(url);refresh()}
+        } else if activate,let url=card.url {onOpenURL(url);refresh()}
         else {refresh()}  // nowhere to go: the card shows "연결된 대화 없음" and only becomes selected
     }
     let island=IslandView(frame:.zero)
@@ -80,12 +81,12 @@ import UniformTypeIdentifiers
     private var writingPlace=""
     private var lastPlaces:[String:ConversationKey]=[:]
     private var composerMembers:[String]=[]
-    let brand=PassiveLabel(labelWithString:"HEJO."), version=PassiveLabel(labelWithString:""), heading=PassiveLabel(labelWithString:""), subtitle=PassiveLabel(labelWithString:"함께 나누는 대화")
+    let brand=PassiveLabel(labelWithString:"HEJO."), version=PassiveLabel(labelWithString:"")
     private let handle=SidebarHandle()
     let notice=NSTextField(wrappingLabelWithString:""),noticeIcon=NSImageView()
     private let attachments=NSStackView(), attachmentScroll=NSScrollView()
-    private let replyButton=ComposerButton(title:"답글"), newButton=ComposerButton(title:"새 글"), attachButton=ComposerButton(title:"첨부",symbol:"plus",point:20,circle:true)
-    private let sendButton=ComposerButton(title:"보내기",symbol:"arrow.up",point:21,circle:true), modeBackground=NSView(), inputBackground=NSView()
+    private let replyButton=ComposerButton(title:"답글",point:ComposerModeTrack.point), newButton=ComposerButton(title:"새 글",point:ComposerModeTrack.point), attachButton=ComposerButton(title:"첨부",symbol:"plus",point:20,circle:true)
+    private let sendButton=ComposerButton(title:"보내기",symbol:"arrow.up",point:21,circle:true), modeBackground=ComposerModeTrack(), inputBackground=NSView()
     private let draftHint=PassiveLabel(labelWithString:"")
     private let formatting=DraftFormatController(), drop=AttachmentDropView(frame:.zero)
     private let clipboard: ClipboardAttachments
@@ -130,7 +131,7 @@ import UniformTypeIdentifiers
         employeeScroll.onBlankDoubleClick={ [weak self] in self?.cycleSidebarWidth() }
         employeeScroll.makeBlankMenu = { [weak self] in self?.blankMenu() }
         employeeScroll.automaticallyAdjustsContentInsets=false;employeeScroll.contentInsets=NSEdgeInsets(top:4,left:0,bottom:0,right:0);employeeScroll.documentView=employeeTable; employeeScroll.drawsBackground=false; employeeScroll.hasVerticalScroller=true; employeeScroll.autohidesScrollers=true; employeeScroll.scrollerStyle = .overlay
-        for view in [headerDrag,brandDrag,island,employeeScroll,brand,version,heading,subtitle,history,findRow,noticeScroll,notice,modeBackground,replyButton,newButton,inputBackground,editor,draftHint,attachButton,sendButton,attachmentScroll,handle,drop,composerFaceScroll,searchResults,sidebarBlank,failureBar,noticeIcon] { addSubview(view) }
+        for view in [headerDrag,brandDrag,island,employeeScroll,brand,version,history,findRow,noticeScroll,notice,modeBackground,replyButton,newButton,inputBackground,editor,draftHint,attachButton,sendButton,attachmentScroll,handle,drop,composerFaceScroll,searchResults,sidebarBlank,failureBar,noticeIcon] { addSubview(view) }
         addRoom.nativeLabelGap=8;addRoom.isBordered=false;addRoom.font = .systemFont(ofSize:12,weight:.medium)
         composerFaces.reduceMotion={ [weak self] in self?.reduceMotion() ?? true }
         composerFaceScroll.documentView=composerFaces;composerFaceScroll.drawsBackground=false
@@ -143,7 +144,7 @@ import UniformTypeIdentifiers
         logo.addAttribute(.foregroundColor,value:NSColor.systemBlue,range:NSRange(location:0,length:1)); brand.attributedStringValue=logo
         brand.font = .systemFont(ofSize:14,weight:.semibold); version.font = .systemFont(ofSize:10); version.textColor = .labelColor.withAlphaComponent(0.7)
         version.stringValue=Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? ""
-        brand.alignment=sidebarAlignment; version.alignment=sidebarAlignment; heading.font = .systemFont(ofSize:14,weight:.semibold); subtitle.font = .systemFont(ofSize:10); subtitle.textColor = .labelColor.withAlphaComponent(0.7)
+        brand.alignment=sidebarAlignment; version.alignment=sidebarAlignment
         employeeSearch.placeholderString="검색"; employeeSearch.delegate=self; employeeSearch.font = .systemFont(ofSize:12)
         search.placeholderString="단어나 문장으로 검색"; search.delegate=self
         findRow.onClose={ [weak self] in _=self?.closeSearchIfOpen() }
@@ -163,7 +164,6 @@ import UniformTypeIdentifiers
         replyButton.mode=true;newButton.mode=true
         replyButton.invoke={ [weak self] in self?.writeReply() }; newButton.invoke={ [weak self] in self?.createThread() }
         attachButton.invoke={ [weak self] in self?.attach() }; sendButton.invoke={ [weak self] in self?.send() }; sendButton.chosen=true
-        modeBackground.wantsLayer=true; modeBackground.layer?.cornerRadius=12
         inputBackground.wantsLayer=true; inputBackground.layer?.borderWidth=1
         editor.editor.delegate=self; editor.editor.formattingController=formatting; formatting.editor=editor.editor
         editor.editor.onSubmit={ [weak self] in self?.send() }; editor.editor.onPaste={ [weak self] in self?.paste(.general) ?? false }
@@ -177,12 +177,12 @@ import UniformTypeIdentifiers
         clipboard.recoverLeftovers()
         for drag in [headerDrag,brandDrag] {drag.toolTip="드래그: 채팅창과 펫 함께 이동 · 더블클릭: 가로 2배 / 기본";drag.setAccessibilityLabel("채팅창과 펫 이동")}
         headerDrag.menuHelp="오른쪽 클릭: 제목·설명 편집 및 대화 메뉴"
-        heading.toolTip=headerDrag.menuHelp;subtitle.toolTip=headerDrag.menuHelp
         history.reduceMotion={ [weak self] in self?.reduceMotion() ?? true }
         history.onBlank={ [weak self] in self?.foldAll() }
         history.onMeasured={ [weak self] in self?.reportOpenHeight() }
         addSubview(todoDrawer);todoDrawer.isHidden=true
         todoDrawer.onFilter={ [weak self] filter in self?.controller.drawerFilter=filter;self?.refresh() }
+        todoDrawer.onSelect={ [weak self] card in self?.selectDrawerCard(card,activate:false) }
         todoDrawer.onCard={ [weak self] card in self?.selectDrawerCard(card) }
         todoDrawer.onClose={ [weak self] in self?.onToggleDrawer?() }
         todoDrawer.onCloseDeadline={ [weak self] card,outcome in self?.controller.closeDeadline(card,outcome:outcome);self?.refresh() }
@@ -392,12 +392,14 @@ import UniformTypeIdentifiers
     }
     private func newest(_ employee:String)->ConversationKey? {
         let model=controller.model
-        let rows=employee==HomeRoom.id ? model.homeThreads:model.threads(employee:employee)
-        return rows.max {a,b in
-            let x=model.timeline(a.key).map{ThreadTools.date($0.timestamp)}.max() ?? .distantPast
-            let y=model.timeline(b.key).map{ThreadTools.date($0.timestamp)}.max() ?? .distantPast
-            return x==y ? (model.timeline(a.key).first?.seq ?? 0)<(model.timeline(b.key).first?.seq ?? 0):x<y
-        }?.key
+        return model.withRenderValues {
+            let rows=employee==HomeRoom.id ? model.homeThreads:model.threads(employee:employee)
+            return rows.max {a,b in
+                let x=model.latestDate(a.key)
+                let y=model.latestDate(b.key)
+                return x==y ? (model.timeline(a.key).first?.seq ?? 0)<(model.timeline(b.key).first?.seq ?? 0):x<y
+            }?.key
+        }
     }
     private func selectAutomatic(_ employee:String,home:Bool) {
         let model=controller.model,namespace=controller.client.store.settings.address+"\u{1}"+employee+(home ? controller.model.homeChannel.map{"/"+$0.id} ?? "":"")
@@ -496,7 +498,7 @@ import UniformTypeIdentifiers
         }
         let alerts=next.filter{!$0.questions}.flatMap(\.messages).count
         if alerts>0 {let button=FileChip(title:"모두 읽음");button.isBordered=false;button.font = .systemFont(ofSize:11,weight:.medium);button.image=NSImage(systemSymbolName:"checkmark.circle",accessibilityDescription:nil);button.imagePosition = .imageLeading;button.contentTintColor = .secondaryLabelColor;button.toolTip="이 방의 알림 \(alerts)건을 모두 읽음으로";button.setAccessibilityLabel("알림 \(alerts)건 모두 읽음");button.invoke={model.readAllNotices(employee)};noticeBar.addArrangedSubview(button)}
-        bannerMotion.target(shownNotices.isEmpty ? 0:1,now:motionTime(),immediate:reduceMotion())
+        bannerMotion.target(shownNotices.isEmpty || controller.drawerOpen ? 0:1,now:motionTime(),immediate:reduceMotion())
         let shownFailures=controller.shownFailures
         for failure in shownFailures {
             let row=NSStackView();row.spacing=6;row.toolTip=failure.reason
@@ -516,6 +518,7 @@ import UniformTypeIdentifiers
             let label=NSTextField(labelWithString:"다른 방에서 보내지 못한 글 \(elsewhere.count)개");label.font = .systemFont(ofSize:11);row.addArrangedSubview(label)
             let button=FileChip(title:"보러 가기");button.isBordered=false;button.font = .systemFont(ofSize:11);button.invoke={ [weak self] in self?.chooseEmployee(first.shown) };row.addArrangedSubview(button);failureBar.addArrangedSubview(row)
         }
+        failureBar.isHidden=failureBar.arrangedSubviews.isEmpty
     }
     private func reportOpenHeight() {
         let needed: CGFloat?
@@ -577,123 +580,127 @@ import UniformTypeIdentifiers
             rendering=false
             if let thread = pendingRevealScroll { pendingRevealScroll=nil; history.scrollTo(thread) }
         }
-        let span = ThreeTapDiagnostics.startSpan()
-        defer { ThreeTapDiagnostics.endSpan("refresh", span) }
-        var phase = ThreeTapDiagnostics.startSpan()
-        let model=controller.model
-        let themeDark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua;subtitle.textColor=CardText.quiet(dark:themeDark);version.textColor=CardText.quiet(dark:themeDark)
-        streamReveal.receive(Array(model.messages.values),now:motionTime());streamReveal.advance(now:motionTime(),immediately:reduceMotion())
-        if streamReveal.pending && streamTimer==nil {streamTimer=Timer.scheduledTimer(withTimeInterval:1.0/30,repeats:true){[weak self] _ in
-            Task {@MainActor in guard let self else{return};if self.streamReveal.pending {self.refresh()}else{self.streamTimer?.invalidate();self.streamTimer=nil}}
-        }}
-        if composerAddress != controller.client.store.settings.address || identity != model.selectionIdentity,let old=writingKey,!controller.savedDraft(old,address:composerAddress).isEmpty {lastPlaces[writingPlace]=old}
-        controller.prepareDraftAddress()
-        if composerAddress != controller.client.store.settings.address {composerAddress=controller.client.store.settings.address;automatic=true;controller.composeKey=nil;identity=""}
-        if model.selected==nil {identity="";automatic=false;replyMode=false;controller.composeKey=nil;openThread=nil}
-        else {
-        if identity != model.selectionIdentity || writingPlace != placeNamespace {
-            identity=model.selectionIdentity;windowed.reset();openThread=nil;automatic=true
-            if let saved=lastPlaces[placeNamespace],!controller.draft(for:saved).isEmpty,autoKeys[placeNamespace] != saved {
-                automatic=false;replyMode=newKeys[placeNamespace] != saved;openThread=replyMode ? saved:nil;controller.composeKey=saved;model.select(saved,notify:false,inHome:model.isHome)
-            } else {controller.composeKey=autoKey(placeNamespace,employee:model.isHome ? HomeRoom.id:identity);selectAutomatic(identity,home:model.isHome)}
-        } else if automatic {selectAutomatic(identity,home:model.isHome)}
-        else if replyMode,let old=controller.composeKey,model.timeline(old).isEmpty,controller.timeline(old).isEmpty {
-            automatic=true;openThread=nil;let destination=autoKey(placeNamespace,employee:model.isHome ? HomeRoom.id:identity)
-            controller.moveDraft(from:controller.composeKey ?? old,to:destination,carry:true);selectAutomatic(identity,home:model.isHome)
-        }
-        }
-        ThreeTapDiagnostics.endSpan("refresh_selection", phase); phase = ThreeTapDiagnostics.startSpan()
-        let selected=model.selected
-        rooms=model.displayRooms.filter { employeeSearch.stringValue.isEmpty || $0.title.localizedCaseInsensitiveContains(employeeSearch.stringValue) }
-        let layout=model.sidebar
-        let query=employeeSearch.stringValue.trimmingCharacters(in:.whitespacesAndNewlines),list=ConversationSidebar.isList(sidebarWidth),searching=list && !query.isEmpty
-        sidebarRows=searching ? layout.items.filter{$0.name.localizedCaseInsensitiveContains(query)}.map{.init(kind:$0.kind == .home ? .home:.room,id:$0.id,name:$0.name,zone:layout.zone($0.id),items:[$0],picture:$0.picture)}:layout.rows
-        if list {sidebarRows.insert(.init(kind:.search,id:"sidebar-search",name:""),at:0)}
-        if searching {
-            let names=Dictionary(uniqueKeysWithValues:model.employees.map{($0.id,$0.name)})
-            let hits=WorkspaceSearch.sidebar(query,messages:Array(model.messages.values),names:names,hidden:model.hidden)
-            sidebarRows.append(.init(kind:.hitHeading,id:"hits-heading",name:hits.isEmpty ? "찾는 글이 없어요":"글 \(hits.count)건"))
-            sidebarRows += hits.map{.init(kind:.hit,id:"hit:"+$0.id,name:$0.id)}
-        }
-        composerMembers=model.isHome ? (model.homeChannel?.members ?? model.home.members.map(\.id)):selected.flatMap { model.room(for:$0.employee)?.members } ?? []
-        if !model.isHome && composerMembers.count<2 {composerMembers=[]}
-        composerFaces.faces=composerMembers.map { (model.name($0),controller.avatar($0)) }
-        composerFaces.homeStyle=model.isHome
-        let light=model.homeRecipients.light(text:controller.draft.text,picked:controller.draft.picks.first,replying:replyMode ? selected?.employee:nil)
-        composerFaces.lit=model.isHome ? light.id.flatMap{composerMembers.firstIndex(of:$0)}:nil;composerFaces.ring=model.isHome && light.ring;composerFaces.explicitlyPicked = !replyMode && !controller.draft.picks.isEmpty
-        editor.editor.mentions=(model.isHome ? model.homeRecipients.members:model.people(selected?.employee ?? "")).map(\.name)
-        addRoom.toolTip="새 방·섹션 만들기, 뺀 방·보관된 방 다시 넣기";addRoom.setAccessibilityLabel("방 추가")
-        let rowHeight = ConversationSidebar.isList(sidebarWidth) ? ConversationSidebar.rowHeight : ConversationSidebar.tabHeight
-        if employeeTable.rowHeight != rowHeight { employeeTable.rowHeight = rowHeight }
-        updateSidebarRows()
-        ThreeTapDiagnostics.endSpan("refresh_sidebar", phase); phase = ThreeTapDiagnostics.startSpan()
-        if let selected {
-            let current=model.selectionIdentity
-            threads=model.isHome ? model.homeThreads:(model.room(for:current).map { model.threads(room:$0,query:"") } ?? []).sorted { (model.timeline($0.key).first?.seq ?? 0) < (model.timeline($1.key).first?.seq ?? 0) }
-            heading.stringValue=model.header(current).title; subtitle.stringValue=model.header(current).description
-            if identity != current { windowed.reset(); identity=current; openThread=nil }
-            threads=controller.includingPending(threads,scope:model.isHome ? model.homeScope:[current])
-            let shown=Set(windowed.visibleIDs(threads.map(\.id),revealing:openThread?.thread))
-            var cards:[NativeThreadCard.Content]=[], previous:Date?
-            if shown.count<threads.count {cards.append(lineContent(id:"older",title:controller.client.replayComplete ? "이전 글 보기":"불러오는 중…",older:true))}
-            if threads.isEmpty {cards.append(lineContent(id:"empty",title:controller.client.replayComplete ? "아직 표시할 글이 없어요.":"불러오는 중…",top:40))}
-            if history.followsAnswer {let visibleRooms=Set(threads.map{ $0.key.employee });for line in model.messages.values where visibleRooms.contains(line.key.employee) && line.streaming && line.role != "owner" {expandedMessages.insert(line.id)}}
-            for thread in threads where shown.contains(thread.id) {
-                let timeline=controller.timeline(thread.key)
-                let date=model.isHome ? timeline.map{ThreadTools.date($0.timestamp)}.max() ?? .distantPast:ThreadTools.date(timeline.first?.timestamp ?? "")
-                if previous==nil || !Calendar.current.isDate(previous!,inSameDayAs:date) { cards.append(dayContent(date,id:thread.id)) }
-                cards.append(threadContent(thread));previous=date
+        controller.model.withStableRenderValues {
+            let span = ThreeTapDiagnostics.startSpan()
+            defer { ThreeTapDiagnostics.endSpan("refresh", span) }
+            var phase = ThreeTapDiagnostics.startSpan()
+            if !controller.drawerOpen,drawerSelectedID != nil {drawerSelectedID=nil;highlightedMessageID=nil;highlightUntil=nil}
+            let model=controller.model
+            let themeDark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua;version.textColor=CardText.quiet(dark:themeDark)
+            streamReveal.receive(Array(model.messages.values),now:motionTime());streamReveal.advance(now:motionTime(),immediately:reduceMotion())
+            if streamReveal.pending && streamTimer==nil {streamTimer=Timer.scheduledTimer(withTimeInterval:1.0/30,repeats:true){[weak self] _ in
+                Task {@MainActor in guard let self else{return};if self.streamReveal.pending {self.refresh()}else{self.streamTimer?.invalidate();self.streamTimer=nil}}
+            }}
+            if composerAddress != controller.client.store.settings.address || identity != model.selectionIdentity,let old=writingKey,!controller.savedDraft(old,address:composerAddress).isEmpty {lastPlaces[writingPlace]=old}
+            controller.prepareDraftAddress()
+            if composerAddress != controller.client.store.settings.address {composerAddress=controller.client.store.settings.address;automatic=true;controller.composeKey=nil;identity=""}
+            if model.selected==nil {identity="";automatic=false;replyMode=false;controller.composeKey=nil;openThread=nil}
+            else {
+            if identity != model.selectionIdentity || writingPlace != placeNamespace {
+                identity=model.selectionIdentity;windowed.reset();openThread=nil;automatic=true
+                if let saved=lastPlaces[placeNamespace],!controller.draft(for:saved).isEmpty,autoKeys[placeNamespace] != saved {
+                    automatic=false;replyMode=newKeys[placeNamespace] != saved;openThread=replyMode ? saved:nil;controller.composeKey=saved;model.select(saved,notify:false,inHome:model.isHome)
+                } else {controller.composeKey=autoKey(placeNamespace,employee:model.isHome ? HomeRoom.id:identity);selectAutomatic(identity,home:model.isHome)}
+            } else if automatic {selectAutomatic(identity,home:model.isHome)}
+            else if replyMode,let old=controller.composeKey,model.timeline(old).isEmpty,controller.timeline(old).isEmpty {
+                automatic=true;openThread=nil;let destination=autoKey(placeNamespace,employee:model.isHome ? HomeRoom.id:identity)
+                controller.moveDraft(from:controller.composeKey ?? old,to:destination,carry:true);selectAutomatic(identity,home:model.isHome)
             }
-            ThreeTapDiagnostics.endSpan("refresh_cards", phase); phase = ThreeTapDiagnostics.startSpan()
-            history.show(cards,identity:current,entry:newest(current)?.thread)
-            if enteredPlace != current {enteredPlace=current;let last=threads.last?.key,newest=newest(current);history.enter(newest==last ? nil:newest?.thread)}
-            if !automatic,model.timeline(selected).isEmpty,controller.timeline(selected).isEmpty {replyMode=false}
+            }
+            ThreeTapDiagnostics.endSpan("refresh_selection", phase); phase = ThreeTapDiagnostics.startSpan()
+            let selected=model.selected
+            rooms=model.displayRooms.filter { employeeSearch.stringValue.isEmpty || $0.title.localizedCaseInsensitiveContains(employeeSearch.stringValue) }
+            let layout=model.sidebar
+            let query=employeeSearch.stringValue.trimmingCharacters(in:.whitespacesAndNewlines),list=ConversationSidebar.isList(sidebarWidth),searching=list && !query.isEmpty
+            sidebarRows=searching ? layout.items.filter{$0.name.localizedCaseInsensitiveContains(query)}.map{.init(kind:$0.kind == .home ? .home:.room,id:$0.id,name:$0.name,zone:layout.zone($0.id),items:[$0],picture:$0.picture)}:layout.rows
+            if list {sidebarRows.insert(.init(kind:.search,id:"sidebar-search",name:""),at:0)}
+            if searching {
+                let names=Dictionary(uniqueKeysWithValues:model.employees.map{($0.id,$0.name)})
+                let hits=WorkspaceSearch.sidebar(query,messages:Array(model.messages.values),names:names,hidden:model.hidden)
+                sidebarRows.append(.init(kind:.hitHeading,id:"hits-heading",name:hits.isEmpty ? "찾는 글이 없어요":"글 \(hits.count)건"))
+                sidebarRows += hits.map{.init(kind:.hit,id:"hit:"+$0.id,name:$0.id)}
+            }
+            composerMembers=model.isHome ? (model.homeChannel?.members ?? model.home.members.map(\.id)):selected.flatMap { model.room(for:$0.employee)?.members } ?? []
+            if !model.isHome && composerMembers.count<2 {composerMembers=[]}
+            composerFaces.faces=composerMembers.map { (model.name($0),controller.avatar($0)) }
+            composerFaces.homeStyle=model.isHome
+            let light=model.homeRecipients.light(text:controller.draft.text,picked:controller.draft.picks.first,replying:replyMode ? selected?.employee:nil)
+            composerFaces.lit=model.isHome ? light.id.flatMap{composerMembers.firstIndex(of:$0)}:nil;composerFaces.ring=model.isHome && light.ring;composerFaces.explicitlyPicked = !replyMode && !controller.draft.picks.isEmpty
+            editor.editor.mentions=(model.isHome ? model.homeRecipients.members:model.people(selected?.employee ?? "")).map(\.name)
+            addRoom.toolTip="새 방·섹션 만들기, 뺀 방·보관된 방 다시 넣기";addRoom.setAccessibilityLabel("방 추가")
+            let rowHeight = ConversationSidebar.isList(sidebarWidth) ? ConversationSidebar.rowHeight : ConversationSidebar.tabHeight
+            if employeeTable.rowHeight != rowHeight { employeeTable.rowHeight = rowHeight }
+            updateSidebarRows()
+            ThreeTapDiagnostics.endSpan("refresh_sidebar", phase); phase = ThreeTapDiagnostics.startSpan()
+            if let selected {
+                let current=model.selectionIdentity
+                threads=model.isHome ? model.homeThreads:(model.room(for:current).map { model.threads(room:$0,query:"") } ?? []).sorted { (model.timeline($0.key).first?.seq ?? 0) < (model.timeline($1.key).first?.seq ?? 0) }
+                if identity != current { windowed.reset(); identity=current; openThread=nil }
+                threads=controller.includingPending(threads,scope:model.isHome ? model.homeScope:[current])
+                let shown=Set(windowed.visibleIDs(threads.map(\.id),revealing:openThread?.thread))
+                var cards:[NativeThreadCard.Content]=[], previous:Date?
+                if shown.count<threads.count {cards.append(lineContent(id:"older",title:controller.client.replayComplete ? "이전 글 보기":"불러오는 중…",older:true))}
+                if threads.isEmpty {cards.append(lineContent(id:"empty",title:controller.client.replayComplete ? "아직 표시할 글이 없어요.":"불러오는 중…",top:40))}
+                if history.followsAnswer {let visibleRooms=Set(threads.map{ $0.key.employee });for line in model.messages.values where visibleRooms.contains(line.key.employee) && line.streaming && line.role != "owner" {expandedMessages.insert(line.id)}}
+                for thread in threads where shown.contains(thread.id) {
+                    let timeline=controller.timeline(thread.key)
+                    let date=model.isHome ? model.latestDate(thread.key):ThreadTools.date(timeline.first?.timestamp ?? "")
+                    if previous==nil || !Calendar.current.isDate(previous!,inSameDayAs:date) { cards.append(dayContent(date,id:thread.id)) }
+                    cards.append(threadContent(thread));previous=date
+                }
+                ThreeTapDiagnostics.endSpan("refresh_cards", phase); phase = ThreeTapDiagnostics.startSpan()
+                history.show(cards,identity:current,entry:newest(current)?.thread)
+                if enteredPlace != current {enteredPlace=current;let last=threads.last?.key,newest=newest(current);history.enter(newest==last ? nil:newest?.thread)}
+                if !automatic,model.timeline(selected).isEmpty,controller.timeline(selected).isEmpty {replyMode=false}
 
-        } else { threads=[]; history.show([],identity:""); heading.stringValue="HEJO." }
-        ThreeTapDiagnostics.endSpan("refresh_history", phase); phase = ThreeTapDiagnostics.startSpan()
-        let draft=controller.draft
-        if !editor.editor.hasMarkedText() && (writingKey != controller.composeKey || editorFontSize != ChatMetrics.bodyFont || MessageFormat.serialize(editor.editor.attributedString(),baseSize:editorFontSize) != draft.text) {
-            editor.editor.breakUndoCoalescing(); editor.editor.undoManager?.removeAllActions()
-            editor.editor.textStorage?.setAttributedString(MessageFormat.editor(draft.text,bodySize:ChatMetrics.bodyFont))
-            editor.editor.typingAttributes=MessageFormat.Style(size:ChatMetrics.bodyFont).attributes;editorFontSize=ChatMetrics.bodyFont;editor.measure()
-        }
-        displayedKey=selected;writingKey=controller.composeKey;writingPlace=placeNamespace
-        draftHint.stringValue=composerPrompt
-        draftHint.isHidden = !editor.editor.string.isEmpty; editor.editor.setAccessibilityLabel(draftHint.stringValue+" · Enter 보내기, Shift Enter 줄바꿈")
-        if attachmentURLs != draft.attachments {
-            let removed=attachments.arrangedSubviews.filter{view in guard let index=attachments.arrangedSubviews.firstIndex(of:view),attachmentURLs.indices.contains(index) else{return true};return !draft.attachments.contains(attachmentURLs[index])}
-            for view in removed {attachments.removeArrangedSubview(view)
-                if reduceMotion(){view.removeFromSuperview()}else{NSAnimationContext.runAnimationGroup({ctx in ctx.duration=0.24;ctx.timingFunction=SidebarMotion.curve;view.animator().alphaValue=0;view.animator().setFrameOrigin(view.frame.origin.applying(CGAffineTransform(translationX:0,y:30)))},completionHandler:{view.removeFromSuperview()})}
+            } else { threads=[]; history.show([],identity:"") }
+            ThreeTapDiagnostics.endSpan("refresh_history", phase); phase = ThreeTapDiagnostics.startSpan()
+            let draft=controller.draft
+            if !editor.editor.hasMarkedText() && (writingKey != controller.composeKey || editorFontSize != ChatMetrics.bodyFont || MessageFormat.serialize(editor.editor.attributedString(),baseSize:editorFontSize) != draft.text) {
+                editor.editor.breakUndoCoalescing(); editor.editor.undoManager?.removeAllActions()
+                editor.editor.textStorage?.setAttributedString(MessageFormat.editor(draft.text,bodySize:ChatMetrics.bodyFont))
+                editor.editor.typingAttributes=MessageFormat.Style(size:ChatMetrics.bodyFont).attributes;editorFontSize=ChatMetrics.bodyFont;editor.measure()
             }
-            let old=attachmentURLs
-            for (index,file) in draft.attachments.enumerated() where !old.contains(file) {
-                let chip=AttachmentChip(name:file.lastPathComponent){ [weak self] in self?.controller.removeAttachment(file) };chip.wantsLayer=true;attachments.insertArrangedSubview(chip,at:min(index,attachments.arrangedSubviews.count))
-                if !reduceMotion(){let opacity=CABasicAnimation(keyPath:"opacity");opacity.fromValue=0;opacity.toValue=1;opacity.duration=0.24;opacity.timingFunction=SidebarMotion.curve;chip.layer?.add(opacity,forKey:"attachment-opacity");let position=CABasicAnimation(keyPath:"transform.translation.y");position.fromValue=30;position.toValue=0;position.duration=0.24;position.timingFunction=SidebarMotion.curve;chip.layer?.add(position,forKey:"attachment-position")}
-            };attachmentURLs=draft.attachments
+            displayedKey=selected;writingKey=controller.composeKey;writingPlace=placeNamespace
+            draftHint.stringValue=composerPrompt
+            draftHint.isHidden = !editor.editor.string.isEmpty; editor.editor.setAccessibilityLabel(draftHint.stringValue+" · Enter 보내기, Shift Enter 줄바꿈")
+            if attachmentURLs != draft.attachments {
+                let removed=attachments.arrangedSubviews.filter{view in guard let index=attachments.arrangedSubviews.firstIndex(of:view),attachmentURLs.indices.contains(index) else{return true};return !draft.attachments.contains(attachmentURLs[index])}
+                for view in removed {attachments.removeArrangedSubview(view)
+                    if reduceMotion(){view.removeFromSuperview()}else{NSAnimationContext.runAnimationGroup({ctx in ctx.duration=0.24;ctx.timingFunction=SidebarMotion.curve;view.animator().alphaValue=0;view.animator().setFrameOrigin(view.frame.origin.applying(CGAffineTransform(translationX:0,y:30)))},completionHandler:{view.removeFromSuperview()})}
+                }
+                let old=attachmentURLs
+                for (index,file) in draft.attachments.enumerated() where !old.contains(file) {
+                    let chip=AttachmentChip(name:file.lastPathComponent){ [weak self] in self?.controller.removeAttachment(file) };chip.wantsLayer=true;attachments.insertArrangedSubview(chip,at:min(index,attachments.arrangedSubviews.count))
+                    if !reduceMotion(){let opacity=CABasicAnimation(keyPath:"opacity");opacity.fromValue=0;opacity.toValue=1;opacity.duration=0.24;opacity.timingFunction=SidebarMotion.curve;chip.layer?.add(opacity,forKey:"attachment-opacity");let position=CABasicAnimation(keyPath:"transform.translation.y");position.fromValue=30;position.toValue=0;position.duration=0.24;position.timingFunction=SidebarMotion.curve;chip.layer?.add(position,forKey:"attachment-position")}
+                };attachmentURLs=draft.attachments
+            }
+            chipMotion.target(draft.attachments.isEmpty ? 0:1,now:motionTime(),immediate:reduceMotion())
+            editor.editor.isEditable=selected != nil
+            sendButton.isEnabled=selected != nil && controller.canSend && (!draft.text.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty || !draft.attachments.isEmpty)
+            attachButton.isEnabled=selected != nil
+            replyButton.isEnabled = model.isHome ? !model.homeThreads.isEmpty : newest(model.selectionIdentity) != nil
+            replyButton.isEnabled = replyButton.isEnabled && !replyMode;newButton.isEnabled=replyMode
+            replyButton.chosen=replyMode;newButton.chosen = !replyMode;newButton.title=model.isHome ? "새 대화":"새 글"
+            replyButton.setAccessibilityLabel("답글"+(replyMode ? ", 선택됨":""));newButton.setAccessibilityLabel(newButton.title+(!replyMode ? ", 선택됨":""))
+            for button in [replyButton,newButton,sendButton] { button.needsDisplay=true }
+            modeMotion.target(replyMode ? 1:0,now:motionTime(),immediate:reduceMotion())
+            notice.stringValue=controller.notice
+            ThreeTapDiagnostics.endSpan("refresh_composer", phase); phase = ThreeTapDiagnostics.startSpan()
+            refreshWorkspaceBars();scheduleSearch()
+            ThreeTapDiagnostics.endSpan("refresh_workspace", phase); phase = ThreeTapDiagnostics.startSpan()
+            var islandInput=controller.islandInput;islandInput.drawerOpen=controller.drawerOpen
+            islandInput.title=model.selected == nil ? "HEJO.":model.header(model.selectionIdentity).title
+            islandInput.todoTotal=controller.drawerSnapshot.total
+            islandModel.update(islandInput);tickIsland(updateDrawer:false)
+            ThreeTapDiagnostics.endSpan("refresh_island", phase); phase = ThreeTapDiagnostics.startSpan()
+            if controller.drawerVisible {todoDrawer.show(controller.drawerSnapshot,filter:controller.drawerFilter,selected:drawerSelectedID)}
+            ThreeTapDiagnostics.endSpan("refresh_drawer", phase); phase = ThreeTapDiagnostics.startSpan()
+            onUnread?(model.visibleUnreadTotal)
+            reportOpenHeight()
+            startWorkspaceMotion();needsLayout=true; needsDisplay=true
+            ThreeTapDiagnostics.endSpan("refresh_finish", phase)
         }
-        chipMotion.target(draft.attachments.isEmpty ? 0:1,now:motionTime(),immediate:reduceMotion())
-        editor.editor.isEditable=selected != nil
-        sendButton.isEnabled=selected != nil && controller.canSend && (!draft.text.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty || !draft.attachments.isEmpty)
-        attachButton.isEnabled=selected != nil
-        replyButton.isEnabled = !model.homeThreads.isEmpty && model.isHome || !model.isHome && newest(model.selectionIdentity) != nil
-        replyButton.isEnabled = replyButton.isEnabled && !replyMode;newButton.isEnabled=replyMode
-        replyButton.chosen=replyMode;newButton.chosen = !replyMode;newButton.title=model.isHome ? "새 대화":"새 글"
-        replyButton.setAccessibilityLabel("답글"+(replyMode ? ", 선택됨":""));newButton.setAccessibilityLabel(newButton.title+(!replyMode ? ", 선택됨":""))
-        for button in [replyButton,newButton,sendButton] { button.needsDisplay=true }
-        modeMotion.target(replyMode ? 1:0,now:motionTime(),immediate:reduceMotion())
-        notice.stringValue=controller.notice
-        ThreeTapDiagnostics.endSpan("refresh_composer", phase); phase = ThreeTapDiagnostics.startSpan()
-        refreshWorkspaceBars();scheduleSearch()
-        ThreeTapDiagnostics.endSpan("refresh_workspace", phase); phase = ThreeTapDiagnostics.startSpan()
-        var islandInput=controller.islandInput;islandInput.drawerOpen=controller.drawerOpen
-        islandModel.update(islandInput);tickIsland(updateDrawer:false)
-        ThreeTapDiagnostics.endSpan("refresh_island", phase); phase = ThreeTapDiagnostics.startSpan()
-        if controller.drawerVisible {todoDrawer.show(controller.drawerSnapshot,filter:controller.drawerFilter,selected:drawerSelectedID)}
-        ThreeTapDiagnostics.endSpan("refresh_drawer", phase); phase = ThreeTapDiagnostics.startSpan()
-        onUnread?(model.visibleUnreadTotal)
-        reportOpenHeight()
-        startWorkspaceMotion();needsLayout=true; needsDisplay=true
-        ThreeTapDiagnostics.endSpan("refresh_finish", phase)
     }
     override func layout() {
         let span = ThreeTapDiagnostics.startBeforeFirstTickSpan()
@@ -703,10 +710,8 @@ import UniformTypeIdentifiers
         todoDrawer.frame=CGRect(x:left,y:0,width:drawerShownWidth,height:h)
         brandDrag.frame=CGRect(x:0,y:0,width:left,height:44); brand.frame=CGRect(x:0,y:7,width:left,height:18); version.frame=CGRect(x:0,y:26,width:left,height:12)
         headerDrag.frame=CGRect(x:x,y:0,width:right,height:44)
-        let islandWidth=island.fittedWidth(limit:max(44,right-70-120-24))
+        let islandWidth=island.fittedWidth(limit:max(0,right-24))
         island.frame=CGRect(x:x+12,y:7,width:islandWidth,height:30);island.layoutSubtreeIfNeeded()
-        let titleX=island.frame.maxX+12
-        heading.frame=CGRect(x:titleX,y:7,width:max(0,w-18-titleX),height:18); subtitle.frame=CGRect(x:titleX,y:26,width:max(0,w-18-titleX),height:12)
         if employeeSearch.superview !== sidebarSearch {sidebarSearch.addSubview(employeeSearch)}
         employeeScroll.frame=CGRect(x:0,y:44,width:left,height:max(1,h-72))
         employeeTable.tableColumns.first?.width=employeeScroll.contentSize.width; employeeTable.frame.size.width=employeeScroll.contentSize.width
@@ -722,7 +727,7 @@ import UniformTypeIdentifiers
         let noticeHeight:CGFloat=notice.stringValue.isEmpty ? 0 : 38, attachmentsHeight:CGFloat=30*chipFraction
         let inputHeight=max(42,editorHeight+22), composerHeight=10+32+6+attachmentsHeight+inputHeight+10
         let failureHeight=CGFloat(failureBar.arrangedSubviews.count)*28
-        noticeScroll.isHidden=bannerFraction<=0 || searchOpen;noticeScroll.frame=CGRect(x:x,y:y,width:right,height:38*bannerFraction);noticeScroll.alphaValue=bannerFraction
+        noticeScroll.isHidden=bannerFraction<=0 || searchOpen || controller.drawerOpen;noticeBar.isHidden=noticeScroll.isHidden;noticeScroll.frame=CGRect(x:x,y:y,width:right,height:38*bannerFraction);noticeScroll.alphaValue=bannerFraction
         noticeBar.frame=CGRect(x:0,y:0,width:max(right,noticeBar.fittingSize.width),height:37)
         CATransaction.begin();CATransaction.setDisableActions(true);noticeBar.layer?.setAffineTransform(CGAffineTransform(translationX:0,y:-38*(1-bannerFraction)));CATransaction.commit()
         if !noticeScroll.isHidden {y+=38*bannerFraction}
@@ -731,12 +736,12 @@ import UniformTypeIdentifiers
         failureBar.frame=CGRect(x:x+10,y:bottom+noticeHeight+10+38,width:right-20,height:failureHeight)
         let top=bottom+noticeHeight+10
         let faceHeight:CGFloat=32,rowHeight:CGFloat=32
-        let replyWidth=(replyButton.title as NSString).size(withAttributes:[.font:NSFont.systemFont(ofSize:11,weight:replyMode ? .semibold:.regular)]).width+20
-        let newWidth=(newButton.title as NSString).size(withAttributes:[.font:NSFont.systemFont(ofSize:11,weight:replyMode ? .regular:.semibold)]).width+20
-        let buttonHeight=(replyButton.title as NSString).size(withAttributes:[.font:NSFont.systemFont(ofSize:11)]).height+6
-        let modeHeight=buttonHeight+4,modeWidth=replyWidth+newWidth+4,modeY=top+(rowHeight-modeHeight)/2
+        let replyWidth=(replyButton.title as NSString).size(withAttributes:[.font:NSFont.systemFont(ofSize:ComposerModeTrack.point,weight:replyMode ? .semibold:.regular)]).width+20
+        let newWidth=(newButton.title as NSString).size(withAttributes:[.font:NSFont.systemFont(ofSize:ComposerModeTrack.point,weight:replyMode ? .regular:.semibold)]).width+20
+        let modeHeight=ComposerModeTrack.height,modeWidth=replyWidth+newWidth+2*ComposerModeTrack.inset,modeY=top+(rowHeight-modeHeight)/2
         modeBackground.frame=CGRect(x:x+10,y:modeY,width:modeWidth,height:modeHeight)
-        replyButton.frame=CGRect(x:x+12,y:modeY+2,width:replyWidth,height:buttonHeight);newButton.frame=CGRect(x:x+12+replyWidth,y:modeY+2,width:newWidth,height:buttonHeight)
+        replyButton.frame=ComposerModeTrack.segment(in:modeBackground.frame,offset:0,width:replyWidth)
+        newButton.frame=ComposerModeTrack.segment(in:modeBackground.frame,offset:replyWidth,width:newWidth)
         let natural=CGFloat(composerMembers.count)*34,faceWidth=min(natural,max(0,right-20-modeWidth-8-4))
         composerFaceScroll.frame=CGRect(x:w-10-faceWidth,y:top+(rowHeight-faceHeight)/2,width:faceWidth,height:faceHeight)
         composerFaces.frame=CGRect(x:0,y:0,width:natural,height:faceHeight)
@@ -751,7 +756,6 @@ import UniformTypeIdentifiers
         searchResults.frame=history.frame
         layoutSidebarRails()
         drop.frame=CGRect(x:x,y:0,width:right,height:h)
-        modeBackground.layer?.backgroundColor=NSColor.labelColor.withAlphaComponent(0.1).cgColor
         inputBackground.layer?.backgroundColor=NSColor.labelColor.withAlphaComponent(0.04).cgColor; inputBackground.layer?.borderColor=NSColor.labelColor.withAlphaComponent(0.18).cgColor
     }
     override func draw(_ dirtyRect:NSRect) {
@@ -761,8 +765,8 @@ import UniformTypeIdentifiers
         (dark ? NSColor(white:0.07,alpha:0.4) : .clear).setFill(); bounds.fill()
         let left=min(sidebarWidth,max(0,bounds.width-100)), x=left+drawerShownWidth
         NSColor.labelColor.withAlphaComponent(0.035).setFill(); CGRect(x:x,y:0,width:max(0,bounds.width-x),height:44).fill()
-        SidebarTone.column(dark:dark).setFill();CGRect(x:0,y:44,width:left,height:max(0,bounds.height-72)).fill()
-        CGRect(x:left,y:44,width:drawerShownWidth,height:max(0,bounds.height-72)).fill()
+        SidebarTone.column(dark:dark).setFill();CGRect(x:0,y:44,width:left,height:max(0,bounds.height-44)).fill()
+        CGRect(x:left,y:44,width:drawerShownWidth,height:max(0,bounds.height-44)).fill()
         if drawerShownWidth>0 {SidebarTone.primary(0.1).setFill();CGRect(x:x-1,y:0,width:1,height:bounds.height).fill()}
         if !noticeScroll.isHidden {NSColor.labelColor.withAlphaComponent(0.04).setFill();CGRect(x:x,y:noticeScroll.frame.minY,width:max(0,bounds.width-x),height:noticeScroll.frame.height).fill();NSColor.labelColor.withAlphaComponent(0.1).setFill();CGRect(x:x,y:noticeScroll.frame.maxY-1,width:max(0,bounds.width-x),height:1).fill()}
         let divideY=modeBackground.frame.minY-10
@@ -963,9 +967,9 @@ import UniformTypeIdentifiers
                 }))
             }
         }
-        let tone=state.color.flatMap(MessageFormat.color) ?? (controller.working(thread.key) ? MessageFormat.color("#ECB22E"):messages.lazy.compactMap{ThreadTools.color($0.text)}.first)
+        let tone=(state.pending != nil ? AttentionRail.color:state.color.flatMap(MessageFormat.color)) ?? (controller.working(thread.key) ? MessageFormat.color("#ECB22E"):messages.lazy.compactMap{ThreadTools.color($0.text)}.first)
         let target=replyMode && model.selected==thread.key
-        let highlighted=messages.contains{$0.id==highlightedMessageID} && (highlightUntil.map{$0>islandModel.now} ?? false)
+        let highlighted=messages.contains{$0.id==highlightedMessageID} && (highlightUntil.map{$0>islandModel.now} ?? (drawerSelectedID != nil))
         let now=controller.clock(),copiedLink=copiedID=="link:"+thread.id,copiedText=copiedID=="text:"+thread.id
         let branchAsked=controller.branching[thread.key].map{now.timeIntervalSince($0)<6} ?? false
         let sure=controller.confirmingDelete[thread.key].map{now.timeIntervalSince($0)<4} ?? false
@@ -1029,7 +1033,7 @@ import UniformTypeIdentifiers
                 else if url.scheme=="hejo" {self.controller.openLink(url)}
                 else if CardText.mayOpen(url) {self.onOpenURL(url)}
             })
-        post.flash=message.id==highlightedMessageID && (highlightUntil.map{$0>islandModel.now} ?? false)
+        post.flash=message.id==highlightedMessageID && (highlightUntil.map{$0>islandModel.now} ?? (drawerSelectedID != nil))
         if !mine,continuation {post.continuation=true;if post.textHelp==nil {post.textHelp=post.time}}
         var pieces:[NativeThreadCard.Piece]=[.post(post)]
         if !extras {return pieces}

@@ -1,6 +1,6 @@
 # HEJO-DRAWER-INLINE TASK-01 구현 인계
 
-> 최신 상태는 아래 **보완 4** 절이다. 앞 절의 보류·충돌 기록은 각 회차 이력으로 보존한다.
+> 최신 상태는 아래 **TASK-02 보완 2** 절이다. TASK-01은 검증 완료됐고 이번 추가 변경과 구분한다. 앞 절의 보류·충돌 기록은 각 회차 이력으로 보존한다.
 
 ## 기준과 판단
 
@@ -242,3 +242,135 @@
 - 도달 증거 수준 2 + M-DI 확인용 사진 확보. M-DI 사람 확인·설계 적합성 최종 판정·푸시 승인은 검증 담당/사용자 단계에 남아 있다.
 - 확인 시점 main은 `223a191accbb70c28f7b35cfdf2eee9490dfb109`로 지정 기준보다 앞섰다. ce0e3d4..main의 app 변경은 없지만 이 커밋은 아직 새 main을 포함하지 않는다. 계획 담당은 푸시 승인 전에 최신 로컬 main·원격 추적 tip 포함 요건을 확인하고 필요한 보완 병합을 지시해야 한다. 이번에는 지정한 ce0e3d4만 병합했다.
 - 운영 공항·실제 메시지·버전 올림·공개는 수행하지 않았다. 보고 문서만 계획 checkout에 갱신했고 제품 변경은 지정 구현 브랜치에만 커밋했다.
+
+## TASK-02 · 2026-11-23 · 보류(2절 보고: R-DI-I5)
+
+### 받은 설계·기준·현재 변경
+
+- 받은 설계: handoff.md 추가 인계 TASK-02, spec 4판 REQ-DI-08·09, design 4판 2.6, 수락 시험 8판 AT-DI-35~39, 시안 A. 위험도 일반, 필요 증거 2 + 어둡게·밝게 스크롤 전후 사진. 별도 하위 에이전트 없이 직접 구현했다.
+- 기존 구현 worktree 상태가 깨끗함을 확인하고 지정 기준 `d94fb6b98e83b85417c227aaded4285acc35a59f`를 merge했다. 종료 0, 충돌 없이 fast-forward. 현재 HEAD·확인 시점 main 모두 이 기준이다. TASK-01 구현·설치·푸시는 반복하지 않았다.
+- 현재 변경 파일 5개(미커밋): `app/Sources/TodoDrawerView.swift`, `ConversationChrome.swift`, `ConversationView.swift`, `app/Tests/DrawerInlineTests.swift`, 새 `DrawerHeaderTests.swift`. 모두 TASK-02 영향 범위 안이다. 전체 patch: `.build/drawer-inline-evidence/task-02-candidate.patch`.
+- `TodoDrawerView`에 고정 제목·필터 영역을 배치했다. 각각 44pt, 카드 스크롤은 위 88pt·기존 되돌리기 바닥 줄을 뺀 영역이다. 문서 스택에서 옛 제목·필터 글자를 제거했다. 카드 그리기·메뉴·모델·onFilter/onCard/onClose·바닥 줄 로직은 유지했다.
+- `ComposerModeTrack`을 공용 원본으로 추출했다. 채팅 토글과 필터가 트랙 그리기(labelColor 알파 0.1, 반원 모서리), 안쪽 2pt, 높이·11pt 글꼴 규칙, 칸 배치 함수를 공유한다. 단추는 기존 ComposerButton(mode:true)을 그대로 쓴다. 필터는 4칸/3칸 균등 폭, "전체 N" 포함 개수, chosen·접근성 선택 상태와 기존 onFilter 배선을 사용한다. 옛 TodoDrawerButton은 접기·되돌리기에만 남겼다.
+- `DrawerHeaderTests`를 추가해 실제 임시 저장소·가짜 명부·ConversationView+PetController, 1440×900, 질문4·마감4·알림4(급한6·나머지6), 실제 테마 전환으로 AT-DI-35~39를 구현했다. DrawerInlineTests의 기존 묶음 끝에서 호출한다. 기대값·수락 시험 문서는 변경하지 않았다.
+- 구현자 판단: **보류**. 아래 구분선 합성 색 조건을 충족하려면 현재 허용 범위 밖인 ConversationView.draw의 띠 바탕 처리를 바꿔야 한다고 판단해 멈췄다. 제품 커밋·푸시 없음.
+
+### 실행 검증과 증거
+
+대상 변경본은 기준 d94fb6b + 위 미커밋 5개 파일이다. 아래 로그 경로는 구현 worktree 루트 기준이다.
+
+| 명령·관측 | 실제 결과 | 로그·증거 |
+|---|---|---|
+| 전체 Sources·Tests `xcrun swiftc` 및 `codesign` | 각각 종료 0 | `.build/drawer-inline-evidence/task-02-build.log` |
+| `.build/app-tests --drawer-inline .../Pet` | 종료 1, AT-DI-35 구분선 픽셀 비교에서 실패. 제목 아래 선을 부모와 칸에서 이중으로 그렸음을 확인하고 중복 제거 | `task-02-focused.log`, `task-02-focused.exit` |
+| `HEJO_PYTHON=<gateway venv python> bash app/scripts/test.sh` | **종료 1**. 중복 제거 후에도 아래 R-DI-I5로 실패. 빌드·서명, 기존 AT-TD·AT-DC, AT-DI-01~14·20~23·31·33·34 통과 | **`task-02-app-tests.log`**, `task-02-app-tests.exit` |
+| AT-DI-35 조립·프레임 | 카드12(6+6), 제목·접기 중심22±1, 필터 중심66±1, 스크롤 위88, 트랙 좌우14/276 단언 통과 | 같은 전체 로그가 실패한 위치 이전 단언 |
+| `git diff --check` | 종료 0 | `task-02-diff-check.log` |
+| 임시 홈·가짜 명부의 `scripts/scan_private.py --home <임시 홈>` | 종료 1, 기존 문서 지적4건 | `task-02-private-scan.log` |
+| 위 지적과 `git show HEAD:<해당 경로>` 같은 줄 지문 대조 | 드라이버 종료 0, 네 건 모두 기준과 동일, 새 지적0 | `task-02-private-baseline.log` |
+| 시험 이후 patch 대조 | 종료 0, 시험한 변경본과 현재 동일 | `task-02-candidate.patch` |
+
+개인값 기존 지적은 선행 HEJO-DEADLINE-CLOSE impl-report.md 97·109줄과 verdict.md 127·146줄이다. 해당 문서·검사 예외는 변경하지 않았다. 전체 시험 종료 시 설정·다운로드 보호 검사 UNCHANGED도 확인했다.
+
+사진 `header-before-dark.png`를 루트 증거 폴더로 복사해 직접 열었다. 제목·필터 띠 배치와 시안 A 토글은 그려져 있다. 그러나 AT-DI-35 색 비교에서 먼저 중단되어 스크롤 전후·밝은 테마 사진, AT-DI-36~39 실행 결과는 아직 없다. 코드 작성·빌드만으로 이들을 통과로 보고하지 않는다. 뒤의 기본 회귀와 네트워크 fixture도 이번 전체 실행에서는 미실행이다. mutation check는 수락 기준 차단으로 생략했다.
+
+### R-DI-I5: 같은 선 그리기 값과 같은 합성 픽셀을 동시에 요구하지만 바탕이 다름
+
+- [확인] `ConversationView.draw:761`은 채팅 머리에만 labelColor 알파 0.035를 더한다. 칸 제목 띠에는 이 바탕이 없고, 필터 띠 아래는 `:762~763`의 SidebarTone.column(dark:) 바탕이다(어둡게는 primary 알파 0.035, 밝게 0.025).
+- [확인] `ConversationView.draw:769`는 이미 전체 열에 걸쳐 제목 아래 선을 SidebarTone.primary(0.1)로 그린다. 칸에서도 같은 선을 다시 그리면 중복이다. 이를 제거해 현재 TodoDrawerView.draw는 **필터 아래 선만** primary(0.1)로 그리며, 제목 아래는 기존 부모의 공통 선을 그대로 쓴다. 새 불투명 판이나 선 색 보정은 넣지 않았다.
+- [확인] 그런데 AT-DI-35는 실제 합성 비트맵의 칸 좌표 y43~44·87~88 선과 채팅 머리 선의 RGB 차이 합을 6/255 이하로 요구한다. 같은 primary(0.1)를 써도 위 바탕 차이가 남는다. 현재 어두운 조립의 각 RGB 채널: 채팅 선 0.381534, 제목 선 0.310677, 필터 선 0.372655. 제목 차이 합 **0.2125704**, 필터 약 **0.026637**로 한계 **0.0235294**를 넘는다. 실제 값은 전체 로그와 `task-02-line-comparison.json`에 있다.
+- 현재 지시는 ConversationView 변경을 "토글 공용 그리기 값만"으로 한정한다. 여기서 머리·필터 바탕을 맞추는 것은 그 범위를 넘는다. TodoDrawerView 안에 바탕 사본을 만들거나 선 알파를 조절하면 바탕 소유자·공용 색 계약을 우회하므로 하지 않았다.
+- [권고] 계획 담당이 **ConversationView.draw의 칸 제목·필터 띠 바탕과 선 소유 정리까지** 영향 범위를 명시적으로 넓혀, 비교 대상 채팅 머리와 같은 바탕에서 primary(0.1)를 한 번씩 그리도록 설계를 보완한다. 칸 본문 바탕은 기존 방 목록 톤을 유지하고 토글·카드 계약은 유지할 수 있다. 이 방법은 픽셀 기대값을 그대로 지킬 수 있다.
+- [대안/계획 담당 판단] 의도가 "같은 그리기 색"이고 다른 바탕 합성을 허용하는 것이라면 AT-DI-35의 관측 대상을 선 그리기 값/동일 바탕 렌더로 재정의해야 한다. 구현자는 기대값·오차·표본 위치를 임의 변경하지 않았다.
+- 최초 제목 선 중복은 구현 오류로 제거했다. 남은 바탕/허용 범위 충돌은 위 근거로 보고하며, 원인 분류·설계 변경 최종 판단은 계획 담당에게 남긴다.
+
+### 남은 작업
+
+- 계획 담당이 R-DI-I5를 처분하고 범위 또는 관측 계약을 재인계한다. 현재 5개 파일을 보존한 채 이어가야 한다. 재인계 후 AT-DI-35~39·회귀·전체 시험, 정적 검사, 어둡게·밝게 스크롤 전후 사진과 자기 경로 git commit --only가 남았다.
+- 새 통신·저장 계약, 권한, 플래그, 임시 제품 경로는 추가하지 않았다. 운영 공항·실제 메시지·설치·버전 올림·공개는 하지 않았다.
+
+## TASK-02 보완 1 · 2026-11-23 · 보류(2절 보고: R-DI-I6)
+
+### 받은 지시·기준·변경
+
+- [확인] 판정 7회와 수락 시험 9판을 읽었다. 이전 R-DI-I5는 계획 담당이 수락 시험 오류로 분류하고 비교 기준을 방 목록 선으로 정정했다. 제품 바탕을 바꾸자는 이전 권고는 적용하지 않았다.
+- 지정 기준 `3e8160e381ace9f7f52c742207917572cb30c1c4`를 기존 5개 미커밋 파일을 둔 채 merge했다. 종료 0, 충돌 없이 fast-forward. 병합 전 patch와 병합 직후 patch를 직접 대조해 5개 파일이 바이트 그대로임을 확인했다.
+- 추가 수정은 `app/Tests/DrawerHeaderTests.swift`의 AT-DI-35 선 비교뿐이다. 제목 y43.5는 방 목록 가운데 x=S/2,y43.5, 필터 y87.5는 방 목록 경계 x=S−0.5,y200과 비교한다(차이 합 ≤6/255). 두 선 모두 같은 x의 바로 아래4pt 바탕과 차이 합 >6/255도 단언한다. 제품 파일·DrawerInlineTests·다른 기대값은 그대로다.
+- 보존본: `.build/drawer-inline-evidence/task-02-before-supplement-1.patch`, 파일 지문 `task-02-supplement-1-preserved.json`. 현재 변경본: `task-02-supplement-1-candidate.patch`.
+- 현재 HEAD는 지정 기준이며 변경 파일은 이전과 같은 5개다(Sources의 TodoDrawerView·ConversationChrome·ConversationView, Tests의 DrawerHeaderTests·DrawerInlineTests). 제품 커밋·푸시 없음. 위험도 일반 유지.
+
+### 실제 검증
+
+대상은 기준 3e8160e + 위 5개 미커밋 파일이다. 로그 경로는 구현 worktree 루트 `.build/drawer-inline-evidence/` 기준이다.
+
+| 명령·관측 | 실제 결과 | 증거 |
+|---|---|---|
+| `git merge 3e8160e381ace9f7f52c742207917572cb30c1c4` | 종료 0, 충돌 없는 fast-forward | Git 기준, 보존 patch 대조 |
+| `HEJO_PYTHON=<gateway venv python> bash app/scripts/test.sh` | **종료 1**, 밝은 테마 AT-DI-35 제목 선 가시성 단언에서 실패. 빌드·서명, 기존 AT-TD·AT-DC, AT-DI-01~14·20~23·31·33·34 통과 | **`task-02-supplement-1-app-tests.log`**, `task-02-supplement-1-app-tests.exit` |
+| 어두운 AT-DI-35 두 선 비교·가시성 | 참조 차이 각각 0.0, 바탕 차이 각각 0.3719202·0.5578539, 모두 통과 | 같은 전체 로그의 line samples |
+| 어두운 AT-DI-36·38 | 제목·접기·트랙 창 좌표 불변, 첫 카드 위 이동, 선택 채움·트랙 색·흰 글자 통과(그 다음 밝은 테마로 진행) | 같은 시험의 반복 순서·단언, 전후 사진 |
+| 밝은 AT-DI-35 위치·제목 선 참조 비교 | 위치 통과, 제목 선↔방 목록 머리 선 차이0.0. 바로 아래 바탕과 RGB 차이는0.0이라 가시성 실패 | 같은 전체 로그 |
+| `git diff --check` | 종료 0 | `task-02-supplement-1-diff-check.log` |
+| 임시 홈·가짜 명부 `scripts/scan_private.py --home <임시 홈>` | 종료 1, 기존 문서4건 | `task-02-supplement-1-private-scan.log` |
+| 개인값 지적과 기준 해당 줄 지문 대조 | 드라이버 종료 0, 기존과 동일4건·새 지적0 | `task-02-supplement-1-private-baseline.log` |
+| 제품 및 기존 시험 내용 보존·시험 이후 patch 대조 | 종료 0, 추가 변경은 위 선 비교뿐, 시험한 코드와 현재 동일 | `task-02-supplement-1-scope.log`, `task-02-supplement-1-candidate.patch` |
+
+개인값 기존4건은 선행 HEJO-DEADLINE-CLOSE impl-report.md 97·109줄, verdict.md 127·146줄이다. 해당 문서·검사 예외는 변경하지 않았다. 전체 종료 시 설정·다운로드 보호 검사 모두 UNCHANGED였다.
+
+### R-DI-I6: 밝은 투명 비트맵의 검정 선 가시성을 RGB만으로 재면 0
+
+- [확인] 실패는 `AT-DI-35 band separator is visible light y=43.5`다. 선↔참조 비교 실패가 아니라 새 가시성 단언에서 멈췄다. 지시의 "다른 꼴의 실패는 고치지 말고 멈춤"에 따라 제품이나 관측 코드를 추가 변경하지 않았다.
+- [확인] `DrawerHeaderTests.bitmap(view)`는 ConversationView 자체를 투명 비트맵으로 캡처한다. 그 부모의 유리·바탕은 이 비트맵에 포함되지 않는다. 밝은 테마 선·바탕은 모두 검정 RGB(0,0,0)이며 알파만 다르다.
+- 원본 PNG를 venv Pillow로 독립 확인했다(종료0): 제목 선 RGBA=(0,0,0,22), 아래4pt 바탕=(0,0,0,5), 방 목록 제목 선=(0,0,0,22). 필터 선=(0,0,0,27), 아래 바탕=(0,0,0,5), 방 목록 경계=(0,0,0,27). 따라서 참조 색은 정확히 같지만 RGB 가시성 차이는 둘 다0이다. `task-02-supplement-1-light-pixels.json`에 원본 표본을 보존했다.
+- [확인] 같은 원본을 흰 바탕에 합성한 열람용 사본에서는 선이 구분된다. 원본 PNG는 바꾸지 않았고 시험 기대값으로 사본을 사용하지 않았다. 이것을 실제 화면 확인으로 과장하지 않는다.
+- 원인에 대한 구현자 확인: 밝은 투명 비트맵의 **측정 조립 문제**다. 제품 선 색을 밝게 바꾸거나 허용 오차를 완화해서는 안 된다. 원인 분류·관측 보완 승인 최종 판단은 계획 담당 소관이다.
+- [권고] RGB 기대값·표본 좌표를 유지하고, 실제 부모 유리·바탕까지 포함한 native PetView/대화 부모 비트맵을 측정하게 보완한다(기존 AT-DI-20의 부모 캡처 방식 참고). 좌표는 현재 칸/대화 좌표에서 그 부모로 변환한다. 실제 표시되는 합성 색을 재면 RGB 가시성 조건의 의미를 보존할 수 있다.
+- [대안/계획 담당 판단] 투명 원본을 계속 재려면 RGBA 차이로 가시성을 정의하거나 기준 바탕에 합성한 뒤 RGB를 재도록 수락 시험 관측 방법을 명시해야 한다. 이번에는 선 비교만 바꾸라는 범위를 넘기지 않았다.
+
+### 사진·남은 작업
+
+- 새 사진: `header-before-dark.png`, `header-after-dark.png`, `header-before-light.png`. 앱 증거 폴더에서 루트 증거 폴더로 복사했다. 밝은 원본의 열람용 흰 바탕 사본 `header-before-light-on-white.png`도 추가했다. 어두운 스크롤 후 사진과 밝은 열람용 사본을 직접 열어 제목·필터 고정 배치와 선을 확인했다.
+- 밝은 스크롤 후 사진, 밝은 AT-DI-36·38, 두 테마 뒤 실행되는 AT-DI-37·되돌리기 바닥 줄 AT-DI-36·AT-DI-39는 미실행이다. 뒤 회귀·네트워크 fixture도 이번 실행에서는 미실행이다. TASK-02 전체 증거 수준2 완료로 보고하지 않는다.
+- 계획 담당이 R-DI-I6의 측정 조립 보완을 명시해 재인계해야 한다. 이후 남은 수락 시험·전체 종료0·정적 검사·사진·자기 경로 git commit --only가 남았다. 현재 5개 미커밋 변경을 유지한다.
+- 확인 시점 main은 `2cffac313cf006d6965e3617be19bc216be8b04f`로 지정 기준보다 앞섰다. 다음 인계는 새 병합 기준도 명시해야 한다. 이번에는 지정한 3e8160e만 병합했다.
+- 운영 공항·실제 메시지·설치·버전 올림·공개는 수행하지 않았다.
+
+## TASK-02 보완 2 · 2026-11-23 · 구현·자체 시험 완료(독립 검토 대기)
+
+### 기준·보존·커밋
+
+- [확인] 판정 8회와 수락 시험 10판을 읽었다. R-DI-I6는 계획 담당이 수락 시험 오류로 분류하고 픽셀 차이를 RGBA 네 성분으로 정정했다. 제품 코드 변경은 허용되지 않았다.
+- 기존 미커밋 5개 파일을 `task-02-before-supplement-2.patch`와 파일 지문 `task-02-supplement-2-preserved.json`으로 보존한 뒤 지정 기준 `c5170dab71c160d7e90b6b7e383e51ddb690af94`를 merge했다. 종료 0, 충돌 없는 fast-forward. 병합 전후 patch 대조로 모든 파일이 동일함을 확인했다. 기준 사이 app 변경은 없었다.
+- 이번 보완은 `app/Tests/DrawerHeaderTests.swift:48`의 delta 함수에 알파 차이 항을 더한 **한 줄**이다. 다른 4개 파일과 흰 글자 판정·기대 수치·표본 좌표는 지문 대조로 동일함을 확인했다. 제품 바탕·선·토글 코드는 추가 변경하지 않았다.
+- TASK-02 커밋: **`e36c8a77c5fdedec7f8b7394ae0d55913d5502ee`**, 브랜치 `role-workflow/17-96051e66`. `git commit --only`로 자기 경로 5개만 커밋했다: Sources의 TodoDrawerView·ConversationChrome·ConversationView, Tests의 DrawerHeaderTests·DrawerInlineTests. 구현 worktree는 깨끗하다. 푸시하지 않았다.
+- 변경 구조는 위 TASK-02 절과 같다. 고정 제목44·필터44, 카드만 스크롤, 기존 고정 되돌리기 바닥 줄, 공용 ComposerModeTrack·ComposerButton 토글이다. 옛 스택 머리·필터 글자 경로는 제거했다. 설계와 다른 제품 구조·임시 제품 코드·새 설정·통신·저장 계약은 없다.
+
+### 최종 자체 검증
+
+대상 변경본은 기준 c5170da + 위 5개 파일이다. 시험 시작 시의 `task-02-supplement-2-candidate.patch`와 커밋 직전 전체 diff가 동일함을 확인하고 그대로 커밋했다. 로그는 구현 worktree 루트 `.build/drawer-inline-evidence/` 기준이다.
+
+| 명령·관측 | 실제 결과 | 증거 |
+|---|---|---|
+| **`HEJO_PYTHON=<gateway venv python> bash app/scripts/test.sh`** | **종료 0**. 빌드·서명, AT-DI-35~39, 기존 AT-TD·AT-DC·AT-DI와 전체 앱 회귀, 모든 네트워크 fixture·hook 시험9개 통과 | **`task-02-supplement-2-app-tests.log`**, `task-02-supplement-2-app-tests.exit` |
+| AT-DI-35 선 비교·가시성 | 두 테마·두 선 모두 참조 RGBA 차이0. 어두운 바탕 차이0.4032927·0.6088343, 밝은 바탕 차이0.0666667·0.0862745(모두6/255 초과) | 같은 로그의 line samples |
+| AT-DI-36 | 두 테마에서 스크롤 전후 제목·접기·트랙 창 좌표 불변, 첫 카드 위 이동. 실제 마감 닫기 후 되돌리기 바닥 줄도 스크롤 전후 불변 | `AT-DI-35..39 FIXED HEADER AND FILTER TOGGLE PASS`, 시험 코드의 고정 좌표 단언 |
+| AT-DI-37 | 마감 지원 시4칸·미지원 시3칸, 개수·균등 폭·실제 클릭의 controller.drawerFilter/카드 종류·chosen/접근성 선택 상태 통과 | 같은 묶음 |
+| AT-DI-38·39 | 두 테마 공용 토글의 선택 채움·트랙 RGBA·흰 글자, 중간 표시 폭145에서 트랙262 유지·경계 잘림 통과 | 같은 묶음 |
+| `git diff --check` | 종료 0 | `task-02-supplement-2-diff-check.log` |
+| 임시 홈·가짜 명부의 `scripts/scan_private.py --home <임시 홈>` | 종료 1, 선행 문서의 기존 지적4건 | `task-02-supplement-2-private-scan.log` |
+| 위 지적과 기준 커밋 해당 줄 지문 대조 | 드라이버 종료 0, 기존과 동일4건·새 지적0 | `task-02-supplement-2-private-baseline.log` |
+| 보존 파일·추가 수정 범위 대조 | 종료 0, delta 알파 항 하나 외 변경 없음 | `task-02-supplement-2-scope.log` |
+| 최종 시험 이후 patch 대조·자기 경로 커밋 | 각각 종료 0, 시험 변경본 그대로5경로 커밋 | `task-02-supplement-2-candidate.patch`, Git 이력 |
+
+개인값 기존4건은 HEJO-DEADLINE-CLOSE impl-report.md 97·109줄, verdict.md 127·146줄이다. 해당 문서·검사 예외는 변경하지 않았다. 최종 로그의 설정·다운로드 보호 검사 둘 다 UNCHANGED를 확인했다. 기존 Swift 경고·WebKit 환경 메시지가 있지만 종료 결과는0이다.
+
+필요/도달 증거 수준은 **2(임시 저장소·가짜 명부와 실제 native UI의 대역 통합)**다. 실제 운영 메시지를 쓰지 않았다. 별도 mutation check는 미실행이며, 독립 고정 좌표·개수와 실제 클릭/스크롤·그려진 픽셀 비교로 보호 계약을 관측했다. 자체 점검이며 최종 검증 판정은 아니다.
+
+### 화면·인계
+
+- 네 원본 사진: `header-before-dark.png`, `header-after-dark.png`, `header-before-light.png`, `header-after-light.png`. 모두 이번 실행에서 생성해 루트 증거 폴더로 복사했다. 이전 사진은 `task-02-supplement-1-header-*.png` 이름으로 보존했다.
+- 밝은 투명 PNG는 검정 배경 뷰어에서 글자가 안 보일 수 있어 원본을 유지하고 흰 바탕의 열람용 사본 `header-before-light-on-white.png`, `header-after-light-on-white.png`를 만들었다. 측정은 투명 원본으로 했다. 구현자는 어두운 전후 원본과 밝은 전후 열람용 사본을 모두 직접 열어 머리·필터 고정과 카드 이동을 확인했다. 사람의 실제 앱 확인과 구분한다.
+- 도달 증거: 수준2 + 요청한 어둡게·밝게 스크롤 전후 사진. 남은 것은 독립 설계·코드 검토, 최종 main 반영 및 사용자 단계다. 작업 문서 상태·최종 판정은 검증 담당이 갱신한다.
+- 확인 시점 main은 `de5f54c95475b7599f980ad5d3e2f46b7ee12e7b`로 앞서 있다. c5170da..이 main의 app 변경은 없지만 대상 커밋에는 새 main이 아직 포함되지 않는다. 계획 담당은 최종 반영/푸시 대상 확정 전에 최신 로컬 main·원격 추적 tip 포함 요건을 확인하고 필요한 보완을 지시한다. 이번에는 지정한 c5170da만 병합했다.
+- 사용자 인계 조건: TASK-02 검증 후 main 병합이 끝나면 공개 담당 세션에 "공개 가능"·병합 해시·공개 노트 한 줄을 전달해야 한다. TASK-02 외 다른 앱 변경을 포함하려면 먼저 그 담당에 범위를 알려야 한다. 이번 지정 기준 병합에는 다른 앱 변경이 없었다. 이 후속 전달은 호스트가 담당하는 검증·반영 인계에 남긴다.
+- 운영 공항·실제 메시지·설치·버전 올림·공개는 수행하지 않았다.

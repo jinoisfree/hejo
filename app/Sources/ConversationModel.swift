@@ -82,8 +82,8 @@ struct ConversationThread: Identifiable {
 /// The gateway journal is the authority. This projection is rebuilt from the durable frame replica.
 @MainActor final class ConversationModel {
     let store: LocalStore
-    private(set) var employees: [Employee] = []
-    private(set) var groups:[String:Room]=[:]
+    private(set) var employees: [Employee] = [] { didSet { invalidateRenderValues() } }
+    private(set) var groups:[String:Room]=[:] { didSet { invalidateRenderValues() } }
     var rooms: [Room] { employees.map(Room.init(employee:)) + groups.values.sorted{$0.title<$1.title} }
     var homeChannel:Room? {home.settings.channel.flatMap{groups[$0]}.flatMap{$0.archived==true ? nil:$0}}
     var homePicture:String? {if let channel=homeChannel{return channel.picture};return home.settings.picture}
@@ -92,7 +92,7 @@ struct ConversationThread: Identifiable {
     func room(for employee: String) -> Room? { rooms.first { $0.id==employee } }
     func unread(room: Room) -> Int { unread(employee:room.id) }
     func threads(room: Room, query: String = "") -> [ConversationThread] { threads(employee:room.id,query:query) }
-    private(set) var messages: [String: ConversationMessage] = [:]
+    private(set) var messages: [String: ConversationMessage] = [:] { didSet { invalidateRenderValues() } }
     private(set) var applied = 0
     private(set) var typing: [ConversationKey: Date] = [:]
     /// When each live typing indicator first turned on; refreshes keep it, expiry or `on:false` forget it.
@@ -112,13 +112,112 @@ struct ConversationThread: Identifiable {
     func configureHome(_ update:(inout HomeRoom.Settings)->Void){var settings=home.settings;update(&settings);saveLayout("layout:home",settings);clearHomeChannelFlags()}
     func selectHome(_ key:ConversationKey?=nil,notify:Bool=true){select(key ?? ConversationKey(employee:HomeRoom.id,thread:UUID().uuidString.lowercased()),notify:notify,inHome:true)}
     var homeThreads:[ConversationThread] {
-        homeScope.flatMap{threads(employee:$0)}.sorted{a,b in
-            let x=timeline(a.key).map{ThreadTools.date($0.timestamp)}.max() ?? .distantPast,y=timeline(b.key).map{ThreadTools.date($0.timestamp)}.max() ?? .distantPast
-            return x==y ? a.id<b.id:x<y
+        withRenderValues {
+            if let cached=renderValues?.homeThreads {return cached}
+            #if HEJO_PERF_TESTING
+            onDerive?("home_sort", "home")
+            #endif
+            let rows=homeScope.flatMap{threads(employee:$0)}
+            var dates=[ConversationKey:Date]()
+            for row in rows {dates[row.key]=latestDate(row.key)}
+            let result=rows.sorted { a,b in
+                let x=dates[a.key]!,y=dates[b.key]!
+                return x==y ? a.id<b.id:x<y
+            }
+            renderValues?.homeThreads=result
+            return result
         }
     }
     var onChange: (() -> Void)?
     var noticeClock:()->Date=Date.init
+    /// Values belong to one synchronous query/render, never to the next refresh.
+    private final class RenderValues {
+        let now: Date
+        var grouped: [ConversationKey:[ConversationMessage]]?
+        var threads: [String:[ConversationThread]]=[:]
+        var assessments: [ConversationKey:ThreadAssessment.Result]=[:]
+        struct ParsedDate { let value: Date? }
+        var dates: [String:ParsedDate]=[:]
+        var latestDates: [ConversationKey:Date]=[:]
+        struct NoticeKey: Hashable { let room: String; let now: Date }
+        var notices: [NoticeKey:[RoomNotice]]=[:]
+        var homeThreads: [ConversationThread]?
+        var sidebar: SidebarLayout?
+        lazy var fractional: ISO8601DateFormatter = {
+            let value=ISO8601DateFormatter();value.formatOptions=[.withInternetDateTime,.withFractionalSeconds];return value
+        }()
+        lazy var whole=ISO8601DateFormatter()
+        let canonicalWhole=Date.ISO8601FormatStyle(includingFractionalSeconds:false)
+        init(now: Date) {self.now=now}
+    }
+    private var renderValues: RenderValues?
+    #if HEJO_PERF_TESTING
+    /// Test builds count actual derivations; production builds have no observer or content logging.
+    var onDerive: ((String,String)->Void)?
+    #endif
+    func withRenderValues<T>(_ body: () throws -> T) rethrows -> T {
+        if renderValues != nil {return try body()}
+        renderValues=RenderValues(now:noticeClock())
+        defer {renderValues=nil}
+        return try body()
+    }
+    /// A render callback may synchronously change the model. Finish with the new state,
+    /// sharing derived values only while that state remains unchanged.
+    func withStableRenderValues(_ render: () -> Void) {
+        withRenderValues {
+            var rendered: RenderValues?
+            repeat {
+                rendered=renderValues
+                render()
+            } while renderValues !== rendered
+        }
+    }
+    private func invalidateRenderValues() {
+        if let values=renderValues {renderValues=RenderValues(now:values.now)}
+    }
+    var renderTime: Date {renderValues?.now ?? noticeClock()}
+    private func groupedTimelines() -> [ConversationKey:[ConversationMessage]] {
+        if let cached=renderValues?.grouped {return cached}
+        #if HEJO_PERF_TESTING
+        onDerive?("grouping", "messages")
+        #endif
+        let result=Dictionary(grouping:messages.values,by:\.key).mapValues{$0.sorted{$0.seq<$1.seq}}
+        renderValues?.grouped=result
+        return result
+    }
+    private func parsedDate(_ text: String) -> Date? {
+        guard let values=renderValues else {return nil}
+        if let cached=values.dates[text] {return cached.value}
+        let result: Date?
+        // Recognize the canonical whole-second UTC grammar by an exact round trip.
+        // Other forms and normalization cases (including leap seconds) retain the existing parser.
+        if text.utf8.count==20,let value=try? values.canonicalWhole.parse(text),values.canonicalWhole.format(value)==text {
+            result=value
+        } else {result=values.fractional.date(from:text) ?? values.whole.date(from:text)}
+        values.dates[text] = .init(value:result)
+        return result
+    }
+    func date(_ text: String) -> Date {
+        renderValues == nil ? ThreadTools.date(text):parsedDate(text) ?? .distantPast
+    }
+    func latestDate(_ key: ConversationKey) -> Date {
+        withRenderValues {
+            if let cached=renderValues?.latestDates[key] {return cached}
+            let result=timeline(key).map{date($0.timestamp)}.max() ?? .distantPast
+            renderValues?.latestDates[key]=result
+            return result
+        }
+    }
+    func cachedNotices(_ room: String, now: Date, calculate: () -> [RoomNotice]) -> [RoomNotice] {
+        let key=RenderValues.NoticeKey(room:room,now:now)
+        if let cached=renderValues?.notices[key] {return cached}
+        #if HEJO_PERF_TESTING
+        onDerive?("notices", room)
+        #endif
+        let result=calculate()
+        renderValues?.notices[key]=result
+        return result
+    }
     let memberState: MemberState
     var pinned: [String] {
         var slots: [String: Int] = [:]
@@ -143,31 +242,33 @@ struct ConversationThread: Identifiable {
     private var loadingRecords = true
     private var replaying = false
     var sidebar: SidebarLayout {
-        func decoded<T:Decodable>(_ key:String,_ fallback:T) -> T { memberState.value(key).flatMap { $0.data(using:.utf8) }.flatMap { try? JSONDecoder().decode(T.self,from:$0) } ?? fallback }
-        var layout=SidebarLayout()
-        let sections=decoded("layout:sections",SidebarLayout.defaults)
-        if !sections.isEmpty { var ids=Set<String>();layout.sections=sections.filter { !$0.id.isEmpty && ids.insert($0.id).inserted } }
-        if layout.sections.isEmpty { layout.sections=SidebarLayout.defaults }
-        for index in layout.sections.indices {
-            if let open=memberState.value("layout:section-open:"+layout.sections[index].id) {layout.sections[index].open = open == "1"}
+        withRenderValues {
+            if let cached=renderValues?.sidebar {return cached}
+            @MainActor func decoded<T:Decodable>(_ key:String,_ fallback:T) -> T { memberState.value(key).flatMap { $0.data(using:.utf8) }.flatMap { try? JSONDecoder().decode(T.self,from:$0) } ?? fallback }
+            var layout=SidebarLayout()
+            let sections=decoded("layout:sections",SidebarLayout.defaults)
+            if !sections.isEmpty { var ids=Set<String>();layout.sections=sections.filter { !$0.id.isEmpty && ids.insert($0.id).inserted } }
+            if layout.sections.isEmpty { layout.sections=SidebarLayout.defaults }
+            for index in layout.sections.indices {
+                if let open=memberState.value("layout:section-open:"+layout.sections[index].id) {layout.sections[index].open = open == "1"}
+            }
+            layout.stack=decoded("layout:stack",SidebarLayout.Stack())
+            if let open=memberState.value("layout:section-open:stack") {layout.stack.open = open == "1"}
+            for (key,entry) in memberState.items {
+                if key.hasPrefix("zone:"),let value=entry.v { layout.zones[String(key.dropFirst(5))]=value }
+                if key.hasPrefix("pin:"),let value=entry.v,let slot=Int(value),(1...5).contains(slot) { layout.pins[String(key.dropFirst(4))]=slot }
+            }
+            for (index,id) in pinned.enumerated() where layout.pins[id]==nil { layout.pins[id]=index+1 }
+            layout.items=rooms.enumerated().filter { !hidden.contains($0.element.id) && $0.element.archived != true && $0.element.id != homeChannel?.id }.map { index,room in
+                let posts=messages.values.filter { room.id==$0.key.employee }
+                let latest=posts.map { parsedDate($0.timestamp)?.timeIntervalSince1970 ?? Double($0.latestSeq) }.max() ?? 0
+                return SidebarLayout.Item(id:room.id,name:room.title,kind:room.kind == .direct ? .direct:.group,members:room.members,rank:index,latest:latest,unread:unread(room:room),questions:notices(room.id).filter(\.questions).reduce(0){$0+$1.messages.count},alerts:notices(room.id).filter{!$0.questions}.reduce(0){$0+$1.messages.count},muted:muted.contains(room.id),picture:room.picture)
+            }
+            let memberIDs=homeChannel?.members ?? home.members.map(\.id),scope=homeScope,posts=messages.values.filter{scope.contains($0.key.employee)}
+            layout.items.insert(.init(id:HomeRoom.id,name:store.settings.petName,kind:.home,members:memberIDs,latest:Double(posts.map(\.latestSeq).max() ?? 0),unread:scope.reduce(0){$0+unread(employee:$1)},questions:notices(HomeRoom.id).filter(\.questions).reduce(0){$0+$1.messages.count},alerts:notices(HomeRoom.id).filter{!$0.questions}.reduce(0){$0+$1.messages.count},muted:home.settings.muted==true,picture:homePicture),at:0)
+            renderValues?.sidebar=layout
+            return layout
         }
-        layout.stack=decoded("layout:stack",SidebarLayout.Stack())
-        if let open=memberState.value("layout:section-open:stack") {layout.stack.open = open == "1"}
-        for (key,entry) in memberState.items {
-            if key.hasPrefix("zone:"),let value=entry.v { layout.zones[String(key.dropFirst(5))]=value }
-            if key.hasPrefix("pin:"),let value=entry.v,let slot=Int(value),(1...5).contains(slot) { layout.pins[String(key.dropFirst(4))]=slot }
-        }
-        for (index,id) in pinned.enumerated() where layout.pins[id]==nil { layout.pins[id]=index+1 }
-        let fractional=ISO8601DateFormatter();fractional.formatOptions=[.withInternetDateTime,.withFractionalSeconds]
-        let seconds=ISO8601DateFormatter()
-        layout.items=rooms.enumerated().filter { !hidden.contains($0.element.id) && $0.element.archived != true && $0.element.id != homeChannel?.id }.map { index,room in
-            let posts=messages.values.filter { room.id==$0.key.employee }
-            let latest=posts.map { (fractional.date(from:$0.timestamp) ?? seconds.date(from:$0.timestamp))?.timeIntervalSince1970 ?? Double($0.latestSeq) }.max() ?? 0
-            return SidebarLayout.Item(id:room.id,name:room.title,kind:room.kind == .direct ? .direct:.group,members:room.members,rank:index,latest:latest,unread:unread(room:room),questions:notices(room.id).filter(\.questions).reduce(0){$0+$1.messages.count},alerts:notices(room.id).filter{!$0.questions}.reduce(0){$0+$1.messages.count},muted:muted.contains(room.id),picture:room.picture)
-        }
-        let memberIDs=homeChannel?.members ?? home.members.map(\.id),scope=homeScope,posts=messages.values.filter{scope.contains($0.key.employee)}
-        layout.items.insert(.init(id:HomeRoom.id,name:store.settings.petName,kind:.home,members:memberIDs,latest:Double(posts.map(\.latestSeq).max() ?? 0),unread:scope.reduce(0){$0+unread(employee:$1)},questions:notices(HomeRoom.id).filter(\.questions).reduce(0){$0+$1.messages.count},alerts:notices(HomeRoom.id).filter{!$0.questions}.reduce(0){$0+$1.messages.count},muted:home.settings.muted==true,picture:homePicture),at:0)
-        return layout
     }
     private func layoutData<T:Encodable>(_ value:T,key:String)->Data? {
         guard let raw=try? JSONEncoder().encode(value) else {return nil}
@@ -244,6 +345,7 @@ struct ConversationThread: Identifiable {
         loadingRecords = false
         memberState.onChange = { [weak self] in
             guard let self else { return }
+            self.invalidateRenderValues()
             if !self.replaying {self.seedUnseenRooms()}
             if self.isHome {
                 if let key=self.selected,key.employee != HomeRoom.id,!self.homeScope.contains(key.employee) {self.selectHome(notify:false)}
@@ -366,22 +468,35 @@ struct ConversationThread: Identifiable {
         if pinned.contains(id) {pin(id,slot:nil)}
     }
     func threads(employee: String, query: String = "") -> [ConversationThread] {
-        let grouped = Dictionary(grouping: messages.values.filter { $0.key.employee == employee }, by: \.key)
-        let term = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        return grouped.compactMap { key, values in
-            let ordered = values.sorted { $0.seq < $1.seq }
-            guard term.isEmpty || ordered.contains(where: { $0.text.localizedCaseInsensitiveContains(term) }) else { return nil }
-            let title = String((ordered.first?.text.isEmpty == false ? ordered.first!.text : ordered.first?.files.first?.name ?? "대화").prefix(48)).replacingOccurrences(of: "\n", with: " ")
-            return ConversationThread(key: key, title: title, preview: String(ordered.last?.text.prefix(80) ?? ""), latestSeq: values.map(\.latestSeq).max() ?? 0)
-        }.sorted { $0.latestSeq > $1.latestSeq }
+        return withRenderValues {
+            let term = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            if term.isEmpty,let cached=renderValues?.threads[employee] {return cached}
+            let result=groupedTimelines().filter{$0.key.employee==employee}.compactMap { key, ordered -> ConversationThread? in
+                guard term.isEmpty || ordered.contains(where: { $0.text.localizedCaseInsensitiveContains(term) }) else { return nil }
+                let title = String((ordered.first?.text.isEmpty == false ? ordered.first!.text : ordered.first?.files.first?.name ?? "대화").prefix(48)).replacingOccurrences(of: "\n", with: " ")
+                return ConversationThread(key: key, title: title, preview: String(ordered.last?.text.prefix(80) ?? ""), latestSeq: ordered.map(\.latestSeq).max() ?? 0)
+            }.sorted { $0.latestSeq > $1.latestSeq }
+            if term.isEmpty {renderValues?.threads[employee]=result}
+            return result
+        }
     }
-    func timeline(_ key: ConversationKey) -> [ConversationMessage] { messages.values.filter { $0.key == key }.sorted { $0.seq < $1.seq } }
+    func timeline(_ key: ConversationKey) -> [ConversationMessage] {
+        if renderValues != nil {return groupedTimelines()[key] ?? []}
+        return messages.values.filter { $0.key == key }.sorted { $0.seq < $1.seq }
+    }
     func unread(_ key: ConversationKey) -> Int {
         let read = max(memberState.read("read:" + key.employee), memberState.read("thread:" + key.employee + "/" + key.thread), store.settings.readSeq?[key.readKey] ?? 0)
-        return messages.values.filter { $0.key == key && $0.role == "employee" && $0.seq > read && !ThreadTools.thinking($0.text) }.count
+        return timeline(key).filter { $0.role == "employee" && $0.seq > read && !ThreadTools.thinking($0.text) }.count
     }
     func assessment(_ key:ConversationKey)->ThreadAssessment.Result {
-        ThreadAssessment.assess(timeline(key),confirmed:Set(timeline(key).filter{confirmed($0.id)}.map(\.id)))
+        if let cached=renderValues?.assessments[key] {return cached}
+        #if HEJO_PERF_TESTING
+        onDerive?("assessment", key.readKey)
+        #endif
+        let lines=timeline(key)
+        let result=ThreadAssessment.assess(lines,confirmed:Set(lines.filter{confirmed($0.id)}.map(\.id)))
+        renderValues?.assessments[key]=result
+        return result
     }
     func originalSeq(_ key:ConversationKey)->Int {timeline(key).map(\.seq).max() ?? 0}
     func bell(_ key:ConversationKey) -> Bool? {
