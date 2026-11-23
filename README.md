@@ -13,6 +13,8 @@ GitHub 릴리스에서 한 줄로 설치한다. 터미널에 붙여 넣는다.
 
 Hermes 플랫폼 플러그인 문과 별도 Mac 앱을 만드는 프로젝트다. 근간과 현재 범위는 [구조 원본](docs/ARCHITECTURE.md), 진행 상태와 판단은 [작업 문서](docs/changes/HEJO-FOUNDATION-20261114/)를 따른다.
 
+목록 선택 표시의 현행 계약은 [현재 명세](docs/spec/current/hejo-sidebar.md)를 따른다.
+
 ## 설치·제거
 
 Hermes 모듈과 ruamel.yaml을 import할 수 있는 Python으로 실행한다. `HEJO_PYTHON`은 해당 Python, `HERMES_HOME`은 대상 공항의 기본 홈을 가리킨다. `--home`을 생략하면 Hermes 홈 찾기 규칙을 쓴다.
