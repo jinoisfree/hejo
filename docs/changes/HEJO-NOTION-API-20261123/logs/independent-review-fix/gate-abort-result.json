@@ -1,0 +1,10 @@
+[
+  {
+    "mode": "cancel",
+    "childReaped": true
+  },
+  {
+    "mode": "timeout",
+    "childReaped": true
+  }
+]

@@ -1,0 +1,7 @@
+{
+  "pytestExitCode": 1,
+  "expectedFailures": 3,
+  "caught": true,
+  "mutant": "old launcher/template in isolated copy",
+  "candidateModified": false
+}

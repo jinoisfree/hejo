@@ -1,0 +1,123 @@
+{
+  "hejo": {
+    "rev-parse HEAD": {
+      "exitCode": 0,
+      "stdout": "39f954c1bd3a50fd27d4f11a3b03774d0e74aa41\n",
+      "stderrPresent": false
+    },
+    "rev-parse main": {
+      "exitCode": 0,
+      "stdout": "236b0177468b90d9ea23a1b1190e996db78a0694\n",
+      "stderrPresent": false
+    },
+    "rev-parse github/main": {
+      "exitCode": 0,
+      "stdout": "740f5be61f0f9826eae991039992fb17a57788f2\n",
+      "stderrPresent": false
+    },
+    "ls-remote github refs/heads/main": {
+      "exitCode": 0,
+      "stdout": "dbc512be27804fa5b0dd36507eabc069b93f1293\trefs/heads/main\n",
+      "stderrPresent": false
+    },
+    "merge-base --is-ancestor main HEAD": {
+      "exitCode": 1,
+      "stdout": "",
+      "stderrPresent": false
+    },
+    "diff --check": {
+      "exitCode": 0,
+      "stdout": "",
+      "stderrPresent": false
+    },
+    "merge-base main dbc512be27804fa5b0dd36507eabc069b93f1293": {
+      "exitCode": 1,
+      "stdout": "",
+      "stderrPresent": false
+    },
+    "merge-base --is-ancestor dbc512be27804fa5b0dd36507eabc069b93f1293 HEAD": {
+      "exitCode": 1,
+      "stdout": "",
+      "stderrPresent": false
+    },
+    "diff --name-only HEAD main": {
+      "exitCode": 0,
+      "stdout": "README.md\napp/Sources/ConversationChrome.swift\napp/Sources/ConversationView.swift\napp/Tests/SidebarTests.swift\ndocs/ARCHITECTURE.md\ndocs/changes/HEJO-SIDEBAR-SELECTION-20261123/design.md\ndocs/changes/HEJO-SIDEBAR-SELECTION-20261123/handoff.md\ndocs/changes/HEJO-SIDEBAR-SELECTION-20261123/impl-report.md\ndocs/changes/HEJO-SIDEBAR-SELECTION-20261123/plan-review.md\ndocs/changes/HEJO-SIDEBAR-SELECTION-20261123/spec.md\ndocs/changes/HEJO-SIDEBAR-SELECTION-20261123/tasks.md\ndocs/changes/HEJO-SIDEBAR-SELECTION-20261123/verdict.md\ndocs/changes/HEJO-TELEGRAM-20261122/design.md\ndocs/changes/HEJO-TELEGRAM-20261122/spec.md\ndocs/changes/HEJO-TELEGRAM-20261122/tasks.md\ndocs/changes/HEJO-TELEGRAM-20261122/verdict.md\ndocs/changes/HEJO-UI-CLEAN-20261123/verdict.md\ndocs/spec/current/hejo-sidebar.md\ntests/acceptance/HEJO-SIDEBAR-SELECTION.md\n",
+      "stderrPresent": false
+    },
+    "diff --name-only main dbc512be27804fa5b0dd36507eabc069b93f1293": {
+      "exitCode": 0,
+      "stdout": "README.md\napp/Sources/ConversationController.swift\napp/Sources/ConversationModel.swift\napp/Sources/ConversationView.swift\napp/Sources/DraftEditor.swift\napp/Sources/TodoDrawerModel.swift\napp/Sources/WorkspaceTools.swift\napp/Tests/ComposerTargetTests.swift\napp/Tests/Fixtures/HejoPerf/README.md\napp/Tests/Fixtures/HejoPerf/baseline.json\napp/Tests/Fixtures/HejoPerf/expected.json\napp/Tests/Fixtures/HejoPerf/input.json\napp/Tests/HejoPerfRegressionTests.swift\napp/Tests/HejoPerfTests.swift\napp/Tests/HejoTypingTests.swift\napp/Tests/TestMain.swift\napp/Tests/hejo_perf.py\napp/Tests/test_hejo_perf_runner.py\napp/scripts/test.sh\ndocs/ARCHITECTURE.md\ndocs/changes/26405dfc-f5c9-4243-ab07-fa756b3c00bb/dispatch-check.md\ndocs/changes/26405dfc-f5c9-4243-ab07-fa756b3c00bb/plan-review.md\ndocs/changes/26405dfc-f5c9-4243-ab07-fa756b3c00bb/verdict.md\ndocs/changes/60f149af-b64e-4d3a-9e8e-a1c7d4ea1045/design.md\ndocs/changes/60f149af-b64e-4d3a-9e8e-a1c7d4ea1045/handoff.md\ndocs/changes/60f149af-b64e-4d3a-9e8e-a1c7d4ea1045/impl-report.md\ndocs/changes/60f149af-b64e-4d3a-9e8e-a1c7d4ea1045/plan-review.md\ndocs/changes/60f149af-b64e-4d3a-9e8e-a1c7d4ea1045/spec.md\ndocs/changes/60f149af-b64e-4d3a-9e8e-a1c7d4ea1045/tasks.md\ndocs/changes/60f149af-b64e-4d3a-9e8e-a1c7d4ea1045/verdict.md\ndocs/changes/HEJO-SIDEBAR-SELECTION-20261123/integration-report.md\ndocs/changes/HEJO-SIDEBAR-SELECTION-20261123/tasks.md\ndocs/changes/HEJO-SIDEBAR-SELECTION-20261123/verdict.md\ndocs/changes/HEJO-TELEGRAM-20261122/design.md\ndocs/changes/HEJO-TELEGRAM-20261122/spec.md\ndocs/changes/HEJO-TELEGRAM-20261122/tasks.md\ndocs/changes/HEJO-TELEGRAM-20261122/verdict.md\ndocs/changes/HEJO-TYPING-20261123/design.md\ndocs/changes/HEJO-TYPING-20261123/handoff.md\ndocs/changes/HEJO-TYPING-20261123/impl-report.md\ndocs/changes/HEJO-TYPING-20261123/plan-review.md\ndocs/changes/HEJO-TYPING-20261123/spec.md\ndocs/changes/HEJO-TYPING-20261123/tasks.md\ndocs/changes/HEJO-TYPING-20261123/verdict.md\ndocs/changes/HEJO-UI-CLEAN-20261123/verdict.md\ndocs/spec/current/hejo-performance.md\ntests/acceptance/HEJO-PERF.md\ntests/acceptance/HEJO-TYPING.md\n",
+      "stderrPresent": false
+    }
+  },
+  "external": {
+    "rev-parse HEAD": {
+      "exitCode": 0,
+      "stdout": "cf79f4527949c88a9b74612872cf4c09a51441db\n",
+      "stderrPresent": false
+    },
+    "rev-parse main": {
+      "exitCode": 0,
+      "stdout": "4bbc16ddba02236fe4645ab7244603c44a78af91\n",
+      "stderrPresent": false
+    },
+    "rev-parse origin/main": {
+      "exitCode": 0,
+      "stdout": "cf79f4527949c88a9b74612872cf4c09a51441db\n",
+      "stderrPresent": false
+    },
+    "ls-remote origin refs/heads/main": {
+      "exitCode": 0,
+      "stdout": "cf79f4527949c88a9b74612872cf4c09a51441db\trefs/heads/main\n",
+      "stderrPresent": false
+    },
+    "merge-base --is-ancestor main HEAD": {
+      "exitCode": 1,
+      "stdout": "",
+      "stderrPresent": false
+    },
+    "diff --check": {
+      "exitCode": 0,
+      "stdout": "",
+      "stderrPresent": false
+    }
+  },
+  "generatedPublic": {
+    "rev-parse HEAD": {
+      "exitCode": 0,
+      "stdout": "fe52d5a97739c71fae6ccd1b936a6f73cecd56ae\n",
+      "stderrPresent": false
+    },
+    "rev-parse main": {
+      "exitCode": 0,
+      "stdout": "fe52d5a97739c71fae6ccd1b936a6f73cecd56ae\n",
+      "stderrPresent": false
+    },
+    "rev-parse origin/main": {
+      "exitCode": 0,
+      "stdout": "fe52d5a97739c71fae6ccd1b936a6f73cecd56ae\n",
+      "stderrPresent": false
+    },
+    "ls-remote origin refs/heads/main": {
+      "exitCode": 0,
+      "stdout": "fe52d5a97739c71fae6ccd1b936a6f73cecd56ae\trefs/heads/main\n",
+      "stderrPresent": false
+    },
+    "merge-base --is-ancestor main HEAD": {
+      "exitCode": 0,
+      "stdout": "",
+      "stderrPresent": false
+    },
+    "diff --check": {
+      "exitCode": 0,
+      "stdout": "",
+      "stderrPresent": false
+    }
+  },
+  "externalBaseChange": {
+    "changedFiles": 5,
+    "overlapWithCandidate": 0,
+    "operationalContentsRead": false
+  }
+}

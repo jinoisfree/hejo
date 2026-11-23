@@ -1,0 +1,72 @@
+[
+  {
+    "homeIndex": 0,
+    "install": 0,
+    "check": 0,
+    "gateSucceeded": true,
+    "schema": "hermes-installed-apps/1",
+    "keys": [
+      "agents",
+      "apps",
+      "scanned_at",
+      "schema",
+      "services"
+    ],
+    "directExit": 0,
+    "missingModules": [
+      "msvcrt",
+      "msvcrt",
+      "msvcrt",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml"
+    ],
+    "isolationBoundaryFailure": false,
+    "boundaryKinds": [],
+    "safeError": null
+  },
+  {
+    "homeIndex": 1,
+    "install": 0,
+    "check": 0,
+    "gateSucceeded": true,
+    "schema": "hermes-installed-apps/1",
+    "keys": [
+      "agents",
+      "apps",
+      "scanned_at",
+      "schema",
+      "services"
+    ],
+    "directExit": 0,
+    "missingModules": [
+      "msvcrt",
+      "msvcrt",
+      "msvcrt",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml"
+    ],
+    "isolationBoundaryFailure": false,
+    "boundaryKinds": [],
+    "safeError": null
+  }
+]

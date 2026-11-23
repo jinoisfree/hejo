@@ -1,0 +1,437 @@
+{
+  "targets": [
+    {
+      "path": "lib/hermes_facility/app_connect.py",
+      "source": "installed-reviewed-code",
+      "sourceSignature": {
+        "sha256": "a6756ce5809e8ba3db4f96df3944ffdf9c4e6c6513d2913731622949612e02f6",
+        "mode": 420
+      },
+      "collectedSignature": {
+        "sha256": "084a55ec6b751560bb7c7e22db61b9890926a113832907d6a204684c3cdb8bae",
+        "mode": 420
+      },
+      "matchesAccepted": true,
+      "publicInclude": true
+    },
+    {
+      "path": "lib/hermes_packs/mac_apps/app_catalog.json",
+      "source": "installed-reviewed-code",
+      "sourceSignature": {
+        "sha256": "92b14e124a52b7c6d6561d32ae8a441ba53a834f3a112224d78a78c35084eda4",
+        "mode": 420
+      },
+      "collectedSignature": {
+        "sha256": "64643ec4c2be55c8b85c27e8337fa26184843051ac457fa83cffe855d2d3abf5",
+        "mode": 420
+      },
+      "matchesAccepted": true,
+      "publicInclude": true
+    },
+    {
+      "path": "lib/hermes_packs/mac_apps/catalog.py",
+      "source": "installed-reviewed-code",
+      "sourceSignature": {
+        "sha256": "64850fda558e0c29dd4633aad259d8474444edb096e6d892ef4779e10181fede",
+        "mode": 420
+      },
+      "collectedSignature": {
+        "sha256": "95f7c8e20e998f42e43a6d723350566c2c9079d673ba1d6b9732c3d701df10f5",
+        "mode": 420
+      },
+      "matchesAccepted": true,
+      "publicInclude": true
+    },
+    {
+      "path": "lib/hermes_packs/mac_apps/discovery.py",
+      "source": "installed-reviewed-code",
+      "sourceSignature": {
+        "sha256": "1aabec2459b98a40b92f2b2e867ad2632498fc99dc66c5b78a94df968587e2b6",
+        "mode": 420
+      },
+      "collectedSignature": {
+        "sha256": "ee23ded375982fb0b60b7a699fca5521bd5ee6e17999e876864fde20ead11e6f",
+        "mode": 420
+      },
+      "matchesAccepted": true,
+      "publicInclude": true
+    },
+    {
+      "path": "tests/test_app_catalog.py",
+      "source": "installed-reviewed-code",
+      "sourceSignature": {
+        "sha256": "35688cfe8fe352dcef5752e409cabe478f290fba9557df6fd3a16fe7bf4e1b37",
+        "mode": 420
+      },
+      "collectedSignature": {
+        "sha256": "7cddabef1d83d03bcb66901a4bfadf866726a010faa774a692aed45c5a8eb977",
+        "mode": 420
+      },
+      "matchesAccepted": true,
+      "publicInclude": false
+    },
+    {
+      "path": "tests/test_app_registry.py",
+      "source": "installed-reviewed-code",
+      "sourceSignature": {
+        "sha256": "7d82cfeb7db71cdd0640c03a775cbd9734a1c85f634223b079460013442ab757",
+        "mode": 420
+      },
+      "collectedSignature": {
+        "sha256": "6827a9db935b6d81c8028cd215fffaf60a8e7888e3a32006568f3bb4f34e75ec",
+        "mode": 420
+      },
+      "matchesAccepted": true,
+      "publicInclude": false
+    },
+    {
+      "path": "__init__.py",
+      "source": "installed-reviewed-code",
+      "sourceSignature": {
+        "sha256": "4ca0e6a3c0fe80a23e97daa9b777fc5097d44bd0039f5a3242b92b2d93c63c63",
+        "mode": 420
+      },
+      "collectedSignature": {
+        "sha256": "c55a01eb54af937584f33883f3b8a910132e0f27aba89774d6ee6be47359e3e9",
+        "mode": 420
+      },
+      "matchesAccepted": true,
+      "publicInclude": true
+    },
+    {
+      "path": "lib/hermes_facility/app_scope.py",
+      "source": "installed-reviewed-code",
+      "sourceSignature": {
+        "sha256": "761a0a1785f51f47c49087ed5244515ac54433eefd200c2b7b436457beb62c51",
+        "mode": 420
+      },
+      "collectedSignature": {
+        "sha256": "bc880d37e502bc425695a6e4599be7e98e3f71f1d04889d7500067fb7292b5b0",
+        "mode": 420
+      },
+      "matchesAccepted": true,
+      "publicInclude": true
+    },
+    {
+      "path": "lib/hermes_facility/app_setup.py",
+      "source": "installed-reviewed-code",
+      "sourceSignature": {
+        "sha256": "58faddec5d3149b352d39737ae5896d51029ad2158bad4ff270d41de42a51ee3",
+        "mode": 420
+      },
+      "collectedSignature": {
+        "sha256": "c9e8fc068f37bcd6e1c3ac74570b0c42f75e895d6eeab97b6c780f8c5a4b0ea4",
+        "mode": 420
+      },
+      "matchesAccepted": true,
+      "publicInclude": true
+    },
+    {
+      "path": "lib/hermes_facility/connection_checks.py",
+      "source": "installed-reviewed-code",
+      "sourceSignature": {
+        "sha256": "645935438bc3d2292ef52350a549066766f9e4ed25c1a1a3db6c79832f9d47da",
+        "mode": 420
+      },
+      "collectedSignature": {
+        "sha256": "2d0309229d28f7004963bf4a1464bf6ab9445d6b268f7688daa345be759a9012",
+        "mode": 420
+      },
+      "matchesAccepted": true,
+      "publicInclude": true
+    },
+    {
+      "path": "lib/hermes_governance/contracts.py",
+      "source": "installed-reviewed-code",
+      "sourceSignature": {
+        "sha256": "7a67556518b96634ab94865e42ae3f33ccb1190c1ef85eb1778d473c1b4c1811",
+        "mode": 420
+      },
+      "collectedSignature": {
+        "sha256": "55fd8cb97878f40fe539f2a07d3a5185d26a8ed93b5476e17eb8dc0e6a5150fe",
+        "mode": 420
+      },
+      "matchesAccepted": true,
+      "publicInclude": true
+    },
+    {
+      "path": "lib/hermes_packs/notion/api.py",
+      "source": "installed-reviewed-code",
+      "sourceSignature": {
+        "sha256": "9b274704bc93029d9e29205b9af8f41d7c88a287643bc744e2680373c2c892a7",
+        "mode": 420
+      },
+      "collectedSignature": {
+        "sha256": "0790b5b85190de5ed7d90baa852b7fa822b3d30325268c3d31caa9869d0825c3",
+        "mode": 420
+      },
+      "matchesAccepted": true,
+      "publicInclude": true
+    },
+    {
+      "path": "lib/hermes_packs/notion/operations.py",
+      "source": "installed-reviewed-code",
+      "sourceSignature": {
+        "sha256": "449f3b1e49ba962c0d79b0108b3e630bc9316be9c3d48111fe370e41872f6eaf",
+        "mode": 420
+      },
+      "collectedSignature": {
+        "sha256": "0c7bd99f97c87ae56489d4882edfbb3d12f06e3f9f76c6650e83876896b80015",
+        "mode": 420
+      },
+      "matchesAccepted": true,
+      "publicInclude": true
+    }
+  ],
+  "candidateTests": [
+    {
+      "path": "tests/hna_connections.py",
+      "source": "accepted-isolated-scope-candidate",
+      "signature": {
+        "sha256": "fc5fc2129f838a395c4bf15a21a96db45318a9c4b0fae27e8c26f2b44fe13ca6",
+        "mode": 420
+      },
+      "publicInclude": false,
+      "reason": "generator excludes tests",
+      "collectedSignature": null
+    },
+    {
+      "path": "tests/test_app_scope.py",
+      "source": "accepted-isolated-scope-candidate",
+      "signature": {
+        "sha256": "0169f8dbae33917bba854b1be9d37552c6f0b76b85d31678c7ca1a90596332b8",
+        "mode": 420
+      },
+      "publicInclude": false,
+      "reason": "generator excludes tests",
+      "collectedSignature": {
+        "sha256": "4ffda448fa51f0f449b52f259601e288dd7a288a4c948999216261c338e3093a",
+        "mode": 420
+      }
+    },
+    {
+      "path": "tests/test_hna.py",
+      "source": "accepted-isolated-scope-candidate",
+      "signature": {
+        "sha256": "755fddaf1948a9963b9c7d62940817172adc40e0f2dfc890e9e98b909ef0e2c4",
+        "mode": 420
+      },
+      "publicInclude": false,
+      "reason": "generator excludes tests",
+      "collectedSignature": null
+    },
+    {
+      "path": "tests/test_hna_r1.py",
+      "source": "accepted-isolated-scope-candidate",
+      "signature": {
+        "sha256": "c4483e264e0b7ac9725fd3bd9c5febdb847aabc4e880f7fbb6f2ede2308f194a",
+        "mode": 420
+      },
+      "publicInclude": false,
+      "reason": "generator excludes tests",
+      "collectedSignature": null
+    },
+    {
+      "path": "tests/test_notion.py",
+      "source": "accepted-isolated-scope-candidate",
+      "signature": {
+        "sha256": "cd6f5646579caa196f33e00d73e5da12295cc47b7e032f7573fef9fc4d8828c4",
+        "mode": 420
+      },
+      "publicInclude": false,
+      "reason": "generator excludes tests",
+      "collectedSignature": {
+        "sha256": "fe3781a5708b06658d55576247dc672f65d675e49cbcb528e2fe44bf83d14af2",
+        "mode": 420
+      }
+    }
+  ],
+  "relatedDependencies": [
+    {
+      "path": "lib/hermes_facility/app_registry.py",
+      "installed": {
+        "sha256": "1c73af9ac35bb8b7e98f7493721dafbf04ddb4aecc4f9d565d20fa2b94c422a4",
+        "mode": 420
+      },
+      "collected": {
+        "sha256": "1c73af9ac35bb8b7e98f7493721dafbf04ddb4aecc4f9d565d20fa2b94c422a4",
+        "mode": 420
+      }
+    },
+    {
+      "path": "lib/hermes_facility/work_scope.py",
+      "installed": {
+        "sha256": "57b2e415c44ddb9942ab763a9ac1873ab95f7f3c49348c9fa7c5ea66dd58e0f8",
+        "mode": 420
+      },
+      "collected": {
+        "sha256": "57b2e415c44ddb9942ab763a9ac1873ab95f7f3c49348c9fa7c5ea66dd58e0f8",
+        "mode": 420
+      }
+    },
+    {
+      "path": "lib/hermes_governance/app_tools.py",
+      "installed": {
+        "sha256": "305c77b5bee8f64a1a00d37be91ad91408bcee579f3544250b1b60114a73758a",
+        "mode": 420
+      },
+      "collected": {
+        "sha256": "305c77b5bee8f64a1a00d37be91ad91408bcee579f3544250b1b60114a73758a",
+        "mode": 420
+      }
+    },
+    {
+      "path": "lib/hermes_governance/notion_undo.py",
+      "installed": {
+        "sha256": "da105eaf2d69ec36dfa8aa52e400121048b4c998cbef37aeff414d380c17b81a",
+        "mode": 420
+      },
+      "collected": {
+        "sha256": "da105eaf2d69ec36dfa8aa52e400121048b4c998cbef37aeff414d380c17b81a",
+        "mode": 420
+      }
+    },
+    {
+      "path": "lib/hermes_governance/write_policy.py",
+      "installed": {
+        "sha256": "3227889cbf49ed9080f04557db83abf8b8302b3d6ff2bd2db3275afbecf8c827",
+        "mode": 420
+      },
+      "collected": {
+        "sha256": "3227889cbf49ed9080f04557db83abf8b8302b3d6ff2bd2db3275afbecf8c827",
+        "mode": 420
+      }
+    },
+    {
+      "path": "lib/hermes_owner_chat.py",
+      "installed": {
+        "sha256": "f30dae7d87ff85100ff4716199dffffdf2aa4f5dcda2e4f756a56ec4b732cac0",
+        "mode": 420
+      },
+      "collected": {
+        "sha256": "ef5866bb9fffee97f3a720ae5149557cae7c9b3103d7768dfe74441027cf8015",
+        "mode": 420
+      }
+    },
+    {
+      "path": "lib/hermes_packs/diagnosis/diagnosis_runtime.py",
+      "installed": {
+        "sha256": "c50a7ba263eac50c909a21344b234086591522b3c1a20cf7606d08edd2e1d426",
+        "mode": 420
+      },
+      "collected": {
+        "sha256": "f4f1437aceb751ffc58b365f60c46f2b70f6bf8c106837443f671a2354e60503",
+        "mode": 420
+      }
+    },
+    {
+      "path": "lib/hermes_team_services/memory_live.py",
+      "installed": {
+        "sha256": "f5881aa231425c78b3e3c53a1c2e5b7e2e79d3e4d532c54e090b4a18b8e6dad8",
+        "mode": 420
+      },
+      "collected": {
+        "sha256": "311e41abd26e915bc9ed9e2a398f9177eb0439d23a7c1a97c1c2813a9bc08147",
+        "mode": 420
+      }
+    },
+    {
+      "path": "lib/hermes_team_services/work_runtime.py",
+      "installed": {
+        "sha256": "4f4ebc03736bf6f3d63306d3e29b24e6c5222a42a29a45fc14fc1b2fdab918ab",
+        "mode": 420
+      },
+      "collected": {
+        "sha256": "ca8f63e37af7d44f65e4f63eab0c3516cc3a4e5a3a63f11e14f14a0b5bf07172",
+        "mode": 420
+      }
+    },
+    {
+      "path": "lib/hermes_packs/notion/__init__.py",
+      "installed": {
+        "sha256": "844ce9aab8b17f61fde0a381d0d3642e96a2e771dbd8e4e9fa6ba63055391a2c",
+        "mode": 420
+      },
+      "collected": {
+        "sha256": "844ce9aab8b17f61fde0a381d0d3642e96a2e771dbd8e4e9fa6ba63055391a2c",
+        "mode": 420
+      }
+    },
+    {
+      "path": "lib/hermes_facility/connections.py",
+      "installed": {
+        "sha256": "7fb0e6e60c26580aa3a0db2e45fa4065bdc7c8011caa9b0ba971b60c92d76b32",
+        "mode": 420
+      },
+      "collected": {
+        "sha256": "7fb0e6e60c26580aa3a0db2e45fa4065bdc7c8011caa9b0ba971b60c92d76b32",
+        "mode": 420
+      }
+    },
+    {
+      "path": "plugin.yaml",
+      "installed": {
+        "sha256": "3d15a4f092713fc1d7355c831c5febb7a2ee13b5f8107970b55bb9261aa5c648",
+        "mode": 420
+      },
+      "collected": {
+        "sha256": "3d15a4f092713fc1d7355c831c5febb7a2ee13b5f8107970b55bb9261aa5c648",
+        "mode": 420
+      }
+    },
+    {
+      "path": "lib/hermes_facility/connections.py",
+      "installed": {
+        "sha256": "7fb0e6e60c26580aa3a0db2e45fa4065bdc7c8011caa9b0ba971b60c92d76b32",
+        "mode": 420
+      },
+      "collected": {
+        "sha256": "7fb0e6e60c26580aa3a0db2e45fa4065bdc7c8011caa9b0ba971b60c92d76b32",
+        "mode": 420
+      }
+    },
+    {
+      "path": "lib/hermes_facility/config_assembly.py",
+      "installed": {
+        "sha256": "27dbd9abffd5d1b321cafac0890e37f90295c1a89c80b5d506ac2bd008b7f663",
+        "mode": 420
+      },
+      "collected": {
+        "sha256": "27dbd9abffd5d1b321cafac0890e37f90295c1a89c80b5d506ac2bd008b7f663",
+        "mode": 420
+      }
+    }
+  ],
+  "manifestEntries": [
+    {
+      "tree": "hermes/plugin-store/team-kit",
+      "target": "plugins/team-kit",
+      "transform": "copy",
+      "exclude": [],
+      "managed_links": true
+    },
+    {
+      "source": "starter-templates/install_support.py",
+      "target": "install_support.py",
+      "transform": "copy"
+    },
+    {
+      "source": "hermes/plugin-store/team-kit/tests/test_airport_boundaries.py",
+      "target": "plugins/team-kit/tests/test_airport_boundaries.py",
+      "transform": "redact"
+    },
+    {
+      "source": "hermes/plugin-store/team-kit/tests/test_airport_boundaries.py",
+      "target": "plugins/team-delegation/tests/test_airport_boundaries.py",
+      "transform": "redact"
+    },
+    {
+      "source": "starter-templates/hermes-connections.py",
+      "target": "commands/hermes-connections.py",
+      "transform": "copy"
+    }
+  ],
+  "manifestSha256": "cb7aaefa02c0c4a6939d540bfc563e2e6c4eca403fa189e03782c7c956746262",
+  "closureComplete": false,
+  "generationExecuted": false
+}

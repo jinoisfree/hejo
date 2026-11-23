@@ -1,0 +1,62 @@
+[
+  {
+    "homeIndex": 0,
+    "install": 0,
+    "check": 0,
+    "gateSucceeded": false,
+    "errorType": "ConnectionFailure",
+    "directExit": 1,
+    "missingModules": [
+      "msvcrt",
+      "msvcrt",
+      "msvcrt",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml"
+    ],
+    "isolationBoundaryFailure": true,
+    "boundaryKinds": [
+      "ISOLATION_FILE_BOUNDARY"
+    ],
+    "safeError": "{\"error\": \"CONNECTIONS_READ_FAILED\"}"
+  },
+  {
+    "homeIndex": 1,
+    "install": 0,
+    "check": 0,
+    "gateSucceeded": false,
+    "errorType": "ConnectionFailure",
+    "directExit": 1,
+    "missingModules": [
+      "msvcrt",
+      "msvcrt",
+      "msvcrt",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml",
+      "_ruamel_yaml"
+    ],
+    "isolationBoundaryFailure": true,
+    "boundaryKinds": [
+      "ISOLATION_FILE_BOUNDARY"
+    ],
+    "safeError": "{\"error\": \"CONNECTIONS_READ_FAILED\"}"
+  }
+]

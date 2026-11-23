@@ -1,0 +1,27 @@
+{
+  "tests": {
+    "exitCode": 0,
+    "passed": 134,
+    "stdout": "tests.stdout"
+  },
+  "integration": {
+    "exitCode": 0,
+    "homes": 2,
+    "stdout": "integration.stdout",
+    "scriptSha256": "9c520ad0798b7c208a444b411e8691085b228ec5ee67cbc7a84df707b164a765"
+  },
+  "git": {
+    "diff --check": {
+      "exitCode": 0,
+      "stdout": ""
+    },
+    "status --porcelain": {
+      "exitCode": 0,
+      "stdout": " M starter-manifest\n M starter-templates/install_support.py\n M sync\n M tests/test_make_starter.py\n M tests/test_starter_runtime.py\n M tests/test_sync.py\n?? starter-templates/hermes-connections.py\n"
+    },
+    "rev-parse HEAD": {
+      "exitCode": 0,
+      "stdout": "cf79f4527949c88a9b74612872cf4c09a51441db\n"
+    }
+  }
+}

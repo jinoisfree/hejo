@@ -1,0 +1,151 @@
+{
+  "findings": [
+    {
+      "path": "tests/test_sync.py",
+      "line": 39,
+      "kind": "email",
+      "lineSha256": "d3cecd05400640527ce66c697604bb3b18584975868a82a3118705acf654c4c5",
+      "disposition": "unchanged fake fixture or SSH transport syntax"
+    },
+    {
+      "path": "tests/test_sync.py",
+      "line": 270,
+      "kind": "email",
+      "lineSha256": "c6d8c437805b73e2bc5773e8381e61b60a5ca82d0811ee4059ddd150aa889603",
+      "disposition": "unchanged fake fixture or SSH transport syntax"
+    },
+    {
+      "path": "tests/test_make_starter.py",
+      "line": 67,
+      "kind": "email",
+      "lineSha256": "1b33ee06a895216913fda960ff20e7938209b81e7c224e3fd768c04cf6dc3096",
+      "disposition": "unchanged fake fixture or SSH transport syntax"
+    },
+    {
+      "path": "tests/test_make_starter.py",
+      "line": 69,
+      "kind": "absolute-path",
+      "lineSha256": "e857b0b511b61eaad5ce797392451efb0acc57e5b37316396a781cca78ee3a5e",
+      "disposition": "unchanged fake fixture or SSH transport syntax"
+    },
+    {
+      "path": "tests/test_make_starter.py",
+      "line": 89,
+      "kind": "email",
+      "lineSha256": "9d1f6c59be58f6b10563c2e1ef9d9de8180c5d6f6f0d4cb2be2ced67bcb3f440",
+      "disposition": "unchanged fake fixture or SSH transport syntax"
+    },
+    {
+      "path": "tests/test_make_starter.py",
+      "line": 115,
+      "kind": "email",
+      "lineSha256": "8085869ad256790410d017ec1f399e40be6d807d87fe1ef8dfd38638ae2e4246",
+      "disposition": "unchanged fake fixture or SSH transport syntax"
+    },
+    {
+      "path": "tests/test_make_starter.py",
+      "line": 228,
+      "kind": "email",
+      "lineSha256": "4b1dc99ec089124dda42c240b6a3e90112065dc8588f64eed514b6e70d2d7662",
+      "disposition": "unchanged fake fixture or SSH transport syntax"
+    },
+    {
+      "path": "tests/test_make_starter.py",
+      "line": 242,
+      "kind": "email",
+      "lineSha256": "89be9ebcc5f48d213629ec05310320850a00c2040768dd325e6266a319f983f4",
+      "disposition": "unchanged fake fixture or SSH transport syntax"
+    },
+    {
+      "path": "tests/test_make_starter.py",
+      "line": 245,
+      "kind": "email",
+      "lineSha256": "a6c6b97f3ec43c8a30c4d826fbe82aa3b94c98d7aa3a7ff941f08d5af4a5aa8f",
+      "disposition": "unchanged fake fixture or SSH transport syntax"
+    },
+    {
+      "path": "tests/test_make_starter.py",
+      "line": 268,
+      "kind": "email",
+      "lineSha256": "2be87f1052f0cb0d5a733b719faa82686dce086c8a15a3b933460b6ee525a830",
+      "disposition": "unchanged fake fixture or SSH transport syntax"
+    },
+    {
+      "path": "tests/test_make_starter.py",
+      "line": 278,
+      "kind": "email",
+      "lineSha256": "3c006cf0b8e953b9b951c0027cf631fe946b6d3892eba558e51040a5769713e0",
+      "disposition": "unchanged fake fixture or SSH transport syntax"
+    },
+    {
+      "path": "tests/test_make_starter.py",
+      "line": 279,
+      "kind": "email",
+      "lineSha256": "7308a51c3aaa633568190aa6e59259a602068d60fc5915737291addccb464b0a",
+      "disposition": "unchanged fake fixture or SSH transport syntax"
+    },
+    {
+      "path": "tests/test_make_starter.py",
+      "line": 348,
+      "kind": "email",
+      "lineSha256": "4d679bab500e6c882a5dbc1a8ca45de203726da43060426db3c1266a14e14f40",
+      "disposition": "unchanged fake fixture or SSH transport syntax"
+    },
+    {
+      "path": "tests/test_make_starter.py",
+      "line": 356,
+      "kind": "email",
+      "lineSha256": "6b64447589ee4f4eb0ed4161c464919fd093292c107ee471539e125a86d91f75",
+      "disposition": "unchanged fake fixture or SSH transport syntax"
+    },
+    {
+      "path": "tests/test_make_starter.py",
+      "line": 392,
+      "kind": "email",
+      "lineSha256": "0f72889caa44f5703f537f8cf4828c29e8fc9f295e3752f72c864e32beb54b00",
+      "disposition": "unchanged fake fixture or SSH transport syntax"
+    },
+    {
+      "path": "tests/test_make_starter.py",
+      "line": 394,
+      "kind": "email",
+      "lineSha256": "133fec8f83a36133f92ff29d072fdc0f25e566f5e20fcd43123a7e253ad44849",
+      "disposition": "unchanged fake fixture or SSH transport syntax"
+    },
+    {
+      "path": "tests/test_make_starter.py",
+      "line": 395,
+      "kind": "email",
+      "lineSha256": "2a38057645b5743e9dec81ba40843038873e72601f2850432ae6cd35149d2a9c",
+      "disposition": "unchanged fake fixture or SSH transport syntax"
+    },
+    {
+      "path": "tests/test_make_starter.py",
+      "line": 519,
+      "kind": "email",
+      "lineSha256": "d1aea434b3abffe1b856068006cb3635c9d74786feda2ec680260dd80ad333ba",
+      "disposition": "unchanged fake fixture or SSH transport syntax"
+    }
+  ],
+  "refs": {
+    "rev-parse github/main": {
+      "exitCode": 0,
+      "stdout": "740f5be61f0f9826eae991039992fb17a57788f2\n"
+    },
+    "merge-base --is-ancestor github/main HEAD": {
+      "exitCode": 1,
+      "stdout": ""
+    },
+    "merge-base --is-ancestor HEAD main": {
+      "exitCode": 0,
+      "stdout": ""
+    },
+    "merge-base --is-ancestor main HEAD": {
+      "exitCode": 1,
+      "stdout": ""
+    }
+  },
+  "remoteLiveQuery": false,
+  "initialDispositionExitCode": 1,
+  "reason": "SSH URL syntax missing from initial classification; source checked, no allowlist change"
+}

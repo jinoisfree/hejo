@@ -1,0 +1,57 @@
+{
+  "exitCode": 0,
+  "collected": 13,
+  "evidencePreserved": 5,
+  "toolsUnchanged": true,
+  "trackedChangesExactlyExpected": true,
+  "stagedChanges": 0,
+  "initialWrapperExitCode": 1,
+  "initialFailure": "post-apply directory metadata assertion; collection not repeated",
+  "beforeIndexHashNotPersisted": true,
+  "git": {
+    "isolated": {
+      "diff --check": {
+        "exitCode": 0,
+        "stdout": ""
+      },
+      "diff --name-only": {
+        "exitCode": 0,
+        "stdout": "hermes/plugin-store/team-kit/__init__.py\nhermes/plugin-store/team-kit/lib/hermes_facility/app_connect.py\nhermes/plugin-store/team-kit/lib/hermes_facility/app_scope.py\nhermes/plugin-store/team-kit/lib/hermes_facility/app_setup.py\nhermes/plugin-store/team-kit/lib/hermes_facility/connection_checks.py\nhermes/plugin-store/team-kit/lib/hermes_governance/contracts.py\nhermes/plugin-store/team-kit/lib/hermes_packs/mac_apps/app_catalog.json\nhermes/plugin-store/team-kit/lib/hermes_packs/mac_apps/catalog.py\nhermes/plugin-store/team-kit/lib/hermes_packs/mac_apps/discovery.py\nhermes/plugin-store/team-kit/lib/hermes_packs/notion/api.py\nhermes/plugin-store/team-kit/lib/hermes_packs/notion/operations.py\nhermes/plugin-store/team-kit/tests/test_app_catalog.py\nhermes/plugin-store/team-kit/tests/test_app_registry.py\nstarter-manifest\nstarter-templates/install_support.py\nsync\ntests/test_make_starter.py\ntests/test_starter_runtime.py\ntests/test_sync.py\n"
+      },
+      "diff --cached --name-only": {
+        "exitCode": 0,
+        "stdout": ""
+      },
+      "status --porcelain": {
+        "exitCode": 0,
+        "stdout": " M hermes/plugin-store/team-kit/__init__.py\n M hermes/plugin-store/team-kit/lib/hermes_facility/app_connect.py\n M hermes/plugin-store/team-kit/lib/hermes_facility/app_scope.py\n M hermes/plugin-store/team-kit/lib/hermes_facility/app_setup.py\n M hermes/plugin-store/team-kit/lib/hermes_facility/connection_checks.py\n M hermes/plugin-store/team-kit/lib/hermes_governance/contracts.py\n M hermes/plugin-store/team-kit/lib/hermes_packs/mac_apps/app_catalog.json\n M hermes/plugin-store/team-kit/lib/hermes_packs/mac_apps/catalog.py\n M hermes/plugin-store/team-kit/lib/hermes_packs/mac_apps/discovery.py\n M hermes/plugin-store/team-kit/lib/hermes_packs/notion/api.py\n M hermes/plugin-store/team-kit/lib/hermes_packs/notion/operations.py\n M hermes/plugin-store/team-kit/tests/test_app_catalog.py\n M hermes/plugin-store/team-kit/tests/test_app_registry.py\n M starter-manifest\n M starter-templates/install_support.py\n M sync\n M tests/test_make_starter.py\n M tests/test_starter_runtime.py\n M tests/test_sync.py\n?? starter-templates/hermes-connections.py\n"
+      },
+      "rev-parse HEAD": {
+        "exitCode": 0,
+        "stdout": "cf79f4527949c88a9b74612872cf4c09a51441db\n"
+      }
+    },
+    "hejo": {
+      "diff --check": {
+        "exitCode": 0,
+        "stdout": ""
+      },
+      "diff --name-only": {
+        "exitCode": 0,
+        "stdout": ""
+      },
+      "diff --cached --name-only": {
+        "exitCode": 0,
+        "stdout": ""
+      },
+      "status --porcelain": {
+        "exitCode": 0,
+        "stdout": "?? docs/changes/HEJO-NOTION-API-20261123/\n"
+      },
+      "rev-parse HEAD": {
+        "exitCode": 0,
+        "stdout": "39f954c1bd3a50fd27d4f11a3b03774d0e74aa41\n"
+      }
+    }
+  }
+}

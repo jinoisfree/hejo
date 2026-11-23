@@ -1,0 +1,16 @@
+{
+  "exitCode": 1,
+  "passed": 137,
+  "failed": 2,
+  "failures": [
+    "test environment missing collected hermes_schedule lib path",
+    "new import error constant matched public slack-id pattern"
+  ],
+  "raw": "preserved in private worktree evidence",
+  "resolution": [
+    "use collected library PYTHONPATH",
+    "use CONNECTION_START_FAILED without scanner changes"
+  ],
+  "preparationAttemptExitCode": 2,
+  "preparationCause": "wrong cwd; corrected before input copying"
+}

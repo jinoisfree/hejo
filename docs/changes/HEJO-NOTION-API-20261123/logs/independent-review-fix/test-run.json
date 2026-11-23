@@ -1,0 +1,6 @@
+{
+  "command": "pytest tests/test_sync.py tests/test_starter_runtime.py tests/test_make_starter.py -q -p no:cacheprovider",
+  "exitCode": 0,
+  "stdout": "tests.stdout",
+  "stderr": "tests.stderr"
+}

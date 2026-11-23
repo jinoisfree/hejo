@@ -1,0 +1,21 @@
+{
+  "diagnoseExitCode": 1,
+  "fixtureFirstExitCode": 1,
+  "fixtureFinalExitCode": 0,
+  "candidateHashesMatch": true,
+  "fixtureScriptSha256": "17775e6ae1427486933b4f21bfe2dfede605c428e7dc4b9d856681a44e72b414",
+  "git": {
+    "diff --check": {
+      "exitCode": 0,
+      "stdout": ""
+    },
+    "status --porcelain": {
+      "exitCode": 0,
+      "stdout": " M starter-manifest\n M starter-templates/install_support.py\n M sync\n M tests/test_make_starter.py\n M tests/test_starter_runtime.py\n M tests/test_sync.py\n?? starter-templates/hermes-connections.py\n"
+    },
+    "rev-parse HEAD": {
+      "exitCode": 0,
+      "stdout": "cf79f4527949c88a9b74612872cf4c09a51441db\n"
+    }
+  }
+}

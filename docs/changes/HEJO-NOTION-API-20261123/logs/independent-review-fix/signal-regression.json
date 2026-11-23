@@ -1,0 +1,25 @@
+{
+  "before": {
+    "exitCode": 1,
+    "passed": 1,
+    "failed": 1,
+    "cause": "shell wait leaked diagnostic on SIGKILL",
+    "rawLog": "local-private-only"
+  },
+  "after": {
+    "exitCode": 0,
+    "includedInTests": 141,
+    "signals": [
+      "TERM",
+      "KILL"
+    ],
+    "fixedStderr": true
+  },
+  "auditAttempts": {
+    "exitCodes": [
+      1,
+      1
+    ],
+    "cause": "filesystem count includes generated inventory and integration bytecode; final check uses generator inventory"
+  }
+}

@@ -1,0 +1,206 @@
+{
+  "files": {
+    "sync": "8b30a8e4c14b7cd6b9362d33f09ac31c6cc65462a00250a7ba9758a9a5a6b40c",
+    "starter-manifest": "cb7aaefa02c0c4a6939d540bfc563e2e6c4eca403fa189e03782c7c956746262",
+    "starter-templates/install_support.py": "7f3f39b9b33c06c60a7db99d86ff526338ff3887fa92ed48b02d29e52457cc8c",
+    "starter-templates/hermes-connections.py": "a4dff6c8f26b22bd38df8c388d6de9d3258909a490054fe74931a0ff00304f83",
+    "tests/test_sync.py": "5004e0bf3bb5cbd18a97d210740f866c4b66b75cb0aba40cb2be349aeb2cd0c6",
+    "tests/test_make_starter.py": "72028bced01f6345713b6ab7b5e5bc2c677ca5ac1ac44bb740d43ceb358d4137",
+    "tests/test_starter_runtime.py": "17780eab96c353a4ce9056b70653ba6c055bd3f466a8da954e14130501c07cb7",
+    "hermes/plugin-store/team-kit/lib/hermes_facility/app_connect.py": "a6756ce5809e8ba3db4f96df3944ffdf9c4e6c6513d2913731622949612e02f6",
+    "hermes/plugin-store/team-kit/lib/hermes_packs/mac_apps/app_catalog.json": "92b14e124a52b7c6d6561d32ae8a441ba53a834f3a112224d78a78c35084eda4",
+    "hermes/plugin-store/team-kit/lib/hermes_packs/mac_apps/catalog.py": "64850fda558e0c29dd4633aad259d8474444edb096e6d892ef4779e10181fede",
+    "hermes/plugin-store/team-kit/lib/hermes_packs/mac_apps/discovery.py": "1aabec2459b98a40b92f2b2e867ad2632498fc99dc66c5b78a94df968587e2b6",
+    "hermes/plugin-store/team-kit/tests/test_app_catalog.py": "35688cfe8fe352dcef5752e409cabe478f290fba9557df6fd3a16fe7bf4e1b37",
+    "hermes/plugin-store/team-kit/tests/test_app_registry.py": "7d82cfeb7db71cdd0640c03a775cbd9734a1c85f634223b079460013442ab757",
+    "hermes/plugin-store/team-kit/__init__.py": "4ca0e6a3c0fe80a23e97daa9b777fc5097d44bd0039f5a3242b92b2d93c63c63",
+    "hermes/plugin-store/team-kit/lib/hermes_facility/app_scope.py": "761a0a1785f51f47c49087ed5244515ac54433eefd200c2b7b436457beb62c51",
+    "hermes/plugin-store/team-kit/lib/hermes_facility/app_setup.py": "58faddec5d3149b352d39737ae5896d51029ad2158bad4ff270d41de42a51ee3",
+    "hermes/plugin-store/team-kit/lib/hermes_facility/connection_checks.py": "645935438bc3d2292ef52350a549066766f9e4ed25c1a1a3db6c79832f9d47da",
+    "hermes/plugin-store/team-kit/lib/hermes_governance/contracts.py": "7a67556518b96634ab94865e42ae3f33ccb1190c1ef85eb1778d473c1b4c1811",
+    "hermes/plugin-store/team-kit/lib/hermes_packs/notion/api.py": "9b274704bc93029d9e29205b9af8f41d7c88a287643bc744e2680373c2c892a7",
+    "hermes/plugin-store/team-kit/lib/hermes_packs/notion/operations.py": "449f3b1e49ba962c0d79b0108b3e630bc9316be9c3d48111fe370e41872f6eaf",
+    "hejo/docs/changes/HEJO-NOTION-API-20261123/evidence/accepted-tests/hna_connections.py.txt": "fc5fc2129f838a395c4bf15a21a96db45318a9c4b0fae27e8c26f2b44fe13ca6",
+    "hejo/docs/changes/HEJO-NOTION-API-20261123/evidence/accepted-tests/test_app_scope.py.txt": "0169f8dbae33917bba854b1be9d37552c6f0b76b85d31678c7ca1a90596332b8",
+    "hejo/docs/changes/HEJO-NOTION-API-20261123/evidence/accepted-tests/test_hna.py.txt": "755fddaf1948a9963b9c7d62940817172adc40e0f2dfc890e9e98b909ef0e2c4",
+    "hejo/docs/changes/HEJO-NOTION-API-20261123/evidence/accepted-tests/test_hna_r1.py.txt": "c4483e264e0b7ac9725fd3bd9c5febdb847aabc4e880f7fbb6f2ede2308f194a",
+    "hejo/docs/changes/HEJO-NOTION-API-20261123/evidence/accepted-tests/test_notion.py.txt": "cd6f5646579caa196f33e00d73e5da12295cc47b7e032f7573fef9fc4d8828c4"
+  },
+  "patternHits": [
+    {
+      "path": "tests/test_sync.py",
+      "line": 39,
+      "kind": "email",
+      "lineSha256": "d3cecd05400640527ce66c697604bb3b18584975868a82a3118705acf654c4c5"
+    },
+    {
+      "path": "tests/test_sync.py",
+      "line": 270,
+      "kind": "email",
+      "lineSha256": "c6d8c437805b73e2bc5773e8381e61b60a5ca82d0811ee4059ddd150aa889603"
+    },
+    {
+      "path": "tests/test_make_starter.py",
+      "line": 67,
+      "kind": "email",
+      "lineSha256": "1b33ee06a895216913fda960ff20e7938209b81e7c224e3fd768c04cf6dc3096"
+    },
+    {
+      "path": "tests/test_make_starter.py",
+      "line": 69,
+      "kind": "absolute-path",
+      "lineSha256": "e857b0b511b61eaad5ce797392451efb0acc57e5b37316396a781cca78ee3a5e"
+    },
+    {
+      "path": "tests/test_make_starter.py",
+      "line": 89,
+      "kind": "email",
+      "lineSha256": "9d1f6c59be58f6b10563c2e1ef9d9de8180c5d6f6f0d4cb2be2ced67bcb3f440"
+    },
+    {
+      "path": "tests/test_make_starter.py",
+      "line": 115,
+      "kind": "email",
+      "lineSha256": "8085869ad256790410d017ec1f399e40be6d807d87fe1ef8dfd38638ae2e4246"
+    },
+    {
+      "path": "tests/test_make_starter.py",
+      "line": 228,
+      "kind": "email",
+      "lineSha256": "4b1dc99ec089124dda42c240b6a3e90112065dc8588f64eed514b6e70d2d7662"
+    },
+    {
+      "path": "tests/test_make_starter.py",
+      "line": 242,
+      "kind": "email",
+      "lineSha256": "89be9ebcc5f48d213629ec05310320850a00c2040768dd325e6266a319f983f4"
+    },
+    {
+      "path": "tests/test_make_starter.py",
+      "line": 245,
+      "kind": "email",
+      "lineSha256": "a6c6b97f3ec43c8a30c4d826fbe82aa3b94c98d7aa3a7ff941f08d5af4a5aa8f"
+    },
+    {
+      "path": "tests/test_make_starter.py",
+      "line": 268,
+      "kind": "email",
+      "lineSha256": "2be87f1052f0cb0d5a733b719faa82686dce086c8a15a3b933460b6ee525a830"
+    },
+    {
+      "path": "tests/test_make_starter.py",
+      "line": 278,
+      "kind": "email",
+      "lineSha256": "3c006cf0b8e953b9b951c0027cf631fe946b6d3892eba558e51040a5769713e0"
+    },
+    {
+      "path": "tests/test_make_starter.py",
+      "line": 279,
+      "kind": "email",
+      "lineSha256": "7308a51c3aaa633568190aa6e59259a602068d60fc5915737291addccb464b0a"
+    },
+    {
+      "path": "tests/test_make_starter.py",
+      "line": 348,
+      "kind": "email",
+      "lineSha256": "4d679bab500e6c882a5dbc1a8ca45de203726da43060426db3c1266a14e14f40"
+    },
+    {
+      "path": "tests/test_make_starter.py",
+      "line": 356,
+      "kind": "email",
+      "lineSha256": "6b64447589ee4f4eb0ed4161c464919fd093292c107ee471539e125a86d91f75"
+    },
+    {
+      "path": "tests/test_make_starter.py",
+      "line": 392,
+      "kind": "email",
+      "lineSha256": "0f72889caa44f5703f537f8cf4828c29e8fc9f295e3752f72c864e32beb54b00"
+    },
+    {
+      "path": "tests/test_make_starter.py",
+      "line": 394,
+      "kind": "email",
+      "lineSha256": "133fec8f83a36133f92ff29d072fdc0f25e566f5e20fcd43123a7e253ad44849"
+    },
+    {
+      "path": "tests/test_make_starter.py",
+      "line": 395,
+      "kind": "email",
+      "lineSha256": "2a38057645b5743e9dec81ba40843038873e72601f2850432ae6cd35149d2a9c"
+    },
+    {
+      "path": "tests/test_make_starter.py",
+      "line": 519,
+      "kind": "email",
+      "lineSha256": "d1aea434b3abffe1b856068006cb3635c9d74786feda2ec680260dd80ad333ba"
+    }
+  ],
+  "scope": "25 submitted files; no owner secret inputs; fixed patterns only",
+  "repositories": {
+    "external": {
+      "diff --check": {
+        "exitCode": 0,
+        "stdout": ""
+      },
+      "diff --cached --name-only": {
+        "exitCode": 0,
+        "stdout": ""
+      },
+      "status --porcelain": {
+        "exitCode": 0,
+        "stdout": " M hermes/plugin-store/team-kit/__init__.py\n M hermes/plugin-store/team-kit/lib/hermes_facility/app_connect.py\n M hermes/plugin-store/team-kit/lib/hermes_facility/app_scope.py\n M hermes/plugin-store/team-kit/lib/hermes_facility/app_setup.py\n M hermes/plugin-store/team-kit/lib/hermes_facility/connection_checks.py\n M hermes/plugin-store/team-kit/lib/hermes_governance/contracts.py\n M hermes/plugin-store/team-kit/lib/hermes_packs/mac_apps/app_catalog.json\n M hermes/plugin-store/team-kit/lib/hermes_packs/mac_apps/catalog.py\n M hermes/plugin-store/team-kit/lib/hermes_packs/mac_apps/discovery.py\n M hermes/plugin-store/team-kit/lib/hermes_packs/notion/api.py\n M hermes/plugin-store/team-kit/lib/hermes_packs/notion/operations.py\n M hermes/plugin-store/team-kit/tests/test_app_catalog.py\n M hermes/plugin-store/team-kit/tests/test_app_registry.py\n M starter-manifest\n M starter-templates/install_support.py\n M sync\n M tests/test_make_starter.py\n M tests/test_starter_runtime.py\n M tests/test_sync.py\n?? starter-templates/hermes-connections.py\n"
+      },
+      "rev-parse HEAD": {
+        "exitCode": 0,
+        "stdout": "cf79f4527949c88a9b74612872cf4c09a51441db\n"
+      },
+      "rev-parse main": {
+        "exitCode": 0,
+        "stdout": "cf79f4527949c88a9b74612872cf4c09a51441db\n"
+      },
+      "rev-parse origin/main": {
+        "exitCode": 0,
+        "stdout": "cf79f4527949c88a9b74612872cf4c09a51441db\n"
+      },
+      "main ancestor HEAD": {
+        "exitCode": 0
+      },
+      "origin/main ancestor HEAD": {
+        "exitCode": 0
+      }
+    },
+    "hejo": {
+      "diff --check": {
+        "exitCode": 0,
+        "stdout": ""
+      },
+      "diff --cached --name-only": {
+        "exitCode": 0,
+        "stdout": ""
+      },
+      "status --porcelain": {
+        "exitCode": 0,
+        "stdout": "?? docs/changes/HEJO-NOTION-API-20261123/\n"
+      },
+      "rev-parse HEAD": {
+        "exitCode": 0,
+        "stdout": "39f954c1bd3a50fd27d4f11a3b03774d0e74aa41\n"
+      },
+      "rev-parse main": {
+        "exitCode": 0,
+        "stdout": "236b0177468b90d9ea23a1b1190e996db78a0694\n"
+      },
+      "rev-parse origin/main": {
+        "exitCode": 128,
+        "stdout": "origin/main\n"
+      },
+      "main ancestor HEAD": {
+        "exitCode": 1
+      },
+      "origin/main ancestor HEAD": {
+        "exitCode": 128
+      }
+    }
+  }
+}

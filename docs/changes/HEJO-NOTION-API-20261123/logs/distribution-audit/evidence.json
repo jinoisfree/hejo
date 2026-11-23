@@ -1,0 +1,24 @@
+{
+  "command": "python3 distribution source audit (inline)",
+  "exitCode": 0,
+  "sourceHashes": {
+    "hejo-release": "8dea837d83c389f67ea656c5eed93b28ad4faeff66f1369c340a24d713badfa1",
+    "hejo-join": "4e7fc19232e3969ffab9c545b28933da9de16198e9f1c290ada6a753db051ce0",
+    "hejo-install": "2c7ce6e3e55b92c1916c9bc6ece3b18662709405989d6254c7bb88f85cb8bc4f",
+    "collection-sync": "b2cdf645a91cbf3e63c88ea2bc5921e3fa3f2e9ccfdc6643628704f40d135b67",
+    "starter-generator": "98bfeb10fa0d45c6c02e396785745c05f2b02bea4cc2f04aedf678c9193a2e76",
+    "starter-manifest": "169d4e96e793a6d93eecff74e5e4cf5dd8c0cd9ed16455aa9645c024870bd82d",
+    "starter-public": "cc0135df38d6876d9dd5cd148282eb4f94af62ff9cfa22217792c786f2f1de09",
+    "connection-runtime": "1d589ee53e196d3aa6cc72543ba6f190da19d75879806a78dd4bfaf62c635ea9"
+  },
+  "worktreeStatusExitCode": 0,
+  "worktreeClean": true,
+  "collectionStatusExitCode": 0,
+  "collectionStatusSha256": "ad287f2708c2b57b1e975352013a830a315b4f7f1f1264fabf767016fa7dcec3",
+  "collectionPreservationEstablished": false,
+  "generatorExecuted": false,
+  "syncExecuted": false,
+  "serviceControl": false,
+  "remoteWrites": false,
+  "reportSha256": "7ce6d2195de18080da857c90990144e4c31dfe06d4f603e1cadb185f2fcba2d4"
+}

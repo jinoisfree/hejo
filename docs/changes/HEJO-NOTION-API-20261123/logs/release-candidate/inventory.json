@@ -1,0 +1,2836 @@
+{
+  "candidates": [
+    {
+      "group": "documents",
+      "path": "collection-drift-review.md",
+      "sha256": "7b05e0b66a5686a7516ba63d9ddbf07b0e7d0f052deac196f174a7dd635c4a27",
+      "bytes": 3632
+    },
+    {
+      "group": "documents",
+      "path": "distribution-audit.md",
+      "sha256": "7ce6d2195de18080da857c90990144e4c31dfe06d4f603e1cadb185f2fcba2d4",
+      "bytes": 4110
+    },
+    {
+      "group": "documents",
+      "path": "distribution-plan.md",
+      "sha256": "161ef98194fa54f3e4c52e06a5682b1cfd0f743171e7e3a41bfdc8c34f68a3c5",
+      "bytes": 9133
+    },
+    {
+      "group": "documents",
+      "path": "distribution-targets.md",
+      "sha256": "afb2b97e5cea8ceca3cdcac39d19118a3a59d63fc93e62f8ad8c6dc44cb83267",
+      "bytes": 3841
+    },
+    {
+      "group": "documents",
+      "path": "final-scope-review.md",
+      "sha256": "e79e8860fedad4f5d25a9a322b3d190fcfbb353eca0968e9265835e7e4901f9f",
+      "bytes": 4010
+    },
+    {
+      "group": "documents",
+      "path": "impl-report-task04a-r1.md",
+      "sha256": "51fec900c816b36e09832612b576384cb52e5bd6db8c242e5e4ffd1a8461ea0a",
+      "bytes": 4218
+    },
+    {
+      "group": "documents",
+      "path": "impl-report-task04b-r1.md",
+      "sha256": "ce1570034987bab8ae9b0f3764b971b7061fcf359e6abc05a382016696009f14",
+      "bytes": 2933
+    },
+    {
+      "group": "documents",
+      "path": "impl-report-task04c.md",
+      "sha256": "e67790cb08e27df026723800ed8f867e113dd49480c82ba92f571be0e7292801",
+      "bytes": 2469
+    },
+    {
+      "group": "documents",
+      "path": "logs/collection-drift-review/evidence.json",
+      "sha256": "1362b03ce62e1c3b381c8e01389cf8fa76f19445dd110c2ed7300abf556deed5",
+      "bytes": 2516
+    },
+    {
+      "group": "documents",
+      "path": "logs/distribution-audit/evidence.json",
+      "sha256": "ffd42fc42c5d0ed331d7196c70cb7238e7f2f99a1bdbc764dd8b52820fb8da35",
+      "bytes": 1248
+    },
+    {
+      "group": "documents",
+      "path": "logs/distribution-audit/target-comparison.json",
+      "sha256": "51243190b3152415ed08a9289b8d1f9cf4672c7cf7dfa4c21b47f9104b350963",
+      "bytes": 9217
+    },
+    {
+      "group": "documents",
+      "path": "logs/final-scope-review/audit.json",
+      "sha256": "e84c14c523deb3c717c5827558b6018bf6242a266b444368cdbc4e332c120046",
+      "bytes": 9394
+    },
+    {
+      "group": "documents",
+      "path": "logs/final-scope-review/disposition.json",
+      "sha256": "0e009533e735c0cd6a5f5783a755f68e77aa2810fc2cf10f1c33227afadf4842",
+      "bytes": 5219
+    },
+    {
+      "group": "documents",
+      "path": "logs/task04a-input-review/dependencies.json",
+      "sha256": "0fd8d2a0b316f2db48049d305080661544bb0f74dc371801c5d6afdab58cbb7b",
+      "bytes": 14431
+    },
+    {
+      "group": "documents",
+      "path": "logs/task04a-r1/candidate-hashes.json",
+      "sha256": "e4776d2ea232306f0c88c5daa85b5ff66a24e6161916a37f34c8edbe5986c592",
+      "bytes": 689
+    },
+    {
+      "group": "documents",
+      "path": "logs/task04a-r1/checks.json",
+      "sha256": "fb38b5f18ac54494edd0bd931c2627ed9da1a45624490a485ecf802fc254805e",
+      "bytes": 745
+    },
+    {
+      "group": "documents",
+      "path": "logs/task04a-r1/input-inventory.json",
+      "sha256": "7a24ab19069fa58dcbf82219a491eea2e6d14e6978e2075b80cb1732d55a3f7d",
+      "bytes": 13639
+    },
+    {
+      "group": "documents",
+      "path": "logs/task04a-r1/integration.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "group": "documents",
+      "path": "logs/task04a-r1/integration.stdout",
+      "sha256": "a9f9b8b67644c6513c03680aaeaabd7a436d00f5af509fada9226c4c4500865d",
+      "bytes": 1206
+    },
+    {
+      "group": "documents",
+      "path": "logs/task04a-r1/tests.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "group": "documents",
+      "path": "logs/task04a-r1/tests.stdout",
+      "sha256": "47f72f3a614fed8265fa1688122d2a27899f40bfd3134bed781de7e6909c0bc7",
+      "bytes": 181
+    },
+    {
+      "group": "documents",
+      "path": "logs/task04b-r1/checks.json",
+      "sha256": "f4b062f03d300f81029fcaa1448a46668e3b7b6addeeb51b5273eb26b2e048df",
+      "bytes": 686
+    },
+    {
+      "group": "documents",
+      "path": "logs/task04b-r1/fixture-attempt01.json",
+      "sha256": "beaa71d28e799a40d29fa48a9ede9767c59537e5b48b2506476987d01d753ccc",
+      "bytes": 1306
+    },
+    {
+      "group": "documents",
+      "path": "logs/task04b-r1/fixture-result.json",
+      "sha256": "d4e285a3b3bc2ab2488fde2130d2ccab6a81c23f1afb75703aef7354edb0f08f",
+      "bytes": 1370
+    },
+    {
+      "group": "documents",
+      "path": "logs/task04b-r1/integration-result.json",
+      "sha256": "beaa71d28e799a40d29fa48a9ede9767c59537e5b48b2506476987d01d753ccc",
+      "bytes": 1306
+    },
+    {
+      "group": "documents",
+      "path": "logs/task04b/build-result.json",
+      "sha256": "a61b0328fbb1f5b0db393630820119f3bcf80d3646d36c24f31daf0c2700deb2",
+      "bytes": 113
+    },
+    {
+      "group": "documents",
+      "path": "logs/task04c/tests.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "group": "documents",
+      "path": "logs/task04c/tests.stdout",
+      "sha256": "7fdf8822bc59afd58ab66b0e4edf53148de67343cbf452672acc1504a95175ba",
+      "bytes": 99
+    },
+    {
+      "group": "documents",
+      "path": "logs/task04c/verification.json",
+      "sha256": "add41aac182af263af2b3df67da1490f650e43382571f5c6f271ac6664db63b7",
+      "bytes": 3341
+    },
+    {
+      "group": "documents",
+      "path": "logs/user-confirmation/evidence-audit.json",
+      "sha256": "5d701254e757c23330c46796517fc814ba70df4991de074f8bc35a775ad6f2a1",
+      "bytes": 1432
+    },
+    {
+      "group": "documents",
+      "path": "public-input-plan.md",
+      "sha256": "cc9dfcdecba1f5003f8857e21c76b9637fe34633dafdbad41dce103d7c765d33",
+      "bytes": 5530
+    },
+    {
+      "group": "documents",
+      "path": "user-confirmation.md",
+      "sha256": "d4d9629d1d86f51281d9fbc9c77bd049fe198e0caf9f471f0846e1e59a792051",
+      "bytes": 3244
+    },
+    {
+      "group": "documents",
+      "path": "independent-review-result.md",
+      "sha256": "37d67155af07cc2550b39f7745a037dd5aa3415a73c8e7a3ffa4cb1288b7922d",
+      "bytes": 5575
+    },
+    {
+      "group": "documents",
+      "path": "impl-report-independent-review-fix.md",
+      "sha256": "b4ffaa3cd2735dbcd0e3e74d9de9b0cbb296e8c128bb8fb9bf1f9e5b8d8a95fb",
+      "bytes": 4688
+    },
+    {
+      "group": "documents",
+      "path": "logs/independent-review-fix/attempt01-summary.json",
+      "sha256": "d30e00583e63a6ab40d53fdbc440f42323cec932c8e49f3ded4c1237857015a2",
+      "bytes": 478
+    },
+    {
+      "group": "documents",
+      "path": "logs/independent-review-fix/build-result.json",
+      "sha256": "2794e3c05e35a0bfb5abec7efc25f1e6e4b46ffe0e1731b81b42f1feb7b01da2",
+      "bytes": 75
+    },
+    {
+      "group": "documents",
+      "path": "logs/independent-review-fix/document-git-check.json",
+      "sha256": "677f1257fe3903112ecd7d587201c69fd52230fbf4feff812e09d4749539e1d5",
+      "bytes": 300
+    },
+    {
+      "group": "documents",
+      "path": "logs/independent-review-fix/final-check.json",
+      "sha256": "addc8f18fececcd6c3d7b18e02d94a1e11a8635555addd3029ea3032fc1f62d3",
+      "bytes": 52118
+    },
+    {
+      "group": "documents",
+      "path": "logs/independent-review-fix/fixture-result.json",
+      "sha256": "9454ce9e9a2d8ae6e88e9434ca186773804a76bf732584c3f39f3005556430f1",
+      "bytes": 934
+    },
+    {
+      "group": "documents",
+      "path": "logs/independent-review-fix/gate-abort-result.json",
+      "sha256": "eb59d38ccb757f289d3aa269ce217fcb6b9cf2ee5e5631e02b4146886a521dc3",
+      "bytes": 113
+    },
+    {
+      "group": "documents",
+      "path": "logs/independent-review-fix/mutation.json",
+      "sha256": "3c2bdf220c660eaf2874499e0defd96285bf93705532e54c8c72da238bc0467e",
+      "bytes": 153
+    },
+    {
+      "group": "documents",
+      "path": "logs/independent-review-fix/privacy-disposition.json",
+      "sha256": "9bbc173d78e0bf86c06ef617500f0277d74e93f29bcbcdfece130ebdaa292ee9",
+      "bytes": 6308
+    },
+    {
+      "group": "documents",
+      "path": "logs/independent-review-fix/signal-regression.json",
+      "sha256": "9af3afc386e078106cb88be125e9fc103bcfefb3198867e8570faba0265c0fd2",
+      "bytes": 499
+    },
+    {
+      "group": "documents",
+      "path": "logs/independent-review-fix/test-run.json",
+      "sha256": "e33b36ff96967181c857b5f7f0162e74ef00e26bff7686469ee4765dd9ddf4d8",
+      "bytes": 198
+    },
+    {
+      "group": "documents",
+      "path": "logs/independent-review-fix/tests.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "group": "documents",
+      "path": "logs/independent-review-fix/tests.stdout",
+      "sha256": "4a4695752d9b77c10177047ae850306639466743f9358b7060e697922f5b8156",
+      "bytes": 181
+    },
+    {
+      "group": "development",
+      "path": "sync",
+      "sha256": "8b30a8e4c14b7cd6b9362d33f09ac31c6cc65462a00250a7ba9758a9a5a6b40c",
+      "bytes": 17961
+    },
+    {
+      "group": "development",
+      "path": "starter-manifest",
+      "sha256": "cb7aaefa02c0c4a6939d540bfc563e2e6c4eca403fa189e03782c7c956746262",
+      "bytes": 18214
+    },
+    {
+      "group": "development",
+      "path": "starter-templates/install_support.py",
+      "sha256": "694770dfb70cc5013462f03c7ca9c4cad533148f9345dada5d76f5145353c1b1",
+      "bytes": 32861
+    },
+    {
+      "group": "development",
+      "path": "starter-templates/hermes-connections.py",
+      "sha256": "ec352d2ae341776cb60aa6f986432d1aba1d89a12f231e26a2669043f8b67715",
+      "bytes": 664
+    },
+    {
+      "group": "development",
+      "path": "tests/test_sync.py",
+      "sha256": "5004e0bf3bb5cbd18a97d210740f866c4b66b75cb0aba40cb2be349aeb2cd0c6",
+      "bytes": 18939
+    },
+    {
+      "group": "development",
+      "path": "tests/test_make_starter.py",
+      "sha256": "72028bced01f6345713b6ab7b5e5bc2c677ca5ac1ac44bb740d43ceb358d4137",
+      "bytes": 29098
+    },
+    {
+      "group": "development",
+      "path": "tests/test_starter_runtime.py",
+      "sha256": "2597c9ec5bf75d1a611de3c95dc8d11241119d6c2fb0aa3867a9142c4943180d",
+      "bytes": 20451
+    },
+    {
+      "group": "development",
+      "path": "hermes/plugin-store/team-kit/lib/hermes_facility/app_connect.py",
+      "sha256": "a6756ce5809e8ba3db4f96df3944ffdf9c4e6c6513d2913731622949612e02f6",
+      "bytes": 51992
+    },
+    {
+      "group": "development",
+      "path": "hermes/plugin-store/team-kit/lib/hermes_packs/mac_apps/app_catalog.json",
+      "sha256": "92b14e124a52b7c6d6561d32ae8a441ba53a834f3a112224d78a78c35084eda4",
+      "bytes": 8095
+    },
+    {
+      "group": "development",
+      "path": "hermes/plugin-store/team-kit/lib/hermes_packs/mac_apps/catalog.py",
+      "sha256": "64850fda558e0c29dd4633aad259d8474444edb096e6d892ef4779e10181fede",
+      "bytes": 4006
+    },
+    {
+      "group": "development",
+      "path": "hermes/plugin-store/team-kit/lib/hermes_packs/mac_apps/discovery.py",
+      "sha256": "1aabec2459b98a40b92f2b2e867ad2632498fc99dc66c5b78a94df968587e2b6",
+      "bytes": 9211
+    },
+    {
+      "group": "development",
+      "path": "hermes/plugin-store/team-kit/tests/test_app_catalog.py",
+      "sha256": "35688cfe8fe352dcef5752e409cabe478f290fba9557df6fd3a16fe7bf4e1b37",
+      "bytes": 5481
+    },
+    {
+      "group": "development",
+      "path": "hermes/plugin-store/team-kit/tests/test_app_registry.py",
+      "sha256": "7d82cfeb7db71cdd0640c03a775cbd9734a1c85f634223b079460013442ab757",
+      "bytes": 10339
+    },
+    {
+      "group": "development",
+      "path": "hermes/plugin-store/team-kit/__init__.py",
+      "sha256": "4ca0e6a3c0fe80a23e97daa9b777fc5097d44bd0039f5a3242b92b2d93c63c63",
+      "bytes": 83875
+    },
+    {
+      "group": "development",
+      "path": "hermes/plugin-store/team-kit/lib/hermes_facility/app_scope.py",
+      "sha256": "761a0a1785f51f47c49087ed5244515ac54433eefd200c2b7b436457beb62c51",
+      "bytes": 8621
+    },
+    {
+      "group": "development",
+      "path": "hermes/plugin-store/team-kit/lib/hermes_facility/app_setup.py",
+      "sha256": "58faddec5d3149b352d39737ae5896d51029ad2158bad4ff270d41de42a51ee3",
+      "bytes": 20129
+    },
+    {
+      "group": "development",
+      "path": "hermes/plugin-store/team-kit/lib/hermes_facility/connection_checks.py",
+      "sha256": "645935438bc3d2292ef52350a549066766f9e4ed25c1a1a3db6c79832f9d47da",
+      "bytes": 20113
+    },
+    {
+      "group": "development",
+      "path": "hermes/plugin-store/team-kit/lib/hermes_governance/contracts.py",
+      "sha256": "7a67556518b96634ab94865e42ae3f33ccb1190c1ef85eb1778d473c1b4c1811",
+      "bytes": 69706
+    },
+    {
+      "group": "development",
+      "path": "hermes/plugin-store/team-kit/lib/hermes_packs/notion/api.py",
+      "sha256": "9b274704bc93029d9e29205b9af8f41d7c88a287643bc744e2680373c2c892a7",
+      "bytes": 129978
+    },
+    {
+      "group": "development",
+      "path": "hermes/plugin-store/team-kit/lib/hermes_packs/notion/operations.py",
+      "sha256": "449f3b1e49ba962c0d79b0108b3e630bc9316be9c3d48111fe370e41872f6eaf",
+      "bytes": 41106
+    },
+    {
+      "group": "generated",
+      "path": ".env.example",
+      "sha256": "401fe024684db97391881e158095ffb7cf77e0470381cb485e9b06bdc854edf4",
+      "bytes": 369
+    },
+    {
+      "group": "generated",
+      "path": ".gitignore",
+      "sha256": "1c7b9e4fb85d47894b3575df58d06587e2c6e48c64aaed9393da9b44126015d9",
+      "bytes": 105
+    },
+    {
+      "group": "generated",
+      "path": "AGENTS.md",
+      "sha256": "3a556a5910b9109a21afdfdc35b3ced59290e526ae56a6a627375e5ab0b33f10",
+      "bytes": 604
+    },
+    {
+      "group": "generated",
+      "path": "ARCHITECTURE.md",
+      "sha256": "1b45b92cbf7181ff8fba04d02cef9b9756d0ad3616ffc69774cd414ccad3410f",
+      "bytes": 5312
+    },
+    {
+      "group": "generated",
+      "path": "README.md",
+      "sha256": "71af56296accbf8d6244f7303b563c2ffa9034ccbb73fd82f8e3909c89c7246f",
+      "bytes": 6598
+    },
+    {
+      "group": "generated",
+      "path": "agents/llm-wiki/README.md",
+      "sha256": "528dd3a777c667d44e37c39867d72f5eee366845b2954f9b693057d101a3756f",
+      "bytes": 808
+    },
+    {
+      "group": "generated",
+      "path": "agents/llm-wiki/SOUL.md",
+      "sha256": "6e1a5f80ce600bc825e7ded74e75642c661754c5fee61e07793aa1c9b3ad57f4",
+      "bytes": 1520
+    },
+    {
+      "group": "generated",
+      "path": "agents/llm-wiki/agent.yaml",
+      "sha256": "a32281776e24651fcf25e1f4b75ca23f83fae57b549feb71f3a57ae5fc1332dd",
+      "bytes": 879
+    },
+    {
+      "group": "generated",
+      "path": "agents/llm-wiki/config.yaml",
+      "sha256": "a4e330622f1a0a74b084d410ea5956b4dce32bcb8adbd4625bd154cdbc697734",
+      "bytes": 366
+    },
+    {
+      "group": "generated",
+      "path": "agents/llm-wiki/profile.yaml",
+      "sha256": "c72bc8a326eced82f11ff9c11ba5b16f2a674a7b7fade08af5946275a85ce43d",
+      "bytes": 149
+    },
+    {
+      "group": "generated",
+      "path": "agents/llm-wiki/slack-manifest.json",
+      "sha256": "145fbbdaffd76d7e942a03dacb9d307e9e4a895a6bbe2066c8eaa26dbce6880a",
+      "bytes": 1208
+    },
+    {
+      "group": "generated",
+      "path": "agents/personal-secretary/README.md",
+      "sha256": "4f27f7584066e3be7e5cdcbeb5f68ce3dc43d04eb823bc0f4da4ee14d4ba5305",
+      "bytes": 855
+    },
+    {
+      "group": "generated",
+      "path": "agents/personal-secretary/SOUL.md",
+      "sha256": "41c428d628d51ecf29977731f9ff64fdb02fcc86dbe4421c32f9153d5a51a900",
+      "bytes": 1579
+    },
+    {
+      "group": "generated",
+      "path": "agents/personal-secretary/agent.yaml",
+      "sha256": "af6c0b51ebf44a29f80251fbf2553d16cbd7bda5c52b1d229eb57dead3e0fb3c",
+      "bytes": 1012
+    },
+    {
+      "group": "generated",
+      "path": "agents/personal-secretary/config.yaml",
+      "sha256": "a4e330622f1a0a74b084d410ea5956b4dce32bcb8adbd4625bd154cdbc697734",
+      "bytes": 366
+    },
+    {
+      "group": "generated",
+      "path": "agents/personal-secretary/profile.yaml",
+      "sha256": "1c11fc11650f0da9cc2d777db0d7d2b844d8e14c02f6fce04e6e8496c30cef9a",
+      "bytes": 167
+    },
+    {
+      "group": "generated",
+      "path": "agents/personal-secretary/slack-manifest.json",
+      "sha256": "a5387a31d9dcd59cf736391c4983785e11a5f5c92d6d0005cc8bae169b5c70fd",
+      "bytes": 1222
+    },
+    {
+      "group": "generated",
+      "path": "agents/sns-manager/README.md",
+      "sha256": "ee91c02b6fa0b536232ab34506573e75e626d96a967327632b5e4ab0ea7d2633",
+      "bytes": 920
+    },
+    {
+      "group": "generated",
+      "path": "agents/sns-manager/SOUL.md",
+      "sha256": "9388aae66f5b95aea12eb44cb500fa08f3e333b66c475c1f4f34ef788f80b09e",
+      "bytes": 1656
+    },
+    {
+      "group": "generated",
+      "path": "agents/sns-manager/agent.yaml",
+      "sha256": "164b9230788cadb368b42a5fa976e5610a9e9a1d4980e0c5f313c8ccf2d045c7",
+      "bytes": 860
+    },
+    {
+      "group": "generated",
+      "path": "agents/sns-manager/config.yaml",
+      "sha256": "a4e330622f1a0a74b084d410ea5956b4dce32bcb8adbd4625bd154cdbc697734",
+      "bytes": 366
+    },
+    {
+      "group": "generated",
+      "path": "agents/sns-manager/profile.yaml",
+      "sha256": "36dad79350d1affff794d74648c822085bedffb21adb3135974540ebbea6e757",
+      "bytes": 162
+    },
+    {
+      "group": "generated",
+      "path": "agents/sns-manager/slack-manifest.json",
+      "sha256": "d83c2190344ee62825562620716dd261b99132676728d1b712bf33520e11b6f6",
+      "bytes": 1193
+    },
+    {
+      "group": "generated",
+      "path": "agents/system-doctor/README.md",
+      "sha256": "8ce880ba32cf8b8f1c7a3e5e1fc3dd92ff880ae0e8ee18770101386a9cee3715",
+      "bytes": 997
+    },
+    {
+      "group": "generated",
+      "path": "agents/system-doctor/SOUL.md",
+      "sha256": "3cec9863e2892d8fde013f582076818bcda1126c71f2bd704efa4da75719585a",
+      "bytes": 1729
+    },
+    {
+      "group": "generated",
+      "path": "agents/system-doctor/agent.yaml",
+      "sha256": "5bc076406f4a7ff1c3b2f28afc64c55d4c9d2bda3ee1c7ad357206b9bfa6487b",
+      "bytes": 1039
+    },
+    {
+      "group": "generated",
+      "path": "agents/system-doctor/config.yaml",
+      "sha256": "a4e330622f1a0a74b084d410ea5956b4dce32bcb8adbd4625bd154cdbc697734",
+      "bytes": 366
+    },
+    {
+      "group": "generated",
+      "path": "agents/system-doctor/profile.yaml",
+      "sha256": "138de8f02f105f5f1937d7573206b548ae88548511795558e9566bd5bf6f8d18",
+      "bytes": 222
+    },
+    {
+      "group": "generated",
+      "path": "agents/system-doctor/slack-manifest.json",
+      "sha256": "36841d66ffda1326b57ab777dec68d3a1597d048a3a9a1995c83e42fd64679c0",
+      "bytes": 1229
+    },
+    {
+      "group": "generated",
+      "path": "agents/work-assistant/README.md",
+      "sha256": "2ad9230b509a4efbb7d8112c9429ac6c5c52de77c157d7c7d5feafe010a3cb24",
+      "bytes": 995
+    },
+    {
+      "group": "generated",
+      "path": "agents/work-assistant/SOUL.md",
+      "sha256": "3b0d42e85fe4fda76f9f3d51a47c6eeb8a352f081d1eac5e9681420b35109ebb",
+      "bytes": 1734
+    },
+    {
+      "group": "generated",
+      "path": "agents/work-assistant/agent.yaml",
+      "sha256": "36379d6fbc6c4efceb4c29a313064398d4aa276bf6cabf52234c1a4a8ae070c1",
+      "bytes": 1065
+    },
+    {
+      "group": "generated",
+      "path": "agents/work-assistant/config.yaml",
+      "sha256": "a4e330622f1a0a74b084d410ea5956b4dce32bcb8adbd4625bd154cdbc697734",
+      "bytes": 366
+    },
+    {
+      "group": "generated",
+      "path": "agents/work-assistant/profile.yaml",
+      "sha256": "dc51175234bea8671f0e2df4271f1f12fdbaae0ecfd95567bd41b4923f8e31b0",
+      "bytes": 201
+    },
+    {
+      "group": "generated",
+      "path": "agents/work-assistant/slack-manifest.json",
+      "sha256": "f04351dd6b6baf8e326926fa5ff28d97724b4279e682b31f54205b887d855077",
+      "bytes": 1231
+    },
+    {
+      "group": "generated",
+      "path": "commands/hermes-connections.py",
+      "sha256": "ec352d2ae341776cb60aa6f986432d1aba1d89a12f231e26a2669043f8b67715",
+      "bytes": 664
+    },
+    {
+      "group": "generated",
+      "path": "gmail/index.html",
+      "sha256": "2c6c721d4f9e3f02bd753f079a93f35d07eb2a8f1bc9275265a29fcabcdc9c5d",
+      "bytes": 831
+    },
+    {
+      "group": "generated",
+      "path": "gmail/privacy.html",
+      "sha256": "b213123ee4854be48fbc98100b145e25b005f196e15dbdf00a90ab02341c7d88",
+      "bytes": 1598
+    },
+    {
+      "group": "generated",
+      "path": "install.py",
+      "sha256": "65c9d67895c78e718bf164cb6a8d0cd68ad41c54cb9f70d7dc27932643df637b",
+      "bytes": 6746
+    },
+    {
+      "group": "generated",
+      "path": "install.sh",
+      "sha256": "b0c7be9e909aec7f7afb3707baf02e5f811ca2244548920a4a422f6baeea169e",
+      "bytes": 1120
+    },
+    {
+      "group": "generated",
+      "path": "install_support.py",
+      "sha256": "694770dfb70cc5013462f03c7ca9c4cad533148f9345dada5d76f5145353c1b1",
+      "bytes": 32861
+    },
+    {
+      "group": "generated",
+      "path": "installation.json",
+      "sha256": "76916c9e763fcba162d5b38fe9ad75d0ccc626a17e6abff0916c2e65a1f76e59",
+      "bytes": 3494
+    },
+    {
+      "group": "generated",
+      "path": "launchd/llm-wiki.plist.template",
+      "sha256": "bfb3ed724b916d75b1bb6e530e8d1e5da98497ac260061a171c1d0e1b9e2fae3",
+      "bytes": 567
+    },
+    {
+      "group": "generated",
+      "path": "launchd/personal-secretary.plist.template",
+      "sha256": "68f25b891017c4525a4f7c55ad9d324ba8ce4cb099bf264f174fab1f5127e1df",
+      "bytes": 577
+    },
+    {
+      "group": "generated",
+      "path": "launchd/sns-manager.plist.template",
+      "sha256": "3c9a2881d0a7b6958b1f8189187df7198f7a416e7ddc23ebf15cbfe2bd46810b",
+      "bytes": 570
+    },
+    {
+      "group": "generated",
+      "path": "launchd/system-doctor.plist.template",
+      "sha256": "992aff64f45e335f96c96bcc97f6174a11127a28fae06faddc90acbe129b5aa4",
+      "bytes": 572
+    },
+    {
+      "group": "generated",
+      "path": "launchd/work-assistant.plist.template",
+      "sha256": "5a91a691be83b3573170b2405106d815025c8bee1d7ac2b2a9449583ffcc5e2c",
+      "bytes": 573
+    },
+    {
+      "group": "generated",
+      "path": "plugin-links.json",
+      "sha256": "4c6170adf6026e15150b4424605aadeb38d6bdea1c7128006d4b289cdf91c2bc",
+      "bytes": 9637
+    },
+    {
+      "group": "generated",
+      "path": "plugins/quiet-logs/__init__.py",
+      "sha256": "803332020f0e7441eb4f1eb100f3869721d17a48daabd446f96063bcf11d9a4b",
+      "bytes": 2690
+    },
+    {
+      "group": "generated",
+      "path": "plugins/quiet-logs/plugin.yaml",
+      "sha256": "35699206322d12607964d1701a01ad01163bb2cab85ba565b4bafb2f026f6edd",
+      "bytes": 96
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-delegation/common_work_links.py",
+      "sha256": "084e8bab99bdff70ef2d40d35c0e56bd3369d4f2625cc2080f0bd6578814c50e",
+      "bytes": 297
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-delegation/notion_completion_sync.py",
+      "sha256": "724486762596ab9e7bf7d3005e45b4fa3e0499af572610ada7019f9fbbca1d2d",
+      "bytes": 357
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-delegation/plugin.yaml",
+      "sha256": "bfcbe6d32cd92c853d62d0dae76f723ee4f429dac64f9e1f25f77e73d3859e29",
+      "bytes": 1145
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-delegation/request_approvals.py",
+      "sha256": "cec57677a5374965a446fd737e5e01b69df27d43d063a4ad647f36abcaa708bc",
+      "bytes": 360
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-delegation/selected_skills.py",
+      "sha256": "a5f47e5454999ed83a010bf4b4094050cb12e6cb6e602c56754e383093683c08",
+      "bytes": 358
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-delegation/tests/test_airport_boundaries.py",
+      "sha256": "e310df7c5618274f2ba72df6defd480aef52ed3f8ee820d1c69241124eb4eca3",
+      "bytes": 3600
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-delegation/zoom_alarm_sync.py",
+      "sha256": "92bb5f3819a007e501bac06c61ec13b97d9db058d0924646379330468647462e",
+      "bytes": 9746
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/__init__.py",
+      "sha256": "4ca0e6a3c0fe80a23e97daa9b777fc5097d44bd0039f5a3242b92b2d93c63c63",
+      "bytes": 83875
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_execution/__init__.py",
+      "sha256": "42c333cc36c29f40b83055dae01043200d8758969616f2c1c96fbdb92ed488ce",
+      "bytes": 106109
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_execution/artifact_tools.py",
+      "sha256": "05d056e50f73fc128fa749c2c67487b4a706d96f7eccf2a0c95879b9df15ea4b",
+      "bytes": 8077
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_execution/limit_report.py",
+      "sha256": "73ca8b781564719fe81d57ff365389d97bcbfcc4ef63ec20e0581f72ed0a1077",
+      "bytes": 6639
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_execution/paseo_tools.py",
+      "sha256": "c51989185e84a17007d626fba53824553929e484ca44aea79a37d77c0e30459c",
+      "bytes": 8963
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_execution/personal_report.py",
+      "sha256": "ae0da11b7ea234842f9629131e723b76e45492d9fc653e950f745ba05d048f95",
+      "bytes": 3965
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_execution/personal_roles.py",
+      "sha256": "42691380cc20fbe829a135d5b6608fef8a1e1bc09d9cb4054bd27310e2bb066f",
+      "bytes": 13935
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_execution/personal_scope_native.js",
+      "sha256": "b093deacf5fad54e58b8483b8e54cae6b4b9fcd91ff0304c0e9686f52b443263",
+      "bytes": 2210
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_execution/personal_scopes.py",
+      "sha256": "cdfab84523014ea1eda0f6ff270d53139cf1b8d4c443c26dc7e6221be20e18e3",
+      "bytes": 23535
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_facility/__init__.py",
+      "sha256": "3c6f881b2c582a45dfe6a9de3196927a9d846c7bf67aee1a9b0c2ff0d5244a5d",
+      "bytes": 62
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_facility/account_connect.py",
+      "sha256": "bd3ae62b2d46f1bc8f52ca8dc7531cf3d4da6a9c4cca4beae9a819be4fe55116",
+      "bytes": 4011
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_facility/airport_boundaries.py",
+      "sha256": "86f64b37f4b62f01560cb7d78f30ab01d0c44467f0c182bc2b4c4ff8b3458ab9",
+      "bytes": 4165
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_facility/app_connect.py",
+      "sha256": "a6756ce5809e8ba3db4f96df3944ffdf9c4e6c6513d2913731622949612e02f6",
+      "bytes": 51992
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_facility/app_registry.py",
+      "sha256": "1c73af9ac35bb8b7e98f7493721dafbf04ddb4aecc4f9d565d20fa2b94c422a4",
+      "bytes": 13364
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_facility/app_scope.py",
+      "sha256": "761a0a1785f51f47c49087ed5244515ac54433eefd200c2b7b436457beb62c51",
+      "bytes": 8621
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_facility/app_setup.py",
+      "sha256": "58faddec5d3149b352d39737ae5896d51029ad2158bad4ff270d41de42a51ee3",
+      "bytes": 20129
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_facility/atomic.py",
+      "sha256": "82df03f27df4a1ee2714a1d409b5f1b1493b698b73000e16a80e3c2a6ff63510",
+      "bytes": 1558
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_facility/config_assembly.py",
+      "sha256": "27dbd9abffd5d1b321cafac0890e37f90295c1a89c80b5d506ac2bd008b7f663",
+      "bytes": 13475
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_facility/connection_checks.py",
+      "sha256": "645935438bc3d2292ef52350a549066766f9e4ed25c1a1a3db6c79832f9d47da",
+      "bytes": 20113
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_facility/connection_guides.py",
+      "sha256": "9e7b82a2aefc7587248bb9685f3eccfe6225c22e165952a5bd0b648ed18458e4",
+      "bytes": 4671
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_facility/connection_secrets.py",
+      "sha256": "efdb26ca6e44f07bf0ddd96c15e40138db4195932e3345da0d173bceefabb8d7",
+      "bytes": 12218
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_facility/connections.py",
+      "sha256": "7fb0e6e60c26580aa3a0db2e45fa4065bdc7c8011caa9b0ba971b60c92d76b32",
+      "bytes": 27324
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_facility/contacts_permission.swift",
+      "sha256": "4a389892acd10f2b27164e1c50ad46e2404d01a0a01ca01094b7dbf160d4f77a",
+      "bytes": 658
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_facility/errors.py",
+      "sha256": "754873d50304296d4a3efe265066c53d762cbc1cb8dcf6553433bc6c7f443c76",
+      "bytes": 325
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_facility/eventkit_permission.swift",
+      "sha256": "781ad4924aa03cb4cedb9622a4291f82091a574d3858fea7a2ba338fe29335a5",
+      "bytes": 448
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_facility/gateway_restart.py",
+      "sha256": "a667e69bf3bd51fb968585c0a4e1d5185911c5af81d5aa658bf8f7e1969e5593",
+      "bytes": 6754
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_facility/loading.py",
+      "sha256": "f1bb35f648b91153c28cc5148ba7ddfc620e3a470bd292d4a004e486632803cf",
+      "bytes": 977
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_facility/mac_executor.py",
+      "sha256": "d8427a501ff5a4a330f7fe0af32bf156b3516a62638d095141839fb94f4eac83",
+      "bytes": 2278
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_facility/mac_permission.py",
+      "sha256": "5970a672726eab0933871356b0d376113cd74a8ba4045bf32ed5aa4c4e1b9b77",
+      "bytes": 18873
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_facility/output_steps.py",
+      "sha256": "96364d1654c41d18bfb386155b0d1571dd3f812d9423ba36fafff64dfdb87cf1",
+      "bytes": 1527
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_facility/owner_text.py",
+      "sha256": "3a3a23a6d96121c188b362b4e65d6336983f7c15343a06ad0f555baf1842fcb3",
+      "bytes": 3046
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_facility/owner_vault.py",
+      "sha256": "701caede1e351c452f6637aeea24fc968fd78a5edaf8bdf7fea0f2375a54961d",
+      "bytes": 4147
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_facility/pack_selection.py",
+      "sha256": "a6b4bd56c959619208c5f07f5461dfddd7c9fef32a4155136458018922ffc378",
+      "bytes": 2786
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_facility/path_form.py",
+      "sha256": "256bc5ac3530dec02bd2a1028af4b9c0046da050f74a8046ba685991da69d63d",
+      "bytes": 1986
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_facility/plugin_store.py",
+      "sha256": "ff80f39906617c927542e96bedb865595f5da2e7dd84b861ae64c8bfea75f63a",
+      "bytes": 8512
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_facility/read_cache.py",
+      "sha256": "e2971fef6bd6bb165956e10ba0fee1a6eaa80ef6a2fc698b6c61728bf723ed3c",
+      "bytes": 2157
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_facility/source_receipts.py",
+      "sha256": "d116be634e2ecbc0a4b61f3847fff347bb340f827970b5f1f60571c345c67898",
+      "bytes": 1269
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_facility/state_layout.py",
+      "sha256": "f28a32626032269f34ef6f7d137c58dac17d993e808551943946926641749d6a",
+      "bytes": 3966
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_facility/synology_setup.py",
+      "sha256": "baf7f580b708fd21ba1bc72bde7ea94194b685e52070e46f2cd6508d8d1333a3",
+      "bytes": 17537
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_facility/team_registry.py",
+      "sha256": "42b7cef63ac0afe3ca622be4d6202fac6286c296ad35d982713095593a8dee60",
+      "bytes": 6299
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_facility/usage_observed.py",
+      "sha256": "c9dd78c9e3c2daa49c1fb54c22d60073d8d01de2a80b34b956fbfb1eabbe7032",
+      "bytes": 2818
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_facility/work_scope.py",
+      "sha256": "57b2e415c44ddb9942ab763a9ac1873ab95f7f3c49348c9fa7c5ea66dd58e0f8",
+      "bytes": 2334
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_governance/README.md",
+      "sha256": "595a9c90665e1c34660c738109b3d09473844822accbb8fd3de0ade8f1243a2e",
+      "bytes": 1370
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_governance/__init__.py",
+      "sha256": "617f7777de691dbc61d8dc6fd6a3c62bc5edd51aa4f8141a8064f3d4649f7717",
+      "bytes": 3134
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_governance/app_group.py",
+      "sha256": "76e5cd1ff2578172b5152d93900dafd27ff0933bc1e8e0a7d3e037273aa2b0a4",
+      "bytes": 6323
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_governance/app_receipts.py",
+      "sha256": "845d23f01750a84951f47a9c6d2c8b37a8ea8bd2059110944305592eb58b68ed",
+      "bytes": 4745
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_governance/app_results.py",
+      "sha256": "efa6bc861f5dfc74036951e34cea1f3c6b41da662a9d95aca491b8181277e70a",
+      "bytes": 11621
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_governance/app_tools.py",
+      "sha256": "305c77b5bee8f64a1a00d37be91ad91408bcee579f3544250b1b60114a73758a",
+      "bytes": 3040
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_governance/app_undo.py",
+      "sha256": "38a5df5a49c670305eb18bc0970a3045a46c5a97a73da2ded08e7d5e6b0a9343",
+      "bytes": 9299
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_governance/approval.py",
+      "sha256": "de36ed152a0327cb13aeaa46d02a5a3c59f1dde9220a08ec28e798c6b811752f",
+      "bytes": 50708
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_governance/browser.py",
+      "sha256": "6741676539fad5bb005c978b51c3a7619eb02e64958f90a7198068cf3b0af7c6",
+      "bytes": 29274
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_governance/bundle_undo.py",
+      "sha256": "0fc11908aca879416a2fe0f20efe1afeb2dbc0e94c1ef2dab6a642bf83d3342e",
+      "bytes": 9648
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_governance/calendar_undo.py",
+      "sha256": "5b9d5454206f1d8f6a122b19e2d39b6708d31fee42ba8ab6d6554dfbe31fad59",
+      "bytes": 13810
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_governance/contacts_undo.py",
+      "sha256": "a08d48d557fa048efde3ed164fd254149e72104dc012cdc2d228145105c6018b",
+      "bytes": 15558
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_governance/contracts.py",
+      "sha256": "7a67556518b96634ab94865e42ae3f33ccb1190c1ef85eb1778d473c1b4c1811",
+      "bytes": 69706
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_governance/google_calendar_undo.py",
+      "sha256": "8d57f64c1bfd91cc3e7c45a7221ea992e852c89583b40c7ab9f1e434c9146a7b",
+      "bytes": 8239
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_governance/mail_undo.py",
+      "sha256": "49a5727f29170cc2e06018a329e25ec26447eeaaefe608ab5d7733da49584b40",
+      "bytes": 9151
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_governance/memo_undo.py",
+      "sha256": "7d478bd21824a3eb55c2b25893ece6727db8abb3a0ca4cc234d798474a54e0d3",
+      "bytes": 8177
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_governance/notion_undo.py",
+      "sha256": "da105eaf2d69ec36dfa8aa52e400121048b4c998cbef37aeff414d380c17b81a",
+      "bytes": 3655
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_governance/owner_context.py",
+      "sha256": "997378dedb93fb8303d11b41ce7bdf670fc986d1264ac1a56a28811e17408460",
+      "bytes": 60507
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_governance/paseo_authority.py",
+      "sha256": "3e80bb57a5756c2b05d1fd92112460ffcd36e2e64b6217c2456c505323341c24",
+      "bytes": 5134
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_governance/proposal_decisions.py",
+      "sha256": "908997340fb964b54e0d2901e0042f07247b673a6af7373a34bb360d893e56c1",
+      "bytes": 18896
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_governance/request_approvals.py",
+      "sha256": "e63c665b0178007d12980dd00638c69872ab86c439132c1bc632f1aa8ea201c6",
+      "bytes": 6607
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_governance/runtime.py",
+      "sha256": "71d9a1475834966b73c1c049995e66e809c6fd72f3519285a0d26d94741f4865",
+      "bytes": 12246
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_governance/selected-skills-chat.sb",
+      "sha256": "22ad77009eb3c812bb8e0bc6870710e43f8c37741a6752e45a56863ad6a4f817",
+      "bytes": 2787
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_governance/selected-skills-watchers.sb",
+      "sha256": "620f474867ca4abd7ac9e8146d63cef6be6f4342e55d239c76ff9d5b1703ce7b",
+      "bytes": 2513
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_governance/selected_skills.py",
+      "sha256": "222906498169331479eef0552e6ba7f785e233aec8c54afc4054a9133d569fcf",
+      "bytes": 4893
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_governance/services.py",
+      "sha256": "c81c693f946d1d1cc7c13ba0eec4fe67b96cff7dbee6baa0ef9fc2044406c0c1",
+      "bytes": 5472
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_governance/write_policy.py",
+      "sha256": "3227889cbf49ed9080f04557db83abf8b8302b3d6ff2bd2db3275afbecf8c827",
+      "bytes": 5709
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_owner_chat.py",
+      "sha256": "ef5866bb9fffee97f3a720ae5149557cae7c9b3103d7768dfe74441027cf8015",
+      "bytes": 5487
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/__init__.py",
+      "sha256": "d69cd325d1437f7a384f64efd1b427c1334b0ddd90817143522460472a118926",
+      "bytes": 72
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/calendar/README.md",
+      "sha256": "b0c281cafa63dad22e00367c0aead9f9cd4058b7f80c64e744e8d4070694517b",
+      "bytes": 849
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/calendar/__init__.py",
+      "sha256": "30cb051aae55eb1fea8cc396c656831d6757155ea093350177337b8f64306c3d",
+      "bytes": 31479
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/calendar/color_write.py",
+      "sha256": "b0907e749b8d235814232a4c05af6fdcab5cbcf64bc908983ed94a9f4c8a5035",
+      "bytes": 9056
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/calendar/eventkit_calendar_mutation.swift",
+      "sha256": "daf0f1ddd2f1539d41ffe407adbad0d436d4da148bf3b5d80a1f98b1da946d47",
+      "bytes": 13649
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/calendar/eventkit_calendar_query.swift",
+      "sha256": "1cd340527b02568d7b02873788d23d71227bbd2b4582bdf4d59d34548467ab06",
+      "bytes": 8109
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/calendar/google_calendar_accounts.py",
+      "sha256": "9f0567da2457c4bc7fe9d5268d80b751b2440c931d5e088f4d8f82d01e8c69b9",
+      "bytes": 12285
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/calendar/pack.yaml",
+      "sha256": "7f1ae605adc0655a6f2212a6de2bd6133b7bf0212967a0a3aa860c464ab948cf",
+      "bytes": 628
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/calendar/plugin.yaml",
+      "sha256": "e26fb786a8d0fdb8045d7822804a847a422e2b4edfe1195553fa057ed2e07f2f",
+      "bytes": 231
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/catalog.json",
+      "sha256": "4a83a28a1e6c202592ba8b0a311e18c084ee94e53dba3f6df52ed1e6564c4430",
+      "bytes": 15416
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/cctv/README.md",
+      "sha256": "4458893adcdeb942ab4372692b9fad914d60324e1339058fe9e1a87b6e03b6db",
+      "bytes": 9354
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/cctv/__init__.py",
+      "sha256": "24c50306d31ba4368f3d6f8cc96343f1d4f293f73bfaaf152161ee06e25bc6da",
+      "bytes": 108
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/cctv/click.js",
+      "sha256": "f9a3c385b52c2134dfa4c18ceb337c1737803fa4678ab80df783a073b5212ea0",
+      "bytes": 3338
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/cctv/executor.py",
+      "sha256": "734c3ed698383090e71daf7b56abd7219d6fdcff7a566faa8d85e3fb9fd2dc94",
+      "bytes": 2855
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/cctv/focus.js",
+      "sha256": "bc4689a254641cb4b59c7af6b8cb7b30a75ff8dfacdea91b99ebd29783623f09",
+      "bytes": 3002
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/cctv/now.py",
+      "sha256": "58bf9c02806bc4694517259c0f8bcb0f4090da35432ac7afcd95e5aef1958c7f",
+      "bytes": 9581
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/cctv/pack.yaml",
+      "sha256": "703925826b15a5ac6be8eb64011dae278875e5d81bfbddace320e4d7ae65ff2f",
+      "bytes": 995
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/cctv/plugin.yaml",
+      "sha256": "c4421c60327bb927f6e8e14189b3dab85a6b2b0023dbd10df2fe2cec293f792c",
+      "bytes": 198
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/cctv/reconnect.js",
+      "sha256": "77ef076ce706c67dec91d2b27211318af13f47e5bfc98c61b0a41d8e449ff2fd",
+      "bytes": 4581
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/cctv/reference.py",
+      "sha256": "a9c008b5948182ea20ce07f8a9bbe17349ebf6392a9b724951bd312fa921c235",
+      "bytes": 11491
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/cctv/schedule.py",
+      "sha256": "2ab0ab57de610f30ba3897cd684b684a081f7a89d724f4edadae2f822f5e050d",
+      "bytes": 960
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/cctv/screen.py",
+      "sha256": "b0fbf53f3d49db03a6e74f5f8352d141f77955f46fa4bcfc2ce2faebba8e0185",
+      "bytes": 14042
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/cctv/settings.py",
+      "sha256": "c6db76084d02f4f5805746a5050b8ac51d4955c0928e4369658f5802e3fc509a",
+      "bytes": 4595
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/cctv/state.py",
+      "sha256": "f35c24e86f00fe7b509784a6b5e12f1331bf4c92cb15488b7d2a3d03e5054a5a",
+      "bytes": 2358
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/cctv/vision.py",
+      "sha256": "dc19da79befbeeb4a5c136b61089e4d959e3a612b8ee830eb0446d7f006e3166",
+      "bytes": 21754
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/cctv/watch.py",
+      "sha256": "c7b3dc60ba1e860007b04c790167021964d2b489028aa33279ff68a231c48462",
+      "bytes": 22479
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/cctv/windows.js",
+      "sha256": "37c0c72c96ad8b922dc7d64206161060c88bbb15e1c3b45aada249fb69374f96",
+      "bytes": 653
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/diagnosis/README.md",
+      "sha256": "e60ba759370cf7021e3cc621d1fbbf67a38f13b11513f6f13a7e83efa2c3d072",
+      "bytes": 761
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/diagnosis/__init__.py",
+      "sha256": "17c88ca66db2cc8c1aedfe642a97fefa77aa9a408e22c54c7d8af8f8e45cad55",
+      "bytes": 71
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/diagnosis/diagnosis.py",
+      "sha256": "6225d11090fcf7f4e22f67f528c2a5dccb504b81313a31ad94f6defbfe9d307f",
+      "bytes": 53246
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/diagnosis/diagnosis_check.py",
+      "sha256": "49c129428b91f9cc41b4405f508894654ea4ee562d70867e9af034d699f3e06e",
+      "bytes": 9211
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/diagnosis/diagnosis_overhead.py",
+      "sha256": "91829a26f251793733fc609e58882def5ac9744538148192a43222b5c7221d71",
+      "bytes": 19408
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/diagnosis/diagnosis_patterns.py",
+      "sha256": "3c924a40ba12b72f28a51932959ad4cd93b3cd9fa1da8305fb4d40e15e83f852",
+      "bytes": 18922
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/diagnosis/diagnosis_records.py",
+      "sha256": "b25469b594af0fda465cd51e7833921179e551cdf71d74bae00004afb068682f",
+      "bytes": 6943
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/diagnosis/diagnosis_requests.py",
+      "sha256": "8fab913044a8acb1be714ed4c053e4885ea75690e623c14e216cdad127b54456",
+      "bytes": 59292
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/diagnosis/diagnosis_review.py",
+      "sha256": "33674b981efa893ff74237378f9a1560fb15d149daff753b98bfe220ec8c4f11",
+      "bytes": 5103
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/diagnosis/diagnosis_runtime.py",
+      "sha256": "f4f1437aceb751ffc58b365f60c46f2b70f6bf8c106837443f671a2354e60503",
+      "bytes": 11422
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/diagnosis/diagnosis_shell.py",
+      "sha256": "22a88a2638612e799c562b7b9d4059572ebd1888e2690fb050e49d2b22b6f015",
+      "bytes": 9797
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/diagnosis/diagnosis_skill_review.py",
+      "sha256": "76bfc06704bced74e4a0c7ea0c38c066f746025aeb96e035a6c005079e199b94",
+      "bytes": 14972
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/diagnosis/pack.yaml",
+      "sha256": "3afbf0c3eb603fef2a4e6ba6c10d78e9d7445116d9fc333496750a325b4f3906",
+      "bytes": 715
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/diagnosis/plugin.yaml",
+      "sha256": "55622888c7e653f9d9bcffb7dee0ab97d1f6d63b68dd1e638dc90e53ac749c07",
+      "bytes": 571
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/ego_browser/__init__.py",
+      "sha256": "99562e6aa0d57fb21a1c541820bae97a1b0c938bff1e64de887d24a62de5f505",
+      "bytes": 4412
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/ego_browser/pack.yaml",
+      "sha256": "b8989e5a2f3ddb954d616ddc9a5b8e90a76d703dc305256ff5dcded85e3773ac",
+      "bytes": 621
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/files_docs/README.md",
+      "sha256": "c9054f74618b53236991330edeea4f271909a3e6a6fda238642033909fbee0e3",
+      "bytes": 1286
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/files_docs/__init__.py",
+      "sha256": "ecc230d96c53d4b11a61adc28677fd528cb74958b63651634cbe7596a777f3d2",
+      "bytes": 69
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/files_docs/doc_convert_support.py",
+      "sha256": "ac3df90ae85adcab5fa0304d12c614e13e901813a65cf0cf52987ff079d74eda",
+      "bytes": 26964
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/files_docs/doc_vision_ocr.swift",
+      "sha256": "99b5bfb838f1e1556f239ec461dab7d0dd00ea600bf21830970a2d1979178de0",
+      "bytes": 1853
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/files_docs/doc_worker.py",
+      "sha256": "c202558f5b3ba0fdd98163a2858b319e84cf7510cbb8e51151c245b1dcb7887a",
+      "bytes": 37367
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/files_docs/document_review_worker.py",
+      "sha256": "11f3387531ecee7bb95352781eb1da3b9a83ce9f25480bcfdf6a38b6afcf608a",
+      "bytes": 13477
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/files_docs/files.py",
+      "sha256": "0b2e67771e3eaa5992ebec647e4fcad23bd3bb78e672585fad6c99d967597bb7",
+      "bytes": 108115
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/files_docs/fill_template_engine.py",
+      "sha256": "460ae15248dfebd571d199e61eed26020e69279276608f7551d7620012daf1dd",
+      "bytes": 48933
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/files_docs/pack.yaml",
+      "sha256": "7dc8e87e913018e92d31546b8cab93e683dc999a6040b8ab83ee7e300aeed8c1",
+      "bytes": 765
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/files_docs/plugin.yaml",
+      "sha256": "5ee72813b43cc65228b12830cbe63edae3addd089ef1a9626b382534bcea9f2e",
+      "bytes": 335
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/files_docs/scoped_files.py",
+      "sha256": "0c78604a7bf3205ac082c2fd9f20eb078528f8e9b17a6b19ad130ae9235313b9",
+      "bytes": 6988
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/files_docs/undo.py",
+      "sha256": "73cddab420f3878dbb4df6790c93f386387d7f8ffafe80b69c61273c63ccf58a",
+      "bytes": 9776
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/linked_work/README.md",
+      "sha256": "fc1ca1a4f42f0d7ade1562b1e6d69917cf42b31784d1fd82ffbb700c7df4371c",
+      "bytes": 914
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/linked_work/__init__.py",
+      "sha256": "ae747d3b23574930806d652dfddeb73e713b7209a0adb7d7a05f9e07f3aa95fd",
+      "bytes": 56748
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/linked_work/common_work_links.py",
+      "sha256": "b2ddcee8fcb324a537dc6b3560e83ed6ceea2d441b50e5af3dff10130f93b7b5",
+      "bytes": 45881
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/linked_work/conflict_decisions.py",
+      "sha256": "2dc8a23cf32559c5969293abf08e2aa9cf3fb7d9b22505b3b35caa4171b4b3bf",
+      "bytes": 11513
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/linked_work/deadline_link_sync.py",
+      "sha256": "1cc3270e19a99b05ec34362b179d07f8f7860ebd0741dcdb94a72bd679eca5cc",
+      "bytes": 3103
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/linked_work/deadline_time.py",
+      "sha256": "8ee7991bb720e3efe15571d0416b0a115e43551815269324fce10eead3c15770",
+      "bytes": 3534
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/linked_work/diagnostics.py",
+      "sha256": "d0452b0f6a892acf777bcdd8561ea739e40d32d55bce3c2a782f9d387340f428",
+      "bytes": 1954
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/linked_work/link_candidates.py",
+      "sha256": "9b6fd849d19993e730032f57b14d3316204ca1bbdd494065ff13638bc99df31e",
+      "bytes": 4937
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/linked_work/link_candidates_notes.js",
+      "sha256": "f628b5fc7a2df28b4768dcf10d7379a48d33de72d34349cc0d4bdef8212d1448",
+      "bytes": 578
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/linked_work/link_decisions.py",
+      "sha256": "53ac352f6b5f5e4400f6e715459e045f8d73854cd7229a82a27503ac4e553ef0",
+      "bytes": 19180
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/linked_work/link_lifecycle.py",
+      "sha256": "13420036b498f558345e0a4c228db142e6e4a9b9cdd155941e5b18a300473fbd",
+      "bytes": 5025
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/linked_work/linked_work_read.py",
+      "sha256": "e4821564c89795526f52056927e3096643d2520e28d14b3df825f80a014d940d",
+      "bytes": 9647
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/linked_work/mail_work.py",
+      "sha256": "90ee046f08965a04b8357db70b5dc9983c6fa87f9685c2ebb46c6f76945f56a5",
+      "bytes": 18970
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/linked_work/migrate_link_health.py",
+      "sha256": "5f30877c673220e53b0cf137636ec8782cc00be28ff7f7cd1d9a0739a34fd697",
+      "bytes": 5177
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/linked_work/notion_completion_sync.py",
+      "sha256": "e138e66c8851fffc41b50f266a1259ede81cf9f2ca9213263e0b55c0b698fb96",
+      "bytes": 66305
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/linked_work/notion_task_dates.py",
+      "sha256": "694f3d179a6191b0b1fe53893cec6465d41ad87a0c6e14b2fc8a43dea9586f6a",
+      "bytes": 4026
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/linked_work/pack.yaml",
+      "sha256": "ae7fad1dbce24badf8a7aeaef192cc7120ef7d3571321a20fad52a9715aa24ab",
+      "bytes": 705
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/linked_work/plugin.yaml",
+      "sha256": "3514a1fc4872ed4f935961b0cda4d1727740e41a82b9933747b9a5a2d946b692",
+      "bytes": 380
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/linked_work/request_link_decisions.py",
+      "sha256": "e0d5c55f7379f25c3c5157c2ef380dd5df667e1c9a258ac92cd92ff5c7e48afa",
+      "bytes": 1729
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/linked_work/slack_report.py",
+      "sha256": "fd52abf03d9825dabc49944a9abf254472b1173bc756174d8ec9a9d65a304c3d",
+      "bytes": 6533
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/linked_work/source_adapters.py",
+      "sha256": "53a590e446ad645d653f540bb63aa4b427833ca8cf45d2e556f660b4539f7f27",
+      "bytes": 7946
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/linked_work/source_identity.py",
+      "sha256": "c5d1a98c9cf027004c6bc958591eddb90676d805be58d708b7ae4812948f6d38",
+      "bytes": 4809
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/linked_work/source_lookup.py",
+      "sha256": "cbe4a447d6d53213750c8c87377540ec638a6ef8d446f9421bb635dadbebd6ef",
+      "bytes": 1254
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/linked_work/title_link_sync.py",
+      "sha256": "037855c827d20e4cc5ed5cd5e648c63b3b00591f72c8a5ac0d3f31d45f7c9f5c",
+      "bytes": 4454
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/linked_work/work_capture.py",
+      "sha256": "bcdd957655793b23f14714d5a839266075eed90e49d0270e61c2a41b8470c33e",
+      "bytes": 27529
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/linked_work/work_completion.py",
+      "sha256": "b06f19377f913c1c934c79d4c24495fa6feb025d0262d16bbf8dcc22d17a0f99",
+      "bytes": 19404
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/linked_work/work_content.py",
+      "sha256": "dd94cd2a0f744af9f65ed67188262baf7ad56f143e96a2c73e2df19f320bd2a8",
+      "bytes": 8491
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/linked_work/work_scope_backfill.py",
+      "sha256": "6654e22c0506942b93f7c3e95f728cd2cc94e920afeef1c669efad2a08908257",
+      "bytes": 5847
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/linked_work/work_sources.py",
+      "sha256": "6e2bf9cde98377d6d588de19d13e62efd7121582394cd48c5d19a53882e3582a",
+      "bytes": 28960
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/linked_work/work_sync.py",
+      "sha256": "d655dbc8b8812284a1aea0a1cd702cc9ab0c24a7c728e5fa4405144fc68e746e",
+      "bytes": 21466
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/linked_work/work_sync_steps.py",
+      "sha256": "9dabf5931de8533c915fbf4a08aeea15f9c97fc90ef64e96992276eec7c1dd56",
+      "bytes": 1538
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/linked_work/work_tool_writes.py",
+      "sha256": "c93ea9f94d4e3c8147f329584fbb51504e0beeef5de702bfad833bbaecadcd27",
+      "bytes": 4408
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/mac_apps/__init__.py",
+      "sha256": "1a6d0399d3586790767ed7818ea5193c71ef70c30d1321ff589ff8eea7be9a16",
+      "bytes": 68
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/mac_apps/app_catalog.json",
+      "sha256": "92b14e124a52b7c6d6561d32ae8a441ba53a834f3a112224d78a78c35084eda4",
+      "bytes": 8095
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/mac_apps/catalog.py",
+      "sha256": "64850fda558e0c29dd4633aad259d8474444edb096e6d892ef4779e10181fede",
+      "bytes": 4006
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/mac_apps/discovery.py",
+      "sha256": "1aabec2459b98a40b92f2b2e867ad2632498fc99dc66c5b78a94df968587e2b6",
+      "bytes": 9211
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/mac_apps/pack.yaml",
+      "sha256": "6559d0d35f56e27df52a194138eebf7d829ea3441dd51e65b9fa6934ee130255",
+      "bytes": 615
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/mac_apps/sdef.py",
+      "sha256": "afce96462390601fde72dc3391de9a8bc706c53e06a55892fb01d2a311cfae80",
+      "bytes": 1853
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/mac_apps/snapshot.py",
+      "sha256": "7f0fe3e64ecb73066f267ce1357c2c81e64dbd836da2a359a1a6d7a5b6abf6e2",
+      "bytes": 3557
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/mac_apps/tool.py",
+      "sha256": "4bf69650592f1ba67802eb60347b404fb9ce5c152312ede8861eee4a3d6c7e4c",
+      "bytes": 24015
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/mail/README.md",
+      "sha256": "a13f83a9fd305b080446793a74563af61a3a2527e21443759fe7f5544528d29c",
+      "bytes": 955
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/mail/__init__.py",
+      "sha256": "1ba5f8c446ba9ed5e2a5fb146501b9dd80467d78eae01a1d1d0e3ad7999f2a15",
+      "bytes": 36981
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/mail/full_mail_tools.py",
+      "sha256": "35ebe9a0f54a981a33f68b6978f39e1d96a7e30e9da24fd4220a8f607b5a8c23",
+      "bytes": 18848
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/mail/gmail_extra.py",
+      "sha256": "eb2af0c5fa1704501ba57d74c948d2db6530f164ceda14fed38012a9a307c392",
+      "bytes": 41772
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/mail/gmail_rules.py",
+      "sha256": "976fcd85fd6882153e6576d9573675cc32cd92a89e0e37cd0e5dc58963b326cd",
+      "bytes": 3964
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/mail/gmail_state.py",
+      "sha256": "7f9fbb398720341eb7050fd73be8dca940930406b9e70f9df5a1bbb8d7d2b0f6",
+      "bytes": 10376
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/mail/gmail_watch.py",
+      "sha256": "f837b805449ebdb280529ea19835a09b2a6b659e7c3be09d07910dfc642aa5ed",
+      "bytes": 13618
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/mail/google_reauth.py",
+      "sha256": "5dbca5f33ee17cf20477fc0f21c40131c1d38f23e0e088dd481c39589a458b0e",
+      "bytes": 8754
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/mail/mail_app.py",
+      "sha256": "1ca4261431537b74c5678709b9fb949dff4c9c98961027076122f8c87331750f",
+      "bytes": 15338
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/mail/mail_app_tools.js",
+      "sha256": "7546399f4b969f0f4d3a6c647ee776e58e4d1e0dd8f52a218485ae73ec675b32",
+      "bytes": 19125
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/mail/mail_index.py",
+      "sha256": "2a332e12cfa4246dcac8e9f8075c94072003a1be2fd5ed06067f590f7d2e2562",
+      "bytes": 2997
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/mail/mail_search.py",
+      "sha256": "30ab3568db1d5feee32b367aeb743e933c2773aeeb852b84c03544bb55b8f081",
+      "bytes": 14819
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/mail/organization_state.py",
+      "sha256": "f77bbe87d4836edb01b25123f4a5b130337ea068e3555073ab3f04bee7945fd9",
+      "bytes": 8867
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/mail/pack.yaml",
+      "sha256": "2ecf60cb3754bb6656a1db0b54bf7dfb768764857dcffc3e9630c210f866ba7a",
+      "bytes": 484
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/mail/plugin.yaml",
+      "sha256": "aee418af2b16716973846ede139288465bdd99685d13895bde27ab2e97c039fd",
+      "bytes": 158
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/native_tools/README.md",
+      "sha256": "94fce1298ab09a3b78331209d30ec57e1c57f23c3a945309fd271fb410a1b4a1",
+      "bytes": 640
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/native_tools/__init__.py",
+      "sha256": "9a225d13da9cb8645d2086e6f5d5c4081a85a7843ea18cac293ef94dfe0a97f5",
+      "bytes": 52737
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/native_tools/contacts_app.py",
+      "sha256": "2088b8f4697b681dd8a29faa007225eb9d6be7ee9e9438fc45aa621c5ffdc0b3",
+      "bytes": 9327
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/native_tools/contacts_direct.Info.plist",
+      "sha256": "f0ac639a900a0cc88f1931533457081b478f6cc1b9d051a4f9d6d6fe925302ec",
+      "bytes": 483
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/native_tools/contacts_direct.swift",
+      "sha256": "e6b4b012a5502b5ab83c70fe2f7d8ddbae0484aae9ba750e1e0a6cd64b7fd3b4",
+      "bytes": 34285
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/native_tools/contacts_files.py",
+      "sha256": "64871e83226be2fd8ee95c3235edc5b79592af599b30f2344b4ac8021e48cf11",
+      "bytes": 4615
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/native_tools/contacts_note.applescript",
+      "sha256": "9b482c6f1d241f4cd92a80abca196fe9d975141f9a8652a20f42d231a9b54417",
+      "bytes": 917
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/native_tools/messages_query.swift",
+      "sha256": "08a8207ee769eb8077fb5952de701299154b7eba1252c36fb017b260ad4fa458",
+      "bytes": 8053
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/native_tools/pack.yaml",
+      "sha256": "2197dc87a68bc18734a6d7b0b05485bdaae15c111d8527d72358632490f7bb47",
+      "bytes": 470
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/native_tools/plugin.yaml",
+      "sha256": "053335829423f76f6314523e7c181dfba8818dea106554972d7b196c78c3831c",
+      "bytes": 272
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/notes/README.md",
+      "sha256": "07b8bab0fa605d2a94ee6970538b8016cca3390fcaf84173b27da5c04682d755",
+      "bytes": 748
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/notes/__init__.py",
+      "sha256": "161d4272f23276a50112192d0f01d3a3284aa649f9ed2830082b2ddad49b47eb",
+      "bytes": 85430
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/notes/apple_notes_lookup.js",
+      "sha256": "9e2aa82ca62c3f2fef1575d5dbb4dbe273c20f148460b33b60070c0b1f083742",
+      "bytes": 3546
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/notes/apple_notes_mutation.applescript",
+      "sha256": "7f8d771dfd9e4fc92f40f54e65dd070fa010ae5c944c079ed4673a8a32bbbfa8",
+      "bytes": 9805
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/notes/apple_notes_verify.js",
+      "sha256": "c239a075fc252a7704cc1029fcdaa2eb0d04bd4fb75cf1efd62e97c18f538039",
+      "bytes": 552
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/notes/notes_format.py",
+      "sha256": "45f5aeff9c62723da4ebf3667d0720ee2640aa8448767acf3cb9fb84a92334d9",
+      "bytes": 9034
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/notes/notes_rebuild.py",
+      "sha256": "5ad845f750dfbe87df0fb537df2c9b0a7416679001492b523814f842fdf7f221",
+      "bytes": 7800
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/notes/notes_screen.py",
+      "sha256": "2622e344a151ec2edafe74cd5bb7433e0fb132d6745dfb58c4c3b29047b31c43",
+      "bytes": 4089
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/notes/obsidian_format.py",
+      "sha256": "30d84f11c827ea9a314bf59648651a454a793af75a13ed572cecb196ab39ceec",
+      "bytes": 3523
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/notes/obsidian_notes.py",
+      "sha256": "179763e8455d657e4ede59b43d4a49ad2fb09af8c2b6dc661cd9017c0c43ebca",
+      "bytes": 24379
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/notes/obsidian_store.py",
+      "sha256": "f31515d237c853579734c0ed125e982bcf1a2a4b0239c3fedca98331bc36ee8a",
+      "bytes": 19372
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/notes/pack.yaml",
+      "sha256": "7c502b1010de0c3462e787fd33ddb9473538ec98433c4339cb7f019dd6554853",
+      "bytes": 675
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/notes/plugin.yaml",
+      "sha256": "74e59ad870cc396ce8986894677bbb864b1baf94be50f61b5e88a2bbc572a93f",
+      "bytes": 199
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/notion/README.md",
+      "sha256": "bfb85028c37ac7b6592530ce192dcac3023afd1573c28c5b1050cc7101100510",
+      "bytes": 775
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/notion/__init__.py",
+      "sha256": "844ce9aab8b17f61fde0a381d0d3642e96a2e771dbd8e4e9fa6ba63055391a2c",
+      "bytes": 367
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/notion/api.py",
+      "sha256": "9b274704bc93029d9e29205b9af8f41d7c88a287643bc744e2680373c2c892a7",
+      "bytes": 129978
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/notion/operations.json",
+      "sha256": "5e8885c6580bd07185a2a89dc066d25782354279a602edb6d40b47cfa36e3575",
+      "bytes": 471079
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/notion/operations.py",
+      "sha256": "449f3b1e49ba962c0d79b0108b3e630bc9316be9c3d48111fe370e41872f6eaf",
+      "bytes": 41106
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/notion/pack.yaml",
+      "sha256": "c9c5a1e91e560747de11814ba7c41c89a3671c54c44151074e00bf687ffeadf5",
+      "bytes": 540
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/notion/plugin.yaml",
+      "sha256": "3b77d4262ce7e35013ca1230ebc6b2707f8769c646f11566593365806054b6a1",
+      "bytes": 131
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/sns/README.md",
+      "sha256": "6643fa7a78b166c570fb7c0e964e6368ad6fc1a006b5d4c89c71fc4b4367962b",
+      "bytes": 735
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/sns/__init__.py",
+      "sha256": "1a08d530ea6e7d770accf8cdc8678d941389a810ac9b694c6edd99672bc243a7",
+      "bytes": 452
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/sns/media_save.py",
+      "sha256": "53628850da78047c3528533122a3897d1aeafed195589c421c95b8cea56b1edf",
+      "bytes": 5829
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/sns/pack.yaml",
+      "sha256": "87310a448a12fcd6e3a8341206f5febc547d945053f35174cd5a31202ac55889",
+      "bytes": 550
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/sns/plugin.yaml",
+      "sha256": "e6d63d48d61ac444ac8e2fad8875d6ff63ad8240217f2c378d11dcc0151a4a1c",
+      "bytes": 149
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/sns/video_job.py",
+      "sha256": "ababbb3ac1e25aed765cc8701c4aae2778385ae2b89fedca8b909bc16e496f7f",
+      "bytes": 9920
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_packs/sns/x_read.py",
+      "sha256": "e3d6de00f03a54fb7edc177fee637f86fc9dc168dd00c9b7fe006c6b89dafceb",
+      "bytes": 27819
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_reply/__init__.py",
+      "sha256": "0dd437aa91f1411aa21b25dcd9f79e9f43860eeebc120286d506d63da5dc5230",
+      "bytes": 65
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_reply/blocks.py",
+      "sha256": "483b76964deafeb37f5f65cecd1be1f904f5c7ba341b7c2d1b660343e8e89018",
+      "bytes": 21664
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_reply/layout.py",
+      "sha256": "bbede1be88f38a9ba2f84afd3b56ab388d681d5d96a4845ba3e6c3dbf808eed6",
+      "bytes": 12908
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_reply/plugin.py",
+      "sha256": "2df7390c32be48699b19001391dabbe1d5777077084bdbdd0aacd0276892e68a",
+      "bytes": 25228
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_reply/reply_buttons.py",
+      "sha256": "afcbe0cf58c57eaea7aad22afb60e1652c161962ff2cc1b0ddffc39993429f5a",
+      "bytes": 37264
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_router/__init__.py",
+      "sha256": "175960fabde0372511f7cb391032eda7dde2c389d1ac3627fb304214ea3037da",
+      "bytes": 88
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_router/common_router.py",
+      "sha256": "e64a57bb9e827ac5637b6d0adb205bc7503792ca32ed041d927a8feff38c5e79",
+      "bytes": 19732
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_router/ingress.py",
+      "sha256": "f9c8e640e290d58ad0cd14395d748e58f7a61821e8f6bb8b1b986ed94e49cf54",
+      "bytes": 17667
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_router/owner_contract.py",
+      "sha256": "978ffc0c690e00408cc64887e3bca3a4d1ecc813ff28ee10a643b61a4eeb9453",
+      "bytes": 2853
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_router/plugin.py",
+      "sha256": "7a148075da721970652083829d4b709d44947225f30cec8575e559dbd267c59f",
+      "bytes": 1052
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_router/project_alerts.py",
+      "sha256": "3c635ece08ac1e7d97b2452d7730b4af59886741f88d4813e24d67e61c43a32b",
+      "bytes": 2996
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_router/project_channel.py",
+      "sha256": "e3e72914e7dbf9747b3229996e00e6cc4eef3b010e5a422a0177082000680a07",
+      "bytes": 3427
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_router/project_requests.py",
+      "sha256": "4ad5463b9df8bbc7b786b31b902d1d957a3e58cb8f3e1a6062796a0f199b3ef7",
+      "bytes": 3271
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_router/project_threads.py",
+      "sha256": "3a12aa6b5103c0fc4d2009e15914f5963752919dd6ba2aecf636c612822829fd",
+      "bytes": 20425
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_router/solo_channel.py",
+      "sha256": "ebc8c8a5b2cd78a47f93e1c527712b51dc6aad9453a7d9d5cdcc8a39fd3938c8",
+      "bytes": 3950
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_schedule/__init__.py",
+      "sha256": "da65ffa16a6f7d37d8bd8e480bec3ac726c9973fa4fa4bfac899b93f102391de",
+      "bytes": 83
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_schedule/catalog.py",
+      "sha256": "46d5baec36e66ad99c24414fea051fcf8f8d77e066ac30c77050f882b6d9aaf3",
+      "bytes": 7675
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_schedule/policy.py",
+      "sha256": "db65f560789fa7216dd3d97d4c14eec7ebd1ffb113aaefe525b59eaf811c27ee",
+      "bytes": 1429
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_schedule/runner.py",
+      "sha256": "02a6c16ebfe97862404bd54fcb62ff8c9945e3690d1caeb34e487becce2522e5",
+      "bytes": 1142
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/__init__.py",
+      "sha256": "04882e4cab2dced71979b43a2d0fe2deb572652d8ee9fead670c60dc3bfeebd5",
+      "bytes": 293
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/ai_digest.py",
+      "sha256": "d9687367aee656034b6cd1b6e0602ada5ac67e52714351ccb60712acfad4d1e9",
+      "bytes": 23190
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/apple_notes_lookup.js",
+      "sha256": "e2b5b0095149388f1e82bd76f13a26186b0450cf19f8e9177539742d3396c27f",
+      "bytes": 3260
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/button_policy.py",
+      "sha256": "7f7f4ae7a51168dfdbfdc025389fb50eb4157e7594d1b93c0b0adb0f5400b4e4",
+      "bytes": 5719
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/calendar_read.py",
+      "sha256": "bb24e00a46d49fc197da43ef70a1c5669cc3c4b11387319ffbc1b69dc40d4cfa",
+      "bytes": 5055
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/chat_streaming.py",
+      "sha256": "4541f26a01517c95363501563cc836fc24af265ec46213018ce4e27691cc0123",
+      "bytes": 13839
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/consultation_review.py",
+      "sha256": "1d7252e47b09d2714bbbdbd97a707a4ae3b0620e7a152dc345bea82dd4230e9d",
+      "bytes": 10397
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/conversation_recall.py",
+      "sha256": "940d165733a9d583484cadf93974b2e7b4b23fcac67ddf25b4229bb073b3180e",
+      "bytes": 25585
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/cron_guard.py",
+      "sha256": "20b62667aa9f581d3ff19196e8119931cea743ebfeddc06641a0398f086ba7bf",
+      "bytes": 13589
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/cron_status.py",
+      "sha256": "fa67805bf383148ee531ff76dd0a0a9d7596d5eb8e82ea67d9478e639be7f6b4",
+      "bytes": 7049
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/deadline_sources.py",
+      "sha256": "832df69d57dcff96c64b90b153fbf83823ae47ed6aa7e252bd432d575c39d359",
+      "bytes": 5671
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/deadline_watch.py",
+      "sha256": "1fa7fddb1531fb288b3029cf25da88693a160c1c96a929e633944a8884b6ad85",
+      "bytes": 31368
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/delivery.py",
+      "sha256": "b7db66b1c929332733b9884bc438a060af671f598d99030c287c95726cfa9c4c",
+      "bytes": 17111
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/diagnosis_check.py",
+      "sha256": "5e78bc9f9c44849bcab850cce6677ffd0a8bb152b959f9cc47a02abe00ab8331",
+      "bytes": 335
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/diagnosis_requests.py",
+      "sha256": "160ac4507dcf8d0194b17fac609306abfff87db454dd49f6052ddd1ed4050935",
+      "bytes": 338
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/doctor.py",
+      "sha256": "a50e69b296a6b7dde7549d7fda12c14aa52b81212a64bea301feee777d2e2110",
+      "bytes": 20478
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/document_review.py",
+      "sha256": "c87dafab070c9a25363360e6d44357c1f26f831719d1c4a07ede41007ce53bb8",
+      "bytes": 4081
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/error_digest.py",
+      "sha256": "cd2fec75446bf23b009dbe0b9f49f7f14598619a9ff2bde5b252af2ac45defb8",
+      "bytes": 24008
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/eventkit_calendar_query.swift",
+      "sha256": "9eda6c9c784a539f98dad1df73bcc531bb1a63cb955670fce0a8fba88130db0c",
+      "bytes": 7153
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/eventkit_stall_watch.py",
+      "sha256": "175f20263a323a9a4cd940366afb8e104b91cb5cdf3eed3e68ddbb4264345faa",
+      "bytes": 22388
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/file_drop_context.py",
+      "sha256": "aaeb8d574f1651f3a137733098655c5cb8a18fde00a31712a79a818b11554613",
+      "bytes": 2907
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/file_drop_engine.py",
+      "sha256": "961032b31d3286f7d40fef1f5fc353923a5996711677f09f8cde3afe1a9a0415",
+      "bytes": 9146
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/file_drop_review.py",
+      "sha256": "2c46550e68387b08e484f7ee18449eefe6a856cfcd50ad3c8aa45bc6541c0e8a",
+      "bytes": 8708
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/file_drop_suggest.py",
+      "sha256": "05196d8b73accc08089f32b94ef564ca29bf0cc9b053051d152fa3c66d79ea69",
+      "bytes": 20263
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/file_link_cleanup.py",
+      "sha256": "1b8fb24ff5b25cf4462ae0bd335dc9204e9e7ee493dc05dd0d3846edbed620a1",
+      "bytes": 3393
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/gap_review.py",
+      "sha256": "2961ba9abf9d9022a5be57850118a036274da47f51248881d194ff01bce656e8",
+      "bytes": 9026
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/jang_voice.py",
+      "sha256": "aa50a1f9f8386dd4624bd3e2febeca04938a565ffed3bcbe3d400a0e26576212",
+      "bytes": 4853
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/learning.py",
+      "sha256": "c031a239be7045101fa2ab7d4680c1992fdfe1d3ab3afde9854e04614d126848",
+      "bytes": 32025
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/learning_archive.py",
+      "sha256": "129b6e66a1f80e4fa172e5a00e90211047bb1163b43e150f1196ac3a732524df",
+      "bytes": 8137
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/learning_evidence.py",
+      "sha256": "b629efc2a44932fc0ef08c6f132ba6b0ff7e80b485cb49b23c9ca7e88ae927d7",
+      "bytes": 4380
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/learning_fingerprints.py",
+      "sha256": "fad5accc0e28e84c2c8a4db7d838bd3ec8093acd90f6ca96e6a54a32515ec811",
+      "bytes": 7552
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/learning_live.py",
+      "sha256": "55f44d771335f9cd49aff3399387283538f89efff7a80c287db89968cb2dafc4",
+      "bytes": 6739
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/learning_quality.py",
+      "sha256": "d1f409ec7ffc5aad721e0f763453a0349e2a78ff29ffd8e4df6b1543a4f15b71",
+      "bytes": 3495
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/learning_report.py",
+      "sha256": "dc8a75a404325fc877501a1d118197a52ac4ab04115b9f17ef59c4fb4b81f761",
+      "bytes": 44992
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/learning_review.py",
+      "sha256": "65c9a5784a310035981a0a610594c5d28afd98a0428426a85c84e73f690a5221",
+      "bytes": 17730
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/learning_self.py",
+      "sha256": "fe21b0564ec493ebbffbd3c162ac0a8613cf2917346d04b6a2af76796559b83f",
+      "bytes": 12199
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/learning_skills.py",
+      "sha256": "b79d5b1210057d61f4a2ea753cff0878b41ddc543a6519341cd4b64cb6532b26",
+      "bytes": 22103
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/learning_tasks.py",
+      "sha256": "133d8820a2828651a0df18b9cc6b70d1df73507887514713534b781ed3af5dbb",
+      "bytes": 2286
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/learning_usage.py",
+      "sha256": "87d459b5b9a82919e5117bd136c38dc07b8b06243981204cfab07f9343f779b6",
+      "bytes": 18885
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/location_context.py",
+      "sha256": "9a95ff8c13ca12c98a225c883d814b002dddb0f58b5c2fe0be78013f3bececc9",
+      "bytes": 17751
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/mail_read.py",
+      "sha256": "aac4fa85dcfb8a7948776e0a0c8dfc67355b938c95e531b378be60678a806965",
+      "bytes": 12392
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/mail_waiting_worker.py",
+      "sha256": "1a399e6f3d3004c390e6e3d0606e197e454c9e8480ebb21d583270c638902f30",
+      "bytes": 6256
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/memory_delta.py",
+      "sha256": "3172bfedde01a9f47945eedc2dcbd6b448da6565373d1bd6e582584ff8f56247",
+      "bytes": 2837
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/memory_live.py",
+      "sha256": "311e41abd26e915bc9ed9e2a398f9177eb0439d23a7c1a97c1c2813a9bc08147",
+      "bytes": 17707
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/memory_recall.py",
+      "sha256": "f5a3fbde65df50ef5fbdfe156eb2c3cf82e5829014fa05b9c2327131b12c698e",
+      "bytes": 20850
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/memory_tidy.py",
+      "sha256": "ea315396f0f0875f3ca18cca60a66d1a8aa9de22ed89aaeacc69d340c5b70735",
+      "bytes": 14580
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/morning_queue.py",
+      "sha256": "7dd2ed354559d77ee951dd8bf12c987735eb46e1124a8472759088771e678ad2",
+      "bytes": 6922
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/morning_report.py",
+      "sha256": "b57030cc4bcc4efbfc741d6732c3ca2f315580bd78baadeeb7b70eb0726447a7",
+      "bytes": 11696
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/morning_system.py",
+      "sha256": "0aad994fb34489f69216d6c474ec60d27df39c081dd9d2c09e63b1f37419d832",
+      "bytes": 18059
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/news_watch.py",
+      "sha256": "27f8fea4bc00b622d6e339d65d3275dd3cda482c44c0d67e772dfdc008243e40",
+      "bytes": 32378
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/news_watch_read.py",
+      "sha256": "81a5e65fda9a1bc9862b42f9b6e0e4ce068e61746be255938b66880536a194d1",
+      "bytes": 3108
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/night_batch.py",
+      "sha256": "c02ef5b1d63732d4767a115a94a427d75c58c0337f99afe09a68f181056de414",
+      "bytes": 11987
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/notes_read.py",
+      "sha256": "099648b851ad6812c733079b3a56c6491b26d2d699f7850f36663e7c9b8ec784",
+      "bytes": 14820
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/opinion_reply.py",
+      "sha256": "773fe8d663eea98a7c08280b8ff89010b127258b30964f336fe0abfdf20b10f7",
+      "bytes": 913
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/optimization.py",
+      "sha256": "9744e5a8ad30019e2314fc6b64de1829fcf0592d61f397f4a66c82bcdc97cef4",
+      "bytes": 13750
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/org_review.py",
+      "sha256": "7f6da2402fb0633a0b3bc65fdffe6e4962daf73e8c01e6ffbc711fc95813156c",
+      "bytes": 85192
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/org_review_authority.py",
+      "sha256": "47503019c00c3f23d3c6734552174e0c53874815415c0ab9018846eb0cc31737",
+      "bytes": 3831
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/owner_presentation.py",
+      "sha256": "0f810095015b1b4165114f3914e8ec42433770dcb1e8e8c8c68616a0b10d22d9",
+      "bytes": 16038
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/owner_vault.py",
+      "sha256": "a35dbb37fc99d7cf5273f52be8fda2ce810de1b0af8b5e574fb3e191ede91605",
+      "bytes": 375
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/paseo_autofix.py",
+      "sha256": "ba34323487fe09f9b23dd35fec34f61493114b55b7a4b330b2423de0411814be",
+      "bytes": 87539
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/personal_mail_summary.py",
+      "sha256": "b3469d51132453b6891f8f5d35e1ecabfadfcef9f5c7cee0377269bc51a3b28f",
+      "bytes": 10300
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/personal_review.py",
+      "sha256": "9343568297883deef9d25435b5798dc3fe57fa82be16de5be368c6c436d2a54b",
+      "bytes": 9871
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/project_attachments.py",
+      "sha256": "85ed40a096df2f40ac777347293a1ea84274b2d46abf5dab2d2b73eb92f1bc89",
+      "bytes": 5350
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/project_capabilities.py",
+      "sha256": "c0bce707e25206a067cb51a6e1a69b9a65a2f42734ef079058956336eb5a78e6",
+      "bytes": 13432
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/project_consult.py",
+      "sha256": "ff55967a312583c9b9ef02292a0a9c2a53125e228b360027feba03b8e6c29bac",
+      "bytes": 9786
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/project_dispatch.py",
+      "sha256": "6491bc3d053b352af81fdf21468d41344bbfa6dd23ec16affd82964c4f17d5eb",
+      "bytes": 11227
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/project_index.py",
+      "sha256": "822d3602556f4d0123852988d4a4e96d10393a4768dd5a83078426bdc6d70605",
+      "bytes": 6898
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/project_links.py",
+      "sha256": "a10800e6a8ad4e245dd5ba506803310f556447861af8edc479c307e96439963d",
+      "bytes": 5788
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/project_outcomes.py",
+      "sha256": "9fad2144eed1c1dd0ecbf7bde95c6788bbbf160309dc4f9ef05df00a2cdc5889",
+      "bytes": 7695
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/project_referral.py",
+      "sha256": "d7a99fff5b38caf4b33ac2b43ccc3730d4d2e7f0e5f4ba682b5845bfdd799954",
+      "bytes": 16957
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/project_work.py",
+      "sha256": "e1c775221e431eb98f348176e1f01c346d13f8df6404917d14d830d7cfa32202",
+      "bytes": 45860
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/prompt_guidance.py",
+      "sha256": "7f6ebe55f502a8404d7d823791e62853acebc4f1ccced341b79fea54708584af",
+      "bytes": 6858
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/prompt_probe.py",
+      "sha256": "65aa64bd754a3a16db35f402bb4c12b2da20ba5e71d360495060d682552ac1b4",
+      "bytes": 4727
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/report_catalog.json",
+      "sha256": "14eedb766f9911027e8a152cc941c7c9d285d93392b95a4764ab1bbaf82d903a",
+      "bytes": 30
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/report_inventory.py",
+      "sha256": "2a48d911fa8c94f66464238ac407c6240c347e74311c2bf7b79cd8e9c98ed520",
+      "bytes": 7871
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/report_layout.py",
+      "sha256": "be16a353e0630057100887115e69444fc623b0bcf2321738ffc97c250dbe26c7",
+      "bytes": 5605
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/report_review.py",
+      "sha256": "e911f360a515e59cdd4b1dbaa834d4e257f53d3e0621cad53b8b76edd44401f7",
+      "bytes": 20901
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/report_status.py",
+      "sha256": "4d62083a186e4b631149d587cf6604ff36bb6dedd1952223f38fd8ed5eb29e89",
+      "bytes": 11456
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/request_plan.py",
+      "sha256": "e8edf8d18128a750f0428ae783376bfbbdf3f5dd59c34454394150d77c1ac895",
+      "bytes": 1449
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/request_source.py",
+      "sha256": "0ecdf3984405d7fb8bde15a4a697748188b4ee3ece0af96cd2a8732de8794bad",
+      "bytes": 2697
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/rest_day.py",
+      "sha256": "b54bb251a3be1ed0b32dc86c45a0acc0b1fa22e2f25f50931481c624f40ca8d1",
+      "bytes": 10005
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/review_evidence.py",
+      "sha256": "6a0c3464fc3f9e3a7823ccf6f86bade5f3b97d9f59865c33b6157377acd772ab",
+      "bytes": 2215
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/review_quality.py",
+      "sha256": "72554dff0212f23866a9738cec4460980f38fd1140b95251403625a5a2f25746",
+      "bytes": 3629
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/review_tools.py",
+      "sha256": "984894188a3093c128bbba16922aac4a14e96a67471a21c028266e1318214e88",
+      "bytes": 6609
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/routing_report.py",
+      "sha256": "e333d038091a9fb4ab427e6921ba71c45aeab67af223874ce7f0104c6a05863a",
+      "bytes": 2361
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/secret_guard.py",
+      "sha256": "7a9a5d05d172ee6d1df94596c047a0df8d10f0eb3c76742b5a61baaf18af96b4",
+      "bytes": 4798
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/skill_report.py",
+      "sha256": "647d73a117a502129ccebfe0475b66aac235ab1a4076bc3fdd6a26d54e867523",
+      "bytes": 24038
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/slack_blocks.py",
+      "sha256": "11b3618db6e10e7ee0effe6d712ba02ce1a46d82902fa108d48a28e73e0c3c63",
+      "bytes": 20513
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/slack_read.py",
+      "sha256": "b408420989374df6c70030c33b416953a43c41196d71ccc6e17145926d321ed3",
+      "bytes": 10902
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/starter_plugins.py",
+      "sha256": "e6980936f5e7c42edfbe637262215378f2af43d1386ce64e1262d3a321452cd9",
+      "bytes": 15822
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/task_capture.py",
+      "sha256": "f7c8f6688cc12213daae65ad87f4feef75288b13fe9c3ac1a97ee4af451dba56",
+      "bytes": 12364
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/team_registry.py",
+      "sha256": "f7c8345070e5626b25740309bfedee9257b7c574ca2efd0d0184f294d73dd75e",
+      "bytes": 377
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/tool_tiers.py",
+      "sha256": "b775f27d4597088cd9c0273ae3651c692efb5d23f2c9f0d82a768f093d55c75e",
+      "bytes": 12905
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/usage_ledger.py",
+      "sha256": "63afd8e008bea1e79b9ffc862802d63362e4561ab9b22a174dbb289331a2c204",
+      "bytes": 31302
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/usage_observed.py",
+      "sha256": "bf4118866cadda534a8cdfc064f4e0546a23173d63d8c61eaf71267f1d0de2bf",
+      "bytes": 378
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/vault_backup_approval.py",
+      "sha256": "2252a486b5a004c3b40b782e82b6a0e84decceac495bff6a9624984108fd5c6a",
+      "bytes": 13761
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/wait_jobs.py",
+      "sha256": "ee327fa78cc5ae2b3fccc7deacc31b2de1301eee661618933eed4321d14f018f",
+      "bytes": 20589
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/watchers_runner.py",
+      "sha256": "01f65ab2e9d6d97385c7413c0bc4e78b990198325ddf2e1c8eee72f800aba53a",
+      "bytes": 3293
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/work_candidates.py",
+      "sha256": "4926bd024dc787d4e0ad1b5de1b0891b8b984cfb5da4dd5c9220fff391b7453e",
+      "bytes": 21096
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/work_guidance.py",
+      "sha256": "1ab5488fb7651febb6d23492dee59b99c0d8c6583d9daf6ca1116415d78453e7",
+      "bytes": 8169
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/work_metrics.py",
+      "sha256": "eec0b322973d3edc369c7ec5e0df53928b9be4257934a4badd8c191fc27e6031",
+      "bytes": 3547
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/work_runtime.py",
+      "sha256": "ca8f63e37af7d44f65e4f63eab0c3516cc3a4e5a3a63f11e14f14a0b5bf07172",
+      "bytes": 62853
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/lib/hermes_team_services/x_login.mjs",
+      "sha256": "f98e00855c524340429031f2e5fd06f234b3af7439d48bd4752e2cbbe564dbc4",
+      "bytes": 4931
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/plugin.yaml",
+      "sha256": "3d15a4f092713fc1d7355c831c5febb7a2ee13b5f8107970b55bb9261aa5c648",
+      "bytes": 1254
+    },
+    {
+      "group": "generated",
+      "path": "plugins/team-kit/tests/test_airport_boundaries.py",
+      "sha256": "e310df7c5618274f2ba72df6defd480aef52ed3f8ee820d1c69241124eb4eca3",
+      "bytes": 3600
+    },
+    {
+      "group": "generated",
+      "path": "prepare-runtime.sh",
+      "sha256": "8a2a5150730785cd95a400547944769d64052800fb3ec0fe30cd918fa17d69dc",
+      "bytes": 2053
+    },
+    {
+      "group": "generated",
+      "path": "schemas/shared-ledgers.json",
+      "sha256": "23fa475a13632a8a71c568b20027b86b3d69012ec881a089db4e082b20167783",
+      "bytes": 5301
+    },
+    {
+      "group": "generated",
+      "path": "shared/reply-buttons.json",
+      "sha256": "6720ad71ec978429dd5f189abc5795c2e3eb9ab97e92ea51778bbd90eea99d18",
+      "bytes": 334
+    },
+    {
+      "group": "documents",
+      "path": "release-candidate.md",
+      "sha256": "c277d7530538aefd5372c45d90a65627f08c3952ec2f173533acf2a74197d16f",
+      "bytes": 3793
+    },
+    {
+      "group": "documents",
+      "path": "logs/release-candidate/privacy.json",
+      "sha256": "654e6c365005a5f4b16412c126a5c44d10fee70ae9d32446d958c7a5774042e7",
+      "bytes": 8943
+    },
+    {
+      "group": "documents",
+      "path": "logs/release-candidate/git-boundaries.json",
+      "sha256": "6af8dd09f84b1f79ec86cb4d464b8d0a136588c7ef34a22bd458e15441bf130d",
+      "bytes": 6239
+    }
+  ],
+  "excluded": [
+    "evidence/accepted-tests/*",
+    ".build/**",
+    "private runtime/credentials/operational data",
+    "unlisted historical task documents"
+  ],
+  "counts": {
+    "documents": 49,
+    "development": 20,
+    "generated": 401
+  },
+  "manifestIncludedSeparately": "logs/release-candidate/inventory.json"
+}

@@ -1,0 +1,138 @@
+{
+  "excludedEvidence": [
+    {
+      "path": "docs/changes/HEJO-NOTION-API-20261123/evidence/accepted-tests/hna_connections.py.txt",
+      "sha256": "fc5fc2129f838a395c4bf15a21a96db45318a9c4b0fae27e8c26f2b44fe13ca6",
+      "disposition": "local-evidence-only-not-to-be-staged"
+    },
+    {
+      "path": "docs/changes/HEJO-NOTION-API-20261123/evidence/accepted-tests/test_app_scope.py.txt",
+      "sha256": "0169f8dbae33917bba854b1be9d37552c6f0b76b85d31678c7ca1a90596332b8",
+      "disposition": "local-evidence-only-not-to-be-staged"
+    },
+    {
+      "path": "docs/changes/HEJO-NOTION-API-20261123/evidence/accepted-tests/test_hna.py.txt",
+      "sha256": "755fddaf1948a9963b9c7d62940817172adc40e0f2dfc890e9e98b909ef0e2c4",
+      "disposition": "local-evidence-only-not-to-be-staged"
+    },
+    {
+      "path": "docs/changes/HEJO-NOTION-API-20261123/evidence/accepted-tests/test_hna_r1.py.txt",
+      "sha256": "c4483e264e0b7ac9725fd3bd9c5febdb847aabc4e880f7fbb6f2ede2308f194a",
+      "disposition": "local-evidence-only-not-to-be-staged"
+    },
+    {
+      "path": "docs/changes/HEJO-NOTION-API-20261123/evidence/accepted-tests/test_notion.py.txt",
+      "sha256": "cd6f5646579caa196f33e00d73e5da12295cc47b7e032f7573fef9fc4d8828c4",
+      "disposition": "local-evidence-only-not-to-be-staged"
+    }
+  ],
+  "flaggedTokensChecked": 10,
+  "hits": [
+    {
+      "path": "generated/plugins/team-kit/__init__.py",
+      "termSha256": "95d17cab42b9c0ff1c9a10c44cef534e01e57635ffe1d795124538a8ba8575d5"
+    },
+    {
+      "path": "generated/plugins/team-kit/lib/hermes_execution/personal_scopes.py",
+      "termSha256": "95d17cab42b9c0ff1c9a10c44cef534e01e57635ffe1d795124538a8ba8575d5"
+    },
+    {
+      "path": "generated/plugins/team-kit/lib/hermes_packs/linked_work/__init__.py",
+      "termSha256": "95d17cab42b9c0ff1c9a10c44cef534e01e57635ffe1d795124538a8ba8575d5"
+    },
+    {
+      "path": "generated/plugins/team-kit/lib/hermes_packs/linked_work/common_work_links.py",
+      "termSha256": "95d17cab42b9c0ff1c9a10c44cef534e01e57635ffe1d795124538a8ba8575d5"
+    },
+    {
+      "path": "generated/plugins/team-kit/lib/hermes_packs/linked_work/conflict_decisions.py",
+      "termSha256": "95d17cab42b9c0ff1c9a10c44cef534e01e57635ffe1d795124538a8ba8575d5"
+    },
+    {
+      "path": "generated/plugins/team-kit/lib/hermes_packs/linked_work/link_decisions.py",
+      "termSha256": "95d17cab42b9c0ff1c9a10c44cef534e01e57635ffe1d795124538a8ba8575d5"
+    },
+    {
+      "path": "generated/plugins/team-kit/lib/hermes_packs/linked_work/notion_completion_sync.py",
+      "termSha256": "95d17cab42b9c0ff1c9a10c44cef534e01e57635ffe1d795124538a8ba8575d5"
+    },
+    {
+      "path": "generated/plugins/team-kit/lib/hermes_packs/linked_work/work_sync_steps.py",
+      "termSha256": "95d17cab42b9c0ff1c9a10c44cef534e01e57635ffe1d795124538a8ba8575d5"
+    },
+    {
+      "path": "generated/plugins/team-kit/lib/hermes_packs/notion/api.py",
+      "termSha256": "c0bec6f048ee7734e6c1eb093122a2b0a0bcd2862a9b8c7dbf95287ee392df1f"
+    },
+    {
+      "path": "generated/plugins/team-kit/lib/hermes_reply/reply_buttons.py",
+      "termSha256": "95d17cab42b9c0ff1c9a10c44cef534e01e57635ffe1d795124538a8ba8575d5"
+    },
+    {
+      "path": "generated/plugins/team-kit/lib/hermes_team_services/button_policy.py",
+      "termSha256": "95d17cab42b9c0ff1c9a10c44cef534e01e57635ffe1d795124538a8ba8575d5"
+    },
+    {
+      "path": "generated/plugins/team-kit/lib/hermes_team_services/conversation_recall.py",
+      "termSha256": "95d17cab42b9c0ff1c9a10c44cef534e01e57635ffe1d795124538a8ba8575d5"
+    },
+    {
+      "path": "generated/plugins/team-kit/lib/hermes_team_services/deadline_watch.py",
+      "termSha256": "95d17cab42b9c0ff1c9a10c44cef534e01e57635ffe1d795124538a8ba8575d5"
+    },
+    {
+      "path": "generated/plugins/team-kit/lib/hermes_team_services/gap_review.py",
+      "termSha256": "95d17cab42b9c0ff1c9a10c44cef534e01e57635ffe1d795124538a8ba8575d5"
+    },
+    {
+      "path": "generated/plugins/team-kit/lib/hermes_team_services/learning_report.py",
+      "termSha256": "95d17cab42b9c0ff1c9a10c44cef534e01e57635ffe1d795124538a8ba8575d5"
+    },
+    {
+      "path": "generated/plugins/team-kit/lib/hermes_team_services/opinion_reply.py",
+      "termSha256": "95d17cab42b9c0ff1c9a10c44cef534e01e57635ffe1d795124538a8ba8575d5"
+    },
+    {
+      "path": "generated/plugins/team-kit/lib/hermes_team_services/org_review.py",
+      "termSha256": "95d17cab42b9c0ff1c9a10c44cef534e01e57635ffe1d795124538a8ba8575d5"
+    },
+    {
+      "path": "generated/plugins/team-kit/lib/hermes_team_services/owner_presentation.py",
+      "termSha256": "95d17cab42b9c0ff1c9a10c44cef534e01e57635ffe1d795124538a8ba8575d5"
+    },
+    {
+      "path": "generated/plugins/team-kit/lib/hermes_team_services/paseo_autofix.py",
+      "termSha256": "95d17cab42b9c0ff1c9a10c44cef534e01e57635ffe1d795124538a8ba8575d5"
+    },
+    {
+      "path": "generated/plugins/team-kit/lib/hermes_team_services/report_review.py",
+      "termSha256": "95d17cab42b9c0ff1c9a10c44cef534e01e57635ffe1d795124538a8ba8575d5"
+    },
+    {
+      "path": "generated/plugins/team-kit/lib/hermes_team_services/slack_blocks.py",
+      "termSha256": "95d17cab42b9c0ff1c9a10c44cef534e01e57635ffe1d795124538a8ba8575d5"
+    },
+    {
+      "path": "generated/plugins/team-kit/lib/hermes_team_services/starter_plugins.py",
+      "termSha256": "95d17cab42b9c0ff1c9a10c44cef534e01e57635ffe1d795124538a8ba8575d5"
+    },
+    {
+      "path": "generated/plugins/team-kit/lib/hermes_team_services/task_capture.py",
+      "termSha256": "95d17cab42b9c0ff1c9a10c44cef534e01e57635ffe1d795124538a8ba8575d5"
+    },
+    {
+      "path": "generated/plugins/team-kit/lib/hermes_team_services/tool_tiers.py",
+      "termSha256": "95d17cab42b9c0ff1c9a10c44cef534e01e57635ffe1d795124538a8ba8575d5"
+    },
+    {
+      "path": "generated/plugins/team-kit/lib/hermes_team_services/usage_ledger.py",
+      "termSha256": "95d17cab42b9c0ff1c9a10c44cef534e01e57635ffe1d795124538a8ba8575d5"
+    }
+  ],
+  "documentsChecked": 32,
+  "generatedFilesChecked": 401,
+  "scope": "exact reviewer-flagged tokens, not exhaustive personal identifier detection",
+  "nonIdentityDateMatches": 25,
+  "dateMatchDisposition": "Exact calendar dates in existing code, not person/profile/database identifiers",
+  "identityHits": 0
+}

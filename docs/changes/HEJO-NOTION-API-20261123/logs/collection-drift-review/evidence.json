@@ -1,0 +1,84 @@
+{
+  "exitCode": 0,
+  "scope": "five specified files only",
+  "files": [
+    {
+      "path": "lib/hermes_facility/app_connect.py",
+      "isolated": {
+        "sha256": "084a55ec6b751560bb7c7e22db61b9890926a113832907d6a204684c3cdb8bae",
+        "mode": 420
+      },
+      "collection": {
+        "sha256": "0c6323b1873693b5400deb497a3b26ea9e0ff32258ae4378ad6ef89aee67f575",
+        "mode": 420
+      },
+      "accepted": {
+        "sha256": "a6756ce5809e8ba3db4f96df3944ffdf9c4e6c6513d2913731622949612e02f6",
+        "mode": 420
+      }
+    },
+    {
+      "path": "lib/hermes_packs/mac_apps/app_catalog.json",
+      "isolated": {
+        "sha256": "64643ec4c2be55c8b85c27e8337fa26184843051ac457fa83cffe855d2d3abf5",
+        "mode": 420
+      },
+      "collection": {
+        "sha256": "a01eee0bbf8acd56d238e2172d640666794af667dad497e076d524e37c0c6f8b",
+        "mode": 420
+      },
+      "accepted": {
+        "sha256": "92b14e124a52b7c6d6561d32ae8a441ba53a834f3a112224d78a78c35084eda4",
+        "mode": 420
+      }
+    },
+    {
+      "path": "lib/hermes_packs/mac_apps/catalog.py",
+      "isolated": {
+        "sha256": "95f7c8e20e998f42e43a6d723350566c2c9079d673ba1d6b9732c3d701df10f5",
+        "mode": 420
+      },
+      "collection": {
+        "sha256": "23c0d645b60b57e1077e4a227f364bf9a20841ad00b44bf499f61c6c4e67269a",
+        "mode": 420
+      },
+      "accepted": {
+        "sha256": "64850fda558e0c29dd4633aad259d8474444edb096e6d892ef4779e10181fede",
+        "mode": 420
+      }
+    },
+    {
+      "path": "lib/hermes_packs/mac_apps/discovery.py",
+      "isolated": {
+        "sha256": "ee23ded375982fb0b60b7a699fca5521bd5ee6e17999e876864fde20ead11e6f",
+        "mode": 420
+      },
+      "collection": {
+        "sha256": "6bc7b81bbdfbaf414284084402f27dbaf427d5a050ba205f1e039ccab5cfde22",
+        "mode": 420
+      },
+      "accepted": {
+        "sha256": "1aabec2459b98a40b92f2b2e867ad2632498fc99dc66c5b78a94df968587e2b6",
+        "mode": 420
+      }
+    },
+    {
+      "path": "__init__.py",
+      "isolated": {
+        "sha256": "c55a01eb54af937584f33883f3b8a910132e0f27aba89774d6ee6be47359e3e9",
+        "mode": 420
+      },
+      "collection": {
+        "sha256": "a4276a760ebd4650320ed768c1b15a429c5da931b4f3ceaadeb1eada67b09ef9",
+        "mode": 420
+      },
+      "accepted": {
+        "sha256": "4ca0e6a3c0fe80a23e97daa9b777fc5097d44bd0039f5a3242b92b2d93c63c63",
+        "mode": 420
+      },
+      "retainedContextFunctionsEqual": true
+    }
+  ],
+  "productWrites": 0,
+  "testsRepeated": false
+}

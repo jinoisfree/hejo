@@ -1,0 +1,48 @@
+{
+  "userStatement": "보이고 설정했고 정상작동중",
+  "source": "current conversation response to post-D8 upper database display question",
+  "confirmed": [
+    "upper database visible",
+    "user completed settings",
+    "user reports normal operation"
+  ],
+  "notEstablished": [
+    "specific A/B target",
+    "new child discovery after setup",
+    "separate A preservation after B setup",
+    "independent computer/account success"
+  ],
+  "priorD8EvidenceSha256": "aa9d33d8ad88b9d42c1a68e205a399e4cb887d428f003427835da5cf0896e848",
+  "priorEvidenceComparison": {
+    "acceptance-04": {
+      "exitCode": 0,
+      "summary": "{\"test\": \"isolation\", \"status\": \"PASS\", \"observed\": {\"pytestExitCode\": 0, \"unexpected\": []}}",
+      "appliedEightMatchTestCandidate": true
+    },
+    "regressions-02": {
+      "exitCode": 0,
+      "summary": "{\"test\": \"isolation\", \"status\": \"PASS\", \"observed\": {\"pytestExitCode\": 0, \"unexpected\": []}}",
+      "appliedEightMatchTestCandidate": true
+    }
+  },
+  "git": [
+    {
+      "command": "git diff --exit-code",
+      "exitCode": 0,
+      "stdout": ""
+    },
+    {
+      "command": "git status --porcelain",
+      "exitCode": 0,
+      "stdout": ""
+    },
+    {
+      "command": "git rev-parse HEAD",
+      "exitCode": 0,
+      "stdout": "39f954c1bd3a50fd27d4f11a3b03774d0e74aa41"
+    }
+  ],
+  "liveQueries": 0,
+  "serviceControls": 0,
+  "productWrites": 0
+}

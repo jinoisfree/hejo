@@ -1,0 +1,193 @@
+{
+  "command": "python3 target hash comparison (inline)",
+  "exitCode": 0,
+  "targets": {
+    "lib/hermes_facility/app_connect.py": {
+      "expected": "a6756ce5809e8ba3db4f96df3944ffdf9c4e6c6513d2913731622949612e02f6",
+      "installed": "a6756ce5809e8ba3db4f96df3944ffdf9c4e6c6513d2913731622949612e02f6",
+      "collected": "0c6323b1873693b5400deb497a3b26ea9e0ff32258ae4378ad6ef89aee67f575",
+      "collectedKnownStates": [
+        "v1-before"
+      ]
+    },
+    "lib/hermes_packs/mac_apps/app_catalog.json": {
+      "expected": "92b14e124a52b7c6d6561d32ae8a441ba53a834f3a112224d78a78c35084eda4",
+      "installed": "92b14e124a52b7c6d6561d32ae8a441ba53a834f3a112224d78a78c35084eda4",
+      "collected": "a01eee0bbf8acd56d238e2172d640666794af667dad497e076d524e37c0c6f8b",
+      "collectedKnownStates": [
+        "v1-before"
+      ]
+    },
+    "lib/hermes_packs/mac_apps/catalog.py": {
+      "expected": "64850fda558e0c29dd4633aad259d8474444edb096e6d892ef4779e10181fede",
+      "installed": "64850fda558e0c29dd4633aad259d8474444edb096e6d892ef4779e10181fede",
+      "collected": "23c0d645b60b57e1077e4a227f364bf9a20841ad00b44bf499f61c6c4e67269a",
+      "collectedKnownStates": [
+        "v1-before"
+      ]
+    },
+    "lib/hermes_packs/mac_apps/discovery.py": {
+      "expected": "1aabec2459b98a40b92f2b2e867ad2632498fc99dc66c5b78a94df968587e2b6",
+      "installed": "1aabec2459b98a40b92f2b2e867ad2632498fc99dc66c5b78a94df968587e2b6",
+      "collected": "6bc7b81bbdfbaf414284084402f27dbaf427d5a050ba205f1e039ccab5cfde22",
+      "collectedKnownStates": [
+        "v1-before"
+      ]
+    },
+    "tests/test_app_catalog.py": {
+      "expected": "35688cfe8fe352dcef5752e409cabe478f290fba9557df6fd3a16fe7bf4e1b37",
+      "installed": "35688cfe8fe352dcef5752e409cabe478f290fba9557df6fd3a16fe7bf4e1b37",
+      "collected": "7cddabef1d83d03bcb66901a4bfadf866726a010faa774a692aed45c5a8eb977",
+      "collectedKnownStates": [
+        "v1-before"
+      ]
+    },
+    "tests/test_app_registry.py": {
+      "expected": "7d82cfeb7db71cdd0640c03a775cbd9734a1c85f634223b079460013442ab757",
+      "installed": "7d82cfeb7db71cdd0640c03a775cbd9734a1c85f634223b079460013442ab757",
+      "collected": "6827a9db935b6d81c8028cd215fffaf60a8e7888e3a32006568f3bb4f34e75ec",
+      "collectedKnownStates": [
+        "v1-before"
+      ]
+    },
+    "__init__.py": {
+      "expected": "4ca0e6a3c0fe80a23e97daa9b777fc5097d44bd0039f5a3242b92b2d93c63c63",
+      "installed": "4ca0e6a3c0fe80a23e97daa9b777fc5097d44bd0039f5a3242b92b2d93c63c63",
+      "collected": "a4276a760ebd4650320ed768c1b15a429c5da931b4f3ceaadeb1eada67b09ef9",
+      "collectedKnownStates": [
+        "scope-before"
+      ]
+    },
+    "lib/hermes_facility/app_scope.py": {
+      "expected": "761a0a1785f51f47c49087ed5244515ac54433eefd200c2b7b436457beb62c51",
+      "installed": "761a0a1785f51f47c49087ed5244515ac54433eefd200c2b7b436457beb62c51",
+      "collected": "bc880d37e502bc425695a6e4599be7e98e3f71f1d04889d7500067fb7292b5b0",
+      "collectedKnownStates": [
+        "scope-before"
+      ]
+    },
+    "lib/hermes_facility/app_setup.py": {
+      "expected": "58faddec5d3149b352d39737ae5896d51029ad2158bad4ff270d41de42a51ee3",
+      "installed": "58faddec5d3149b352d39737ae5896d51029ad2158bad4ff270d41de42a51ee3",
+      "collected": "c9e8fc068f37bcd6e1c3ac74570b0c42f75e895d6eeab97b6c780f8c5a4b0ea4",
+      "collectedKnownStates": [
+        "title-before"
+      ]
+    },
+    "lib/hermes_facility/connection_checks.py": {
+      "expected": "645935438bc3d2292ef52350a549066766f9e4ed25c1a1a3db6c79832f9d47da",
+      "installed": "645935438bc3d2292ef52350a549066766f9e4ed25c1a1a3db6c79832f9d47da",
+      "collected": "2d0309229d28f7004963bf4a1464bf6ab9445d6b268f7688daa345be759a9012",
+      "collectedKnownStates": [
+        "scope-before"
+      ]
+    },
+    "lib/hermes_governance/contracts.py": {
+      "expected": "7a67556518b96634ab94865e42ae3f33ccb1190c1ef85eb1778d473c1b4c1811",
+      "installed": "7a67556518b96634ab94865e42ae3f33ccb1190c1ef85eb1778d473c1b4c1811",
+      "collected": "55fd8cb97878f40fe539f2a07d3a5185d26a8ed93b5476e17eb8dc0e6a5150fe",
+      "collectedKnownStates": [
+        "scope-before"
+      ]
+    },
+    "lib/hermes_packs/notion/api.py": {
+      "expected": "9b274704bc93029d9e29205b9af8f41d7c88a287643bc744e2680373c2c892a7",
+      "installed": "9b274704bc93029d9e29205b9af8f41d7c88a287643bc744e2680373c2c892a7",
+      "collected": "0790b5b85190de5ed7d90baa852b7fa822b3d30325268c3d31caa9869d0825c3",
+      "collectedKnownStates": [
+        "scope-before"
+      ]
+    },
+    "lib/hermes_packs/notion/operations.py": {
+      "expected": "449f3b1e49ba962c0d79b0108b3e630bc9316be9c3d48111fe370e41872f6eaf",
+      "installed": "449f3b1e49ba962c0d79b0108b3e630bc9316be9c3d48111fe370e41872f6eaf",
+      "collected": "0c7bd99f97c87ae56489d4882edfbb3d12f06e3f9f76c6650e83876896b80015",
+      "collectedKnownStates": [
+        "scope-before"
+      ]
+    }
+  },
+  "related": {
+    "lib/hermes_facility/app_registry.py": {
+      "installed": "1c73af9ac35bb8b7e98f7493721dafbf04ddb4aecc4f9d565d20fa2b94c422a4",
+      "collected": "1c73af9ac35bb8b7e98f7493721dafbf04ddb4aecc4f9d565d20fa2b94c422a4"
+    },
+    "lib/hermes_facility/work_scope.py": {
+      "installed": "57b2e415c44ddb9942ab763a9ac1873ab95f7f3c49348c9fa7c5ea66dd58e0f8",
+      "collected": "57b2e415c44ddb9942ab763a9ac1873ab95f7f3c49348c9fa7c5ea66dd58e0f8"
+    },
+    "lib/hermes_governance/app_tools.py": {
+      "installed": "305c77b5bee8f64a1a00d37be91ad91408bcee579f3544250b1b60114a73758a",
+      "collected": "305c77b5bee8f64a1a00d37be91ad91408bcee579f3544250b1b60114a73758a"
+    },
+    "lib/hermes_governance/notion_undo.py": {
+      "installed": "da105eaf2d69ec36dfa8aa52e400121048b4c998cbef37aeff414d380c17b81a",
+      "collected": "da105eaf2d69ec36dfa8aa52e400121048b4c998cbef37aeff414d380c17b81a"
+    },
+    "lib/hermes_governance/write_policy.py": {
+      "installed": "3227889cbf49ed9080f04557db83abf8b8302b3d6ff2bd2db3275afbecf8c827",
+      "collected": "3227889cbf49ed9080f04557db83abf8b8302b3d6ff2bd2db3275afbecf8c827"
+    },
+    "lib/hermes_owner_chat.py": {
+      "installed": "f30dae7d87ff85100ff4716199dffffdf2aa4f5dcda2e4f756a56ec4b732cac0",
+      "collected": "f30dae7d87ff85100ff4716199dffffdf2aa4f5dcda2e4f756a56ec4b732cac0"
+    },
+    "lib/hermes_packs/diagnosis/diagnosis_runtime.py": {
+      "installed": "c50a7ba263eac50c909a21344b234086591522b3c1a20cf7606d08edd2e1d426",
+      "collected": "c50a7ba263eac50c909a21344b234086591522b3c1a20cf7606d08edd2e1d426"
+    },
+    "lib/hermes_team_services/memory_live.py": {
+      "installed": "f5881aa231425c78b3e3c53a1c2e5b7e2e79d3e4d532c54e090b4a18b8e6dad8",
+      "collected": "f5881aa231425c78b3e3c53a1c2e5b7e2e79d3e4d532c54e090b4a18b8e6dad8"
+    },
+    "lib/hermes_team_services/work_runtime.py": {
+      "installed": "4f4ebc03736bf6f3d63306d3e29b24e6c5222a42a29a45fc14fc1b2fdab918ab",
+      "collected": "4f4ebc03736bf6f3d63306d3e29b24e6c5222a42a29a45fc14fc1b2fdab918ab"
+    },
+    "tests/test_hejo_session_proof.py": {
+      "installed": "839171eaf0085e39fdba637664a1d5f809c101ce46141d27af3824f073e5383e",
+      "collected": "839171eaf0085e39fdba637664a1d5f809c101ce46141d27af3824f073e5383e"
+    },
+    "tests/test_notion.py": {
+      "installed": "fe3781a5708b06658d55576247dc672f65d675e49cbcb528e2fe44bf83d14af2",
+      "collected": "fe3781a5708b06658d55576247dc672f65d675e49cbcb528e2fe44bf83d14af2"
+    },
+    "tests/test_notion_api.py": {
+      "installed": "88cef9783d26cdf3afe25a7934f907d7c664e2fbd48e73ea314147a9f510ae8c",
+      "collected": "88cef9783d26cdf3afe25a7934f907d7c664e2fbd48e73ea314147a9f510ae8c"
+    },
+    "tests/test_notion_approval_boundaries.py": {
+      "installed": "7d9234bd9f187674a0e01f45bed0ae5dcf06faf8f900aef3b1ba483b897ea0d2",
+      "collected": "7d9234bd9f187674a0e01f45bed0ae5dcf06faf8f900aef3b1ba483b897ea0d2"
+    },
+    "tests/test_owner_provenance_hejo.py": {
+      "installed": "54e89940ed84394430dac4a5f0959b8ee2c452486ba48143363a00a3a0c68c12",
+      "collected": "54e89940ed84394430dac4a5f0959b8ee2c452486ba48143363a00a3a0c68c12"
+    },
+    "lib/hermes_packs/notion/__init__.py": {
+      "installed": "844ce9aab8b17f61fde0a381d0d3642e96a2e771dbd8e4e9fa6ba63055391a2c",
+      "collected": "844ce9aab8b17f61fde0a381d0d3642e96a2e771dbd8e4e9fa6ba63055391a2c"
+    },
+    "lib/hermes_facility/connections.py": {
+      "installed": "7fb0e6e60c26580aa3a0db2e45fa4065bdc7c8011caa9b0ba971b60c92d76b32",
+      "collected": "7fb0e6e60c26580aa3a0db2e45fa4065bdc7c8011caa9b0ba971b60c92d76b32"
+    },
+    "plugin.yaml": {
+      "installed": "3d15a4f092713fc1d7355c831c5febb7a2ee13b5f8107970b55bb9261aa5c648",
+      "collected": "3d15a4f092713fc1d7355c831c5febb7a2ee13b5f8107970b55bb9261aa5c648"
+    }
+  },
+  "cliWrapper": {
+    "installed": "3af37c2e1d264a6abd54059e36d2ab46dba1ff7801c0ecbb432ab63ba8c6cb62",
+    "collected": "3af37c2e1d264a6abd54059e36d2ab46dba1ff7801c0ecbb432ab63ba8c6cb62"
+  },
+  "generatorExecuted": false,
+  "allCollectedTargetsKnownBaseline": true,
+  "manifestCoverage": {
+    "teamKitLibTree": true,
+    "testsExcludedByTreeWalker": true,
+    "connectionsCliModule": true,
+    "installedBinWrapperProvidedByInspectedInstallers": false,
+    "freshInstallationExecuted": false
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "sync": "8b30a8e4c14b7cd6b9362d33f09ac31c6cc65462a00250a7ba9758a9a5a6b40c",
+  "starter-manifest": "cb7aaefa02c0c4a6939d540bfc563e2e6c4eca403fa189e03782c7c956746262",
+  "starter-templates/install_support.py": "7f3f39b9b33c06c60a7db99d86ff526338ff3887fa92ed48b02d29e52457cc8c",
+  "starter-templates/hermes-connections.py": "a4dff6c8f26b22bd38df8c388d6de9d3258909a490054fe74931a0ff00304f83",
+  "tests/test_sync.py": "5004e0bf3bb5cbd18a97d210740f866c4b66b75cb0aba40cb2be349aeb2cd0c6",
+  "tests/test_make_starter.py": "72028bced01f6345713b6ab7b5e5bc2c677ca5ac1ac44bb740d43ceb358d4137",
+  "tests/test_starter_runtime.py": "17780eab96c353a4ce9056b70653ba6c055bd3f466a8da954e14130501c07cb7"
+}
