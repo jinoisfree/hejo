@@ -1,0 +1,43 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________________ test_hub_two_rooms_cards_and_comment_routing _________________
+
+native = namespace(app=Application[bot=ExtBot[token=900:fixture]], api=<test_telegram_comments.BotAPI object at 0x107dbfcb0>, bridge=<gate.telegram.Telegram object at 0x10a69a270>, now=[1000.0], core=[], observed=[10, 10, 10, 200, 201, 300, 301])
+gate = <gate.adapter.HejoAdapter object at 0x10a698980>
+runner = <gate.tests.support.runner.<locals>.TurnRunner object at 0x10a749a90>
+
+    async def test_hub_two_rooms_cards_and_comment_routing(native,gate,runner):
+        await ready(native)
+        a=await question(native)
+        b=await question(native,101,'alpha',201)
+        assert len(native.bridge.private()['comments'])==1
+        assert {o['room'] for o in deliveries(native,'forum')}=={'default','alpha'}
+        cards=[a for a in sends(native) if int(a['chat_id'])==FORUM]
+        assert len(cards)==2
+        assert {c['message_thread_id'] for c in cards}=={8,9}
+        assert {c['reply_parameters']['message_id'] for c in cards}=={100,101}
+        assert cards[0]['reply_markup']['inline_keyboard'][0][0]['url']=='https://t.me/c/300/200?thread=200'
+        for index,op in enumerate([a,b]):
+            await gate.send(op['room'],'reply',metadata={'thread_id':op['thread']})
+            await settled(native)
+            await native.app.process_update(incoming(native,300+index,reply=200+index,raw=200+index))
+        await settled(native)
+        assert len(runner.events)==4
+        assert runner.events[0].source.thread_id==runner.events[2].source.thread_id
+        assert runner.events[1].source.thread_id==runner.events[3].source.thread_id
+        assert len(deliveries(native,'forum'))==2
+>       assert all('message_thread_id' not in c and c['reply_parameters']['allow_sending_without_reply'] is False
+                   for c in sends(native) if int(c['chat_id'])==DISCUSSION)
+E       assert False
+E        +  where False = all(<generator object test_hub_two_rooms_cards_and_comment_routing.<locals>.<genexpr> at 0x10a6f3e60>)
+
+gate/tests/test_telegram_comments.py:595: AssertionError
+------------------------------ Captured log setup ------------------------------
+WARNING  hermes_facility.team_registry:team_registry.py:34 team registry /private<temporary-home>/no-fallback-test/test_hub_two_rooms_cards_and_c0/owner/team.yaml: file not found; running with an empty roster (role features stay off)
+------------------------------ Captured log call -------------------------------
+WARNING  gate.telegram:telegram.py:350 telegram_topic_failed kind=AttributeError
+WARNING  gate.telegram:telegram.py:350 telegram_topic_failed kind=AttributeError
+WARNING  gate.telegram:telegram.py:350 telegram_topic_failed kind=AttributeError
+=========================== short test summary info ============================
+FAILED gate/tests/test_telegram_comments.py::test_hub_two_rooms_cards_and_comment_routing
+1 failed in 0.71s

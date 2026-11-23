@@ -1,0 +1,103 @@
+2026-11-24 01:06:56,023 INFO hermes_cli.plugins: Plugin 'browser-browser-use' registered browser provider: browser-use
+2026-11-24 01:06:56,025 INFO hermes_cli.plugins: Plugin 'browser-browserbase' registered browser provider: browserbase
+2026-11-24 01:06:56,026 INFO hermes_cli.plugins: Plugin 'browser-firecrawl' registered browser provider: firecrawl
+2026-11-24 01:06:56,058 INFO hermes_cli.plugins: Plugin 'deepinfra' registered image_gen provider: deepinfra
+2026-11-24 01:06:56,059 INFO hermes_cli.plugins: Plugin 'fal' registered image_gen provider: fal
+2026-11-24 01:06:56,060 INFO hermes_cli.plugins: Plugin 'krea' registered image_gen provider: krea
+2026-11-24 01:06:56,061 INFO hermes_cli.plugins: Plugin 'meta-ai-image-gen' registered image_gen provider: meta-ai
+2026-11-24 01:06:56,062 INFO hermes_cli.plugins: Plugin 'openai' registered image_gen provider: openai
+2026-11-24 01:06:56,063 INFO hermes_cli.plugins: Plugin 'openai-codex' registered image_gen provider: openai-codex
+2026-11-24 01:06:56,064 INFO hermes_cli.plugins: Plugin 'openrouter' registered image_gen provider: openrouter
+2026-11-24 01:06:56,064 INFO hermes_cli.plugins: Plugin 'openrouter' registered image_gen provider: nous
+2026-11-24 01:06:56,066 INFO hermes_cli.plugins: Plugin 'xai' registered image_gen provider: xai
+2026-11-24 01:06:56,073 INFO hermes_cli.plugins: Plugin 'deepinfra' registered video_gen provider: deepinfra
+2026-11-24 01:06:56,074 INFO hermes_cli.plugins: Plugin 'fal' registered video_gen provider: fal
+2026-11-24 01:06:56,074 INFO hermes_cli.plugins: Plugin 'openrouter' registered video_gen provider: openrouter
+2026-11-24 01:06:56,075 INFO hermes_cli.plugins: Plugin 'xai' registered video_gen provider: xai
+2026-11-24 01:06:56,079 INFO hermes_cli.plugins: Plugin 'web-brave-free' registered web provider: brave-free
+2026-11-24 01:06:56,080 INFO hermes_cli.plugins: Plugin 'web-ddgs' registered web provider: ddgs
+2026-11-24 01:06:56,081 INFO hermes_cli.plugins: Plugin 'web-exa' registered web provider: exa
+2026-11-24 01:06:56,084 INFO hermes_cli.plugins: Plugin 'web-firecrawl' registered web provider: firecrawl
+2026-11-24 01:06:56,085 INFO hermes_cli.plugins: Plugin 'web-keenable' registered web provider: keenable
+2026-11-24 01:06:56,086 INFO hermes_cli.plugins: Plugin 'web-openai-native' registered web provider: openai-native
+2026-11-24 01:06:56,087 INFO hermes_cli.plugins: Plugin 'web-parallel' registered web provider: parallel
+2026-11-24 01:06:56,088 INFO hermes_cli.plugins: Plugin 'web-perplexity' registered web provider: perplexity
+2026-11-24 01:06:56,089 INFO hermes_cli.plugins: Plugin 'web-searxng' registered web provider: searxng
+2026-11-24 01:06:56,089 INFO hermes_cli.plugins: Plugin 'web-tavily' registered web provider: tavily
+2026-11-24 01:06:56,090 INFO hermes_cli.plugins: Plugin 'web-xai' registered web provider: xai
+2026-11-24 01:06:56,097 INFO hermes_cli.plugin_capabilities: capability_check plugin=hejo capability=tools.override decision=deny checked_by=plugin_capability_granted evidence=not granted
+2026-11-24 01:06:56,101 INFO hermes_cli.plugins: Plugin discovery complete: 58 found, 53 enabled
+2026-11-24 01:06:56,862 INFO gateway.control_socket: Gateway control socket listening at /private/tmp/hejo-gateway-3qa1q6if/airport/gateway.sock
+2026-11-24 01:06:57,017 INFO hermes_cli.plugins: Plugin 'browser-browser-use' registered browser provider: browser-use
+2026-11-24 01:06:57,019 INFO hermes_cli.plugins: Plugin 'browser-browserbase' registered browser provider: browserbase
+2026-11-24 01:06:57,020 INFO hermes_cli.plugins: Plugin 'browser-firecrawl' registered browser provider: firecrawl
+2026-11-24 01:06:57,065 INFO hermes_cli.plugins: Plugin 'deepinfra' registered image_gen provider: deepinfra
+2026-11-24 01:06:57,066 INFO hermes_cli.plugins: Plugin 'fal' registered image_gen provider: fal
+2026-11-24 01:06:57,068 INFO hermes_cli.plugins: Plugin 'krea' registered image_gen provider: krea
+2026-11-24 01:06:57,069 INFO hermes_cli.plugins: Plugin 'meta-ai-image-gen' registered image_gen provider: meta-ai
+2026-11-24 01:06:57,069 INFO hermes_cli.plugins: Plugin 'openai' registered image_gen provider: openai
+2026-11-24 01:06:57,071 INFO hermes_cli.plugins: Plugin 'openai-codex' registered image_gen provider: openai-codex
+2026-11-24 01:06:57,072 INFO hermes_cli.plugins: Plugin 'openrouter' registered image_gen provider: openrouter
+2026-11-24 01:06:57,072 INFO hermes_cli.plugins: Plugin 'openrouter' registered image_gen provider: nous
+2026-11-24 01:06:57,073 INFO hermes_cli.plugins: Plugin 'xai' registered image_gen provider: xai
+2026-11-24 01:06:57,075 INFO hermes_cli.plugins: Plugin 'deepinfra' registered video_gen provider: deepinfra
+2026-11-24 01:06:57,076 INFO hermes_cli.plugins: Plugin 'fal' registered video_gen provider: fal
+2026-11-24 01:06:57,077 INFO hermes_cli.plugins: Plugin 'openrouter' registered video_gen provider: openrouter
+2026-11-24 01:06:57,078 INFO hermes_cli.plugins: Plugin 'xai' registered video_gen provider: xai
+2026-11-24 01:06:57,079 INFO hermes_cli.plugins: Plugin 'web-brave-free' registered web provider: brave-free
+2026-11-24 01:06:57,079 INFO hermes_cli.plugins: Plugin 'web-ddgs' registered web provider: ddgs
+2026-11-24 01:06:57,080 INFO hermes_cli.plugins: Plugin 'web-exa' registered web provider: exa
+2026-11-24 01:06:57,081 INFO hermes_cli.plugins: Plugin 'web-firecrawl' registered web provider: firecrawl
+2026-11-24 01:06:57,081 INFO hermes_cli.plugins: Plugin 'web-keenable' registered web provider: keenable
+2026-11-24 01:06:57,082 INFO hermes_cli.plugins: Plugin 'web-openai-native' registered web provider: openai-native
+2026-11-24 01:06:57,083 INFO hermes_cli.plugins: Plugin 'web-parallel' registered web provider: parallel
+2026-11-24 01:06:57,084 INFO hermes_cli.plugins: Plugin 'web-perplexity' registered web provider: perplexity
+2026-11-24 01:06:57,084 INFO hermes_cli.plugins: Plugin 'web-searxng' registered web provider: searxng
+2026-11-24 01:06:57,085 INFO hermes_cli.plugins: Plugin 'web-tavily' registered web provider: tavily
+2026-11-24 01:06:57,086 INFO hermes_cli.plugins: Plugin 'web-xai' registered web provider: xai
+2026-11-24 01:06:57,087 INFO hermes_cli.plugin_capabilities: capability_check plugin=hejo capability=tools.override decision=deny checked_by=plugin_capability_granted evidence=not granted
+2026-11-24 01:06:57,088 INFO hermes_cli.plugins: Plugin discovery complete: 58 found, 53 enabled
+2026-11-24 01:06:57,088 INFO gateway.run: Starting Hermes Gateway...
+2026-11-24 01:06:57,088 INFO gateway.run: Session storage: /private/tmp/hejo-gateway-3qa1q6if/airport/sessions
+2026-11-24 01:06:57,091 INFO gateway.run: Agent budget: max_iterations=unlimited (agent.max_turns from config.yaml, else the HERMES_MAX_ITERATIONS bridge)
+2026-11-24 01:06:57,091 INFO gateway.run: Secret redaction: ENABLED (tool output, logs, and chat responses are scrubbed before delivery)
+2026-11-24 01:06:57,154 INFO gateway.run: Connecting to hejo...
+2026-11-24 01:06:57,154 INFO gateway.run: Connecting to probe_peer...
+2026-11-24 01:06:57,169 WARNING hermes_facility.team_registry: team registry /private/tmp/hejo-gateway-3qa1q6if/airport/owner/team.yaml: file not found; running with an empty roster (role features stay off)
+2026-11-24 01:06:57,176 INFO gateway.run: ✓ hejo connected
+2026-11-24 01:06:57,178 INFO gateway.run: ✓ probe_peer connected
+2026-11-24 01:06:57,430 INFO gateway.run: ✓ hejo connected (profile: beta)
+2026-11-24 01:06:57,433 INFO gateway.run: ✓ probe_peer connected (profile: beta)
+2026-11-24 01:06:57,949 INFO gateway.run: Gateway running with 4 platform(s)
+2026-11-24 01:06:57,953 INFO gateway.run: Channel directory built: 0 target(s)
+2026-11-24 01:06:58,958 INFO gateway.run: Press Ctrl+C to stop
+2026-11-24 01:06:58,968 INFO gateway.run: kanban dispatcher: holding singleton dispatcher lock (/private/tmp/hejo-gateway-3qa1q6if/airport/kanban/.dispatcher.lock)
+2026-11-24 01:06:58,971 INFO gateway.run: Cron scheduler will tick 2 profile(s): ['default', 'beta']
+2026-11-24 01:06:58,974 INFO cron.scheduler_provider: In-process cron scheduler started (interval=60s)
+2026-11-24 01:06:58,974 INFO cron.scheduler_provider: Multiplex cron scheduler started for 2 profile(s): ['default', 'beta'] (re-enumerated every cycle)
+2026-11-24 01:06:58,974 INFO gateway.run: Gateway housekeeping started (interval=60s)
+2026-11-24 01:06:59,360 WARNING gateway.mirror: Mirror: no session found for hejo:beta thread=None user=None (explicit_id=none, origin-scan bailed)
+2026-11-24 01:06:59,372 INFO cron.scheduler: Job 'fixture-job': delivered to hejo:beta via live adapter thread=- message_id=203fea44-5476-41b0-9a27-5c6bffa93c84
+2026-11-24 01:06:59,382 INFO cron.scheduler: Job 'fixture-job': delivered to hejo:beta via live adapter thread=- message_id=a956e834-7693-4bd5-b51d-b3674dee837e
+2026-11-24 01:06:59,385 WARNING gateway.mirror: Mirror: no session found for hejo:beta thread=None user=None (explicit_id=none, origin-scan bailed)
+2026-11-24 01:06:59,397 INFO gateway.delivery: Cron output preserved for chunking adapter (5007 chars) — full output saved to /private/tmp/hejo-gateway-3qa1q6if/airport/profiles/beta/cron/output/fixture-job_20261124_010659.txt
+2026-11-24 01:06:59,398 INFO cron.scheduler: Job 'fixture-job': delivered to hejo:beta via live adapter thread=- message_id=b788fa1b-752c-4658-bbb1-aff47bed4f60
+2026-11-24 01:06:59,406 WARNING gateway.mirror: Mirror: no session found for hejo:beta thread=None user=None (explicit_id=none, origin-scan bailed)
+AT99_OFFICIAL_DELIVERY_PASS
+ACCEPTANCE_RESULT {"acceptance": "AT-HF-22", "tcp_listeners": 1, "delivered": 4, "new_threads": 4, "offline_replayed": 2, "employee": "beta", "other_platform_sends": 0, "duplicate_checks": [{"profile": "beta", "platform": "hejo", "kind": "credential", "has_claim": false, "refused": false}, {"profile": "beta", "platform": "hejo", "kind": "listener", "has_claim": false, "refused": false}, {"profile": "beta", "platform": "probe_peer", "kind": "credential", "has_claim": true, "refused": false}, {"profile": "beta", "platform": "probe_peer", "kind": "listener", "has_claim": false, "refused": false}]}
+2026-11-24 01:06:59,409 INFO gateway.run: Stopping gateway...
+2026-11-24 01:06:59,413 INFO gateway.run: Sent shutdown notification to home channel hejo:default
+2026-11-24 01:06:59,414 INFO gateway.run: Sent shutdown notification to home channel hejo:beta
+2026-11-24 01:06:59,414 INFO gateway.run: Shutdown phase: notify_active_sessions done at +0.01s
+2026-11-24 01:06:59,416 INFO gateway.run: Shutdown phase: drain done at +0.01s (drain took 0.00s, timed_out=False, active_at_start=0, active_now=0, cron_at_start=0, cron_now=0, api_at_start=0, api_now=0, deferred_at_start=0, deferred_now=0)
+2026-11-24 01:06:59,420 INFO gateway.run: ✓ hejo disconnected (0.00s)
+2026-11-24 01:06:59,421 INFO gateway.run: ✓ probe_peer disconnected (0.00s)
+2026-11-24 01:06:59,422 INFO gateway.run: ✓ hejo disconnected (0.00s) (profile: beta)
+2026-11-24 01:06:59,423 INFO gateway.run: ✓ probe_peer disconnected (0.00s) (profile: beta)
+2026-11-24 01:06:59,423 INFO gateway.run: Shutdown phase: all adapters disconnected at +0.01s
+2026-11-24 01:06:59,425 INFO gateway.run: Gateway housekeeping stopped
+2026-11-24 01:06:59,425 INFO gateway.run: Shutdown phase: final-cleanup tool kill done at +0.02s
+2026-11-24 01:06:59,426 INFO gateway.run: Shutdown phase: executor quiesced at +0.02s
+2026-11-24 01:06:59,437 INFO gateway.run: Shutdown phase: SessionDB close done at +0.03s
+2026-11-24 01:06:59,439 INFO gateway.run: Gateway stopped (total teardown 0.03s)
+GATEWAY_EXIT clean

@@ -168,8 +168,9 @@ class Telegram:
         for binding in value.get('comments', []):
             if binding['state'] != 'retired':
                 binding['state'] = 'retired'
-                value.setdefault('route_epochs', {})[binding['room']] = {
-                    'epoch': secrets.token_hex(16), 'cutover_seq': self.adapter.journal.head}
+                for room in self.comments.member_rooms(binding):
+                    value.setdefault('route_epochs', {})[room] = {
+                        'epoch': secrets.token_hex(16), 'cutover_seq': self.adapter.journal.head}
 
     def pending_code(self, event, private):
         code = private.get('code')
@@ -234,6 +235,9 @@ class Telegram:
         target = self.reply_thread(reply_to, tag)
         if target:
             room, thread = target
+            topic = self.topics(tag)['topics'].get(room)
+            if not topic or topic['topic'] != event.source.thread_id:
+                return
         else:
             topics = self.topics(tag)['topics']
             room = next((room for room, entry in topics.items()
@@ -242,6 +246,9 @@ class Telegram:
             thread = None
         if room is None:
             await self.notice(event, '앱에서 만든 방 토픽에 써 주세요')
+            return
+        if self.comments.route(room) == 'comments':
+            await self.comments.forum_input(event.raw_message, room)
             return
         if self.comments.route(room) != 'topic':
             return
@@ -313,14 +320,9 @@ class Telegram:
             tag = pair['tag']
             value = self.topics(tag)
             rooms = self.rooms()
-            desired = {room: name for room, name in rooms.items()
-                       if self.comments.route(room) == 'topic'}
+            desired = rooms
             problem = False
             for room in dict.fromkeys([*desired, *value['topics']]):
-                # A living comments/paused room keeps its old topic untouched.
-                # A removed room still follows the existing close path.
-                if room in rooms and room not in desired:
-                    continue
                 if not self.active() or self.private()['pair']['tag'] != tag:
                     return
                 entry = value['topics'].get(room)
@@ -372,7 +374,9 @@ class Telegram:
             return
         if (row['type'] == 'message' and self.active() and key[0] in self.rooms()
                 and self.comments.route(key[0]) in {'topic', 'comments'}
-                and (row['role'] == 'employee' or not row.get('client_msg_id', '').startswith('telegram:'))):
+                and (row['role'] == 'employee' or not row.get('client_msg_id', '').startswith('telegram:')
+                     or (self.comments.route(key[0]) == 'comments'
+                         and ':forum:' in row.get('client_msg_id', '')))):
             self.pending.setdefault(key, []).append((row['msg_id'], self.private()['pair']['tag']))
         if key in self.pending:
             self.changed[key] = asyncio.get_running_loop().time()

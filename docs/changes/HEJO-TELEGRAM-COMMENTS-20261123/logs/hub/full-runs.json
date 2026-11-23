@@ -1,0 +1,21 @@
+{
+  "files": {
+    "gate/README.md": "5786af86e9aba0ef6f30c10e9a7ccc3dfcd03569801cdc1428ea8e47af1d198c",
+    "gate/adapter.py": "58b9ea80abde36ecb8347d645b0f43e093a3f5ab46a15780a713173f612a714f",
+    "gate/telegram.py": "87265ac44997b7a461d549d9307ba0a867f0eec3f2af63370833fcfd9bae478c",
+    "gate/telegram_comments.py": "d07cdba832deda6117a79c9be4491876a0dd36324c56a8ac2e8775a10ab57264",
+    "gate/tests/test_telegram_comments.py": "8dad5944e82443cce9cd27851f418bd17547801b526840f37b8a848f0c2eadcb"
+  },
+  "runs": [
+    {
+      "name": "full",
+      "command": [
+        "bash",
+        "scripts/test.sh"
+      ],
+      "cwd": ".",
+      "exitCode": 1,
+      "logPath": "full.log"
+    }
+  ]
+}

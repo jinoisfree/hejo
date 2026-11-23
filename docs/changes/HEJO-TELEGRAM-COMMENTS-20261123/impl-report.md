@@ -128,3 +128,42 @@ route_epochs의 cutover와 현재 epoch별 닻을 사용한다. 전환 이전에
 운영 M0 후보 갱신·배포·gateway 재시작·실제 bind·추가 실물 메시지·TASK 5·푸시는 **미실행**이다. 최종 실물 UI 수락, 운영 환경에서의 미디어/실패 복구는 아직 검증되지 않았다. journal commit 뒤 직원 실행 중 중단은 중복을 피하지만 자동 재개를 보장하지 않는다. 원격 exactly-once를 주장하지 않는다. 불확실 결과에 대응할 실제 게시물을 찾지 못하거나 원문이 바뀌었다면 자동 재발신 대신 명시적 abort가 필요하다.
 
 검토자는 특히 native 수신과 outbound lock의 분리, early forward/receipt 순서, 불확실 조각 복구 및 취소, route epoch와 예전 thread의 새 닻, 새 짝의 상태/입력 격리를 확인해야 한다. 범위 밖 앱 검색 계산 비용은 관찰만 했으며 앱 수정은 하지 않았다. 기능 목표나 책임 배치를 바꾸는 설계 변경은 없다.
+
+## V-07 한정 진단 — 5판 구현과 분리
+
+- 범위: 기존 4판 후보 `fcc00186aa968cea4327d56d6499a6b08b1495e0`의 fixture 초기화 실패만 조사했다. 현재 다섯 gate 파일의 SHA-256이 후보와 일치함을 실행 전후 확인했다. 파일별 해시는 `logs/v07/run.json` 및 `logs/v07/final/run.json`에 있다. 제품·수락 기준은 변경하지 않았다.
+- 확인한 원인: 기본 macOS 임시 디렉터리 아래 pytest의 테스트별 경로가 길어져 `gate/local.py:88`의 Unix 소켓 bind에서 `OSError: AF_UNIX path too long` 발생. 호출 경로는 `HejoAdapter.connect → GateServer.start → LocalIngress.start`. connect가 해당 OSError를 잡아 false를 반환하므로 fixture의 assert에서 124개가 초기화 실패했다. 빈 가짜 명부 경고는 이 실패 원인이 아니다.
+- 관측: 격리 복사본의 connect 예외 처리에 `traceback.print_exc()`만 추가했다. 동일 의존성·시험에서 기본 임시 경로는 종료 1(1 setup error), 짧은 명시 basetemp는 종료 0(1 passed). 증거는 `logs/v07/default-instrumented.log`, `short-instrumented.log`. 원본 제품 파일은 계측하지 않았다.
+- 계측 제거 후 검토 당시 전체 범위를 원본 작업 트리에서 실행했다. 임시 HERMES_HOME·가짜 fixture·대역 Bot API, 짧은 실행별 basetemp를 사용했고 **종료 0, 124 passed in 11.60s**. `logs/v07/final/short-unmodified.log` 및 `run.json` 참조. 이 결과는 4판 코드의 해당 회귀 범위이며 5판 수락이나 독립 검증이 아니다.
+- 명령: `$HEJO_PYTHON -m pytest gate/tests/test_telegram_comments.py tests/acceptance/test_telegram.py -q -p no:cacheprovider -o asyncio_default_fixture_loop_scope=function --basetemp=<short-temporary-root>/full`. 단일 재현은 첫 파일의 `test_probe_reserves_before_send_dispatch_consumes_and_bind`를 선택하고 basetemp 유무만 달리했다. 실제 실행 인자와 종료 코드는 run.json에 기록했다. 비공개 로컬 실행기: `.build/telegram-comments/v07/diagnose.py`, `final.py`.
+- 의존성: 기존 Hermes venv Python과 기존 task03a/task02 deps, pytest 경로, Hermes 소스, PTB site-packages, 기존 team-kit lib를 사용했다. 전역 설치 없음. 로컬 실행기가 경로를 구성하며 공개 증거에는 변수명만 기록한다. 검토 8회차 run.json에는 완전한 환경 목록이 없어 당시 환경 전체의 동일성은 주장하지 않는다. 다만 동일 connect 실패와 실제 예외를 재현하고 basetemp 변경만으로 통과를 확인했다.
+- 진단 준비 중 실패도 보존: 첫 격리 복사에 schemas가 빠져 import 단계에서 실패했다(`logs/v07-copy-attempt/`, 단일 각 종료 1 및 전체 124 errors). schemas를 포함한 다음 전체 격리 실행은 app 소스 검사에 필요한 파일이 없어 123 passed/1 failed(종료 1, `logs/v07/short-unmodified.log`). 두 실패는 진단 복사 범위 누락이며 제품 결함으로 판정하지 않는다. 최종은 계측 없는 실제 작업 트리로 실행하여 해소했다.
+- 최소 보완안: 검증자가 기존 성공 실행과 같이 짧고 실행별로 독립된 임시 basetemp를 명시한다. 기존 디렉터리를 재사용하거나 공유하지 않는다(pytest가 해당 디렉터리를 정리하기 때문). fixture assert·제품의 소켓 경로·오류 정책을 변경할 필요는 없다. 일반적인 긴 운영 홈 지원 여부는 이번 범위에서 판정하지 않는다.
+- 처분 제안: V-07은 원인 및 재현 가능한 검증 환경 보완 확보로 검토에 반환한다. V-06/V-08과 5판 독립 계획 검증은 별도 미완료다. H1~H4, 운영 배포·재시작·실제 bind/발신, 커밋·푸시는 미실행이다.
+
+
+## 사용자 지시에 따른 5판 직접 구현 — 자체 점검
+
+사용자가 기존 검증 전달 화면이 없다고 알리고 현재 대화에 직접 구현을 지시했다. 해당 지시를 역할 변경으로 적용하여 4판 후보를 보존한 채 H1~H4의 공용 구조를 구현했다. 이전의 독립 계획 검증 대기 기록은 역사이며, 이번 수행을 독립 계획 승인·교차 모델 검증으로 바꾸어 기록하지 않는다.
+
+### 변경
+
+- 금고의 단일 hub/명시 rooms와 sent v3의 room을 사용한다. 기존 probe/은퇴 예약은 보존하고 옛 active 1인 연결은 자동 승격하지 않는다. 참여 목록을 조용히 바꾸거나 두 번째 공용 쌍을 만들지 않는다.
+- 기존 HEJO 사람 토픽을 유지하며 해당 토픽의 개인 사장 입력을 native 처리기가 먼저 받는다. 파일 다운로드·직원 호출 전 영속 중복 표시를 남기고, 비참여 토픽은 기존 경로를 유지한다. primary 준비 전에도 저장된 참여 토픽 입력을 기본 처리기로 넘기지 않는다.
+- 새 질문/앱 대화/직원 보고는 공용 root와 사람 토픽 카드 하나를 만든다. 자동 전달을 확인한 뒤 대화 열기 URL을 확정한다. 후속 본문·첨부는 해당 댓글에만 보낸다. 오래된 대화 이어쓰기는 새 epoch 이후 내용만 전송하고 안내한다.
+- 카드/댓글/채널의 채팅·방·스레드·epoch를 대조한다. 엉뚱한 방의 카드 답장·모르는 답장은 새 질문으로 해석하지 않는다. 채널 일반 글과 모르는 자동 전달은 실행하지 않는다.
+- card 발행과 상태 편집은 별도 영속 operation이다. 알려진 카드만 보류/대화 가능으로 편집한다. 편집 결과 unknown도 자동 재시도하지 않으며 동일 카드의 본문·버튼·토픽을 검사하는 resolve만 수락한다. 카드 복제는 없다. 준비 중에는 status의 waiting_anchor를 쓰며 닻 없는 버튼을 발행하지 않는다.
+- receipt 저장 후 후처리 실패를 unknown으로 되돌리지 않는다. 기존 off/abort는 참여 방 전체 범위이며 늦은 댓글을 소비한다. README를 공용 쌍 명령/전체 해제/영구 예약 기준으로 교체했다.
+
+기존 개발자 시험 중 채널 글이 새 질문을 만드는 4판 기대와 사람별 별도 binding 기대는 제거하고 5판 입력·공용 경계를 검사하는 시험으로 대체했다. 수락 명세를 완화하거나 skip/xfail하지 않았다. 최종 관련 시험은 두 사람 동시 질문·같은 thread UUID의 방 구분·early/late forward·부분 전송·unknown·재시작·카드/편집 resolve·권한 상실·첨부 claim 순서·전환 이전 대화·native 실제 dispatcher를 포함한다.
+
+### 검증과 제한
+
+증거: `logs/hub/full-runs.json`, `server-runs.json`, `mutation-runs.json`은 명령·종료 코드·검사 당시 다섯 gate 파일 SHA-256을 기록한다. 모두 임시 HERMES_HOME, 짧은 실행별 basetemp, 대역 Bot API를 사용했다. 공개 로그에는 로컬 경로를 제거했다.
+
+- 전체 `bash scripts/test.sh`: 종료 1. 서버 503개와 gateway_delivery는 통과했다. 기존 AppKit 시험 `AT-UC-32 four word-only judgment buttons without image`에서 중단했다(`logs/hub/full.log`). 그 뒤 앱 fixture는 미실행이다. 앱 소스와 시험은 기준 후보 대비 동일하며 이 실패를 이번 gate 변경으로 해결하거나 성공으로 덮지 않는다. 원인을 이 검사만으로 확정하지 않는다.
+- 위 실행 이후 카드 상태 편집/복구·receipt 보존·primary 준비 전 토픽 차단을 보완했다. 관련 재검사 119개 통과 후 최종 전체 서버 508개 및 gateway_delivery가 각각 종료 0으로 통과했다. 이후 제품 무변경 상태에서 문서 첨부 발신/댓글 alias 회귀 시험 한 개를 추가하여 관련 범위를 재검사했으며 target-runs.json이 최종 시험 파일 해시를 기록한다. 최종 결과는 `server-runs.json`/`server.log`/`gateway.log`가 기준이며 전체 스크립트 해시와 구별한다.
+- 격리 변이: 방 일치 거부 제거 및 allow_sending_without_reply 강제 true를 각각 시험이 검출했다. 각 종료 1이며 실제 AssertionError 위치를 확인했다. 원본 제품은 변이하지 않았다. 첫 변이 실행기의 복사 목록에 없는 wire 폴더가 있어 준비 단계 종료 1이었으며 복사 목록을 수정한 뒤 실행했다.
+- 전역 패키지 설치·앱 소스 수정·Hermes 본체 수정·운영 배포·재시작·bind·실제 메시지·푸시는 하지 않았다. M0 증거는 기존 native 가능성만 입증하며 새 링크 UI와 공용 두 방의 실물 수락은 H5에서 해야 한다.
+
+현재는 서버 기능 구현 및 자체 점검 결과다. 전체 자동 검사 성공·독립 수락·운영 적용·푸시 완료를 주장하지 않는다.

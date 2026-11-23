@@ -1,0 +1,15 @@
+........................................................................ [ 14%]
+........................................................................ [ 28%]
+........................................................................ [ 42%]
+........................................................................ [ 56%]
+........................................................................ [ 70%]
+........................................................................ [ 85%]
+........................................................................ [ 99%]
+....                                                                     [100%]
+=============================== warnings summary ===============================
+tests/acceptance/test_hub.py::test_operator_links_a_member_hermes_without_password
+  tests/acceptance/test_hub.py:183: PytestWarning: The test <Function test_operator_links_a_member_hermes_without_password> is marked with '@pytest.mark.asyncio' but it is not an async function. Please remove the asyncio mark. If the test is not marked explicitly, check for global marks applied via 'pytestmark'.
+    def test_operator_links_a_member_hermes_without_password(tmp_path):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+508 passed, 1 warning in 107.01s (0:01:47)

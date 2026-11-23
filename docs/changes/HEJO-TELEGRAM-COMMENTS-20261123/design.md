@@ -14,9 +14,9 @@ sent의 새 레코드는 v=3, binding/generation/room/thread/route_epoch/side/fo
 
 ## 2. 인증과 native 경계
 
-기존 register_platform_handler 계약의 group 0/block=True 처리기로 관리/예약/은퇴 채널·그룹을 소비한다. ApplicationHandlerStop을 쓰지 않고 group-99 관찰과 본체 admission을 유지한다. 미관리 채팅은 기존 처리기에 한 번 전달한다. 기존 포럼 wrapper는 사람 토픽 입력을 계속 처리하며 같은 update를 native와 중복 접수하지 않는다.
+기존 register_platform_handler 계약의 group 0/block=True 처리기로 관리/예약/은퇴 채널·그룹을 소비한다. ApplicationHandlerStop을 쓰지 않고 group-99 관찰과 본체 admission을 유지한다. 미관리 채팅은 기존 처리기에 한 번 전달한다. 참여 사람 토픽 입력은 같은 native handler가 core 다운로드 전에 소비한다. 비참여 토픽은 기존 포럼 wrapper를 유지한다. wrapper로 들어온 참여 입력도 같은 accept_input 경로를 사용하며 영속 claim으로 중복 실행을 막는다.
 
-제어 명령과 사람 입력은 기존 pair 사장의 from_user이고 sender_chat 없음이어야 한다. 목록/status는 기존 짝 그룹, bind/off/resolve는 등록 공용 토론 그룹, abort는 짝 그룹의 인증된 명령만 허용한다. bind 인자는 명시한 방 목록이며 하나도 허용한다. 기존 한 방 입력을 새 쌍 여러 개 생성으로 해석하지 않는다. abort는 인자 없이 hub 전체 범위임을 안내한다. 지원하지 않는 옛 명령 형태는 변경 없이 거부한다.
+제어 명령과 사람 입력은 기존 pair 사장의 from_user이고 sender_chat 없음이어야 한다. 목록/status는 기존 짝 그룹, bind/off는 등록 공용 토론 그룹, abort는 짝 그룹의 인증된 명령만 허용한다. resolve는 4절의 작업 종류별 위치 검사를 따른다. 카드 복구는 기존 짝 포럼의 해당 사람 토픽, root/댓글 복구는 등록 공용 토론 그룹에서만 허용하며 다른 위치는 소비 후 거부한다. bind 인자는 명시한 방 목록이며 하나도 허용한다. 기존 한 방 입력을 새 쌍 여러 개 생성으로 해석하지 않는다. abort는 인자 없이 hub 전체 범위임을 안내한다. 지원하지 않는 옛 명령 형태는 변경 없이 거부한다.
 
 getChat 양쪽 linked_chat_id, 비공개(username/active_usernames 없음), channel 및 non-forum supergroup, 사장 creator, 양쪽 봇 administrator와 채널 can_post_messages, getChatAdministrators(return_bots=true)에서 사장/현재 봇 외 관리자 없음, getMe 신원을 검사한다. 공식 클라우드 Bot API만 지원한다. 옵션 무시를 응답으로 탐지한다고 주장하지 않는다. 매 입력/발신 전 재검사 실패면 hub paused; 일반 토픽 답변으로 우회하지 않는다. 대화방 멤버 접근 격리는 제공하지 않는다.
 
@@ -24,11 +24,11 @@ getChat 양쪽 linked_chat_id, 비공개(username/active_usernames 없음), chan
 
 ## 3. 입력과 카드
 
-참여 사람 토픽의 새 글은 기존 wrapper 인증 후 해당 room의 새 thread로 기존 adapter.receive를 한 번 호출한다. 알려진 질문 원문/card/reply alias는 동일 room·현재 pair와 journal 스레드 관계를 검증하여 후속으로 접수한다. 교차 방·미지 reply는 거부한다. 댓글은 개인 사장과 알려진 같은 그룹 reply alias 또는 검증된 raw thread root로 room/thread를 복원한다. 둘이 충돌하면 거부한다. 외부 답장·수동 전달·편집·활성 이전 입력은 실행하지 않는다.
+참여 사람 토픽의 새 글은 기존 pair 인증 후 native handler에서 해당 room의 새 thread로 기존 adapter.receive를 한 번 호출한다. 알려진 질문 원문/card/reply alias는 동일 room·현재 pair와 journal 스레드 관계를 검증하여 후속으로 접수한다. 교차 방·미지 reply는 거부한다. 댓글은 개인 사장과 알려진 같은 그룹 reply alias 또는 검증된 raw thread root로 room/thread를 복원한다. 둘이 충돌하면 거부한다. 외부 답장·수동 전달·편집·활성 이전 입력은 실행하지 않는다.
 
 claim 영속화와 journal client_msg_id 중복 검사는 첨부 다운로드/직원 호출보다 먼저다. journal commit 이후 중단된 직원 실행의 자동 재개는 보장하지 않는다. 텍스트/단일 photo/document만 기존 FileStore로 stage; getFile 20MB와 기존 한도 중 작은 값, 실패/앨범/미지원은 부분 실행 없이 거부하고 임시 파일을 정리한다.
 
-질문 카드 제목은 질문 첫 줄의 제한된 길이(최대 80자), 상태는 준비 중/대화 가능/보류다. 직원 완료 여부를 추측하지 않는다. 토픽 원래 사용자 글은 삭제하지 않고 봇 카드 하나를 그 글에 답장한다. 앱/직원 시작이면 카드 자체가 토픽 항목이다. 후속 답변은 카드 새 발행 없이 상태만 편집한다. 토픽의 사용자 후속 글은 남지만 봇 답변 전체는 댓글에서만 보인다.
+질문 카드 제목은 질문 첫 줄의 제한된 길이(최대 80자)다. 닻 확인 전 준비 상태는 status의 waiting_anchor로 나타내며, URL을 확정한 뒤 카드 하나를 대화 가능 상태로 발행한다. 이후 전송이 불확실해지면 알려진 카드만 보류로 편집한다. 직원 완료 여부를 추측하지 않는다. 토픽 원래 사용자 글은 삭제하지 않고 봇 카드 하나를 그 글에 답장한다. 앱/직원 시작이면 카드 자체가 토픽 항목이다. 후속 답변은 카드 새 발행 없이 상태만 편집한다. 토픽의 사용자 후속 글은 남지만 봇 답변 전체는 댓글에서만 보인다.
 
 공용 root에는 사람 이름(런타임 표시명)과 질문 제목/첫 새 본문을 표시한다. 각 질문은 원래 사람 토픽으로 돌아가는 링크를 제공한다. 실제 식별자 포함 링크는 Telegram 출력에만 생성하며 공개 로그/대응 파일에는 저장하지 않는다.
 

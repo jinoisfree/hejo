@@ -1,0 +1,23 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____________ test_hub_cross_room_card_and_unknown_reply_rejected ______________
+
+native = namespace(app=Application[bot=ExtBot[token=900:fixture]], api=<test_telegram_comments.BotAPI object at 0x10a78fcb0>, bridge=<gate.telegram.Telegram object at 0x10d052270>, now=[1000.0], core=[], observed=[10, 10, 10, 200])
+runner = <gate.tests.support.runner.<locals>.TurnRunner object at 0x10d101a90>
+
+    async def test_hub_cross_room_card_and_unknown_reply_rejected(native,runner):
+        await ready(native);await question(native)
+        card=deliveries(native,'forum')[0]
+        await topic_input(native,301,'alpha',reply=card['message_id'])
+        await topic_input(native,302,reply=999)
+>       assert len(runner.events)==1
+E       AssertionError: assert 3 == 1
+E        +  where 3 = len([MessageEvent(text='fixture question', message_type=<MessageType.TEXT: 'text'>, user_id='owner', user_name=None, sourc...adata={}, timestamp=datetime.datetime(2026, 11, 24, 1, 5, 8, 985460), allow_gateway_control=True, reply_expected=None)])
+E        +    where [MessageEvent(text='fixture question', message_type=<MessageType.TEXT: 'text'>, user_id='owner', user_name=None, sourc...adata={}, timestamp=datetime.datetime(2026, 11, 24, 1, 5, 8, 985460), allow_gateway_control=True, reply_expected=None)] = <gate.tests.support.runner.<locals>.TurnRunner object at 0x10d101a90>.events
+
+gate/tests/test_telegram_comments.py:635: AssertionError
+------------------------------ Captured log setup ------------------------------
+WARNING  hermes_facility.team_registry:team_registry.py:34 team registry /private<temporary-home>/cross-room-test/test_hub_cross_room_card_and_u0/owner/team.yaml: file not found; running with an empty roster (role features stay off)
+=========================== short test summary info ============================
+FAILED gate/tests/test_telegram_comments.py::test_hub_cross_room_card_and_unknown_reply_rejected
+1 failed in 0.60s

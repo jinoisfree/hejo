@@ -14,7 +14,7 @@ from urllib.parse import urlsplit
 CONTRACT = 'hejo-comments-probe-1'
 PROBE_SECONDS = 60
 _native_bot = None
-COMMAND = re.compile(r'/hejo_comments_(rooms|probe|bind|status|resolve|off|abort)(?: ([^\s]+))?\Z')
+COMMAND = re.compile(r'/hejo_comments_(rooms|probe|bind|status|resolve|off|abort)(?: ([^\n]+))?\Z')
 
 
 class Rejected(Exception):
@@ -55,7 +55,7 @@ class Comments:
                             or not all(isinstance(row[k], str) for k in ('tag', 'tg', 'msg_id', 'route_epoch'))):
                         raise ValueError('topic_record')
                     continue
-                if row.get('v') == 2 and row.get('kind') == 'delivery':
+                if row.get('v') in {2, 3} and row.get('kind') == 'delivery':
                     self.validate_delivery(row)
                     self.validate_transition(row)
                     self.operations[row['operation']] = row
@@ -67,7 +67,7 @@ class Comments:
                         raise ValueError('forward_record')
                     self.forwards.append(row)
                     continue
-                if row.get('v') == 2 and row.get('kind') in {'input', 'alias'}:
+                if row.get('v') in {2, 3} and row.get('kind') in {'input', 'alias'}:
                     self.validate_record(row)
                     self.validate_alias(row)
                     self.records.append(row)
@@ -112,7 +112,7 @@ class Comments:
 
     def private(self):
         value = self.bridge.private()
-        if value.get('comments_version', 1) != 1 or self.damaged:
+        if value.get('comments_version', 1) not in {1, 2} or self.damaged:
             raise Rejected('comments_unavailable')
         return value
 
@@ -134,7 +134,9 @@ class Comments:
                              and c['owner_id'] == pair['user_id'] for c in self.bridge.private().get('comments', []))
             return (name, None) if room is None and (registered or str(message.chat_id) == pair['chat_id']) else None
         if name == 'abort':
-            return (name, room) if room and str(message.chat_id) == pair['chat_id'] else None
+            return (name, None) if room is None and str(message.chat_id) == pair['chat_id'] else None
+        if name == 'off':
+            return (name, None) if room is None and self.reserved(self.bridge.private(), message) else None
         if name == 'rooms':
             return (name, None) if room is None and str(message.chat_id) == pair['chat_id'] else None
         return (name, room) if room and message.chat.type == 'supergroup' else None
@@ -144,25 +146,53 @@ class Comments:
         if message is None:
             return False
         value = self.bridge.private()
-        return self.reserved(value, message) or bool(update.message and self.command(message))
+        return self.reserved(value, message) or self.forum_room(message) is not None or bool(update.message and self.command(message))
+
+    def forum_room(self, message):
+        pair = self.bridge.private().get('pair')
+        if not pair or str(message.chat_id) != pair['chat_id']:
+            return None
+        topics = self.bridge.topics(pair['tag'])['topics']
+        return next((room for room, topic in topics.items()
+                     if str(message.message_thread_id) == topic['topic']
+                     and not topic['closed'] and self.route(room) != 'topic'), None)
 
     @staticmethod
     def reserved(value, message):
         return bool(message and any(str(message.chat_id) in {item.get('channel_id'), item.get('discussion_id')}
             for item in [*value.get('probes', []), *value.get('comments', [])]))
 
+    @staticmethod
+    def member_rooms(binding):
+        return binding.get('rooms', [binding['room']] if 'room' in binding else [])
+
+    def hub(self):
+        value = self.private()
+        active = [b for b in value.get('comments', []) if b['state'] != 'retired']
+        if not active:
+            return None
+        if value.get('comments_version') != 2 or len(active) != 1 or 'rooms' not in active[0]:
+            raise Rejected('migration_required')
+        return active[0]
+
+    def binding_for(self, room):
+        hub = self.hub()
+        if not hub or room not in hub['rooms']:
+            return None
+        return dict(hub, room=room)
+
     def route(self, room):
         value = self.bridge.private()
-        entries = [item for item in value.get('comments', []) if item['room'] == room
+        entries = [item for item in value.get('comments', []) if room in self.member_rooms(item)
                    and item['state'] != 'retired']
         if not entries:
             return 'topic'
-        if value.get('comments_version', 1) != 1 or self.damaged:
+        if value.get('comments_version') != 2 or self.damaged or len(entries) != 1:
             return 'paused'
         pair = value.get('pair')
-        item = entries[-1]
+        item = entries[0]
         return 'comments' if (pair and item['pair'] == pair['tag']
-                              and item['state'] == 'active') else 'paused'
+                              and item['state'] == 'active' and 'rooms' in item) else 'paused'
 
     async def validate(self, bot, discussion_id, room, pair):
         if room not in self.rooms():
@@ -195,14 +225,15 @@ class Comments:
     def available(self, value, identity):
         for item in value.get('comments', []):
             overlap = {item['channel_id'], item['discussion_id']} & {identity['channel_id'], identity['discussion_id']}
-            if overlap and (item['state'] == 'retired' or any(item.get(k) != v for k, v in identity.items())):
-                raise Rejected('target_reserved')
-            if item['room'] == identity['room'] and item['state'] != 'retired' and not overlap:
-                raise Rejected('room_bound')
-        for item in value.get('probes', []):
-            if ({item['channel_id'], item['discussion_id']} & {identity['channel_id'], identity['discussion_id']}
-                    and item['room'] != identity['room']):
-                raise Rejected('target_reserved')
+            if item['state'] == 'retired':
+                if overlap:
+                    raise Rejected('target_reserved')
+                continue
+            if value.get('comments_version') != 2 or 'rooms' not in item:
+                raise Rejected('migration_required')
+            if not overlap or any(item.get(k) != identity[k] for k in
+                                  ('bot_id', 'channel_id', 'discussion_id', 'owner_id', 'pair', 'contract')):
+                raise Rejected('hub_bound')
 
     def busy(self, room):
         bridge = self.bridge
@@ -268,7 +299,7 @@ class Comments:
             for old in value.setdefault('probes', []):
                 if old['state'] == 'pending' and old['deadline'] <= self.bridge.clock():
                     old['state'] = 'timed_out'
-            value['comments_version'] = 1
+            value.setdefault('comments_version', 1)
             value['probes'].append(probe)
             self.bridge.vault.write('telegram.json', value)
         self.schedule_expiry(probe)
@@ -279,26 +310,33 @@ class Comments:
             self.write_probe(probe['tag'], state='unknown')
             raise
 
-    async def bind(self, identity):
-        # No await between the final quiescence check and the atomic route commit.
+    async def bind(self, identity, rooms=None):
+        rooms = sorted(set(rooms or [identity['room']]))
+        if not rooms or any(room not in self.rooms() for room in rooms):
+            raise Rejected('unknown_room')
         async with self.bridge._topic_lock:
             with self.bridge.vault.locked():
                 value = self.current(identity)
-                if self.busy(identity['room']) or any(self.outstanding(b) for b in value.get('comments', [])
-                                                     if b['room'] == identity['room'] and b['state'] != 'retired'):
+                existing = self.hub()
+                if existing:
+                    if existing['rooms'] != rooms:
+                        raise Rejected('hub_bound')
+                    return 'already_bound'
+                if any(self.busy(room) for room in rooms):
                     raise Rejected('busy')
                 probe = next((p for p in reversed(value.get('probes', []))
-                              if all(p.get(k) == v for k, v in identity.items())), None)
-                if not probe or not self.complete(probe):
+                              if all(p.get(k) == v for k, v in identity.items() if k != 'room')
+                              and self.complete(p)), None)
+                if not probe:
                     raise Rejected('probe_required')
-                existing = next((c for c in value.get('comments', [])
-                                 if c['state'] != 'retired' and c['room'] == identity['room']), None)
-                if existing:
-                    return 'already_bound'
-                value.setdefault('comments', []).append(dict(identity, binding=secrets.token_hex(16),
-                    generation=1, activated_at=self.bridge.clock(), state='active'))
-                value.setdefault('route_epochs', {})[identity['room']] = dict(
-                    epoch=secrets.token_hex(16), cutover_seq=self.bridge.adapter.journal.head)
+                hub = {k: v for k, v in identity.items() if k != 'room'}
+                hub.update(binding=secrets.token_hex(16), generation=1, rooms=rooms,
+                           activated_at=self.bridge.clock(), state='active')
+                value.setdefault('comments', []).append(hub)
+                value['comments_version'] = 2
+                for room in rooms:
+                    value.setdefault('route_epochs', {})[room] = dict(
+                        epoch=secrets.token_hex(16), cutover_seq=self.bridge.adapter.journal.head)
                 self.bridge.vault.write('telegram.json', value)
         self.bridge.request_sync()
         return 'bound'
@@ -355,9 +393,9 @@ class Comments:
 
     async def validate_binding(self, bot, binding):
         try:
-            identity = await self.validate(bot, binding['discussion_id'], binding['room'], self.private()['pair'])
+            identity = await self.validate(bot, binding['discussion_id'], self.member_rooms(binding)[0], self.private()['pair'])
             self.current(identity)
-            if any(binding.get(k) != v for k, v in identity.items()):
+            if any(binding.get(k) != v for k, v in identity.items() if k != 'room'):
                 raise Rejected('binding_changed')
         except Exception:
             with self.bridge.vault.locked():
@@ -390,14 +428,21 @@ class Comments:
                         if not self.bridge.settings()['enabled']:
                             raise Rejected('disabled')
                         pair = self.private()['pair']
-                        identity = await self.validate(context.bot, update.message.chat_id, room, pair)
+                        requested = room.split() if name == 'bind' else [room]
+                        identity = await self.validate(context.bot, update.message.chat_id, requested[0], pair)
                         if name == 'probe':
                             await self.probe(context.bot, identity)
                             result = 'probe_started: 연결 시험을 시작했습니다. 댓글 확인이 끝난 뒤 bind를 실행하세요.'
                         else:
-                            status = await self.bind(identity)
+                            status = await self.bind(identity, requested)
                             result = ('already_bound: 이미 같은 대상으로 연결되어 있습니다.'
                                       if status == 'already_bound' else 'bound: 댓글 연결을 저장했습니다.')
+                elif self.forum_room(update.effective_message) is not None:
+                    room = self.forum_room(update.effective_message)
+                    if update.message and self.route(room) == 'comments':
+                        binding = self.binding_for(room)
+                        await self.validate_live(context.bot, binding)
+                        await self.accept_input(context.bot, update.message, binding, 'forum')
                 else:
                     await self.check_binding(context.bot, update.effective_message)
                     await self.forward(context.bot, update)
@@ -426,8 +471,12 @@ class Comments:
     @staticmethod
     def validate_record(row):
         required = {'v', 'kind', 'binding', 'generation', 'route_epoch', 'side', 'message_id', 'thread', 'msg_id', 'anchor'}
-        if (set(row) != required or row['v'] != 2 or row['kind'] not in {'input', 'alias'}
-                or row['side'] not in {'channel', 'discussion'}
+        if row.get('v') == 3:
+            required.add('room')
+            if not isinstance(row.get('room'), str) or not row['room']:
+                raise ValueError('record_room')
+        if (set(row) != required or row['v'] not in {2, 3} or row['kind'] not in {'input', 'alias'}
+                or row['side'] not in {'forum', 'channel', 'discussion'}
                 or type(row['generation']) is not int or row['generation'] < 1
                 or type(row['message_id']) is not int or row['message_id'] <= 0
                 or type(row['anchor']) is not int or row['anchor'] <= 0
@@ -439,12 +488,12 @@ class Comments:
         identity = ('binding', 'generation', 'side', 'message_id')
         for old in self.records:
             if all(old[key] == row[key] for key in identity):
-                if (any(old[key] != row[key] for key in ('route_epoch', 'thread', 'anchor'))
+                if (any(old.get(key) != row.get(key) for key in ('route_epoch', 'thread', 'anchor', 'room'))
                         or (old['msg_id'] and row['msg_id'] and old['msg_id'] != row['msg_id'])):
                     raise ValueError('conflicting_alias')
 
     def record(self, binding, kind, side, message_id, thread, anchor, msg_id=''):
-        row = dict(v=2, kind=kind, binding=binding['binding'], generation=binding['generation'],
+        row = dict(v=3, room=binding['room'], kind=kind, binding=binding['binding'], generation=binding['generation'],
                    route_epoch=self.epoch(binding['room']), side=side, message_id=message_id,
                    thread=thread, anchor=anchor, msg_id=msg_id)
         self.validate_record(row)
@@ -462,14 +511,20 @@ class Comments:
 
     def lookup(self, binding, side, message_id):
         return next((r for r in reversed(self.records) if r['binding'] == binding['binding']
-                     and r['generation'] == binding['generation'] and r['route_epoch'] == self.epoch(binding['room'])
+                     and r['generation'] == binding['generation'] and r.get('room') in binding['rooms']
+                     and r['route_epoch'] == self.epoch(r['room'])
+                     and ('room' not in binding or r['room'] == binding['room'])
                      and r['side'] == side and r['message_id'] == message_id), None)
 
     def live(self, binding):
-        value = self.current(binding)
+        identity = dict(binding, room=self.member_rooms(binding)[0])
+        value = self.current(identity)
         current = next((c for c in value.get('comments', []) if c['binding'] == binding['binding']), None)
-        if not current or current != binding or current['state'] != 'active':
+        expected = {k: v for k, v in binding.items() if k != 'room'}
+        if not current or current != expected or current['state'] != 'active':
             raise Rejected('binding_changed')
+        if 'room' in binding and binding['room'] not in current['rooms']:
+            raise Rejected('unknown_room')
         return current
 
     async def input_notice(self, bot, message):
@@ -513,102 +568,96 @@ class Comments:
             staged = await self.bridge.adapter.files.stage(room, name, chunks())
         return text, [staged['file_id']]
 
+    async def forum_input(self, message, room):
+        async with self.lock:
+            binding = self.binding_for(room)
+            if not binding or self.route(room) != 'comments' or _native_bot is None:
+                return
+            await self.validate_live(_native_bot, binding)
+            await self.accept_input(_native_bot, message, binding, 'forum')
+
     async def ingress(self, bot, update):
         message = update.message
-        if not message:
-            return  # channel posts and edits never execute
-        value = self.private()
-        binding = next((c for c in value.get('comments', []) if c['state'] == 'active'
-                        and str(message.chat_id) == c['discussion_id']), None)
-        if not binding or not self.bridge.settings()['enabled']:
+        binding = self.hub()
+        if not message or not binding or str(message.chat_id) != binding['discussion_id']:
+            return
+        if binding['state'] != 'active' or not self.bridge.settings()['enabled']:
+            return
+        await self.accept_input(bot, message, binding, 'discussion')
+
+    async def accept_input(self, bot, message, binding, side):
+        if (not message.from_user or message.from_user.is_bot or message.sender_chat
+                or message.forward_origin or message.is_automatic_forward or message.external_reply
+                or str(message.from_user.id) != binding['owner_id']
+                or message.date.timestamp() <= binding['activated_at']):
             return
         self.live(binding)
-        if message.date.timestamp() <= binding['activated_at']:
-            return
-        origin = message.forward_origin
-        automatic = bool(message.is_automatic_forward)
-        if automatic:
-            if (not origin or origin.type != 'channel' or not message.sender_chat
-                    or str(message.sender_chat.id) != binding['channel_id']
-                    or str(origin.chat.id) != binding['channel_id'] or origin.message_id <= 0
-                    or origin.date.timestamp() <= binding['activated_at']):
-                return
-            # Setup posts must never become questions, even after activation.
-            if any(p.get('channel_id') == binding['channel_id'] and
-                   (self.receipts.get((p['tag'], 'channel')) or {}).get('message_id') == origin.message_id
-                   for p in value.get('probes', [])):
-                return
-            side, identity = 'channel', origin.message_id
-        else:
-            if (not message.from_user or message.from_user.is_bot or message.sender_chat or origin
-                    or str(message.from_user.id) != binding['owner_id']):
-                return
-            side, identity = 'discussion', message.message_id
-        client_id = f"telegram:comments:{binding['binding']}:{binding['generation']}:{side}:{identity}"
         journal = self.bridge.adapter.journal
-        existing = self.lookup(binding, side, identity)
-        committed = next((r for r in journal.records if r.get('client_msg_id') == client_id), None)
-        if existing or committed:
-            if existing and committed and not existing['msg_id']:
-                existing = self.record(binding, 'alias', side, identity, existing['thread'],
-                                       existing['anchor'], committed['msg_id'])
-            if automatic and existing and journal.message(existing['msg_id']):
-                self.record(binding, 'alias', 'discussion', message.message_id,
-                            existing['thread'], existing['anchor'], existing['msg_id'])
+        reply = message.reply_to_message
+        expected_chat = self.private()['pair']['chat_id'] if side == 'forum' else binding['discussion_id']
+        if reply and (str(reply.chat_id) != expected_chat or reply.external_reply):
             return
-        if automatic:
-            thread, anchor = str(uuid.uuid4()), message.message_id
-        else:
-            reply = message.reply_to_message
-            if reply and (str(reply.chat_id) != binding['discussion_id'] or getattr(reply, 'external_reply', None)):
+        # A topic's service message is not a question reply.
+        if side == 'forum' and reply and (reply.forum_topic_created or reply.message_id == message.message_thread_id):
+            reply = None
+        target = self.lookup(binding, side, reply.message_id) if reply else None
+        if reply and not target:
+            # Existing forum history remains a valid continuation, but never crosses rooms.
+            key = self.bridge.reply_thread(str(reply.message_id), binding['pair']) if side == 'forum' else None
+            if not key or key[0] != binding['room']:
                 return
-            if getattr(message, 'external_reply', None):
+            target = dict(room=key[0], thread=key[1], anchor=message.message_id)
+        if side == 'discussion':
+            raw = self.lookup(binding, side, message.message_thread_id) if message.message_thread_id else None
+            if (message.message_thread_id and not raw) or (raw and raw['message_id'] != raw['anchor']):
                 return
-            direct = self.lookup(binding, 'discussion', reply.message_id) if reply else None
-            raw = self.lookup(binding, 'discussion', message.message_thread_id) if message.message_thread_id else None
-            if ((reply and not direct) or (message.message_thread_id and not raw)
-                    or (raw and raw['message_id'] != raw['anchor'])
-                    or (direct and raw and direct['thread'] != raw['thread'])):
+            if target and raw and (target['room'], target['thread']) != (raw['room'], raw['thread']):
                 return
-            target = direct or raw
-            if not target or not journal.message(target['msg_id']):
+            target = target or raw
+            if (not target or not journal.message(target.get('msg_id'))
+                    or journal.message_threads.get(target['msg_id']) != (target['room'], target['thread'])):
                 return
-            root = self.lookup(binding, 'discussion', target['anchor'])
+            root = self.lookup(binding, side, target['anchor'])
             if not root or not journal.message(root['msg_id']):
                 return
-            thread, anchor = target['thread'], target['anchor']
-        if (binding['room'], thread) in journal.deleted_threads or binding['room'] in journal.deleted_rooms:
+            binding = dict(binding, room=target['room'])
+        thread = target['thread'] if target else str(uuid.uuid4())
+        anchor = target['anchor'] if target else message.message_id
+        room = binding['room']
+        if (room, thread) in journal.deleted_threads or room in journal.deleted_rooms:
             return
+        client_id = f"telegram:comments:{binding['binding']}:{binding['generation']}:{side}:{message.message_id}"
+        existing = self.lookup(binding, side, message.message_id)
+        saved = next((r for r in journal.records if r.get('client_msg_id') == client_id), None)
+        if existing or saved:
+            if existing and saved and not existing['msg_id']:
+                self.record(binding, 'alias', side, message.message_id, existing['thread'], existing['anchor'], saved['msg_id'])
+            return
+        self.record(binding, 'input', side, message.message_id, thread, anchor)
         files = []
-        # Persist admission before staging/calling receive. A crash cannot replay a turn.
-        self.record(binding, 'input', side, identity, thread, anchor)
         try:
-            text, files = await self.stage_input(bot, message, binding['room'])
-            self.live(binding)  # staging awaited; revoke/disable may have happened
-            if self.epoch(binding['room']) != self.lookup(binding, side, identity)['route_epoch']:
-                raise Rejected('binding_changed')
+            text, files = await self.stage_input(bot, message, room)
+            self.live(binding)
             class Reply:
                 features = {'rooms'}
                 failed = False
                 async def send(self, frame):
                     if frame['type'] == 'error':
                         self.failed = True
-            reply = Reply()
-            await self.bridge.adapter.receive(dict(employee=binding['room'], thread=thread, text=text,
-                files=files, client_msg_id=client_id), reply)
+            result = Reply()
+            await self.bridge.adapter.receive(dict(employee=room, thread=thread, text=text,
+                files=files, client_msg_id=client_id), result)
             saved = next((r for r in journal.records if r.get('client_msg_id') == client_id), None)
             if saved:
-                self.record(binding, 'alias', side, identity, thread, anchor, saved['msg_id'])
-                self.record(binding, 'alias', 'discussion', message.message_id, thread, anchor, saved['msg_id'])
-            elif reply.failed:
+                self.record(binding, 'alias', side, message.message_id, thread, anchor, saved['msg_id'])
+            elif result.failed:
                 await self.input_notice(bot, message)
         except Exception:
-            # Only authenticated new input can reach this notice; reservations stay silent.
             await self.input_notice(bot, message)
             raise
         finally:
             for file_id in files:
-                path = self.bridge.adapter.files.pending(binding['room'], file_id)
+                path = self.bridge.adapter.files.pending(room, file_id)
                 if path.exists():
                     shutil.rmtree(path)
 
@@ -616,9 +665,14 @@ class Comments:
     def validate_delivery(row):
         fields = {'v', 'kind', 'operation', 'binding', 'generation', 'route_epoch', 'side',
                   'message_id', 'thread', 'msg_id', 'anchor', 'part', 'media', 'fingerprint', 'status', 'root'}
-        if (set(row) != fields or row['v'] != 2 or row['kind'] != 'delivery'
+        if row.get('v') == 3:
+            fields.add('room')
+            if not isinstance(row.get('room'), str) or not row['room']:
+                raise ValueError('delivery_room')
+        if (set(row) != fields or row['v'] not in {2, 3} or row['kind'] != 'delivery'
                 or row['status'] not in {'queued', 'intent', 'receipt', 'unknown', 'cancelled'}
-                or row['side'] not in {'channel', 'discussion'} or row['media'] not in {'text', 'photo', 'document'}
+                or row['side'] not in {'forum', 'channel', 'discussion'} or row['media'] not in {'text', 'photo', 'document', 'edit'}
+                or row['media'] == 'edit' and (row['side'] != 'forum' or row['root'] or not row['message_id'])
                 or type(row['root']) is not bool
                 or any(type(row[k]) is not int or row[k] < 0 for k in ('message_id', 'anchor', 'part'))
                 or type(row['generation']) is not int or row['generation'] < 1
@@ -669,7 +723,7 @@ class Comments:
     def thread_anchor(self, binding, thread):
         rows = [r for r in self.records if r['binding'] == binding['binding']
                 and r['generation'] == binding['generation'] and r['route_epoch'] == self.epoch(binding['room'])
-                and r['thread'] == thread and r['side'] == 'discussion']
+                and r.get('room') == binding['room'] and r['thread'] == thread and r['side'] == 'discussion']
         return rows[0] if rows else None
 
     async def validate_live(self, bot, binding):
@@ -679,6 +733,10 @@ class Comments:
 
     def parts(self, row, continuation=False):
         text, attachments = self.bridge.render(row)
+        if row['role'] == 'owner':
+            key = self.bridge.adapter.journal.message_threads.get(row['msg_id'])
+            name = self.rooms().get(key[0], '대화') if key else '대화'
+            text = f'[{name}] ' + text
         if continuation:
             text = '이전 대화 이어쓰기 — 전환 이후 내용\n' + text
         parts = [('text', text[i:i + 4096]) for i in range(0, len(text), 4096)]
@@ -704,7 +762,7 @@ class Comments:
         return original is not None and original['seq'] > cutover
 
     def enqueue(self, binding, row):
-        key = (binding['room'], row['thread'])
+        key = (row['room'], row['thread'])
         entry = (row['msg_id'], binding['pair'])
         if entry not in self.bridge.pending.get(key, []):
             self.bridge.pending.setdefault(key, []).append(entry)
@@ -712,11 +770,13 @@ class Comments:
         self.bridge.wake(key)
 
     def anchor_delivery(self, binding, operation, forward):
+        binding = dict(binding, room=operation['room'])
         operation = self.delivery_record(operation, anchor=forward['message_id'])
         self.record(binding, 'alias', 'channel', operation['message_id'], operation['thread'],
                     forward['message_id'], operation['msg_id'])
         self.record(binding, 'alias', 'discussion', forward['message_id'], operation['thread'],
                     forward['message_id'], operation['msg_id'])
+        self.enqueue(binding, operation)
         for row in self.binding_operations(binding):
             if row['status'] == 'queued' and not self.unresolved(binding):
                 self.enqueue(binding, row)
@@ -751,26 +811,53 @@ class Comments:
         return True
 
     async def deliver(self, row, key, tag):
-        # Serialize network sends per room, independently of native ingress.
+        # Serialize the shared hub's network sends independently of native ingress.
         # The lock is released as soon as an automatic forward is needed.
-        async with self.output_locks.setdefault(key[0], asyncio.Lock()):
-            await self._deliver(row, key, tag)
+        async with self.output_locks.setdefault('hub', asyncio.Lock()):
+            try:
+                await self._deliver(row, key, tag)
+            finally:
+                # A known card can show a held delivery without publishing another card.
+                # Failure is durable and visible through status; never mask the original error.
+                binding = self.binding_for(key[0])
+                if binding and _native_bot is not None:
+                    try:
+                        await self.update_card_state(_native_bot, binding, key)
+                    except Exception:
+                        pass  # The edit operation remains unknown (or the hub is paused).
+
 
     async def _deliver(self, row, key, tag):
         bot = _native_bot
-        binding = next((b for b in self.private().get('comments', [])
-                        if b['room'] == key[0] and b['state'] == 'active' and b['pair'] == tag), None)
-        if bot is None or not binding or not self.new_since_cutover(key[0], row['msg_id']):
+        binding = self.binding_for(key[0])
+        if bot is None or not binding or binding['state'] != 'active' or binding['pair'] != tag or not self.new_since_cutover(key[0], row['msg_id']):
             return
         await self.validate_live(bot, binding)
         row = await self.bridge.settled_row(row['msg_id'], key, tag)
         if not row:
             return
-        existing = [r for r in self.binding_operations(binding) if r['msg_id'] == row['msg_id']]
+        # Always publish the first new journal message, even when the employee result wins the queue race.
+        first = next((self.bridge.adapter.journal.message(r['msg_id'])
+                      for r in self.bridge.adapter.journal.records if r['type'] == 'message'
+                      and self.bridge.adapter.journal.message_threads.get(r['msg_id']) == key
+                      and self.new_since_cutover(key[0], r['msg_id'])), None)
+        if first and first['msg_id'] != row['msg_id'] and not self.thread_anchor(binding, key[1]):
+            await self._deliver(first, key, tag)
+        anchor_now = self.thread_anchor(binding, key[1])
+        if anchor_now:
+            await self.send_card(bot, binding, key, anchor_now)
+        existing = [r for r in self.binding_operations(binding) if r['msg_id'] == row['msg_id'] and r['side'] != 'forum']
         anchor = self.thread_anchor(binding, key[1])
-        roots = [r for r in self.binding_operations(binding) if r['root'] and r['thread'] == key[1]]
+        roots = [r for r in self.binding_operations(binding) if r['root'] and r.get('room') == key[0] and r['thread'] == key[1]]
         continuation = self.continuation(*key)
         pieces = self.parts(row, continuation=continuation and not anchor and not roots)
+        if roots and not anchor and not existing:
+            for part, (media, payload) in enumerate(pieces):
+                self.delivery_record(dict(v=3, room=key[0], kind='delivery', operation=secrets.token_hex(16),
+                    binding=binding['binding'], generation=binding['generation'], route_epoch=self.epoch(key[0]),
+                    side='discussion', message_id=0, thread=key[1], msg_id=row['msg_id'], anchor=0, part=part,
+                    media=media, fingerprint=self.fingerprint(media, payload), status='queued', root=False))
+            return
         if existing:
             # The first root's continuation marker is part of its original payload.
             root = next((r for r in existing if r['root']), None)
@@ -778,7 +865,7 @@ class Comments:
         else:
             for part, (media, payload) in enumerate(pieces):
                 root = not anchor and not roots and part == 0
-                op = dict(v=2, kind='delivery', operation=secrets.token_hex(16), binding=binding['binding'],
+                op = dict(v=3, room=key[0], kind='delivery', operation=secrets.token_hex(16), binding=binding['binding'],
                           generation=binding['generation'], route_epoch=self.epoch(key[0]),
                           side='channel' if root else 'discussion', message_id=0, thread=key[1],
                           msg_id=row['msg_id'], anchor=0, part=part, media=media,
@@ -811,6 +898,13 @@ class Comments:
             from telegram import ReplyParameters
             kwargs = {} if op['root'] else {'reply_parameters': ReplyParameters(
                 anchor['anchor'], allow_sending_without_reply=False)}
+            if op['root']:
+                from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+                topic = self.bridge.topics(tag)['topics'].get(key[0])
+                if not topic or topic['closed']:
+                    raise Rejected('topic_unavailable')
+                back = self.message_link(self.private()['pair']['chat_id'], topic['topic'])
+                kwargs['reply_markup'] = InlineKeyboardMarkup([[InlineKeyboardButton('사람별 방으로', url=back)]])
             destination = binding['channel_id'] if op['root'] else binding['discussion_id']
             op = self.delivery_record(op, status='intent', anchor=0 if op['root'] else anchor['anchor'])
             self.inflight.add(op['operation'])
@@ -833,11 +927,111 @@ class Comments:
                 else:
                     self.record(binding, 'alias', 'discussion', result.message_id, key[1], op['anchor'], row['msg_id'])
             except BaseException:
-                if not self.damaged:
+                if not self.damaged and self.operations[op['operation']]['status'] != 'receipt':
                     self.delivery_record(op, status='unknown')
                 raise
             finally:
                 self.inflight.discard(op['operation'])
+
+    @staticmethod
+    def message_link(chat_id, message_id, thread_id=None):
+        # Bot API channel ids encode the positive MTProto id with a 10^12 offset.
+        value = int(chat_id)
+        if value >= -1000000000000 or int(message_id) <= 0:
+            raise Rejected('invalid_link')
+        link = f'https://t.me/c/{-value - 1000000000000}/{int(message_id)}'
+        if thread_id is not None:
+            if int(thread_id) <= 0:
+                raise Rejected('invalid_link')
+            link += f'?thread={int(thread_id)}'
+        return link
+
+    def card_source(self, binding, thread):
+        journal = self.bridge.adapter.journal
+        return next((journal.message(r['msg_id']) for r in journal.records if r['type'] == 'message'
+                     and journal.message_threads.get(r['msg_id']) == (binding['room'], thread)
+                     and self.new_since_cutover(binding['room'], r['msg_id'])), None)
+
+    def card_text(self, binding, thread, state='대화 가능'):
+        row = self.card_source(binding, thread)
+        if not row:
+            raise Rejected('deleted')
+        title = (row['text'].strip().splitlines() or ['첨부 대화'])[0][:80]
+        prefix = '이전 대화 이어쓰기 — 전환 이후 내용\n' if self.continuation(binding['room'], thread) else ''
+        return prefix + title + '\n' + state
+
+    async def send_card(self, bot, binding, key, anchor):
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyParameters
+        cards = [op for op in self.binding_operations(binding) if op['side'] == 'forum'
+                 and op['room'] == key[0] and op['thread'] == key[1]
+                 and op['route_epoch'] == self.epoch(key[0])]
+        if cards:
+            return  # Unknown cards never cause a second publication.
+        await self.validate_live(bot, binding)
+        pair = self.private()['pair']
+        topic = self.bridge.topics(pair['tag'])['topics'].get(key[0])
+        if not topic or topic['closed']:
+            raise Rejected('topic_unavailable')
+        link = self.message_link(binding['discussion_id'], anchor['anchor'], anchor['anchor'])
+        text = self.card_text(binding, key[1])
+        source = self.card_source(binding, key[1])
+        original = next((r for r in self.records if r.get('room') == key[0] and r['thread'] == key[1]
+                         and r['binding'] == binding['binding'] and r['side'] == 'forum'
+                         and r['msg_id'] == source['msg_id']), None)
+        op = dict(v=3, room=key[0], kind='delivery', operation=secrets.token_hex(16),
+                  binding=binding['binding'], generation=binding['generation'], route_epoch=self.epoch(key[0]),
+                  side='forum', message_id=0, thread=key[1], msg_id=source['msg_id'], anchor=int(topic['topic']),
+                  part=0, media='text', fingerprint=self.fingerprint('text', text), status='intent', root=False)
+        self.delivery_record(op)
+        self.inflight.add(op['operation'])
+        try:
+            kwargs = dict(message_thread_id=int(topic['topic']),
+                          reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('대화 열기', url=link)]]))
+            if original:
+                kwargs['reply_parameters'] = ReplyParameters(original['message_id'], allow_sending_without_reply=False)
+            result = await bot.send_message(pair['chat_id'], text, **kwargs)
+            self.delivery_record(op, status='receipt', message_id=result.message_id)
+            self.live(binding)
+            self.record(binding, 'alias', 'forum', result.message_id, key[1], int(topic['topic']), source['msg_id'])
+        except BaseException:
+            if not self.damaged and self.operations[op['operation']]['status'] != 'receipt':
+                self.delivery_record(op, status='unknown')
+            raise
+        finally:
+            self.inflight.discard(op['operation'])
+
+    async def update_card_state(self, bot, binding, key):
+        cards = [r for r in self.binding_operations(binding) if r['side'] == 'forum'
+                 and r.get('room') == key[0] and r['thread'] == key[1]
+                 and r['route_epoch'] == self.epoch(key[0])]
+        card = next((r for r in cards if r['media'] == 'text' and r['status'] == 'receipt'), None)
+        if not card or any(r['status'] in {'intent', 'unknown'} for r in cards):
+            return
+        latest = cards[-1]
+        state = '보류' if self.unresolved(binding) else '대화 가능'
+        text = self.card_text(binding, key[1], state)
+        if self.fingerprint('text', text) == latest['fingerprint']:
+            return
+        await self.validate_live(bot, binding)
+        anchor = self.thread_anchor(binding, key[1])
+        if not anchor:
+            return
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+        link = self.message_link(binding['discussion_id'], anchor['anchor'], anchor['anchor'])
+        op = self.delivery_record(dict(card, operation=secrets.token_hex(16), media='edit',
+                                       fingerprint=self.fingerprint('text', text), status='intent'))
+        self.inflight.add(op['operation'])
+        try:
+            await bot.edit_message_text(text, chat_id=self.private()['pair']['chat_id'],
+                message_id=card['message_id'], reply_markup=InlineKeyboardMarkup(
+                    [[InlineKeyboardButton('대화 열기', url=link)]]))
+            self.delivery_record(op, status='receipt')
+        except BaseException:
+            if not self.damaged and self.operations[op['operation']]['status'] != 'receipt':
+                self.delivery_record(op, status='unknown')
+            raise
+        finally:
+            self.inflight.discard(op['operation'])
 
     def delivery_status(self, message):
         pair = self.private()['pair']
@@ -846,13 +1040,13 @@ class Comments:
                     and str(message.chat_id) in {b['discussion_id'], pair['chat_id']}]
         lines = []
         for b in bindings:
-            lines.append('room: ' + b['room'] + ' / connection: ' + b['state'])
+            lines.append('rooms: ' + ', '.join(self.member_rooms(b)) + ' / connection: ' + b['state'])
             operations = sorted(self.binding_operations(b), key=lambda r: r['status'] == 'receipt')
             for r in operations:
                 status = 'unknown' if r['status'] == 'intent' and r['operation'] not in self.inflight else r['status']
                 if r['root'] and status == 'receipt' and not r['anchor']:
                     status = 'waiting_anchor'
-                lines.append(r['operation'] + ': ' + status)
+                lines.append(r['operation'] + ': ' + r.get('room', 'legacy') + '/' + r['side'] + '/' + r['media'] + ' ' + status)
         return '\n'.join(lines)[:4000] or 'idle: 등록된 댓글 연결이 없습니다.'
 
     async def resolve(self, bot, message, operation):
@@ -861,7 +1055,11 @@ class Comments:
             raise Rejected('invalid_operation')
         binding = next((b for b in self.private().get('comments', []) if b['binding'] == op['binding']
                         and b['generation'] == op['generation'] and b['state'] == 'active'), None)
+        if binding:
+            binding = dict(binding, room=op['room'])
         target = message.reply_to_message
+        if binding and op['side'] == 'forum':
+            return await self.resolve_card(bot, message, binding, op)
         if (not binding or str(message.chat_id) != binding['discussion_id'] or not target
                 or str(target.chat_id) != binding['discussion_id'] or message.external_reply):
             raise Rejected('invalid_target')
@@ -910,13 +1108,51 @@ class Comments:
                     self.enqueue(binding, queued)
         return 'resolved: 실제 발신 글과의 대응을 저장했습니다. 재발신하지 않습니다.'
 
-    async def retire(self, message, room, abort=False):
-        binding = next((b for b in self.private().get('comments', [])
-                        if b['room'] == room and b['state'] != 'retired'), None)
-        if not binding or (not abort and str(message.chat_id) != binding['discussion_id']):
+    async def resolve_card(self, bot, message, binding, op):
+        target = message.reply_to_message
+        pair = self.private()['pair']
+        topic = self.bridge.topics(pair['tag'])['topics'].get(op['room'])
+        if (str(message.chat_id) != pair['chat_id'] or message.external_reply or not target or not topic
+                or str(target.chat_id) != pair['chat_id'] or target.message_thread_id != int(topic['topic'])
+                or message.message_thread_id != int(topic['topic']) or target.forward_origin or target.sender_chat
+                or not target.from_user or str(target.from_user.id) != binding['bot_id']
+                or target.date.timestamp() <= binding['activated_at'] or op['route_epoch'] != self.epoch(op['room'])):
+            raise Rejected('invalid_target')
+        await self.validate_live(bot, binding)
+        journal = self.bridge.adapter.journal
+        if ((op['room'], op['thread']) in journal.deleted_threads
+                or journal.message_threads.get(op['msg_id']) != (op['room'], op['thread'])
+                or not journal.message(op['msg_id'])):
+            raise Rejected('deleted')
+        text = self.card_text(binding, op['thread'])
+        if op['media'] == 'edit':
+            text = next((self.card_text(binding, op['thread'], state) for state in ('대화 가능', '보류')
+                         if self.fingerprint('text', self.card_text(binding, op['thread'], state)) == op['fingerprint']), '')
+            if target.message_id != op['message_id']:
+                raise Rejected('invalid_target')
+        anchor = self.thread_anchor(binding, op['thread'])
+        if not anchor or target.text != text or self.fingerprint('text', text) != op['fingerprint']:
+            raise Rejected('mismatch')
+        link = self.message_link(binding['discussion_id'], anchor['anchor'], anchor['anchor'])
+        buttons = target.reply_markup.inline_keyboard if target.reply_markup else ()
+        if len(buttons) != 1 or len(buttons[0]) != 1 or buttons[0][0].url != link:
+            raise Rejected('mismatch')
+        if op['media'] != 'edit' and any(r['side'] == 'forum' and r['status'] == 'receipt' and r['message_id'] == target.message_id
+               for r in self.binding_operations(binding)):
+            raise Rejected('used_target')
+        self.delivery_record(op, status='receipt', message_id=target.message_id)
+        self.record(binding, 'alias', 'forum', target.message_id, op['thread'], op['anchor'], op['msg_id'])
+        for row in self.binding_operations(binding):
+            if row['status'] == 'queued':
+                self.enqueue(binding, row)
+        return 'resolved: 카드 대응을 저장했습니다. 재발신하지 않습니다.'
+
+    async def retire(self, message, room=None, abort=False):
+        binding = self.hub()
+        if not binding or room is not None or (not abort and str(message.chat_id) != binding['discussion_id']):
             raise Rejected('invalid_target')
         async with self.bridge._topic_lock:
-            if self.busy(room) or any(r['operation'] in self.inflight for r in self.binding_operations(binding)):
+            if any(self.busy(r) for r in binding['rooms']) or self.inflight:
                 raise Rejected('busy')
             outstanding = self.outstanding(binding)
             if outstanding and not abort:
@@ -925,13 +1161,14 @@ class Comments:
                 value = self.private()
                 current = next(b for b in value['comments'] if b['binding'] == binding['binding'])
                 current['state'] = 'retired'
-                value.setdefault('route_epochs', {})[room] = dict(epoch=secrets.token_hex(16),
-                                                                cutover_seq=self.bridge.adapter.journal.head)
+                for r in binding['rooms']:
+                    value.setdefault('route_epochs', {})[r] = dict(epoch=secrets.token_hex(16),
+                                                                  cutover_seq=self.bridge.adapter.journal.head)
                 self.bridge.vault.write('telegram.json', value)
             for op in outstanding:
                 self.delivery_record(op, status='cancelled')
         self.bridge.request_sync()
-        return ('aborted: 미전송 댓글을 취소하고 토픽으로 돌아갑니다. ' if abort else 'off: 토픽으로 돌아갑니다. ') + '기존 채널·그룹은 영구 은퇴하며 다시 연결하려면 새 쌍이 필요합니다.'
+        return ('aborted: 미전송 댓글을 취소합니다. ' if abort else 'off: ') + '참여 방 모두 토픽으로 돌아갑니다. 기존 채널·그룹은 영구 은퇴하며 다시 연결하려면 새 쌍이 필요합니다.'
 
     async def close(self):
         for task in self.tasks:
@@ -951,6 +1188,8 @@ def attach(native):
     from hermes_constants import get_hermes_home
     from .auth import AuthStore
     vault = AuthStore(get_hermes_home())
+    topics_store = AuthStore(get_hermes_home())
+    topics_store.path = Path(get_hermes_home()) / 'shared' / 'hejo' / 'telegram'
 
     class CommentsHandler(BaseHandler):
         def check_update(self, update):
@@ -960,8 +1199,20 @@ def attach(native):
                 return bridge.comments.claims(update)
             # Telegram can connect before the hejo listener. Reservation ownership
             # survives this interval; the callback consumes without executing.
-            return Comments.reserved(vault.read('telegram.json', {}),
-                                     getattr(update, 'effective_message', None))
+            value = vault.read('telegram.json', {})
+            message = getattr(update, 'effective_message', None)
+            if Comments.reserved(value, message):
+                return True
+            pair = value.get('pair')
+            if not message or not pair or str(message.chat_id) != pair['chat_id']:
+                return False
+            saved = topics_store.read('topics.json', {})
+            if saved.get('tag') != pair['tag']:
+                return False
+            rooms = {room for b in value.get('comments', []) if b['state'] != 'retired'
+                     for room in Comments.member_rooms(b)}
+            return any(room in rooms and str(message.message_thread_id) == topic['topic']
+                       and not topic['closed'] for room, topic in saved.get('topics', {}).items())
 
     async def callback(update, context):
         from .adapter import _primary
