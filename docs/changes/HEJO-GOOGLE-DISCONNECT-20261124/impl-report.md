@@ -2,7 +2,7 @@
 
 ## 현재 판단과 범위
 
-**왕복15 지정 후속 기능 통합·명시적 legacy 최초 전환 구현/자체 시험 제출, Terra 재검토 대기.** 고정 legacy 출처는 design9판 보완에서 채택한 두 커밋이다. 후속5/23파일과 Google 동작을 함께 보존했고 기존 installer/단일 검사기/지원 선언 안에 최초 전환을 구현했다. 이번 관련 회귀·거절/복구 시험은 아래 실제 결과로 구분한다. 고정 후속 버전에도 재현되는 Notion 기존12실패는 별도 검토 처분이 남아 전체 회귀 통과로 표시하지 않는다. 운영·실계정·재시작·커밋·푸시는 미실행이다.
+**왕복16 전달 준비 제출.** checkpoint13 제품/시험과 Terra 왕복16 독립 수용을 보존하고 최신 검토 문서·후속 로컬 소스 커밋·불변 앱/hejo/bundle/같은 지원 버전 복구 후보를 고정했다. 기존 Notion12실패는 원인 미확정의 기존 불일치로 남기며 기대값/skip을 바꾸거나 전체 team 성공을 주장하지 않는다. 운영·실계정·재시작·메시지·푸시는 실행하지 않았다. 운영용 앱 구성 결정과 사용자 GD-T19·TASK07은 남는다.
 
 원래 목표는 해당 직원 Google 개인 연결·이메일·전용 자격을 제거하고 다음 연결에서 계정을 선택하는 것이다. 기존 금고 원본과 전용 저장 배치, 공식 도구 4개, gate/AppKit 구현을 보존했다. 본체·ddots·sandbox 정책·운영 비밀 파일·Paseo 상태 JSON·계획/수락 명세 Markdown은 변경하지 않았다. 기존 구현을 유지하며 왕복11에서 인증 시트의 명시적 닫기 동작과 취소된 폴링의 응답 후 보호, 해당 표적 시험을 보완했다. 원래 폴더의 다른 작업도 보존했다. 구현 소유 보고·배포 인계와 [명령 대응표](workspace-command-map.md)를 canonical 폴더에서 관리한다.
 
@@ -13,7 +13,29 @@
 | hejo | `236b0177468b90d9ea23a1b1190e996db78a0694` | `role-workflow/google-disconnect-c20a9994` | `.build/google-disconnect-work/hejo` |
 | 운영 저장소 | `4bbc16ddba02236fe4645ab7244603c44a78af91` | `role-workflow/google-disconnect-c20a9994` | `.build/google-disconnect-work/team` |
 
-경로는 원래 작업 폴더 기준이다. **위 표는 구현 전 기준 커밋이다. 결과 소스 커밋은 왕복12 절에 기록했다.** 현재 두 HEAD는 hejo `d25530649f7eb898e2f5cbc5cb471c1417823632`, 운영 저장소 `33d6671993473c0eb7ecb4087e0fe4edebc63050`이며 기존 브랜치·미커밋 변경을 보존했다. 현재 원본은 `.build/google-disconnect-evidence/source-checkpoint-13.log`다. checkpoint12에서 시작해 지정28파일을 선별 통합했으며 최신 canonical 문서는 내용 변경 없이 후보에 반영했다. 무관한 브랜치 전체 병합·amend/rebase/pull은 하지 않았다. 실제 파일 목록은 마지막 절, 지문·범위·보호 문서와 증거 대조는 round15-final-check.json을 참조한다.
+경로는 원래 작업 폴더 기준이다. 위 표는 구현 전 기준이며 현재 실행 소스 커밋은 hejo `09a5d31db54620814203fc079f706501b2b92bb0`, 운영 저장소 `1af03d46dabdbe49f4e3ef3ca92aaaf2b321371d`다. 제품·시험은 source-checkpoint-13.log와 같고 최종 변경 집합은 hejo54/team88파일이다. canonical 최신 검토 문서4개와 구현 보고/배포 인계2개만 전달 준비에서 갱신했다. 최종 파일별 지문은 source-checkpoint-14.log에 고정한다. 후속 문서 HEAD/전체 변경 집합/clean 상태는 round16-closure.json에 고정하며 실행 소스와 구분한다. 기존 커밋을 amend/rebase/pull/merge하지 않았다.
+
+## 왕복16 — 검토된 통합본의 전달 고정
+
+[작업 왕복16](tasks.md)을 실행했다. 실제142파일/HEAD와 지원 선언을 먼저 대조한 뒤 최신 handoff·tasks·independent-review·UUID verdict4개를 원문 그대로 후보에 반영했다. 제품·시험·지원 선언을 새로 고치지 않았다. hejo22파일/운영 저장소31파일을 후속 로컬 커밋으로 고정했다. 구현 전 기준 대비 범위는 hejo54/team88파일이며 상세 목록은 기존 보고 마지막 목록과 round16-closure.json을 사용한다. 최종 보고/이 배포 인계는 후속 문서 전용 커밋으로 보존한다.
+
+| 검증/산출 | 실제 결과 | ignored 근거 |
+|---|---|---|
+| python3 -B round16-intake.py | 종료0,checkpoint13 142파일·두 HEAD/빈 index·지원 선언 및 bundle 식별 일치, 최신 문서4개 반영, 앱 입력99개/기존 압축본 일치 | round16-intake.json/log |
+| python3 -B round16-metadata.py | 종료0. 전달 앱의 비밀 없는 구성, 기존 LaunchAgent2파일과 검토된 템플릿 바이트 일치. 서비스 명령 미실행 | round16-metadata.json/log |
+| python3 -B round16-private.py source hejo | 종료0,전체 추적 후보 일반 개인값 검사/가짜 owner 입력, 실제 index 불변 | round16-private-source-hejo.json/log |
+| HEJO_PYTHON -B round16-commit.py team/hejo | 각각 종료0. stage blob/범위·diff 검증 후 로컬 커밋. team 사전 hook snapshot은 boundary80/document0/compartments0 PASS | round16-commit-{team,hejo}-source.json/log |
+| HEJO_PYTHON -B round16-package.py | 종료0. 고정 Git의 실제 release 및 bundle 조립/지원 검사, 본문·모드·링크 압축 왕복, 동일 앱 압축본 추출 후 deep strict codesign·안내 본문, 복구 사본3파일 일치 | round16-package.log,round16-package-driver.log,round16-artifacts.json |
+
+정확한 argv/cwd/환경/실행 파일·전체 커밋·입력/전달 지문은 위 JSON/로그에 있다. source hejo 커밋 `09a5d31db54620814203fc079f706501b2b92bb0`, team `1af03d46dabdbe49f4e3ef3ca92aaaf2b321371d`다. 후보 식별자는 `09a5d31db546-1af03d46dabd-round16`, manifest SHA-256은 `667a40da2990c623d2fca7aea52258015a70dbc0625b7722fd2ca8da13235c7d`다. 실제 전달/복구 파일의 전체 SHA-256과 승인용 적용·중단·복구 명령은 [배포 인계](deployment-handoff.md)에 제출했다. 기존 r4/round13 후보는 이전 증거로 보존한다.
+
+앱 입력99개가 기존 통과본과 같아 앱/전체 UI/회귀를 새로 반복하지 않았다. 실제 전달 앱 SHA는 `f400c82904e24961efbbc9078f3e34e661153c7097e87343d8b0da64f4fab581`이며 내장 BuildInfo의 이전 dirty tree를 그대로 보존했다. 신규 빌드로 위장하지 않는다. 공유 Google 앱 로그인 구성은 없는 검증 앱이다. 업데이트 저장소/ED키/framework/서명 검사 조건은 이미 있으며 offline 의존성 옵션이 updater를 끄지 않는다. 정식 빌드 경로로 Google 앱 로그인 구성을 확정하거나 현 구성을 사용자에게 명시적으로 수용받는 운영 결정이 필요하다. 비밀 열람/주입/서명 후 수정은 하지 않았다.
+
+이번 전체 공개 검사는 가짜 임시 HERMES_HOME의 일반 패턴 검사다. 실제 운영 owner/vault 입력을 새로 읽지 않았으므로 실제 명부/금고의 현재 개인값 전부에 대한 새 검사는 아니다. 비밀/운영 자료를 읽지 않는 전달 준비 범위를 유지했고, 보고는 기존 비밀 제외 inventory의 실제 개인 경로/프로필 문자열도 별도 대조했다. private team 소스는 기존 snapshot airport-check 기준을 유지한다. 최종 문서 반영 뒤 round16-private.py final hejo/canonical의 전체 일반 개인값 검사는 각각 종료0이었다. 실제 owner 입력은 사용하지 않았고 실제 index는 불변이다. round16-finalize.py의 링크/AC16행·문서 보호·변경 지문/clean·후보 해시·후속 문서 커밋 결과는 round16-closure.json과 round16-finalize.log에 기록한다.
+
+Terra 왕복16과 기획 처분에 따라 기존 Notion12실패는 신규 회귀 차단으로 취급하지 않지만 미해결로 유지한다. round15-existing-failures.json에12개 전체 node와 candidate/baseline의 같은 assertion 지문이 있으며 원인/정상 동작을 확정하지 않는다. 원래 실패 코드·기대값·skip은 불변이다. 전체 team 성공이나 전체 suite 재실행을 주장하지 않는다. 이번 회귀 증거는 앞선241통과+마지막11표적·지정 기능148통과·새 소비자13통과 및 독립5통과의 각 실제 범위로 유지한다.
+
+복구 후보는 같은 지원 버전의 전체 코드 복원이며 이전 기능으로 돌아가는 rollback 후보는 아니다. 지원 없는 legacy로 복귀하거나 전용 자격/금고를 복원하지 않는다. 현재 policy/receipt/전체 묶음을 확인할 수 없으면 자동 복구/강제 재실행하지 않는다. 실제 개인 경로를 포함한 승인용 제안은 ignored round16-approval-proposal.json에 고정했다. 운영 승인안은 배포 인계에 구체화했고 운영·실계정 GD-T19·재시작·메시지·푸시와 TASK07 최종 명세 승격은 미실행으로 남긴다.
 
 ## 왕복15 — 후속 기능 보존과 명시적 최초 전환
 

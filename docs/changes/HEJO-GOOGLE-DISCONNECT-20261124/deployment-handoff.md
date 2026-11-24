@@ -1,65 +1,114 @@
-# Google 개인 연결 배포 인계 — design8판 검토 후보
+# Google 개인 연결 배포 인계 — design9판 전달 후보
 
-**왕복15 통합·명시적 최초 전환 구현/자체 시험 제출, Terra 재검토 대기. 운영 미적용.** [설계9판](design.md)·[작업](tasks.md)·[구현 보고](impl-report.md)를 따른다. D1/D2·IR-1 수용은 유지한다. 고정 후속 기능과 최초 전환을 구현했으나 기존 Notion12실패의 처분, 새 독립 검토·불변 후보/호환 복구 묶음·앱 운영 구성·사용자 GD-T19와 실제 운영 승인은 남는다. 앞선 r4 후보는 역사적 자료다.
+**왕복16 로컬 전달 준비 제출. 운영·실계정 미실행.** checkpoint13 제품과 Terra [독립 검토](independent-review.md) 왕복16의 수용을 유지한다. D1/D2/D3·IR-1은 로컬 검토에서 해소됐다. 기존 Notion12실패는 같은 고정 후속 원본에서도 재현된 원인 미확정 불일치이며 정상 동작/전체 team 성공으로 표시하지 않는다. [작업](tasks.md)·[구현 보고](impl-report.md)의 실제 결과를 따른다. 운영·앱 구성 결정과 사용자 GD-T19·TASK07·푸시는 별도 단계다.
 
-## 소스와 산출물 경계
+## 고정 소스와 전달 지문
 
-| 저장소 | 이번 구현 기준 HEAD | 브랜치 | 원격 이름 |
+| 저장소 | 전달 실행 소스 커밋 | 브랜치 | 원격 이름 |
 |---|---|---|---|
-| hejo | `d25530649f7eb898e2f5cbc5cb471c1417823632` | `role-workflow/google-disconnect-c20a9994` | github |
-| 운영 저장소 | `33d6671993473c0eb7ecb4087e0fe4edebc63050` | `role-workflow/google-disconnect-c20a9994` | origin |
+| hejo | `09a5d31db54620814203fc079f706501b2b92bb0` | role-workflow/google-disconnect-c20a9994 | github |
+| 운영 저장소 | `1af03d46dabdbe49f4e3ef3ca92aaaf2b321371d` | role-workflow/google-disconnect-c20a9994 | origin |
 
-8·9판과 왕복15 통합 변경은 위 커밋 위의 미커밋 작업 트리다. 기존 커밋을 amend/rebase하지 않았다. 실제 범위/파일별 지문은 `.build/google-disconnect-evidence/source-checkpoint-13.log`, 실행 argv/cwd/환경·결과는 round13 로그, 이전 문서/계획 보호는 round13-intake.json으로 대조한다. 개인 실제 경로·운영 앱 위치/영수증과 시설 지문은 ignored 로컬 증거에만 기록한다.
+기존 커밋 위에 각각22/31파일을 후속 커밋했다. 구현 전 기준 대비 최종 범위는 hejo54/team88파일이다. checkpoint13의 제품·시험은 동일하며 최신 검토 문서4개를 반영했다. 이 인계/구현 보고를 담는 후속 문서 커밋은 실행 소스와 구분하며 전체 HEAD·파일별 지문·clean 상태는 `.build/google-disconnect-evidence/round16-closure.json`에 고정한다. 실제 경로와 명령·환경은 ignored 증거에만 둔다.
 
-앱 안내 원문은 Resources/연결안내.html 하나다. 빌드 산출물/Bundle 조회는 ASCII connection-help.html이며 서명 전 NFC/NFD 옛 이름의 잔재만 제거한다. 일반/반복 빌드, 다른 임시 위치 압축 왕복 deep strict 서명 및 실제 HooksHelp Bundle 조회·원문 일치를 확인했다. `HEJO_SKIP_GOOGLE_SECRET=1`, `HEJO_SPARKLE_OFFLINE=1`인 검증 빌드이므로 운영 공유 Google 로그인·업데이트 구성 완료를 뜻하지 않는다. 비밀 주입/추출 후 재서명은 하지 않았다.
+후보 디렉터리는 `.build/google-disconnect-delivery/09a5d31db546-1af03d46dabd-round16`이며 운영 경로에서 사용하지 않았다. 고정 Git 입력에서 실제 hejo-release를 실행했고 team kit와 동반5경로를 Git archive로 조립했다. 원본과 전달 파일의 본문·모드·내부 링크 및 실제 압축 해제 결과를 비교했다. manifest SHA-256은 `667a40da2990c623d2fca7aea52258015a70dbc0625b7722fd2ca8da13235c7d`다.
 
-## bundle 선언과 원본 소유
+| 구성 | 파일 | SHA-256 |
+|---|---|---|
+| hejo | `hejo.tar.gz` | `beb7e733b11c69aea4a41793507671ba6677dbc82d90a2f6594d1a128445bc75` |
+| team-bundle | `team-bundle.tar.gz` | `7f50b3f93bd5d5846618fd5c3f2062463725cd6dfb10c21f5237a020f0c949b9` |
+| hejo.app | `hejo.app.tar.gz` | `f400c82904e24961efbbc9078f3e34e661153c7097e87343d8b0da64f4fab581` |
 
-기존 team-kit/google-connection-support.json의 bundle 항목은 version=1, kit_sha256, files(명시적5경로의 sha256/mode), predecessor(검토된 이전 키트/5파일의 식별)를 가진다. 금고/직원 설정 원본을 새로 만들지 않는다. 키트 식별은 지원 선언 자신·캐시를 제외한 시설 본문/모드/내부 링크를 포함한다. 정책/허용 경로의 원본은 기존 단일 hejo install/check_google_compat.py다. 지원 선언 생성도 그 원본의 식별 함수를 사용하며 producer는 ignored round13-support.py에 기록한다. 값/지원 버전/경로가 누락·변조되거나 묶음이 섞이면 쓰기 전에 거절한다.
+위 hejo/bundle은 작업 트리/운영 설치를 참조하지 않는 압축본이다. 앱은 기존 round13 서명 압축본의 바이트를 그대로 전달했다. 실제 앱 입력99개의 지문이 최종 커밋과 같고 추출 후 deep strict 서명·ASCII 안내 본문 일치가 확인됐다. 실제 HooksHelp Bundle 조회는 같은 압축본/같은 입력의 round13-app-package-03.log를 재사용한다. 내장 BuildInfo는 당시 dirty=true/이전 tree 식별을 유지하며 새 커밋에서 앱을 다시 빌드했다고 표시하지 않는다. 원문 Resources/연결안내.html 한 곳에서 빌드 산출물 connection-help.html을 만들고 서명 전에 옛 NFC/NFD 이름만 정리한다.
 
-첫 bundle 전환은 선언에 고정한 검토된 predecessor만 허용한다. 현재 소스 선언의 predecessor는 design9판 보완의 고정 legacy 커밋9488a060e7bf5646af69628b29b34c28cfc18109에서 재현한 kit/동반5경로 식별이다. 설치되어 있지 않던2경로는 부재로 고정한다. 이 출처 채택과 임시 홈 시험은 실제 운영 상태/실행 승인이 아니다. 이후 bundle은 현재 선언 전체가 실제 파일과 일치해야 한다. 동반이 필요한 현재/후보의 kit-only apply/rollback 및 restore-copies/migrate를 거절한다. 플래그를 모르는 옛 호출자도 단일 검사기의 기본 team-kit 검사에서 거절된다. 동반 필요가 없는 미전환 kit-only는 유지한다.
+### 호환 복구 후보
 
-동일 금고 mutex/gateway 중지 조건에서 전체 stage와 사전 검사 뒤 kit/5파일/영향받는 overlay·links.json·선택된 매뉴얼 결과를 적용한다. 원본 manifest는 시설 선언, 기존 사용자 grant/선택/비관련 필드는 소유자 원본이다. config_assembly의 합성은 선택된 전환 직원의 네 도구 선언만 추가하고 grant/앱·팩 선택을 쓰지 않는다. 선택되지 않은 직원의 overlay manifest/스킬은 바꾸지 않는다. source link의 원본 선언 갱신은 grant 부여가 아니며 기존 runtime 권한 검사를 유지한다. 스킬은 기존 owner/skill-assembly.yaml에서 선택한 직원만 기존 prepare로 조립하고 사람이 편집한 결과는 거절한다.
+`recovery/`에는 위 세 압축본과 바이트가 같은 별도 사본을 고정했다. recovery/manifest.json SHA-256은 `71db44e76283841b369caaa8d51ca5f18461c3f7077724cf6ba847991f189301`다. 현재 지원되는 전체 코드의 재설치/시설 복원을 위한 후보이며 이전 기능 버전으로 되돌리는 후보가 아니다. 본문·모드·링크·지원 선언이 같은 세 파일을 함께 확인한다. 더 오래된 지원 버전의 별도 운영 복귀 후보는 검토·고정하지 않았다.
 
-쓰기 실패 시 고정한 이전 전체 시설/조립 결과의 본문·모드·존재/부재를 복구한다. 이미 이전 상태인 항목은 재쓰지 않는다. owner 금고/토큰/명부/정책/선택 원본은 복구 사본에 넣지 않고 입력 지문만 비교한다. 정책은 검증한 현재 설치 코드에서 메모리로 고정한다. 강제 종료/복구 실패의 stage가 남으면 성공/자동 복구로 간주하지 않고 다음 배포/토폴로지 변경·검사가 거절한다. 이전 시설과 transaction.json을 보존하며 무조건 재실행/삭제로 넘기지 않는다.
+Google 전환 후 legacy hejo/kit로 복귀하지 않는다. owner 금고/전용 자격/직원 선택/권한의 사본은 후보에 없고 과거로 복원하지 않는다. 실제 설치의 지원·입력·stage가 불확실하면 같은 지원 버전이라는 이유로 강제 덮어쓰지 않는다. 현재 검사기가 검증할 수 있는 정상 상태에서만 아래 복구 명령을 사용한다. 앱 운영 구성을 다시 빌드하면 새 앱 파일을 전달/복구 양쪽에 함께 고정하고 새 지문·서명을 재검토한다.
 
-## 비밀 제외 운영 확인과 현재 전달 조건
+## 지원 선언과 전체 bundle 경계
 
-실제 시설을 읽은 마지막 원본은 `.build/google-disconnect-evidence/round14-inventory.json`, `round14-provenance.json`, `round14-baseline-coverage.json`, `round14-profile-topology.json`이다. 이번에는 운영 시설/금고/비밀을 새로 읽거나 바꾸지 않았다. 실제 개인 경로/홈 이름은 ignored 증거만 참조한다.
+단일 정책 원본은 hejo `install/check_google_compat.py`다. 양쪽 지원 선언은 google-connection-support/1, versions=[1], disconnect_mode=forget_account를 유지한다. legacy.version=1의 고정 기준은 hejo a3df84e48fae8b36c27a572a5ee36247cc46acf3와 team 9488a060e7bf5646af69628b29b34c28cfc18109다. 출처 채택은 운영 승인이 아니다. 지원 선언 producer는 round15-support.py, 최종 값/대조는 round15-support-final.json과 round16-intake.json이다. round13의 옛 predecessor 생산물을 다시 사용하지 않는다.
 
-- design9판에서 hejo a3df84e48fae8b36c27a572a5ee36247cc46acf3, 운영 저장소9488a060e7bf5646af69628b29b34c28cfc18109를 legacy 출처로 채택했다. 지정5/23파일을 후보에 보존 통합했다. 당시 hejo43파일·kit681항목·동반5경로의 식별은 미래 적용 시점의 동일성을 보증하지 않는다.
-- 당시 installed/version2 영수증의6링크는 실제 gate와 일치했고 기본 홈+프로필6개 중1프로필은 hejo 미설치였다. 새 최초 전환은 그때의 이름/집합을 하드코딩하지 않고 실제 적용 직전에 전체 집합·영수증·설치된 링크와 기준 시설을 재확인한다. 미설치 프로필을 자동 편입하지 않는다.
-- 현재 명시적 최초 전환은 구현됐고 임시 홈에서 release→새 검사기→전체 bundle을 확인했다. 링크/영수증 외 owner/admin/config/기기·자격은 쓰지 않는다. 영수증의 upgrading-legacy/legacy_upgrade는 중단 상태의 코드 경로·이전 링크만 기록하며 금고/자격 사본이 아니다.
-- 일반 설치의 현재 검사기 규칙은 유지한다. 기존 검사기가 있는 홈, failed/uninstalled/중간 영수증, 지원/기준/상태·권한·경로를 판정할 수 없는 홈에 --upgrade-legacy를 사용하지 않는다. 전환 기록·전용 자격·활성 인증/worker·gateway PID·남은 배포/설치 흔적이 있으면 닫힌다. 원문 토큰/.env/auth.json을 읽거나 백업하지 않는다.
-- 새 Terra 검토와 기존 Notion12실패 처분, 최종 두 소스 커밋/불변 hejo·bundle·앱·호환 복구 묶음 고정이 필요하다. 운영 앱의 Google 로그인/업데이트 구성·교체 대상과 승인된 중단/재개 명령도 미확정이다. 검사기/동반2파일만 복사하거나 영수증을 위조해 맞추지 않는다.
+현재 bundle kit_sha256은 `db43f0d07d74d1ba28f8fbcac4b233474a0c172215c995b07c76b82d76d2184f`다. 지원 선언 자신/캐시를 제외한 kit 본문·모드·내부 링크와 명시적5파일 식별을 확인한다. predecessor는 위 고정 legacy kit 및 기존3파일/부재2경로다. 선언/식별/모드·버전 누락, 섞인 묶음, 외부 링크는 쓰기 전에 거절한다. bundle이 필요한 현재/후보의 kit-only apply/rollback·restore-copies/migrate는 옛 호출자도 거절한다.
 
-## 승인 뒤 사용할 현재 대상 절차 — 전부 미실행
+동일 금고 mutex/모든 영향 gateway 중지 조건에서 전체 stage·사전 검사·CAS·전체 결과 검사를 한다. owner 선택/grant·비관련 필드는 쓰지 않고 선택된 직원의 기존 overlay·links.json·매뉴얼만 기존 조립기로 갱신한다. 임시 stage에는 시설/조립 결과만 있고 owner/토큰 사본은 없다. 실패/중단 stage는 자료 보존 및 재실행 거절의 근거다. 중단 흔적을 지우거나 영수증/링크를 손으로 만들어 통과시키지 않는다.
 
-위 전달 조건과 새 독립 검토를 완료한 뒤 모든 영향 홈·중단/재개 대상과 정확한 명령·새/복구 묶음을 사용자에게 제시해 별도 승인을 받는다. 개인 실제 변수는 ignored 로컬 인계에서 확정한다. HEJO_RELEASE는 서명/구성·소스가 검토된 새 release 디렉터리, TEAM_BUNDLE은 kit+동반5파일을 포함한 시설 루트다. 작업 체크아웃을 최초 전환 release로 사용하지 않는다.
+## 현재 대상과 승인안 — 아직 실행하지 않음
+
+비밀 제외 시설/전체 홈 조사는 round14-inventory.json·round14-profile-topology.json·round14-provenance.json·round14-baseline-coverage.json을 사용한다. 당시 루트+프로필6개 중 installed 영수증의6링크는 실제와 같고1프로필은 hejo 미설치였다. 적용 직전 전체 홈 집합·기존 링크·installed/applied 영수증·전체 양쪽 시설의 고정 기준 일치 여부를 다시 검사한다. 자동으로 미설치 프로필을 편입하지 않는다. 이후 운영 상태의 불변을 가정하지 않는다.
+
+왕복16에서는 기존 gateway/메일 신호 LaunchAgent2개의 **파일 지문만** 검토된 Git 템플릿과 대조해 일치를 확인했다. 실제 label/plist·중지/재개 argv는 ignored round16-metadata.json에 있다. 제안한 새 공유 release/bundle·기존 앱 대상·기록된 홈과 승인 조건은 round16-approval-proposal.json에 고정했으며 아직 승인된 운영 경로가 아니다. launchctl·프로세스/로그 조회·비밀/금고 열람·중지/재시작은 실행하지 않았다. 아래 GATEWAY_LABEL/GATEWAY_PLIST와 MAIL_SIGNAL_LABEL/MAIL_SIGNAL_PLIST는 그 확인된 두 대상만 사용한다. 추가 gateway/인증·메일/문서 worker 또는 예약 실행이 발견되면 임의 종료하지 않고 해당 대상과 중지 방법을 승인 범위에 추가하기 전 멈춘다.
+
+승인 요청은 다음 묶음으로 제시한다.
+
+1. 기존 설치6링크/실제 전체 홈을 새 **별도** 공유 release 경로로 전환하고 전체 team bundle을 적용한다. 기존 공용 디렉터리의 제자리 교체나 미설치 프로필 추가는 포함하지 않는다. 개인 실제 경로는 ignored 로컬 인계와 승인 화면에서 확인한다.
+2. 진행 중 턴/작업이0이고 인증 작업이 없는 유지보수 창에 기존 앱을 정상 종료하고 메일 신호→gateway 순서로 내린다. 적용/검사 후 gateway→메일 신호 순서로 재개한다. 기존 채널의 수신 서비스 재개와 실제 메시지 발송 시험은 구분하며 고객/Slack 메시지를 보내지 않는다. 허브는 변경·재시작하지 않는다.
+3. 아래 앱 구성 결정을 마친 뒤 기존 앱 설치 위치를 동일 bundle ID 앱으로 교체한다. 앱 파일만 복구하고 설정/키체인/로그인 항목을 덮어쓰지 않는다. 기존 앱 파일의 별도 보존은 운영 승인 후 결정하며 비밀이 내장될 수 있는 기존 앱을 공개 후보로 수집하지 않는다.
+4. 각 단계의 중단·복구 조건을 허용하고 마지막에 사용자가 GD-T19를 직접 수행한다. 운영 적용 승인과 Google 실계정 동의·푸시 화면 승인은 각각 구분한다.
+
+### 앱 운영 구성 결정
+
+정식 원본은 app/scripts/build.sh·fetch_sparkle.sh, GoogleSignIn/로그인창, UpdateRelease/AppUpdate, Resources/Info.plist다. round16-metadata.json은 전달 압축본의 비밀 없는 메타데이터만 기록했다. 전달 앱은 bundle ID io.github.hermes-hejo.hejo, 버전0.2.7/build9, macOS13 이상이며 서명이 유효하다. 공유 Google desktop client ID/secret 항목이 둘 다 없어서 **앱 로그인 화면의 Google 로그인은 준비되지 않았다.** 직원 Workspace 계정 연결/계정 선택과 이 앱 로그인은 서로 다른 기존 경로다.
+
+운영 승인안은 **정식 build.sh 경로로 공유 Google 구성을 포함한 앱을 별도 승인된 빌드 담당자가 만들고 서명한 뒤 새 지문을 고정하는 것**이다. 기존 untracked 빌드 입력 또는 기존 환경 입력을 정식 스크립트에서 사용하며 값을 보고/복사/주입하지 않는다. 현재 skip 빌드의 plist 수정이나 서명 후 삽입은 하지 않는다. 현재 구성으로 배포하려면 사용자가 기존 아이디/비밀번호 로그인만 사용할 것과 Google 앱 로그인 부재를 명시적으로 수용해야 하며, 그 실제 로그인 가능 상태는 이번에 확인하지 않았다. 이 결정을 기존 제품 승인으로 간주하지 않는다.
+
+업데이트 저장소 선언·ED 공개키·Sparkle framework·서명 feed/추출 전 검증 조건은 **이미 있다.** HEJO_SPARKLE_OFFLINE=1은 고정 의존성 다운로드를 막을 뿐 updater를 끄지 않는다. 앱 자체의 UpdateRelease/AppUpdate가 설정된 공개 저장소의 signed feed/전체 archive를 선택하며 Sparkle 자체 자동 확인·자동 설치 plist 값은 false다. 실제 원격 feed/서명 릴리스 가용성은 이번에 조회·게시하지 않았다. 새로운 업데이트 구성 누락이라고 단정하지 않으며, 수동 로컬 앱 교체와 새 업데이트 릴리스 게시 승인을 구분한다.
+
+## 승인 후 적용 명령과 단계별 중단
+
+아래는 승인용 템플릿이며 **전부 미실행**이다. 승인 화면에서 지정한 새 빈 staging 경로로 세 압축본을 해제하고 manifest/위 SHA-256·본문/모드/링크·codesign을 대조한다. HEJO_RELEASE는 새 hejo 디렉터리, TEAM_BUNDLE은 새 team-bundle 시설 루트다. 현재 작업 checkout이나 기존 운영 디렉터리 위로 해제하지 않는다. 압축 해제/검증만으로 운영 설치하지 않는다.
 
 ```sh
 "$HEJO_PYTHON" -I -B "$HEJO_RELEASE/install/check_google_compat.py" --component hejo --target "$HEJO_RELEASE" --validate-build
 "$HEJO_PYTHON" -I -B "$HEJO_RELEASE/install/check_google_compat.py" --component team-kit --target "$TEAM_BUNDLE" --bundle --validate-build
+codesign --verify --deep --strict "$APP_CANDIDATE"
 ```
 
-승인된 gateway/영향 worker 중단을 먼저 확인한다. 설치된 검사기가 없고 고정 legacy 전체 식별·정상 installed/applied 영수증/실제 링크·전환 부재 조건이 충족된 **현재 대상**은 아래 명시적 경로만 쓴다. 명령은 거절 조건을 완화하거나 프로세스를 중단/재시작하지 않는다. --port/--hub/--force를 더하지 않는다.
+기존 제어 status에서 active_agents=0·active_work 없음 및 전체 홈/인증 장부의 유휴 상태를 확인한다. 기존 앱을 사용자가 정상 종료한 뒤 승인된 두 서비스만 내린다. bootout은 비동기일 수 있으므로 프로세스/PID가 실제 종료됐는지 확인한다. 해석 불가·활성/추가 worker는 즉시 중단 조건이다. 정책은 프로세스를 자동 중지하거나 신호를 보내지 않는다.
+
+```sh
+launchctl bootout "gui/$MAINTENANCE_UID/$MAIL_SIGNAL_LABEL"
+launchctl bootout "gui/$MAINTENANCE_UID/$GATEWAY_LABEL"
+```
+
+정상 installed/applied 영수증·기존 checker 부재·전체 고정 legacy 코드·전환/null/자격/미완료 인증/배포 흔적 부재 조건인 현재 대상에만 명시적 최초 전환을 사용한다. --port/--hub/--force를 더하지 않는다. 다른 상태이면 중지하고 새 판정을 받는다.
 
 ```sh
 "$HEJO_PYTHON" -B "$HEJO_RELEASE/install/hejo-install" --home "$AIRPORT_ROOT" --upgrade-legacy
 ```
 
-성공 뒤 영수증과 모든 설치 링크가 새 release를 가리키며 일반 현재 검사기 탐색이 새 검사기로 확정되는지 확인한다. CURRENT_CHECKER는 실제 installed/applied 링크에서 찾으며 PATH/cwd로 대체하지 않는다. 같은 중단 상태에서 전체 bundle을 검사/적용한다. 이 대상에서는 이미 링크를 바꾼 뒤 일반 installer를 중복 실행하지 않는다.
+성공하면 영수증과 원래 설치된 모든 링크가 새 release를 가리키고 정상 installed 탐색의 checker가 HEJO_RELEASE/install/check_google_compat.py와 같은지 확인한 뒤 CURRENT_CHECKER로 고정한다. 후보 경로를 현재 설치 검사기 대신 사용하는 fallback은 없다. 같은 중단 상태에서 전체 bundle만 적용한다.
 
 ```sh
 "$HEJO_PYTHON" -I -B "$CURRENT_CHECKER" --home "$AIRPORT_ROOT" --component team-kit --target "$TEAM_BUNDLE" --bundle
 "$HEJO_PYTHON" -B "$TEAM_BUNDLE/bin/hermes-team-kit-deploy" apply --root "$AIRPORT_ROOT" --bundle "$TEAM_BUNDLE"
+"$HEJO_PYTHON" -B "$HEJO_RELEASE/install/hejo-install" --home "$AIRPORT_ROOT" --check
+"$HEJO_PYTHON" -B "$TEAM_BUNDLE/bin/hermes-plugin-store" --root "$AIRPORT_ROOT" --check
 ```
 
-선택/권한 원본·manifest/등록·스킬/overlay·실행 모드·영수증/모든 링크·지원 선언과 새/복구 묶음 일관성을 확인하기 전 새 앱/코드를 실행하거나 gateway/worker를 재개하지 않는다. 이번 가짜 홈에서는 이 경로의 정상 및 각 실패를 검증했지만 실제 모든 홈의 상태·프로세스 중지나 사용자 GD-T19를 대신하지 않는다. 구체적인 운영 명령과 앱 교체/되돌림은 승인 자료에 확정한 뒤만 쓴다.
+전부 성공한 뒤 owner 선택/grant 불변·선택/권한에 맞는 공식4도구 manifest 선언·선택 직원 스킬/overlay·links.json·지원 선언·영수증/프로필 링크 및 중단 흔적 부재를 확인한다. 그 다음 승인된 구성의 앱을 같은 설치 위치에 교체하고 다시 서명을 확인한다. 앱/코드를 먼저 실행해 상태를 추측하지 않는다. 원본 성공 조건에서 벗어나면 재개하지 않는다.
 
-## 실패 복구와 중단 조건
+```sh
+launchctl bootstrap "gui/$MAINTENANCE_UID" "$GATEWAY_PLIST"
+# 새 gateway 시작 시각·기존 채널 재연결·새 오류 없음 확인 뒤만 다음 실행
+launchctl bootstrap "gui/$MAINTENANCE_UID" "$MAIL_SIGNAL_PLIST"
+```
 
-복구 대상은 현재 정책으로 검증하고 독립 검토/사용자 승인을 받은 호환되는 **전체** hejo/bundle/app 묶음이어야 한다. 성공한 최초 전환 뒤 고정 legacy 코드로 되돌리는 운영 절차는 제공하지 않는다. 최초 전환 자체의 I/O 실패 복구와 구별한다. Google 전환 기록이 있는 홈에 지원 없는 옛 키트를 적용하지 않는다. 독립 검토/대상 확인 뒤 복구 묶음을 먼저 고정한다. 금고 연결/전용 자격을 과거 사본으로 되돌리지 않는다.
+새 프로세스의 시작이 배포 파일보다 뒤이고 승인된 기존 채널이 연결되는지, 공식 도구가 선택/권한에 맞게 실제 등록됐는지 최소 상태/오류 종류로 확인한다. 원문 로그/메일/토큰을 공개 문서에 남기지 않는다. 앱은 그 뒤 정상 실행하고 사용자 GD-T19로 진행한다. 이번에는 위 명령을 실행하지 않았다.
+
+## 실패 복구 표
+
+| 시점/실패 | 허용된 처리 | 중단 조건 |
+|---|---|---|
+| stage/압축/서명/지원 검사 실패 | 설치 전이므로 운영 파일을 바꾸지 않고 후보 재검토 | 지문·파일/모드·구성 불일치 |
+| 최초 전환의 I/O 실패 | 같은 실행의 잠금·전환 부재·CAS 재검사 후 원래 코드 링크/영수증만 자동 복구. 기존 상태 복구 증거를 확인할 때만 이전 서비스 재개 여부를 판단 | upgrading-legacy/부분 표식·orphan 흔적·프로필/입력 drift·복구 실패이면 자료 보존/재실행 금지 |
+| 최초 전환 성공, bundle 적용 실패 | 전체 이전 시설/조립 결과가 같은 실행에서 복구됐는지 확인. checker와 이전 team 조합을 유지한 중단 상태로 반환. legacy hejo 링크로 되돌리지 않음 | stage 남음/권한·선택 충돌/CAS 또는 복구 불확실이면 중지 유지 |
+| 정상 지원 bundle에서 시설 복원 필요 | recovery의 같은 지원 버전 전체 hejo/bundle/app을 현재 checker로 검증한 뒤 아래 명령. 사용자 데이터/자격은 복구하지 않음 | 현재 시설 손상으로 policy/현재 묶음을 검증할 수 없으면 강제 복원 불가, 별도 판단 |
+| 앱 교체/재개 후 실패 | 서비스/앱을 승인된 방법으로 멈추고 전체 지원 조합을 다시 확인. 승인된 구성의 앱 사본만 재설치 | 보안/로그인 대화는 사용자 결정; 외부 대화 자동 조작 금지. 기존12 Notion 불일치를 정상으로 간주하지 않음 |
+
+정상 설치 정책이 승인하는 상태에서만 RECOVERY_HEJO/RECOVERY_BUNDLE을 같은 recovery 압축본으로 새 별도 경로에 해제한다. 설치된 checker·bundle이 손상됐거나 남은 stage가 있으면 이 명령으로 우회하지 않는다. 같은 지원 소스 복원도 별도 운영 승인이 필요하다.
 
 ```sh
 "$HEJO_PYTHON" -I -B "$CURRENT_CHECKER" --home "$AIRPORT_ROOT" --component hejo --target "$RECOVERY_HEJO"
@@ -68,15 +117,15 @@
 "$HEJO_PYTHON" -B "$TEAM_BUNDLE/bin/hermes-team-kit-deploy" rollback --root "$AIRPORT_ROOT" --bundle "$RECOVERY_BUNDLE"
 ```
 
-최초 전환 I/O 실패는 전환 부재/중지/잠금/입력 일관성을 재검사한 뒤 같은 실행 안에서 기존 링크·영수증만 복구한다. 그 도중 전환이나 집합 drift가 생기면 옛 코드 복구를 하지 않는다. upgrading-legacy 또는 orphan 설치 임시 흔적이 남으면 자료를 보존하고 다음 실행을 거절한다. 이후 전체 bundle의 일반 I/O 실패는 검증된 이전 전체 시설과 조립 결과를 복원한다. 복구 불가·중단 stage·검사기/영수증 불일치·지원 거절·동시 입력/대상 변경·symlink/경로 탈출·살아 있는 gateway·소유자 편집 충돌이면 닫히고 자료를 보존한다. 중단 stage 삭제, 영수증 수동 작성, 강제 링크, 금고 전환 삭제, 자격 복원으로 우회하지 않는다. 강제 종료 후 명시적 복구는 남은 자료와 실제 조합의 별도 기획/운영 판단이 필요하며 자동 성공으로 보고하지 않는다.
+복구 후보는 같은 지원 코드의 시설 복원 범위다. 지속적인 입력 경합/중단으로 정상 조합을 확인할 수 없으면 코드·영수증·금고를 손으로 고치지 않고 자료를 보존해 별도 판단을 받는다.
 
 ## 사용자 GD-T19 — 별도 승인 후 직접 수락
 
-현재 전부 미실행이다. 대상 직원 한 명의 개인 연결 해제 확인→목록/상세 이메일 제거와 연결 버튼→Google 계정 선택에서 다른 계정 동의→새 계정 표시와 승인된 읽기 전용 확인→다른 직원 연결/접근 범위 불변을 사용자가 확인한다. 취소/실패를 성공으로 표시하지 않는다. 항목별 성공/실패·시각·최소 오류 종류만 기록하고 비밀/토큰·메일 본문·실제 이메일을 공개 증거로 요청하지 않는다. 실계정 뒤 TASK-07 현재 명세 승격/최종 판정은 기획 소유다. 운영과 푸시는 별도 승인이다.
+현재 미실행이다. 대상 직원 한 명의 개인 연결 해제 확인→목록/상세 이메일 제거와 연결 버튼→Google 계정 선택에서 다른 계정 동의→새 계정 표시와 승인된 읽기 전용 확인→다른 직원 연결/접근 범위 불변을 사용자가 확인한다. 취소/실패를 성공으로 표시하지 않는다. 항목별 성공/실패·시각·최소 오류 종류만 남기고 비밀/토큰·메일 본문·실제 이메일을 공개 증거로 요청하지 않는다. 실계정 뒤 TASK-07 현재 명세 승격/최종 판정은 기획 소유다. 푸시는 화면 승인 후 플러그인이 수행한다.
 
-## 왕복13 — 구현 전 동반5파일 대응표
+## 동반5파일의 원본·조립·복구 대응표
 
-아래는 design8판의 구현 경계다. 기존 r4 인계는 역사적 후보이며 운영 미적용이다. 원본 경로의 `hermes/` 아래가 bundle 입력 루트이고 대상은 승인된 임시/운영 루트 상대 경로다. 실제 운영 적용 승인은 추가되지 않았다.
+아래 상대 경로는 검토된 기존 책임 경계다. 현재 실제 소스는 위 왕복16 두 커밋이며 최초 작성 시점의 round13 소스를 배포 기준으로 사용하지 않는다.
 
 | 저장소 원본 | 대상 상대 경로 | 조립·소유 경계 | 복구 단위 |
 |---|---|---|---|
