@@ -1,6 +1,7 @@
 import AppKit
 
 @MainActor func readNoticeTests(outputDirectory:URL?=nil) async throws {
+    try threadDoneTests()
     let home=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer {try? FileManager.default.removeItem(at:home)}
     let store=try LocalStore(directory:home),controller=try testConversation(client:GateClient(store:store,credentials:MemoryCredentials())),model=controller.model

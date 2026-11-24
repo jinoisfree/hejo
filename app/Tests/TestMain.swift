@@ -32,7 +32,11 @@ final class MemoryCredentials: GateCredentialStore {
         Task { @MainActor in
             do {
                 let args = CommandLine.arguments
-                if args.contains("--connection-stuck-probe") {
+                if args.contains("--thread-done") {
+                    try await readNoticeTests()
+                    try await threadToolsTests()
+                    try await typingTests(resourceDirectory:URL(fileURLWithPath:args.last!))
+                } else if args.contains("--connection-stuck-probe") {
                     try await connectionStuckReproduction()
                 } else if args.contains("--connection-stuck") {
                     try await connectionRestartTests(outputDirectory:args.last=="--connection-stuck" ? nil:URL(fileURLWithPath:args.last!))

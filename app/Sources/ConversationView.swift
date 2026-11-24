@@ -978,7 +978,7 @@ import UniformTypeIdentifiers
                 }))
             }
         }
-        let tone=(state.pending != nil ? AttentionRail.color:state.color.flatMap(MessageFormat.color)) ?? (controller.working(thread.key) ? MessageFormat.color("#ECB22E"):messages.lazy.compactMap{ThreadTools.color($0.text)}.first)
+        let tone=(state.pending != nil ? AttentionRail.color:state.color.flatMap(MessageFormat.color)) ?? (controller.working(thread.key) ? MessageFormat.color("#ECB22E"):state.request==nil ? messages.lazy.compactMap{ThreadTools.color($0.text)}.first:nil)
         let target=replyMode && model.selected==thread.key
         let highlighted=messages.contains{$0.id==highlightedMessageID} && (highlightUntil.map{$0>islandModel.now} ?? (drawerSelectedID != nil))
         let now=controller.clock(),copiedLink=copiedID=="link:"+thread.id,copiedText=copiedID=="text:"+thread.id
