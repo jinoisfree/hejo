@@ -1,6 +1,12 @@
 # Google 개인 연결 배포 인계 — design9판 전달 후보
 
-**왕복17 정식 앱 빌드·압축 검증 제출. 운영·실계정 미실행.** checkpoint14 제품과 기존 독립 검토 수용을 유지한다. 사용자는 현재 작업 흐름에서 기존 입력을 사용하는 정식 빌드/서명/압축 검증을 승인했다. 새 앱의 Google 로그인 구성 두 필드 존재와 추출 후 서명·실제 Bundle 안내 조회를 확인했다. 기존 Notion12실패는 원인 미확정 기존 불일치이며 전체 team 성공으로 표시하지 않는다. [구현 보고](impl-report.md)·[작업](tasks.md)을 따른다. 운영 승인·사용자 GD-T19·TASK07·푸시는 남는다.
+**왕복19 지정 시험 통합·지원 식별 갱신 검증 제출.** 고정3adfa6c9의 지정5시험만 통합하고 운영 전체 기준은 고정8bf1ef46에서 재현했다. 관련4파일296경우와 Google/Notion 통합13경우가 통과했고 이전12실패 노드도 각각 통과했다. 실행 제품 코드·앱·검사 강도는 바꾸지 않았다. 최초 전환→전체 bundle 및 거절/CAS/복구 표적7경우도 통과했다. 전체 team 성공을 주장하지 않는다. 전달/복구 후보와 후속 커밋·읽기 전용 시설 대조 결과는 왕복19 최종 증거에 고정하며 실제 운영 적용은 검토 뒤로 남긴다. [구현 보고](impl-report.md)의 왕복19를 따른다.
+
+## 왕복18 사전 검사 결과 — 보존된 중단 증거
+
+고정 manifest와 전달/복구 압축 지문은 일치했다. 그러나 legacy team-kit 식별 `bb999c4c0934d202c01f94da5554584e33d65dd72ce241da841be99c75061da5`에 대해 실제는 `26dbd3ced1ae525f91a2cf5bf62a4c7403f95bfbeadda73036ed5eac352244b2`였다. tests/hna_connections.py·tests/test_hna.py·tests/test_hna_r1.py3개 추가, tests/test_app_scope.py·tests/test_notion.py2개 변경이 전부이며 동반5경로는 같았다. 실제5본문은 후속 Git `8bf1ef46d12aae051b61e07d6632a08a6bb95831`와 일치했다. 현재 고정 전체 식별을 우회하지 않았고 운영 중지 전 반환한다.
+
+사용자가 승인한 대상·메일 신호→gateway 중단 및 역순 재개·조건부 복구 범위는 그대로다. 새 기준/후보 처분이 필요한지 기획·검증에서 판단한 후 그 결과에 맞는 승인 범위를 확인한다. 검사기·지원 선언을 손으로 바꾸거나 테스트 파일을 지워 이 후보를 맞추지 않는다. 작업/인증 유휴 검사는 이 시설 조건을 해소한 실제 재개 시점에 수행한다. 원본 제안의 operationApprovalGranted=false는 작성 당시 상태이며 이후 사용자 승인을 부정하지 않는다.
 
 ## 고정 소스와 전달 지문
 
@@ -31,19 +37,19 @@ Google 전환 후 legacy hejo/kit로 복귀하지 않는다. owner 금고/전용
 
 ## 지원 선언과 전체 bundle 경계
 
-단일 정책 원본은 hejo `install/check_google_compat.py`다. 양쪽 지원 선언은 google-connection-support/1, versions=[1], disconnect_mode=forget_account를 유지한다. legacy.version=1의 고정 기준은 hejo a3df84e48fae8b36c27a572a5ee36247cc46acf3와 team 9488a060e7bf5646af69628b29b34c28cfc18109다. 출처 채택은 운영 승인이 아니다. 지원 선언 producer는 round15-support.py, 최종 값/대조는 round15-support-final.json과 round16-intake.json이다. round13의 옛 predecessor 생산물을 다시 사용하지 않는다.
+단일 정책 원본은 hejo `install/check_google_compat.py`다. 양쪽 지원 선언은 google-connection-support/1, versions=[1], disconnect_mode=forget_account를 유지한다. legacy.version=1의 고정 기준은 hejo a3df84e48fae8b36c27a572a5ee36247cc46acf3와 team 8bf1ef46d12aae051b61e07d6632a08a6bb95831다. 출처 채택은 운영 승인이 아니다. 이번 지원 선언 producer/최종 값은 round19-support.py와 round19-support.json이다. 시험 통합 출처3adfa6c9와 운영 전체 기준8bf1ef46을 구별한다. round13의 옛 predecessor 생산물을 다시 사용하지 않는다.
 
-현재 bundle kit_sha256은 `db43f0d07d74d1ba28f8fbcac4b233474a0c172215c995b07c76b82d76d2184f`다. 지원 선언 자신/캐시를 제외한 kit 본문·모드·내부 링크와 명시적5파일 식별을 확인한다. predecessor는 위 고정 legacy kit 및 기존3파일/부재2경로다. 선언/식별/모드·버전 누락, 섞인 묶음, 외부 링크는 쓰기 전에 거절한다. bundle이 필요한 현재/후보의 kit-only apply/rollback·restore-copies/migrate는 옛 호출자도 거절한다.
+현재 bundle kit_sha256은 `c1b1a81e4dda23858ff0cb84e48432658ae06cf97bbc3e8b9305443d527ef5f0`다. 지원 선언 자신/캐시를 제외한 kit 본문·모드·내부 링크와 명시적5파일 식별을 확인한다. predecessor는 위 고정 legacy kit 및 기존3파일/부재2경로다. 선언/식별/모드·버전 누락, 섞인 묶음, 외부 링크는 쓰기 전에 거절한다. bundle이 필요한 현재/후보의 kit-only apply/rollback·restore-copies/migrate는 옛 호출자도 거절한다.
 
 동일 금고 mutex/모든 영향 gateway 중지 조건에서 전체 stage·사전 검사·CAS·전체 결과 검사를 한다. owner 선택/grant·비관련 필드는 쓰지 않고 선택된 직원의 기존 overlay·links.json·매뉴얼만 기존 조립기로 갱신한다. 임시 stage에는 시설/조립 결과만 있고 owner/토큰 사본은 없다. 실패/중단 stage는 자료 보존 및 재실행 거절의 근거다. 중단 흔적을 지우거나 영수증/링크를 손으로 만들어 통과시키지 않는다.
 
-## 현재 대상과 승인안 — 아직 실행하지 않음
+## 승인 대상과 절차 — 운영 명령 미실행
 
 비밀 제외 시설/전체 홈 조사는 round14-inventory.json·round14-profile-topology.json·round14-provenance.json·round14-baseline-coverage.json을 사용한다. 당시 루트+프로필6개 중 installed 영수증의6링크는 실제와 같고1프로필은 hejo 미설치였다. 적용 직전 전체 홈 집합·기존 링크·installed/applied 영수증·전체 양쪽 시설의 고정 기준 일치 여부를 다시 검사한다. 자동으로 미설치 프로필을 편입하지 않는다. 이후 운영 상태의 불변을 가정하지 않는다.
 
 왕복16에서 기존 gateway/메일 신호 LaunchAgent2개의 **파일 지문만** 검토된 Git 템플릿과 대조해 일치를 확인했다. 실제 label/plist·중지/재개 argv는 ignored round16-metadata.json에 있다. 제안한 새 공유 release/bundle·기존 앱 대상·기록된 홈과 승인 조건은 round17-approval-proposal.json에 고정했으며 아직 승인된 운영 경로가 아니다. launchctl·프로세스/로그 조회·비밀/금고 열람·중지/재시작은 실행하지 않았다. 아래 GATEWAY_LABEL/GATEWAY_PLIST와 MAIL_SIGNAL_LABEL/MAIL_SIGNAL_PLIST는 그 확인된 두 대상만 사용한다. 추가 gateway/인증·메일/문서 worker 또는 예약 실행이 발견되면 임의 종료하지 않고 해당 대상과 중지 방법을 승인 범위에 추가하기 전 멈춘다.
 
-승인 요청은 다음 묶음으로 제시한다.
+왕복18에서 승인된 유지보수 범위는 다음 묶음이다. 시설 기준 불일치로 실행은 중단했다.
 
 1. 기존 설치6링크/실제 전체 홈을 새 **별도** 공유 release 경로로 전환하고 전체 team bundle을 적용한다. 기존 공용 디렉터리의 제자리 교체나 미설치 프로필 추가는 포함하지 않는다. 개인 실제 경로는 ignored 로컬 인계와 승인 화면에서 확인한다.
 2. 진행 중 턴/작업이0이고 인증 작업이 없는 유지보수 창에 기존 앱을 정상 종료하고 메일 신호→gateway 순서로 내린다. 적용/검사 후 gateway→메일 신호 순서로 재개한다. 기존 채널의 수신 서비스 재개와 실제 메시지 발송 시험은 구분하며 고객/Slack 메시지를 보내지 않는다. 허브는 변경·재시작하지 않는다.

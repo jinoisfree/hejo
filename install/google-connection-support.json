@@ -12,8 +12,8 @@
       "sha256": "27fdfaa498dbfd1b5cf8fee3e79bdbbf9fb6b66acffab97a0b5bfc90754fe767"
     },
     "team": {
-      "commit": "9488a060e7bf5646af69628b29b34c28cfc18109",
-      "kit_sha256": "bb999c4c0934d202c01f94da5554584e33d65dd72ce241da841be99c75061da5",
+      "commit": "8bf1ef46d12aae051b61e07d6632a08a6bb95831",
+      "kit_sha256": "26dbd3ced1ae525f91a2cf5bf62a4c7403f95bfbeadda73036ed5eac352244b2",
       "files": {
         "bin/hermes-plugin-store": {
           "sha256": "263ef3e89c18cc473f355800a06961ac51967b1e8768273c50f32022cc4b04b9",
