@@ -2,7 +2,7 @@
 
 ## 현재 판단과 범위
 
-**checkpoint-10 로컬 구현·Terra 독립 검토 통과, 왕복12 전달 준비 중이다.** IR-1은 독립 최종 재검토에서 해소됐다. 검토된 코드와 최신 작업 문서를 로컬 커밋/격리 배포 후보로 고정하는 단계이며 제품 코드를 추가 변경하지 않는다. 운영 승인·사용자 GD-T19·최종 명세 승격·푸시는 미완료다. 운영 설치/apply/재시작·실계정·푸시는 실행하지 않는다.
+**checkpoint-10 로컬 구현·Terra 독립 검토 통과, 왕복12 소스 커밋·배포 후보 준비.** IR-1은 독립 최종 재검토에서 해소됐다. 제품 코드 추가 변경 없이 검토된 코드와 최신 작업 문서를 고정했다. 동반5파일·앱의 운영 적용/복구 절차는 기획/운영 결정으로 남는다. 운영 승인·사용자 GD-T19·최종 명세 승격·푸시는 미완료다. 운영 설치/apply/재시작·실계정·푸시는 실행하지 않는다.
 
 원래 목표는 해당 직원 Google 개인 연결·이메일·전용 자격을 제거하고 다음 연결에서 계정을 선택하는 것이다. 기존 금고 원본과 전용 저장 배치, 공식 도구 4개, gate/AppKit 구현을 보존했다. 본체·ddots·sandbox 정책·운영 비밀 파일·Paseo 상태 JSON·계획/수락 명세 Markdown은 변경하지 않았다. 기존 구현을 유지하며 왕복11에서 인증 시트의 명시적 닫기 동작과 취소된 폴링의 응답 후 보호, 해당 표적 시험을 보완했다. 원래 폴더의 다른 작업도 보존했다. 구현 소유 보고와 [명령 대응표](workspace-command-map.md)만 canonical 폴더에서 관리한다.
 
@@ -13,7 +13,30 @@
 | hejo | `236b0177468b90d9ea23a1b1190e996db78a0694` | `role-workflow/google-disconnect-c20a9994` | `.build/google-disconnect-work/hejo` |
 | 운영 저장소 | `4bbc16ddba02236fe4645ab7244603c44a78af91` | `role-workflow/google-disconnect-c20a9994` | `.build/google-disconnect-work/team` |
 
-경로는 원래 작업 폴더 기준이다. **결과 커밋 없음.** 최신 검토 대상은 `.build/google-disconnect-evidence/source-checkpoint-10.log`의 미커밋 작업 트리다. 두 HEAD/브랜치를 유지하며 hejo29/team65 파일 지문을 기록했다. checkpoint-09 대비 app/Sources/ConnectionsWindow.swift와 app/Tests/ConnectionsTests.swift·TestMain.swift·google_connection_fixture.py 네 파일만 변경했다. team 전체·다른 제품 파일·기존 시험 단언·기본 모드 호출 순서를 보존했다. canonical 계획·수락 명세·독립 리뷰 원본과 다른 작업의 변경은 수정하지 않았다.
+경로는 원래 작업 폴더 기준이다. **아래 표는 구현 전 기준 커밋이다. 결과 소스 커밋은 왕복12 절에 기록했다.** 검토 원본은 `.build/google-disconnect-evidence/source-checkpoint-10.log`의 미커밋 작업 트리다. 두 HEAD/브랜치를 유지하며 hejo29/team65 파일 지문을 기록했다. checkpoint-09 대비 app/Sources/ConnectionsWindow.swift와 app/Tests/ConnectionsTests.swift·TestMain.swift·google_connection_fixture.py 네 파일만 변경했다. team 전체·다른 제품 파일·기존 시험 단언·기본 모드 호출 순서를 보존했다. canonical 계획·수락 명세·독립 리뷰 원본과 다른 작업의 변경은 수정하지 않았다.
+
+## 왕복12 — 로컬 커밋·격리 후보와 운영 인계
+
+[배포 인계](deployment-handoff.md)에 후보 식별자·정확한 명령 템플릿·적용/복구/중단 조건·사용자 GD-T19 체크리스트를 작성했다. 실제 운영 설치/apply/rollback/재시작·실계정·푸시는 미실행이다. 제품/시험 입력은 checkpoint-10과 동일하므로 통과한 전체 suite/UI/빌드를 반복하지 않았다. 기존 AC16행 처분과 Terra 최종 검토를 유지하며 운영/실계정 수락을 완료로 바꾸지 않는다.
+
+| 저장소 | 결과 소스 커밋 | 범위 | 원격 이름 |
+|---|---|---|---|
+| hejo | `78b3634bd50110a0a989146405ee454476a14f62` | 검토된29파일 + 최신 작업/판정/수락 문서13파일 =42 | github |
+| 운영 저장소 | `33d6671993473c0eb7ecb4087e0fe4edebc63050` | 검토된65파일 그대로 | origin |
+
+두 브랜치는 `role-workflow/google-disconnect-c20a9994`다. hejo에는 후속 문서 전용 커밋으로 최종 보고/배포 인계를 추가한다. 산출물의 실행 소스 커밋은 위 값으로 고정하며 후속 문서 HEAD와 구분한다. 후속 문서 커밋의 전체 해시·최종 clean 상태·후보 지문 재독 결과는 `.build/google-disconnect-evidence/delivery-final.json`에 고정한다. 실제 전체 커밋/파일별 SHA-256/argv/cwd/종료 코드/원격 이름은 `.build/google-disconnect-evidence/delivery-commit-{hejo,team}-source.{json,log}` 및 최종 인계 기록에 있다. 실제 원격 URL·개인 경로는 공개 문서에 넣지 않았다.
+
+- `python3 .build/google-disconnect-evidence/delivery-intake.py`: 종료0. 두 HEAD·전체 changed/untracked 집합과 checkpoint-10의94파일 지문 일치, 초기 index 비어 있음·diff --check0, 최신 문서13개의 충돌 없음. 로그 `delivery-intake.json`.
+- `python3 .build/google-disconnect-evidence/close-private.py hejo`: 종료0. 코드/문서 후보19개 intent-to-add를 별도 index에 포함한 전체 공개 검사 통과, 실제 index 불변. 전달 결과는 `delivery-private-hejo-source.{log,json}`로 보존했다. 처음 기존 로그 이름을 재사용한 기록 실수는 전달 로그로 분리하고 기존 승인 로그의 바이트를 기록된 SHA-256과 동일하게 복구했다. `delivery-evidence-path-correction.json`에서 확인한다.
+- `python3 .build/google-disconnect-evidence/delivery-commit-source.py team` 및 `... hejo`: 각각 종료0. 작업 범위만 명시적으로 stage하고 staged blob 지문·파일 집합/diff --check 확인 후 로컬 커밋했다. 운영 저장소의 기존 사전 커밋 hook은 snapshot airport-check를 실행해 boundary80/document0/compartments0 PASS. 검사기나 baseline을 완화하지 않았다. 두 worktree는 소스 커밋 직후 clean이다.
+- 최초 `python3 .build/google-disconnect-evidence/delivery-artifacts.py`: 종료1. Git archive 내부의 기존 team-kit symlink를 일괄 거절한 준비 드라이버의 보수적 조건에 걸렸다. hejo release 자체는 종료0이며 운영 출력은 없었다. 실패 산출물/로그 `delivery-artifacts.log`는 보존하고 사용 후보로 지정하지 않았다.
+- `python3 .build/google-disconnect-evidence/delivery-artifacts-02.py`: 종료0. 별도 새 디렉터리에서 실제 hejo-release, 고정 커밋의 제한 경로 git archive, 내부 symlink 경계 검사, hejo/team 지원 build 검사, 기존 앱 입력/실행 파일 지문 일치·원본/복사본 codesign strict 검증, 패키지/트리 지문을 기록했다. 로그 `delivery-artifacts-02.log`, 파일별 원본 `delivery-artifacts.json`.
+
+- `python3 .build/google-disconnect-evidence/delivery-private-final.py hejo` 및 `... canonical`: 각각 종료0. 최종 배포 인계/보고를 포함한 전체 공개 검사 통과, 실제 index 불변. hejo의 새 문서1개와 canonical 후보14개를 각각 별도 index에 포함했다. 로그 `delivery-private-final-{hejo,canonical}.{log,json}`. 후보14개 Markdown의 로컬 링크는 누락0이다. 이후 이 결과 기록만 보고에 추가하며 커밋 직전 최종 변경 범위를 다시 확인한다.
+
+후보 ID는 `78b3634bd501-33d667199347-r2`다. hejo release45파일/team616파일/app98파일의 본문 지문과 내부 링크/모드를 보존했다. team 후보에는 team-kit 밖 동반5파일도 포함했다. 현재 배포 명령은 이5파일을 설치하지 않으므로 **운영 적용/복구 단위 미확정**을 발견했다. 기존 선택/승인을 보존하는 설치 절차와 앱 운영 배포 구성·설치 대상, 현재 설치 검사기/호환 복구 묶음을 기획/운영 담당이 먼저 확정해야 한다. 이를 이유로 새 installer·무검사 복사·제품 변경을 임의 도입하지 않았다.
+
+앱은 `HEJO_SKIP_GOOGLE_SECRET=1`, `HEJO_SPARKLE_OFFLINE=1`의 기존 검증 빌드다. 비밀 없는 로컬 후보이며 운영용 공유 Google 로그인/업데이트 구성을 완성한 배포본으로 주장하지 않는다. 전체 운영 적용 승인 요청은 이 경계 처분 뒤이며 GD-T19는 사용자 직접 실행, 최종 명세 승격은 기획 소유다.
 
 ## 이전 왕복11 — IR-1 실제 사용자 창 닫기 보완
 
@@ -315,13 +338,13 @@ team의 기존 상위 conftest는 운영과 같은 값의 명부/금고 fixture�
 | REQ-GD-03.AC-03 | GD-T10: 권한/배경·단건/계획 승인·저장 대기·메일/Calendar undo의 옛 binding 거절. 이번 Calendar 회귀 보완 |
 | REQ-GD-04.AC-01 | GD-T11/12: 기존 인증 저장 단계 프로세스 종료·CAS/lease, 이번 복구 삽입/잠금 경합·I/O 복구. 배포 강제 종료 자동 복구는 위 한계 |
 | REQ-GD-04.AC-02 | GD-T03/13: 단일 금고 원본·조립, absent/null/손상/unknown 분기와 읽기 무변경. 수준2 증거 |
-| REQ-GD-04.AC-03 | GD-T14: 직접 Google undo 거절·각 배포 진입점·실제 release 설치/갱신/복구·R10/7판 예외. 124 통과 증거, 고위험 검토 필요 |
-| NFR-GD-01.AC-01 | GD-T15/20: 기존 권한/경로·도구 보호 증거 유지. 승인된 공개 값 정리와 최신 격리/canonical 전체 검사0. Terra 독립 검토 제출 후 IR-1 재검토 대기 |
+| REQ-GD-04.AC-03 | GD-T14: 직접 Google undo 거절·각 배포 진입점·실제 release 설치/갱신/복구·R10/7판 예외. 124 통과 증거와 Terra 독립 검토 수용. 실제 운영 검증은 별도 |
+| NFR-GD-01.AC-01 | GD-T15/20: 기존 권한/경로·도구 보호 증거 유지. 승인된 공개 값 정리와 최신 격리/canonical 전체 검사0. Terra checkpoint-10 최종 재검토에서 IR-1 해소 |
 | NFR-GD-02.AC-01 | GD-T16: 임시 홈/가짜 데이터·외부 API 금지, 82+156+2와 gate87/설치124. 기존 hejo 전체522·후속13fixture 증거 유지. 이번 기본9/불완전 응답/Google 시트 통과. GUI 준비 후 원본 연결 전체·연결 관리 종료0, 기존 HC27/CM35 실패 해소. 전체 team 범위 제한 남음 |
-| REQ-GD-05.AC-01 | GD-T17/18: 앞선 화면 증거 유지. 왕복11의 노출된 창 닫기 버튼·전송 불가/재열기·늦은 응답 보호와 기존 취소 회귀 통과. 실제 늦은 poll 안내 결함 수정. Terra 잔여 IR-1 재검토 대기, GD-T19 별개 |
+| REQ-GD-05.AC-01 | GD-T17/18: 앞선 화면 증거 유지. 왕복11의 노출된 창 닫기 버튼·전송 불가/재열기·늦은 응답 보호와 기존 취소 회귀 통과. 실제 늦은 poll 안내 결함 수정. Terra checkpoint-10 최종 재검토에서 IR-1 해소, GD-T19 별개 |
 | REQ-GD-05.AC-02 | GD-T19: 미실행. 별도 운영 인계 승인 뒤 사용자가 실계정 교체와 다른 직원 불변을 확인해야 함 |
 
-요구된 네 결함 주입은 아래 별도 격리 실행으로 확인했다. 고위험 독립 검토·최종 제품 검토·현재 명세 반영·운영 적용/사용자 OAuth/화면 푸시 승인은 이 제출로 완료되지 않는다. 기획/검토 담당이 공개 검사/UI 최신 증거와 나머지 증거 한계를 처분한 뒤 TASK-06 운영 인계를 준비한다. 구현자는 운영/푸시를 실행하지 않는다.
+요구된 네 결함 주입은 아래 별도 격리 실행으로 확인했다. 고위험 Terra 독립 검토는 checkpoint-10에서 수용됐으며 최종 제품 수락·현재 명세 반영·운영 적용/사용자 OAuth/화면 푸시 승인은 미완료다. 기획/검토 담당이 공개 검사/UI 최신 증거와 나머지 증거 한계를 처분한 뒤 TASK-06 운영 인계를 준비한다. 구현자는 운영/푸시를 실행하지 않는다.
 
 
 ## 최종 추가 증거
