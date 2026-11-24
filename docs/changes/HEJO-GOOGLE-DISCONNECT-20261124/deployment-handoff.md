@@ -1,4 +1,4 @@
-# Google 개인 연결 배포 인계 — design9판 전달 후보
+# Google 개인 연결 배포 인계 — design10판 전달 후보
 
 **왕복21 design10 구현·격리 검증 제출.** 검증된 LegacyUpgrade에서만 고정 생산자의 만료 disconnect/applied 장부를 읽기 전용으로 인정한다. 명시적 off·생산 형식·600초 만료·전환/자격/worker 부재·장부/config CAS와 시계 역행을 검사하고 일반 first/recovery의 거절은 유지했다. 최종 표적85경우(격리 변이9개 포함)가 통과했고 영향 설치/배포 회귀204경우도 통과했다. 운영 장부·앱·서비스는 변경하지 않았다. 새 후보의 Terra 독립 검토가 선행 조건이며 기존 운영 승인 범위는 유지한다.
 
@@ -16,7 +16,7 @@ LegacyUpgrade에서만 고정 생산자의 만료 완료 해제를 판정한다.
 
 ## 왕복18 사전 검사 결과 — 보존된 중단 증거
 
-이 절은 당시 중단 기록이며 현재 기준/후보는 왕복19 절과 소스 표를 따른다.
+이 절은 당시 중단 기록이며 현재 기준/후보는 왕복21 절과 소스 표를 따른다.
 
 고정 manifest와 전달/복구 압축 지문은 일치했다. 그러나 legacy team-kit 식별 `bb999c4c0934d202c01f94da5554584e33d65dd72ce241da841be99c75061da5`에 대해 실제는 `26dbd3ced1ae525f91a2cf5bf62a4c7403f95bfbeadda73036ed5eac352244b2`였다. tests/hna_connections.py·tests/test_hna.py·tests/test_hna_r1.py3개 추가, tests/test_app_scope.py·tests/test_notion.py2개 변경이 전부이며 동반5경로는 같았다. 실제5본문은 후속 Git `8bf1ef46d12aae051b61e07d6632a08a6bb95831`와 일치했다. 현재 고정 전체 식별을 우회하지 않았고 운영 중지 전 반환한다.
 
@@ -26,26 +26,26 @@ LegacyUpgrade에서만 고정 생산자의 만료 완료 해제를 판정한다.
 
 | 저장소 | 전달 실행 소스 커밋 | 브랜치 | 원격 이름 |
 |---|---|---|---|
-| hejo | `1daf09e086afcf2b2b415cae8ab32b2af4c6fcc8` | role-workflow/google-disconnect-c20a9994 | github |
+| hejo | `632d0907d0dd2ccf665ecedb8fef268d157d5d5d` | role-workflow/google-disconnect-c20a9994 | github |
 | 운영 저장소 | `0f0ab1fd489574a122323bc5c55d1c1fe0e3a4f2` | role-workflow/google-disconnect-c20a9994 | origin |
 
-왕복16 이후 이번에 hejo7/team6파일을 후속 소스 커밋했다. 구현 전 기준 대비 최종 범위는 hejo54/team93파일이다. checkpoint16의 실행 제품은 그대로이고 지정 시험5개·지원 선언2개 및 최신 작업 문서를 갱신했다. 실제 소스/문서 범위는 round19-closure.json을 따른다. 새 앱의 빌드 소스 커밋은 `ac4643abdbe05be788ebbb31ece600cd808cf8de`이며 빌드 당시 clean이었다. 최신 검토 문서와 이 인계/구현 보고를 담는 후속 문서 커밋은 실행 소스와 구분하며 전체 HEAD·파일별 지문·clean 상태는 `.build/google-disconnect-evidence/round19-closure.json`에 고정한다. 실제 경로와 명령·환경은 ignored 증거에만 둔다.
+checkpoint17 대비 hejo 정책1개·새 시험3개 및 최신 작업 문서를 후속 로컬 커밋했다. 전체 집합은 hejo57/team93파일이고 team 제품/지원 선언/앱 입력은 불변이다. 후속 문서 HEAD·전체 지문·clean은 round21-closure.json/source-checkpoint-18.log를 따른다. 앱 소스는 ac4643abdbe05be788ebbb31ece600cd808cf8de이며 재빌드/재서명하지 않았다.
 
-후보 디렉터리는 `.build/google-disconnect-delivery/1daf09e086af-0f0ab1fd4895-round19`이며 운영 경로에서 사용하지 않았다. hejo/team 압축은 이번 고정 소스에서 실제 release/전체 bundle을 새로 조립해 본문·모드·내부 링크 압축 왕복과 지원 선언 검사를 통과했다. 정식 앱만 이전 압축을 그대로 재사용했다. 이전 후보는 변경하지 않았다. manifest SHA-256은 `608770d33dbf3e10e2b6969ddb2359f072f1e65897541d5ac225ca7c48fbad9e`다.
+후보 `.build/google-disconnect-delivery/632d0907d0dd-0f0ab1fd4895-round21`는 운영 경로에서 사용하지 않았다. 새 hejo release를 실제 조립/압축 왕복·지원 검사했고 team/정식 앱은 기존 불변 압축을 재사용했다. manifest SHA-256은 `fbf7a23dcf3092a1f3b71be9499fbd3d1a0aab85bf1049c331b6e20df4849946`다. 현재 CONFIG reader 의존성은 기존 실행 Python/core에서 가짜 문서 import 검사로 확인했다. 값/비밀/전체 환경은 기록하지 않았고 필요한 선별 경로는 ignored 승인안에만 둔다.
 
 | 구성 | 파일 | SHA-256 |
 |---|---|---|
-| hejo | `hejo.tar.gz` | `c2188f6655ad2c8f771e337abfe446de5e67c724a293953a7443341806b967ad` |
+| hejo | `hejo.tar.gz` | `3e10a90d3e82d9bab55ae37532e8dc81058a2fd980a0735d675cd53cbfd284f0` |
 | team-bundle | `team-bundle.tar.gz` | `6de657604c67900add03aa262fb457bcca4b24986fe0cc609c2955842362be15` |
 | hejo.app | `hejo.app.tar.gz` | `0ef168c84e8109755c6cc2aeca4e82495a8b86855948b8a597a5d76ccc8211fa` |
 
 위 hejo/bundle은 작업 트리/운영 설치를 참조하지 않는 압축본이다. 앱은 왕복17의 clean 커밋에서 기존 app/scripts/build.sh로 빌드한 정식 압축본을 바이트 그대로 재사용했다. 이번에는 재빌드/재서명하지 않았다. 빌드에서는 HEJO_SKIP_GOOGLE_SECRET를 제거했고 기존 고정 Sparkle 의존성을 재사용했다. 원래 작업 폴더의 기존 config/google-oauth-secret.json을 빌드 도구가 소비해 자식 빌드 환경으로만 전달했다. 자격 파일을 격리 worktree에 복사하거나 비밀/전체 환경·Info.plist 원문을 출력하지 않았다.
 
-왕복17에서는 app/Tests/test_help_package.py를 **--verify-existing --artifact-out <새 ignored 후보>**로 실행했다. 기본 모드/비밀 제외 재빌드는 실행하지 않았다. 시험 전후 실행 파일·Info.plist 파일 지문은 같고 추출본의 Google 두 필드도 존재했다. strict deep 서명·실제 HooksHelp Bundle 안내 조회·원문 본문 일치가 통과했다. 내장 BuildInfo는 빌드 당시 clean tree 식별을 가지며 두 필드의 실제 값은 보고하지 않는다. 실행 명령·종료 코드·소스 입력/산출물 지문은 round17-build.json/log·round17-package.log·round17-artifacts.json에 있다. 이번 동일성/재사용·패키지 검증은 round19-package.log와 round19-artifacts.json에 있다.
+왕복17에서는 app/Tests/test_help_package.py를 **--verify-existing --artifact-out <새 ignored 후보>**로 실행했다. 기본 모드/비밀 제외 재빌드는 실행하지 않았다. 시험 전후 실행 파일·Info.plist 파일 지문은 같고 추출본의 Google 두 필드도 존재했다. strict deep 서명·실제 HooksHelp Bundle 안내 조회·원문 본문 일치가 통과했다. 내장 BuildInfo는 빌드 당시 clean tree 식별을 가지며 두 필드의 실제 값은 보고하지 않는다. 실행 명령·종료 코드·소스 입력/산출물 지문은 round17-build.json/log·round17-package.log·round17-artifacts.json에 있다. 이번 동일성/재사용·패키지 검증은 round21-package.log와 round21-artifacts.json에 있다.
 
 ### 호환 복구 후보
 
-`recovery/`에는 위 세 압축본과 바이트가 같은 별도 사본을 고정했다. recovery/manifest.json SHA-256은 `7a339e1ebc61e99fcd07256bbe25562c9a2d0eb5442d0c4c1767606bb9261702`다. 현재 지원되는 전체 시설 코드와 같은 정식 구성 앱의 재설치/복원을 위한 후보이며 이전 기능 버전으로 되돌리는 후보가 아니다. 본문·모드·링크·지원 선언이 같은 세 파일을 함께 확인한다. 더 오래된 지원 버전의 별도 운영 복귀 후보는 검토·고정하지 않았다.
+`recovery/`에는 위 세 압축본과 바이트가 같은 별도 사본을 고정했다. recovery/manifest.json SHA-256은 `2d096b66b0262a863daa9f78fb1a1f78a7d47291047d061eedb8e7ad5e510cfa`다. 현재 지원되는 전체 시설 코드와 같은 정식 구성 앱의 재설치/복원을 위한 후보이며 이전 기능 버전으로 되돌리는 후보가 아니다. 본문·모드·링크·지원 선언이 같은 세 파일을 함께 확인한다. 더 오래된 지원 버전의 별도 운영 복귀 후보는 검토·고정하지 않았다.
 
 Google 전환 후 legacy hejo/kit로 복귀하지 않는다. owner 금고/전용 자격/직원 선택/권한의 사본은 후보에 없고 과거로 복원하지 않는다. 실제 설치의 지원·입력·stage가 불확실하면 같은 지원 버전이라는 이유로 강제 덮어쓰지 않는다. 현재 검사기가 검증할 수 있는 정상 상태에서만 아래 복구 명령을 사용한다. 앱 운영 구성을 다시 빌드하면 새 앱 파일을 전달/복구 양쪽에 함께 고정하고 새 지문·서명을 재검토한다.
 
@@ -83,6 +83,10 @@ round19-readonly.py는 새 manifest/전달/복구 지문과 새 소스 커밋을
 이 결과는 필드 존재와 전달 무결성의 증거다. 실제 Google 앱 로그인 성공·허브 client ID/audience 일치·원격 OAuth 정책·직원 Google 동의는 검증하지 않았다. 앱 로그인과 직원 Workspace 연결은 서로 다른 기존 경로다. 운영 적용 후 별도 승인된 최소 로그인 확인과 사용자 GD-T19가 필요하다. 구성 존재를 실제 인증 성공으로 표시하지 않는다.
 
 업데이트 저장소 선언·ED 공개키·Sparkle framework·서명 feed/추출 전 검증 조건은 유지됐다. HEJO_SPARKLE_OFFLINE=1은 고정 의존성 다운로드만 막으며 updater를 끄지 않는다. Sparkle 자체 자동 확인/자동 설치 plist 값은 false이고 앱의 기존 UpdateRelease/AppUpdate 경로는 유지한다. 실제 원격 feed 조회·새 업데이트 릴리스 게시/다운로드·실계정은 이번에 실행하지 않았다. 기존 서비스/앱 교체·재개는 기존 승인 범위와 갱신 후보 검토 결과에 따른 재개 지시 후 진행한다.
+
+## 왕복21 비밀 제외 실제 시설 대조
+
+round21-readonly.py 종료0: 전체 고정 legacy hejo/team·동반5경로·전체7홈·정상 영수증/6링크·서비스 plist2개가 일치했다. 실제 금고/장부/config의 새 의미 판정·작업/인증 유휴·gateway/worker 중지 상태는 확인하지 않았다. 현재 상태 승인이나 전환 성공으로 표시하지 않는다. 새 승인안은 ignored round21-approval-proposal.json이며 실제 대상은 기존 승인 범위 그대로이고 새 release/bundle/recovery 경로 식별만 바뀐다. 새 정책 독립 검토와 실행 시점 조건 재확인 후 기존 승인 범위에서 재개 여부를 판단한다. 이번에는 운영 쓰기/서비스/앱/실계정을 실행하지 않았다.
 
 ## 승인 후 적용 명령과 단계별 중단
 

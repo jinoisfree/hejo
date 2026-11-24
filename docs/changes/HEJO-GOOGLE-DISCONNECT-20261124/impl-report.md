@@ -13,7 +13,7 @@
 | hejo | `236b0177468b90d9ea23a1b1190e996db78a0694` | `role-workflow/google-disconnect-c20a9994` | `.build/google-disconnect-work/hejo` |
 | 운영 저장소 | `4bbc16ddba02236fe4645ab7244603c44a78af91` | `role-workflow/google-disconnect-c20a9994` | `.build/google-disconnect-work/team` |
 
-경로는 원래 작업 폴더 기준이다. 위 표는 구현 전 기준이며 현재 시설 실행 소스는 hejo `1daf09e086afcf2b2b415cae8ab32b2af4c6fcc8`, team `0f0ab1fd489574a122323bc5c55d1c1fe0e3a4f2`다. 앱 소스/압축은 왕복17의 hejo ac4643abdbe05be788ebbb31ece600cd808cf8de 그대로다. 기존 커밋을 수정하지 않고 후속 커밋했다. 최종 범위는 hejo54/team93파일이며 checkpoint16 대비 제품 로직/단일 검사기·허용 경로/앱은 불변, 지정5시험과 지원 선언2개 및 작업 문서만 갱신했다. 후속 문서 HEAD/clean·최종 파일별 지문은 round19-closure.json과 source-checkpoint-17.log에 고정한다.
+경로는 원래 작업 폴더 기준이다. 위 표는 구현 전 기준이며 현재 시설 실행 소스는 hejo `632d0907d0dd2ccf665ecedb8fef268d157d5d5d`, team `0f0ab1fd489574a122323bc5c55d1c1fe0e3a4f2`다. 앱 소스/압축은 왕복17의 hejo ac4643abdbe05be788ebbb31ece600cd808cf8de 그대로다. 기존 커밋을 수정하지 않고 후속 커밋했다. 최종 범위는 hejo57/team93파일이며 checkpoint17 대비 정책1개·새 시험3개와 최신 작업 문서만 갱신했다. 후속 문서 HEAD/clean·최종 파일별 지문은 round21-closure.json과 source-checkpoint-18.log에 고정한다.
 
 ## 왕복21 — LegacyUpgrade 전용 완료 disconnect 판정
 
@@ -39,6 +39,14 @@
 새 공개 파일은 `tests/acceptance/test_google_legacy_disconnect.py`, `tests/acceptance/test_google_legacy_disconnect_edges.py`, `tests/acceptance/test_google_legacy_disconnect_mutations.py`다. 고정 legacy hejo/team 기준과 지원 버전/일반 허용 경로는 같으므로 지원 선언 본문은 불변이다. 새 검사기는 새 hejo release/소스·시설 지문으로 식별한다. team bundle/정식 앱은 기존 불변 압축을 재사용한다. 로컬 소스 커밋과 갱신 후보·호환 복구 manifest/파일 지문은 round21-commit-hejo.json·round21-artifacts.json 및 [배포 인계](deployment-handoff.md)에 후속 고정한다.
 
 [미실행] 운영 장부/설정/코드 변경·새 운영 staging·앱 종료/재빌드/교체·서비스 중단/재개·실계정·메시지·푸시. 일반 검사기로 왕복20 applied 장부를 재검사하면 여전히 거절되는 것이 의도다. 새 정책의 LegacyUpgrade 전용 판정을 적용하는 실행 절차와 실제 최신 상태는 새 후보 독립 검토 뒤 확인한다. 기존 운영 승인 범위는 그대로이며 이번 보완은 실행 승인이 아니다. GD-T19·TASK07·최종 판정은 남는다.
+
+### 왕복21 전달 고정과 미실행 범위
+
+hejo 실행 소스는 `632d0907d0dd2ccf665ecedb8fef268d157d5d5d`이며 team은 `0f0ab1fd489574a122323bc5c55d1c1fe0e3a4f2`를 그대로 재사용했다. 앱 clean 소스/압축도 왕복17과 같다. 고정 후보는 `.build/google-disconnect-delivery/632d0907d0dd-0f0ab1fd4895-round21`이며 manifest SHA-256은 `fbf7a23dcf3092a1f3b71be9499fbd3d1a0aab85bf1049c331b6e20df4849946`, 동일 지원 전체 복구 manifest SHA-256은 `2d096b66b0262a863daa9f78fb1a1f78a7d47291047d061eedb8e7ad5e510cfa`다. 새로운 hejo release의 압축 SHA는 `3e10a90d3e82d9bab55ae37532e8dc81058a2fd980a0735d675cd53cbfd284f0`, 시설 tree SHA는 `667e96a1e20a00301e9901c12fb63f2b5c1081ffa5cb8171cd5eee091fc327bc`다. 실제 release·압축 본문/모드/내부 링크 왕복·지원 검사는 round21-package.py 종료0이었다. team/app 압축은 왕복19와 바이트가 같고 추출 앱 strict deep 서명도 종료0이다. 전체 복구 세 사본의 지문도 같다. 이전 후보와 실패 로그를 보존했다.
+
+고정 기준의 지원 선언2개·team 전체93파일·앱 입력은 불변이다. 이번 hejo 전체 집합은57파일이며 실행 정책/새 시험3개와 최신 문서 외 변경은 없다. 새 소스 커밋의 범위·stage blob·diff 검사와 공개 검사 결과는 round21-commit-hejo.json/log 및 round21-private-source-hejo.json/log에 있다. team은 수정/새 커밋이 없으므로 기존 동일 commit의 airport-check snapshot 증거를 유지하고 무변경 전체 검사를 반복하지 않았다.
+
+round21-readonly.py 종료0으로 비밀 제외 실제 전체 legacy 시설·동반5경로·7홈·정상 영수증/6링크·checker 부재·서비스 plist2개 일치를 재확인했다. 운영 금고/장부/config의 새 판정이나 현재 인증/작업 유휴 확인은 이번에 실행하지 않았다. 고정 코드 출처 일치만 확인했으며 실제 전환 자격·재개 준비 완료는 아니다. 기존 실행 Python과 기존 core의 CONFIG reader 가용성만 가짜 문서로 확인했고 새 의존성/비밀 입력을 설치하거나 읽지 않았다. 실제 대상/선별 환경/명령과 동일 유지보수 범위의 새 승인안은 ignored round21-approval-proposal.json에 있다. 새 정책 Terra 재검토 전 운영을 재개하지 않는다. 최종 보고2개 및 최신14문서·두 HEAD/clean·변경 지문은 후속 문서 커밋과 source-checkpoint-18.log·round21-closure.json에 고정한다. 실계정 GD-T19·TASK07·푸시는 미완료다.
 
 ## 왕복20 — 운영 유휴 검사에서 기존 해제 장부 거절
 
@@ -658,9 +666,9 @@ team의 기존 상위 conftest는 운영과 같은 값의 명부/금고 fixture�
 
 ## 전체 변경 파일
 
-현재 원본은 source-checkpoint-13.log다. 아래는 원래 구현 전 기준부터 현재 작업 트리까지의 전체 집합(문서 포함)이며, HEAD 위의 미커밋 집합과 구분한다. 지정 Git 통합/기존 구현/최초 전환/문서의 변경 이유는 위 책임 설명을 따른다.
+현재 원본은 source-checkpoint-18.log다. 구현 전 기준부터 현재까지의 전체 집합이며 후속 문서 커밋과 실행 소스를 구분한다.
 
-hejo (54개):
+hejo (57개):
 
 - `app/Sources/ConnectionModels.swift`
 - `app/Sources/ConnectionsWindow.swift`
@@ -715,9 +723,12 @@ hejo (54개):
 - `tests/acceptance/test_google_deployment.py`
 - `tests/acceptance/test_google_disconnect.py`
 - `tests/acceptance/test_google_legacy.py`
+- `tests/acceptance/test_google_legacy_disconnect.py`
+- `tests/acceptance/test_google_legacy_disconnect_edges.py`
+- `tests/acceptance/test_google_legacy_disconnect_mutations.py`
 - `tests/acceptance/test_google_release.py`
 
-team (88개):
+team (93개):
 
 - `hermes/bin/hermes-plugin-store`
 - `hermes/bin/hermes-skill-assemble`
@@ -800,10 +811,15 @@ team (88개):
 - `hermes/plugin-store/team-kit/tests/google_disconnect/test_skill_boundary.py`
 - `hermes/plugin-store/team-kit/tests/google_disconnect/test_workspace.py`
 - `hermes/plugin-store/team-kit/tests/google_disconnect/test_workspace_assembly.py`
+- `hermes/plugin-store/team-kit/tests/hna_connections.py`
 - `hermes/plugin-store/team-kit/tests/test_app_catalog.py`
 - `hermes/plugin-store/team-kit/tests/test_app_registry.py`
+- `hermes/plugin-store/team-kit/tests/test_app_scope.py`
 - `hermes/plugin-store/team-kit/tests/test_error_digest.py`
 - `hermes/plugin-store/team-kit/tests/test_files.py`
 - `hermes/plugin-store/team-kit/tests/test_hejo_session_proof.py`
+- `hermes/plugin-store/team-kit/tests/test_hna.py`
+- `hermes/plugin-store/team-kit/tests/test_hna_r1.py`
+- `hermes/plugin-store/team-kit/tests/test_notion.py`
 - `hermes/plugin-store/team-kit/tests/test_owner_provenance_hejo.py`
 - `hermes/shared/secretary-skills/employee-google-workspace/SKILL.md`
