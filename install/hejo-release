@@ -5,12 +5,20 @@
 set -euo pipefail
 source="$(cd "$(dirname "$0")/.." && pwd)"
 target="${1:-$(cd ~/.. && pwd)/Shared/hejo}"
+# An in-place shared replacement cannot prove that every linked member home
+# has been checked. Prepare an immutable new release, then use hejo-install.
+if [[ -e "$target" ]] && [[ -n "$(ls -A "$target")" ]]; then
+  printf 'RELEASE_REFUSED existing shared output; prepare a new release directory\n' >&2
+  exit 1
+fi
+python="${HEJO_PYTHON:-python3}"
+"$python" -I -B "$source/install/check_google_compat.py" --component hejo --target "$source" --validate-build
 mkdir -p "$target"
-rsync -a --delete --exclude '__pycache__' --exclude 'gate/tests' --exclude '*.pyc' \
+rsync -a --delete --exclude '__pycache__' --exclude 'gate/tests' --exclude '*.pyc' --exclude '/config/*secret*' \
   "$source/gate" "$source/hub" "$source/schemas" "$source/config" "$source/install" "$target/"
 [[ -f "$source/LICENSE" ]] && cp "$source/LICENSE" "$target/"
 git -C "$source" rev-parse HEAD > "$target/RELEASE" 2>/dev/null || true
-rm -f "$target/config/"*secret*
 chmod -R u=rwX,go=rX "$target"
 chmod 755 "$target/install/hejo-install" "$target/install/hejo-hub" "$target/install/hejo-release" "$target/install/hejo-join" "$target/install/hejo-hub-run" "$target/install/get-hejo"
+"$python" -I -B "$source/install/check_google_compat.py" --component hejo --target "$target" --validate-build
 printf 'RELEASED %s\n' "$target"

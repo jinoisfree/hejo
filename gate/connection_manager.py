@@ -5,6 +5,7 @@ import json
 import logging
 from pathlib import Path
 import re
+import time
 import uuid
 from urllib.parse import quote
 
@@ -14,7 +15,7 @@ from .connection_runtime import ActionJournal, RestartJobs, TeamKit, runtime_sna
 log = logging.getLogger(__name__)
 
 DEVICE_PROVIDERS={'nous','openai-codex','minimax-oauth','xai-oauth'}
-PUBLIC_KEYS={'schema','checked_at','agents','profile','display_name','connections','id','service','label','reason','group','state','account','scope','reconnect','capabilities','rules','connect_kind','verified_by','expires_at','actions','primary','action','outcome','check','results','saved_names','restart_required','undo_until','url','instruction','fields','guide','n','text','open_url','copy','image','field','pattern','message','secure','last_restart_at','connected','missing','next','kind','steps','needs_user','hint','pane','target','resume_key','options','disabled','multi','needs_default','other_account','account_settings','input_error','app','role_hint','bundle_id','name','scanned_at','apps','features','applescript','app_intents','url_schemes','links','route','can_do','available','tools','connection_key','progress','connected','connectable','unavailable','server_path','mac_path','status','session_id','user_code','verification_url','poll_interval','expires_in','job','select_all','selected','scope','value','required','unread','part','hidden_by_default','settings','step','committed'}
+PUBLIC_KEYS={'disconnect_mode','schema','checked_at','agents','profile','display_name','connections','id','service','label','reason','group','state','account','scope','reconnect','capabilities','rules','connect_kind','verified_by','expires_at','actions','primary','action','outcome','check','results','saved_names','restart_required','undo_until','url','instruction','fields','guide','n','text','open_url','copy','image','field','pattern','message','secure','last_restart_at','connected','missing','next','kind','steps','needs_user','hint','pane','target','resume_key','options','disabled','multi','needs_default','other_account','account_settings','input_error','app','role_hint','bundle_id','name','scanned_at','apps','features','applescript','app_intents','url_schemes','links','route','can_do','available','tools','connection_key','progress','connected','connectable','unavailable','server_path','mac_path','status','session_id','user_code','verification_url','poll_interval','expires_in','job','select_all','selected','scope','value','required','unread','part','hidden_by_default','settings','step','committed'}
 
 
 def public(value, secrets=()):
@@ -241,8 +242,22 @@ class Connections:
         profile,connection,verb=frame['profile'],frame['connection'],frame['action']
         if profile not in self.profiles():return {'outcome':'refused','reason':'UNKNOWN_PROFILE'}
         if verb=='job_status':return self.jobs.result(connection,device)
-        if verb=='oauth_poll':
+        if verb in {'oauth_poll','account_cancel'}:
             owned=self.sessions.get(connection)
+            if isinstance(owned,dict):
+                if (owned.get('device'),owned.get('profile'),owned.get('connection')) != (device,profile,'google-personal'):
+                    return {'outcome':'refused','reason':'UNKNOWN_JOB'}
+                command='account_cancel' if verb=='account_cancel' else 'account_status'
+                result=await self.team.run(command,profile=profile,connection='google-personal',options={'session':owned['job']})
+                expired=time.monotonic()>=owned['expires']
+                pending=result.get('outcome')=='pending' and not expired
+                if not pending:self.sessions.pop(connection,None)
+                if verb=='account_cancel':
+                    self.audit.append(device=device,profile=profile,connection='team:google-personal',action=verb,outcome=result.get('outcome','failed'))
+                    return public(result)
+                return {'status':'pending' if pending else 'approved' if result.get('outcome')=='done' else 'error',
+                        'reason':'TIMEOUT' if expired else result.get('reason','CHECK_FAILED')}
+            if verb=='account_cancel':return {'outcome':'refused','reason':'UNKNOWN_JOB'}
             if not owned or owned[:2]!=(device,profile):return {'outcome':'refused','reason':'UNKNOWN_JOB'}
             provider=owned[2]
             if provider.startswith('team:'):
@@ -253,6 +268,8 @@ class Connections:
             return {'outcome':'refused','reason':'reauth_required'}
         values=frame.get('values',{})
         if not isinstance(values,dict) or len(json.dumps(values).encode())>MAX_VALUES_BYTES:return {'outcome':'refused','reason':'FORMAT_INVALID'}
+        if connection=='team:google-personal' and verb=='account_disconnect' and values.get('disconnect_mode')!='forget_account':
+            return {'outcome':'refused','reason':'UPDATE_REQUIRED'}
         # Fresh authoritative actions, not a client-supplied command list.
         await self.document(profile)
         item=next((r for r in self.documents[profile]['connections'] if r['id']==connection),None)
@@ -306,6 +323,24 @@ class Connections:
             restart=(lambda:self.team.run('gateway_restart')) if self.team.available else None
             return await self.jobs.start(device,profile,restart=restart)
         if kind=='team':
+            if name=='google-personal' and verb in {'account_connect','account_disconnect','oauth_connect'}:
+                if verb=='account_disconnect' and values.get('disconnect_mode')!='forget_account':
+                    return {'outcome':'refused','reason':'UPDATE_REQUIRED'}
+                command='account_connect' if verb=='oauth_connect' else verb
+                options={'disconnect_mode':'forget_account'} if verb=='account_disconnect' else None
+                result=await self.team.run(command,profile=profile,connection=name,options=options)
+                for sid,owned in list(self.sessions.items()):
+                    if isinstance(owned,dict) and owned.get('profile')==profile and owned.get('connection')==name:
+                        self.sessions.pop(sid,None)
+                if command=='account_connect' and result.get('outcome')=='pending':
+                    job=result.get('session_id')
+                    if not isinstance(job,str) or not job or len(job)>128:raise ConnectionFailure('invalid_response')
+                    session=str(uuid.uuid4())
+                    self.sessions[session]={'device':device,'profile':profile,'connection':name,'job':job,'expires':time.monotonic()+900}
+                    return {'outcome':'pending','reason':'AUTH_REQUIRED','session_id':session,
+                            'verification_url':result.get('verification_url'),'poll_interval':2,'expires_in':900,
+                            'instruction':'서버 Mac의 브라우저에서 계정을 선택해 주세요. 다른 Mac에서는 완료할 수 없습니다.'}
+                return public(result)
             if verb in {'account_connect','account_disconnect','account_undo'} and values.get('resume')=='gateway_restart':
                 return await self.jobs.start(device,profile,restart=lambda:self.team.run('gateway_restart'))
             target=item.get('reconnect') or item.get('scope')

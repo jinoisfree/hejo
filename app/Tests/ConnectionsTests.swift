@@ -1,8 +1,21 @@
 import AppKit
 import SwiftUI
 
+@MainActor private func connectionFixtureDocument()->[String:Any] {
+    return ["schema":"hermes-connections/1","checked_at":"2026-01-01T12:00:00Z","agents":[["profile":"alpha","display_name":"직원 A","connections":[["id":"key:SYNTHETIC_KEY","service":"key","label":"시험 서비스","reason":"KEY_UNVERIFIED","checked_at":"2026-01-01T12:00:00Z","group":"account","state":"unknown","capabilities":["키 저장됨(확인 안 함)"],"rules":["동작은 서버에서 실행해요."],"actions":[["id":"secret_set","label":"키 바꾸기","primary":true]]]]]]]
+}
+
+/// Isolated access to the original private test functions; no assertions are omitted inside them.
+@MainActor func connectionSupplementTests(_ part:String) async throws {
+    switch part {
+    case "management":try await connectionManagementTests(outputDirectory:nil)
+    case "incomplete":try await connectionIncompleteReplyTests(document:connectionFixtureDocument())
+    default:throw TestFailure.assertion("unknown connection supplement")
+    }
+}
+
 @MainActor func connectionsTests(outputDirectory:URL?=nil) async throws {
-    let document:[String:Any] = ["schema":"hermes-connections/1","checked_at":"2026-01-01T12:00:00Z","agents":[["profile":"alpha","display_name":"직원 A","connections":[["id":"key:SYNTHETIC_KEY","service":"key","label":"시험 서비스","reason":"KEY_UNVERIFIED","checked_at":"2026-01-01T12:00:00Z","group":"account","state":"unknown","capabilities":["키 저장됨(확인 안 함)"],"rules":["동작은 서버에서 실행해요."],"actions":[["id":"secret_set","label":"키 바꾸기","primary":true]]]]]]]
+    let document=connectionFixtureDocument()
     var frames:[[String:Any]]=[],confirmed=false,privacy=false
     let model=ConnectionsModel(send:{frame in
         frames.append(frame)
@@ -50,6 +63,78 @@ import SwiftUI
     try await connectionsScreenTests()
     try await connectionManagementTests(outputDirectory:outputDirectory)
     try await connectionIncompleteReplyTests(document:document)
+    try await googleDisconnectTests()
+}
+
+/// GD-T01/T02/T05/T06/T17/T18: real AppKit model, fake gate replies only.
+@MainActor func googleDisconnectTests() async throws {
+    var item:[String:Any] = ["id":"team:google-personal","service":"google","label":"Google 개인","group":"account","state":"connected","reason":"GOOGLE_VERIFIED","checked_at":"2026-01-01T00:00:00Z","account":"old"+"@example.test","scope":"personal","reconnect":"personal","disconnect_mode":"forget_account","capabilities":[],"rules":[],"actions":[["id":"account_disconnect","label":"연결 해제","primary":true],["id":"account_connect","label":"연결","primary":false]]]
+    var frames:[[String:Any]]=[],confirmation="",allow=true,reauth=true,cancelFails=false
+    let model=ConnectionsModel(send:{frame in
+        frames.append(frame)
+        if frame["type"] as? String == "connections" {
+            return ["document":["schema":"hermes-connections/1","checked_at":"2026-01-01T00:00:00Z","agents":[["profile":"alpha","display_name":"Synthetic","connections":[item]]]]]
+        }
+        switch frame["action"] as? String {
+        case "account_disconnect":
+            item.removeValue(forKey:"account");item["state"]="not_connected"
+            return ["reply":["outcome":"done","reason":"DISCONNECTED"]]
+        case "account_connect":return ["reply":["outcome":"pending","session_id":"synthetic-job","instruction":"서버 Mac의 브라우저에서 계정을 선택해 주세요. 다른 Mac에서는 완료할 수 없습니다."]]
+        case "account_cancel":
+            if cancelFails{throw GateFailure.notConnected}
+            return ["reply":["outcome":"done","reason":"CANCELLED"]]
+        default:return ["reply":["outcome":"pending"]]
+        }
+    },confirm:{reauth})
+    model.confirmDisconnect={confirmation=$0;return allow}
+    await model.refresh();model.selected="alpha";model.detail="team:google-personal"
+    allow=false
+    let before=frames.count;await model.perform("account_disconnect")
+    try check(frames.count==before,"GD-T02 confirmation cancellation sends no mutation")
+    allow=true;reauth=false
+    await model.perform("account_disconnect")
+    try check(frames.count==before,"GD-T02 rejected reauthentication sends no mutation")
+    reauth=true;await model.perform("account_disconnect")
+    try check(confirmation.contains("지웁니다") && confirmation.contains("인증 정보") && confirmation.contains("다른 직원"),"GD-T17 deletion confirmation describes employee credentials and other employee preservation")
+    try check(!confirmation.contains("그대로 써요"),"GD-T18 deletion capability changes the confirmation meaning")
+    let sent=frames.first{$0["action"] as? String == "account_disconnect"}
+    try check((sent?["values"] as? [String:String])?["disconnect_mode"]=="forget_account" && sent?["reauth"] as? Bool==true,"GD-T18 deletion meaning and reauthentication both cross the wire")
+    try check(model.item?.account==nil && model.item?.state == .notConnected,"GD-T01 successful deletion refreshes the email immediately")
+    await model.perform("account_connect")
+    try check(model.notice.contains("서버 Mac") && model.notice.contains("다른 Mac"),"GD-T17 loopback restriction stays visible during authentication")
+    // Closing after changing the selected employee must cancel the originating job.
+    model.selected="beta";model.close();await pause(0.05)
+    let cancelled=frames.first{$0["action"] as? String == "account_cancel"}
+    try check(cancelled?["profile"] as? String=="alpha" && cancelled?["connection"] as? String=="synthetic-job" && cancelled?["reauth"] as? Bool==false,"GD-T06 close cancels only the owned originating OAuth session without Touch ID")
+    model.selected="alpha";await model.perform("account_connect");cancelFails=true
+    model.close();await pause(0.05)
+    try check(model.notice.contains("취소 확인 안 됨"),"GD-T17 failed cancellation is not presented as successful")
+    model.close()
+    var held:CheckedContinuation<[String:Any],Never>?
+    var lateFrames:[[String:Any]]=[]
+    let late=ConnectionsModel(send:{frame in
+        lateFrames.append(frame)
+        if frame["type"] as? String=="connections" {return ["document":["schema":"hermes-connections/1","checked_at":"2026-01-01T00:00:00Z","agents":[["profile":"alpha","display_name":"Synthetic","connections":[item]]]]]}
+        if frame["action"] as? String=="account_connect" {return await withCheckedContinuation{held=$0}}
+        return ["reply":["outcome":"done","reason":"CANCELLED"]]
+    },confirm:{true})
+    late.openAuthorization={_ in};await late.refresh();late.detail="team:google-personal"
+    let connecting=Task{await late.perform("account_connect")};await pause(0.05);late.close()
+    held?.resume(returning:["reply":["outcome":"pending","session_id":"synthetic-late-job"]])
+    await connecting.value
+    try check(!late.authenticating && lateFrames.contains{$0["action"] as? String=="account_cancel" && $0["connection"] as? String=="synthetic-late-job"},"GD-T06 closing before the start reply cancels the late job")
+    var timedFrames:[[String:Any]]=[]
+    let timed=ConnectionsModel(send:{frame in
+        timedFrames.append(frame)
+        if frame["type"] as? String=="connections" {return ["document":["schema":"hermes-connections/1","checked_at":"2026-01-01T00:00:00Z","agents":[["profile":"alpha","display_name":"Synthetic","connections":[item]]]]]}
+        if frame["action"] as? String=="account_connect" {return ["reply":["outcome":"pending","session_id":"synthetic-expired-job"]]}
+        if frame["action"] as? String=="account_cancel" {return ["reply":["outcome":"done","reason":"CANCELLED"]]}
+        throw GateFailure.notConnected
+    },confirm:{true})
+    timed.pollingWait={};timed.openAuthorization={_ in};await timed.refresh();timed.detail="team:google-personal"
+    await timed.perform("account_connect");try await waitFor{!timed.authenticating}
+    try check(timed.notice.contains("초과") && timedFrames.contains{$0["action"] as? String=="account_cancel" && $0["connection"] as? String=="synthetic-expired-job"},"GD-T06 expired polling closes the sheet and cancels its originating job")
+    print("GOOGLE DISCONNECT APP PASS")
 }
 
 /// TASK-13: replies without a check must not turn unfinished actions into completion notices.
@@ -197,6 +282,18 @@ import SwiftUI
     defer{try? FileManager.default.removeItem(at:dir)}
     let store=try LocalStore(directory:dir),controller=try testConversation(client:GateClient(store:store,credentials:MemoryCredentials()))
     let window=ConnectionsWindow(controller:controller),live=window.model
+    let focusOrigin=ProcessInfo.processInfo.systemUptime
+    let focusEvents:[Notification.Name]=[NSApplication.didBecomeActiveNotification,NSApplication.didResignActiveNotification,NSWindow.didBecomeKeyNotification,NSWindow.didResignKeyNotification,NSWindow.didEndSheetNotification]
+    let focusObservers=focusEvents.map { name in
+        NotificationCenter.default.addObserver(forName:name,object:nil,queue:.main) { event in
+            MainActor.assumeIsolated {
+                if let eventWindow=event.object as? NSWindow,eventWindow !== window.window,eventWindow.sheetParent !== window.window {return}
+                print("AT-HC-27 EVENT t=\(ProcessInfo.processInfo.systemUptime-focusOrigin) name=\(event.name.rawValue) active=\(NSApp.isActive) key=\(window.window.isKeyWindow) sheets=\(window.window.sheets.count)")
+                fflush(stdout)
+            }
+        }
+    }
+    defer {focusObservers.forEach{NotificationCenter.default.removeObserver($0)}}
     var held:CheckedContinuation<[String:Any],Never>?
     var actionCount=0
     live.confirm={true}
@@ -215,7 +312,16 @@ import SwiftUI
     held?.resume(returning:["reply":["outcome":"waiting","next":["kind":"secret_set","fields":[["id":"user","label":"아이디","secure":false],["id":"password","label":"비밀번호","secure":true]]]]])
     await request.value;await pause(0.15)
     try check(live.showingInput && live.fields.map(\.id)==["user","password"] && window.window.attachedSheet?.isVisible==true && !live.busy,"AT-HC-25 dismissal during a request still opens the next stage")
-    live.inputDismissed();await pause(0.1);window.show();await pause(0.1)
+    live.inputDismissed();await pause(0.1);window.show()
+    // Observe AppKit's asynchronous activation; the product remains responsible for taking focus.
+    do {
+        try await waitFor(5) {window.window.isVisible && window.window.isKeyWindow && live.fields.isEmpty && !live.busy}
+    } catch {
+        print("AT-HC-27 WAIT_TIMEOUT limit=5 active=\(NSApp.isActive) visible=\(window.window.isVisible) key=\(window.window.isKeyWindow) fields=\(live.fields.count) busy=\(live.busy) sheets=\(window.window.sheets.count) canKey=\(window.window.canBecomeKey) keyWindowPresent=\(NSApp.keyWindow != nil) frontmostIsSelf=\(NSWorkspace.shared.frontmostApplication?.processIdentifier == ProcessInfo.processInfo.processIdentifier) securityAgentFront=\(NSWorkspace.shared.frontmostApplication?.bundleIdentifier == "com.apple.SecurityAgent"))")
+        fflush(stdout)
+        throw TestFailure.assertion("AT-HC-27 activation/key event wait timed out (5 seconds)")
+    }
+    print("AT-HC-27 observation visible=\(window.window.isVisible) key=\(window.window.isKeyWindow) fields=\(live.fields.count) busy=\(live.busy) sheets=\(window.window.sheets.count)")
     try check(window.window.isVisible && window.window.isKeyWindow && live.fields.isEmpty && !live.busy,"AT-HC-27 show after onDismiss clears input and remains usable")
     // The production confirmation uses beginSheetModal; resolve the real alert via its parent sheet.
     window.setPreferredLevel(NSWindow.Level(rawValue:26))
@@ -410,4 +516,261 @@ import SwiftUI
 // AT-FF-70 includes nested confirmation sheets, not just the immediate input sheet.
 @MainActor private func connectionWindowIsShareable(_ window:NSWindow)->Bool {
     window.sharingType != .none && window.sheets.allSatisfy(connectionWindowIsShareable)
+}
+
+
+/// GD-T17: production AppKit authentication sheet, fake server and no real OAuth.
+@MainActor func googleDisconnectSheetTests() async throws {
+    let directory=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer{try? FileManager.default.removeItem(at:directory)}
+    let store=try LocalStore(directory:directory),controller=try testConversation(client:GateClient(store:store,credentials:MemoryCredentials()))
+    let connectionWindow=ConnectionsWindow(controller:controller),model=connectionWindow.model
+    defer{model.close();connectionWindow.window.close()}
+    var sent:[[String:Any]]=[]
+    let item:[String:Any]=["id":"team:google-personal","service":"google","label":"Google 개인","group":"account","state":"not_connected","reason":"NOT_CONNECTED","checked_at":"2026-01-01T00:00:00Z","scope":"personal","disconnect_mode":"forget_account","capabilities":[],"rules":[],"actions":[["id":"account_connect","label":"연결","primary":true]]]
+    model.confirm={true};model.openAuthorization={_ in}
+    model.send={frame in
+        sent.append(frame)
+        if frame["type"] as? String=="connections" {return ["document":["schema":"hermes-connections/1","checked_at":"2026-01-01T00:00:00Z","agents":[["profile":"alpha","display_name":"Synthetic","connections":[item]]]]]}
+        if frame["action"] as? String=="account_connect" {return ["reply":["outcome":"pending","session_id":"synthetic-sheet-job"]]}
+        return ["reply":["outcome":"done","reason":"CANCELLED"]]
+    }
+    await model.refresh();model.detail="team:google-personal";connectionWindow.show()
+    await model.perform("account_connect");await pause(0.15)
+    guard let sheet=connectionWindow.window.attachedSheet else{throw TestFailure.assertion("GD-T17 authentication AppKit sheet missing")}
+    func descendants(_ view:NSView)->[NSView]{[view]+view.subviews.flatMap{descendants($0)}}
+    let controls=sheet.contentView.map(descendants) ?? []
+    let text=controls.compactMap{($0 as? NSTextField)?.stringValue}.joined(separator:" ")
+    try check(sheet is NSPanel && NSApp.modalWindow==nil && text.contains("서버 Mac") && text.contains("다른 Mac"),"GD-T17 real AppKit sheet shows loopback restriction")
+    guard let cancel=controls.compactMap({$0 as? NSButton}).first(where:{$0.title=="인증 취소"}) else{throw TestFailure.assertion("GD-T17 cancel button missing")}
+    if let path=ProcessInfo.processInfo.environment["HEJO_GOOGLE_CAPTURE"],let content=sheet.contentView,let bitmap=content.bitmapImageRepForCachingDisplay(in:content.bounds){
+        content.cacheDisplay(in:content.bounds,to:bitmap)
+        if let data=bitmap.representation(using:.png,properties:[:]){try data.write(to:URL(fileURLWithPath:path+".render.png"))}
+        try? FileManager.default.removeItem(atPath:path)
+        let capture=Process();capture.executableURL=URL(fileURLWithPath:"/usr/sbin/screencapture")
+        capture.arguments=["-x","-o","-l",String(sheet.windowNumber),path]
+        try capture.run();capture.waitUntilExit()
+        print("APPKIT_SCREEN_CAPTURE_EXIT \(capture.terminationStatus)")
+    }
+    cancel.performClick(nil);await pause(0.15)
+    try check(!model.authenticating && connectionWindow.window.attachedSheet==nil,"GD-T17 cancel dismisses authentication sheet")
+    try check(sent.contains{$0["action"] as? String=="account_cancel" && $0["profile"] as? String=="alpha" && $0["connection"] as? String=="synthetic-sheet-job" && $0["reauth"] as? Bool==false},"GD-T06 AppKit cancel uses owned job without Touch ID")
+    print("GOOGLE DISCONNECT APPKIT SHEET PASS")
+}
+
+/// GD-T17 / IR-1: actual hosted controls, AppKit confirmation/authentication sheets and loopback gate.
+/// Only reauthentication, browser opening and the existing polling clock are injected; send stays production.
+@MainActor func googleDisconnectUITests(directory:URL,endpoint:String,evidence:URL,closeOnly:Bool=false) async throws {
+    // Enable accessibility only inside this fixture process so SwiftUI publishes its rendered nodes.
+    NSApp.accessibilitySetValue(true,forAttribute:NSAccessibility.Attribute(rawValue:"AXEnhancedUserInterface"))
+    NSApp.accessibilitySetValue(true,forAttribute:NSAccessibility.Attribute(rawValue:"AXManualAccessibility"))
+    let store=try LocalStore(directory:directory),client=GateClient(store:store,credentials:MemoryCredentials())
+    let controller=try testConversation(client:client),connection=ConnectionsWindow(controller:controller),model=connection.model
+    defer{model.close();connection.window.close();client.stop()}
+    var authCount=0,releasePolling=false
+    model.confirm={authCount+=1;return true};model.openAuthorization={_ in}
+    model.pollingWait={
+        while !releasePolling && !Task.isCancelled {await pause(0.01)}
+        try Task.checkCancellation();await pause(0.001)
+    }
+    try client.pair(address:endpoint,code:"test_code-12",device:"synthetic-ui")
+    try await waitFor{controller.canSend}
+    connection.show(profile:"alpha")
+
+    // NSHostingView exports the actual SwiftUI controls through AppKit accessibility, without AX system permission.
+    func nodes(_ object:Any,depth:Int=0)->[NSObject] {
+        guard depth<30,let element=object as? NSObject else{return []}
+        let dynamic:AnyObject=element
+        return [element]+(dynamic.accessibilityChildren?() ?? []).flatMap{nodes($0,depth:depth+1)}
+    }
+    func attribute(_ element:NSObject,_ name:String)->String? {
+        let selector=NSSelectorFromString(name)
+        guard element.responds(to:selector) else{return nil}
+        return element.perform(selector)?.takeUnretainedValue() as? String
+    }
+    func title(_ element:NSObject)->String? {attribute(element,"accessibilityTitle")}
+    func isButton(_ element:NSObject)->Bool {attribute(element,"accessibilityRole")==NSAccessibility.Role.button.rawValue}
+    func click(_ element:NSObject)->Bool {
+        let dynamic:AnyObject=element
+        return dynamic.isAccessibilityEnabled?()==true && dynamic.accessibilityPerformPress?()==true
+    }
+    func texts(_ window:NSWindow)->String {
+        nodes(window).flatMap{element->[String] in
+            ["accessibilityLabel","accessibilityValue","accessibilityTitle"].compactMap{attribute(element,$0)}
+        }.joined(separator:" | ")
+    }
+    func button(_ label:String)->NSObject? {
+        nodes(connection.window).first{isButton($0) && (attribute($0,"accessibilityLabel")==label || title($0)==label)}
+    }
+    func press(_ label:String) async throws {
+        try await waitFor{button(label) != nil}
+        guard let control=button(label) else{throw TestFailure.assertion("GD-T17 rendered button missing: \(label)")}
+        try check(click(control),"GD-T17 rendered button accepts press: \(label)")
+    }
+    func nativePress(_ label:String,in window:NSWindow) async throws {
+        func views(_ view:NSView)->[NSView]{[view]+view.subviews.flatMap{views($0)}}
+        func button()->NSButton? {window.contentView.flatMap{views($0).compactMap{$0 as? NSButton}.first{$0.title==label}}}
+        try await waitFor{button()?.isEnabled==true}
+        guard let control=button() else{throw TestFailure.assertion("GD-T17 native button missing: \(label)")}
+        try check(control.isEnabled,"GD-T17 native button is enabled: \(label)")
+        control.performClick(nil)
+    }
+    func capture(_ name:String,_ window:NSWindow) throws {
+        guard let content=window.contentView else{throw TestFailure.assertion("GD-T17 missing content view")}
+        content.layoutSubtreeIfNeeded();content.displayIfNeeded()
+        guard let bitmap=content.bitmapImageRepForCachingDisplay(in:content.bounds) else{throw TestFailure.assertion("GD-T17 missing rendered bitmap")}
+        content.cacheDisplay(in:content.bounds,to:bitmap)
+        guard let png=bitmap.representation(using:.png,properties:[:]) else{throw TestFailure.assertion("GD-T17 missing PNG")}
+        try png.write(to:evidence.appendingPathComponent(name+".png"))
+        try texts(window).write(to:evidence.appendingPathComponent(name+".txt"),atomically:true,encoding:.utf8)
+        print("GD-T17 VIEW \(name)")
+    }
+    defer {try? texts(connection.window).write(to:evidence.appendingPathComponent("last-view.txt"),atomically:true,encoding:.utf8)}
+    if closeOnly {
+        let connect="Synthetic, Google 개인, 연결"
+        func begin() async throws {
+            releasePolling=false
+            try await press(connect)
+            try await waitFor{connection.window.attachedSheet?.title=="Google 연결"}
+            guard let sheet=connection.window.attachedSheet else{throw TestFailure.assertion("GD-T17 close sheet missing")}
+            print("GD-T17 STANDARD_CLOSE_BUTTON \(sheet.standardWindowButton(.closeButton)?.isEnabled as Any)")
+        }
+        func closeFromControl(_ name:String) async throws {
+            guard let sheet=connection.window.attachedSheet else{throw TestFailure.assertion("GD-T17 close control sheet missing")}
+            try capture(name,sheet)
+            try await nativePress("창 닫기",in:sheet)
+            try await waitFor{!connection.window.isVisible && connection.window.attachedSheet==nil && !model.authenticating}
+        }
+        func reopen(_ wording:String,_ name:String) async throws {
+            connection.show(profile:"alpha")
+            try await waitFor{connection.window.isVisible && texts(connection.window).contains(wording) && button(connect) != nil}
+            try check(!texts(connection.window).contains("연결을 확인했어요."),"GD-T17 closed authentication cannot become successful")
+            try capture(name,connection.window)
+        }
+        try await waitFor{button(connect) != nil}
+        try await begin();try await closeFromControl("close-01-success-control")
+        try await waitFor{model.notice=="인증을 취소했어요." && !model.loading}
+        try await reopen("인증을 취소했어요.","close-02-success-reopened")
+
+        // Break only the fixture connection before clicking the real control: request cannot be sent.
+        if button("‹ Synthetic") != nil {try await press("‹ Synthetic")}
+        try await begin()
+        try Data().write(to:evidence.appendingPathComponent("disconnect-requested"))
+        try await waitFor{!client.isConnected}
+        try await closeFromControl("close-03-offline-control")
+        try await waitFor{model.notice.contains("취소 확인 안 됨")}
+        try await reopen("취소 확인 안 됨","close-04-offline-reopened")
+        try check(!texts(connection.window).contains("인증을 취소했어요."),"GD-T17 failed close cancellation never claims success")
+        try Data().write(to:evidence.appendingPathComponent("allow-reconnect"))
+        try await waitFor{controller.canSend}
+        try await waitFor{!model.loading}
+        try check(texts(connection.window).contains("취소 확인 안 됨"),"GD-T17 failure guidance survives reconnect and refresh")
+
+        // Existing cancel stays a separate action and keeps the connection window open.
+        if button("‹ Synthetic") != nil {try await press("‹ Synthetic")}
+        try await begin()
+        try await nativePress("인증 취소",in:connection.window.attachedSheet!)
+        try await waitFor{connection.window.attachedSheet==nil && texts(connection.window).contains("인증을 취소했어요.")}
+        try check(connection.window.isVisible,"GD-T17 cancel button still leaves parent open")
+        try capture("close-05-cancel-regression",connection.window)
+
+        // Hold an actual poll reply until after close. The existing cancelled task must ignore it.
+        if button("‹ Synthetic") != nil {try await press("‹ Synthetic")}
+        try await begin();releasePolling=true
+        try await waitFor{FileManager.default.fileExists(atPath:evidence.appendingPathComponent("late-poll-ready").path)}
+        try await closeFromControl("close-06-late-control")
+        try await waitFor{model.notice=="인증을 취소했어요."}
+        try await reopen("인증을 취소했어요.","close-07-late-reopened")
+        try await waitFor{FileManager.default.fileExists(atPath:evidence.appendingPathComponent("late-response-sent").path)}
+        try await press("새로 확인")
+        try await waitFor{FileManager.default.fileExists(atPath:evidence.appendingPathComponent("late-refresh-sent").path) && !model.loading}
+        try check(texts(connection.window).contains("인증을 취소했어요.") && connection.window.attachedSheet==nil && !texts(connection.window).contains("연결을 확인했어요."),"GD-T17 late poll cannot overwrite closed/reopened guidance")
+        try capture("close-08-late-stable",connection.window)
+        print("GD-T17 USER CLOSE APPKIT PASS")
+        return
+    }
+    let old="old"+"@example.test",new="new"+"@example.test"
+    let disconnect="Synthetic, Google 개인, 연결 해제",connect="Synthetic, Google 개인, 연결"
+    try await waitFor{texts(connection.window).contains(old) && button(disconnect) != nil}
+    try capture("01-connected-list",connection.window)
+
+    func deletion(accept:Bool) async throws {
+        let before=authCount
+        try await press(disconnect)
+        try await waitFor{connection.window.attachedSheet != nil}
+        guard let alert=connection.window.attachedSheet else{throw TestFailure.assertion("GD-T17 deletion alert missing")}
+        let wording=texts(alert)
+        try check(wording.contains("연결을 해제할까요?") && wording.contains("계정 연결·이메일·전용 인증 정보를 지웁니다") && wording.contains("다른 직원과 회사 연결은 유지") && wording.contains("다음 연결에서 Google 계정을 선택"),"GD-T17 actual deletion confirmation explains exact effects")
+        try check(!wording.contains("넣어 둔 값은 남아") && authCount==before,"GD-T17 deletion confirmation precedes reauthentication")
+        try capture(accept ? "03-confirm-delete":"02-decline-delete",alert)
+        try await nativePress(accept ? "해제":"취소",in:alert)
+        try await waitFor{connection.window.attachedSheet==nil && !model.busy}
+        try check(authCount==before+(accept ? 1:0),"GD-T17 deletion accepts or declines before authenticating")
+    }
+    try await deletion(accept:false)
+    // Declining may select detail, so return through the actual back control before inspecting the list.
+    if button("‹ Synthetic") != nil {try await press("‹ Synthetic")}
+    try await waitFor{texts(connection.window).contains(old)}
+    try check(button(disconnect) != nil,"GD-T17 decline preserves actual connected row")
+    try await deletion(accept:true)
+    try await waitFor{!texts(connection.window).contains(old) && button(connect) != nil}
+    try capture("04-disconnected-detail",connection.window)
+    try await press("‹ Synthetic")
+    try await waitFor{button(connect) != nil && !texts(connection.window).contains(old)}
+    try capture("05-disconnected-list",connection.window)
+    try await press("새로 확인")
+    try await waitFor{!model.loading && button(connect) != nil}
+    try check(!texts(connection.window).contains(old),"GD-T17 actual list refresh cannot restore forgotten email")
+
+    func begin() async throws {
+        releasePolling=false
+        try await press(connect)
+        try await waitFor{connection.window.attachedSheet?.title=="Google 연결"}
+        guard let sheet=connection.window.attachedSheet else{throw TestFailure.assertion("GD-T17 authentication sheet missing")}
+        let text=texts(sheet)
+        try check(sheet is NSPanel && text.contains("서버 Mac") && text.contains("다른 Mac") && NSApp.modalWindow==nil,"GD-T17 real authentication sheet keeps loopback guidance")
+    }
+    try await begin();try capture("06-reconnecting",connection.window.attachedSheet!)
+    releasePolling=true
+    try await waitFor{connection.window.attachedSheet==nil && texts(connection.window).contains("연결을 확인했어요.")}
+    try await press("‹ Synthetic")
+    try await waitFor{texts(connection.window).contains(new) && !texts(connection.window).contains(old) && button(disconnect) != nil}
+    try capture("07-new-account-list",connection.window)
+    try await press("새로 확인");try await waitFor{!model.loading && texts(connection.window).contains(new)}
+    try check(!texts(connection.window).contains(old),"GD-T17 actual refreshed list displays only the new account")
+    // Return to disconnected state using the same production alert and transport, then test failure paths.
+    try await deletion(accept:true)
+    try await press("‹ Synthetic")
+    try await waitFor{button(connect) != nil && !texts(connection.window).contains(new)}
+
+    try await begin()
+    try await nativePress("인증 취소",in:connection.window.attachedSheet!)
+    try await waitFor{connection.window.attachedSheet==nil && texts(connection.window).contains("취소 확인 안 됨")}
+    try check(!texts(connection.window).contains("인증을 취소했어요."),"GD-T17 actual unconfirmed cancellation never shows success")
+    try capture("08-cancel-unconfirmed",connection.window)
+    try await press("‹ Synthetic")
+    try await begin();try capture("09-expiring",connection.window.attachedSheet!)
+    releasePolling=true
+    try await waitFor(12){connection.window.attachedSheet==nil && texts(connection.window).contains("동의 시간이 초과됐어요.")}
+    try check(!texts(connection.window).contains(old) && !texts(connection.window).contains(new),"GD-T17 actual expiry leaves email absent")
+    try capture("10-expired",connection.window)
+    try await press("‹ Synthetic")
+
+    try await begin();try capture("11-before-close",connection.window.attachedSheet!)
+    // AppKit disables performClose while this sheet is attached (the sheet has no close button).
+    // Exercise the actual parent NSWindow closing notification, not ConnectionsModel.close(), as on teardown.
+    connection.window.close()
+    try await waitFor{!connection.window.isVisible && connection.window.attachedSheet==nil && !model.authenticating}
+    // Server acknowledgment/refresh must settle before reopening; this is not a model assignment.
+    try await waitFor{model.notice=="인증을 취소했어요." && !model.loading}
+    connection.show(profile:"alpha")
+    try await waitFor{connection.window.isVisible && connection.window.attachedSheet==nil && !model.loading && button(connect) != nil}
+    try check(!texts(connection.window).contains(old) && !texts(connection.window).contains(new),"GD-T17 reopening closed window refreshes a disconnected account")
+    try capture("12-reopened",connection.window)
+    if button("‹ Synthetic") != nil {try await press("‹ Synthetic")}
+    try await begin()
+    try await nativePress("인증 취소",in:connection.window.attachedSheet!)
+    try await waitFor{connection.window.attachedSheet==nil && texts(connection.window).contains("인증을 취소했어요.")}
+    try capture("13-cancel-confirmed",connection.window)
+    print("GD-T17 ACTUAL APPKIT ROUNDTRIP PASS")
 }

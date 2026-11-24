@@ -8,6 +8,7 @@ import Combine
     @Published var known:[String:AgentConnectionProfile]=[:]
     var people:()->[AgentConnectionProfile]={[]}
     private var refreshAgain=false
+    private var queuedRefreshes=Set<String>()
     @Published var selected:String?
     @Published var detail:String?
     @Published var searchText=""
@@ -27,12 +28,18 @@ import Combine
     @Published var defaultChoice=""
     @Published var next:ConnectionNext?
     @Published var code=""
+    @Published var authenticating=false
+    private struct Authentication {let id:String,profile:String}
+    private var authentication:Authentication?
+    private var closeGeneration=0
     @Published var loginURL:URL?
     var send:([String:Any]) async throws->[String:Any]
     var confirm:() async ->Bool
     var confirmRestart:() async ->Bool = {false}
     var confirmUndo:(String) async ->Bool = {_ in false}
     var confirmDisconnect:(String) async ->Bool = {_ in false}
+    var openAuthorization:(URL)->Void={NSWorkspace.shared.open($0)}
+    var pollingWait:() async throws->Void={try await Task.sleep(nanoseconds:2_000_000_000)}
     var restoreFocus:()->Void={}
     private(set) var changeValues:[String:String]=[:]
     private var changeSession:UUID?
@@ -85,11 +92,11 @@ import Combine
             return rows.isEmpty ? nil:(id:id,title:title,items:rows)
         }
     }
-    func refresh() async {
-        guard !loading else{refreshAgain=true;return};loading=true
-        defer{loading=false;if refreshAgain{refreshAgain=false;Task{await self.refresh()}}}
+    func refresh(profile:String?=nil) async {
+        guard !loading else{if let profile=profile ?? selected{queuedRefreshes.insert(profile)}else{refreshAgain=true};return};loading=true
+        defer{loading=false;if let next=queuedRefreshes.sorted().first{queuedRefreshes.remove(next);Task{await self.refresh(profile:next)}}else if refreshAgain{refreshAgain=false;Task{await self.refresh()}}}
         var request:[String:Any]=["v":1,"type":"connections"]
-        if let profile=selected ?? people().first?.profile{request["profile"]=profile}
+        if let profile=profile ?? selected ?? people().first?.profile{request["profile"]=profile}
         let key=request["profile"] as? String ?? "*"
         do {
             let reply=try await send(request)
@@ -120,9 +127,27 @@ import Combine
     }
     private func authenticated() async ->Bool {confirming=true;defer{confirming=false;restoreFocus()};return await confirm()}
 
-    func close(){polling?.cancel();polling=nil;closeInput()}
+    private func takeAuthentication()->Authentication? {
+        guard let job=authentication else{return nil}
+        authentication=nil;authenticating=false;code="";loginURL=nil
+        polling?.cancel();polling=nil
+        return job
+    }
+    private func cancel(_ job:Authentication) async {
+        var confirmed=false
+        do {
+            let result=try await send(["v":1,"type":"connection_action","profile":job.profile,"connection":job.id,"action":"account_cancel","reauth":false])
+            let reply=result["reply"] as? [String:Any] ?? [:]
+            confirmed=reply["outcome"] as? String=="done" && reply["reason"] as? String=="CANCELLED"
+        } catch {}
+        if authentication==nil {notice=confirmed ? "인증을 취소했어요.":"취소 확인 안 됨 · 서버에서 인증이 끝나거나 만료될 때까지 연결 상태를 확인해 주세요."}
+        await refresh(profile:job.profile)
+    }
+    func cancelAuthentication(){if let job=takeAuthentication(){Task{await self.cancel(job)}}}
+    func close(){closeGeneration += 1;cancelAuthentication();polling?.cancel();polling=nil;closeInput()}
     func perform(_ verb:String,item:AgentConnectionItem?=nil,submitted:Bool=false) async {
         guard !busy,let agent,let target=item ?? self.item else{return}
+        let generation=closeGeneration
         if verb=="app_connect" && !submitted && target.primaryAction?.label=="설정 바꾸기" {
             detail=target.id
             if let settings=target.settings,settings.count==1 {await change(settings[0].step,item:target)}
@@ -132,23 +157,30 @@ import Combine
         let requested=verb=="secret_set" && !submitted ? "secret_guide":verb
         let read=["secret_guide","check","check_all","oauth_guide","mcp_login"].contains(requested)
         if !submitted && ["app_disconnect","account_disconnect"].contains(requested) {
-            guard await confirmDisconnect("\(agent.display_name)의 \(target.label) 연결을 해제할까요? 넣어 둔 값은 남아 다시 연결할 때 그대로 써요.") else{return}
+            let text=target.id=="team:google-personal" && target.disconnect_mode=="forget_account"
+                ? "\(agent.display_name)의 Google 개인 계정 연결·이메일·전용 인증 정보를 지웁니다. 다른 직원과 회사 연결은 유지합니다. 다음 연결에서 Google 계정을 선택해 주세요."
+                : "\(agent.display_name)의 \(target.label) 연결을 해제할까요? 넣어 둔 값은 남아 다시 연결할 때 그대로 써요."
+            guard await confirmDisconnect(text) else{return}
         }
         if requested=="app_undo" {guard await confirmUndo(target.actions?.first{$0.id=="app_undo"}?.label ?? "되돌리기") else{return}}
         if !read {guard await authenticated() else{return}}
         if requested=="gateway_restart" || (submitted && values["resume"]=="gateway_restart") {
             guard await confirmRestart() else{return}
         }
+        if target.id=="team:google-personal" && ["account_connect","oauth_connect","account_disconnect"].contains(requested),let job=takeAuthentication(){await cancel(job)}
+        guard generation==closeGeneration else{return}
         var frame:[String:Any]=["v":1,"type":"connection_action","profile":agent.profile,"connection":target.id,"action":requested,"reauth":!read]
         let session=changeSession
         if submitted {
             if session != nil {changeValues.merge(values){_,new in new};frame["values"]=changeValues}
             else {frame["values"]=values}
         }
+        if requested=="account_disconnect" && target.id=="team:google-personal" && target.disconnect_mode=="forget_account" {frame["values"]=["disconnect_mode":"forget_account"]}
         do {
             let result=try await send(frame)
             if let session,session != changeSession{return}
             let reply=result["reply"] as? [String:Any] ?? [:]
+            if generation != closeGeneration,target.id=="team:google-personal",let sid=reply["session_id"] as? String {await cancel(Authentication(id:sid,profile:agent.profile));return}
             if reply["committed"] as? Bool==true || ["done","failed","refused"].contains(reply["outcome"] as? String ?? "") {
                 clearChange();values=[:]
             }
@@ -165,8 +197,12 @@ import Combine
             }
             let outcome=reply["outcome"] as? String ?? "done",reason=reply["reason"] as? String ?? "OK"
             if let sid=reply["session_id"] as? String {
+                if target.id=="team:google-personal" {
+                    closeInput();authentication=Authentication(id:sid,profile:agent.profile);authenticating=true
+                    notice=reply["instruction"] as? String ?? "서버 Mac의 브라우저에서 계정을 선택해 주세요. 다른 Mac에서는 완료할 수 없습니다."
+                }
                 code=reply["user_code"] as? String ?? "";loginURL=(reply["verification_url"] as? String).flatMap(URL.init(string:))
-                if let url=loginURL,url.scheme=="https",url.user==nil {NSWorkspace.shared.open(url)}
+                if let url=loginURL,url.scheme=="https",url.user==nil {openAuthorization(url)}
                 startPolling(sid,profile:agent.profile,verb:"oauth_poll");return
             }
             if let job=reply["job"] as? String,outcome=="pending" {startPolling(job,profile:agent.profile,verb:"job_status")}
@@ -205,15 +241,20 @@ import Combine
         polling?.cancel();polling=Task { [weak self] in
             for _ in 0..<450 {
                 guard let self,!Task.isCancelled else{return}
-                try? await Task.sleep(nanoseconds:2_000_000_000)
+                try? await pollingWait()
+                guard !Task.isCancelled else{return}
                 do {
                     let result=try await send(["v":1,"type":"connection_action","profile":profile,"connection":id,"action":verb,"reauth":false])
+                    guard !Task.isCancelled else{return}
                     let reply=result["reply"] as? [String:Any] ?? [:],state=reply["status"] as? String ?? reply["outcome"] as? String ?? "unknown"
-                    if state=="approved" || state=="done" {code="";loginURL=nil;notice=verb=="job_status" ? "다시 시작했고 채널 \(reply["connected"] as? Int ?? 0)개가 다시 연결됐어요":"연결을 확인했어요.";await refresh();return}
-                    if !["pending","running","waiting"].contains(state) {notice="결과를 확인하지 못했어요. 서버에서 확인해 주세요.";return}
+                    if state=="approved" || state=="done" {if authentication?.id==id{authentication=nil;authenticating=false};code="";loginURL=nil;notice=verb=="job_status" ? "다시 시작했고 채널 \(reply["connected"] as? Int ?? 0)개가 다시 연결됐어요":"연결을 확인했어요.";await refresh(profile:profile);return}
+                    if !["pending","running","waiting"].contains(state) {if authentication?.id==id{authentication=nil;authenticating=false};notice="인증 결과를 확인하지 못했어요. 연결 상태를 확인해 주세요.";await refresh(profile:profile);return}
                 } catch {continue} // The saved restart job is queried after reconnection; the side effect is never retried.
             }
-            self?.notice="동의 시간이 초과됐어요. 다시 연결을 눌러 시작할 수 있어요."
+            guard let self,!Task.isCancelled else{return}
+            if let job=takeAuthentication(){await cancel(job)}
+            code="";loginURL=nil;notice="동의 시간이 초과됐어요. 연결 상태를 확인하고 다시 연결을 눌러 주세요."
+            await refresh(profile:profile)
         }
     }
 }
@@ -221,6 +262,8 @@ import Combine
 @MainActor final class ConnectionsWindow:NSObject,NSWindowDelegate {
     let window:NSWindow
     let model:ConnectionsModel
+    private var authenticationWindow:NSPanel?
+    private var authenticationObservation:AnyCancellable?
     private var inputWindow:NSWindow?
     private var inputObservation:AnyCancellable?
     private var confirmingObservation:AnyCancellable?
@@ -248,6 +291,9 @@ import Combine
         inputObservation=model.$showingInput.removeDuplicates().sink{ [weak self] active in
             // Published sends before assignment; apply presentation on the next main-loop turn.
             Task { @MainActor in self?.presentInput(active) }
+        }
+        authenticationObservation=model.$authenticating.removeDuplicates().sink{ [weak self] active in
+            Task { @MainActor in self?.presentAuthentication(active) }
         }
         confirmingObservation=model.$confirming.sink{ [weak self] active in self?.updateLevel(confirming:active) }
         window.appearance=ChatAppearance.theme.appearance
@@ -287,6 +333,37 @@ import Combine
             if self.inputWindow === sheet {self.inputWindow=nil;self.model.inputDismissed();self.updateLevel(confirming:self.model.confirming)}
         }
     }
+    private func presentAuthentication(_ active:Bool){
+        guard active==model.authenticating else{return}
+        if !active {
+            if let sheet=authenticationWindow {authenticationWindow=nil;window.endSheet(sheet);sheet.orderOut(nil)}
+            return
+        }
+        guard window.isVisible,authenticationWindow==nil else{return}
+        let sheet=NSPanel(contentRect:CGRect(x:0,y:0,width:480,height:190),styleMask:[.titled,.closable],backing:.buffered,defer:false)
+        sheet.title="Google 연결";sheet.isReleasedWhenClosed=false;sheet.delegate=self;sheet.level=window.level;sheet.appearance=window.appearance
+        let title=NSTextField(labelWithString:"Google 계정을 선택해 주세요")
+        title.font=NSFont.systemFont(ofSize:15,weight:.semibold)
+        let guidance=NSTextField(wrappingLabelWithString:"서버 Mac의 브라우저에서 계정을 선택해 주세요. 다른 Mac의 브라우저에서는 완료할 수 없습니다.")
+        let cancel=NSButton(title:"인증 취소",target:self,action:#selector(cancelAuthentication))
+        cancel.bezelStyle = .rounded;cancel.keyEquivalent="\u{1b}"
+        let close=NSButton(title:"창 닫기",target:self,action:#selector(closeConnectionWindow))
+        close.bezelStyle = .rounded;close.toolTip="인증을 취소하고 연결 창을 닫습니다."
+        let actions=NSStackView(views:[cancel,close]);actions.spacing=12
+        let stack=NSStackView(views:[title,guidance,actions]);stack.orientation = .vertical;stack.alignment = .leading;stack.spacing=16
+        stack.translatesAutoresizingMaskIntoConstraints=false
+        let content=NSView();content.addSubview(stack);sheet.contentView=content
+        NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo:content.leadingAnchor,constant:20),stack.trailingAnchor.constraint(equalTo:content.trailingAnchor,constant:-20),stack.topAnchor.constraint(equalTo:content.topAnchor,constant:20),stack.bottomAnchor.constraint(lessThanOrEqualTo:content.bottomAnchor,constant:-20)])
+        authenticationWindow=sheet
+        window.beginSheet(sheet){ [weak self,weak sheet] _ in
+            guard let self,let sheet else{return}
+            sheet.orderOut(nil)
+            if self.authenticationWindow === sheet {self.authenticationWindow=nil;if self.model.authenticating{self.model.cancelAuthentication()}}
+        }
+    }
+    @objc private func cancelAuthentication(){model.cancelAuthentication()}
+    @objc private func closeConnectionWindow(){window.close()}
+
     private func ask(_ title:String,text:String,button:String) async ->Bool {
         model.confirming=true;defer{model.confirming=false;model.restoreFocus()}
         let alert=NSAlert();alert.messageText=title;alert.informativeText=text
@@ -301,11 +378,13 @@ import Combine
         if let inputWindow {inputWindow.makeKeyAndOrderFront(nil)}
     }
     func windowShouldClose(_ sender:NSWindow)->Bool {
+        if sender === authenticationWindow {model.cancelAuthentication();return false}
         if sender === inputWindow {window.endSheet(sender);return false}
         return true
     }
     func windowWillClose(_ notification:Notification){if notification.object as? NSWindow === window {model.close();presentInput(false)}}
     func show(profile:String?=nil){
+        if model.authenticating {Task { @MainActor in self.presentAuthentication(true) }}
         NSApp.activate(ignoringOtherApps:true)
         if let profile{model.selected=profile}
         if let inputWindow,!inputWindow.isVisible {window.endSheet(inputWindow);inputWindow.orderOut(nil);self.inputWindow=nil;model.inputDismissed()}

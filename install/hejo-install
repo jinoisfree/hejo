@@ -12,10 +12,38 @@ import re
 import stat
 import sys
 import tempfile
+import types
 import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import admin_support
+# Authenticate the candidate declaration before importing/executing its checker.
+# This bootstrap only checks package identity; deployment policy stays there.
+_support_path = Path(__file__).resolve().parent / 'google-connection-support.json'
+if _support_path.resolve() != _support_path or not _support_path.is_file():
+    raise ValueError('UNSAFE_PACKAGE_SUPPORT')
+def _unique_support(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError('DUPLICATE_PACKAGE_SUPPORT')
+        result[key] = value
+    return result
+with os.fdopen(os.open(_support_path, os.O_RDONLY | os.O_NOFOLLOW), encoding='utf-8') as _support_stream:
+    _support = json.load(_support_stream, object_pairs_hook=_unique_support)
+if (not isinstance(_support, dict) or _support.get('schema') != 'google-connection-support/1'
+        or _support.get('component') != 'hejo' or _support.get('disconnect_mode') != 'forget_account'
+        or not isinstance(_support.get('versions'), list)
+        or any(type(_version) is not int or _version < 1 for _version in _support.get('versions', []))
+        or not any(type(_version) is int and _version == 1 for _version in _support['versions'])):
+    raise ValueError('INVALID_PACKAGE_SUPPORT')
+_checker_path = _support_path.with_name('check_google_compat.py')
+if _checker_path.resolve() != _checker_path or not _checker_path.is_file():
+    raise ValueError('UNSAFE_PACKAGE_CHECKER')
+with os.fdopen(os.open(_checker_path, os.O_RDONLY | os.O_NOFOLLOW), 'rb') as _checker_stream:
+    _checker_source = _checker_stream.read()
+check_google_compat = types.ModuleType('check_google_compat')
+exec(compile(_checker_source, str(_checker_path), 'exec'), check_google_compat.__dict__)
 
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap
@@ -596,7 +624,29 @@ def upgrade_home_channels(home, receipt):
     return 0
 
 
-def restore(home, receipt, *, uninstall=False, force=False):
+def check_restore_targets(home, receipt, compatibility):
+    # Check every executable destination before restoring even one config/link.
+    # Removing hejo altogether cannot leave a converted airport on old code.
+    converted = check_google_compat.transition_version(home) is not None
+    if not converted:
+        return
+    for target in receipt['targets']:
+        if target['kind'] == 'link' and target['state'] == 'applied':
+            previous = target.get('before')
+            if previous is None:
+                if converted:
+                    raise check_google_compat.CompatibilityError('GOOGLE_COMPAT_REMOVAL_DENIED')
+                continue
+            path = Path(previous)
+            if not path.is_absolute():
+                path = (home / target['path']).parent / path
+            compatibility.check(path.resolve(strict=True).parent)
+
+
+def restore(home, receipt, *, uninstall=False, force=False, compatibility=None):
+    compatibility = compatibility or check_google_compat.preflight(
+        home, Path(__file__).resolve().parents[1], first_package=Path(__file__).resolve().parents[1])
+    check_restore_targets(home, receipt, compatibility)
     conflicts = remove_home_channels(home, receipt, [target for target in receipt["targets"]
                                                    if target.get("owner_may_change")])
     if not uninstall:
@@ -675,7 +725,57 @@ def remove_unreceipted_platform(home):
     return 2 if conflicts else 0
 
 
+def update_code_links(home, receipt, compatibility):
+    desired = str(Path(__file__).resolve().parents[1] / 'gate')
+    targets = [item for item in receipt['targets'] if item['kind'] == 'link']
+    if not any(item['after'] != desired for item in targets):
+        return
+    for item in targets:
+        if not matches(home, item):
+            raise ValueError('CODE_LINK_OWNER_CHANGED')
+        compatibility.check(Path(item['after']).resolve(strict=True).parent)
+    original = deepcopy(receipt)
+    changed = []
+    # Profiles first; the root's installed checker remains discoverable until
+    # the final link update. Each link and receipt write is atomic individually.
+    targets.sort(key=lambda item: item['path'] == 'plugins/hejo')
+    try:
+        for item in targets:
+            if item['after'] == desired:
+                continue
+            if not matches(home, item):
+                raise ValueError('CODE_LINK_OWNER_CHANGED')
+            changed.append((item['path'], item['after']))
+            replace_link(safe_path(home, item['path'], link=True), desired)
+            item['after'] = desired
+            save_receipt(home, receipt)
+    except BaseException:
+        # Use the current policy captured before any replacement, not the new
+        # package or a previous package's checker.
+        for relative, previous in reversed(changed):
+            compatibility.check(Path(previous).resolve(strict=True).parent)
+            path = safe_path(home, relative, link=True)
+            if not path.is_symlink() or os.readlink(path) != desired:
+                raise ValueError('CODE_RECOVERY_CONFLICT')
+            replace_link(path, previous)
+        receipt.clear();receipt.update(original)
+        save_receipt(home, receipt)
+        raise
+
+
 def run(home, *, check=False, uninstall=False, uninstall_home_channel=False, force=False, port=None):
+    package = Path(__file__).resolve().parents[1]
+    compatibility = check_google_compat.preflight(home, package, first_package=package)
+    with check_google_compat.deployment_guard(home):
+        compatibility.revalidate(package)
+        return run_locked(home, check=check, uninstall=uninstall, uninstall_home_channel=uninstall_home_channel, force=force, port=port, compatibility=compatibility)
+
+
+def run_locked(home, *, check=False, uninstall=False, uninstall_home_channel=False, force=False, port=None, compatibility):
+    package = Path(__file__).resolve().parents[1]
+    if uninstall and (home / 'hejo/install-receipt.json').exists():
+        check_restore_targets(home, check_google_compat.json_value(
+            check_google_compat.regular_bytes(home / 'hejo/install-receipt.json')), compatibility)
     receipt = load_receipt(home)
     missing = set()
     if receipt and not (receipt["status"] == "installed" and not (check or uninstall or uninstall_home_channel)):
@@ -726,8 +826,9 @@ def run(home, *, check=False, uninstall=False, uninstall_home_channel=False, for
     if uninstall:
         if not receipt:
             return remove_unreceipted_platform(home)
+        # restore preflights all old links before administrative/config mutation.
+        conflicts = restore(home, receipt, uninstall=True, force=force, compatibility=compatibility)
         admin_removed = admin_support.remove(home, receipt, save_receipt)
-        conflicts = restore(home, receipt, uninstall=True, force=force)
         if not admin_removed: conflicts.append("hejo/admin.json")
         receipt["status"] = "uninstalled"
         save_receipt(home, receipt)
@@ -736,6 +837,7 @@ def run(home, *, check=False, uninstall=False, uninstall_home_channel=False, for
         print("Gateway was not restarted; review changes before restarting it.")
         return 2 if conflicts else 0
     if receipt and receipt["status"] == "installed":
+        update_code_links(home, receipt, compatibility)
         result = upgrade_home_channels(home, receipt)
         if result == 0 and not admin_support.prepare(home, receipt, save_receipt): return 1
         return result
@@ -758,7 +860,7 @@ def run(home, *, check=False, uninstall=False, uninstall_home_channel=False, for
     except Exception as exc:
         reconcile_home_channels(home, receipt)
         admin_support.remove(home, receipt, save_receipt)
-        conflicts = restore(home, receipt)
+        conflicts = restore(home, receipt, compatibility=compatibility)
         receipt["status"] = "failed"
         save_receipt(home, receipt)
         print(f"install_failed {type(exc).__name__}")

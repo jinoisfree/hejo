@@ -1,0 +1,205 @@
+# 직원별 Google 연결 배치안
+
+7판 · Target · 6판 구현 진행 승인 유지. R10 설치 복구 충돌의 좁은 예외를 보완한 수정 계획. 요구 원본: [spec.md](spec.md).
+
+## 칸·원본·쓰기 주체·수명
+
+| 다루는 것 | 칸 | 원본 위치 | 쓰기 주체 | 수명 |
+|---|---|---|---|---|
+| 직원의 Google 연결 계정 | 사장 금고 | 기존 owner/vault.yaml 안 직원별 Google 연결 항목 | 사장 요청을 받은 team-kit | 해제 시 해당 직원의 계정 값 제거, 명시적 미연결 값은 보존 |
+| 직원의 OAuth 자격 | 사장 금고 | 직원 홈의 hejo/google-token.json (사용자 승인한 새 위치) | 검증을 마친 인증 처리기 | 연결 중 보존, 해당 연결 해제 시 삭제 |
+| 연결 상태 전이·복구 | 기존 시설 실행 상태 | 기존 state/connections 계정 작업 장부 | 연결 처리기 | 기존 장부 정책을 기준으로 설계, 토큰 평문 기록 금지 |
+| 화면과 전달 | 관제 화면·공항 시설 | 기존 app/ 및 gate/ | 개발 | 갱신 때 교체 |
+
+새 칸은 만들지 않는다. 사용자가 직원별 연결 원본과 전용 자격 위치를 승인했다. 값의 공식 원본은 금고이며, config.yaml은 조립 결과로만 사용한다. 인증 토큰을 금고 YAML이나 앱 설정에 복제하지 않는다. 이 배치 승인은 실제 운영 설정 변경 승인이 아니다.
+
+## 근거와 기존 계약 충돌
+
+기준 커밋은 [brainstorm.md](brainstorm.md) 참조. 운영 저장소 경로는 AGENTS.local.md만 참조한다.
+
+- hermes_facility/connections.py: personal_accounts는 공용 personal_scopes, connection_rows는 직원 gmail.account와 공용 이메일을 대조한다.
+- hermes_execution/personal_scopes.py: config는 공용 scope_config를 읽는다. token_home은 개인 담당 홈 또는 루트 홈을 반환한다.
+- hermes_packs/mail/__init__.py: _gmail_local_execute가 위 token_home의 google_token.json을 본체 API 스크립트에 전달한다.
+- hermes_packs/calendar/google_calendar_accounts.py: selection은 개인/회사 계정과 담당 역할로 범위를 확인한 뒤 개인 담당 홈 또는 루트 토큰을 선택한다.
+- 운영 저장소 docs/ARCHITECTURE.md 2절의 금고는 값만, 명부는 연결 앱·역할만, config.yaml은 조립 결과다. 4절은 새 저장 위치와 두 번째 원본을 금지한다.
+
+GAP-GD-01: 현재 스위치 해제 계약과 사용자가 선택한 계정 연결 제거 계약은 다르다. 기존 HEJO-CONN-MANAGE의 Google 보존·재사용 수락 기준을 이 작업에서 대체해야 한다. 다른 서비스의 기준은 유지한다.
+
+GAP-GD-02: 기존 인증·조회는 공용 계정 단위다. 해당 직원만 새 계정을 연결하려면 소비자도 직원 연결을 읽어야 한다. login_hint 제거·화면 이메일 숨김만으로는 해결할 수 없다.
+
+## 전환 계약
+
+1. 아직 전환하지 않은 직원은 기존 경로를 유지한다. 명시적으로 해제한 직원은 미연결 원본을 남겨 공용 계정으로 자동 복귀하지 않게 한다. 해당 직원에서 구 경로 fallback은 제거한다.
+2. 해제 시 그 직원의 연결 계정·전용 자격과 진행 중 인증을 무효화한다. 다른 직원과 공용 토큰·계정은 수정하거나 철회하지 않는다. 전용 토큰이 없던 첫 해제도 동일하게 차단한다.
+3. 다음 연결은 계정 선택 및 동의로 진행한다. 이전 이메일을 로그인 힌트나 허용 계정으로 강제하지 않는다. 인증 응답에서 실제 계정과 필요 권한을 검증한 뒤에만 금고·전용 자격을 하나의 연결로 확정한다.
+4. 해제 뒤 시작한 연결을 취소·실패하면 미연결을 유지한다. 오래된 인증 완료, 중복 완료, 다른 직원의 인증 결과로 연결이 복구되지 않게 한다.
+5. 메일·캘린더의 인증 조회를 하나의 직원 연결 해석 책임으로 모은다. 기존 역할별 발송·삭제 승인과 개인/회사 권한 경계는 완화하지 않는다. 새 계정은 그 직원의 기존 개인 역할에만 적용한다. 이전 계정의 일정·캐시·예약 참조는 이관하지 않고 아래 소비자 규칙을 따른다.
+6. Google 개인 해제는 재인증을 요구하고 기존 즉시 undo를 제공하지 않는다. 이미 꺼진 기존 연결에도 ‘연결 해제’를 제공해 남은 계정 매핑을 지울 수 있게 한다. 미연결에서 연결을 누르는 동작도 공용 토큰 재사용 대신 새 인증을 시작한다.
+
+## 대안
+
+- 채택: 위 직원별 연결 분리. 사용자 선택을 만족하고 다른 직원과 공용 인증을 보존한다. 소비자 변경·이관 검증이 필요하다.
+- 기각: 공용 개인 계정 자체 교체. 변경은 작지만 같은 계정을 쓰는 다른 직원과 예약 작업까지 계정이 바뀔 수 있어 ‘이 직원의 연결’이라는 선택에 맞지 않는다.
+- 기각: 화면만 비우고 기존 OAuth 다시 실행. 기존 계정 제한과 공용 토큰 덮어쓰기 위험이 남는다.
+
+## 위험·복구·시험
+
+고위험: 인증 저장·삭제, 직원별 접근 경계, 동시 인증 완료. 운영 적용은 아직 허가하지 않는다. 임시 HERMES_HOME과 가짜 명부에서만 구현·검증하고 본체·운영 비밀 파일은 열지 않는다.
+
+시험 원본은 [수락 명세](../../../tests/acceptance/HEJO-GOOGLE-DISCONNECT.md). 기대값은 spec의 사용자 관측 결과에서 도출한다.
+
+롤백은 코드만 되돌려 해제된 직원을 공용 계정에 다시 연결하지 않아야 한다. 연결의 명시적 미연결 상태를 이해하지 못하는 구버전으로 복귀를 차단하거나 해당 Google 기능을 비활성 상태로 유지하는 절차를 인계에 포함한다. 이미 지운 자격은 백업에서 자동 복원하지 않고 재인증으로 복구한다.
+
+증거: 소스 조사만 수행. 제품 시험·실제 OAuth 미실행. 격리 통합(2), 실제 앱(3), 사용자 직접 인증(4)을 구분한다. 실제 OAuth 결과 없이 실제 계정 교체 완료로 보고하지 않는다.
+
+## 저장·동시성 계약
+
+금고의 `google_connections`는 `version: 1`과 `profiles` 사전이다. 사전 키는 명부에서 검증한 직원 식별자이며 각 항목은 `scope: personal`, `account`를 가진다. account=null은 명시적 미연결이다. 연결되면 account에는 검증한 email·subject·binding_id를 둔다. 형식 불명·손상·지원하지 않는 버전은 거절한다. 항목이 없는 직원만 기존 경로를 쓴다. 이메일과 계정 선택을 config에 별도 원본으로 쓰지 않는다.
+
+전용 자격 파일은 version·binding_id·credentials를 담는 봉투다. credentials는 기존 Google 라이브러리가 소비할 자격 정보다. 어댑터가 봉투를 해석해 라이브러리에 전달하며, 본체용 파일명에 맞추려고 옛 위치에 복사하거나 symlink하지 않는다. 토큰과 금고 binding_id가 일치하고 현재 직원 연결이 유효할 때만 사용한다. 경로는 명부의 직원 홈으로부터 계산하며 클라이언트 입력으로 받지 않는다. 폴더 0700·파일 0600, 임시 파일도 전용 자격 파일과 같은 디렉터리에 같은 권한으로 작성하고 동일 파일시스템에서 원자적으로 교체한다.
+
+현재 app_connect 트랜잭션은 before 바이트를 장부에 보관하므로 토큰 삭제·교체에는 그대로 사용하지 않는다. 기존 account_connect가 Google 작업 상태를 소유하고, `hermes_facility/google_connection.py`에 직원 연결 해석·전용 자격 접근·복구를 모은다. 이는 사장 금고 접근을 집행하는 시설이며 별도 설정 저장소가 아니다. 기존 state/connections의 account 작업 장부에 세대·작업 ID·단계·비밀이 아닌 파일 지문만 기록한다. 토큰·금고 전체·인증 코드·승인 URL을 장부나 로그에 복사하지 않는다. OAuth URL과 state/PKCE 비밀은 인증 프로세스 메모리에서만 유지한다. 프로세스 종료 후 작업은 실패/만료로 처리하고 재인증한다.
+
+금고 쓰기는 기존 owner/.app-connect.lock을 공유하고 최신 YAML을 읽어 해당 직원 항목만 갱신한다. 외부 변경 충돌은 덮어쓰지 않고 거절한다. 네트워크 대기 동안 전역 잠금을 잡지 않는다. 짧은 확정 구간은 잠금 순서를 고정해 소비자·갱신·해제와 직렬화한다. 각 작업은 직원·요청 기기·작업 ID·세대에 결합한다.
+
+해제: 진행 중 인증 세대 무효화 → 미연결 원본 확정 → 전용 자격·임시 자격 삭제 → 완료. 중단 시 미연결을 유지하고 다음 접근/복구에서 남은 자격을 정리한다. 삭제 실패는 성공으로 표시하지 않는다. Google revoke API는 호출하지 않는다. 이중 방어로 해제 시 기존 config_assembly 경로를 통해 해당 직원의 gmail.enabled=false와 google-workspace 비활성 목록도 조립한다. 이는 금고의 미연결 원본에서 파생되는 결과이며 새 원본이 아니다. 복구/재조립 때도 이를 유지한다. 새 계정 연결 뒤에도 기존 gmail.enabled=false와 옛 공용 스킬 비활성을 유지한다. personal_scopes.install_mail 및 관련 진입점은 기존 enabled 검사보다 먼저 직원 금고 항목의 존재와 유효성을 판정한다. 항목이 있는 직원은 새 연결 해석기로만 진입하고, account=null/손상/처리 중/binding 불일치는 거절하며 유효한 연결만 직원별 어댑터를 사용한다. 이 분기에서는 레거시 enabled=false를 새 연결의 비활성으로 해석하지 않는다. 항목이 없는 직원만 기존 enabled 검사와 기존 어댑터를 그대로 따른다. 우회하는 것은 이 레거시 스위치 하나뿐이며 역할·승인·배경 제한은 두 경로 모두 유지한다. 따라서 새 계정 메일이 GOOGLE_DISABLED로 막히지 않고, 구버전은 여전히 false를 보아 차단한다.
+
+연결: 미연결 상태에서 새 작업 생성 → 계정 선택/동의 → 검증된 자격을 금고 임시 파일에 저장 → 작업 유효성과 현재 금고를 다시 확인 → 전용 자격 교체 → account 바인딩 확정 → 완료. 어느 단계든 account와 자격이 일치하지 않거나 장부가 처리 중이면 소비자는 거절한다. 실패·재시작 복구는 미연결과 자격 정리를 기본으로 하며 반쯤 완료한 연결을 추정해 켜지 않는다. refresh의 저장도 같은 binding_id와 세대 재검증을 거쳐 해제된 자격이 부활하지 않게 한다.
+
+해제 완료는 이후 호출 차단을 뜻한다. 이미 발신한 외부 요청을 취소했다고 주장하지 않는다. 새 승인/백그라운드 작업 시작 직전 연결을 재확인한다. API 호출에 사용된 계정과 결과 계정의 일치를 검증한다.
+
+## CLI·문·앱 계약
+
+기존 `account disconnect/connect --profile --connection --json`을 유지하고 google-personal만 새 의미로 바꾼다. 기존 꺼짐 상태에서도 새 connect는 미연결 원본을 만든 뒤 인증을 시작한다. 회사·X·Instagram 동작은 그대로다. 개인 계정의 기존 `oauth_connect`/권한 업데이트도 직원별 경로를 거치며 공용 인증을 덮어쓰지 않는다. 연결된 계정의 권한 갱신은 같은 검증 신원에 한정하고 계정 변경은 해제 후에 한다.
+
+인증 상태/취소용 CLI는 `account status|cancel --profile --connection google-personal --session <작업ID> --json`으로 확장한다. 작업 ID는 토큰이 아니며 서버가 발급한다. status는 읽기, cancel은 소유 작업만 허용하고 세대를 무효화한다. account undo는 개인 연결에서 `REAUTH_REQUIRED`로 거절한다. 기존 공용 reconnect 명령은 미전환 기능의 호환용으로만 유지하며 새 개인 연결 UI에서는 호출하지 않는다. 따라서 미전환 직원도 앱에서 만료된 개인 인증을 복구하면 직원별 전용 연결로 이관되는 것이 의도된 동작이다. 다른 직원의 공용 토큰은 갱신하거나 교체하지 않는다. 이관 인증 취소/실패 시 해당 직원만 미연결로 남고 다른 직원은 기존 상태를 유지한다.
+
+team-kit 개인 연결 행에 `disconnect_mode: forget_account`를 반환한다. 앱은 이 서버 능력 표시가 있을 때만 삭제 확인 문구를 쓴다. 없는 구버전 서버는 기존 보존 문구를 사용해 삭제를 약속하지 않는다. 새 앱은 삭제 확인과 재인증 후 account_disconnect 요청의 values에 disconnect_mode=forget_account를 명시한다. 신서버는 Google 개인 삭제 요청에 이 의미 확인 값이 없거나 다르면 UPDATE_REQUIRED로 거절하며 파일/세대를 변경하지 않는다. 구앱의 값 보존 안내 뒤 삭제가 발생해서는 안 된다. 문은 이 값을 허용 목록으로 검증해 CLI의 --disconnect-mode forget_account로 전달하고 CLI도 누락/불일치를 거절한다. 이 값은 권한 증명이 아니므로 기존 재인증도 필수다. capability·계정 표시·액션 목록은 문이 그대로 전달한다. 전환된 개인 행은 항상 `google-personal`로 유지하고 account=null은 문자열/옛 캐시로 대체하지 않는다.
+
+문은 인증 시작 결과의 서버 작업 ID를 `device/profile/connection/job`에 묶고 기존 session_id·verification_url 응답으로 앱에 전달한다. 기존 oauth_poll 프레임은 이 정확한 작업을 status 조회한다. 현재 poll이 profile 없이 공용 account만 조회하는 경로를 개인 연결에서 제거한다. 새 `account_cancel`은 oauth_poll과 같이 Touch ID 재인증을 요구하지 않고, 인증된 앱 연결의 같은 device/profile/connection/job 소유권 검증을 통과한 진행 중 작업에만 허용한다. 이 분기는 일반 변경 reauth 검사 전에 처리한다. 완료된 연결 해제·다른 작업 취소·세션 없는 취소로 확장하지 않는다. 이미 끝난 작업의 취소는 NO_ACTIVE_JOB으로 거절하며 연결을 지우지 않는다. schemas/hejo-wire-v1.json에 요청·응답과 필요 필드, 소유권/재인증 차이를 명시한다. 해제는 그 직원의 모든 미완료 개인 인증을 무효화한다. 새 연결 시 이전 작업을 취소하고 새 세대를 발급한다. 인증 완료/실패/취소 후 목록을 다시 읽는다.
+
+앱은 AppKit 기존 연결 화면을 유지한다. 인증 취소 버튼/인증 중 창 닫기는 account_cancel을 보내며 전달 실패 시 서버 만료 전까지 ‘취소 확인 안 됨’으로 표시한다. 전송되지 않은 취소를 서버 취소 완료로 주장하지 않는다. 기존 loopback 인증은 서버 Mac 브라우저에서만 완료 가능하므로 현재 기기 제약 안내를 유지한다. 이번 작업에서 새 원격 callback 서버를 만들지 않는다.
+
+## 소비자와 기존 경로 판정
+
+| 경로(운영 저장소 team-kit/lib 기준) | 판정·역할 |
+|---|---|
+| hermes_facility/account_connect.py, connections.py, connection_checks.py | 개인 연결 상태/쓰기/검사를 직원 연결 원본 기준으로 교체. 전체 Google 조회 때도 분리된 직원 상태가 공용 검사 결과에 덮이지 않음 |
+| hermes_facility/owner_vault.py, config_assembly.py | 유지·필요한 원본 접근/조립 함수만 확장. 원본 읽기와 새 연결 캐시 무효화 담당. 불필요한 config 쓰기는 하지 않음 |
+| hermes_execution/personal_scopes.py | 직원별 계정 해석을 통합. 전환 직원에 한해 개인 계정의 표시/선택을 투영하고 기존 역할·쓰기 승인 정책은 유지. 해제 시 개인 Google 사용 거부 |
+| hermes_packs/mail/__init__.py, gmail_watch.py, gmail_extra.py | 전용 자격 경로/신원을 공통 해석기로 결정. HERMES_HOME 변경만으로 옛 google_token.json을 찾는 전환 직원 경로는 제거. subprocess 입력은 profile/binding_id로 제한하고 worker에서 다시 검증 |
+| hermes_packs/calendar/google_calendar_accounts.py | 개인 전환 직원의 계정 선택·자격 공급 통합. 회사 계정 권한 불변. 이메일 하나로 다른 직원의 전용 토큰을 선택하지 않음 |
+| hermes_team_services/mail_waiting_worker.py, mail_read.py | 해당 직원 작업은 입력 profile/binding_id를 검증해 현재 연결 사용. 기존 계정에 묶인 대기 작업은 변경 시 거절, root 토큰 fallback 금지 |
+| hermes_governance/google_calendar_undo.py, mail 승인·undo 경로 | 새 작업은 binding_id에 결합. 계정 교체 후 과거 승인·되돌리기는 새 계정에서 실행하지 않음. 과거 기록 자체는 보존 |
+| hermes_team_services/secret_guard.py | 새 google-token.json 봉투와 임시 자격 이름까지 직접 파일 읽기/검색/터미널 보호에 추가 |
+| hermes_team_services/rest_day.py, hermes_packs/linked_work/work_completion.py | 기존 회사 공용 자격을 사용하는 경로 유지. 개인 계정 전환이 이 회사 작업에 영향을 주지 않는 회귀 시험 |
+| hermes_team_services/doctor.py | 전용 자격을 지원 여부/형식/권한 수준에서 검사하도록 확장. 진단 보고에 값 노출 금지 |
+| hermes_packs/mail/google_reauth.py, bin/hermes-personal-google-auth | 공용 회사·미전환 호환은 유지. 새 직원 개인 연결은 시설의 직원 인증 경로가 소유하며 고정 계정 CLI로 우회하지 않음 |
+
+기존 내장 google-workspace 스킬은 본체를 수정하지 않는다. 읽기 조사에서 본체 google_api.py에는 Drive/Sheets/Docs 등 명령과 TOKEN_PATH 직접 조회, gws subprocess의 자격 파일 전달, 자체 refresh 저장 경로가 있음을 확인했다. 단순히 메일·캘린더만 바꾸거나 스킬을 계속 꺼 두면 기존 기능이 손실되므로 전체 소비자 전환이 필요하다. 전환 직원은 기존 스킬 조립 경로에 직원용 Google 진입점을 연결하고, 공용 토큰을 직접 쓰는 내장 명령을 호출하지 않게 한다. Google 업무 명령은 기존 팩 책임 안에 두며 시설의 직원 인증 공급자만 공유한다. 기존 제공 기능(메일·캘린더·Drive·Sheets·Docs·Slides 및 실제 노출된 Contacts)의 요청/출력/승인 경계를 유지한 어댑터를 구현한다. SDK/gws 어느 backend이든 최종 자격 선택과 refresh 저장은 binding 검증을 거쳐야 한다. 봉투 파일을 일반 credentials 파일로 잘못 전달하거나 평문 사본을 만들지 않는다. gws가 메모리 자격 공급을 지원하지 않는 명령은 동일 기존 Google SDK 경로로 실행한다. 기존 기능을 삭제하거나 지원 범위를 줄여 시험을 통과시키지 않는다.
+
+그 변경은 본체 패치·런타임 monkeypatch가 아니라 team-kit 팩과 조립 스킬에서 수행한다. TASK-03 코드 작성 전에 workspace-command-map.md에 실제 기존 명령/인자/출력/승인 경계, 인증·refresh 경로, 새 어댑터와 수락 시험을 대응시킨다. 이전 불가 명령·라이선스 문제·권한 완화·본체 수정 필요가 하나라도 나오면 TASK-03을 멈추고 기획에 반환한다. 대응표는 구현 완료 뒤 구현 보고에서 실제 결과와 연결한다. 본체 스크립트의 기능을 참고하는 경우 라이선스와 기존 공개 배포 조건도 확인한다. 이관하지 못한 기존 명령이 있으면 그 이유와 필요한 설계 변경을 보고하고 해당 수락 기준을 미완료로 둔다.
+
+`bin/hermes-sync-shared`의 공유 복사 목록에는 Google 설정이 없다. 새 Google 연결 원본은 이 스크립트에 복사 목록을 더하지 않는다. 조립/스킬 등록이 구 config의 gmail.account를 보더라도 전환 직원은 공통 해석기·비활성 경계를 우선한다. 오래된 config를 다시 조립하는 시험으로 자동 연결 복귀가 없는지 확인한다.
+
+## 배포·복구와 착수 조건
+
+초기 인계는 격리된 개발·가짜 홈 검증·배포안 준비까지만 허용한다. 두 저장소의 미커밋 다른 작업은 가져가거나 되돌리지 않는다. 특히 app_connect.py와 team-kit/__init__.py가 다른 작업에서 수정 중이다. 동일 책임 변경은 직렬화하고 호스트가 배정한 격리 공간 또는 해당 작업 완료 뒤 최신 기준에서 시작한다.
+
+운영 인계에는 양쪽 저장소 대상 커밋·앱 빌드·설치 경로·기능 중지 방법·처리 중 작업 확인·단 한 번의 게이트웨이 재시작·연결 읽기 확인을 구체적으로 담는다. 승인 전 실행하지 않는다. 실사용자는 직접 OAuth 계정을 선택한다. 코드 검증 후 최종 검토자가 별도 운영 인계를 확인한다.
+
+전환 기록이 있는 동안 구버전 설치/복귀는 금지한다. 차단 구현은 hejo install/check_google_compat.py가 소유한다. 배포/설치/롤백 진입점은 변경 실행 전에 이 검사를 호출한다. 검사기는 현재 금고에 직원 전환 항목이 있는지와 대상 빌드 산출물의 지원 연결 버전을 대조한다. 대상 능력 메타데이터 부재·미지원·읽기 실패는 거절하며 명령행의 임의 지원 선언으로 우회하지 않는다. 운영 인계는 검사 우회 수동 복사를 금지한다. airport-check는 별도의 정적 경계 검사로 유지한다. 기존 앱의 버전만 되돌리는 것도 새 삭제 의미를 모르면 허용하지 않는다. 복구는 새 연결 해석기를 유지한 상태에서 기능 비활성 또는 수정 버전 배포로 한다. 전용 자격의 백업 자동 복원은 금지하고 재인증한다. 운영자가 명시적으로 옛 계정 연결 복원을 요청하기 전에는 미연결 원본을 지우지 않는다.
+
+
+### 배포 진입점 명세(R8)
+
+TASK-05의 파일·명령별 산출물은 다음과 같다. 아래 새 운영 배포 진입점은 현재 있다고 주장하는 것이 아니라 이번 작업에서 작성할 정비 도구다. 공통 검사 원본은 hejo install/check_google_compat.py 하나이며 운영 저장소에 복사하지 않는다.
+
+| 저장소·파일 | 검사할 명령/경로 | 차단 시 보장 |
+|---|---|---|
+| hejo install/hejo-install | `python3 install/hejo-install --home <시험 홈>`의 신규 설치·기존 설치 갱신, 내부 restore 복구 경로 | 파일 교체 전에 대상 빌드 검사. 복구 대상이 미지원이면 코드 복구 중단·기능 비활성 상태 보고, 계정 원본 복원 금지 |
+| 운영 저장소 hermes/bin/hermes-team-kit-deploy (신규) | `hermes-team-kit-deploy apply --source <검증 산출물> --root <시험 홈>` | 공통 검사 통과 전 공유 plugin-store/team-kit 교체·연결 변경·재시작 0 |
+| 같은 신규 파일 | `hermes-team-kit-deploy rollback --source <검증 복구 산출물> --root <시험 홈>` | 이전 커밋/공유 배포본도 동일 검사. 무검사 git checkout/cp/rsync로 운영 배포를 대신하지 않음 |
+| 운영 저장소 hermes/bin/hermes-plugin-store | `hermes-plugin-store --migrate --root <시험 홈>`, `--restore-copies --root <시험 홈>`와 실패 복구 _restore_entries | 경로 변경 후 실행될 team-kit 산출물에 대해 동일 검사. 실패 복구도 호환성 검사를 생략하지 않음 |
+
+운영 저장소의 되돌린 커밋을 실제 홈에 적용하는 명령은 위 rollback으로 한정한다. 운영 원본의 git revert/checkout 자체는 런타임 배포가 아니며 자동으로 운영에 적용하지 않는다. 공유 배포 폴더를 git checkout으로 직접 바꾸는 방식은 이 운영 인계에서 금지한다. 공통 검사기는 교체 대상에 포함된 구버전 파일에서 실행하지 않고 검증된 현행 hejo 작업본/설치본에서 실행한다. 검사기 경로·버전/지문을 운영 인계에 기록하며 경로 부재·실행 오류는 거절한다. 별도 우회 플래그는 만들지 않는다.
+
+조사에서 운영 저장소 sync는 실행본을 저장소로 수집하는 방향임을 확인했으므로 배포 진입점으로 잘못 분류하지 않는다. install/hejo-ship은 배포 파일 준비/발행 도구이므로 실제 홈 변경 검사를 대체하지 않는다. 이 작업의 로컬 설치·갱신·복구는 위 진입점만 사용한다. 구현 중 추가 런타임 교체 경로가 발견되면 임의로 안전하다고 간주하지 않고 표·GD-T14 보완을 기획에 요청한다.
+
+
+### 공통 검사기 경로 결정(R10)
+
+운영 명령은 자신이 검증한 루트 홈 인자(없으면 기존 HERMES_HOME 해석)에서 `plugins/hejo`를 찾는다. 이 설치 링크가 가리키는 `gate` 디렉터리의 부모를 hejo 설치 원본으로 보고, 그 아래 고정 상대 경로 `install/check_google_compat.py`를 선택한다. 기존 `hejo/install-receipt.json`을 읽기 전용으로 파싱하여 status=installed, 루트 plugins/hejo의 link 항목 state=applied, after의 정규화 대상과 현재 설치 링크의 일치를 확인한다. 검사기를 찾기 위해 영수증 업그레이드·쓰기나 설치 링크 변경을 하지 않는다. 실제 설치 영수증과 링크에 저장된 로컬 경로를 이용할 뿐, 운영 저장소 위치·사용자 홈 절대 경로를 제품 코드·추적 설정에 넣지 않는다. AGENTS.local.md는 개발 위치 안내이며 운영 검사기 탐색에 사용하지 않는다.
+
+검사기는 해당 hejo 원본의 install 디렉터리 안 일반 파일이어야 하며 추가 symlink로 바깥 파일을 실행할 수 없다. 링크/영수증 부재·불일치·지원 불가 형식·검사기 부재·실행 오류는 거절한다. 대상 구버전 배포본이나 현재 작업 디렉터리, PATH 검색에서 검사기를 대신 찾지 않는다. 확인된 현행 설치본의 검사기 위치와 지문을 이번 배포 작업 동안 고정해 대상 교체 뒤 다시 탐색하지 않는다.
+
+hejo-install의 최초 설치는 설치 링크가 없으므로 실행 중인 검증된 설치 패키지의 `install/hejo-install`과 같은 디렉터리의 `check_google_compat.py`를 쓴다. 이 예외는 설치 영수증도 전환 기록도 없는 최초 설치에만 허용한다. 기존 설치 갱신/복구는 위 현행 설치본 규칙을 따른다. 불완전 설치에서 전환 기록이 발견되면 최초 설치로 간주하지 않고 복구 필요로 거절한다. 새 경로 저장소나 검사기 사본을 만들지 않는다.
+
+
+### 공유 배포본 구성(B1 보완)
+
+[확인] install/hejo-release는 gate·hub·schemas·config·install만 복사한다. scripts는 배포하지 않으므로 4판의 검사기 위치는 실제 설치본에서 존재할 수 없었다. 5판은 검사기 원본을 **install/check_google_compat.py**로 정정한다. 검사기는 표준 라이브러리와 같은 배포본의 명시된 파일만 사용하며 작업본 scripts/나 개발 환경 모듈을 import하지 않는다. 이전 scripts 경로의 두 번째 검사기는 만들지 않는다.
+
+지원 연결 버전 메타데이터는 **install/google-connection-support.json**에 둔다. hejo 배포 산출물에 포함되는 기계 판독 계약이며 개인값·로컬 경로·운영 상태를 포함하지 않는다. 연결 버전 1 지원 여부를 검사기가 읽으며 누락·잘못된 형식·미지원은 거절한다. 운영 team-kit 대상 산출물의 지원 버전 선언도 TASK-05에서 검사 대상에 포함하고, hejo 쪽 선언만으로 구 team-kit을 호환으로 취급하지 않는다.
+
+install/hejo-release를 TASK-05 변경 범위로 포함한다. 현재 install 전체 복사로 위 두 파일은 배포본에도 같은 상대 위치를 갖는다. release는 원본 및 복사 완료 산출물의 두 파일 존재·일반 파일·지원 버전 형식을 확인하고 누락이면 성공/RELEASED를 출력하지 않는다. 기존 배포본을 교체하는 실행은 복사 전에 현행 검사기로 대상 호환성을 확인하며, 실제 연결된 홈 전체를 확인하지 못하면 운영 교체를 수행하지 않는다. 테스트용 신규 출력 디렉터리로의 산출물 준비와 운영 공유 배포본 교체를 구분한다. 운영 교체의 승인 경계는 그대로다.
+
+GD-T14의 설치 위치는 작업본 경로가 아니라 실제 `bash install/hejo-release <임시 배포 경로>`로 생성한 공유 배포본이다. 가짜 config만 있는 격리 소스 fixture를 사용해 실계정 config/비밀을 읽거나 배포하지 않는다. 배포본 안 install/hejo-install로 가짜 홈에 설치하고, plugins/hejo가 배포본 gate를 가리키는지 확인한다. 소스 작업본을 접근 불가로 만든 뒤 검사기 탐색·정상 대상 허용·미지원/메타데이터 누락 거절을 실행한다. 배포본에 scripts/를 추가해 결함을 숨기거나 검사기를 수동 복사한 fixture로 대체하지 않는다.
+
+
+## 6판 보완: 선택 스킬과 공식 도구 실행 경계
+
+### 발견·설계 적합성
+
+SDK 이식과 스킬 terminal 연결은 다른 계약이다. 기존 selected_skills.sandbox_argv는 시설 코드·금고·직원 자격 접근을 거절한다. 실제 sandbox 시험에서 이를 확인했으므로 5판의 ‘조립 스킬에서 새 진입점 호출’만으로는 GD-T20이 성립하지 않는다. sandbox 예외·시설 코드/자격의 스킬 폴더 복제·특권 shell bridge는 사용하지 않는다. 새 칸·저장 원본은 없다. 기존 업무 팩과 공식 플러그인 도구 등록을 사용하며 기존 직원별 인증 시설만 자격을 읽는다.
+
+### 호출 계약
+
+조립된 직원 스킬은 terminal 명령 대신 아래 공식 도구 호출을 안내한다. 스킬 문서는 인증·권한의 주체가 아니며 런타임이 매 요청을 검증한다. 본체 내장 스킬은 수정하지 않는다. 전환 직원의 조립 스킬에서 본체 google_api.py/gws_bridge 안내를 대체하고, 미전환·회사 경로는 유지한다.
+
+| 도구 이름 | 기존 소유 팩 | 허용 command |
+|---|---|---|
+| google_mail_workspace | mail | gmail search/get/send/reply/labels/modify |
+| google_calendar_workspace | calendar | calendar list/create/delete |
+| google_files_workspace | files-docs | drive search/get/upload/download/create-folder/share/delete, sheets get/update/append/create, docs get/create/append |
+| google_contacts_workspace | mac-apps | contacts list |
+
+인자는 `{command, arguments}`이며 command는 위 고정 문자열 enum이다. arguments는 workspace-command-map의 각 명령에 있는 인자만 허용하는 명령별 typed schema로 정의한다. 기존 CLI의 긴 옵션은 앞의 `--`를 뗀 동일 철자를 쓰고 positional은 표의 이름을 쓴다. 값 타입·필수값·기본값·enum은 기존 parser 계약을 유지한다. 알 수 없는 필드/명령·다른 팩 명령은 거절한다. raw argv/shell/Python 소스/임의 API URL은 받지 않는다. 기존 request_plan은 호스트 승인 계층이 필요할 때만 추가하는 기존 계약을 따른다.
+
+profile·root·token path·binding·credential·승인 완료 여부는 호출 인자로 받지 않는다. 직원과 세션은 호스트 문맥에서 얻고, 승인 시점 binding을 저장한 뒤 실행 직전 및 refresh 저장 시 재검증한다. 같은 이메일 재연결도 옛 승인을 재사용하지 않는다. 기존 google_workspace.run은 내부 어댑터로 재사용할 수 있지만 외부 특권 CLI로 노출하지 않는다. 업무 함수와 승인 상태를 두 벌 만들지 않고 기존 메일/일정 승인·undo 파이프라인과 시설을 재사용한다.
+
+성공 결과는 대응표의 기존 JSON 객체/목록을 그대로 반환한다. 기존 함수의 print 결과를 쓰면 메모리 안에서만 수집·검증하고 동시 호출 출력 혼합이 없는 방식으로 바꾼다. 파일 다운로드는 기존 파일 결과를 반환하며 자격 경로는 노출하지 않는다. 오류는 호스트 기존 오류 응답을 쓰되 잘못된 인자·권한 거절·승인 필요·계정 변경·미연결·공급자 실패를 구분한다. 예외 원문·토큰·인증 코드·원시 HTTP 응답은 반환하지 않는다.
+
+### 권한·승인·파일 경계
+
+등록은 hermes_execution.register의 기존 wrapper와 scoped_context를 통과한다. 도구별 소유 팩의 pack.yaml/plugin.yaml, 기존 catalog 생성 원본 및 호스트 manifest를 함께 반영한다. 생성 catalog를 두 번째 수동 원본으로 만들지 않는다. 누락된 pack/app/role 권한을 새 도구 이름으로 우회하지 않는다. ‘Google 연결됨’은 업무 권한 부여가 아니다. 기존 selected_skills의 enabled·역할·authenticated owner 대화 조건과 기존 명령별 정책의 교집합만 허용한다. 기존 native worker 권한은 별도로 유지하며 새 호환 도구는 배경 호출을 거절한다.
+
+등록뿐 아니라 handler에서도 같은 접근 조건을 검사한다. 도구를 직접 호출하거나 승인 middleware를 우회하는 시도도 API 실행 전에 거절한다. 모든 외부 mutation(send/reply/modify/create/delete/upload/share/update/append)은 호스트의 실제 승인 hook·request_approvals 대상에 포함한다. read 명령의 이름만으로 도구 전체를 read-only로 분류하지 않는다. 승인 digest는 command·정규화된 인자·직원·세션과 binding에 묶인다. 미지원 인자를 숨겨 read 승인으로 write를 실행하지 못한다.
+
+Drive upload의 입력은 기존 호스트 읽기 허용 범위, download의 출력은 기존 쓰기 허용 범위 안에서만 허용한다. 상대 경로와 기본 출력 위치는 호스트 직원 workspace 기준이다. 원격 파일명은 경로가 아닌 basename으로 검증한다. 절대경로 탈출·`..`·symlink와 승인 뒤 경로 교체도 실행 시 재검사하며 금고/토큰/시설 경로는 항상 제외한다. SDK 작업이 검증한 파일과 다른 경로를 다시 열지 않도록 핸들 또는 안전한 경로 고정 계약을 사용한다. 다운로드는 허용 폴더 안 임시 파일 후 교체하고 기존 파일 덮어쓰기 승인 정책을 보존한다.
+
+### 완료 증거와 중단 조건
+
+GD-T20에 실제 공식 register → pack/role/owner/approval middleware → handler → 직원 resolver → SDK 대역의 통합 시험을 추가한다. 24개 명령의 기존 출력 fixture는 유지하되 이것만으로 제품 연결을 완료하지 않는다. 허용 호출의 성공과 미선택 팩·권한 없음·비소유자·배경·승인 없음/재사용·계정 교체·다른 직원 인자·파일 탈출 거절을 관측한다. 거절 시 Google API 호출과 파일 변경은 0이다. 기존 sandbox 접근 거절 시험은 계속 통과해야 한다.
+
+새 영구 원본·새 권한 부여·본체 변경이 필요하거나 기존 정책과 동등한 등록 경로가 없으면 중단해 기획에 반환한다. 이 보완은 5판의 자동 승인 범위에 포함됐다고 간주하지 않으며 호스트의 수정 계획 승인 후 적용한다.
+
+
+## 7판 보완: 전환 전 failed/uninstalled 설치의 재실행
+
+R10의 installed/applied 영수증 요구는 현행 설치에서 공통 검사기를 찾는 일반 규칙이다. 이 규칙이 전환 기록 없는 실패 설치 재시도와 해제 후 명시적 강제 정리까지 막는 설계 누락을 보완한다. 기존 test_install.py 세 시험의 기대값을 유지한다. 다음 예외는 hejo-install의 로컬 재실행에만 적용하며 team deploy/plugin-store의 일반 검사기 탐색에는 확대하지 않는다.
+
+### 복구 예외의 모든 조건
+
+1. 현재 홈의 영수증은 지원 스키마의 일반 파일이고 status가 failed 또는 uninstalled다. 중복 키·알 수 없는 형식·symlink·손상·읽기 실패는 거절한다. installed 영수증과 링크 불일치, installing/removing 중간 상태를 이 예외로 우회하지 않는다.
+2. 금고를 읽기 전용 검사하여 직원 전환 항목이 없음을 확정한다. null 계정도 전환 기록이다. 모르는 버전·손상·해석 불가·읽기 실패는 ‘없음’으로 취급하지 않는다. 직원 전용 자격 파일 또는 미완료 Google 인증/커밋 장부가 남으면 금고에 항목이 없더라도 복구 필요로 거절한다. 비밀 원문은 출력하지 않는다.
+3. 영수증에 있는 루트 및 직원의 실행 코드 링크를 모두 검사한다. 현재 파일 시스템이 기록된 before 링크 또는 원래 부재 상태로 복구돼 있어야 한다. 영수증의 pending/removed 같은 상태 문자열만으로 판단하지 않는다. 새 코드 링크가 아직 applied이거나 다른 대상으로 바뀌었거나 경로 탈출·symlink 부모·복구 중단이 있으면 거절한다. 검사하려고 링크나 영수증을 먼저 고치지 않는다. 원래 before가 다른 설치를 가리키더라도 그 코드를 검사기로 실행하지 않는다.
+4. 설정의 사용자 변경이 남은 경우는 코드 복구 불완전과 구분한다. 기존 installer의 비교·conflict·명시적 --force 계약을 그대로 적용한다. 강제 옵션 없는 일반 정리에서 사용자 설정을 덮지 않으며, --force도 Google 전환 기록/검사기 검증 거절을 우회하지 못한다. 기존 device data·소유자 값·다른 직원 값 보존 계약도 유지한다.
+5. 위 조건이 성립하면 실행 중인 설치 패키지의 install/hejo-install과 같은 디렉터리의 check_google_compat.py를 선택한다. 일반 파일·패키지 구성·지원 선언을 검증하고 코드/지문을 작업 동안 메모리에 고정한다. PATH/cwd/영수증 before 대상/임의 명령행 검사기 경로로 대체 탐색하지 않는다. 후보 지원 선언은 후보 검사기 실행 전에 검증한다. 검사 실패 시 거절한다.
+6. 예외는 검사기를 안전하게 선택하는 절차일 뿐이다. 이후 대상 호환성 검사·설치/복구의 기존 파일 비교·원자 쓰기·durable rollback을 그대로 실행한다. 영수증 삭제/installed 위장·자격 복원·재연결은 하지 않는다. 검사와 변경 사이에 전환이 생기는 경합을 기존 금고 쓰기 잠금과 배포 배타 처리로 막고 변경 직전 재확인한다. 그러한 배타 처리가 불가능하면 거절한다.
+
+### 시험과 남은 배포 완료 조건
+
+GD-T14에 세 기존 복구 성공 시험과 부정 경계를 연결한다. failed/uninstalled 각각에서 전환 기록(null 포함), 남은 전용 자격/활성 인증, 링크 변조·일부 프로필 미복구·잘못된 영수증·검사기/지원 선언 누락 및 symlink, 검사 후 전환 삽입을 주입한다. 거절 시 설정/링크/영수증/금고·자격 변경 0을 관측한다. 사용자 config 충돌은 --force 유무에 따라 기존 의미를 유지한다.
+
+서로 다른 새 release로 installed 링크/영수증을 갱신하는 성공 시험과 team 배포 후 profile overlay의 신규/삭제 파일 반영 시험은 별도로 완료해야 한다. hejo-release가 사용 중인 공유 폴더 교체를 거절하는 동작은 유지 가능하나, 새 산출물 생성→각 홈의 검증된 installer 갱신이라는 정상 경로가 실제로 통과해야 한다. 지원되지 않는 YAML은 허용으로 추정하지 않는다. 기존 owner_vault가 생성하는 정상 형식은 가짜 명부/금고로 왕복해 호환성을 검증하고, 지원 형식 제한을 운영 인계에 적는다.

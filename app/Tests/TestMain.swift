@@ -32,7 +32,30 @@ final class MemoryCredentials: GateCredentialStore {
         Task { @MainActor in
             do {
                 let args = CommandLine.arguments
-                if args.contains("--ui-clean-polish-probe") {
+                if args.count>3 && args[1]=="--connection-supplement" {
+                    try await connectionSupplementTests(args[2])
+                } else if args.count>3 && args[1]=="--remaining-basic" {
+                    let resources=URL(fileURLWithPath:args.last!)
+                    switch args[2] {
+                    case "progressLayoutTests":try await progressLayoutTests()
+                    case "threeTapTests":try await threeTapTests(resourceDirectory:resources)
+                    case "roomsTests":try await roomsTests(resourceDirectory:resources)
+                    case "bubbleReplyTests":try await bubbleReplyTests(resourceDirectory:resources)
+                    case "petNotificationTests":try await petNotificationTests(resourceDirectory:resources)
+                    case "picturesSidebarTests":try picturesSidebarTests()
+                    case "appIconTests":try appIconTests()
+                    case "loginTests":try await loginTests()
+                    case "composerTests":try composerTests()
+                    default:throw TestFailure.assertion("unknown remaining basic test")
+                    }
+                } else if args.count>4 && args[1]=="--google-disconnect-close-ui" {
+                    try await googleDisconnectUITests(directory:URL(fileURLWithPath:args[2]),endpoint:args[3],evidence:URL(fileURLWithPath:args[4]),closeOnly:true)
+                } else if args.count>4 && args[1]=="--google-disconnect-ui" {
+                    try await googleDisconnectUITests(directory:URL(fileURLWithPath:args[2]),endpoint:args[3],evidence:URL(fileURLWithPath:args[4]))
+                } else if args.contains("--google-disconnect") {
+                    try await googleDisconnectTests()
+                    try await googleDisconnectSheetTests()
+                } else if args.contains("--ui-clean-polish-probe") {
                     try await uiCleanPolishTests(resourceDirectory:URL(fileURLWithPath:args.last!),diagnoseOnly:true)
                 } else if args.contains("--ui-clean-polish") {
                     try await uiCleanPolishTests(resourceDirectory:URL(fileURLWithPath:args.last!))

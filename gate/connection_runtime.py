@@ -158,8 +158,16 @@ class TeamKit:
         elif verb in {'reconnect_start','reconnect_status'} and connection in {'personal','company'}:
             args=['reconnect',verb.split('_',1)[1],'--account',connection,'--json'];seconds=30
         elif verb=='apps':args=['apps','--json'];seconds=30
-        elif verb in {'account_connect','account_disconnect','account_undo'} and connection in {'google','google-personal','google-company','x','instagram'}:
+        elif verb in {'account_connect','account_disconnect','account_undo','account_status','account_cancel'} and connection in {'google','google-personal','google-company','x','instagram'}:
             args=['account',verb.split('_',1)[1],'--profile',profile,'--connection',connection,'--json'];seconds=30
+            options=options or {}
+            if verb in {'account_status','account_cancel'}:
+                if connection!='google-personal' or not isinstance(options.get('session'),str) or not options['session'] or len(options['session'])>128:
+                    raise ConnectionFailure('invalid_action')
+                args+=['--session',options['session']]
+            if connection=='google-personal' and verb=='account_disconnect':
+                if options.get('disconnect_mode')!='forget_account':raise ConnectionFailure('UPDATE_REQUIRED')
+                args+=['--disconnect-mode','forget_account']
         elif verb in {'app_connect','app_disconnect','app_undo'}:
             args=['app',verb.split('_',1)[1],'--profile',profile,'--app',connection,'--json'];seconds=180
             options=options or {}

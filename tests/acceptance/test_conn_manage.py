@@ -187,13 +187,38 @@ async def test_cm24_25_actual_cli_arguments(tmp_path):
     entry.write_text('#!/usr/bin/env python3\nimport sys,json\nprint(json.dumps({"args":sys.argv[1:],"stdin":sys.stdin.read()}))\n')
     entry.chmod(0o700)
     team = TeamKit(tmp_path)
-    for verb in ('account_disconnect', 'account_connect', 'account_undo'):
+    result = await team.run('account_disconnect', profile='alpha', connection='google-personal',
+                            options={'disconnect_mode': 'forget_account'})
+    assert result['args'] == ['account', 'disconnect', '--profile', 'alpha', '--connection',
+                              'google-personal', '--json', '--disconnect-mode', 'forget_account']
+    assert result['stdin'] == ''
+    for verb in ('account_connect', 'account_undo'):
         result = await team.run(verb, profile='alpha', connection='google-personal')
         assert result['args'] == ['account', verb.split('_')[1], '--profile', 'alpha', '--connection', 'google-personal', '--json']
+    for connection in ('google', 'google-company', 'x', 'instagram'):
+        result = await team.run('account_disconnect', profile='alpha', connection=connection)
+        assert result['args'] == ['account', 'disconnect', '--profile', 'alpha', '--connection', connection, '--json']
     result = await team.run('app_connect', profile='alpha', connection='synthetic', options={'change': 'values'})
     assert result['args'][-2:] == ['--change', 'values'] and result['stdin'] == ''
     with pytest.raises(ConnectionFailure):
         await team.run('app_connect', profile='alpha', connection='synthetic', options={'change': 'foo'})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('options', [None, {}, {'disconnect_mode': 'preserve'},
+                                    {'disconnect_mode': ''}, {'disconnect_mode': True}])
+async def test_cm25_google_disconnect_requires_explicit_forget_before_cli(tmp_path, options):
+    entry = tmp_path/'bin/hermes-connections'
+    entry.parent.mkdir()
+    marker = tmp_path/'cli-ran'
+    entry.write_text('#!/usr/bin/env python3\nfrom pathlib import Path\n'
+                     'Path(__file__).parents[1].joinpath("cli-ran").touch()\n'
+                     'print("{}")\n')
+    entry.chmod(0o700)
+    with pytest.raises(ConnectionFailure, match='^UPDATE_REQUIRED$'):
+        await TeamKit(tmp_path).run('account_disconnect', profile='alpha',
+                                    connection='google-personal', options=options)
+    assert not marker.exists()
 
 
 @pytest.mark.asyncio
