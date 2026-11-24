@@ -49,8 +49,10 @@ def build(evidence, baseline, skip=False):
     options = ['-swift-version', '5', '-parse-as-library', '-O', '-whole-module-optimization', '-D', 'HEJO_PERF_TESTING', '-target', platform.machine() + '-apple-macosx13.0']
     if baseline:
         options += ['-D', 'HEJO_RECONNECT_BASELINE']
-    fingerprint = {'runner_sha256': digest(Path(__file__)), 'head': git('rev-parse', 'HEAD'), 'sources': {str(p.relative_to(REPO)): digest(p) for p in sources},
-                   'product_diff': git('diff', 'HEAD', '--', 'app/Sources'), 'options': options,
+    # Git history is provenance, not a build input: committing identical source must
+    # preserve --no-build reuse, while changed source/options/compiler still reject it.
+    fingerprint = {'runner_sha256': digest(Path(__file__)), 'sources': {str(p.relative_to(REPO)): digest(p) for p in sources},
+                   'options': options,
                    'compiler': subprocess.check_output(['xcrun', 'swiftc', '--version'], text=True),
                    'instrumentation': {'old': old, 'new': new, 'copy_sha256': digest(instrumented)}}
     sources = [instrumented if p == original else p for p in sources]
@@ -60,16 +62,17 @@ def build(evidence, baseline, skip=False):
         receipt = json.loads((evidence / 'build.json').read_text())
         assert receipt['input'] == fingerprint and receipt['binary_sha256'] == digest(binary), 'stale measurement build'
         return binary
+    provenance = {'head': git('rev-parse', 'HEAD'), 'product_diff': git('diff', 'HEAD', '--', 'app/Sources')}
     command = ['xcrun', 'swiftc', *options, *map(str, sources), '-o', str(binary)]
     for framework in ['AppKit', 'EventKit', 'WebKit', 'Accelerate', 'ServiceManagement']:
         command += ['-framework', framework]
     command += ['-F', str(sparkle), '-framework', 'Sparkle', '-Xlinker', '-rpath', '-Xlinker', str(sparkle)]
     with (evidence / 'compile.log').open('w') as log:
         result = subprocess.run(command, cwd=REPO, stdout=log, stderr=subprocess.STDOUT)
-    write(evidence / 'build.json', {'input': fingerprint, 'exit_code': result.returncode})
+    write(evidence / 'build.json', {'input': fingerprint, 'provenance': provenance, 'exit_code': result.returncode})
     if result.returncode:
         raise RuntimeError('compile failed; see compile.log')
-    write(evidence / 'build.json', {'input': fingerprint, 'exit_code': 0, 'binary_sha256': digest(binary)})
+    write(evidence / 'build.json', {'input': fingerprint, 'provenance': provenance, 'exit_code': 0, 'binary_sha256': digest(binary)})
     return binary
 
 
