@@ -116,3 +116,74 @@ Terra checkpoint-10 재검토로 IR-1을 닫는다. 새 제품 구현 지시가 
 4. canonical deployment-handoff.md에 후보 두 전체 커밋/산출물 식별자, 적용 순서·예상 영향·중단 조건, 승인 뒤 사용할 정확한 명령 템플릿, 호환되는 복구 대상 선택/검증 절차와 복구 불가 시 닫힘을 작성한다. 전용 자격이나 금고 연결을 과거로 되돌리는 복구는 금지한다. 개인 실제 경로가 필요한 정보는 ignored 로컬 인계로 분리한다. 불명확한 운영 대상을 추측해 실행하지 않는다.
 5. GD-T19 사용자 체크리스트를 붙인다: 직원 한 명의 해제 후 이메일 제거, Google 계정 선택, 다른 계정 연결/표시·읽기 전용 확인, 다른 직원 연결 불변. 비밀/메일 본문/토큰 증거를 요청하지 않는다. 실행 승인 전 미실행으로 표시한다. 최종 현재 명세/ARCHITECTURE 반영은 TASK-07 기획 소유이며 실계정 검증 전 완료로 승격하지 않는다.
 6. impl-report에 결과 커밋·후보/검증/운영 인계 준비 결과를 제출한다. 기획 검토 후 사용자에게 구체적 운영 승인 결정을 요청한다. 푸시 화면 승인은 별도이며 커밋만으로 최종 완료를 선언하지 않는다.
+
+
+## 왕복13 / 8판 구현 계획 — 전달 차단2건 해소
+
+- 범위는 design8판과 deployment-handoff의 대응표다. 기존 검토된 Google 인증 구현/IR-1을 유지하고 기존 두 worktree에서 후속 커밋으로 작업한다. 기준 hejo `d25530649f7eb898e2f5cbc5cb471c1417823632`, team `33d6671993473c0eb7ecb4087e0fe4edebc63050`. 기존 커밋을 amend/rebase하지 않는다.
+- 먼저 동반5파일 각각의 원본·실제 대상·조립/사용자 필드 소유·복구 단위를 코드에서 추적해 deployment-handoff에 명시한다. 원본 manifest와 사용자 overlay·선택 스킬을 구별한다. 기존 칸 밖 추가 원본이 필요하면 구현 전에 반환한다.
+- app/scripts/build.sh의 산출물 ASCII 이름·낡은 리소스 정리, app/Sources/HooksHelp.swift의 조회를 함께 보완한다. 임시 볼륨에서 실제 압축 왕복·서명·안내 조회를 검증한다. 성공한 로컬 bundle만으로 완료하지 않는다.
+- 기존 team deploy 및 필요한 기존 조립기/지원 선언/단일 호환 검사기에 bundle 경계를 구현한다. kit-only 호환/거절 조건, 명시적5경로, 전체 사전 검사·잠금·stage·실패복구·중단 검출, grant/선택 보존을 함께 완성한다.
+- 가짜 홈에서 전체 bundle apply/rollback 후 실제 등록4도구·선택된 스킬을 확인한다. 미선택 직원/사용자 grant/비관련 manifest 불변, 각 교체 지점 I/O 실패 복구, 중간 종료 후 거절, 지원 누락·섞인 bundle·경로 탈출·로컬 충돌·kit-only 부분 rollback 거절, 기존 미전환 kit-only 계약을 시험한다. 임의 운영 복사/설치/재시작 금지.
+- 해당 변경의 독립 Terra 검토·표적 회귀/airport-check/공개 검사 후 후속 커밋과 새 배포 후보·복구 묶음을 고정한다. 전달 인계에서 앱 구성·설치 대상·검사기 탐색·중단/재개·복구 미확정을 남김없이 열거하되 운영값을 추측하거나 비밀을 열지 않는다. 승인할 실운영 대상 확인은 필요한 읽기 전용 비밀 제외 정보로 준비한다. GD-T19·TASK07 승격·운영·푸시는 여전히 별도다.
+
+
+## 왕복14 / 9판 — 실제 legacy 설치의 안전한 최초 전환 준비
+
+1. source-checkpoint-11과8판 구현은 보존한다. 새 로컬 검토의 D1/D2는 해소됐으며 기존 전체 UI/team 회귀를 반복하지 않는다. impl-report의 상단 ‘현재 검토 원본 checkpoint10’ 잔재를 checkpoint11로 정정한다.
+2. design9판의 비밀 제외 시설 비교를 먼저 수행한다. 운영 설치가 원래 hejo/team 도입 전 커밋/릴리스와 전체적으로 일치하는지, 영수증·프로필 링크가 같은지 확인해 ignored 인계에 기록한다. 이미 확인된3파일만으로 전체를 승인하지 않는다. 불일치는 목록/비밀 없는 해시로 반환하며 운영 수정은 하지 않는다.
+3. 식별 가능한 검토 기준이 확보된 경우만 기존 hejo-install/단일 검사기/기존 지원 선언에 명시적 최초 전환을 구현하고 team bundle predecessor를 올바른 기준으로 고정한다. 새 저장 원본이나 일반 fallback은 금지한다. 기준이 불명확하면 임의로 allowlist를 늘리지 말고 기획에 반환한다.
+4. 임시 홈에서 정상 legacy 전환, checker 존재 시 우회 거절, 영수증/링크/코드/프로필 drift, 전환·자격·활성job 존재, 중단 표식, CAS 경합, 각 쓰기 실패/복구와 재실행 거절을 시험한다. 토큰 내용 읽기/백업 없음과 owner 원본 보존을 검증한다. 최초 검사기 설치 후 실제 bundle apply까지 안전한 전체 경로와 실패 시 닫힘을 확인한다.
+5. Terra 독립 검토로 반환하고 통과 뒤 후속 커밋/불변 앱·hejo·bundle·호환 복구 후보를 고정한다. 앱 운영 Google 로그인·업데이트 구성과 실제 적용/중단/재개 대상은 승인 자료에 명시한다. 실제 운영 설치·재시작·실계정·푸시는 하지 않는다. GD-T19와 TASK07 완료 승격은 여전히 이후 단계다.
+
+
+## 왕복15 — 후속 기능 보존 후 최초 전환 구현
+
+기존 worktree/커밋과8판 미커밋 변경을 보존한다. amend/rebase/pull 또는 무관 브랜치 전체 merge를 하지 않는다. design9판 보완의 두 고정 커밋을 기준으로 아래 순서로 진행한다.
+
+1. 아래 hejo5/team23파일을 지정 커밋의 Git blob에서 선택 통합한다. 동일 바이트는 재작성하지 않는다. team app_connect.py와 connection_checks.py 두 충돌은 양쪽 분기·호출자·거절 동작을 보존하고 대응표를 기록한다. 추가 의존 파일이 필요하면 근거와 범위를 기획에 반환한다.
+2. 가짜 홈에서 후속 Telegram 댓글 시험, 변경된 team6시험과 관련 Notion API/범위/승인·원격 앱·첨부/세션 증명 회귀, Google 연결/소비자/승인 회귀를 실행한다. 운영 상위 conftest를 실행하지 않고 격리 fixture를 쓴다. 충돌2파일의 양쪽 정상·실패 동작을 검증한다.
+3. 통합 검증 뒤 왕복14의 명시적 최초 전환 구현·임시 홈 시험을 진행한다. predecessor는 고정 legacy 커밋에서 재현하고 candidate kit 식별은 통합 후보로 갱신한다. 미설치 프로필 자동 편입 금지 및 전체 집합 drift 거절을 포함한다. 검사기만 복사하거나 fallback으로 우회하지 않는다.
+4. 최종 공개 검사·airport-check·영향 회귀·최초 전환 실패복구 증거와 새 checkpoint를 제출한다. Terra 재검토 뒤 후보·호환 복구 묶음을 고정한다. 운영용 앱 로그인/업데이트 구성의 미확정 항목을 인계한다. 운영·실계정·재시작·푸시는 하지 않는다.
+
+선택 통합 범위(hejo5파일은 hejo 고정 커밋, 나머지23파일은 team 고정 커밋):
+
+- `gate/README.md`
+- `gate/adapter.py`
+- `gate/telegram.py`
+- `gate/telegram_comments.py`
+- `gate/tests/test_telegram_comments.py`
+- `hermes/plugin-store/team-kit/__init__.py`
+- `hermes/plugin-store/team-kit/lib/hermes_facility/app_connect.py`
+- `hermes/plugin-store/team-kit/lib/hermes_facility/app_scope.py`
+- `hermes/plugin-store/team-kit/lib/hermes_facility/app_setup.py`
+- `hermes/plugin-store/team-kit/lib/hermes_facility/connection_checks.py`
+- `hermes/plugin-store/team-kit/lib/hermes_governance/contracts.py`
+- `hermes/plugin-store/team-kit/lib/hermes_owner_chat.py`
+- `hermes/plugin-store/team-kit/lib/hermes_packs/diagnosis/diagnosis_runtime.py`
+- `hermes/plugin-store/team-kit/lib/hermes_packs/files_docs/files.py`
+- `hermes/plugin-store/team-kit/lib/hermes_packs/mac_apps/app_catalog.json`
+- `hermes/plugin-store/team-kit/lib/hermes_packs/mac_apps/catalog.py`
+- `hermes/plugin-store/team-kit/lib/hermes_packs/mac_apps/discovery.py`
+- `hermes/plugin-store/team-kit/lib/hermes_packs/notion/api.py`
+- `hermes/plugin-store/team-kit/lib/hermes_packs/notion/operations.py`
+- `hermes/plugin-store/team-kit/lib/hermes_team_services/error_digest.py`
+- `hermes/plugin-store/team-kit/lib/hermes_team_services/memory_live.py`
+- `hermes/plugin-store/team-kit/lib/hermes_team_services/work_runtime.py`
+- `hermes/plugin-store/team-kit/tests/test_app_catalog.py`
+- `hermes/plugin-store/team-kit/tests/test_app_registry.py`
+- `hermes/plugin-store/team-kit/tests/test_error_digest.py`
+- `hermes/plugin-store/team-kit/tests/test_files.py`
+- `hermes/plugin-store/team-kit/tests/test_hejo_session_proof.py`
+- `hermes/plugin-store/team-kit/tests/test_owner_provenance_hejo.py`
+
+
+## 왕복16 — 검토된 통합본의 전달 준비 재확정
+
+적용되지 않은 응답의 통합/최초 전환 재실행 지시는 폐기하고 이번 결과를 기준으로 한다. 지정5/23파일 통합 및 legacy 구현은 제출·검토됐으므로 다시 구현하지 않는다. Notion12실패는 같은 고정 후속 원본에서도 동일하게 재현된 기존 시험/동작 불일치로 기록하며 이번 작업의 신규 회귀 차단으로 다루지 않는다. 원인 미확정이며 정상 동작/전체 team 통과로 표시하거나 기대값/skip을 바꾸지 않는다.
+
+1. checkpoint13 제품을 보존하고 최신 판정·독립 검토·인계를 후보에 반영한다. Notion12노드와 기준 대조 로그를 미해결 기존 사항으로 명시한다. 새 검토 지적이 없으면 제품 수정을 추가하지 않는다.
+2. 두 저장소의 최종 변경 집합·개인값 검사 범위·diff 및 지원 선언 식별을 확인한 후 작업 범위만 후속 로컬 커밋으로 고정한다. 이전 커밋을 수정하거나 푸시하지 않는다. 실제 owner 입력 검사를 하지 못하면 가짜 홈 검사와 구분해 이유/미검사 범위를 남긴다. 비밀 파일을 열지 않는다.
+3. 고정 소스로 앱·hejo release·team bundle 및 호환 복구 후보를 준비한다. 바뀌지 않은 앱 입력의 기존 서명/압축 시험은 재사용하되 실제 전달 파일 지문·입력 동일성을 확인한다. 바뀐 release/bundle의 묶음 식별·압축 왕복을 확인한다. Google 전환 뒤 legacy 복구는 허용하지 않는다.
+4. deployment-handoff의 오래된 round13 출처 표기를 최신 증거로 정리한다. 실제 적용 전 중지/재개·명시적 최초 전환·전체 bundle·앱 교체 순서, 단계별 실패 시 복구 가능 범위와 중단 조건을 구체화한다. 앱 운영 Google 로그인/업데이트 구성은 기존 정식 빌드 경로와 비밀 없는 메타데이터로 확인하고 미충족 조건만 명시한다. 비밀 열람/임의 주입·운영 설치는 금지한다.
+5. 커밋 전체 해시·불변 전달/복구 산출물 지문·검증 결과·구체 운영 승인안을 제출한다. 검토된 변경 없는 전체 UI/회귀를 반복하지 않는다. 운영·실계정·재시작·메시지·푸시는 실행하지 않는다. GD-T19와 TASK07은 승인 뒤 실제 확인 단계로 남긴다.

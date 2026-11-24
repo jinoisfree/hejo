@@ -45,3 +45,8 @@ AC 표의 숫자는 REQ-GD 접두어를 생략했다. NFR은 NFR-GD 접두어다
 ## 왕복 5 — 기존 전송 시험의 의미 변경 처분
 
 기획 담당은 기존 tests/acceptance/test_conn_manage.py::test_cm24_25_actual_cli_arguments의 Google 개인 account_disconnect 기대만 이번 REQ-GD-05/GD-T18로 대체하도록 승인한다. 해당 호출은 options.disconnect_mode=forget_account를 명시하고 실제 CLI argv 끝의 `--disconnect-mode forget_account`를 검증한다. 값 누락·틀린 값은 ConnectionFailure(UPDATE_REQUIRED)이며 가짜 CLI 실행 0을 확인하는 별도 사례로 남긴다. 개인 account_connect/account_undo 및 회사·X·Instagram 등 다른 서비스 전송의 기존 인자/의미는 유지한다. account_undo 전송 가능성은 시설의 재인증 필요 거절 정책과 구분한다. 이 변경은 기대값 완화가 아니라 이미 승인된 삭제 의미와 구앱 거절 계약에 맞춘 기존 시험 이관이다. 전체 시험 skip·xfail 또는 제품의 확인 값 검사를 제거하는 방식은 허용하지 않는다.
+
+
+## GD-T14 최초 전환 보완 — 9판
+
+기존 정상 installed 검사기 필수 기대는 유지한다. 별도의 명시적 legacy 최초 전환은 검토된 도입 전 전체 코드 식별·영수증/링크 일치·전환/전용자격/활성job/중단 흔적 없음·잠금/중지 조건이 모두 참일 때만 허용한다. 불명확한 기준·현재 검사기 존재·드리프트·동시 입력 변경·부분 실패를 거절/복구하고 owner/자격 내용은 읽기 출력·백업·복원하지 않는다. 이후 현재 검사기를 통한 전체 bundle 적용과 실패 시 닫힘을 가짜 홈에서 검증한다. 운영 승인을 대체하지 않는다.

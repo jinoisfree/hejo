@@ -1,1 +1,35 @@
-{"schema":"google-connection-support/1","component":"hejo","versions":[1],"disconnect_mode":"forget_account"}
+{
+  "schema": "google-connection-support/1",
+  "component": "hejo",
+  "versions": [
+    1
+  ],
+  "disconnect_mode": "forget_account",
+  "legacy": {
+    "version": 1,
+    "hejo": {
+      "commit": "a3df84e48fae8b36c27a572a5ee36247cc46acf3",
+      "sha256": "27fdfaa498dbfd1b5cf8fee3e79bdbbf9fb6b66acffab97a0b5bfc90754fe767"
+    },
+    "team": {
+      "commit": "9488a060e7bf5646af69628b29b34c28cfc18109",
+      "kit_sha256": "bb999c4c0934d202c01f94da5554584e33d65dd72ce241da841be99c75061da5",
+      "files": {
+        "bin/hermes-plugin-store": {
+          "sha256": "263ef3e89c18cc473f355800a06961ac51967b1e8768273c50f32022cc4b04b9",
+          "mode": 493
+        },
+        "bin/hermes-skill-assemble": {
+          "sha256": "659507758b6537314ae9b17034e00db2d8d7ecd9d501804d61c8b2af496b4dda",
+          "mode": 493
+        },
+        "bin/hermes-team-kit-deploy": null,
+        "plugin-store/team-delegation/plugin.yaml": {
+          "sha256": "bfcbe6d32cd92c853d62d0dae76f723ee4f429dac64f9e1f25f77e73d3859e29",
+          "mode": 420
+        },
+        "shared/secretary-skills/employee-google-workspace/SKILL.md": null
+      }
+    }
+  }
+}

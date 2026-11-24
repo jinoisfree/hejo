@@ -696,6 +696,19 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
                                                    "message_text": click["message_text"]}})
 
     async def receive(self, frame, conn, raw=None):
+        # Account for admission before its first await, including journal publication
+        # before the gateway installs the active session guard.
+        scope = frame.get("room") or frame["employee"]
+        counts = self.telegram.incoming
+        counts[scope] = counts.get(scope, 0) + 1
+        try:
+            return await self._receive(frame, conn, raw)
+        finally:
+            counts[scope] -= 1
+            if not counts[scope]:
+                del counts[scope]
+
+    async def _receive(self, frame, conn, raw=None):
         room_id = frame.get("room")
         employee = frame["employee"]
         thread = frame.get("thread") or str(uuid.uuid4())
@@ -706,6 +719,10 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             room = self.journal.rooms.get(room_id)
             if room_id and not room:
                 await self.server.error("room_not_found", frame.get("id"), conn)
+                return
+            if room and frame.get('expected_lead') and (room.get('archived')
+                    or room['lead'] != frame['expected_lead'] or employee != frame['expected_lead']):
+                await self.server.error('room_lead_changed', frame.get('id'), conn)
                 return
             if room and employee not in room['members']:
                 await self.server.error('room_member_required', frame.get('id'), conn)

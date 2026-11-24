@@ -763,8 +763,76 @@ def update_code_links(home, receipt, compatibility):
         raise
 
 
-def run(home, *, check=False, uninstall=False, uninstall_home_channel=False, force=False, port=None):
+def upgrade_legacy(home, package):
+    # This path never invokes the old installer or changes owner configuration.
+    if check_google_compat.regular_bytes(_checker_path) != _checker_source:
+        raise ValueError('PACKAGE_CHECKER_CHANGED')
+    baseline = check_google_compat.LegacyUpgrade(home, package)
+    with check_google_compat.deployment_guard(home):
+        baseline.revalidate(baseline.links, baseline.receipt)
+        receipt = check_google_compat.json_value(baseline.receipt)
+        receipt['status'] = 'upgrading-legacy'
+        receipt['legacy_upgrade'] = {'from': str(baseline.release), 'to': str(package),
+                                    'links': dict(baseline.links)}
+        links = dict(baseline.links)
+        expected_receipt = baseline.receipt
+        possible_receipts = {baseline.receipt}
+        desired = str(package / 'gate')
+        ordered = sorted(links, key=lambda relative: relative == 'plugins/hejo')
+
+        def persist():
+            nonlocal expected_receipt
+            data = (json.dumps(receipt, ensure_ascii=False, indent=2) + '\n').encode()
+            # Account for an atomic replacement that succeeds before an I/O error.
+            possible_receipts.add(data)
+            atomic_write(baseline.receipt_path, data.decode(), baseline.receipt_mode)
+            expected_receipt = data
+
+        try:
+            persist()  # Durable incomplete marker precedes the first code write.
+            for relative in ordered:
+                baseline.revalidate(links, expected_receipt)
+                replace_link(safe_path(home, relative, link=True), desired)
+                links[relative] = desired
+                next(row for row in receipt['targets'] if row.get('kind') == 'link'
+                     and row['path'] == relative)['after'] = desired
+                persist()
+            baseline.revalidate(links, expected_receipt)
+            receipt['status'] = 'installed'
+            receipt.pop('legacy_upgrade')
+            persist()
+            if check_google_compat.installed_path(home) != package / 'install/check_google_compat.py':
+                raise ValueError('LEGACY_FINAL_CHECK_FAILED')
+        except BaseException:
+            # No state/credential/owner snapshots: rollback is code links and the
+            # original receipt only, and is forbidden once a transition appears.
+            current = check_google_compat.regular_bytes(baseline.receipt_path)
+            if current not in possible_receipts:
+                raise ValueError('LEGACY_RECOVERY_REQUIRED') from None
+            actual = {}
+            for relative, previous in baseline.links.items():
+                path = safe_path(home, relative, link=True)
+                if not path.is_symlink() or os.readlink(path) not in (previous, desired):
+                    raise ValueError('LEGACY_RECOVERY_REQUIRED') from None
+                actual[relative] = os.readlink(path)
+            baseline.revalidate(actual, current)
+            for relative in reversed(ordered):
+                baseline.revalidate(actual, current)
+                previous = baseline.links[relative]
+                if actual[relative] != previous:
+                    replace_link(safe_path(home, relative, link=True), previous)
+                    actual[relative] = previous
+            baseline.revalidate(actual, current)
+            atomic_write(baseline.receipt_path, baseline.receipt.decode(), baseline.receipt_mode)
+            raise
+    print('LEGACY_UPGRADED; gateway and affected workers were not restarted')
+    return 0
+
+
+def run(home, *, check=False, uninstall=False, uninstall_home_channel=False, force=False, port=None, upgrade_legacy_mode=False):
     package = Path(__file__).resolve().parents[1]
+    if upgrade_legacy_mode:
+        return upgrade_legacy(home, package)
     compatibility = check_google_compat.preflight(home, package, first_package=package)
     with check_google_compat.deployment_guard(home):
         compatibility.revalidate(package)
@@ -910,12 +978,15 @@ def main(argv=None):
     mode.add_argument("--check", action="store_true")
     mode.add_argument("--uninstall", action="store_true")
     mode.add_argument("--uninstall-home-channel", action="store_true")
+    mode.add_argument("--upgrade-legacy", action="store_true")
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--port", type=int, help="keep this gate port instead of the first free one")
     parser.add_argument("--hub", help="hejo hub URL to join as a member (e.g. http://127.0.0.1:47800)")
     args = parser.parse_args(argv)
     if args.force and not args.uninstall:
         parser.error("--force requires --uninstall")
+    if args.upgrade_legacy and (args.hub or args.port):
+        parser.error("--upgrade-legacy does not change hub or port settings")
     previous = os.environ.get("HERMES_HOME")
     try:
         if args.home:
@@ -924,7 +995,8 @@ def main(argv=None):
         home = get_default_hermes_root().resolve()
         os.environ["HERMES_HOME"] = str(home)
         result = run(home, check=args.check, uninstall=args.uninstall,
-                     uninstall_home_channel=args.uninstall_home_channel, force=args.force, port=args.port)
+                     uninstall_home_channel=args.uninstall_home_channel, force=args.force, port=args.port,
+                     upgrade_legacy_mode=args.upgrade_legacy)
         if result == 0 and args.hub and not (args.check or args.uninstall or args.uninstall_home_channel):
             return link_hub(home, args.hub, *read_credentials())
         return result

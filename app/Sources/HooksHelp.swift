@@ -3,12 +3,15 @@ import AppKit
 @MainActor enum HooksHelp {
     static let title = "승인 대기 알림 연결"
     static let explanation = "기본 연결은 Codex와 Claude Code의 로컬 작업 기록을 읽습니다. 승인 대기를 정확히 알리려면 공식 훅을 추가하세요. 앱에 포함된 연결 안내에서 적용할 설정을 먼저 확인할 수 있습니다."
+    static func guideURL(in bundle: Bundle = .main) -> URL? {
+        bundle.url(forResource:"connection-help",withExtension:"html")
+    }
     static func present() {
         let alert = NSAlert(); alert.messageText = title; alert.informativeText = explanation
         for title in ["연결 안내 열기", "닫기", "연결", "연결 해제"] { alert.addButton(withTitle:title) }
         let choice = OptionWindows.runModal(alert)
         if choice == .alertFirstButtonReturn {
-            if let url = Bundle.main.url(forResource:"연결안내",withExtension:"html") { NSWorkspace.shared.open(url) }
+            if let url = guideURL() { NSWorkspace.shared.open(url) }
         } else if choice.rawValue >= NSApplication.ModalResponse.alertThirdButtonReturn.rawValue {
             guard let script = Bundle.main.url(forResource:"configure_hooks",withExtension:"py") else { return }
             let process = Process(); process.executableURL = URL(fileURLWithPath:"/usr/bin/python3")

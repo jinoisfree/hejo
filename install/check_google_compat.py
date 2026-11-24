@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import stat
 import subprocess
 import sys
@@ -141,16 +142,119 @@ def validate_build(target, component):
         raise CompatibilityError('INVALID_GOOGLE_SUPPORT')
     if component == 'hejo':
         regular_bytes(target / 'install/check_google_compat.py')
+    if component == 'team-kit' and 'bundle' in value: bundle_declaration(target)
     return value['versions']
 
 
-def check_target(home, target, component):
+# Facility paths only; owner settings and credentials are never bundle members.
+BUNDLE_PATHS = ('bin/hermes-plugin-store', 'bin/hermes-skill-assemble',
+                'bin/hermes-team-kit-deploy', 'plugin-store/team-delegation/plugin.yaml',
+                'shared/secretary-skills/employee-google-workspace/SKILL.md')
+
+
+def file_identity(path):
+    data = regular_bytes(path)
+    return {'sha256': hashlib.sha256(data).hexdigest(), 'mode': Path(path).stat().st_mode & 0o777}
+
+
+def validate_bundle_identity(row):
+    if (not isinstance(row, dict) or not re.fullmatch('[0-9a-f]{64}', str(row.get('kit_sha256', '')))
+            or not isinstance(row.get('files'), dict) or set(row['files']) != set(BUNDLE_PATHS)):
+        raise CompatibilityError('INVALID_GOOGLE_BUNDLE')
+    for item in row['files'].values():
+        if (item is not None and (not isinstance(item, dict) or set(item) != {'sha256', 'mode'}
+                or not re.fullmatch('[0-9a-f]{64}', str(item['sha256']))
+                or type(item['mode']) is not int or not 0 <= item['mode'] <= 0o777)):
+            raise CompatibilityError('INVALID_GOOGLE_BUNDLE')
+
+
+def kit_identity(kit):
+    kit = Path(kit)
+    if kit.is_symlink() or kit.resolve() != kit.absolute():
+        raise CompatibilityError('UNSAFE_BUNDLE_KIT')
+    entries = {}
+    for path in sorted(kit.rglob('*')):
+        relative = path.relative_to(kit)
+        if {'__pycache__', '.pytest_cache', '.DS_Store'}.intersection(relative.parts) or path.suffix == '.pyc':
+            continue
+        if relative.as_posix() == 'google-connection-support.json':
+            continue
+        if (path.name.startswith('.env') or path.name in {'auth.json', 'google_token.json', 'google-token.json', 'token.json', 'tokens.json', 'credentials.json'} or path.name.endswith('-token.json')):
+            raise CompatibilityError('PRIVATE_FILE_IN_BUNDLE')
+        mode = path.lstat().st_mode & 0o777
+        if path.is_symlink():
+            if not path.resolve(strict=True).is_relative_to(kit):
+                raise CompatibilityError('UNSAFE_BUNDLE_LINK')
+            entries[relative.as_posix()] = {'link': os.readlink(path)}
+        elif path.is_file(): entries[relative.as_posix()] = file_identity(path)
+        elif path.is_dir(): entries[relative.as_posix()] = {'directory': mode}
+        else: raise CompatibilityError('INVALID_BUNDLE_FILE')
+    return hashlib.sha256(json.dumps(entries, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+
+
+def bundle_declaration(kit):
+    path = Path(kit) / 'google-connection-support.json'
+    if not path.exists() and not path.is_symlink(): return None
+    value = json_value(regular_bytes(path))
+    if not isinstance(value, dict): raise CompatibilityError('INVALID_GOOGLE_SUPPORT')
+    declaration = value.get('bundle')
+    if declaration is None: return None
+    if (not isinstance(declaration, dict) or type(declaration.get('version')) is not int
+            or declaration['version'] != 1 or set(declaration) != {'version', 'kit_sha256', 'files', 'predecessor'}):
+        raise CompatibilityError('INVALID_GOOGLE_BUNDLE')
+    for row in (declaration, declaration['predecessor']):
+        validate_bundle_identity(row)
+    if any(item is None for item in declaration['files'].values()):
+        raise CompatibilityError('INCOMPLETE_GOOGLE_BUNDLE')
+    return declaration
+
+
+def verify_bundle(root, declaration=None):
+    root = Path(root).absolute()
+    if root.resolve() != root: raise CompatibilityError('UNSAFE_BUNDLE_ROOT')
+    kit = root / 'plugin-store/team-kit'
+    # Explicit predecessor identity is captured from the approved bundle; its
+    # transition-version compatibility is checked by the caller's pinned checker.
+    # An unconverted predecessor may predate support declarations entirely.
+    if declaration is None:
+        validate_build(kit, 'team-kit')
+        declaration = bundle_declaration(kit)
+    if declaration is None: raise CompatibilityError('GOOGLE_BUNDLE_REQUIRED')
+    validate_bundle_identity(declaration)
+    if kit_identity(kit) != declaration['kit_sha256']:
+        raise CompatibilityError('GOOGLE_BUNDLE_KIT_MISMATCH')
+    for name, expected in declaration['files'].items():
+        path = root / name
+        if expected is None:
+            if path.exists() or path.is_symlink(): raise CompatibilityError('GOOGLE_BUNDLE_FILE_MISMATCH')
+        elif file_identity(path) != expected:
+            raise CompatibilityError('GOOGLE_BUNDLE_FILE_MISMATCH')
+    return declaration
+
+
+def check_component(home, target, component):
+    """Version check used by a full transaction's already pinned prior snapshot."""
     version = transition_version(home)
     target = Path(target).resolve(strict=True)
     if not target.is_dir():
         raise CompatibilityError('INVALID_DEPLOY_TARGET')
     if version is not None and version not in validate_build(target, component):
         raise CompatibilityError('UNSUPPORTED_GOOGLE_VERSION')
+
+
+def check_target(home, target, component, *, bundle=False, kit_only=False):
+    if bundle:
+        if component != 'team-kit': raise CompatibilityError('INVALID_BUNDLE_COMPONENT')
+        verify_bundle(target)
+        target = Path(target) / 'plugin-store/team-kit'
+    elif component == 'team-kit':
+        # Enforce this even for older callers that do not know --kit-only.
+        # No legacy executable may replace half of an installed bundle.
+        for kit in (Path(target), Path(home) / 'plugin-store/team-kit'):
+            if bundle_declaration(kit) is not None: raise CompatibilityError('GOOGLE_BUNDLE_REQUIRED')
+    elif kit_only:
+        raise CompatibilityError('INVALID_BUNDLE_COMPONENT')
+    check_component(home, target, component)
 
 
 def installed_path(home):
@@ -188,6 +292,196 @@ def profile_homes(home):
             if child.is_dir():
                 homes.append(child)
     return homes
+
+
+def hejo_identity(root):
+    """Identity of released facilities, excluding the separately delivered app."""
+    root = Path(root).absolute()
+    if root.resolve(strict=True) != root:
+        raise CompatibilityError('UNSAFE_LEGACY_RELEASE')
+    names = {'gate', 'hub', 'schemas', 'config', 'install', 'LICENSE', 'RELEASE', 'hejo.app'}
+    if any(p.name not in names for p in root.iterdir()):
+        raise CompatibilityError('UNKNOWN_LEGACY_RELEASE_FILE')
+    entries = {}
+    for name in ('gate', 'hub', 'schemas', 'config', 'install', 'LICENSE', 'RELEASE'):
+        top = root / name
+        if not top.exists() or top.is_symlink():
+            raise CompatibilityError('INCOMPLETE_LEGACY_RELEASE')
+        paths = [top, *sorted(top.rglob('*'))] if top.is_dir() else [top]
+        for path in paths:
+            relative = path.relative_to(root)
+            if ({'__pycache__', '.pytest_cache', '.DS_Store'}.intersection(relative.parts)
+                    or path.suffix == '.pyc' or relative.parts[:2] == ('gate', 'tests')):
+                continue
+            if (path.name.startswith('.env') or path.name in {'auth.json', 'google_token.json', 'credentials.json', 'token.json', 'tokens.json'}
+                    or 'secret' in path.name.lower() or path.name.endswith('-token.json')):
+                raise CompatibilityError('PRIVATE_FILE_IN_RELEASE')
+            if path.is_symlink():
+                if not path.resolve(strict=True).is_relative_to(root):
+                    raise CompatibilityError('UNSAFE_LEGACY_RELEASE_LINK')
+                entries[relative.as_posix()] = {'link': os.readlink(path)}
+            elif path.is_dir():
+                entries[relative.as_posix()] = {'directory': path.stat().st_mode & 0o777}
+            else:
+                entries[relative.as_posix()] = file_identity(path)
+    return hashlib.sha256(json.dumps(entries, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+
+
+def legacy_stopped(home, release):
+    """Observe stop conditions only; never stop or signal a process here."""
+    for profile in profile_homes(home):
+        for folder in (profile, profile / 'hejo', profile / 'plugins'):
+            if folder.is_symlink() or (folder.exists() and not folder.is_dir()):
+                raise CompatibilityError('UNSAFE_LEGACY_STATE_PARENT')
+            if folder.exists() and any(folder.glob('.hejo-install-*')) or folder.exists() and any(folder.glob('.hejo-link-*')):
+                raise CompatibilityError('PENDING_FACILITY_DEPLOYMENT')
+        path = profile / 'gateway_state.json'
+        if path.exists() or path.is_symlink():
+            value = json_value(regular_bytes(path))
+            if not isinstance(value, dict):
+                raise CompatibilityError('INVALID_GATEWAY_STATE')
+            pid = value.get('pid')
+            if pid is not None:
+                if type(pid) is not int or pid <= 0:
+                    raise CompatibilityError('INVALID_GATEWAY_STATE')
+                try:
+                    os.kill(pid, 0)
+                except ProcessLookupError:
+                    pass
+                else:
+                    raise CompatibilityError('GATEWAY_MUST_BE_STOPPED')
+    store = home / 'plugin-store'
+    if store.is_symlink() or (store.exists() and any(store.glob('.team-kit-deploy-*'))):
+        raise CompatibilityError('PENDING_FACILITY_DEPLOYMENT')
+    result = subprocess.run(['ps', '-axo', 'pid=,command='], capture_output=True, text=True, timeout=10)
+    if result.returncode:
+        raise CompatibilityError('WORKER_STATE_UNKNOWN')
+    workers = {'google_connection_auth.py', 'hermes_facility.google_connection_auth',
+               'google_reauth.py', 'google_api.py', 'mail_waiting_worker.py', 'document_review_worker.py', 'doc_worker.py',
+               'hermes-wait-jobs', 'hermes-personal-review', 'hermes-morning-report'}
+    for line in result.stdout.splitlines():
+        fields = line.strip().split(None, 1)
+        if len(fields) != 2 or not fields[0].isdigit():
+            raise CompatibilityError('WORKER_STATE_UNKNOWN')
+        if int(fields[0]) == os.getpid():
+            continue
+        try:
+            words = shlex.split(fields[1])
+        except ValueError:
+            raise CompatibilityError('WORKER_STATE_UNKNOWN') from None
+        if any(Path(word).name in workers or word.startswith(str(release) + '/gate/')
+               or word.startswith(str(home / 'bin') + '/')
+               or word.startswith(str(home / 'plugin-store/team-kit') + '/') for word in words):
+            raise CompatibilityError('AFFECTED_WORKER_MUST_BE_STOPPED')
+
+
+class LegacyUpgrade:
+    """Explicit first-checker admission, pinned to the package's reviewed Git baselines."""
+    def __init__(self, home, package):
+        self.home = Path(home).resolve(strict=True)
+        self.package = Path(package).resolve(strict=True)
+        validate_build(self.package, 'hejo')
+        self.support = json_value(regular_bytes(self.package / 'install/google-connection-support.json'))
+        legacy = self.support.get('legacy')
+        if (not isinstance(legacy, dict) or set(legacy) != {'version', 'hejo', 'team'}
+                or type(legacy['version']) is not int or legacy['version'] != 1):
+            raise CompatibilityError('LEGACY_SUPPORT_REQUIRED')
+        for component in ('hejo', 'team'):
+            row = legacy[component]
+            if not isinstance(row, dict) or not re.fullmatch('[0-9a-f]{40}', str(row.get('commit', ''))):
+                raise CompatibilityError('INVALID_LEGACY_SUPPORT')
+        if not re.fullmatch('[0-9a-f]{64}', str(legacy['hejo'].get('sha256', ''))):
+            raise CompatibilityError('INVALID_LEGACY_SUPPORT')
+        if (set(legacy['hejo']) != {'commit', 'sha256'}
+                or set(legacy['team']) != {'commit', 'kit_sha256', 'files'}):
+            raise CompatibilityError('INVALID_LEGACY_SUPPORT')
+        validate_bundle_identity(legacy['team'])
+        self.legacy = legacy
+        self.receipt_path = self.home / 'hejo/install-receipt.json'
+        self.receipt = regular_bytes(self.receipt_path)
+        self.receipt_mode = self.receipt_path.stat().st_mode & 0o777
+        if self.receipt_mode != 0o600:
+            raise CompatibilityError('INVALID_LEGACY_RECEIPT_MODE')
+        value = json_value(self.receipt)
+        if (not isinstance(value, dict) or type(value.get('version')) is not int
+                or value['version'] not in (1, 2) or value.get('status') != 'installed'
+                or not isinstance(value.get('targets'), list) or 'legacy_upgrade' in value):
+            raise CompatibilityError('INVALID_LEGACY_RECEIPT')
+        self.links = {}
+        for row in value['targets']:
+            if not isinstance(row, dict):
+                raise CompatibilityError('INVALID_LEGACY_RECEIPT')
+            if row.get('kind') != 'link':
+                continue
+            relative = row.get('path')
+            if (not isinstance(relative, str)
+                    or not re.fullmatch(r'(?:profiles/[A-Za-z0-9][A-Za-z0-9_-]*/)?plugins/hejo', relative)
+                    or relative in self.links or row.get('state') != 'applied'
+                    or not isinstance(row.get('after'), str)):
+                raise CompatibilityError('INVALID_LEGACY_RECEIPT')
+            self.links[relative] = row['after']
+        if 'plugins/hejo' not in self.links:
+            raise CompatibilityError('INVALID_LEGACY_RECEIPT')
+        root_link = self.home / 'plugins/hejo'
+        if not root_link.is_symlink() or root_link.parent.resolve() != root_link.parent:
+            raise CompatibilityError('INVALID_LEGACY_LINK')
+        self.release = root_link.resolve(strict=True).parent
+        if any((self.home / relative).resolve(strict=True) != self.release / 'gate'
+               for relative in self.links):
+            raise CompatibilityError('MIXED_LEGACY_RELEASES')
+        checker = self.release / 'install/check_google_compat.py'
+        if checker.exists() or checker.is_symlink():
+            raise CompatibilityError('LEGACY_CHECKER_ALREADY_PRESENT')
+        self.homes = self.home_set()
+        self.candidate = hejo_identity(self.package)
+        self.revalidate(self.links, self.receipt)
+
+    def home_set(self):
+        profiles = self.home / 'profiles'
+        if profiles.is_symlink():
+            raise CompatibilityError('INVALID_LEGACY_PROFILE_SET')
+        if profiles.exists() and any(not p.is_dir() or p.is_symlink() for p in profiles.iterdir()):
+            raise CompatibilityError('INVALID_LEGACY_PROFILE_SET')
+        return {str(p): (p.stat().st_dev, p.stat().st_ino, p.stat().st_mode & 0o777)
+                for p in profile_homes(self.home)}
+
+    def revalidate(self, links, receipt):
+        if self.home_set() != self.homes or regular_bytes(self.receipt_path) != receipt:
+            raise CompatibilityError('LEGACY_INPUT_CHANGED')
+        if self.receipt_path.stat().st_mode & 0o777 != self.receipt_mode:
+            raise CompatibilityError('LEGACY_INPUT_CHANGED')
+        if hejo_identity(self.package) != self.candidate:
+            raise CompatibilityError('LEGACY_CANDIDATE_CHANGED')
+        # Released/checked-out facility roots use the same fixed 0755 mode as
+        # the Git packaging producer; owner home permissions are unrelated.
+        if any(path.stat().st_mode & 0o777 != 0o755 for path in (
+                self.package, self.release, self.home / 'plugin-store/team-kit')):
+            raise CompatibilityError('LEGACY_FACILITY_MODE_CHANGED')
+        if hejo_identity(self.release) != self.legacy['hejo']['sha256']:
+            raise CompatibilityError('LEGACY_CODE_MISMATCH')
+        if regular_bytes(self.release / 'RELEASE').decode().strip() != self.legacy['hejo']['commit']:
+            raise CompatibilityError('LEGACY_RELEASE_MISMATCH')
+        if (self.release / 'install/check_google_compat.py').exists():
+            raise CompatibilityError('LEGACY_CHECKER_ALREADY_PRESENT')
+        verify_bundle(self.home, self.legacy['team'])
+        no_google_residue(self.home)
+        legacy_stopped(self.home, self.release)
+        for profile in profile_homes(self.home):
+            path = profile / 'plugins/hejo'
+            relative = path.relative_to(self.home).as_posix()
+            if relative not in links:
+                if path.exists() or path.is_symlink():
+                    raise CompatibilityError('UNRECORDED_LEGACY_LINK')
+                continue
+            if (path.parent.resolve() != path.parent or not path.is_symlink()
+                    or os.readlink(path) != links[relative]
+                    or path.resolve(strict=True).name != 'gate'):
+                raise CompatibilityError('LEGACY_LINK_CHANGED')
+        for relative, target in links.items():
+            path = self.home / relative
+            if (not path.is_symlink() or path.parent.resolve() != path.parent
+                    or os.readlink(path) != target):
+                raise CompatibilityError('LEGACY_LINK_CHANGED')
 
 
 def no_google_residue(home):
@@ -344,15 +638,23 @@ def main(argv=None):
     parser.add_argument('--component', choices=('hejo', 'team-kit'), required=True)
     parser.add_argument('--target', type=Path, required=True)
     parser.add_argument('--validate-build', action='store_true')
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('--bundle', action='store_true')
+    mode.add_argument('--kit-only', action='store_true')
     args = parser.parse_args(argv)
     try:
         if args.validate_build:
-            if 1 not in validate_build(args.target, args.component):
+            target = args.target
+            if args.bundle:
+                if args.component != 'team-kit': raise CompatibilityError('INVALID_BUNDLE_COMPONENT')
+                verify_bundle(target)
+                target = target / 'plugin-store/team-kit'
+            if 1 not in validate_build(target, args.component):
                 raise CompatibilityError('UNSUPPORTED_GOOGLE_VERSION')
         elif args.home is None:
             raise CompatibilityError('HOME_REQUIRED')
         else:
-            check_target(args.home, args.target, args.component)
+            check_target(args.home, args.target, args.component, bundle=args.bundle, kit_only=args.kit_only)
     except (OSError, ValueError, TypeError, KeyError, UnicodeError):
         print('GOOGLE_COMPAT_DENIED', file=sys.stderr)
         return 1

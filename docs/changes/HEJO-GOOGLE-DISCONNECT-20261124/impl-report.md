@@ -2,9 +2,9 @@
 
 ## 현재 판단과 범위
 
-**checkpoint-10 로컬 구현·Terra 독립 검토 통과, 왕복12 소스 커밋·배포 후보 준비.** IR-1은 독립 최종 재검토에서 해소됐다. 제품 코드 추가 변경 없이 검토된 코드와 최신 작업 문서를 고정했다. 동반5파일·앱의 운영 적용/복구 절차는 기획/운영 결정으로 남는다. 운영 승인·사용자 GD-T19·최종 명세 승격·푸시는 미완료다. 운영 설치/apply/재시작·실계정·푸시는 실행하지 않는다.
+**왕복15 지정 후속 기능 통합·명시적 legacy 최초 전환 구현/자체 시험 제출, Terra 재검토 대기.** 고정 legacy 출처는 design9판 보완에서 채택한 두 커밋이다. 후속5/23파일과 Google 동작을 함께 보존했고 기존 installer/단일 검사기/지원 선언 안에 최초 전환을 구현했다. 이번 관련 회귀·거절/복구 시험은 아래 실제 결과로 구분한다. 고정 후속 버전에도 재현되는 Notion 기존12실패는 별도 검토 처분이 남아 전체 회귀 통과로 표시하지 않는다. 운영·실계정·재시작·커밋·푸시는 미실행이다.
 
-원래 목표는 해당 직원 Google 개인 연결·이메일·전용 자격을 제거하고 다음 연결에서 계정을 선택하는 것이다. 기존 금고 원본과 전용 저장 배치, 공식 도구 4개, gate/AppKit 구현을 보존했다. 본체·ddots·sandbox 정책·운영 비밀 파일·Paseo 상태 JSON·계획/수락 명세 Markdown은 변경하지 않았다. 기존 구현을 유지하며 왕복11에서 인증 시트의 명시적 닫기 동작과 취소된 폴링의 응답 후 보호, 해당 표적 시험을 보완했다. 원래 폴더의 다른 작업도 보존했다. 구현 소유 보고와 [명령 대응표](workspace-command-map.md)만 canonical 폴더에서 관리한다.
+원래 목표는 해당 직원 Google 개인 연결·이메일·전용 자격을 제거하고 다음 연결에서 계정을 선택하는 것이다. 기존 금고 원본과 전용 저장 배치, 공식 도구 4개, gate/AppKit 구현을 보존했다. 본체·ddots·sandbox 정책·운영 비밀 파일·Paseo 상태 JSON·계획/수락 명세 Markdown은 변경하지 않았다. 기존 구현을 유지하며 왕복11에서 인증 시트의 명시적 닫기 동작과 취소된 폴링의 응답 후 보호, 해당 표적 시험을 보완했다. 원래 폴더의 다른 작업도 보존했다. 구현 소유 보고·배포 인계와 [명령 대응표](workspace-command-map.md)를 canonical 폴더에서 관리한다.
 
 ## 저장소·검토 변경본
 
@@ -13,9 +13,129 @@
 | hejo | `236b0177468b90d9ea23a1b1190e996db78a0694` | `role-workflow/google-disconnect-c20a9994` | `.build/google-disconnect-work/hejo` |
 | 운영 저장소 | `4bbc16ddba02236fe4645ab7244603c44a78af91` | `role-workflow/google-disconnect-c20a9994` | `.build/google-disconnect-work/team` |
 
-경로는 원래 작업 폴더 기준이다. **아래 표는 구현 전 기준 커밋이다. 결과 소스 커밋은 왕복12 절에 기록했다.** 검토 원본은 `.build/google-disconnect-evidence/source-checkpoint-10.log`의 미커밋 작업 트리다. 두 HEAD/브랜치를 유지하며 hejo29/team65 파일 지문을 기록했다. checkpoint-09 대비 app/Sources/ConnectionsWindow.swift와 app/Tests/ConnectionsTests.swift·TestMain.swift·google_connection_fixture.py 네 파일만 변경했다. team 전체·다른 제품 파일·기존 시험 단언·기본 모드 호출 순서를 보존했다. canonical 계획·수락 명세·독립 리뷰 원본과 다른 작업의 변경은 수정하지 않았다.
+경로는 원래 작업 폴더 기준이다. **위 표는 구현 전 기준 커밋이다. 결과 소스 커밋은 왕복12 절에 기록했다.** 현재 두 HEAD는 hejo `d25530649f7eb898e2f5cbc5cb471c1417823632`, 운영 저장소 `33d6671993473c0eb7ecb4087e0fe4edebc63050`이며 기존 브랜치·미커밋 변경을 보존했다. 현재 원본은 `.build/google-disconnect-evidence/source-checkpoint-13.log`다. checkpoint12에서 시작해 지정28파일을 선별 통합했으며 최신 canonical 문서는 내용 변경 없이 후보에 반영했다. 무관한 브랜치 전체 병합·amend/rebase/pull은 하지 않았다. 실제 파일 목록은 마지막 절, 지문·범위·보호 문서와 증거 대조는 round15-final-check.json을 참조한다.
 
-## 왕복12 — 로컬 커밋·격리 후보와 운영 인계
+## 왕복15 — 후속 기능 보존과 명시적 최초 전환
+
+[설계9판 보완](design.md)·[tasks 왕복15](tasks.md)의 hejo `a3df84e48fae8b36c27a572a5ee36247cc46acf3`, 운영 저장소 `9488a060e7bf5646af69628b29b34c28cfc18109`를 사용했다. 운영 파일은 다시 읽거나 복사하지 않았다. 원래 Git 기준과 지정 blob을 직접 대조하고 현재와 동일한 내용은 재작성하지 않았다. hejo5파일과 겹치지 않는 team21파일은 지정 blob 그대로이며, 겹치는 두 파일은 원래 기준을 공통 조상으로 의미를 대조했다. 실제 입력·합성 diff는 ignored round15-intake-integrate.json과 round15-merge-inputs에 있다.
+
+| 겹치는 소비자 | 후속 동작 보존 | Google 동작 보존 |
+|---|---|---|
+| hermes_facility/app_connect.py | 로컬 설치 없는 Notion 탐색, 범위 조회의 권한/토큰/네트워크 오류, 불완전 기존 범위 거절, 조회 성공 뒤 checkpoint, 응답 크기 경계 | transact에서 같은 금고의 직원 entry를 읽어 google_binding_present를 기존 config 조립기에 전달. 명시적 해제 후 다른 앱을 연결해도 legacy Gmail 투영은 다시 켜지지 않음 |
+| hermes_facility/connection_checks.py | Notion의 PRIVATE_WORK_NOTION_REFUSED/CONNECTIONS_READ_FAILED를 안전한 상태로 분류 | 개인 Google의 entry 부재에만 legacy 검사를 허용. null은 미연결, 새 연결은 직원 probe, 손상/오류는 실패로 닫고 공용 자격으로 재시도하지 않음 |
+
+새 test_notion_integration.py의13경우는 원격 Notion 정상 조립+Google 명시적 해제 보존, 범위 조회 실패/부분 목록의 쓰기 없음, 후속 probe 오류2종, Google 연결/해제/손상/legacy 부재의 분기를 함께 검사했다. 운영 명부/금고나 실제 API를 사용하지 않았다. 지정 시험/등록/소비자 외 추가 제품 의존 파일은 도입하지 않았다.
+
+### 최초 전환의 책임과 실패 처리
+
+기존 `install/hejo-install --upgrade-legacy --home <승인된 홈>`만 명시적 최초 도입을 실행한다. 새 installer·설정 원본·임의 expected-hash/force 우회는 없다. 이 동작은 완성된 release 디렉터리를 받으며 일반 설치 경로의 현재 검사기 탐색은 바꾸지 않았다. 현재 검사기가 있거나 failed/uninstalled/중간 상태이면 이 예외로 우회하지 못한다. 일반 failed/uninstalled 복구의 기존7판 계약은 유지했다.
+
+단일 `check_google_compat.py`의 LegacyUpgrade는 정상 installed/version1·2/applied 영수증, 기존 실제 링크 전체와 동일 release, 현재 검사기 부재, Git 기준의 전체 hejo 시설/kit·동반5경로·모드·내부 링크를 확인한다. 지원 선언의 legacy.version=1에는 두 기준 commit과 재현한 식별만 둔다. 기존 bundle 선언의 predecessor도 같은 고정 legacy kit/3파일+부재2경로로 바꿨다. candidate kit 식별은 통합 후보로 갱신했다. 선언의 허용5경로/형식을 먼저 검증해 손상 선언이 비밀 파일을 검사 대상으로 만들지 못하게 했다. producer는 기존 정책 함수를 사용한 round15-support.py이고 최초/최종 결과는 round15-support.json 및 round15-support-final.json이다. Git 추출의 디렉터리0755/정규 파일0644·실행0755 정규화와 실제 옛 release 명령으로 재현했으며 운영 바이트를 허용 목록으로 채집하지 않았다.
+
+금고 mutex 안에서 전체 프로필 집합(미설치 프로필 포함)·영수증·링크·양쪽 release·kit/동반 파일을 쓰기 직전마다 재검사한다. Google 전환/null 항목·전용 자격·활성/미완료 인증 장부, 모든 프로필 gateway PID, 관측된 영향 worker, 미완료 team 배포/설치 임시 흔적을 거절한다. 프로세스 관측 실패는 중지로 간주하지 않으며, 프로세스 중지/신호는 수행하지 않는다. `.env`/auth.json/토큰 원문을 읽거나 백업하지 않는다. 전환 유무를 판정하는 기존 금고 구조 검사와 안전한 장부/PID 메타데이터만 사용한다.
+
+쓰기 대상은 **이미 설치된 코드 링크와 기존 설치 영수증**뿐이다. 첫 링크 변경 전에 영수증 status=upgrading-legacy와 코드 경로/이전 링크만 든 legacy_upgrade 표식을 내구성 있게 기록한다. 프로필 링크부터 루트 링크까지 순서대로 교체하고 각 영수증 진행을 기록한다. 모든 검증 뒤 installed로 마무리한다. 미설치 프로필을 plan에 넣거나 owner/config/admin/기기·권한/자격을 조립하지 않는다.
+
+일반 I/O 실패는 같은 잠금·중지 조건과 현재 전환 부재를 재확인한 뒤 링크와 영수증의 기존 본문/모드만 복구한다. 부분 쓰기 뒤 전환/집합 drift가 생기거나 입력·코드·복구가 불확실하면 옛 코드로 복구하지 않고 중간 영수증을 보존한다. 강제 종료/지속 복구 실패는 재실행에서 거절한다. 이 구현은 성공한 최초 전환 뒤 legacy 운영 복귀를 승인하는 경로가 아니다. 실제 적용·복구의 사용자 승인 조건은 [배포 인계](deployment-handoff.md)를 따른다.
+
+### 실제 검증과 남은 실패
+
+모든 증거는 원래 폴더 `.build/google-disconnect-evidence/` 기준이다. round15-run 계열 JSON/로그에는 실제 argv/cwd/환경·실행 당시 변경 파일 지문과 종료 코드를 기록했다. 뒤의 원본 소스 지문/표적 추가 결과와 구분하며 여러 실행을 하나의 전체 통과로 합산하지 않는다.
+
+| 실행 | 실제 결과 | 근거 |
+|---|---|---|
+| round15-intake-integrate.py | 종료0. checkpoint12 HEAD/114파일 일치, 지정28파일 선택 통합과 보호 문서 기록 | round15-intake-integrate.json/log |
+| round15-run.py integration-hejo-03 | 종료0,148 passed/기존 warning1. 후속 댓글·기존 토픽·방 | round15-integration-hejo-03.json/log |
+| round15-run.py integration-team | 종료1,936 passed/96 failed/11 skipped. Google suite 포함, 초기 격리 명부/금고 값 부족 | round15-integration-team.json/log |
+| round15-run.py integration-team-fixtures-02 | 종료1,537 passed/22 failed/11 skipped. 실패한 파일 범위만 기존 추적 fixture를 가짜 홈에 제공 | round15-integration-team-fixtures-02.json/log |
+| round15-team-control.py candidate 및 baseline-02 | 각각 종료1,10 passed/12 failed. 문서 runner의 임시 interpreter 위치를 보완해 기존10실패 해소. 나머지12는 동일 고정 후속 Git 원본에서도 재현 | round15-team-control-{candidate,baseline-02}.json/log, round15-existing-failures.json |
+| Google 별도 test_notion_integration.py 표적 pytest | 종료0,13 passed. 격리 Google fixture/외부 네트워크 금지 | round15-notion-google-01.log |
+| round15-run.py legacy-regression-final | 종료0,241 passed. 실제 release→최초 전환→설치된 검사기→전체 bundle, 각 쓰기 전/후 실패, 기본 설치/release/deploy/bundle 회귀 | round15-legacy-regression-final.json/log |
+| test_google_legacy.py 후속 표적 pytest | 종료0,11 passed/53 deselected. 기존 설치의 orphan 임시 파일/시설 루트 모드 거절을 추가한 뒤 정상 전체 전환·중단·복구 실패·비밀 미접근·worker 관측도 함께 확인 | round15-legacy-04.log |
+| round15-mutations.py | driver 종료0. 격리 사본에서 전환 거절 검사와 최초 내구 표식을 각각 제거했을 때 해당 표적 시험이 의도대로 종료1 | round15-mutations-02.json, round15-mutation-*-02.log |
+| round15-airport.py | 종료0. snapshot boundary80/document0/compartments0 PASS. 기준선 변경 없음 | round15-airport.json/log |
+
+241시험 실행 뒤 최종 제품 차이는 기존 정책의 orphan 설치 흔적/시설 루트 모드 거절뿐이다. 이 추가 분기와 정상 전환을 위11경우로 검증했으며241개 전부를 최종 코드에서 새로 실행했다고 바꾸어 쓰지 않는다. Apps/IR-1/D1의 입력은 checkpoint12와 동일하므로 통과한 UI/서명/압축 왕복을 반복하지 않았다. 새 최초 전환은 가짜 홈의 실제 파일 시스템/프로세스 관측(수준2·3)이며 운영/실계정 수준4 증거가 아니다.
+
+잔여12실패는 기존 `test_app_scope.py`1개와 `test_notion.py`11개다. 두 Git 버전 대조에서 노드 id와 임시 경로/객체 주소만 정규화한 실제 assertion 출력이 일치했다. 페이지네이션 fixture/읽기 결과/오류 문구·등록·업로드 거절 기대와 후속 코드의 차이이며, 구현자가 기대를 수정하거나 skip/xfail하지 않았다. 제품 결함/옛 기대값 문제의 최종 분류와 수락 여부는 기획/독립 검토에 반환한다. 따라서 전체 team 회귀 통과를 주장하지 않고 커밋/푸시도 하지 않았다.
+
+초기 준비 실패도 보존한다. integration-hejo 종료4는 옛 파일명 지정 오류, -02 종료2는 PTB import 경로 누락으로 시험 미실행이며 기존 설치 의존 경로를 명시한 -03에서 통과했다. team-fixtures 첫 시도 종료4는 공백을 포함한 parametrized node id 추출 오류로 시험 미실행이고 파일 범위를 정확히 지정한 -02와 후속 대조로 구분한다. legacy-01은 신규 release fixture의 LICENSE 누락으로21실패/24통과, 보완 뒤 legacy-02는44통과/기존 backup 코드 파일을 잘못 센 시험1실패였다. 기존 파일 집합 불변으로 바로잡은 -03의9경우는 통과했다. mutation 첫 준비 및 Git 참조 환경 오류는 child의 의미 있는 실패가 아니며 초기 JSON/로그에 보존했다. 최종 -02는 fixture의 고정 Git 원본 조회만 원래 저장소로 지정하고 제품/성공 단언을 바꾸지 않은 격리 사본에서 의도된 실패를 관측했다.
+
+최종 공개 패턴/기록된 개인 식별자 검사, 전체 변경 범위·compile·diff·AC16행·문서/증거/지문 대조는 round15-private와 round15-final-check에 기록한다. canonical 설계/수락/독립 리뷰/판정은 수정하지 않았다. 이 결과는 Terra 재검토 제출이며 독립 완료 판정이나 운영 허가가 아니다. GD-T19·TASK07 승격·후속 커밋/최종 불변 후보·앱 운영 로그인/업데이트 구성은 남는다.
+
+## 이전 왕복14 — 실제 legacy 시설 대조와 구현 보류
+
+[설계9판](design.md)과 [tasks 왕복14](tasks.md)에 따라 예외 구현 전에 비밀 제외 시설 전체를 대조했다. 결과는 다음과 같다. 이는 전환 실행, 전환 자격 부여 또는 고위험 수락 증거가 아니다.
+
+| 범위 | 원래 검토 기준과 실제 대조 | 추가로 확인한 Git 출처 |
+|---|---|---|
+| hejo release 시설 gate/hub/schemas/config/install/LICENSE | 42파일 중39일치,3본문 차이,1추가. RELEASE 메타데이터와 캐시는 별도 | 실제43파일은 기록된 릴리스 `a3df84e48fae8b36c27a572a5ee36247cc46acf3`와 모두 일치. 원래 hejo 기준의 후속 커밋이며 현재 Google 후보에 그 후속 변경을 통합한 증거는 없음 |
+| team-kit 전체(캐시 제외) | 681항목 중658일치,23본문 차이. 추가/부재·모드/내부 링크 차이는 없음. 내부 링크96개도 확인 | 23차이는 운영 저장소 후속 커밋 `9488a060e7bf5646af69628b29b34c28cfc18109`의 blob과 모두 일치. 해당 커밋이 원래 기준과 다른 kit 경로도 정확히 이23개이므로 전체681항목의 출처를 식별. 해당 후속 코드는 Git status상 clean |
+| 동반5파일 | 원래 기준과5경로 모두 일치. 기존3파일 본문/모드, 나머지2파일의 부재까지 일치 | 위 후속 운영 저장소 커밋과도5경로 일치. 이 일치만으로 kit/현재 검사기 도입을 승인하지 않음 |
+| 영향 홈/영수증/연결 | 기본 홈+프로필6개를 이름·파일형식·링크 메타데이터로 조사. installed/version2 영수증의6링크는 모두 applied/실제 gate 링크와 일치. 나머지1프로필은 hejo 링크·해당 영수증 항목 없음 | hejo/team-kit/team-delegation의 관측된 최상위 링크는 기대 시설을 가리킴. team-delegation overlay1개는 manifest 일반 파일과 원본 코드 링크로 구성. 프로필 선택/권한 원본은 읽거나 승인하지 않음 |
+
+hejo의 본문 차이는 `gate/README.md`, `gate/adapter.py`, `gate/telegram.py`이고 추가 경로는 `gate/telegram_comments.py`다. 원래 기준에서 추가 경로는 내용 없이 형식만 기록했고, Git에 존재하는 기록된 release와의 두 번째 대조에서 코드로 확인했다. RELEASE가 있다는 이유만으로 전체 일치를 가정하지 않았다. 앱 bundle 내부의 운영 로그인/업데이트 구성과 자격은 열지 않았고, 기존 앱 수락/운영 배포 승인을 확장하지 않았다.
+
+team-kit의23본문 차이는 다음과 같다(키트 루트 기준).
+
+- `__init__.py`
+- `lib/hermes_facility/app_connect.py`
+- `lib/hermes_facility/app_scope.py`
+- `lib/hermes_facility/app_setup.py`
+- `lib/hermes_facility/connection_checks.py`
+- `lib/hermes_governance/contracts.py`
+- `lib/hermes_owner_chat.py`
+- `lib/hermes_packs/diagnosis/diagnosis_runtime.py`
+- `lib/hermes_packs/files_docs/files.py`
+- `lib/hermes_packs/mac_apps/app_catalog.json`
+- `lib/hermes_packs/mac_apps/catalog.py`
+- `lib/hermes_packs/mac_apps/discovery.py`
+- `lib/hermes_packs/notion/api.py`
+- `lib/hermes_packs/notion/operations.py`
+- `lib/hermes_team_services/error_digest.py`
+- `lib/hermes_team_services/memory_live.py`
+- `lib/hermes_team_services/work_runtime.py`
+- `tests/test_app_catalog.py`
+- `tests/test_app_registry.py`
+- `tests/test_error_digest.py`
+- `tests/test_files.py`
+- `tests/test_hejo_session_proof.py`
+- `tests/test_owner_provenance_hejo.py`
+
+파일별 기대/실제 SHA-256, 모드·존재/부재·내부 링크, 실제 개인 경로/홈 대응은 ignored `.build/google-disconnect-evidence/round14-inventory.json` 및 `round14-profile-topology.json`에만 둔다. 후속 Git 출처의 개별 blob 대응은 `round14-provenance.json`, 전체 트리/동반5경로의 추론 대조는 `round14-baseline-coverage.json`이다. 운영 코드를 수집해 새 allowlist/지원 선언으로 등록하지 않았다.
+
+**보류 사유와 반환 판단:** design9판의 현재 검토 기준과의 전체 일치 조건이 충족되지 않았다. 출처 불명의 운영 바이트라고 단정할 상태도 아니다. Git 출처는 확인됐지만 후속 hejo/kit 변경을 현재 Google 후보와 호환 복구 후보에서 어떻게 보존할지, 그 버전을 최초 전환 기준으로 채택할지의 기획·검토 처분이 없다. 기존 후보를 그대로 덮어쓰면 후속 시설 변경이 사라질 수 있으므로 기준을 임의로 바꾸거나 --upgrade-legacy/새 predecessor를 구현하지 않았다. 현재 검사기가 없는 installed 상태의 거절을 유지한다.
+
+권고: 기획·검증 담당이 위 두 후속 Git 버전과 원래 기준 사이의 차이를 검토해 현행 기능 보존/통합 범위와 legacy 기준을 확정한 뒤 재인계한다. 또는 이미 검토된 다른 일치 기준이 있다면 그 정확한 커밋/릴리스와 전체 시설 대응을 제공한다. 운영을 원래 기준으로 되돌리거나 누락2파일/검사기만 복사해 맞추는 선택은 하지 않는다. 승인을 기다리지 않고 할 수 있는 이번 범위인 차이·증거 기록과 최신 문서 후보 반영은 완료했다.
+
+**실행/미실행 구분:** `python3 .build/google-disconnect-evidence/round14-inventory.py`, `round14-provenance.py`, `round14-baseline-coverage.py`는 각각 종료0이며 조사/출처 검사의 성공이다. 정확한 argv/cwd/대상 버전은 각 JSON, 출력은 대응 log에 있다. inventory의 baselineProven=false는 거절 조건 확인이며 전환 성공을 뜻하지 않는다. canonical 문서 후보 반영은 round14-report.py/round14-protected.json으로 확인한다. 제품 무변경·문서 링크/AC16행·개인값·두 diff --check와 최신 지문은 round14-final-check.py 및 round14-private 로그로 검증한다.
+
+왕복14 공개 검사는 격리된 가짜 home의 고정 입력으로 전체 후보의 일반 패턴을 검사하고, 이번 두 보고에는 inventory 메타데이터의 실제 프로필 식별자/개인 경로가 없음을 별도로 검사한다. 운영 금고/명부를 새로 읽는 전수 비교를 반복하지 않으며 이전 전체 공개 검사 증거와 구분한다.
+
+명시적 최초 전환·임시 홈의 상태/잠금/중지/CAS/각 쓰기 실패복구·전체 bootstrap→bundle 시험은 선행 조건 보류로 **코드 미작성/미실행**이다. 운영 금고/자격/전환 상태·활성 작업/중지 상태는 이번 시설 inventory로 조사하지 않았고 없다고 주장하지 않는다. 기존 전체 UI/Google/deploy 회귀는 무변경이므로 반복하지 않았다. 독립 검토 완료·수준4·GD-T19 완료는 주장하지 않는다. 기존 D1/D2·IR-1 수용과 과거 실패 로그/산출물을 보존한다.
+
+## 왕복13 — D-1/D-2 구현과 실제 검증
+
+승인된 범위는 design8판·tasks 왕복13이다. 구현 전에 deployment-handoff에 동반5파일의 원본/대상/manifest·선택 소유/복구 대응표를 기록했다. 기준 HEAD는 hejo d25530649f7eb898e2f5cbc5cb471c1417823632, 운영 저장소33d6671993473c0eb7ecb4087e0fe4edebc63050이며 기존 커밋/두 worktree를 보존했다. 이번 변경은 미커밋으로 Terra에 반환한다. 구체적 범위/파일별 지문은 source-checkpoint-11.log가 원본이다.
+
+D-1: build.sh는 기존 한글 HTML 원문을 ASCII connection-help.html로 복사하고 서명 전에 그 리소스의 옛 NFC/NFD 이름만 지운다. HooksHelp의 실제 Bundle 조회도 함께 맞췄다. 안내 본문/한국어 표시는 유지했다. 실제 일반/반복 빌드와 타 임시 위치의 압축 해제 후 strict 서명·실제 조회/원문 대조를 확인했다. 별도 원본, 추출 뒤 재서명/단언 완화는 없다.
+
+D-2: 기존 deploy의 --source는 legacy kit-only, --bundle은 허용된 전체 시설 루트를 받는다. 기존 단일 hejo 검사기가 kit/5파일의 본문·모드·내부 링크와 지원 선언을 검증하며, 기본 검사도 옛 호출자의 부분 배포를 거절한다. 새 installer/금고 원본/운영 우회는 없다. 현재 정책·실행 코드를 시작 시 고정하고 금고 mutex/중단 조건 안에서 전체 stage→사전 검사→CAS 쓰기→전체 확인을 한다. 기존 plugin_store의 pending 검사와 overlay/ledger, config_assembly의 선언 합성, skill assembler의 순수 prepare를 확장했다. owner grant·앱/팩/직원 선택·무관 필드는 쓰지 않는다. 선택된 전환 직원만 네 도구 선언/매뉴얼을 반영한다. 자동 복구는 이전 전체 본문/모드·존재/부재를 보존하고 owner 원본은 되돌리지 않는다. 중단/복구 실패 stage는 보존·재실행 거절한다.
+
+표적 시험 과정에서 실제 발견/수정한 문제: 루트 plugin link 아래의 manifest를 일반 파일로 읽으려던 경로는 검증된 원본에서 읽도록 맞췄다. source 지원 선언 없는 미전환 predecessor의 전체 snapshot은 기존 버전 검사와 명시적 식별을 함께 사용한다. 최초 부재의 지속 I/O 실패 시험은 이미 원상태인 항목까지 재쓰려다 복구를 멈추는 문제를 검출했다. 복구 시 현재==이전 상태면 그대로 두고 나머지 항목을 복구하도록 고쳤다. 각각 최초 실패 로그와 수정 후 결과를 구분한다. 시험 초기 package fixture 미가져오기, 가짜 금고 필수 manuals.repository_name 누락 및 Swift 조회 보조 코드의 throwing autoclosure 오류도 수정했으며 제품 단언을 약화하지 않았다.
+
+검증 로그는 원래 작업 폴더의 `.build/google-disconnect-evidence/` 아래다. 정확한 argv/cwd/환경·입력 지문을 round13-run 계열 JSON/로그 및 source-checkpoint-11.log와 대조한다. 앱은 실제 서명/Bundle 실행(수준3), 임시 홈 bundle은 실제 파일 시스템/프로세스와 가짜 자료(수준2·3)이며 운영/실계정 수준4가 아니다.
+
+- app/Tests/test_help_package.py: 첫 실행은 일반/반복 빌드0·압축/추출/strict 서명0 뒤 보조 Swift 컴파일1. 동일 빌드의 --verify-existing 후속 실행은0, BUNDLE_HELP_LOOKUP_OK와 안내 원문 SHA 일치. round13-app-package-01.log/02.log. 통과한 제품 빌드를 보조 코드 수정만으로 반복하지 않았다. 최종 --verify-existing --artifact-out 실행(HEJO_PYTHON)은 종료0, round13-app-package-03.log. 검토용 압축은 `.build/google-disconnect-delivery/round13-review/hejo.app.tar.gz`, SHA-256 `f400c82904e24961efbbc9078f3e34e661153c7097e87343d8b0da64f4fab581`이다. 같은 실행에서 타 임시 위치의 strict 서명/실제 Bundle 조회까지 통과한 압축을 보존했다. 최종 커밋의 생산 배포본으로 주장하지 않는다.
+- 기존 Google/설치/release 회귀142통과: round13-hejo-regression.log/JSON. 기존 team Google158통과: round13-team-google.log/JSON. 이후 배포 경계 변경은 아래 별도 표적 검증으로 확인한다.
+- 최신 단일 검사기와 bundle/기존 배포 회귀112통과: round13-bundle-accepted.log/JSON. 최초 부재 정상/지속 실패 추가 시험은 round13-bundle-absence.log에서1통과/1실패였고, 원상태 재쓰기 수정 뒤 영향받는 복구/rename/경합/부재 시험15개(기존13+추가2)가 종료0으로 통과했다. round13-recovery-final.log. 이를 최종 전체 시험의 단일 실행으로 합산하지 않는다. 앞선 round13-bundle-01~08 및 bundle-final 로그는 보존한다.
+- 설치된 라이브러리/manifest의 실제 register를 프로필의 실제 팩 설정으로 실행한 후속2경우는 종료0(4개 팩 선택→4도구, mail 선택→기존 files-docs 의존성을 포함한2도구). 적용 전후 config 바이트/기존 grant 불변을 단언했다. round13-register-final-02.log. 최초 mail 기대를1도구로 둔 시험은 기존 mail/pack.yaml의 files-docs 의존성을 누락해 실패했으며 제품/선택/승인 정책을 바꾸지 않고 기존 계약에 맞춰 정정했다. round13-register-final.log는 보존한다.
+- 중단 표식/동반 검사를 제거한 격리 mutation은 각각 수락 시험 종료1을 확인했다. 최종 코드의 round13-mutations-03.json과 각 mutation-03 로그(두 자식 시험 종료1, driver0). 이전 round13-mutations-02.json도 보존한다. 최초 단일 중단 guard 제거는 다른 유효 guard 때문에 시험이 통과해 보호 규칙 전체의 변이를 다시 확인했다. 작업 트리를 변이하지 않았다.
+- snapshot airport-check는 baseline 변경 없이 boundary80/document0/compartments0 PASS. 최종 복구 수정 뒤 round13-airport-closure.log/JSON(종료0). round13-private.py hejo/canonical은 각각 종료0으로 전체 공개 검사와 실제 index 불변을 확인했다. 최종 보고 기록 뒤 hejo 후보를 다시 검사하며 round13-private-final-hejo.log/JSON에 보존한다. 두 worktree diff --check와 변경 Python compile·로컬 링크·보호 문서·source 지원 선언 검증의 최종 기록은 source-checkpoint-11.log와 round13-final-check.json이다.
+
+비밀 제외 실제 대상 읽기 전용 확인: round13-target-readonly.json. installed 영수증의 현재 검사기가 없고 동반2파일이 부재다. 후보 검사기 대체 탐색/운영 파일 복사로 해결하지 않았다. 선언의 검토된 predecessor와 실제 운영 묶음은 다른 상태이며 기획/운영의 안전한 전환 결정이 필요하다. 시스템 앱 메타데이터는 발견했지만 교체/서명/운영 로그인·업데이트 구성과 호환 복구 묶음은 미승인이다. [최신 배포 인계](deployment-handoff.md)의 명령은 현재 차단 처분/재검토/고정 및 별도 사용자 승인 뒤에만 실행한다. 운영 설치/apply/rollback/재시작·실계정·메시지·푸시는 하지 않았다.
+
+## 이전 왕복12 — 로컬 커밋·격리 후보와 운영 인계
 
 [배포 인계](deployment-handoff.md)에 후보 식별자·정확한 명령 템플릿·적용/복구/중단 조건·사용자 GD-T19 체크리스트를 작성했다. 실제 운영 설치/apply/rollback/재시작·실계정·푸시는 미실행이다. 제품/시험 입력은 checkpoint-10과 동일하므로 통과한 전체 suite/UI/빌드를 반복하지 않았다. 기존 AC16행 처분과 Terra 최종 검토를 유지하며 운영/실계정 수락을 완료로 바꾸지 않는다.
 
@@ -342,9 +462,9 @@ team의 기존 상위 conftest는 운영과 같은 값의 명부/금고 fixture�
 | REQ-GD-03.AC-03 | GD-T10: 권한/배경·단건/계획 승인·저장 대기·메일/Calendar undo의 옛 binding 거절. 이번 Calendar 회귀 보완 |
 | REQ-GD-04.AC-01 | GD-T11/12: 기존 인증 저장 단계 프로세스 종료·CAS/lease, 이번 복구 삽입/잠금 경합·I/O 복구. 배포 강제 종료 자동 복구는 위 한계 |
 | REQ-GD-04.AC-02 | GD-T03/13: 단일 금고 원본·조립, absent/null/손상/unknown 분기와 읽기 무변경. 수준2 증거 |
-| REQ-GD-04.AC-03 | GD-T14: 직접 Google undo 거절·각 배포 진입점·실제 release 설치/갱신/복구·R10/7판 예외. 124 통과 증거와 Terra 독립 검토 수용. 실제 운영 검증은 별도 |
+| REQ-GD-04.AC-03 | GD-T14: 기존 R10/7·8판 독립 수용 유지. 왕복15 명시적 최초 전환/각 쓰기 실패복구/강제 종료 거절과 실제 release→전체 bundle 시험241 및 후속11 표적 통과. 새 독립 재검토·운영 수락은 남음 |
 | NFR-GD-01.AC-01 | GD-T15/20: 기존 권한/경로·도구 보호 증거 유지. 승인된 공개 값 정리와 최신 격리/canonical 전체 검사0. Terra checkpoint-10 최종 재검토에서 IR-1 해소 |
-| NFR-GD-02.AC-01 | GD-T16: 임시 홈/가짜 데이터·외부 API 금지, 82+156+2와 gate87/설치124. 기존 hejo 전체522·후속13fixture 증거 유지. 이번 기본9/불완전 응답/Google 시트 통과. GUI 준비 후 원본 연결 전체·연결 관리 종료0, 기존 HC27/CM35 실패 해소. 전체 team 범위 제한 남음 |
+| NFR-GD-02.AC-01 | GD-T16: 임시 홈/가짜 데이터·외부 API 금지, 82+156+2와 gate87/설치124. 기존 hejo 전체522·후속13fixture 증거 유지. 이번 기본9/불완전 응답/Google 시트 통과. GUI 준비 후 원본 연결 전체·연결 관리 종료0, 기존 HC27/CM35 실패 해소. 왕복15 고정 후속 원본에서도 재현된 Notion12실패 처분이 남으며 전체 team 통과를 주장하지 않음 |
 | REQ-GD-05.AC-01 | GD-T17/18: 앞선 화면 증거 유지. 왕복11의 노출된 창 닫기 버튼·전송 불가/재열기·늦은 응답 보호와 기존 취소 회귀 통과. 실제 늦은 poll 안내 결함 수정. Terra checkpoint-10 최종 재검토에서 IR-1 해소, GD-T19 별개 |
 | REQ-GD-05.AC-02 | GD-T19: 미실행. 별도 운영 인계 승인 뒤 사용자가 실계정 교체와 다른 직원 불변을 확인해야 함 |
 
@@ -375,7 +495,7 @@ team의 기존 상위 conftest는 운영과 같은 값의 명부/금고 fixture�
 
 추가 범위 검사 결과는 hejo 변경 13개와 canonical 작업 문서 11개 각각 종료 0이다. 실제 owner 비교를 유지하며 임시 index로 해당 범위만 선택했다. `task05-private-scope-hejo-01.log`, `task05-private-scope-canonical-01.log`, `task05-private-scope-01.json`에 범위를 기록했다. 이 축소 검사는 실패한 전체 공개 검사를 대체하지 않는다. 최종 코드에 대한 airport-check도 `task05-airport-final-01.log`에서 종료 0이다.
 
-## 운영 인계 초안 — 실행 미승인
+## 이전 운영 인계 초안 — 현재 실행 절차로 사용 금지
 
 1. 최종 검토·공개 검사 차단을 처분한 뒤 각 저장소의 승인된 코드/전체 커밋과 배포 산출물을 고정한다. 지원 선언과 공통 검사기 지문을 기록한다. 현재는 결과 커밋이 없어 이 단계가 끝나지 않았다.
 2. 사용 중인 공유 출력에 덮어쓰지 않고 `install/hejo-release <새 배포 위치>`로 새 산출물을 준비한다. 각 홈은 그 배포본 `install/hejo-install --home <설치 홈>`으로 검사·갱신한다. 실제 운영에서는 별도 승인 없이 실행하지 않는다.
@@ -383,20 +503,34 @@ team의 기존 상위 conftest는 운영과 같은 값의 명부/금고 fixture�
 4. 실패 복구는 고정된 현행 검사기로 호환 이전 산출물을 검사하는 `rollback --source <검증 복구 kit>`/installer 복구 경로만 사용한다. 구버전·전환 기록/잔존 인증·검사기 오류·불완전 installed 링크는 우회하지 않는다. 전용 자격 백업을 되살리거나 전환 항목을 지워 초기 설치로 위장하지 않는다. 복구 불확실 시 기능을 닫고 운영 판단을 받는다.
 5. gateway 재시작·실계정 해제/계정 선택은 TASK-06 별도 승인 뒤 사용자 직접 수행한다. 새 계정 표시와 해당 직원 읽기 전용 확인·다른 직원 불변을 비밀/메일 본문 없이 확인한다. 푸시는 검토·검증·커밋 뒤 사용자 화면 승인으로 플러그인만 실행한다.
 
-커밋 후보는 checkpoint-10의 각 worktree 파일과 canonical 작업 문서/수락 명세다. 다른 작업의 변경은 포함하지 않는다. UI 활성 조건은 사용자 GUI 준비 후 실제 성공을 확인했다. Terra IR-1은 해소됐다. 운영 GD-T19와 최종 전달 절차가 남으며 푸시 준비 완료로 먼저 보고하지 않는다.
+현재 커밋 검토 후보는 checkpoint-13의 각 worktree 파일과 최신 canonical 작업 문서/수락 명세다. 위 초안은 과거 기록이며 실제 적용에는 최신 deployment-handoff만 사용한다. 다른 작업의 변경은 포함하지 않는다. UI 활성 조건은 사용자 GUI 준비 후 실제 성공을 확인했다. Terra IR-1은 해소됐다. 운영 GD-T19와 최종 전달 절차가 남으며 푸시 준비 완료로 먼저 보고하지 않는다.
 
 ## 전체 변경 파일
 
-현재 원본은 checkpoint-10다. 아래 경로는 각 저장소 기준이며 변경 이유는 위 책임 설명과 이전 구현 항목을 따른다.
+현재 원본은 source-checkpoint-13.log다. 아래는 원래 구현 전 기준부터 현재 작업 트리까지의 전체 집합(문서 포함)이며, HEAD 위의 미커밋 집합과 구분한다. 지정 Git 통합/기존 구현/최초 전환/문서의 변경 이유는 위 책임 설명을 따른다.
 
-hejo (29개):
+hejo (54개):
 
 - `app/Sources/ConnectionModels.swift`
 - `app/Sources/ConnectionsWindow.swift`
+- `app/Sources/HooksHelp.swift`
 - `app/Tests/ConnectionsTests.swift`
 - `app/Tests/TestMain.swift`
 - `app/Tests/google_connection_fixture.py`
+- `app/Tests/test_help_package.py`
+- `app/scripts/build.sh`
 - `docs/changes/HEJO-DRAWER-INLINE-20261122/mockups/filter-options.html`
+- `docs/changes/HEJO-GOOGLE-DISCONNECT-20261124/brainstorm.md`
+- `docs/changes/HEJO-GOOGLE-DISCONNECT-20261124/deployment-handoff.md`
+- `docs/changes/HEJO-GOOGLE-DISCONNECT-20261124/design.md`
+- `docs/changes/HEJO-GOOGLE-DISCONNECT-20261124/handoff.md`
+- `docs/changes/HEJO-GOOGLE-DISCONNECT-20261124/impl-report.md`
+- `docs/changes/HEJO-GOOGLE-DISCONNECT-20261124/independent-review-request.md`
+- `docs/changes/HEJO-GOOGLE-DISCONNECT-20261124/independent-review.md`
+- `docs/changes/HEJO-GOOGLE-DISCONNECT-20261124/plan-review.md`
+- `docs/changes/HEJO-GOOGLE-DISCONNECT-20261124/spec.md`
+- `docs/changes/HEJO-GOOGLE-DISCONNECT-20261124/tasks.md`
+- `docs/changes/HEJO-GOOGLE-DISCONNECT-20261124/workspace-command-map.md`
 - `docs/changes/HEJO-UI-CLEAN-20261123/mockups/clean.html`
 - `docs/changes/HEJO-UI-CLEAN-20261123/mockups/clean2.html`
 - `docs/changes/HEJO-UI-CLEAN-20261123/mockups/composer.html`
@@ -410,23 +544,35 @@ hejo (29개):
 - `docs/changes/HEJO-UI-CLEAN-20261123/mockups/simple.html`
 - `docs/changes/HEJO-UI-CLEAN-20261123/mockups/title-pill-2.html`
 - `docs/changes/HEJO-UI-CLEAN-20261123/mockups/title-pill.html`
+- `docs/changes/c20a9994-041b-4225-bc8f-f457d10cf651/plan-review.md`
+- `docs/changes/c20a9994-041b-4225-bc8f-f457d10cf651/verdict.md`
+- `gate/README.md`
+- `gate/adapter.py`
 - `gate/connection_manager.py`
 - `gate/connection_runtime.py`
+- `gate/telegram.py`
+- `gate/telegram_comments.py`
+- `gate/tests/test_telegram_comments.py`
 - `install/check_google_compat.py`
 - `install/google-connection-support.json`
 - `install/hejo-install`
 - `install/hejo-release`
+- `tests/acceptance/HEJO-GOOGLE-DISCONNECT.md`
 - `tests/acceptance/test_conn_manage.py`
+- `tests/acceptance/test_google_bundle.py`
+- `tests/acceptance/test_google_bundle_absence.py`
 - `tests/acceptance/test_google_deployment.py`
 - `tests/acceptance/test_google_disconnect.py`
+- `tests/acceptance/test_google_legacy.py`
 - `tests/acceptance/test_google_release.py`
 
-team (65개):
+team (88개):
 
 - `hermes/bin/hermes-plugin-store`
 - `hermes/bin/hermes-skill-assemble`
 - `hermes/bin/hermes-team-kit-deploy`
 - `hermes/plugin-store/team-delegation/plugin.yaml`
+- `hermes/plugin-store/team-kit/__init__.py`
 - `hermes/plugin-store/team-kit/google-connection-support.json`
 - `hermes/plugin-store/team-kit/lib/hermes_execution/__init__.py`
 - `hermes/plugin-store/team-kit/lib/hermes_execution/google_workspace.py`
@@ -434,6 +580,8 @@ team (65개):
 - `hermes/plugin-store/team-kit/lib/hermes_execution/personal_scopes.py`
 - `hermes/plugin-store/team-kit/lib/hermes_facility/account_connect.py`
 - `hermes/plugin-store/team-kit/lib/hermes_facility/app_connect.py`
+- `hermes/plugin-store/team-kit/lib/hermes_facility/app_scope.py`
+- `hermes/plugin-store/team-kit/lib/hermes_facility/app_setup.py`
 - `hermes/plugin-store/team-kit/lib/hermes_facility/config_assembly.py`
 - `hermes/plugin-store/team-kit/lib/hermes_facility/connection_checks.py`
 - `hermes/plugin-store/team-kit/lib/hermes_facility/connections.py`
@@ -442,22 +590,30 @@ team (65개):
 - `hermes/plugin-store/team-kit/lib/hermes_facility/google_connection_sdk.py`
 - `hermes/plugin-store/team-kit/lib/hermes_facility/google_deployment.py`
 - `hermes/plugin-store/team-kit/lib/hermes_facility/pack_selection.py`
+- `hermes/plugin-store/team-kit/lib/hermes_facility/plugin_store.py`
 - `hermes/plugin-store/team-kit/lib/hermes_governance/approval.py`
 - `hermes/plugin-store/team-kit/lib/hermes_governance/calendar_undo.py`
+- `hermes/plugin-store/team-kit/lib/hermes_governance/contracts.py`
 - `hermes/plugin-store/team-kit/lib/hermes_governance/google_calendar_undo.py`
 - `hermes/plugin-store/team-kit/lib/hermes_governance/mail_undo.py`
 - `hermes/plugin-store/team-kit/lib/hermes_governance/request_approvals.py`
+- `hermes/plugin-store/team-kit/lib/hermes_owner_chat.py`
 - `hermes/plugin-store/team-kit/lib/hermes_packs/calendar/GOOGLE-WORKSPACE-LICENSE`
 - `hermes/plugin-store/team-kit/lib/hermes_packs/calendar/google_calendar_accounts.py`
 - `hermes/plugin-store/team-kit/lib/hermes_packs/calendar/google_workspace.py`
 - `hermes/plugin-store/team-kit/lib/hermes_packs/calendar/pack.yaml`
 - `hermes/plugin-store/team-kit/lib/hermes_packs/calendar/plugin.yaml`
 - `hermes/plugin-store/team-kit/lib/hermes_packs/catalog.json`
+- `hermes/plugin-store/team-kit/lib/hermes_packs/diagnosis/diagnosis_runtime.py`
 - `hermes/plugin-store/team-kit/lib/hermes_packs/files_docs/GOOGLE-WORKSPACE-LICENSE`
+- `hermes/plugin-store/team-kit/lib/hermes_packs/files_docs/files.py`
 - `hermes/plugin-store/team-kit/lib/hermes_packs/files_docs/google_workspace.py`
 - `hermes/plugin-store/team-kit/lib/hermes_packs/files_docs/pack.yaml`
 - `hermes/plugin-store/team-kit/lib/hermes_packs/files_docs/plugin.yaml`
 - `hermes/plugin-store/team-kit/lib/hermes_packs/mac_apps/GOOGLE-WORKSPACE-LICENSE`
+- `hermes/plugin-store/team-kit/lib/hermes_packs/mac_apps/app_catalog.json`
+- `hermes/plugin-store/team-kit/lib/hermes_packs/mac_apps/catalog.py`
+- `hermes/plugin-store/team-kit/lib/hermes_packs/mac_apps/discovery.py`
 - `hermes/plugin-store/team-kit/lib/hermes_packs/mac_apps/google_workspace.py`
 - `hermes/plugin-store/team-kit/lib/hermes_packs/mac_apps/pack.yaml`
 - `hermes/plugin-store/team-kit/lib/hermes_packs/mac_apps/plugin.yaml`
@@ -470,21 +626,33 @@ team (65개):
 - `hermes/plugin-store/team-kit/lib/hermes_packs/mail/organization_state.py`
 - `hermes/plugin-store/team-kit/lib/hermes_packs/mail/pack.yaml`
 - `hermes/plugin-store/team-kit/lib/hermes_packs/mail/plugin.yaml`
+- `hermes/plugin-store/team-kit/lib/hermes_packs/notion/api.py`
+- `hermes/plugin-store/team-kit/lib/hermes_packs/notion/operations.py`
 - `hermes/plugin-store/team-kit/lib/hermes_team_services/doctor.py`
+- `hermes/plugin-store/team-kit/lib/hermes_team_services/error_digest.py`
 - `hermes/plugin-store/team-kit/lib/hermes_team_services/mail_waiting_worker.py`
+- `hermes/plugin-store/team-kit/lib/hermes_team_services/memory_live.py`
 - `hermes/plugin-store/team-kit/lib/hermes_team_services/personal_mail_summary.py`
 - `hermes/plugin-store/team-kit/lib/hermes_team_services/personal_review.py`
 - `hermes/plugin-store/team-kit/lib/hermes_team_services/secret_guard.py`
 - `hermes/plugin-store/team-kit/lib/hermes_team_services/wait_jobs.py`
+- `hermes/plugin-store/team-kit/lib/hermes_team_services/work_runtime.py`
 - `hermes/plugin-store/team-kit/tests/google_disconnect/conftest.py`
 - `hermes/plugin-store/team-kit/tests/google_disconnect/test_cli.py`
 - `hermes/plugin-store/team-kit/tests/google_disconnect/test_connection.py`
 - `hermes/plugin-store/team-kit/tests/google_disconnect/test_consumers.py`
 - `hermes/plugin-store/team-kit/tests/google_disconnect/test_native_workspace.py`
+- `hermes/plugin-store/team-kit/tests/google_disconnect/test_notion_integration.py`
 - `hermes/plugin-store/team-kit/tests/google_disconnect/test_oauth.py`
 - `hermes/plugin-store/team-kit/tests/google_disconnect/test_queued.py`
 - `hermes/plugin-store/team-kit/tests/google_disconnect/test_recovery.py`
 - `hermes/plugin-store/team-kit/tests/google_disconnect/test_skill_boundary.py`
 - `hermes/plugin-store/team-kit/tests/google_disconnect/test_workspace.py`
 - `hermes/plugin-store/team-kit/tests/google_disconnect/test_workspace_assembly.py`
+- `hermes/plugin-store/team-kit/tests/test_app_catalog.py`
+- `hermes/plugin-store/team-kit/tests/test_app_registry.py`
+- `hermes/plugin-store/team-kit/tests/test_error_digest.py`
+- `hermes/plugin-store/team-kit/tests/test_files.py`
+- `hermes/plugin-store/team-kit/tests/test_hejo_session_proof.py`
+- `hermes/plugin-store/team-kit/tests/test_owner_provenance_hejo.py`
 - `hermes/shared/secretary-skills/employee-google-workspace/SKILL.md`

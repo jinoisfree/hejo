@@ -17,7 +17,16 @@ xcrun swiftc -swift-version 5 -parse-as-library -O -target "$(uname -m)-apple-ma
 .build/icon-generator "$iconset"
 iconutil -c icns "$iconset" -o .build/AppIcon.icns
 cp .build/AppIcon.icns "$bundle/Contents/Resources/AppIcon.icns"
-cp Resources/연결안내.html scripts/configure_hooks.py "$bundle/Contents/Resources/"
+# Remove only obsolete spellings of this resource before signing a reused bundle.
+/usr/bin/python3 - "$bundle/Contents/Resources" <<'RESOURCE_CLEANUP'
+from pathlib import Path
+import sys, unicodedata
+for path in Path(sys.argv[1]).iterdir():
+    if unicodedata.normalize("NFC", path.name) == "연결안내.html":
+        path.unlink()
+RESOURCE_CLEANUP
+cp Resources/연결안내.html "$bundle/Contents/Resources/connection-help.html"
+cp scripts/configure_hooks.py "$bundle/Contents/Resources/"
 cp Resources/Info.plist "$bundle/Contents/Info.plist"
 python3 ../scripts/build_info.py "$bundle/Contents/Resources/BuildInfo.json"
 # hejo's shared Google desktop client: public id in config/google-oauth.json, secret from an untracked file or env.
