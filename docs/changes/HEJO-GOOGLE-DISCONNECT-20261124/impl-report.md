@@ -2,7 +2,7 @@
 
 ## 현재 판단과 범위
 
-**왕복19 지정 시험 통합·지원 식별 갱신 검증 제출.** 고정3adfa6c9의 지정5시험만 통합하고 운영 전체 기준은 고정8bf1ef46에서 재현했다. 관련4파일296경우와 Google/Notion 통합13경우가 통과했고 이전12실패 노드도 각각 통과했다. 실행 제품 코드·앱·검사 강도는 바꾸지 않았다. 최초 전환→전체 bundle 및 거절/CAS/복구 표적7경우도 통과했다. 전체 team 성공을 주장하지 않는다. 후속 소스 커밋·새 전달/복구 지문을 고정하고 읽기 전용 시설 대조도 일치했다. 실제 운영 적용은 갱신 후보 검토 뒤로 남긴다.
+**왕복21 design10 구현·격리 검증 제출.** 검증된 LegacyUpgrade에서만 고정 생산자의 만료 disconnect/applied 장부를 읽기 전용으로 인정한다. 명시적 off·생산 형식·600초 만료·전환/자격/worker 부재·장부/config CAS와 시계 역행을 검사하고 일반 first/recovery의 거절은 유지했다. 최종 표적85경우(격리 변이9개 포함)가 통과했고 영향 설치/배포 회귀204경우도 통과했다. 운영 장부·앱·서비스는 변경하지 않았다. 새 후보의 Terra 독립 검토가 선행 조건이며 기존 운영 승인 범위는 유지한다.
 
 원래 목표는 해당 직원 Google 개인 연결·이메일·전용 자격을 제거하고 다음 연결에서 계정을 선택하는 것이다. 기존 금고 원본과 전용 저장 배치, 공식 도구 4개, gate/AppKit 구현을 보존했다. 본체·ddots·sandbox 정책·운영 비밀 파일·Paseo 상태 JSON·계획/수락 명세 Markdown은 변경하지 않았다. 기존 구현을 유지하며 왕복11에서 인증 시트의 명시적 닫기 동작과 취소된 폴링의 응답 후 보호, 해당 표적 시험을 보완했다. 원래 폴더의 다른 작업도 보존했다. 구현 소유 보고·배포 인계와 [명령 대응표](workspace-command-map.md)를 canonical 폴더에서 관리한다.
 
@@ -14,6 +14,51 @@
 | 운영 저장소 | `4bbc16ddba02236fe4645ab7244603c44a78af91` | `role-workflow/google-disconnect-c20a9994` | `.build/google-disconnect-work/team` |
 
 경로는 원래 작업 폴더 기준이다. 위 표는 구현 전 기준이며 현재 시설 실행 소스는 hejo `1daf09e086afcf2b2b415cae8ab32b2af4c6fcc8`, team `0f0ab1fd489574a122323bc5c55d1c1fe0e3a4f2`다. 앱 소스/압축은 왕복17의 hejo ac4643abdbe05be788ebbb31ece600cd808cf8de 그대로다. 기존 커밋을 수정하지 않고 후속 커밋했다. 최종 범위는 hejo54/team93파일이며 checkpoint16 대비 제품 로직/단일 검사기·허용 경로/앱은 불변, 지정5시험과 지원 선언2개 및 작업 문서만 갱신했다. 후속 문서 HEAD/clean·최종 파일별 지문은 round19-closure.json과 source-checkpoint-17.log에 고정한다.
+
+## 왕복21 — LegacyUpgrade 전용 완료 disconnect 판정
+
+기존 두 worktree·커밋·왕복20의 보고2개를 보존하고 design10/tasks 왕복21을 구현했다. 최신 기획 소유 문서는 원문 그대로 후보에 반영했다. 변경은 `install/check_google_compat.py`와 새 시험3개뿐이며 installer 쓰기/복구 순서·team 제품/지원 선언·앱 입력은 불변이다.
+
+- LegacyUpgrade가 검증한 고정 시설·영수증·링크·전체 홈에만 구버전 완료 거래 판정을 사용한다. 정확한 google-personal 장부의 at/action/phase/done/restart_required와 선택적 undo 형식을 검사한다. 유한한 숫자·미래 아님·600초 만료, 명시적 gmail.enabled=false 및 google-workspace 비활성을 요구한다. OAuth/worker/binding 등 혼합·알 수 없는 필드는 거절한다.
+- CONFIG는 기존 hermes_yaml.safe_load의 YAML1.1/중복 키 거절 계약으로 읽는다. 해당 기존 의존성을 읽을 수 없거나 설정이 불명확하면 허용하지 않는다. undo가 남으면 정확한 config 경로와 after SHA를 확인한다. before는 hex 문자열 형식/경로만 확인하며 해독/출력/복원/백업하지 않는다. 빈 기존 config가 만든 빈 hex도 실제 고정 생산자 시험으로 확인했다. undo가 정리됐으면 after를 만들어 내지 않는다.
+- 공유 관측 함수는 금고 구조·전용/임시 자격 존재·안전 장부 경로를 검사한다. 일반 no_google_residue의 허용 단계는 계속 disconnected/cancelled/failed뿐이다. 예외를 first/recovery에 전달하는 옵션이나 fallback은 없다.
+- 장부의 부재/존재와 원시 지문·일반 파일/경로/모드/파일 정체성 및 현재 config를 메모리에 고정한다. 기존 mutex 안에서 매 쓰기/실패복구 직전에 비교하고 시계 역행도 거절한다. 원문/undo를 별도 영구 저장하지 않는다. 전환/자격/프로필/작업 조건과 기존 불확실 복구 거절은 유지한다.
+
+실제 고정 legacy Git8bf1ef46의 account_connect.run/write_transaction을 임시 홈에서 호출했다. 가짜 connection discovery 문맥만 주었고 serializer·쓰기·장부 생산과 undo 없는 경우의 read_record 만료 정리는 원래 코드를 실행했다. 실제 release→명시적 최초 전환→설치된 checker→전체 bundle 성공, 기본/직원 홈 및 undo 있음/없음, config/장부/undo/금고 원본 불변과 새 코드 직접 undo=REAUTH_REQUIRED를 확인했다. 운영 장부에는 read_record나 새 판정을 실행하지 않았다.
+
+| 검증 | 실제 결과 | ignored 증거 |
+|---|---|---|
+| round21-final-targeted.py | 종료0,85 passed. 최종 정책의 새3시험 전체와9개 격리 변이 | round21-final-targeted.json/log |
+| round21-regression.py | 종료0,204 passed. 기존 legacy/release/deployment/install 및 변이9개. 이후 변경은 빈 before hex 허용과 중복 now 검사 제거뿐이며 최종85시험에서 재검증 | round21-regression.json/log |
+| 변이9개 | 만료·생산 필드·action·off·after·undo 경로·CAS·시계·일반 거절을 제거/확대한 각 변이에서 동일 거절 시험이 실패함을 검출. fixture 메모리만 변이, 제품/패키지 파일은 불변 | test_google_legacy_disconnect_mutations.py,위 최종 로그 |
+
+최종85개는 시간 경계/NaN·bool·미래/누락, 모호한 필드·중복 JSON/YAML·경로/설정·자격/전환, 장부/config 교체·모드·시계 및 실패복구 중 경합과 일반 first/recovery 거절을 포함한다. 원본이 안정적이면 코드 링크/영수증만 실패복구하고, 입력이 달라지면 upgrading-legacy 표식을 보존해 자동 복구/재실행을 거절한다.
+
+초기 실패 로그를 보존한다. 첫 실행에서 flow YAML을 JSON으로 오인한 구현 문제와 시험의 존재하지 않는 first 진입점 호출을 발견했다. 원인 확인 뒤 해당 소유 pytest만 SIGINT로 종료했으며 정리 도중 KeyboardInterrupt/teardown 오류와 실제 종료1을 그대로 기록했다(round21-legacy-01). 운영 프로세스에 신호를 보내지 않았다. 기존 CONFIG reader와 실제 preflight 진입점으로 정정한64통과 및 경계11통과 뒤, 빈 이전 config의 정상 생산형식을 추가하고 중복 검사를 정리한 최종85통과로 구분한다. 기대값 완화·skip은 없다.
+
+새 공개 파일은 `tests/acceptance/test_google_legacy_disconnect.py`, `tests/acceptance/test_google_legacy_disconnect_edges.py`, `tests/acceptance/test_google_legacy_disconnect_mutations.py`다. 고정 legacy hejo/team 기준과 지원 버전/일반 허용 경로는 같으므로 지원 선언 본문은 불변이다. 새 검사기는 새 hejo release/소스·시설 지문으로 식별한다. team bundle/정식 앱은 기존 불변 압축을 재사용한다. 로컬 소스 커밋과 갱신 후보·호환 복구 manifest/파일 지문은 round21-commit-hejo.json·round21-artifacts.json 및 [배포 인계](deployment-handoff.md)에 후속 고정한다.
+
+[미실행] 운영 장부/설정/코드 변경·새 운영 staging·앱 종료/재빌드/교체·서비스 중단/재개·실계정·메시지·푸시. 일반 검사기로 왕복20 applied 장부를 재검사하면 여전히 거절되는 것이 의도다. 새 정책의 LegacyUpgrade 전용 판정을 적용하는 실행 절차와 실제 최신 상태는 새 후보 독립 검토 뒤 확인한다. 기존 운영 승인 범위는 그대로이며 이번 보완은 실행 승인이 아니다. GD-T19·TASK07·최종 판정은 남는다.
+
+## 왕복20 — 운영 유휴 검사에서 기존 해제 장부 거절
+
+[확인] 왕복20의 후보 수용과 기존 유지보수 범위 승인에 따라 실제 적용 직전 검사를 수행했다. 대상은 `.build/google-disconnect-delivery/1daf09e086af-0f0ab1fd4895-round19`이며 manifest SHA-256 `608770d33dbf3e10e2b6969ddb2359f072f1e65897541d5ac225ca7c48fbad9e`와 전달/호환 복구 압축6개 및 복구 manifest가 일치했다. hejo HEAD `2d7486edec78c4bbf46dff0e69370c10ce3d2366`, team HEAD `0f0ab1fd489574a122323bc5c55d1c1fe0e3a4f2`와 checkpoint17의147본문/clean을 확인했다. 실제 전체 legacy 시설·동반5경로·전체7홈·정상 영수증·설치된6링크·checker 부재·서비스 plist2개도 고정 기준과 일치했다.
+
+[확인] 단일 검사기 `install/check_google_compat.py`의 `no_google_residue`를 실제 홈에 읽기 전용으로 호출하자 `GOOGLE_AUTH_REMAINS`로 거절됐다. 한 홈의 Google 개인 장부는 action=disconnect·phase=applied이고 undo 구조가 남아 있으며 worker_pid는 없었다. 장부 본문/undo 안의 값과 실제 직원 식별은 보고하지 않는다. 기존 `account_connect.run`은 config 거래를 `app_connect.write_transaction`으로 실행하고 후자는 정상 쓰기 뒤 phase=applied를 남긴다. 새 정책은 phase가 disconnected/cancelled/failed일 때만 최초 전환을 허용한다. 따라서 이 관측은 기존 완료 거래와 최초 전환 허용 조건 사이의 충돌 근거이며, 진행 중인 OAuth나 제품 결함의 확정은 아니다. 금고의 Google 전환 구조는 없었고 전용 Google-token 이름의 잔존 자격도 없었다. 비밀 파일(.env/auth.json/토큰)은 열지 않았다. 승인된 정책의 금고 구조 검사에서 값은 저장/출력하지 않았다.
+
+[확인] 별도 읽기 전용 진단에서 전체7홈의 turn lease0, 살아 있는 기본 gateway의 신선한 running·active_agents0·active_work 없음, 다른 홈의 gateway 상태 파일 부재, 추가 영향 worker 부재를 확인했다. gateway/mail signal은 launchctl 최상위 상태 running이었다. 첫 관측기는 launchctl의 중첩 resource coalition state=active를 최상위 상태로 잘못 덮어써 종료2였다. 최상위 들여쓰기만 읽도록 로컬 관측기를 보완했고 최초 로그를 보존했다. 이 준비 오류와 실제 정책 거절을 구분한다.
+
+| 실행/범위 | 실제 종료/결과 | ignored 증거 |
+|---|---|---|
+| python3 -B .build/google-disconnect-evidence/round20-preflight.py | 종료2. 지문/시설/홈/영수증/서비스 일치 뒤 GOOGLE_AUTH_REMAINS | round20-preflight.py/json/log |
+| python3 -B .build/google-disconnect-evidence/round20-idle-diagnostic.py | 종료2. 거절 유지, 장부의 최소 상태 및 전체 홈 유휴/worker 관측 | round20-idle-diagnostic.py/json/log |
+| 최초 관측기 실행 | 종료2. launchctl 중첩 state 해석 오류; 운영 부작용 없음 | round20-preflight-observer-01.json/log |
+
+보고 갱신 뒤 가짜 owner 입력의 전체 후보 일반 개인값 검사와 canonical 범위 검사는 각각 종료0이었다. 실제 Git index 불변을 확인했고 실제 운영 owner 개인값 검사는 수행하지 않았다. 근거는 round20-private-final-{hejo,canonical}.json/log다. 최종 소스/시설/문서/증거 대조는 round20-final-check.json/log를 참조한다.
+
+[미실행] 앱 정상 종료, 두 서비스 중단/재개, staging 경로 생성/압축 해제, --upgrade-legacy, bundle/app 적용, 조건부 복구, 실계정 동의, 메시지, 허브 재시작, 커밋, 푸시. 기존 운영 코드/링크/영수증/인증 장부는 수정하지 않았고 정책을 완화하거나 장부를 지우지 않았다. 관련 기존 성공 시험은 다시 실행하지 않았다. GD-T19와 TASK07은 미완료다.
+
+구현 규칙2절에 따라 기획·검증으로 반환한다. 권고는 고정 legacy 코드가 만든 완료 disconnect 거래와 진행 중 인증/새 연결 거래를 구별할 명시적 전환 처분을 설계에서 확정하고 독립 검토하는 것이다. 임의 삭제·phase 치환·undo 적용·현재 OAuth 실행으로 통과시키지 않는다. 승인된 정책 변경 또는 공식 완료 처리 절차가 없으면 이 후보를 재적용하지 않는다. 실제 홈 대응·장부 메타데이터/해시·안전 필드·최종 시설 불변 지문은 ignored round20 증거에만 둔다. 기존 운영 승인 범위는 유지하지만 이 거절은 우회 승인이 아니다.
 
 ## 왕복19 — 승인된 시험 보존과 고정 시설 식별 갱신
 

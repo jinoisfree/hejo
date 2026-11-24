@@ -252,3 +252,16 @@ HTML 원문 원본은 기존 Resources 파일 하나로 유지하고 빌드 산�
 운영 사전 검사에서 발견된 team-kit 차이는 시험5파일이다. HEJO-NOTION-TESTS의 승인 시험 누락 보완 결과를 수용한다. 시험 원본은 원격 기준 위의3adfa6c9c1ffcb794f73cfb56a0cea2b04363acb에서 가져온다. 현재 운영 전체 시설은8bf1ef46d12aae051b61e07d6632a08a6bb95831과 대조한다. 두 커밋의5시험 blob은 동일하지만 전체 kit은 다른6파일 차이가 있어3adfa6c9 전체를 운영 baseline이나 Google 후보로 대체하지 않는다. 현재 운영의 session/turn 증명 등 후속 기능을 삭제하지 않는다. 실제 시설 식별 출처와 통합할 시험의 원격 계보를 구별하며 로컬 main을 푸시 기준으로 삼지 않는다.
 
 기존 단일 검사/지원 선언/전체 bundle 계약은 유지한다. 시험을 식별 대상에서 빼거나 실제 파일을 삭제해 옛 해시를 맞추지 않는다. 고정 Git에서 전체 기준과 후보 식별을 재현하고 이후 사전 검사는 동일하게 적용한다. 앱·제품 로직·운영 대상/중단 범위는 바뀌지 않는다.
+
+
+## 10판 — 완료된 구버전 disconnect 장부의 최초 전환
+
+고정 legacy account_connect.run은 config 해제 완료 뒤 action=disconnect, phase=applied, done=[], restart_required=true를 남긴다. app_connect.read_record는600초 뒤 undo만 제거하며 applied는 남긴다. 따라서 applied 자체를 진행 중 OAuth로 분류하면 원래 문제를 겪은 직원의 정상 최초 전환이 막힌다. 기존 단일 검사기의 LegacyUpgrade에만 아래 읽기 전용 판정을 추가한다. 일반 no_google_residue/first/recovery의 허용 범위는 확장하지 않는다.
+
+- 기존 전체 고정 시설·영수증·프로필 검증 및 전환/전용 자격 부재 조건을 그대로 요구한다. 해당 직원의 예상 account 장부 정규 파일만 검사한다. 생산자 형식의 disconnect/applied와 done/restart_required를 확인하고 새 OAuth session/binding/worker 필드나 알 수 없는 형식은 거절한다. PID가 없다는 사실 하나로 허용하지 않는다.
+- at은 유한한 숫자이고 bool/미래/누락/손상은 거절한다. 고정 생산자의 undo 기간600초가 지난 기록만 허용한다. 만료 전에는 기다릴 조건으로 보고하며 지우거나 시각을 고치지 않는다. undo 유무는 모두 정상 생산 결과일 수 있다.
+- 현재 해당 직원 config의 gmail.enabled가 명시적으로 false이고 skills.disabled에 google-workspace가 있어야 한다. 누락을 false로 간주하지 않는다. 기존 안전한 config 계약을 사용하고 지원하지 않는 형식은 거절한다. undo가 있으면 after의 대상이 정확한 해당 config 한 경로이며 현재 본문 SHA와 일치해야 한다. before의 옛 본문을 해독/출력/복구하지 않는다. undo가 없으면 가상의 after hash를 만들지 않고 현재 off 상태와 CAS로 확인한다.
+- 장부/config 본문 지문·존재/모드/경로를 최초 검사 때 고정하고 기존 잠금·서비스 중지 아래 모든 쓰기 및 실패복구 직전에 재검사한다. 만료/상태·기존 전환/자격/worker 조건도 재확인한다. 다른 정상 거래에 의한 config 변화도 자동 승인하지 않고 충돌로 반환한다.
+- 장부/undo/config/금고/자격을 수정·삭제·정리하지 않는다. 기존 read_record는 부작용이 있으므로 호출하지 않는다. 설치 후 Google undo는 기존 REAUTH_REQUIRED 경로를 유지하고 오래된 snapshot을 실행하지 않는다. 새로운 상태 파일·인증 원본·일반 fallback은 만들지 않는다.
+
+이 보완은 정상 완료 거래의 의미를 식별하는 것이며 운영 거절을 무조건 완화하는 예외가 아니다. 실제 적용 전에 표적 시험과 Terra 독립 재검토로 확정한다.

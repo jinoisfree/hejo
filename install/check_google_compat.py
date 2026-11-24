@@ -7,6 +7,7 @@ from contextlib import contextmanager
 import fcntl
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -14,6 +15,7 @@ import shlex
 import stat
 import subprocess
 import sys
+import time
 
 
 class CompatibilityError(ValueError):
@@ -434,6 +436,8 @@ class LegacyUpgrade:
             raise CompatibilityError('LEGACY_CHECKER_ALREADY_PRESENT')
         self.homes = self.home_set()
         self.candidate = hejo_identity(self.package)
+        self.google_inputs = None
+        self.google_checked_at = None
         self.revalidate(self.links, self.receipt)
 
     def home_set(self):
@@ -464,7 +468,11 @@ class LegacyUpgrade:
         if (self.release / 'install/check_google_compat.py').exists():
             raise CompatibilityError('LEGACY_CHECKER_ALREADY_PRESENT')
         verify_bundle(self.home, self.legacy['team'])
-        no_google_residue(self.home)
+        inputs = self.google_state()
+        if self.google_inputs is None:
+            self.google_inputs = inputs
+        elif inputs != self.google_inputs:
+            raise CompatibilityError('LEGACY_GOOGLE_INPUT_CHANGED')
         legacy_stopped(self.home, self.release)
         for profile in profile_homes(self.home):
             path = profile / 'plugins/hejo'
@@ -483,8 +491,87 @@ class LegacyUpgrade:
                     or os.readlink(path) != target):
                 raise CompatibilityError('LEGACY_LINK_CHANGED')
 
+    def google_state(self):
+        # Only the verified legacy admission path interprets its old producer.
+        # Store fingerprints/metadata, never the old undo/config bodies.
+        now = time.time()
+        if (type(now) not in (int, float) or not math.isfinite(now) or now <= 0
+                or self.google_checked_at is not None and now < self.google_checked_at):
+            raise CompatibilityError('LEGACY_GOOGLE_CLOCK_CHANGED')
+        inputs = {}
+        for profile, journal, value, stamp in google_journals(self.home):
+            inputs[str(journal)] = stamp
+            if value is None:
+                continue
+            if value.get('phase') != 'applied':
+                inactive_google_job(value)
+                continue
+            allowed = {'at', 'action', 'phase', 'done', 'restart_required'}
+            if (set(value) not in (allowed, allowed | {'undo'})
+                    or value.get('action') != 'disconnect'
+                    or value.get('done') != [] or value.get('restart_required') is not True):
+                raise CompatibilityError('INVALID_LEGACY_GOOGLE_JOURNAL')
+            at = value.get('at')
+            if (type(at) not in (int, float) or at <= 0 or at > now
+                    or not math.isfinite(at) or now - at < 600):
+                raise CompatibilityError('LEGACY_GOOGLE_UNDO_NOT_EXPIRED')
+            config = profile / 'config.yaml'
+            raw, config_state = stable_file(config)
+            if config_state is None:
+                raise CompatibilityError('INVALID_LEGACY_GOOGLE_CONFIG')
+            try:
+                # The existing CONFIG reader accepts flow YAML as well as JSON,
+                # defines YAML 1.1 and rejects duplicate keys.
+                from hermes_yaml import safe_load
+                document = safe_load(raw)
+                enabled = document['plugins']['entries']['team-delegation']['settings']['gmail']['enabled']
+                disabled = document['skills']['disabled']
+                if (enabled is not False or not isinstance(disabled, list)
+                        or any(not isinstance(v, str) for v in disabled)
+                        or 'google-workspace' not in disabled):
+                    raise ValueError
+            except Exception:
+                raise CompatibilityError('INVALID_LEGACY_GOOGLE_CONFIG') from None
+            if 'undo' in value:
+                undo = value['undo']
+                relative = config.relative_to(self.home).as_posix()
+                if (not isinstance(undo, dict) or set(undo) != {'before', 'after'}
+                        or not isinstance(undo['before'], dict) or set(undo['before']) != {relative}
+                        or not isinstance(undo['before'][relative], str)
+                        or not re.fullmatch(r'(?:[0-9a-f]{2})*', undo['before'][relative])
+                        or not isinstance(undo['after'], dict) or set(undo['after']) != {relative}
+                        or undo['after'][relative] != hashlib.sha256(raw).hexdigest()):
+                    raise CompatibilityError('LEGACY_GOOGLE_CONFIG_CONFLICT')
+                # before is opaque: no hex decoding, output, restoration or copy.
+            if (stable_fingerprint(config) != config_state
+                    or stable_fingerprint(journal) != inputs[str(journal)]):
+                raise CompatibilityError('LEGACY_GOOGLE_INPUT_CHANGED')
+            inputs[str(config)] = config_state
+        self.google_checked_at = now
+        return inputs
 
-def no_google_residue(home):
+
+def stable_file(path):
+    path = Path(path)
+    if path.resolve() != path:
+        raise CompatibilityError('UNSAFE_COMPAT_FILE')
+    if not path.exists() and not path.is_symlink():
+        return None, None
+    before = path.lstat()
+    raw = regular_bytes(path)
+    after = path.lstat()
+    def metadata(info):
+        return (info.st_dev, info.st_ino, info.st_mode, info.st_size, info.st_mtime_ns)
+    if metadata(before) != metadata(after):
+        raise CompatibilityError('LEGACY_GOOGLE_INPUT_CHANGED')
+    return raw, (metadata(after), hashlib.sha256(raw).hexdigest())
+
+
+def stable_fingerprint(path):
+    return stable_file(path)[1]
+
+
+def google_journals(home):
     if transition_version(home) is not None:
         raise CompatibilityError('GOOGLE_RECOVERY_REQUIRED')
     journal_name = 'account-' + hashlib.sha256(b'google-personal').hexdigest()[:24] + '.json'
@@ -497,17 +584,32 @@ def no_google_residue(home):
         journal = profile / 'state/connections' / journal_name
         if journal.resolve() != journal:
             raise CompatibilityError('UNSAFE_GOOGLE_JOURNAL')
-        if journal.exists():
-            value = json_value(regular_bytes(journal))
-            if not isinstance(value, dict) or value.get('phase') not in ('disconnected', 'cancelled', 'failed'):
-                raise CompatibilityError('GOOGLE_AUTH_REMAINS')
-            if value.get('worker_pid'):
-                try:
-                    os.kill(int(value['worker_pid']), 0)
-                except ProcessLookupError:
-                    pass
-                else:
-                    raise CompatibilityError('GOOGLE_AUTH_REMAINS')
+        raw, stamp = stable_file(journal)
+        value = json_value(raw) if raw is not None else None
+        if value is not None and not isinstance(value, dict):
+            raise CompatibilityError('GOOGLE_AUTH_REMAINS')
+        # JSON null is an existing ambiguous journal, never an absent journal.
+        if stamp is not None and value is None:
+            raise CompatibilityError('GOOGLE_AUTH_REMAINS')
+        yield profile, journal, value, stamp
+
+
+def inactive_google_job(value):
+    if value.get('phase') not in ('disconnected', 'cancelled', 'failed'):
+        raise CompatibilityError('GOOGLE_AUTH_REMAINS')
+    if value.get('worker_pid'):
+        try:
+            os.kill(int(value['worker_pid']), 0)
+        except ProcessLookupError:
+            pass
+        else:
+            raise CompatibilityError('GOOGLE_AUTH_REMAINS')
+
+
+def no_google_residue(home):
+    for profile, journal, value, stamp in google_journals(home):
+        if value is not None:
+            inactive_google_job(value)
 
 
 def recovery_receipt(home):
