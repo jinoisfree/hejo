@@ -38,7 +38,18 @@ struct StateDocument: Codable, Equatable {
     var account: String { store.settings.stateAccount ?? "" }
     var document: StateDocument { store.settings.memberStates?[account] ?? StateDocument() }
     var pending: [String: StateEntry] { store.settings.pendingState?[account] ?? [:] }
-    var items: [String: StateEntry] { Self.merge(document.items, pending) }
+    private var mergedRevision: UInt64?
+    private var mergedItems: [String: StateEntry] = [:]
+    var items: [String: StateEntry] {
+        if mergedRevision != store.memberStateRevision {
+            mergedItems = Self.merge(document.items, pending)
+            mergedRevision = store.memberStateRevision
+            #if HEJO_PERF_TESTING
+            HejoSmoothProbe.memberMerges += 1
+            #endif
+        }
+        return mergedItems
+    }
     init(store: LocalStore) { self.store = store }
     deinit { timer?.invalidate(); sendTimer?.invalidate(); receiver?.cancel() }
     static func isRead(_ key: String) -> Bool { ["read:", "thread:"].contains { key.hasPrefix($0) } }

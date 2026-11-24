@@ -147,7 +147,11 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
             guard let self,self.scrollRevision==revision,self.userScrolls==input,let rect=self.frame(for:id,message:message) else{return}
             let bounds=self.contentView.bounds,wanted=bottom ? rect.maxY-bounds.height:rect.midY-bounds.height/2
             let y=min(max(0,wanted),max(0,self.table.bounds.height-bounds.height))
-            if self.reduceMotion(){self.move(to:y)}else{self.scrollMotion=(WorkspaceEase(from:bounds.minY,to:y,start:self.clock()),revision,input)
+            if self.reduceMotion(){self.move(to:y)}else{
+                #if HEJO_PERF_TESTING
+                HejoSmoothProbe.scrollStarts += 1
+                #endif
+                self.scrollMotion=(WorkspaceEase(from:bounds.minY,to:y,start:self.clock()),revision,input)
                 if self.scrollTimer==nil {let timer=Timer(timeInterval:1.0/60,repeats:true){[weak self] _ in self?.advanceScroll()};self.scrollTimer=timer;RunLoop.main.add(timer,forMode:.common)}}
             self.reflectScrolledClipView(self.contentView)
         }}

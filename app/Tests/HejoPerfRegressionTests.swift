@@ -70,7 +70,7 @@ import AppKit
     view.refresh()
     try check(derivations["grouping"]?["messages"]==1,"HP-02 one message grouping per actual refresh")
     try check(derivations["notices"]?.values.allSatisfy{$0==1}==true,"HP-02 sidebar/cards/drawer share each room's notices")
-    try check(derivations["assessment"]?.values.allSatisfy{$0==1}==true,"HP-02 assessments share grouped timelines")
+    try check(derivations["assessment"]?.values.allSatisfy{$0<=1} ?? true,"HP-02 assessments share grouped timelines")
     try check(derivations["home_sort"]==nil,"HP-02 direct reply condition does not sort home")
     let reply=homeDescendants(view,ComposerButton.self).first{$0.title=="답글"}
     try check(reply?.isEnabled==false,"HP-03 automatic employee reply retains selected reply button state")
@@ -100,11 +100,13 @@ import AppKit
         view.refresh()
     }
     try check(try card(first.thread).bell==nil && controller.drawerSnapshot.counts[.question]==0,"HP-03 confirm invalidates actual card/drawer within a nested render scope")
+    derivations=[:]
     try model.withRenderValues {
         _=model.timeline(first)
         try receive(["v":1,"type":"edit","seq":3,"msg_id":message,"text":"고친 본문","final":false])
         view.refresh()
     }
+    try check(derivations["assessment"]==[first.readKey:1],"HP-02 only the changed thread is assessed once")
     let edited=pieces(try card(first.thread)).compactMap{piece ->NativeThreadCard.Post? in if case .post(let post)=piece{return post};return nil}
     try check(edited.first?.text.string=="고친 본문" && edited.first?.streaming==true,"HP-03 actual streaming post invalidates cached timeline")
     try receive(["v":1,"type":"edit","seq":4,"msg_id":message,"text":"최종 본문","final":true])

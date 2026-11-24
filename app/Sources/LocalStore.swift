@@ -63,7 +63,14 @@ struct LocalSettings: Codable {
 /// A query replica, never a second conversation authority. Recover applied from the durable cache.
 final class LocalStore {
     let directory: URL
-    private(set) var settings: LocalSettings
+    /// In-memory invalidation token for derived member-state queries; never persisted.
+    private(set) var memberStateRevision: UInt64 = 0
+    private(set) var settings: LocalSettings { didSet {
+        let oldAccount=oldValue.stateAccount ?? "", account=settings.stateAccount ?? ""
+        if oldAccount != account || oldValue.memberStates?[oldAccount]?.items != settings.memberStates?[account]?.items || oldValue.pendingState?[oldAccount] != settings.pendingState?[account] {
+            memberStateRevision &+= 1
+        }
+    } }
     private(set) var records: [[String: Any]] = []
     var settingsURL: URL { directory.appendingPathComponent("hejo-local.json") }
     var cacheURL: URL { directory.appendingPathComponent("cache/frames.jsonl") }

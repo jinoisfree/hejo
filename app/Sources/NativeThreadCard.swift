@@ -112,15 +112,28 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
     /// The same rendered body at the same width measures the same. Re-measuring a long answer for every frame of
     /// a height ease took tens of milliseconds each time; bodies come from a cache, so identity is the key.
     private static var measured: [ObjectIdentifier: (text: NSAttributedString, width: CGFloat, size: NSSize)] = [:]
+    private static let measurementCapacity = 4096
+    private static var measurementOrder: [ObjectIdentifier] = []
+    #if HEJO_PERF_TESTING
+    static var smoothMeasurementCount: Int { measured.count }
+    static var smoothMeasurementCapacity: Int { measurementCapacity }
+    #endif
     static func textSize(_ text: NSAttributedString, width: CGFloat) -> NSSize {
         guard !(text is NSMutableAttributedString) else { return layoutSize(text, width: width) }
         if let hit = measured[ObjectIdentifier(text)], hit.text === text, abs(hit.width - width) < 0.01 { return hit.size }
         let size = layoutSize(text, width: width)
-        if measured.count > 256 { measured.removeAll(keepingCapacity: true) }
-        measured[ObjectIdentifier(text)] = (text, width, size)
+        let id = ObjectIdentifier(text)
+        if measured[id] == nil {
+            if measured.count >= measurementCapacity { measured.removeValue(forKey: measurementOrder.removeFirst()) }
+            measurementOrder.append(id)
+        }
+        measured[id] = (text, width, size)
         return size
     }
     private static func layoutSize(_ text: NSAttributedString, width: CGFloat) -> NSSize {
+        #if HEJO_PERF_TESTING
+        HejoSmoothProbe.measured(text)
+        #endif
         let storage = NSTextStorage(attributedString: text)
         let manager = NSLayoutManager()
         let container = NSTextContainer(containerSize: NSSize(width: max(1, width), height: .greatestFiniteMagnitude))

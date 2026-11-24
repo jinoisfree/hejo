@@ -29,7 +29,8 @@ final class PetController: NSObject {
     private var onDrawerWidth: ((CGFloat)->Void)?
     private(set) var drawerOpen = false
     private var onDrawerStateChanged: ((Bool,Bool)->Void)?
-    private var updateConversation: ((() -> Void) -> Void)?
+    private var updateConversation: ((Bool, () -> Void) -> Void)?
+    private var finishConversationEntry:(() -> Void)?
     func toggleDrawer(){setDrawerOpen(!drawerOpen)}
     func setDrawerOpen(_ open:Bool) {
         guard drawerOpen != open else{return}
@@ -44,9 +45,10 @@ final class PetController: NSObject {
     @MainActor func installDrawer(_ view:ConversationView) {
         onDrawerWidth={ [weak view] width in view?.drawerShownWidth=width }
         view.drawerShownWidth=shownDrawer
-        updateConversation={ [weak view] updates in
-            if let view { view.performUpdates(updates) } else { updates() }
+        updateConversation={ [weak view] opening,updates in
+            if let view { view.performUpdates(updates,opening:opening) } else { updates() }
         }
+        finishConversationEntry={ [weak view] in view?.finishOpeningEntry() }
         view.onToggleDrawer={ [weak self] in self?.toggleDrawer() }
         onDrawerStateChanged={ [weak view] open,expanded in view?.setDrawerState(open:open,chatExpanded:expanded) }
         view.setDrawerState(open:drawerOpen,chatExpanded:chatExpanded)
@@ -208,10 +210,14 @@ final class PetController: NSObject {
     func showChat(preparing: @escaping () -> Void) { setExpanded(true, preparing: preparing) }
     @objc func collapseChat() { setExpanded(false) }
     private func setExpanded(_ expanded: Bool, preparing: (() -> Void)? = nil) {
+        #if HEJO_PERF_TESTING
+        let profStart=ProcessInfo.processInfo.systemUptime
+        defer {HejoSmoothProbe.event("setExpanded",profStart)}
+        #endif
         guard expanded || canCollapse(), web?.presenting != true,
               expanded != chatExpanded, let old=placementTarget else {
             if let preparing {
-                if let updateConversation { updateConversation(preparing) } else { preparing() }
+                if let updateConversation { updateConversation(false,preparing) } else { preparing() }
             }
             return
         }
@@ -231,7 +237,7 @@ final class PetController: NSObject {
             self.onExpansionChanged?(expanded)
         }
         // Flush the final conversation synchronously, before layout and the opening snapshot.
-        if let updateConversation { updateConversation(updates) } else { updates() }
+        if let updateConversation { updateConversation(expanded,updates) } else { updates() }
         ThreeTapDiagnostics.mark("callbacks_end")
         placePet(at:old.anchorOrigin)
         ThreeTapDiagnostics.mark("placement_end")
@@ -242,14 +248,31 @@ final class PetController: NSObject {
         else {panel.makeFirstResponder(nil);panel.resignKey()}
         if let outsideMonitor {NSEvent.removeMonitor(outsideMonitor);self.outsideMonitor=nil}
         if expanded {outsideMonitor=NSEvent.addLocalMonitorForEvents(matching:[.leftMouseDown]){[weak self] event in self?.handleOutsideClick(event);return event}}
-        if reducedMotion() {transitionProgress=expanded ? 1:0;pet.endGenie(expanded:expanded);apply(target);ThreeTapDiagnostics.moved();ThreeTapDiagnostics.finished();if expanded {onFocus?()};return}
+        if reducedMotion() {transitionProgress=expanded ? 1:0;pet.endGenie(expanded:expanded);apply(target);if expanded {finishConversationEntry?()};ThreeTapDiagnostics.moved();ThreeTapDiagnostics.finished();if expanded {onFocus?()};return}
         apply(open)
-        if !continuing && expanded {ThreeTapDiagnostics.mark("capture_start");pet.captureGenie();ThreeTapDiagnostics.mark("capture_end")}
+        if expanded {finishConversationEntry?()}
+        if !continuing && expanded {
+            #if HEJO_PERF_TESTING
+            HejoSmoothProbe.snapshot?()
+            #endif
+            ThreeTapDiagnostics.mark("capture_start");pet.captureGenie();ThreeTapDiagnostics.mark("capture_end")
+        }
         pet.updateGenie(open,progress:start)
         transitionStart=clock();genieStart=start
         ThreeTapDiagnostics.mark("timer_start")
+        #if HEJO_PERF_TESTING
+        HejoSmoothProbe.beginTransition()
+        #endif
         let t=Timer(timeInterval:1.0/60,repeats:true){[weak self] _ in ThreeTapDiagnostics.firstTick(); self?.stepTransition()}
-        timer=t;RunLoop.main.add(t,forMode:.common);show();ThreeTapDiagnostics.mark("transition_setup_end")
+        timer=t;RunLoop.main.add(t,forMode:.common)
+        #if HEJO_PERF_TESTING
+        let profShow=ProcessInfo.processInfo.systemUptime
+        #endif
+        show()
+        #if HEJO_PERF_TESTING
+        HejoSmoothProbe.event("show_after_timer",profShow)
+        #endif
+        ThreeTapDiagnostics.mark("transition_setup_end")
         // Preserve the synchronous starting pose, then submit the first elapsed-time
         // frame without waiting for a 60 Hz timer. Ignore a superseded transition.
         DispatchQueue.main.async { [weak self, weak t] in
@@ -259,6 +282,13 @@ final class PetController: NSObject {
         }
     }
     func stepTransition(){
+        #if HEJO_PERF_TESTING
+        let profStep=ProcessInfo.processInfo.systemUptime
+        defer {HejoSmoothProbe.event("step",profStep)}
+        #endif
+        #if HEJO_PERF_TESTING
+        HejoSmoothProbe.transitionSteps.append(ProcessInfo.processInfo.systemUptime)
+        #endif
         ThreeTapDiagnostics.markFirst("step_start")
         let fraction=min(1,max(0,(clock()-transitionStart)/ChatMorph.genieDuration))
         transitionProgress=ChatMorph.genieProgress(from:genieStart,opening:chatExpanded,fraction:fraction);transitionSteps+=1
@@ -273,6 +303,9 @@ final class PetController: NSObject {
             }
             if chatExpanded {onFocus?()}
             ThreeTapDiagnostics.finished()
+            #if HEJO_PERF_TESTING
+            HejoSmoothProbe.transitionEnd = ProcessInfo.processInfo.systemUptime
+            #endif
         }
     }
     func handleOutsideClick(_ event:NSEvent){
@@ -347,6 +380,10 @@ final class PetController: NSObject {
         if point==target.globalBubble.origin && size==target.globalBubble.size && !pet.widthCoverVisible {motionTimer?.invalidate();motionTimer=nil}
     }
     private func apply(_ p: PetPlacement) {
+        #if HEJO_PERF_TESTING
+        let profApply=ProcessInfo.processInfo.systemUptime
+        defer {HejoSmoothProbe.event("apply",profApply)}
+        #endif
         let span = ThreeTapDiagnostics.startBeforeFirstTickSpan()
         defer { ThreeTapDiagnostics.endSpan("placement_apply", span) }
         CATransaction.begin(); CATransaction.setDisableActions(true)

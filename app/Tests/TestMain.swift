@@ -32,6 +32,12 @@ final class MemoryCredentials: GateCredentialStore {
         Task { @MainActor in
             do {
                 let args = CommandLine.arguments
+                #if HEJO_PERF_TESTING
+                if args.count == 5 && args[1] == "--hejo-smooth" {
+                    try await hejoSmooth(mode: args[2], output: URL(fileURLWithPath: args[3]), resources: URL(fileURLWithPath: args[4]))
+                    NSApp.terminate(nil); return
+                }
+                #endif
                 if args.contains("--hejo-reconnect-boundaries") {
                     #if HEJO_PERF_TESTING && !HEJO_RECONNECT_BASELINE
                     try await hejoReconnectBoundaries()

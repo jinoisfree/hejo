@@ -427,12 +427,25 @@ import UniformTypeIdentifiers
         if openThread==key {history.scrollTo(key.thread,bottom:true)}
     }
     private var pendingRevealScroll: String?
-    func performUpdates(_ updates: () -> Void) { controller.performUpdates(updates) }
+    private var preparingOpening=false
+    private var openingEntry:String?
+    func performUpdates(_ updates: () -> Void,opening:Bool=false) {
+        let previous=preparingOpening;preparingOpening=opening
+        defer{preparingOpening=previous}
+        controller.performUpdates(updates)
+    }
+    func finishOpeningEntry() {
+        guard let thread=openingEntry else{return}
+        openingEntry=nil
+        layoutSubtreeIfNeeded();history.layoutSubtreeIfNeeded()
+        history.enter(thread)
+    }
     func openFromBubble(_ key: ConversationKey) {
         reveal(key,inHome:controller.model.isHome && controller.model.selected==key)
-        if controller.isUpdating { pendingRevealScroll = key.thread }
+        if preparingOpening {openingEntry=key.thread}
+        else if controller.isUpdating { pendingRevealScroll = key.thread }
         refresh()
-        if !controller.isUpdating { history.scrollTo(key.thread) }
+        if !controller.isUpdating && !preparingOpening { history.scrollTo(key.thread) }
     }
     @discardableResult func closeSearchIfOpen() -> Bool {
         guard searchOpen else { return false }
@@ -576,8 +589,14 @@ import UniformTypeIdentifiers
     func refresh() {
         if controller.isUpdating { controller.notifyChange(); return }
         guard !rendering else { return }; rendering=true
+        #if HEJO_PERF_TESTING
+        HejoSmoothProbe.refreshes += 1
+        let smoothRefreshStart = ProcessInfo.processInfo.systemUptime
+        defer { HejoSmoothProbe.phases["refresh", default: []].append(ProcessInfo.processInfo.systemUptime - smoothRefreshStart) }
+        #endif
         defer {
             rendering=false
+            if let thread=openingEntry {history.enter(thread)}
             if let thread = pendingRevealScroll { pendingRevealScroll=nil; history.scrollTo(thread) }
         }
         controller.model.withStableRenderValues {
@@ -586,6 +605,8 @@ import UniformTypeIdentifiers
             var phase = ThreeTapDiagnostics.startSpan()
             if !controller.drawerOpen,drawerSelectedID != nil {drawerSelectedID=nil;highlightedMessageID=nil;highlightUntil=nil}
             let model=controller.model
+            displayTimes=displayTimes.filter{model.messages[$0.key] != nil}
+            displayTimeOrder.removeAll{displayTimes[$0]==nil}
             let themeDark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua;version.textColor=CardText.quiet(dark:themeDark)
             streamReveal.receive(Array(model.messages.values),now:motionTime());streamReveal.advance(now:motionTime(),immediately:reduceMotion())
             if streamReveal.pending && streamTimer==nil {streamTimer=Timer.scheduledTimer(withTimeInterval:1.0/30,repeats:true){[weak self] _ in
@@ -642,7 +663,7 @@ import UniformTypeIdentifiers
                 if history.followsAnswer {let visibleRooms=Set(threads.map{ $0.key.employee });for line in model.messages.values where visibleRooms.contains(line.key.employee) && line.streaming && line.role != "owner" {expandedMessages.insert(line.id)}}
                 for thread in threads where shown.contains(thread.id) {
                     let timeline=controller.timeline(thread.key)
-                    let date=model.isHome ? model.latestDate(thread.key):ThreadTools.date(timeline.first?.timestamp ?? "")
+                    let date=model.isHome ? model.latestDate(thread.key):model.date(timeline.first?.timestamp ?? "")
                     if previous==nil || !Calendar.current.isDate(previous!,inSameDayAs:date) { cards.append(dayContent(date,id:thread.id)) }
                     cards.append(threadContent(thread));previous=date
                 }
@@ -883,6 +904,55 @@ import UniformTypeIdentifiers
         if selector == #selector(NSResponder.cancelOperation(_:)) {return closeSearchIfOpen()}
         return false
     }
+    private struct PostBodyInput: Equatable {
+        var id: String
+        var original: String
+        var shown: String
+        var mine: Bool
+        var pending: Bool
+        var streaming: Bool
+        var dark: Bool
+        var nameColor: NSColor
+        var linkColor: NSColor
+        var edge: NSColor?
+        var appearance: UInt64
+        var highlight: String?
+    }
+    private func checksMatch(_ cached:PostBody,_ message:ConversationMessage)->Bool {
+        return cached.checks.allSatisfy{offset,check in controller.model.check(message.id,line:check.line,original:check.original,body:message.text)==cached.checkValues[offset]}
+    }
+    private struct PostBody {
+        var input: PostBodyInput
+        var text: NSAttributedString
+        var checks: [Int: (line: Int, original: Bool)]
+        var checkValues: [Int: Bool]
+    }
+    // Derived display values only. A changed input replaces the old value for that post.
+    private static let postBodyCapacity = 2048
+    private var postBodies: [String: PostBody] = [:]
+    private var postBodyOrder: [String] = []
+    #if HEJO_PERF_TESTING
+    var smoothBodyCacheCount: Int { postBodies.count }
+    static var smoothBodyCacheCapacity: Int { postBodyCapacity }
+    // Copy presentation inputs, never rendered bodies, into an independently created test View.
+    func smoothCopyInputs(from source: ConversationView) {
+        streamReveal=source.streamReveal;openThread=source.openThread;expandedMessages=source.expandedMessages
+        searchHighlight=source.searchHighlight;searchHighlightThread=source.searchHighlightThread
+        searchOpen=source.searchOpen;searchGroups=source.searchGroups;search.stringValue=source.search.stringValue
+        highlightedMessageID=source.highlightedMessageID;highlightUntil=source.highlightUntil;drawerSelectedID=source.drawerSelectedID
+        windowed=source.windowed;identity=source.identity;enteredPlace=source.enteredPlace
+        automatic=source.automatic;replyMode=source.replyMode;autoKeys=source.autoKeys;newKeys=source.newKeys;lastPlaces=source.lastPlaces
+        composerAddress=source.composerAddress;writingPlace=source.writingPlace;sidebarWidth=source.sidebarWidth
+        drawerShownWidth=source.drawerShownWidth;longReplyBases=source.longReplyBases;longReplyWindowBase=source.longReplyWindowBase
+        reduceMotion=source.reduceMotion;motionTime=source.motionTime
+        history.automaticallyTicks=false;history.reduceMotion=source.history.reduceMotion;history.clock=source.history.clock
+    }
+    func smoothClearBodies(){postBodies=[:];postBodyOrder=[]}
+    func smoothHighlight(_ text:String?,key:ConversationKey){searchHighlight=text;searchHighlightThread=key}
+    func smoothPostPieces(_ message: ConversationMessage,edge:NSColor?=nil) -> [NativeThreadCard.Piece] {
+        postPieces(message,conversational:false,edge:edge,extras:false)
+    }
+    #endif
     private var appearanceObserver: NSObjectProtocol?
     private var editorFontSize=ChatMetrics.bodyFont
     func applyChatAppearance(){refresh();needsLayout=true;needsDisplay=true}
@@ -966,13 +1036,13 @@ import UniformTypeIdentifiers
                 }))
             } else {
                 let since=messages.last(where:{$0.role=="owner"}).map{ThreadTools.date($0.timestamp)} ?? ThreadTools.date(root.timestamp)
-                let thinkers=Set(messages.filter{$0.role != "owner" && (ThreadTools.thinking($0.text) || $0.streaming)}.map(\.speaker))
+                let thinkers=Set(messages.filter{$0.role != "owner" && (controller.model.thinking($0) || $0.streaming)}.map(\.speaker))
                 let people=(model.typingPeople[thread.key] ?? [:]).keys.sorted()
                 for person in people where !thinkers.contains(person) {
                     if controller.interruptions[thread.key]==nil,let last=shown.last,last.role != "owner",last.speaker==person {continue}
                     answer.append(.accessory(id:thread.id+":typing:"+person,height:34,view:{[weak controller] in TypingBubbleView(name:model.name(person),avatar:controller?.avatar(person) ?? ProfileAvatar(),nameColor:controller?.palette(person,dark:dark).name.nsColor,activity:"답변을 준비하고 있습니다")}))
                 }
-                let activity=messages.last(where:{$0.role != "owner" && ThreadTools.thinking($0.text)})?.text.components(separatedBy:"\n").dropFirst().first ?? (messages.contains(where:{$0.streaming}) ? "답변을 작성하고 있습니다":"답변을 준비하고 있습니다")
+                let activity=messages.last(where:{$0.role != "owner" && controller.model.thinking($0)})?.text.components(separatedBy:"\n").dropFirst().first ?? (messages.contains(where:{$0.streaming}) ? "답변을 작성하고 있습니다":"답변을 준비하고 있습니다")
                 answer.append(.accessory(id:thread.id+":work",height:WorkingControlRow.height(activity,width:max(1,bounds.width-sidebarWidth-drawerShownWidth-36),seconds:max(0,Int(controller.clock().timeIntervalSince(since)))),view:{ [weak self] in
                     let control=WorkingControlRow(since:since,activity:activity,clock:{self?.islandModel.now ?? Date()},animationTime:{self?.motionTime() ?? 0},reduceMotion:{self?.reduceMotion() ?? true},stop:{ [weak self] in Task {await self?.controller.stop(thread.key)} });control.button.isEnabled=self?.controller.canSend==true;control.alphaValue=self?.controller.canSend==true ? 1:0.4;return control
                 }))
@@ -999,44 +1069,66 @@ import UniformTypeIdentifiers
     static let unavailableReply="정해진 버튼이 아니라 누를 수 없어요. 이 스레드에 글로 답해 주세요."
     private func postPieces(_ message:ConversationMessage,conversational:Bool,edge:NSColor?,extras:Bool=true,continuation:Bool=false)->[NativeThreadCard.Piece] {
         let dark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua, mine=message.role == "owner"
-        if !mine,continuation,ThreadTools.thinking(message.text) {return []}
-        if !mine,ThreadTools.thinking(message.text) {return [.accessory(id:message.id+":thinking",height:34,view:{[weak controller] in TypingBubbleView(name:controller?.model.name(message.speaker) ?? "",avatar:controller?.avatar(message.speaker) ?? ProfileAvatar(),nameColor:controller?.palette(message.speaker,dark:dark).name.nsColor,activity:message.text.components(separatedBy:"\n").dropFirst().first ?? "답변을 준비하고 있습니다")} )]}
+        if !mine,continuation,controller.model.thinking(message) {return []}
+        if !mine,controller.model.thinking(message) {return [.accessory(id:message.id+":thinking",height:34,view:{[weak controller] in TypingBubbleView(name:controller?.model.name(message.speaker) ?? "",avatar:controller?.avatar(message.speaker) ?? ProfileAvatar(),nameColor:controller?.palette(message.speaker,dark:dark).name.nsColor,activity:message.text.components(separatedBy:"\n").dropFirst().first ?? "답변을 준비하고 있습니다")} )]}
         let received=streamReveal.frame(message.id,now:motionTime(),immediately:reduceMotion()) ?? message.text
         let streaming=message.streaming || streamReveal.revealing(message.id)
         let foldable = !mine && !streaming && LongReply.needsFolding(message.text), folded=foldable && !expandedMessages.contains(message.id) && searchHighlightThread != message.key
-        let shown=folded ? LongReply.preview(received):received,body=CardText.fittedRules(mine ? shown:shown.trimmingCharacters(in:.newlines)),stripped=TextLayout.strip(body)
+        let shown=folded ? LongReply.preview(received):received
         let palette=controller.palette(message.speaker,dark:dark)
-        let text=NSMutableAttributedString(attributedString:CardText.linkifiedNative(MessageFormat.renderNative(mine ? body : stripped.source,bodySize:ChatMetrics.bodyFont)))
-        let all=NSRange(location:0,length:text.length), paragraph=NSMutableParagraphStyle(); paragraph.lineSpacing=mine ? 0 : 2
-        text.addAttribute(.paragraphStyle,value:paragraph,range:all)
-        if mine {
-            text.enumerateAttributes(in:all) { attributes,range,_ in
-                if attributes[NSAttributedString.Key("hejo.explicitColor")]==nil {text.addAttribute(.foregroundColor,value:UserBubblePalette(dark:dark,pending:message.pending).foreground.nsColor,range:range)}
-            }
-        }
-        else { TextLayout.apply(to:text,lines:stripped.lines,bar:edge,lineSpacing:2) }
-        text.enumerateAttributes(in:NSRange(location:0,length:text.length)) { attributes,range,_ in
-            if !mine,let font=attributes[.font] as? NSFont,NSFontManager.shared.traits(of:font).contains(.fixedPitchFontMask) {
-                text.addAttributes([.font:NSFont.monospacedSystemFont(ofSize:13,weight:.regular),.foregroundColor:dark ? NSColor(srgbRed:0.96,green:0.68,blue:0.36,alpha:1) : NSColor(srgbRed:0.76,green:0.32,blue:0.09,alpha:1),.backgroundColor:NSColor.labelColor.withAlphaComponent(0.1)],range:range)
-            }
-            if attributes[.link] != nil { text.addAttributes([.underlineStyle:NSUnderlineStyle.single.rawValue,.foregroundColor:mine ? UserBubblePalette(dark:dark,pending:message.pending).link.nsColor : palette.link.nsColor],range:range) }
-        }
-        if streaming {CardText.uniformSize(text)}
-        if let query=searchHighlight,message.key==searchHighlightThread {for range in WorkspaceSearch.highlights(text.string,query:query) {text.addAttributes([.backgroundColor:NSColor.yellow,.foregroundColor:NSColor.black],range:NSRange(range,in:text.string))}}
-        var checks:[Int:(line:Int,original:Bool)]=[:]
-        if !streaming && !message.pending {
-            var offset=0,index=0
-            for character in text.string {
-                let length=String(character).utf16.count
-                if character=="☐" || character=="☑" {
-                    let original=character=="☑";checks[offset]=(index,original)
-                    text.replaceCharacters(in:NSRange(location:offset,length:length),with:controller.model.check(message.id,line:index,original:original,body:message.text) ? "☑":"☐")
-                    text.addAttribute(.link,value:URL(string:"hejo-check://toggle/\(offset)")!,range:NSRange(location:offset,length:1))
+        let input=PostBodyInput(id:message.id,original:message.text,shown:shown,mine:mine,pending:message.pending,streaming:streaming,dark:dark,
+            nameColor:palette.name.nsColor,linkColor:palette.link.nsColor,edge:edge,appearance:ChatAppearance.revision,
+            highlight:message.key==searchHighlightThread ? searchHighlight:nil)
+        let rendered:PostBody
+        if let cached=postBodies[message.id],input==cached.input,checksMatch(cached,message) {rendered=cached}
+        else {
+            let body=CardText.fittedRules(mine ? shown:shown.trimmingCharacters(in:.newlines)),stripped=TextLayout.strip(body)
+            #if HEJO_PERF_TESTING
+            HejoSmoothProbe.bodies[message.id, default: 0] += 1
+            #endif
+            let text=NSMutableAttributedString(attributedString:CardText.linkifiedNative(MessageFormat.renderNative(mine ? body : stripped.source,bodySize:ChatMetrics.bodyFont)))
+            let all=NSRange(location:0,length:text.length), paragraph=NSMutableParagraphStyle(); paragraph.lineSpacing=mine ? 0 : 2
+            text.addAttribute(.paragraphStyle,value:paragraph,range:all)
+            if mine {
+                text.enumerateAttributes(in:all) { attributes,range,_ in
+                    if attributes[NSAttributedString.Key("hejo.explicitColor")]==nil {text.addAttribute(.foregroundColor,value:UserBubblePalette(dark:dark,pending:message.pending).foreground.nsColor,range:range)}
                 }
-                index+=1;offset+=length
             }
+            else { TextLayout.apply(to:text,lines:stripped.lines,bar:edge,lineSpacing:2) }
+            text.enumerateAttributes(in:NSRange(location:0,length:text.length)) { attributes,range,_ in
+                if !mine,let font=attributes[.font] as? NSFont,NSFontManager.shared.traits(of:font).contains(.fixedPitchFontMask) {
+                    text.addAttributes([.font:NSFont.monospacedSystemFont(ofSize:13,weight:.regular),.foregroundColor:dark ? NSColor(srgbRed:0.96,green:0.68,blue:0.36,alpha:1) : NSColor(srgbRed:0.76,green:0.32,blue:0.09,alpha:1),.backgroundColor:NSColor.labelColor.withAlphaComponent(0.1)],range:range)
+                }
+                if attributes[.link] != nil { text.addAttributes([.underlineStyle:NSUnderlineStyle.single.rawValue,.foregroundColor:mine ? UserBubblePalette(dark:dark,pending:message.pending).link.nsColor : palette.link.nsColor],range:range) }
+            }
+            if streaming {CardText.uniformSize(text)}
+            if let query=searchHighlight,message.key==searchHighlightThread {for range in WorkspaceSearch.highlights(text.string,query:query) {text.addAttributes([.backgroundColor:NSColor.yellow,.foregroundColor:NSColor.black],range:NSRange(range,in:text.string))}}
+            var checks:[Int:(line:Int,original:Bool)]=[:],checkValues:[Int:Bool]=[:]
+            if !streaming && !message.pending {
+                var offset=0,index=0
+                for character in text.string {
+                    let length=String(character).utf16.count
+                    if character=="☐" || character=="☑" {
+                        let original=character=="☑";checks[offset]=(index,original)
+                        let checked=controller.model.check(message.id,line:index,original:original,body:message.text);checkValues[offset]=checked
+                        text.replaceCharacters(in:NSRange(location:offset,length:length),with:checked ? "☑":"☐")
+                        text.addAttribute(.link,value:URL(string:"hejo-check://toggle/\(offset)")!,range:NSRange(location:offset,length:1))
+                    }
+                    index+=1;offset+=length
+                }
+            }
+            rendered=PostBody(input:input,text:NSAttributedString(attributedString:text),checks:checks,checkValues:checkValues)
+            if postBodies[message.id]==nil {
+                if postBodies.count>=Self.postBodyCapacity {postBodies.removeValue(forKey:postBodyOrder.removeFirst())}
+                postBodyOrder.append(message.id)
+            }
+            postBodies[message.id]=rendered
         }
-        var post=NativeThreadCard.Post(id:message.id,mine:mine,text:text,speaker:mine ? "나" : controller.model.name(message.speaker),time:message.pending ? "보내는 중":displayTime(message.timestamp),avatar:controller.avatar(message.speaker),nameColor:mine ? .labelColor:palette.name.nsColor,
+        let text=rendered.text,checks=rendered.checks
+        #if HEJO_PERF_TESTING
+        HejoSmoothProbe.identify(text,id:message.id)
+        #endif
+        var post=NativeThreadCard.Post(id:message.id,mine:mine,text:text,speaker:mine ? "나" : controller.model.name(message.speaker),time:message.pending ? "보내는 중":displayTime(message),avatar:controller.avatar(message.speaker),nameColor:mine ? .labelColor:palette.name.nsColor,
             conversational:conversational && !mine && !streaming && message.files.isEmpty && ThreadAppearance.isConversational(message.text),pending:message.pending,streaming:streaming,
             marks:[],foldTitle:foldable ? (folded ? "더 보기" : "접기") : nil,fold:{ [weak self] in guard let self else { return }; if self.expandedMessages.contains(message.id) { self.expandedMessages.remove(message.id);self.longReplyBases[message.id]=nil;if self.longReplyBases.isEmpty {self.longReplyWindowBase=nil} } else { if self.longReplyWindowBase==nil {self.longReplyWindowBase=self.bounds.height};self.longReplyBases[message.id]=self.history.layouts.lazy.flatMap(\.placed).first{if case .post(let p)=$0.piece{return p.id==message.id};return false}?.frame.height;self.expandedMessages.insert(message.id) }; self.refresh() },textHelp:!message.files.isEmpty && text.string.contains(where:{$0=="☐" || $0=="☑"}) ? "체크박스를 누르면 내 확인 상태를 저장합니다.":nil,openLink:{ [weak self] url in
                 guard let self else{return}
@@ -1149,9 +1241,24 @@ import UniformTypeIdentifiers
             return controls
         })],replies:nil,rail:nil,actions:[],deleting:nil,style:.init(inset:0,fill:0,stroke:nil,lineWidth:0,background:.clear),bell:nil,onBell:{},clickCard:{},textClick:nil,bubbleWidth:500,quiet:.secondaryLabelColor,expanded:false)
     }
-    private func displayTime(_ value:String)->String {
+    private struct DisplayTimeInput:Equatable {let timestamp:String;let locale:Locale;let zone:TimeZone;let calendar:Calendar}
+    private var displayTimes:[String:(input:DisplayTimeInput,text:String)]=[:]
+    private var displayTimeOrder:[String]=[]
+    private func displayTime(_ message:ConversationMessage)->String {
+        let input=DisplayTimeInput(timestamp:message.timestamp,locale:.current,zone:.current,calendar:.current)
+        if let cached=displayTimes[message.id],cached.input==input {return cached.text}
+        #if HEJO_PERF_TESTING
+        HejoSmoothProbe.times[message.id,default:0]+=1
+        #endif
+        let value=message.timestamp
+
         let formatter=ISO8601DateFormatter(); formatter.formatOptions=[.withInternetDateTime,.withFractionalSeconds]
-        guard let date=formatter.date(from:value) ?? ISO8601DateFormatter().date(from:value) else { return "" }
-        return DateFormatter.localizedString(from:date,dateStyle:.none,timeStyle:.short)
+        let text=(formatter.date(from:value) ?? ISO8601DateFormatter().date(from:value)).map{DateFormatter.localizedString(from:$0,dateStyle:.none,timeStyle:.short)} ?? ""
+        if displayTimes[message.id]==nil {
+            if displayTimeOrder.count>=Self.postBodyCapacity {displayTimes[displayTimeOrder.removeFirst()]=nil}
+            displayTimeOrder.append(message.id)
+        }
+        displayTimes[message.id]=(input,text)
+        return text
     }
 }

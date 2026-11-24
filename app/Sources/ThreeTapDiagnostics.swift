@@ -70,9 +70,16 @@ enum ThreeTapDiagnostics {
     }
     /// Main-thread spans include nested work; only fixed stage names and numeric costs are recorded.
     static func startSpan() -> Double? {
-        sample == nil ? nil : ProcessInfo.processInfo.systemUptime
+        #if HEJO_PERF_TESTING
+        return ProcessInfo.processInfo.systemUptime
+        #else
+        return sample == nil ? nil : ProcessInfo.processInfo.systemUptime
+        #endif
     }
     static func endSpan(_ stage: String, _ start: Double?) {
+        #if HEJO_PERF_TESTING
+        if let start {HejoSmoothProbe.phases["span_"+stage,default:[]].append(ProcessInfo.processInfo.systemUptime-start)}
+        #endif
         guard let start, sample != nil else { return }
         let count = Int(sample?[stage + "_count"] ?? 0) + 1
         sample?[stage + "_count"] = Double(count)

@@ -81,7 +81,7 @@ struct RoomNotice: Equatable {
                     return (date(x.timestamp),x.seq)<(date(y.timestamp),y.seq)
                 }
                 for thread in ordered {
-                    let posts=timeline(thread.key).filter{$0.role=="owner" || !ThreadTools.thinking($0.text)},state=assessment(thread.key)
+                    let posts=timeline(thread.key).filter{$0.role=="owner" || !thinking($0)},state=assessment(thread.key)
                     guard let root=posts.first,posts.last?.role != "owner",!state.working,!state.settled,!(state.request.map{confirmed($0.id)} ?? false),memberState.read("bell:"+thread.key.employee+"/"+thread.key.thread)<originalSeq(thread.key) else{continue}
                     let id:String,title:String,message:String,questions:Bool
                     if let asked=state.pending {id="question:"+asked.speaker;title=name(asked.speaker)+" 질문";message=asked.id;questions=true}

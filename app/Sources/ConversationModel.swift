@@ -92,7 +92,18 @@ struct ConversationThread: Identifiable {
     func room(for employee: String) -> Room? { rooms.first { $0.id==employee } }
     func unread(room: Room) -> Int { unread(employee:room.id) }
     func threads(room: Room, query: String = "") -> [ConversationThread] { threads(employee:room.id,query:query) }
-    private(set) var messages: [String: ConversationMessage] = [:] { didSet { invalidateRenderValues() } }
+    private(set) var messages: [String: ConversationMessage] = [:] { didSet {
+        invalidateRenderValues()
+        if !thinkingValues.isEmpty, messages.count <= oldValue.count {
+            thinkingValues=thinkingValues.filter{messages[$0.key] != nil}
+            thinkingOrder.removeAll{messages[$0]==nil}
+        }
+        if !assessmentValues.isEmpty, messages.count <= oldValue.count {
+            let live=Set(messages.values.map(\.key))
+            assessmentValues=assessmentValues.filter{live.contains($0.key)}
+            assessmentOrder.removeAll{!live.contains($0)}
+        }
+    } }
     private(set) var applied = 0
     private(set) var typing: [ConversationKey: Date] = [:]
     /// When each live typing indicator first turned on; refreshes keep it, expiry or `on:false` forget it.
@@ -135,7 +146,6 @@ struct ConversationThread: Identifiable {
         let now: Date
         var grouped: [ConversationKey:[ConversationMessage]]?
         var threads: [String:[ConversationThread]]=[:]
-        var assessments: [ConversationKey:ThreadAssessment.Result]=[:]
         struct ParsedDate { let value: Date? }
         var dates: [String:ParsedDate]=[:]
         var latestDates: [ConversationKey:Date]=[:]
@@ -143,6 +153,7 @@ struct ConversationThread: Identifiable {
         var notices: [NoticeKey:[RoomNotice]]=[:]
         var homeThreads: [ConversationThread]?
         var sidebar: SidebarLayout?
+        var assessments: [ConversationKey:ThreadAssessment.Result] = [:]
         lazy var fractional: ISO8601DateFormatter = {
             let value=ISO8601DateFormatter();value.formatOptions=[.withInternetDateTime,.withFractionalSeconds];return value
         }()
@@ -197,8 +208,22 @@ struct ConversationThread: Identifiable {
         values.dates[text] = .init(value:result)
         return result
     }
+    private static let dateCapacity=4096
+    private var dateValues:[String:Date]=[:]
+    private var dateOrder:[String]=[]
+    #if HEJO_PERF_TESTING
+    var smoothDateCount:Int {dateValues.count}
+    var smoothDateCapacity:Int {Self.dateCapacity}
+    #endif
     func date(_ text: String) -> Date {
-        renderValues == nil ? ThreadTools.date(text):parsedDate(text) ?? .distantPast
+        if let result=dateValues[text] {return result}
+        #if HEJO_PERF_TESTING
+        HejoSmoothProbe.dates += 1
+        #endif
+        let result=renderValues == nil ? ThreadTools.date(text):parsedDate(text) ?? .distantPast
+        if dateOrder.count>=Self.dateCapacity {dateValues[dateOrder.removeFirst()]=nil}
+        dateOrder.append(text);dateValues[text]=result
+        return result
     }
     func latestDate(_ key: ConversationKey) -> Date {
         withRenderValues {
@@ -486,16 +511,65 @@ struct ConversationThread: Identifiable {
     }
     func unread(_ key: ConversationKey) -> Int {
         let read = max(memberState.read("read:" + key.employee), memberState.read("thread:" + key.employee + "/" + key.thread), store.settings.readSeq?[key.readKey] ?? 0)
-        return timeline(key).filter { $0.role == "employee" && $0.seq > read && !ThreadTools.thinking($0.text) }.count
+        return timeline(key).filter { $0.role == "employee" && $0.seq > read && !thinking($0) }.count
     }
-    func assessment(_ key:ConversationKey)->ThreadAssessment.Result {
-        if let cached=renderValues?.assessments[key] {return cached}
+    private struct ThinkingValue {let text:String;let result:Bool}
+    private var thinkingValues:[String:ThinkingValue]=[:]
+    private var thinkingOrder:[String]=[]
+    private static let thinkingCapacity=4096
+    func thinking(_ message:ConversationMessage)->Bool {
+        if let cached=thinkingValues[message.id],cached.text==message.text {return cached.result}
         #if HEJO_PERF_TESTING
+        HejoSmoothProbe.thinking[message.id,default:0]+=1
+        #endif
+        let result=ThreadTools.thinking(message.text)
+        if thinkingValues[message.id]==nil {
+            if thinkingOrder.count>=Self.thinkingCapacity {thinkingValues[thinkingOrder.removeFirst()]=nil}
+            thinkingOrder.append(message.id)
+        }
+        thinkingValues[message.id]=ThinkingValue(text:message.text,result:result)
+        return result
+    }
+    #if HEJO_PERF_TESTING
+    var smoothThinkingKeys:Set<String> {Set(thinkingValues.keys)}
+    var smoothThinkingCapacity:Int {Self.thinkingCapacity}
+    #endif
+    private struct AssessmentValue {
+        let lines:[ConversationMessage]
+        let confirmed:Set<String>
+        let result:ThreadAssessment.Result
+    }
+    private static let assessmentCapacity=2048
+    private var assessmentValues:[ConversationKey:AssessmentValue]=[:]
+    private var assessmentOrder:[ConversationKey]=[]
+    #if HEJO_PERF_TESTING
+    var smoothAssessmentKeys:Set<ConversationKey> {Set(assessmentValues.keys)}
+    var smoothAssessmentCapacity:Int {Self.assessmentCapacity}
+
+    #endif
+    func assessment(_ key:ConversationKey)->ThreadAssessment.Result {
+        if let result=renderValues?.assessments[key] {return result}
+        #if HEJO_PERF_TESTING
+        HejoSmoothProbe.assessmentInputs[key.readKey,default:0]+=1
+        #endif
+        let lines=timeline(key),checked=Set(lines.filter{confirmed($0.id)}.map(\.id))
+        if let cached=assessmentValues[key],cached.lines==lines && cached.confirmed==checked {
+            renderValues?.assessments[key]=cached.result
+            return cached.result
+        }
+        #if HEJO_PERF_TESTING
+        HejoSmoothProbe.assessments[key.readKey,default:0]+=1
         onDerive?("assessment", key.readKey)
         #endif
-        let lines=timeline(key)
-        let result=ThreadAssessment.assess(lines,confirmed:Set(lines.filter{confirmed($0.id)}.map(\.id)))
+        let result=ThreadAssessment.assess(lines,confirmed:checked)
         renderValues?.assessments[key]=result
+        if !lines.isEmpty {
+            if assessmentValues[key]==nil {
+                if assessmentOrder.count>=Self.assessmentCapacity {assessmentValues[assessmentOrder.removeFirst()]=nil}
+                assessmentOrder.append(key)
+            }
+            assessmentValues[key]=AssessmentValue(lines:lines,confirmed:checked,result:result)
+        }
         return result
     }
     func originalSeq(_ key:ConversationKey)->Int {timeline(key).map(\.seq).max() ?? 0}

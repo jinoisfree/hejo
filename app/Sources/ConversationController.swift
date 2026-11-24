@@ -124,10 +124,46 @@ struct ConversationFailedSend: Identifiable {
     let client: GateClient
     let model: ConversationModel
     let files: GateHTTP
-    var calendarEvents: [CalendarEntry] = [] { didSet { notifyChange() } }
+    var calendarEvents: [CalendarEntry] = [] { didSet {
+        if oldValue != calendarEvents {
+            calendarValues=[:];calendarOrder=[]
+        }
+        notifyChange()
+    } }
+    private struct CalendarInput:Equatable {
+        var text:String, timestamp:String, role:String
+        var pending:Bool
+        var calendar:Calendar
+    }
+    private struct CalendarValue {let input:CalendarInput;let result:[BubbleReveal.Action]}
+    private static let calendarCapacity=2048
+    private var calendarValues:[String:CalendarValue]=[:]
+    private var calendarOrder:[String]=[]
+    #if HEJO_PERF_TESTING
+    var smoothCalendarKeys:Set<String> {Set(calendarValues.keys)}
+    var smoothCalendarCapacity:Int {Self.calendarCapacity}
+    /// Exercise the real optimistic projection and acknowledgement path without a socket/send.
+    func smoothStagePending(_ key:ConversationKey,text:String)->String {
+        let id=UUID().uuidString.lowercased()
+        pending[id]=PendingSend(key:key,draft:ConversationDraft(text:text),bubble:false,workspace:replicaAddress,shown:model.selectionIdentity,newPost:false,at:clock(),revision:composeRevision,place:key)
+        notifyChange();return id
+    }
+    #endif
     func calendarActions(for message: ConversationMessage) -> [BubbleReveal.Action] {
-        guard message.role != "owner", !message.pending else { return [] }
-        return BubbleReveal.Action.content(message.text, events: calendarEvents, at: ThreadTools.date(message.timestamp)).filter(\.isCalendar)
+        let input=CalendarInput(text:message.text,timestamp:message.timestamp,role:message.role,pending:message.pending,calendar:.current)
+        if let cached=calendarValues[message.id],input==cached.input {return cached.result}
+        #if HEJO_PERF_TESTING
+        HejoSmoothProbe.calendars[message.id,default:0]+=1
+        #endif
+        let result:[BubbleReveal.Action]
+        if message.role == "owner" || message.pending {result=[]}
+        else {result=BubbleReveal.Action.content(message.text,events:calendarEvents,at:ThreadTools.date(message.timestamp)).filter(\.isCalendar)}
+        if calendarValues[message.id]==nil {
+            if calendarOrder.count>=Self.calendarCapacity {calendarValues[calendarOrder.removeFirst()]=nil}
+            calendarOrder.append(message.id)
+        }
+        calendarValues[message.id]=CalendarValue(input:input,result:result)
+        return result
     }
     lazy var pictures: PictureCache = { let cache=PictureCache(http:files);cache.onChange={ [weak self] in self?.notifyChange() };return cache }()
     func avatar(_ employee:String) -> ProfileAvatar {
@@ -259,6 +295,12 @@ struct ConversationFailedSend: Identifiable {
         }
     }
     func notifyChange() {
+        if !calendarValues.isEmpty {
+            calendarValues=calendarValues.filter { key,_ in
+                key.hasPrefix("pending:") ? pending[String(key.dropFirst(8))] != nil:model.messages[key] != nil
+            }
+            calendarOrder.removeAll{calendarValues[$0]==nil}
+        }
         if isUpdating { changePending = true } else { historyChangePending = false; onChange?() }
     }
     var onConnectionsFrame: (([String:Any])->Void)?
