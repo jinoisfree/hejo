@@ -11,25 +11,27 @@
 
 실행 소스는 checkpoint-10의 hejo29/team65 파일과 일치한다. hejo 소스 커밋에는 최신 canonical 작업 문서10개·UUID 판정/검토2개·수락 명세1개도 포함했다(전체42파일). 이 문서와 최종 구현 보고는 후속 문서 전용 커밋으로 추가한다. 후속 커밋의 실행 소스는 위 후보와 같으며 실제 전달 HEAD는 ignored 로컬 최종 기록과 호스트 제출 자료에서 확인한다. 자기 커밋 해시를 문서에 쓰기 위한 반복 amend는 하지 않는다. 운영 저장소 전체65파일의 경로/지문과 각 커밋의 실제 argv/cwd/결과는 `.build/google-disconnect-evidence/delivery-commit-{hejo,team}-source.{json,log}`에 있다.
 
-후보 ID: `78b3634bd501-33d667199347-r2`. 운영에 쓰지 않는 새 로컬 디렉터리에 작성했다. `hejo/RELEASE`는 위 hejo 전체 커밋이다. 공개 문서에는 개인 실제 경로를 기록하지 않는다. ignored `.build/google-disconnect-evidence/delivery-artifacts.json`에 실제 위치·파일별 모드/링크/지문을 기록한다. 압축 파일은 최상위 `hejo/`, `team/`, `hejo.app/`를 각각 포함한다.
+후보 ID: `78b3634bd501-33d667199347-r4`. 운영에 쓰지 않는 새 로컬 디렉터리에 작성했다. `hejo/RELEASE`는 위 hejo 전체 커밋이다. 공개 문서에는 개인 실제 경로를 기록하지 않는다. ignored `.build/google-disconnect-evidence/delivery-artifacts-final.json`에 실제 위치·파일별 모드/링크/지문을 기록한다. 두 압축 파일은 최상위 `hejo/`, `team/`를 각각 포함한다. 내부 파일/링크/모드와 압축 내용을 대조해 불필요한 macOS 메타데이터 항목이 없음을 확인했다.
 
 | 압축 산출물 | 바이트 | SHA-256 |
 |---|---:|---|
-| `hejo.tar.gz` | 103126 | `f422abc842eb5fba7a10a3e3ccd35c35ba7cacea362a3d3b5aca4981782ccb04` |
-| `team.tar.gz` | 2070854 | `6614216f0789c0d280dc3f264aa31463d0c5ebbe85693e2093dcb9df3cb335d2` |
-| `hejo.app.tar.gz` | 6262548 | `d76bf65f07b7664b47b26d3e7ddfddbd5c0136fadae50977c346b5cd39b07f0f` |
+| `hejo.tar.gz` | 100817 | `9fd1629ef07e548c61617f865f74ffc2296dda093ee1fc403165cebed0e8f757` |
+| `team.tar.gz` | 2034997 | `cb6e1ef7cf7473c62545f23b2f7c016669a0c2e2a073cc5656adb4094cd5adb8` |
+
+앱은 압축 배포 후보에서 제외했다. 동일 볼륨의 서명 검증된 로컬 `hejo.app/`만 보존한다.
 
 트리 지문은 상대 경로별 종류·모드·파일 SHA/크기 또는 symlink 대상의 JSON을 키 정렬/공백 없는 직렬화 후 SHA-256한 값이다. hejo `8dfa68512627ee7b3bad7ea76c1820abfb076cf42c09ce51ba70ed51ce09a46e`, team `a07773722064459cb88b9978f83bdc469fbe083b709c4a376bb87da2142911ef`, app `7451970e0a903e25cb2266fc5479d077e9b95152168be8884ff9403a1987314c`. hejo release는 gate/hub/schemas/config/install/라이선스를 담고 앱을 포함하지 않는다. team은 커밋의 team-kit 전체와 아래 동반5파일만 담으며 owner/프로필/자격은 담지 않는다. 운영 저장소 전체를 공개 패키지로 만들지 않았다.
 
 검사기 원본은 hejo의 `install/check_google_compat.py` 하나다. 후보 검사기 SHA-256은 `dc0b0cb9496261d64c9c2cbecbf4c20c970e442f8be438d8f2021e2aed2b18d4`이다. hejo `install/google-connection-support.json`과 team-kit `google-connection-support.json`은 각각 자신의 component, `versions:[1]`, `disconnect_mode:forget_account`를 선언한다. 두 패키지 build 검사는 통과했다. 운영 검사는 설치 링크/영수증으로 찾은 **현재 설치 검사기**를 사용하며 후보 검사기로 대체 탐색하지 않는다.
 
-앱은 기존 검토 완료 빌드의 복사본이다. 원본/복사본 `codesign --verify --deep --strict`가 통과했고 실행 파일 SHA-256은 `a097e08950e2745e838724d929dba98e651bb2a675093d61f2b3e81b3b348a71`이다. 빌드 입력은 후보 커밋과 일치한다. `HEJO_SKIP_GOOGLE_SECRET=1`, `HEJO_SPARKLE_OFFLINE=1`인 로컬 검증 빌드이며 공유 Google 로그인 비밀을 포함하지 않는다. 운영용 Google 로그인/업데이트 구성과 앱 설치 대상은 별도로 확인해야 한다. 현재 앱을 생산 배포 준비 완료로 간주하지 않는다. 비밀을 열거나 후보에 추가하지 않았다.
+앱은 기존 검토 완료 빌드의 복사본이다. 원본/복사본 `codesign --verify --deep --strict`가 통과했고 실행 파일 SHA-256은 `a097e08950e2745e838724d929dba98e651bb2a675093d61f2b3e81b3b348a71`이다. 빌드 입력은 후보 커밋과 일치한다. `HEJO_SKIP_GOOGLE_SECRET=1`, `HEJO_SPARKLE_OFFLINE=1`인 로컬 검증 빌드이며 공유 Google 로그인 비밀을 포함하지 않는다. 실제 임시 볼륨에 압축을 풀면 기존 한글 리소스 `연결안내.html`의 파일명이 NFC에서 NFD로 바뀌어 CodeResources의 봉인 경로와 달라지고 codesign strict 검증이 종료1이다. 파일 본문/링크는 같아도 서명 수락을 통과하지 못하므로 압축 앱은 배포 후보에서 제외했다. 진단은 `delivery-package-signature-diagnostic.json`·`delivery-unicode-resource.json`, 실패 실행은 `delivery-package-final.log`에 보존했다. 파일명 변경/재서명/제품 재빌드는 하지 않았다. 운영용 앱 포장 방식과 Google 로그인/업데이트 구성·설치 대상은 별도로 확인해야 한다. 현재 앱을 생산 배포 준비 완료로 간주하지 않는다. 비밀을 열거나 후보에 추가하지 않았다.
 
 ## 운영 승인 전에 확정할 경계
 
 **현재 운영 적용은 아래 사유로 중단 상태다.** 준비한 후보 자체와 로컬 커밋은 유효하지만, 첫 운영 명령을 실행하기 전에 기획/운영 담당이 다음 적용·복구 절차를 확정해야 한다.
 
 - 기존 `hermes-team-kit-deploy`는 team-kit와 기존 루트/프로필 plugin overlay만 갱신한다. 후보의 `hermes/bin/hermes-plugin-store`, `hermes/bin/hermes-skill-assemble`, `hermes/bin/hermes-team-kit-deploy`, `hermes/plugin-store/team-delegation/plugin.yaml`, `hermes/shared/secretary-skills/employee-google-workspace/SKILL.md`는 그 배포 범위 밖이다. 공식 도구 등록/승인·스킬 조립에 필요한 이5파일의 기존 권한/선택을 보존하는 적용·검증·복구 단위가 미확정이다. 키트 배포 성공만으로 제품 전체 적용을 선언하지 않는다. 무검사 cp/rsync/git checkout이나 새 installer를 임의로 도입하지 않는다.
+- 앱 배포는 한글 리소스의 NFC/NFD 변경에 따른 서명 실패 처분이 선행 조건이다. 로컬 bundle의 codesign 성공을 압축 해제 후 성공으로 대체하지 않는다. 기존 제품 파일명을 임의 변경하지 않고 기획/앱 배포 담당에게 포장/서명 방식 결정을 반환한다.
 - 실제 루트/모든 직원 홈, hejo 현재 링크·영수증·검사기 상태, 설치 대상 앱과 서명/Google 로그인/업데이트 구성, 작업 중단/재개 명령을 승인 자료에 확정한다. 이 단계에서는 운영 홈이나 비밀을 조사/변경하지 않았다.
 - 설치 영수증이 installed인데 현재 검사기가 없거나 링크/영수증이 불일치하면 기존 R10에 따라 거절한다. 새 패키지로 대체 탐색해 구버전 설치를 강제로 올리지 않는다. 최초 설치 또는 전환 전 failed/uninstalled의7판 복구 조건만 기존 installer가 판정한다. 실제 설치가 어느 경우인지는 미확인이다.
 - 복구용 hejo/team-kit/동반5파일/앱의 호환되는 버전 묶음과 적용 절차를 먼저 확보한다. 과거 운영 버전을 호환 복구 대상으로 확인하지 않았다. 지원 선언 없는 옛 버전은 전환 기록이 있는 홈의 복구 대상으로 사용할 수 없다.

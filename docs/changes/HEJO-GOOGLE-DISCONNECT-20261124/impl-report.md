@@ -34,7 +34,11 @@
 
 - `python3 .build/google-disconnect-evidence/delivery-private-final.py hejo` 및 `... canonical`: 각각 종료0. 최종 배포 인계/보고를 포함한 전체 공개 검사 통과, 실제 index 불변. hejo의 새 문서1개와 canonical 후보14개를 각각 별도 index에 포함했다. 로그 `delivery-private-final-{hejo,canonical}.{log,json}`. 후보14개 Markdown의 로컬 링크는 누락0이다. 이후 이 결과 기록만 보고에 추가하며 커밋 직전 최종 변경 범위를 다시 확인한다.
 
-후보 ID는 `78b3634bd501-33d667199347-r2`다. hejo release45파일/team616파일/app98파일의 본문 지문과 내부 링크/모드를 보존했다. team 후보에는 team-kit 밖 동반5파일도 포함했다. 현재 배포 명령은 이5파일을 설치하지 않으므로 **운영 적용/복구 단위 미확정**을 발견했다. 기존 선택/승인을 보존하는 설치 절차와 앱 운영 배포 구성·설치 대상, 현재 설치 검사기/호환 복구 묶음을 기획/운영 담당이 먼저 확정해야 한다. 이를 이유로 새 installer·무검사 복사·제품 변경을 임의 도입하지 않았다.
+최종 후보 ID는 `78b3634bd501-33d667199347-r4`다. r2/r3은 아래 포장 검증 결과로 제외했다. hejo release45파일/team616파일/app98파일의 본문 지문과 내부 링크/모드를 보존했다. team 후보에는 team-kit 밖 동반5파일도 포함했다. 현재 배포 명령은 이5파일을 설치하지 않으므로 **운영 적용/복구 단위 미확정**을 발견했다. 기존 선택/승인을 보존하는 설치 절차와 앱 운영 배포 구성·설치 대상, 현재 설치 검사기/호환 복구 묶음을 기획/운영 담당이 먼저 확정해야 한다. 이를 이유로 새 installer·무검사 복사·제품 변경을 임의 도입하지 않았다.
+
+추가 압축 내용 대조에서 r2의 macOS AppleDouble 메타데이터가 manifest 밖에 있음을 발견해 제외했다. `COPYFILE_DISABLE=1`로 만든 r3의 hejo/team은 불필요 항목0·파일/링크/모드 일치다. 그러나 `python3 .build/google-disconnect-evidence/delivery-package-final.py`는 앱 압축을 실제 임시 볼륨에 풀고 codesign strict를 실행하는 단계에서 종료1이다. 원본/동일 볼륨 복사본은0, 압축 해제본은1이며 한글 리소스 파일명 NFC→NFD와 봉인된 NFC 경로의 불일치를 직접 관측했다. 파일 본문/링크 대조는 동일하다. 로그 `delivery-package-final.log`, `delivery-package-signature-diagnostic.json`, `delivery-unicode-resource.json`에 실제 argv/cwd/결과와 이름 정규화 증거를 남겼다. 기존 제품 파일명/서명은 변경하지 않았다.
+
+`python3 .build/google-disconnect-evidence/delivery-package-submit.py`: 종료0. 최종 r4에는 내용/모드/링크 대조를 통과한 hejo45파일·team616파일 압축만 포함하고, 앱은 codesign0인 동일 볼륨 로컬 bundle만 보존했다. 앱 압축본은 포함하지 않는다. 최종 파일별 지문 원본 `delivery-artifacts-final.json`, 압축 대조 `delivery-archive-roundtrip.json`, 로컬 앱 서명 `delivery-package-submit.log`. 앱의 다른 볼륨 전달/설치 성공은 **미충족**이며 포장/서명 방식 처분이 운영 승인 전 추가 선행 조건이다. 통과한 제품/UI 시험을 반복하거나 임의 제품 수정을 하지 않았다.
 
 앱은 `HEJO_SKIP_GOOGLE_SECRET=1`, `HEJO_SPARKLE_OFFLINE=1`의 기존 검증 빌드다. 비밀 없는 로컬 후보이며 운영용 공유 Google 로그인/업데이트 구성을 완성한 배포본으로 주장하지 않는다. 전체 운영 적용 승인 요청은 이 경계 처분 뒤이며 GD-T19는 사용자 직접 실행, 최종 명세 승격은 기획 소유다.
 
