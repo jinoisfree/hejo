@@ -1,6 +1,6 @@
 # HEJO 스레드 상태 막대의 현재 계약
 
-근간은 [ARCHITECTURE](../../ARCHITECTURE.md)의 관제 화면이다. 적용 제품 커밋은 `f1cb67d3dfbd74f7479566db5b6cb5c6da53b065`(개발 이력 기준). 가짜 자료의 실제 앱 모델·AppKit 카드 조립에서 검증한 소스 기준이며 운영 설치·원격 반영을 뜻하지 않는다.
+근간은 [ARCHITECTURE](../../ARCHITECTURE.md)의 관제 화면이다. 적용 제품 커밋은 공개 이력 `872ab0e1c0da7d2377d868f40e2ce2562387998f`(개발 이력 원본 `f1cb67d3dfbd74f7479566db5b6cb5c6da53b065`, 제품 patch-id 동일). 가짜 자료의 실제 앱 모델·AppKit 카드 조립에서 검증한 소스 기준이며 운영 설치·원격 반영을 뜻하지 않는다.
 
 상태는 기록장 투영을 읽는 `ThreadAssessment.assess` 한 곳에서 파생하고, 카드 상태 막대·종·알림 목록이 같은 결과를 쓴다. 새 저장 필드는 없다.
 
