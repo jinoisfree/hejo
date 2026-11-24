@@ -98,7 +98,7 @@ enum ThreadAssessment {
         let asked=answer(last)==nil ? last:asks.reversed().first{answer($0)==nil && !posts[$0].buttons.isEmpty} ?? last
         let request=posts[asked],answered=answer(asked)
         let said=answered.map{posts[$0].text.trimmingCharacters(in:CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters)).lowercased()} ?? ""
-        let finished=yes.contains(said) && answered.map{index in posts.indices.dropFirst(index+1).contains{posts[$0].role=="employee"}} == true
+        let finished=answered.map{index in posts.indices.dropFirst(index+1).contains{posts[$0].role=="employee" && !posts[$0].streaming}} == true
         var result=Result(request:request)
         if finished || request.replyState=="closed" {result.settled=true}
         else if request.replyState=="answered" {result.working=true}

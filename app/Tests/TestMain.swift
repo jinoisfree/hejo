@@ -46,6 +46,10 @@ final class MemoryCredentials: GateCredentialStore {
                     #endif
                 } else if args.count >= 4 && args[1] == "--hejo-reconnect" {
                     try await hejoReconnect(args)
+                } else if args.contains("--thread-done") {
+                    try await readNoticeTests()
+                    try await threadToolsTests()
+                    try await typingTests(resourceDirectory:URL(fileURLWithPath:args.last!))
                 } else if args.contains("--connection-stuck-probe") {
                     try await connectionStuckReproduction()
                 } else if args.contains("--connection-stuck") {
