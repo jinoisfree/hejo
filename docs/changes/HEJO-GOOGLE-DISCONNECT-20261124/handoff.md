@@ -217,3 +217,13 @@ checkpoint13의 실제 hejo54/team88파일 및 두 HEAD를 확인했다. 후속 
 ## 왕복21 인계
 
 D-4 설계 누락 확인: legacy disconnect 정상 완료 applied 기록이 새 인증 잔존 검사에 막힌다. 생산자와 소비자를 직접 대조했고 design10/tasks 왕복21에 LegacyUpgrade-only 만료 완료 판정·현재 config off·CAS를 명시했다. 일반 recovery 허용 확장과 장부 정리/undo 실행은 금지한다. 기존 제품/앱은 그대로며 정책 보완·표적 시험·Terra 재검토 후 갱신 후보를 반환한다. 운영/실계정/푸시는 이번 보완에서 미실행이다.
+
+
+## 왕복22 인계
+
+D-4 구현 수용. checkpoint18 실제150파일·증거/전달 지문과 clean 확인, 직접 전환4시험 성공 및 Terra15시험/새 차단 없음. 최신 후보632d0907d0dd-0f0ab1fd4895-round21과 round21-approval-proposal.json으로 기존 승인 범위의 적용을 재개한다. 일반 no_google_residue로 전용 최초 전환을 미리 차단하지 말고 LegacyUpgrade 경로의 전체 검사를 사용한다. 중지/잠금/상태 검사를 생략하지 않는다. 장부/config/undo 수정 없이 진행하고 새로운 불일치는 중단한다. 운영/GD-T19/TASK07/푸시는 아직 미완료다.
+
+
+## 왕복23 인계
+
+운영 적용 증거와 GD-T19 사용자 직접 네 항목 확인을 수용했다. 기능 검증 완료(교차 모델), TASK07 명세 승격 완료. 현재 명세 google-connections.md와 ARCHITECTURE 금고 행, spec 상태·tasks·UUID verdict를 갱신했다. 최신 문서만 후보에 선별 반영하고 검증·후속 문서 커밋 후 푸시 대상을 제출한다. 새 제품/운영 작업은 없다. 원격 최종 완료는 사용자 화면 승인 및 푸시 확인 뒤다.

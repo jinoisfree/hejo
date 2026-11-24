@@ -1,6 +1,6 @@
 # Google 개인 연결 해제와 계정 선택
 
-5판 · Target · 방향과 저장 배치 사용자 승인, 4판 차단 B1 보완 후 재검증 대기.
+적용 · Baseline. 요구5판과 후속 설계10의 검토·운영 적용·사용자 GD-T19 수락 완료. 현재 계약은 [현재 명세](../../spec/current/google-connections.md)를 따른다. 이전 승인·검토 이력은 보존하며 푸시는 별도 승인 대기.
 호스트 작업 ID: c20a9994-041b-4225-bc8f-f457d10cf651.
 기준: hejo `236b0177468b90d9ea23a1b1190e996db78a0694`, 운영 저장소 `4bbc16ddba02236fe4645ab7244603c44a78af91`.
 칸·원본·쓰기 주체·수명은 [design.md](design.md) 1절, 사용자 결정은 [brainstorm.md](brainstorm.md).

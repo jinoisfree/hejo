@@ -182,3 +182,29 @@ JUnit309개 모두 실패/오류/skip 없이 통과했음을 직접 확인했고
 design10판으로 LegacyUpgrade에만 만료된 완료 disconnect를 읽기 전용 판정하도록 구체화했다. config 명시적 off·원본 생산 형식·OAuth/worker 부재·undo after 메타데이터와 현재 config 일치·장부/config CAS 및 기존 전환/자격/중지 조건을 요구한다. 일반 first/recovery의 허용은 바꾸지 않고 snapshot 복구/정리도 하지 않는다. Terra 독립 설계 검토의 만료/형식/현재 off/CAS 조건을 반영했다. 구현 후 독립 재검토가 필요하다.
 
 증거: 제출 preflight/idle 종료2는 유지됐고 유휴 관측이 정책을 우회하지 않았다. 서비스 PID·시설/영수증/장부 불변 확인을 기록한 최종 증거를 읽었다. 실제 운영 쓰기 및 GD-T19는 미실행이다. 이번 제품 시험은 미실행이며 완료 판정하지 않는다. 다음은 tasks 왕복21 표적 구현·시험·전달 갱신으로, 이미 검증된 앱/무관 회귀는 반복하지 않는다. 기존 운영 승인 범위는 유지하지만 새 정책 검토 전 적용하지 않는다.
+
+
+## 왕복22 — 완료 legacy 해제 판정 구현 수용
+
+**부분 완료, 교차 모델 검토. D-4 해소.** hejo HEAD daa1163357668afbfca3d0b4f904fe06d893109f(실행 소스632d0907d0dd2ccf665ecedb8fef268d157d5d5d), team0f0ab1fd489574a122323bc5c55d1c1fe0e3a4f2와 checkpoint18의57/93파일·증거/전달 지문 및 clean을 직접 확인했다. Python 종료0, review-22-integrity.json. 최신 handoff/impl-report, 정책 diff 및 실제 생산자 기반 시험·변이를 읽었다.
+
+설계 적합성(4.2): LegacyUpgrade의 검증된 시설에만 만료 applied/disconnect 판정이 적용된다. 생산자 필드/시각/명시적 config off·기존 hermes_yaml 계약·undo after 경로/지문과 CAS가 design10에 맞고 before는 해독/출력/복원하지 않는다. 일반 no_google_residue/first/recovery는 기존 applied 거절을 유지한다. 장부/config 및 시계 변화는 쓰기/복구 전에 거절한다. 새 원본·일반 fallback이나 운영 장부 정리는 없다.
+
+직접 임시 홈에서 실제 legacy 생산자→release→최초 전환→전체 bundle의 기본/직원 및 undo 있음/없음4경우를 실행해 종료0,4 passed/60 deselected였다. 정확한 명령/대상은 review-22-targeted.json 및 log다. 기존 asyncio fixture 기본값 경고는 있었으나 실패는 없다. 제출 최종85시험/변이9개와 선행204회귀는 실행 시점별로 구분한다. Terra 별도 독립 검토도 정책과15개 표적 시험을 확인해 새 차단 없음으로 보고했다. 상세 근거는 independent-review.md의 이번 절이다. 실제 운영 장부 판정/GD-T19는 미실행이다.
+
+새 후보632d0907d0dd-0f0ab1fd4895-round21 및 manifest fbf7a23dcf3092a1f3b71be9499fbd3d1a0aab85bf1049c331b6e20df4849946을 수용한다. team/정식 앱과 지원 선언은 불변이다. 기존 승인 대상·중단/재개·조건부 복구 범위 안에서 적용 재개한다. 전용 최초 전환에 일반 no_google_residue를 필수 선행 조건으로 잘못 호출하면 정상 완료 장부가 계속 거절되므로 실행 도구는 검토된 LegacyUpgrade의 판정을 사용한다. 이는 거절을 무시하는 것이 아니며 모든 전용 경로의 시설·상태·중지·잠금 검사는 그대로 수행한다.
+
+남은 원인은 환경·외부 요인(실제 적용/사용자 GD-T19 미수행)이다. 추가 제품 수정 계획은 없으며 기존 승인안의 최신 후보로 실행 직전 식별/유휴 확인, 승인 서비스 중단, 명시적 전환/bundle/앱 교체 및 검증·재개를 수행한다. 새 예외/장부 변경/강제 복구는 금지한다. GD-T19·TASK07·푸시 전 전체 완료로 선언하지 않는다.
+
+
+## 왕복23 — 운영 적용·사용자 수락 및 현재 명세 승격
+
+기능 검증 판정: **완료, 교차 모델**. 작업 전체는 문서 커밋·푸시 절차가 남아 부분 완료다. 검토 대상은 hejo daa1163357668afbfca3d0b4f904fe06d893109f/team0f0ab1fd489574a122323bc5c55d1c1fe0e3a4f2 및 보고2파일이다. checkpoint18의150파일 대조에서 보고2개 외 변화가 없고 team clean을 직접 확인했다.
+
+설계 적합성(4.2): 직원 연결 원본·전용 자격·소비자 binding·다음 계정 선택 및 다른 직원 보존 계약이 요구와 일치한다. 승인된 실제 최초 전환/전체 bundle/정식 앱 적용과 서비스 재개가 실행됐고, GD-T19 네 항목을 사용자가 직접 확인했다. 사용자 확인을 에이전트의 독립 OAuth 관측으로 바꾸지 않는다. 기존 Terra 검토·직접 수락 시험은 불변 코드 범위에서 재사용한다. 새 차단 지적 없음, D-4 및 운영/GD-T19 조건 해소.
+
+직접 확인: Python 지문 대조 종료0(review-23-integrity.json),150파일·두 HEAD·수락 기록/운영 증거 지문 및 최종63조건 참. 실제 operation 단계 기록과 upgrade/bundle/app 로그를 읽었다. stop 관측기 종료2는 유지하며 confirm-stop0 뒤 전환0·bundle0·앱0·재개0을 구분한다. LocalIngress 소켓 수명과 AuthStore.local_code의 페어링 회전 책임을 코드와 대조했다. 실행 Python 경로 변화 원인은 미확정이나 정상 관리 환경의 최종 검사0이 있으며 새 본체 변경 증거는 없다. 미래 유지보수에서 환경을 재확인한다. 무변경 제품 시험/운영/실계정은 반복하지 않았다.
+
+증거 수준2·3은 이전 시험/독립 검토, 수준4는 적용 증거와 사용자 직접 수락으로 충족한다. 가짜 owner 공개 패턴 검사를 실제 운영 owner 전체 검사로 확대 주장하지 않는다. 사용자 확인 뒤 계정 상태는 배포 전 지문과 재대조하거나 복원하지 않는다.
+
+TASK07: docs/spec/current/google-connections.md에16개 AC와 현재 계약 반영, ARCHITECTURE 사장 금고 행에 기존 owner/vault.yaml 및 직원 전용 자격 배치를 반영했다. team 근간의 금고/조립 결과 구분과 일치하며 새 칸을 만들지 않는다. spec 상태는 적용으로 승격했다. 남은 원인 분류는 환경·외부 요인(최종 문서 전달/커밋 및 사용자 푸시 승인 절차)이며 추가 제품 수정은 없다. 최신 작업 문서만 후보에 반영·공개 검사·후속 커밋 고정 후 전체 해시로 푸시 승인을 요청한다. 에이전트는 푸시하지 않는다.

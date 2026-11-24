@@ -204,3 +204,8 @@ Terra checkpoint-10 재검토로 IR-1을 닫는다. 새 제품 구현 지시가 
 2. 만료 applied/disconnect의 undo 있음/없음 두 경우 실제 release→최초 전환→bundle 성공 및 장부/config/undo 원본 불변을 검증한다. 만료 전·잘못된/미래/NaN/bool 시각·connect/applying/undoing·OAuth/worker 필드·다른 경로/after hash 불일치·config enabled/disabled 누락·심링크·동시 장부/config 교체·전환/자격 발생은 거절한다. 일반 first/recovery에는 같은 applied 입력이 여전히 거절됨을 시험한다. 실패복구에도 CAS를 검증한다.
 3. 의미 판정을 제거/넓히는 격리 변이로 거절 시험의 검출력을 확인한다. 영향 표적 및 기존 legacy 회귀를 실행하고 Terra 독립 재검토로 반환한다. 실제 홈은 비밀 제외 읽기 전용 메타데이터 확인만 하며 운영 앱/서비스/장부는 쓰지 않는다.
 4. 정책 변경으로 필요한 release/호환 복구/지원 식별·후속 커밋·manifest를 갱신한다. team 제품/정식 앱 입력은 불변이면 재사용한다. 보고에는 새 검사 결과·원본 불변·실행 가능한 승인 범위를 명시한다. 기존 운영 승인은 유지하나 새 정책 검토 전에 운영 적용을 재개하지 않는다. 실계정·메시지·푸시는 제외한다.
+
+
+## 왕복23 — TASK-07 현재 명세 반영
+
+운영 적용·사용자 GD-T19 네 항목 수락 및 이전 독립 검토를 확인했다. TASK-01~06 수락, TASK-07의 현재 명세/ARCHITECTURE 반영 완료. 현재 명세는 docs/spec/current/google-connections.md이며 REQ·AC16개를 기준 완화 없이 승격했다. 남은 절차는 이번 문서만 후보에 반영·공개 검사·후속 문서 커밋 고정 후 사용자 화면 푸시 승인이다. 제품·운영·실계정 시험은 반복하지 않는다.

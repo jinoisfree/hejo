@@ -2,7 +2,7 @@
 
 ## 현재 판단과 범위
 
-**왕복21 design10 구현·격리 검증 제출.** 검증된 LegacyUpgrade에서만 고정 생산자의 만료 disconnect/applied 장부를 읽기 전용으로 인정한다. 명시적 off·생산 형식·600초 만료·전환/자격/worker 부재·장부/config CAS와 시계 역행을 검사하고 일반 first/recovery의 거절은 유지했다. 최종 표적85경우(격리 변이9개 포함)가 통과했고 영향 설치/배포 회귀204경우도 통과했다. 운영 장부·앱·서비스는 변경하지 않았다. 새 후보의 Terra 독립 검토가 선행 조건이며 기존 운영 승인 범위는 유지한다.
+**왕복22 운영 적용·재개 성공, 사용자 GD-T19 네 항목 확인 완료.** 수용된 고정 후보의 기존6설치 링크를 명시적 LegacyUpgrade로 전환하고 전체 team bundle·정식 앱을 적용했다. 설치/플러그인/서명 검사가 통과했고 gateway→메일 신호 순서로 재개했다. 새 gateway의 기존9플랫폼 연결과 오류 없음, 앱 실행을 확인했다. 장부/config/undo·금고/선택·영구 기기 자격은 유지했고 미설치 프로필을 추가하지 않았다. 정상 재시작의 일회용 페어링 회전/통신 소켓 수명은 별도 관측했다. GD-T19의 계정 선택·직접 동의·표시·다른 직원 연결 유지는 사용자 확인으로 통과 기록했다. TASK07과 기능 최종 검토는 왕복23에서 완료됐고 최신 문서 커밋·문서 최종 검토/푸시 승인은 남는다.
 
 원래 목표는 해당 직원 Google 개인 연결·이메일·전용 자격을 제거하고 다음 연결에서 계정을 선택하는 것이다. 기존 금고 원본과 전용 저장 배치, 공식 도구 4개, gate/AppKit 구현을 보존했다. 본체·ddots·sandbox 정책·운영 비밀 파일·Paseo 상태 JSON·계획/수락 명세 Markdown은 변경하지 않았다. 기존 구현을 유지하며 왕복11에서 인증 시트의 명시적 닫기 동작과 취소된 폴링의 응답 후 보호, 해당 표적 시험을 보완했다. 원래 폴더의 다른 작업도 보존했다. 구현 소유 보고·배포 인계와 [명령 대응표](workspace-command-map.md)를 canonical 폴더에서 관리한다.
 
@@ -14,6 +14,62 @@
 | 운영 저장소 | `4bbc16ddba02236fe4645ab7244603c44a78af91` | `role-workflow/google-disconnect-c20a9994` | `.build/google-disconnect-work/team` |
 
 경로는 원래 작업 폴더 기준이다. 위 표는 구현 전 기준이며 현재 시설 실행 소스는 hejo `632d0907d0dd2ccf665ecedb8fef268d157d5d5d`, team `0f0ab1fd489574a122323bc5c55d1c1fe0e3a4f2`다. 앱 소스/압축은 왕복17의 hejo ac4643abdbe05be788ebbb31ece600cd808cf8de 그대로다. 기존 커밋을 수정하지 않고 후속 커밋했다. 최종 범위는 hejo57/team93파일이며 checkpoint17 대비 정책1개·새 시험3개와 최신 작업 문서만 갱신했다. 후속 문서 HEAD/clean·최종 파일별 지문은 round21-closure.json과 source-checkpoint-18.log에 고정한다.
+
+## 왕복23 최종 문서 전달
+
+기획·검증 담당의 왕복23 기능 완료/교차 모델 판정과 TASK-07 현재 명세 승격을 반영했다. 현재 명세의 AC16개는 기존 작업 명세와 동일하다. ARCHITECTURE는 승인된 금고 행만 선택 반영했고 최신 spec/tasks/handoff 및 UUID verdict를 기존 보고2개와 함께 문서 전용 후속 커밋으로 고정한다. 최종 커밋·선별 범위·공개 검사와 전달 불변 확인은 ignored final-docs-closure.json에 기록한다. 제품/시험/지원 선언·고정 전달/복구 후보와 운영 상태는 변경하지 않으며 제품 빌드·시험·운영 적용·실계정 확인을 반복하지 않는다. 남은 절차는 최종 문서 검토와 사용자 화면 푸시 승인이다. git push는 실행하지 않는다.
+
+## 사용자 직접 GD-T19 수락 결과
+
+운영 적용·서비스/앱 재개 후 제시한 네 항목에 사용자가 “모든 항목을 확인했어요”라고 답했다. 사용자 직접 확인으로 GD-T19를 통과 기록한다.
+
+| 사용자 확인 항목 | 결과 |
+|---|---|
+| 연결 해제 후 이메일 제거와 연결 버튼 표시 | 사용자 확인 성공 |
+| 재연결 시 다른 Google 계정 선택과 직접 동의 | 사용자 확인 성공 |
+| 새 계정 표시와 연결 확인 | 사용자 확인 성공 |
+| 다른 직원 연결 유지 | 사용자 확인 성공 |
+
+이 기록은 사용자 응답에 근거하며 에이전트의 실계정 재실행/독립 관측으로 표시하지 않는다. 수행 시각은 사용자에게 제공받지 않았고 기록 시각만 ignored gd19-user-acceptance.json에 남겼다. 실제 이메일·토큰·계정 식별자를 요청하거나 수집하지 않았다. 수락 뒤 계정/장부를 배포 직전 지문과 비교하거나 운영 시설·서비스를 다시 조작하지 않았다. 이전 운영 관측과 실패 로그는 보존한다. 남은 작업은 기획/검증 담당의 TASK-07 현재 명세 반영·최종 판정, 최신 문서 커밋과 별도 화면 푸시 승인이다.
+
+## 왕복22 — 승인된 실제 운영 적용과 사용자 수락 인계
+
+canonical handoff/verdict 왕복22의 D-4 수용 및 기존 유지보수 승인을 확인해 후보632d0907d0dd-0f0ab1fd4895-round21을 적용했다. manifest fbf7a23dcf3092a1f3b71be9499fbd3d1a0aab85bf1049c331b6e20df4849946와 전달/호환 복구 지문·checkpoint18의150파일/HEAD/clean을 확인했다. 제품/시험/지원 선언/고정 후보를 새로 바꾸거나 성공한 전체 시험을 반복하지 않았다.
+
+### 실제 명령과 단계 결과
+
+아래 driver는 원래 작업 폴더에서 실행했다. 정확한 argv/cwd/선별 환경·시각·원래 서비스/PID와 단계별 실제 종료 코드는 ignored round22-operation.json 및 해당 log에 있다. 서비스 설정은 원래 plist 바이트 그대로 사용했다. 개인 절대 경로·계정·인증 원문은 공개 보고에 복사하지 않는다.
+
+| 단계 | 실제 실행/결과 | ignored 증거 |
+|---|---|---|
+| 사전 확인 | 승인된 Python/core 환경에서 round22-preflight.py 종료0. 전체 고정 legacy 시설·동반5경로·7홈·영수증/6링크·서비스 구성 일치. 모든 turn lease0, 신선한 running/active_agents0·active_work 없음, 추가 영향 worker 없음 | round22-preflight-initial.json/log,round22-preflight.json |
+| 전용 장부 관측 | 고정 정책의 LegacyUpgrade.google_state 읽기 전용 의미 관측 통과. 이 관측을 전체 설치 승인으로 대체하지 않았고 실제 installer에서 전체 constructor·중지·mutex·CAS 재실행 | round22-preflight.json,round22-upgrade.log |
+| 새 별도 경로 staging | round22-operation.py stage 종료0. 세 압축 본문/모드/링크 일치, release/bundle validate-build 각0, 추출 정식 앱 strict deep 서명0 | round22-stage.log |
+| 앱 종료 | 기존 설치 앱의 NSRunningApplication.terminate 정상 종료0, 잔존 앱0. 강제 종료/보안 대화 조작 없음 | round22-quit.log,round22-app-control.swift |
+| 서비스 중단 | 메일 신호→gateway의 승인 bootout 각0, 두 job 부재와 관측한 서비스/자식 PID 실제 종료 확인. 최초 관측기 소켓 오인 종료2는 아래에 구분 | round22-stop.log,round22-confirm-stop.log |
+| 최초 전환 | 새 release/install/hejo-install --home <기존 홈> --upgrade-legacy 종료0/LEGACY_UPGRADED. 기존6링크만 새 release로 전환, installed 영수증·현재 checker 확인 | round22-upgrade.log |
+| 전체 bundle | 현재 checker의 bundle 검사0, 전체 bundle apply0, hejo-install --check0, hermes-plugin-store --check0(11연결) | round22-bundle.log |
+| 정식 앱 | 원래 앱 위치의 새 bundle 사전 서명0, 같은 볼륨 renamex_np/RENAME_SWAP 반환0, 실제 대상의 strict deep 서명0·전체 tree 일치. 교환된 이전 앱만 제거하고 앱 설정/키체인/로그인 항목은 쓰지 않음 | round22-app.log |
+| 재개 | gateway bootstrap0→새 process 시작/기존9플랫폼 모두 연결·ERROR/Traceback 없음 확인→메일 신호 bootstrap0·실행 확인→정식 앱 정상 실행0 | round22-resume-gateway.log,round22-resume-mail.log,round22-launch.log |
+| 최종 읽기 전용 상태 | 현재 gateway가 실제 로드한 Python 환경의 round22-runtime-check.py 종료0,63조건 통과. 서명/두 Google 구성 필드 존재·앱 실행·서비스2개 running·시설 일치 확인 | round22-runtime-check-command.json,round22-runtime-check.json/log |
+
+최종 관측 시각은 `2026-11-24T09:05:17.519534+00:00`다. 실제 Google OAuth·Workspace API 호출은 하지 않았다. 이후 사용자 직접 수락에서 변하는 계정/장부를 설치 당시 불변 관측과 혼동하지 않는다.
+
+### 보존과 최종 시설 식별
+
+현재 hejo 시설 SHA-256은 `fb9ee4189098b918216502a4aeb7ebda2855f1f9b346acf4feca88ef38eb8d65`, team-kit은 `c1b1a81e4dda23858ff0cb84e48432658ae06cf97bbc3e8b9305443d527ef5f0`, 설치 영수증은 `f43e439b71e01636f067a5e02bb23550d5e98a5a1a258fdb031b73c0ce66d3b9`, 현재 단일 checker는 `9813d5922227666b11556defb58086ef2ba263d25f6e8e8012e16a651dce076e`다. 실제 release/링크 대응·각 지원 선언·서비스 PID/시작·선별 환경·소스/후보 지문은 ignored 증거가 원본이다. 고정 소스 hejo632d0907d0dd2ccf665ecedb8fef268d157d5d5d/team0f0ab1fd489574a122323bc5c55d1c1fe0e3a4f2와 대응한다.
+
+owner 금고/명부/선택·권한 원본과 모든 config·Google 개인 장부/undo 지문을 보존했고 영구 기기 자격 파일 메타데이터도 유지했다. 자격 파일 원문을 읽거나 백업/복원하지 않았다. 미설치 홈의 hejo 링크는 계속 부재다. 전체 bundle의 원본/overlay/선택 스킬 조립과 links.json 검사는 실제 성공했다. 공식4도구의 배포 manifest 선언도 확인했다. 실계정 handler 호출과 계정 동의는 미실행이며 선언 존재를 실제 API 권한 행사/동의 성공으로 주장하지 않는다.
+
+### 관측기 오류와 환경의 구분
+
+첫 사전 관측은 일반 python3에 CONFIG reader 경로가 없어 INVALID_LEGACY_GOOGLE_CONFIG로 종료2였다. 승인안에 이미 지정된 실행 Python/core 환경으로 바꾼 실제 사전 검사는0이었다. 서비스 중단 뒤에는 정상 LocalIngress.stop이 제거한 post.sock을 보호 데이터에 포함한 관측기가 종료2를 냈다. 원래 stop 명령 각0·job 부재·자식 종료 및 차이가 소켓 하나임을 확인하고 기존 소스의 inode 확인 후 unlink 책임과 대조했다. 소켓을 직접 지우지 않았으며 원래 실패 기록을 유지한 confirm-stop 읽기 검사0 후 다음 단계로 진행했다. 중단 명령은 반복하지 않았다.
+
+gateway 정상 시작에서는 기존 AuthStore.local_code가 일회용 pairing/local-pair 파일을 회전했다. 설치/앱 교체 직전까지는 메타데이터도 원래와 같았고, 재개 후 파일 원문을 열지 않고 일반 파일/0600 유지 및 나머지 영구 자격 보존을 확인했다. 정상 수명 변화와 수동 자격 덮어쓰기를 구분한다. 이 관측기 범위 보완은 제품/정책의 단언 완화나 불확실 중단 상태 삭제가 아니다.
+
+재개 뒤 기록된 과거 HEJO_PYTHON 경로가 없어져 최종 검사 명령은 셸 종료127이었다. 일반 Python의 추가 관측은 pairing 수명 오인으로 종료1, 이어 ruamel 의존 부재로 종료1이었다. 이 실패들을 보존하고 실제 gateway가 로드 중인 유일한 관리 환경의 존재를 읽기 전용 확인한 후 그 Python과 기존 core 경로로 최종63검사를 실행해0이었다. 기존 설치 ID는 같지만 환경 경로가 달랐고 바뀐 원인은 미확정이다. 에이전트는 런타임 환경/본체를 설치·수정하지 않았다. 후속 점검/조건부 복구 때 사라진 과거 Python 경로를 재사용하지 않고 실행 시점의 정상 환경을 확인해야 한다.
+
+서비스/설치 자체의 실패나 시설/사용자 데이터 불일치는 없었으므로 조건부 복구는 실행하지 않았다. hub 재시작·미설치 프로필 편입·실제 메시지 명령·자동 실계정 동의·git push는 미실행이다. 기존 커밋을 바꾸지 않고 결과 보고2개와 ignored 증거/로컬 인계만 갱신했다. 사용자에게 대상 직원의 이메일 제거/연결 버튼→다른 계정 선택·직접 동의→새 표시·연결 확인→다른 직원 불변의 GD-T19를 요청했고 당시 결과를 기다렸다. 이후 사용자 네 항목 확인 결과는 위 수락 절에 기록했다. 실제 이메일/토큰/메일 본문은 요청하지 않는다. 사용자 GD-T19는 위 응답으로 충족됐으며 TASK07 명세 승격·최종 검토·문서 커밋/푸시 승인 후속 단계는 남는다.
 
 ## 왕복21 — LegacyUpgrade 전용 완료 disconnect 판정
 
@@ -610,13 +666,13 @@ team의 기존 상위 conftest는 운영과 같은 값의 명부/금고 fixture�
 
 | AC | 증거/처분 |
 |---|---|
-| REQ-GD-01.AC-01 | GD-T01/17: CLI/목록 투영·기존 모델 증거 유지. IR-1 실제 AppKit 상세/목록의 이메일 제거·연결 버튼·재조회 증거 추가. 실계정은 미확인 |
+| REQ-GD-01.AC-01 | GD-T01/17: CLI/목록 투영·기존 모델 증거 유지. IR-1 실제 AppKit 상세/목록의 이메일 제거·연결 버튼·재조회 증거 추가. 이후 GD-T19에서 사용자 이메일 제거/연결 버튼 확인 |
 | REQ-GD-01.AC-02 | GD-T01/02: 취소·재인증 거절 불변, 전용 자격 삭제/legacy 해제. 수준2 증거 |
 | REQ-GD-01.AC-03 | GD-T03/20: 소비자·조립/스킬·worker·실제 sandbox/공식 도구 경계. 수준2 증거 |
-| REQ-GD-02.AC-01 | GD-T04: 실제 OAuth 라이브러리 대역의 계정 선택/신원 검증. 실제 계정 선택은 미실행 |
+| REQ-GD-02.AC-01 | GD-T04: 실제 OAuth 라이브러리 대역의 계정 선택/신원 검증. 이후 GD-T19에서 사용자 다른 계정 선택·직접 동의 확인 |
 | REQ-GD-02.AC-02 | GD-T05/17: 취소·만료·권한/신원/저장 실패와 AppKit 만료 대역. 실환경 미확인 |
 | REQ-GD-02.AC-03 | GD-T06/07: state/PKCE·세대·기기/직원별 poll/cancel·늦은 응답. 수준2 증거 |
-| REQ-GD-03.AC-01 | GD-T08: 다른 직원/회사/공용 자격 지문과 company/legacy 회귀. 실제 계정 불변은 미확인 |
+| REQ-GD-03.AC-01 | GD-T08: 다른 직원/회사/공용 자격 지문과 company/legacy 회귀. 이후 GD-T19에서 사용자 다른 직원 연결 유지 확인 |
 | REQ-GD-03.AC-02 | GD-T09/20: SDK24명령·실제 등록→승인→handler/worker·조립, 기존 제한을 보존. 수준2 증거 |
 | REQ-GD-03.AC-03 | GD-T10: 권한/배경·단건/계획 승인·저장 대기·메일/Calendar undo의 옛 binding 거절. 이번 Calendar 회귀 보완 |
 | REQ-GD-04.AC-01 | GD-T11/12: 기존 인증 저장 단계 프로세스 종료·CAS/lease, 이번 복구 삽입/잠금 경합·I/O 복구. 배포 강제 종료 자동 복구는 위 한계 |
@@ -625,9 +681,9 @@ team의 기존 상위 conftest는 운영과 같은 값의 명부/금고 fixture�
 | NFR-GD-01.AC-01 | GD-T15/20: 기존 권한/경로·도구 보호 증거 유지. 승인된 공개 값 정리와 최신 격리/canonical 전체 검사0. Terra checkpoint-10 최종 재검토에서 IR-1 해소 |
 | NFR-GD-02.AC-01 | GD-T16: 임시 홈/가짜 데이터·외부 API 금지, 82+156+2와 gate87/설치124. 기존 hejo 전체522·후속13fixture 증거 유지. 이번 기본9/불완전 응답/Google 시트 통과. GUI 준비 후 원본 연결 전체·연결 관리 종료0, 기존 HC27/CM35 실패 해소. 왕복15 고정 후속 원본에서도 재현된 Notion12실패 처분이 남으며 전체 team 통과를 주장하지 않음 |
 | REQ-GD-05.AC-01 | GD-T17/18: 앞선 화면 증거 유지. 왕복11의 노출된 창 닫기 버튼·전송 불가/재열기·늦은 응답 보호와 기존 취소 회귀 통과. 실제 늦은 poll 안내 결함 수정. Terra checkpoint-10 최종 재검토에서 IR-1 해소, GD-T19 별개 |
-| REQ-GD-05.AC-02 | GD-T19: 미실행. 별도 운영 인계 승인 뒤 사용자가 실계정 교체와 다른 직원 불변을 확인해야 함 |
+| REQ-GD-05.AC-02 | GD-T19: 사용자 직접 수락 통과. 네 항목 모두 확인 응답, 실제 계정 정보 미수집. 에이전트 독립 실계정 관측은 아님 |
 
-요구된 네 결함 주입은 아래 별도 격리 실행으로 확인했다. 고위험 Terra 독립 검토는 checkpoint-10에서 수용됐으며 최종 제품 수락·현재 명세 반영·운영 적용/사용자 OAuth/화면 푸시 승인은 미완료다. 기획/검토 담당이 공개 검사/UI 최신 증거와 나머지 증거 한계를 처분한 뒤 TASK-06 운영 인계를 준비한다. 구현자는 운영/푸시를 실행하지 않는다.
+요구된 네 결함 주입과 기존 독립 검토 증거는 유지한다. 최신 운영 적용은 왕복22에서 성공했고 GD-T19 네 항목은 사용자 직접 확인으로 통과 기록했다. 현재 명세 반영·최종 판정은 기획/검증 소유이며 최신 문서 커밋과 화면 푸시 승인은 아직 수행하지 않았다.
 
 
 ## 최종 추가 증거
