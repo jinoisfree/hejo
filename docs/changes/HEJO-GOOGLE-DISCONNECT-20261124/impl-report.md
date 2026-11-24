@@ -2,7 +2,7 @@
 
 ## 현재 판단과 범위
 
-**왕복19 지정 시험 통합·지원 식별 갱신 검증 제출.** 고정3adfa6c9의 지정5시험만 통합하고 운영 전체 기준은 고정8bf1ef46에서 재현했다. 관련4파일296경우와 Google/Notion 통합13경우가 통과했고 이전12실패 노드도 각각 통과했다. 실행 제품 코드·앱·검사 강도는 바꾸지 않았다. 최초 전환→전체 bundle 및 거절/CAS/복구 표적7경우도 통과했다. 전체 team 성공을 주장하지 않는다. 전달/복구 후보와 후속 커밋·읽기 전용 시설 대조 결과는 왕복19 최종 증거에 고정하며 실제 운영 적용은 검토 뒤로 남긴다.
+**왕복19 지정 시험 통합·지원 식별 갱신 검증 제출.** 고정3adfa6c9의 지정5시험만 통합하고 운영 전체 기준은 고정8bf1ef46에서 재현했다. 관련4파일296경우와 Google/Notion 통합13경우가 통과했고 이전12실패 노드도 각각 통과했다. 실행 제품 코드·앱·검사 강도는 바꾸지 않았다. 최초 전환→전체 bundle 및 거절/CAS/복구 표적7경우도 통과했다. 전체 team 성공을 주장하지 않는다. 후속 소스 커밋·새 전달/복구 지문을 고정하고 읽기 전용 시설 대조도 일치했다. 실제 운영 적용은 갱신 후보 검토 뒤로 남긴다.
 
 원래 목표는 해당 직원 Google 개인 연결·이메일·전용 자격을 제거하고 다음 연결에서 계정을 선택하는 것이다. 기존 금고 원본과 전용 저장 배치, 공식 도구 4개, gate/AppKit 구현을 보존했다. 본체·ddots·sandbox 정책·운영 비밀 파일·Paseo 상태 JSON·계획/수락 명세 Markdown은 변경하지 않았다. 기존 구현을 유지하며 왕복11에서 인증 시트의 명시적 닫기 동작과 취소된 폴링의 응답 후 보호, 해당 표적 시험을 보완했다. 원래 폴더의 다른 작업도 보존했다. 구현 소유 보고·배포 인계와 [명령 대응표](workspace-command-map.md)를 canonical 폴더에서 관리한다.
 
@@ -13,11 +13,20 @@
 | hejo | `236b0177468b90d9ea23a1b1190e996db78a0694` | `role-workflow/google-disconnect-c20a9994` | `.build/google-disconnect-work/hejo` |
 | 운영 저장소 | `4bbc16ddba02236fe4645ab7244603c44a78af91` | `role-workflow/google-disconnect-c20a9994` | `.build/google-disconnect-work/team` |
 
-경로는 원래 작업 폴더 기준이다. 위 표는 구현 전 기준이며 현재 실행 소스 커밋은 hejo `09a5d31db54620814203fc079f706501b2b92bb0`, 운영 저장소 `1af03d46dabdbe49f4e3ef3ca92aaaf2b321371d`다. 제품·시험은 source-checkpoint-13.log와 같고 최종 변경 집합은 hejo54/team88파일이다. canonical 최신 검토 문서4개와 구현 보고/배포 인계2개만 전달 준비에서 갱신했다. 왕복17 앱 빌드 소스는 hejo ac4643abdbe05be788ebbb31ece600cd808cf8de의 clean 상태다. 왕복17 고정 파일 지문은 source-checkpoint-15.log와 round17-closure.json이다. 이번 왕복18 중단 보고는 같은 HEAD 위의 문서2개 미커밋 변경이며 source-checkpoint-16.log와 round18-final-check.json에 기록한다. 제품/시험/지원 선언과 시설/앱 실행 소스는 그대로다. 기존 커밋을 amend/rebase/pull/merge하지 않았다.
+경로는 원래 작업 폴더 기준이다. 위 표는 구현 전 기준이며 현재 시설 실행 소스는 hejo `1daf09e086afcf2b2b415cae8ab32b2af4c6fcc8`, team `0f0ab1fd489574a122323bc5c55d1c1fe0e3a4f2`다. 앱 소스/압축은 왕복17의 hejo ac4643abdbe05be788ebbb31ece600cd808cf8de 그대로다. 기존 커밋을 수정하지 않고 후속 커밋했다. 최종 범위는 hejo54/team93파일이며 checkpoint16 대비 제품 로직/단일 검사기·허용 경로/앱은 불변, 지정5시험과 지원 선언2개 및 작업 문서만 갱신했다. 후속 문서 HEAD/clean·최종 파일별 지문은 round19-closure.json과 source-checkpoint-17.log에 고정한다.
 
 ## 왕복19 — 승인된 시험 보존과 고정 시설 식별 갱신
 
 checkpoint16의 두 HEAD/142파일 및 기존 미커밋 보고2개를 보존한 뒤 tasks 왕복19를 실행했다. 시험 출처는3adfa6c9c1ffcb794f73cfb56a0cea2b04363acb이며 지정 helper와4시험5본문만 반영했다. 해당5본문이8bf1ef46d12aae051b61e07d6632a08a6bb95831과 같은 것도 대조했다. 두 커밋 사이의 다른6제품/시험 경로는 checkpoint16 그대로 보존했다. 전체 merge/pull/rebase/reset이나 다른 작업의 main/푸시는 실행하지 않았다.
+
+
+선택 통합 파일은 다음5개이며 고정 Git 원문 그대로다.
+
+- `hermes/plugin-store/team-kit/tests/hna_connections.py`
+- `hermes/plugin-store/team-kit/tests/test_app_scope.py`
+- `hermes/plugin-store/team-kit/tests/test_hna.py`
+- `hermes/plugin-store/team-kit/tests/test_hna_r1.py`
+- `hermes/plugin-store/team-kit/tests/test_notion.py`
 
 기존 단일 정책/installer는 불변이다. hejo legacy 선언과 team predecessor의 전체 기준만 고정8bf1ef46의 Git archive에서 재현했다. hejo 고정 출처 a3df84e48fae8b36c27a572a5ee36247cc46acf3는 그대로다. 기준 kit 식별은26dbd3ced1ae525f91a2cf5bf62a4c7403f95bfbeadda73036ed5eac352244b2, 시험 보존 candidate는c1b1a81e4dda23858ff0cb84e48432658ae06cf97bbc3e8b9305443d527ef5f0다. 허용 경로/지원 버전/검사 강도를 바꾸거나 운영 바이트로 즉석 허용 목록을 만들지 않았다.
 
@@ -32,7 +41,13 @@ JUnit에서 이전12노드의 현재 정확한 이름을 각각 찾아 모두 �
 
 초기 준비 실패를 보존한다. 첫 실행은 러너가 기존 pytest 의존 경로를 누락해 pytest 시작 전에 종료1이었고 JUnit 부재를 읽다가 driver도 종료1이었다. 다음 실행은308통과/Google 조립1실패였다. 납작한 임시 kit 사본이 형제 team-delegation과 원래 team-kit 경로를 빠뜨려 실제 조립을 못 한 시험 환경 문제였다. 원래 plugin-store 계층의 사본으로 보완한 최종 실행에서309개가 모두 통과했다. 제품/기대값 수정·skip·새 의존성 설치는 하지 않았다. 기존 conftest의 쓰기 대상은 사본 fixture와 임시 홈으로 격리했고 실행 뒤 worktree kit 지문 불변을 확인했다.
 
-실제 source 커밋·새 hejo/team/전체 복구·manifest 식별과 읽기 전용 사전 검사 결과는 round19 최종 JSON/로그와 [배포 인계](deployment-handoff.md)에 고정한다. 정식 앱은 round17 압축0ef168c84e8109755c6cc2aeca4e82495a8b86855948b8a597a5d76ccc8211fa를 그대로 재사용하며 재빌드/재서명하지 않는다. 이전 후보/실패 증거는 보존한다. 기존 운영 승인 대상/중단·재개 범위는 확대하지 않으며 이번 보완에서는 운영 쓰기·서비스 중단·실계정·메시지·푸시를 실행하지 않는다. 적용 재개·GD-T19·TASK07은 갱신 후보 검토 뒤 단계다.
+시설 소스 커밋은 hejo `1daf09e086afcf2b2b415cae8ab32b2af4c6fcc8`, team `0f0ab1fd489574a122323bc5c55d1c1fe0e3a4f2`다. 각각7/6파일의 stage blob·허용 범위·diff를 확인하고 로컬 커밋했으며 team 사전 hook의 snapshot airport-check는 boundary80/document0/compartments0 PASS였다. 실제 argv/cwd/종료 코드는 round19-commit-{hejo,team}.json/log에 있다.
+
+후보는 `.build/google-disconnect-delivery/1daf09e086af-0f0ab1fd4895-round19`다. manifest SHA-256은 `608770d33dbf3e10e2b6969ddb2359f072f1e65897541d5ac225ca7c48fbad9e`, 전체 복구 manifest SHA-256은 `7a339e1ebc61e99fcd07256bbe25562c9a2d0eb5442d0c4c1767606bb9261702`다. 실제 release/전체 bundle 압축 왕복·지원 검사와 정식 앱 동일성/추출 서명은 round19-package.py 종료0이다. 앱 압축0ef168c84e8109755c6cc2aeca4e82495a8b86855948b8a597a5d76ccc8211fa는 바이트 그대로 재사용했고 재빌드/재서명하지 않았다. 이전 후보와 실패 증거도 불변이다. [배포 인계](deployment-handoff.md)에 새 파일 SHA·동일 지원 복구 범위·기존 유지보수 승인 범위를 기록했다.
+
+round19-readonly.py 종료0으로 새 전달/복구 지문과 고정 소스를 확인하고 실제 전체 legacy 시설·동반5경로·홈 집합·영수증/기존6링크·checker 부재·서비스 plist2개 일치를 확인했다. 운영 금고/자격과 현재 작업/인증 유휴·gateway/worker 중지 상태는 읽거나 확인하지 않았다. 운영 시설이 현재 고정 Git 출처와 일치한다는 증거이며 운영 실행 준비 완료를 뜻하지 않는다. 실제 개인 대상/중단·재개 argv와 새 식별의 승인안은 ignored round19-approval-proposal.json에 있다. 기존 운영 승인 범위는 유지하고 이번 보완에서는 운영 쓰기·서비스 중단·실계정·메시지·푸시를 하지 않았다. 재개는 새 후보 검토 뒤다.
+
+보고 갱신 뒤 가짜 owner 입력의 일반 공개 검사·문서/선언·범위/파일 지문·후속 문서 커밋·clean 확인은 round19-closure.json/log 및 source-checkpoint-17.log에 고정한다. 실제 운영 owner 개인값 검사는 새로 수행하지 않았고 이 한계를 유지한다. 관련4파일/Google 통합의309경우와 최초 전환 표적7경우 외 무변경 전체 UI/team 회귀는 반복하지 않았다. 사용자 직접 GD-T19·TASK07·최종 푸시는 남는다.
 
 ## 왕복18 — 승인된 운영 적용의 사전 검사 중단
 
