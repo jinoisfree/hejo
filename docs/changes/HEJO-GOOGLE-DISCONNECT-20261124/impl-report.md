@@ -2,7 +2,7 @@
 
 ## 현재 판단과 범위
 
-**왕복16 전달 준비 제출.** checkpoint13 제품/시험과 Terra 왕복16 독립 수용을 보존하고 최신 검토 문서·후속 로컬 소스 커밋·불변 앱/hejo/bundle/같은 지원 버전 복구 후보를 고정했다. 기존 Notion12실패는 원인 미확정의 기존 불일치로 남기며 기대값/skip을 바꾸거나 전체 team 성공을 주장하지 않는다. 운영·실계정·재시작·메시지·푸시는 실행하지 않았다. 운영용 앱 구성 결정과 사용자 GD-T19·TASK07은 남는다.
+**왕복17 정식 앱 빌드·전달 고정 제출.** 사용자가 승인한 기존 입력과 기존 build.sh로 정식 빌드했고 Google 앱 로그인 두 필드 존재·서명·압축 추출·실제 Bundle 안내 조회를 검증했다. 제품/시험을 수정하지 않았고 기존 hejo/team 압축과 지원 선언은 그대로 재사용했다. 기존 Notion12실패는 원인 미확정 기존 불일치로 유지한다. 운영·실계정·재시작·메시지·푸시는 실행하지 않았다. 운영 승인·GD-T19·TASK07과 이번 전달 결과 검토가 남는다.
 
 원래 목표는 해당 직원 Google 개인 연결·이메일·전용 자격을 제거하고 다음 연결에서 계정을 선택하는 것이다. 기존 금고 원본과 전용 저장 배치, 공식 도구 4개, gate/AppKit 구현을 보존했다. 본체·ddots·sandbox 정책·운영 비밀 파일·Paseo 상태 JSON·계획/수락 명세 Markdown은 변경하지 않았다. 기존 구현을 유지하며 왕복11에서 인증 시트의 명시적 닫기 동작과 취소된 폴링의 응답 후 보호, 해당 표적 시험을 보완했다. 원래 폴더의 다른 작업도 보존했다. 구현 소유 보고·배포 인계와 [명령 대응표](workspace-command-map.md)를 canonical 폴더에서 관리한다.
 
@@ -13,7 +13,25 @@
 | hejo | `236b0177468b90d9ea23a1b1190e996db78a0694` | `role-workflow/google-disconnect-c20a9994` | `.build/google-disconnect-work/hejo` |
 | 운영 저장소 | `4bbc16ddba02236fe4645ab7244603c44a78af91` | `role-workflow/google-disconnect-c20a9994` | `.build/google-disconnect-work/team` |
 
-경로는 원래 작업 폴더 기준이다. 위 표는 구현 전 기준이며 현재 실행 소스 커밋은 hejo `09a5d31db54620814203fc079f706501b2b92bb0`, 운영 저장소 `1af03d46dabdbe49f4e3ef3ca92aaaf2b321371d`다. 제품·시험은 source-checkpoint-13.log와 같고 최종 변경 집합은 hejo54/team88파일이다. canonical 최신 검토 문서4개와 구현 보고/배포 인계2개만 전달 준비에서 갱신했다. 최종 파일별 지문은 source-checkpoint-14.log에 고정한다. 후속 문서 HEAD/전체 변경 집합/clean 상태는 round16-closure.json에 고정하며 실행 소스와 구분한다. 기존 커밋을 amend/rebase/pull/merge하지 않았다.
+경로는 원래 작업 폴더 기준이다. 위 표는 구현 전 기준이며 현재 실행 소스 커밋은 hejo `09a5d31db54620814203fc079f706501b2b92bb0`, 운영 저장소 `1af03d46dabdbe49f4e3ef3ca92aaaf2b321371d`다. 제품·시험은 source-checkpoint-13.log와 같고 최종 변경 집합은 hejo54/team88파일이다. canonical 최신 검토 문서4개와 구현 보고/배포 인계2개만 전달 준비에서 갱신했다. 왕복17 앱 빌드 소스는 hejo ac4643abdbe05be788ebbb31ece600cd808cf8de의 clean 상태다. 최신 파일별 지문은 source-checkpoint-15.log, 후속 문서 HEAD/전체 변경 집합/clean 상태는 round17-closure.json에 고정하며 시설/앱 실행 소스와 구분한다. 기존 커밋을 amend/rebase/pull/merge하지 않았다.
+
+## 왕복17 — 승인된 기존 입력으로 정식 앱 빌드
+
+checkpoint14의142파일·hejo HEAD ac4643abdbe05be788ebbb31ece600cd808cf8de·team HEAD 1af03d46dabdbe49f4e3ef3ca92aaaf2b321371d 및 clean을 먼저 확인했다. 제품/시험/지원 선언을 바꾸지 않았다. 원래 작업 폴더의 기존 빌드 입력은 존재했고, 격리 worktree에는 자격 파일을 복사하지 않았다. 빌드 도구 안에서만 기존 입력을 소비해 HEJO_GOOGLE_CLIENT_SECRET 자식 환경으로 전달했다. 값·전체 환경·Info.plist 원문은 출력/추적하지 않았다. 운영 비밀은 열지 않았다.
+
+| 실행 | 실제 결과 | ignored 근거 |
+|---|---|---|
+| python3 -B round17-build-intake.py | 종료0. 두 HEAD/142파일·clean·빌드 입력 가용성 메타데이터 확인 | round17-build-intake.json/log |
+| HEJO_PYTHON -B round17-build.py → bash app/scripts/build.sh | 종료0. skip 변수 제거, 기존 승인 입력, 정식 빌드/서명 성공. 원본 구성 두 필드 존재=true. BuildInfo dirty=false | round17-build.json/log |
+| HEJO_PYTHON -B round17-package.py → test_help_package.py --verify-existing --artifact-out | 종료0. 시험 전후 실행 파일/Info.plist 불변, 실제 압축 추출 strict 서명·HooksHelp Bundle 조회·원문 일치. 추출본 두 필드 존재=true | round17-package.log,round17-package-driver.log,round17-artifacts.json |
+
+시험 기본 모드는 비밀 제외 재빌드를 수행하므로 실행하지 않았다. --verify-existing 안의 시험용 환경 플래그는 빌드를 호출하지 않았고 기존 정식 앱의 지문/두 필드를 유지했다. 빌드 출력은 도구에서 수집해 입력값이 진단에 섞이면 기록 전에 제거하도록 했으며 실제 redactedDiagnostic=false였다. 입력 자체의 별도 내용/비밀 지문은 수집하지 않았다. 새 앱 BuildInfo는 clean tree `2347cb9a389c96bbbca9c9c3f3ded09d66837a28`다.
+
+후보는 `.build/google-disconnect-delivery/ac4643abdbe0-1af03d46dabd-configured-round17`이며 manifest SHA-256은 `66712741c306079ca9a930732893a53f57adcf0d32f932159294637942233539`다. 새 앱 압축 SHA-256은 `0ef168c84e8109755c6cc2aeca4e82495a8b86855948b8a597a5d76ccc8211fa`다. 동일 앱을 포함한 전체 지원 복구 manifest SHA-256은 `7d36a565d85644ba116deae8a3742666904c3fd505ac2a2cfc55deab4abd0817`다. 기존 hejo/team 압축은 왕복16 SHA와 같은 바이트를 재사용했고 이전 후보는 불변이다. 시설 소스 두 커밋은 왕복16 값이며 앱 빌드 소스는 위 hejo clean 커밋으로 구분한다.
+
+최신 검토 문서는 보호 원문 그대로 후보에 반영했다. 실제 경로·기존 서비스 stop/resume argv·앱 구성 보완이 반영된 승인안은 ignored round17-approval-proposal.json에 있고 [배포 인계](deployment-handoff.md)에 공개용 절차/지문/한계를 갱신했다. 후속 문서만 로컬 커밋하고 최종 전체 범위·clean·소스/압축 지문·문서/AC16행·공개 검사 결과는 round17-closure.json/log와 source-checkpoint-15.log에 기록한다.
+
+두 구성 필드의 존재는 실제 Google 로그인/허브 audience 일치/실계정 동의 성공 증거가 아니다. 실제 로그인·사용자 GD-T19·운영 적용/재시작·메시지·업데이트 게시/원격 조회·푸시는 미실행이다. 구성 결정은 승인된 정식 빌드로 보완했고 운영 승인은 여전히 필요하다. Notion12실패의 코드/기대값/skip과 이전 전체 회귀 결과는 불변이며 무변경 전체 UI/회귀는 반복하지 않았다. 이번 공개 검사는 가짜 owner 입력의 일반 개인값 범위이고 실제 운영 명부/금고 검사를 새로 수행하지 않았다.
 
 ## 왕복16 — 검토된 통합본의 전달 고정
 
