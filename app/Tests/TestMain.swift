@@ -32,7 +32,21 @@ final class MemoryCredentials: GateCredentialStore {
         Task { @MainActor in
             do {
                 let args = CommandLine.arguments
-                if args.contains("--connection-stuck-probe") {
+                if args.contains("--hejo-reconnect-boundaries") {
+                    #if HEJO_PERF_TESTING && !HEJO_RECONNECT_BASELINE
+                    try await hejoReconnectBoundaries()
+                    #else
+                    throw TestFailure.assertion("boundary build required")
+                    #endif
+                } else if args.count >= 5 && args[1] == "--hejo-reconnect-boundary-socket" {
+                    #if HEJO_PERF_TESTING && !HEJO_RECONNECT_BASELINE
+                    try await hejoReconnectBoundarySocket(args)
+                    #else
+                    throw TestFailure.assertion("boundary build required")
+                    #endif
+                } else if args.count >= 4 && args[1] == "--hejo-reconnect" {
+                    try await hejoReconnect(args)
+                } else if args.contains("--connection-stuck-probe") {
                     try await connectionStuckReproduction()
                 } else if args.contains("--connection-stuck") {
                     try await connectionRestartTests(outputDirectory:args.last=="--connection-stuck" ? nil:URL(fileURLWithPath:args.last!))
@@ -191,6 +205,9 @@ final class MemoryCredentials: GateCredentialStore {
     func unit() async throws {
         #if HEJO_PERF_TESTING
         try await hejoPerfRegressionTests()
+        #if !HEJO_RECONNECT_BASELINE
+        try await hejoReconnectBoundaries()
+        #endif
         #endif
         try await petPositionTests(resourceDirectory:URL(fileURLWithPath:CommandLine.arguments.last!))
         try await telegramTests()

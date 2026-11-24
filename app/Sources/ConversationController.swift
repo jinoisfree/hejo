@@ -244,20 +244,22 @@ struct ConversationFailedSend: Identifiable {
     var onChange: (() -> Void)?
     private var updateDepth = 0
     private var changePending = false
+    private var historyChangePending = false
     var isUpdating: Bool { updateDepth > 0 }
-    /// Only explicit synchronous UI transactions coalesce notifications. Other callers
-    /// retain immediate delivery, including model/member-state side effects.
-    func performUpdates(_ updates: () -> Void) {
+    /// History frames can defer only their presentation. Explicit transactions and all
+    /// other callers still deliver synchronously, including model/member-state effects.
+    func performUpdates(deferringHistory: Bool = false, _ updates: () -> Void) {
         updateDepth += 1
         updates()
         updateDepth -= 1
-        if updateDepth == 0 && changePending {
+        if updateDepth == 0 && (changePending || historyChangePending) {
             changePending = false
-            onChange?()
+            if deferringHistory { historyChangePending = true }
+            else { historyChangePending = false; onChange?() }
         }
     }
     func notifyChange() {
-        if isUpdating { changePending = true } else { onChange?() }
+        if isUpdating { changePending = true } else { historyChangePending = false; onChange?() }
     }
     var onConnectionsFrame: (([String:Any])->Void)?
     var onRevealThread: ((ConversationKey)->Void)?
@@ -346,9 +348,12 @@ struct ConversationFailedSend: Identifiable {
     // Presentation delivery pauses, while the gate keeps its authenticated socket and durable replay cache.
     private var pausedFrames: [[String: Any]] = []
     func setPaused(_ value: Bool) {
-        guard paused != value else { return }; paused = value
-        if !value { let frames = pausedFrames; pausedFrames = []; for frame in frames { receive(frame) } }
-        notifyChange()
+        guard paused != value else { return }
+        performUpdates {
+            paused = value
+            if !value { let frames = pausedFrames; pausedFrames = []; for frame in frames { receive(frame) } }
+            notifyChange()
+        }
     }
     private var replicaAddress: String
     private var timer: Timer?
@@ -370,20 +375,24 @@ struct ConversationFailedSend: Identifiable {
         client.onFrame = { [weak self] frame in self?.receive(frame) }
         timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                guard let self, !self.paused else{return}
-                self.pollDeadlines()
-                let old=(self.confirmingDelete.count,self.interruptions.count,self.branching.count)
-                self.model.expireTyping()
-                let now=self.clock();self.confirmingDelete=self.confirmingDelete.filter{now.timeIntervalSince($0.value)<4}
-                self.interruptions=self.interruptions.filter{key,at in self.working(key) && !self.model.timeline(key).contains{$0.role=="employee" && ThreadTools.date($0.timestamp)>at}}
-                self.branching=self.branching.filter{now.timeIntervalSince($0.value)<6}
-                if old != (self.confirmingDelete.count,self.interruptions.count,self.branching.count) {self.notifyChange()}
+                self?.pollUpdates()
             }
         }
     }
     deinit { timer?.invalidate() }
+    /// The existing half-second tick also delivers history when arrivals stall.
+    func pollUpdates() {
+        guard !paused else{return}
+        pollDeadlines()
+        let old=(confirmingDelete.count,interruptions.count,branching.count)
+        model.expireTyping()
+        let now=clock();confirmingDelete=confirmingDelete.filter{now.timeIntervalSince($0.value)<4}
+        interruptions=interruptions.filter{key,at in working(key) && !model.timeline(key).contains{$0.role=="employee" && ThreadTools.date($0.timestamp)>at}}
+        branching=branching.filter{now.timeIntervalSince($0.value)<6}
+        if historyChangePending || old != (confirmingDelete.count,interruptions.count,branching.count) {notifyChange()}
+    }
     func receive(_ frame: [String: Any]) {
-        performUpdates { receiveFrame(frame) }
+        performUpdates(deferringHistory: frame["seq"] is Int && client.hasPendingHistory) { receiveFrame(frame) }
     }
     private func receiveFrame(_ frame: [String: Any]) {
         let kind=frame["type"] as? String

@@ -1,0 +1,5 @@
+{
+  "base_commit": "3b0006179eef606ba3f3bf1de5230e8338f9cea7",
+  "expected_sha256": "8dde229e87e08924ff64d7f80931a9278709a4f5109e30cd132b3e08a4cd60d2",
+  "normalization": "Only final values and cache byte hash; no random failure IDs or wall-clock state metadata."
+}

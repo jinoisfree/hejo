@@ -40,6 +40,9 @@ struct ReconnectDelay {
     private var backoff = ReconnectDelay()
     private var syncing = false
     private var welcomed = false
+    /// The server's known journal head belongs to this connection, never the cache.
+    private var knownHead: Int?
+    var hasPendingHistory: Bool { knownHead.map { $0 > store.settings.applied } ?? false }
     private(set) var replayComplete = false
     private(set) var connectionEpoch = 0
     private(set) var status = ConnectionStatus.disconnected(0) { didSet { onStatus?(status) } }
@@ -55,6 +58,11 @@ struct ReconnectDelay {
               parts.user == nil, parts.password == nil, parts.query == nil, parts.fragment == nil,
               parts.path.isEmpty || parts.path == "/" || parts.path == "/v1/ws" else { throw GateFailure.badAddress }
         parts.path = "/v1/ws"; guard let url = parts.url else { throw GateFailure.badAddress }; return url
+    }
+    private static func headSequence(_ value: Any?) -> Int? {
+        // JSON booleans bridge to NSNumber/Int too; they are not journal heads.
+        guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
+        return number as? Int
     }
     static func encoded(_ frame: [String: Any]) throws -> String {
         let data = try JSONSerialization.data(withJSONObject: frame, options: .sortedKeys)
@@ -98,7 +106,7 @@ struct ReconnectDelay {
     func stop() {
         generation += 1; worker?.cancel(); worker = nil
         socket?.cancel(with: .goingAway, reason: nil); socket = nil; pairCode = nil; signInFields = nil; token = nil
-        telegram.reset()
+        knownHead = nil; telegram.reset()
         backoff.reset(); welcomed = false; syncing = false; replayComplete = false
     }
     private func connectLoop(run: Int) async {
@@ -110,6 +118,7 @@ struct ReconnectDelay {
         guard run == generation else { return }
         guard pairCode != nil || signInFields != nil || token != nil else { status = .revoked; return }
         while !Task.isCancelled && run == generation {
+            knownHead = nil
             status = .connecting; welcomed = false; syncing = false; replayComplete = false
             do {
                 let url = try Self.endpoint(store.settings.address)
@@ -134,7 +143,7 @@ struct ReconnectDelay {
                 }
             } catch {
                 guard run == generation, !Task.isCancelled else { return }
-                welcomed = false; telegram.reset()
+                knownHead = nil; welcomed = false; telegram.reset()
                 if socket?.closeCode.rawValue == 1009 { status = .tooLarge }
                 if error is GateFailure { // Durable storage/protocol failures must not spin on reconnect.
                     if case GateFailure.storage = error { status = .storageError; return }
@@ -155,6 +164,7 @@ struct ReconnectDelay {
         }
         switch type {
         case "welcome":
+            knownHead = Self.headSequence(frame["head_seq"])
             if let issued = frame["token"] as? String {
                 let keychain = credentials, account = store.settings.credentialAccount
                 let saved = await Task.detached { keychain.save(issued, account: account) }.value
@@ -163,20 +173,21 @@ struct ReconnectDelay {
                 token = issued; pairCode = nil; signInFields = nil
             }
             welcomed = true; connectionEpoch += 1; replayComplete = false; backoff.reset(); status = .connected
-        case "pair_rejected": pairCode = nil; signInFields = nil; rejection = frame["reason"] as? String; status = .wrongCode; return false
+        case "pair_rejected": knownHead = nil; pairCode = nil; signInFields = nil; rejection = frame["reason"] as? String; status = .wrongCode; return false
         case "auth_rejected":
             guard frame["reason"] as? String == "revoked" else {throw GateFailure.protocolError}
             let keychain = credentials, account = store.settings.credentialAccount
             await Task.detached { keychain.delete(account: account) }.value
             if let run, run != generation { return false }
-            token = nil; status = .revoked; return false
+            knownHead = nil; token = nil; status = .revoked; return false
         case "message", "edit", "delete", "state":
             guard let seq = frame["seq"] as? Int, seq > 0 else { throw GateFailure.protocolError }
             if seq <= store.settings.applied { return true }
-            if seq > store.settings.applied + 1 { replayComplete = false; if !syncing { syncing = true; try await sync() }; return true }
+            if seq > store.settings.applied + 1 { knownHead = max(knownHead ?? seq, seq); replayComplete = false; if !syncing { syncing = true; try await sync() }; return true }
             do { try store.append(frame) } catch { throw GateFailure.storage }
         case "sync_done":
             guard let through = frame["through"] as? Int, let more = frame["more"] as? Bool else { throw GateFailure.protocolError }
+            if let head = Self.headSequence(frame["head_seq"]) { knownHead = max(knownHead ?? head, head) }
             syncing = false; replayComplete = !more && through <= store.settings.applied
             if more || through > store.settings.applied { syncing = true; try await sync() }
         case "ping": try await send(["v": 1, "type": "pong"])
@@ -185,7 +196,7 @@ struct ReconnectDelay {
             if let seq=frame["seq"] as? Int {
                 guard seq>0 else { throw GateFailure.protocolError }
                 if seq<=store.settings.applied { return true }
-                if seq>store.settings.applied+1 { replayComplete=false;if !syncing { syncing=true;try await sync() };return true }
+                if seq>store.settings.applied+1 { knownHead=max(knownHead ?? seq,seq);replayComplete=false;if !syncing { syncing=true;try await sync() };return true }
                 do { try store.append(frame) } catch { throw GateFailure.storage }
             }
         }
