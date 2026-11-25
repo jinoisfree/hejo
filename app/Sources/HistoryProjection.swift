@@ -40,7 +40,7 @@ struct HistoryRoomTotals: Decodable {
 struct HistoryPageState {
     let context: String
     let next: String?
-    let through: Int
+    var through: Int
     let complete: Bool
     var anchor: String? = nil
     var newerCount: Int = 0

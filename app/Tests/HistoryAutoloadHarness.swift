@@ -102,11 +102,19 @@ import Foundation
             let (data,_) = try await URLSession.shared.data(from:testURL.appendingPathComponent("observe"))
             return try JSONDecoder().decode(Observation.self,from:data)
         }
-        func control(_ action: String) async throws {
+        @discardableResult func control(_ action: String) async throws -> Data {
             var request = URLRequest(url:testURL.appendingPathComponent("control").appendingPathComponent(action))
             request.httpMethod = "POST"
-            let (_, response) = try await URLSession.shared.data(for:request)
+            let (data, response) = try await URLSession.shared.data(for:request)
             try require((response as? HTTPURLResponse)?.statusCode == 200,"fixture_control_\(action)")
+            return data
+        }
+        func sendLiveMessage() async throws -> String {
+            let response = try await control("live")
+            guard let id = try JSONDecoder().decode([String:String].self,from:response)["id"] else {
+                throw HistoryFailure.invalidResponse
+            }
+            return id
         }
         func bodyRequests(_ requests: [Request], for id: String) -> [Request] {
             requests.filter { $0.thread == id && $0.kind == "resolve" }
@@ -133,6 +141,19 @@ import Foundation
             view.history.contents.contains { card in
                 (card.top + (card.replies ?? [])).contains { if case .post(let post) = $0 { return post.id == id }; return false }
             }
+        }
+        func displayedReplies(_ id: String) -> [String] {
+            view.history.contents.first { $0.id == id }?.replies?.compactMap { piece in
+                if case .post(let post) = piece { return post.id }
+                return nil
+            } ?? []
+        }
+        func clickCard(_ key: ConversationKey) throws {
+            guard let card = view.history.contents.first(where:{ $0.id == key.thread }) else {
+                throw HistoryFailure.invalidResponse
+            }
+            card.clickCard()
+            layout()
         }
         func buttons(_ id: String, _ title: String) -> Int {
             guard let card = view.history.contents.first(where:{ $0.id == id }) else { return 0 }
@@ -560,6 +581,15 @@ import Foundation
                 let failed = try await observe().requests.dropFirst(afterRefresh)
                 try require(failed.filter { $0.thread == first.thread && $0.cursor }.count == 3 &&
                             failed.filter { $0.thread == first.thread && !$0.cursor && $0.anchor == edge }.count == 2,"AT-ALD-32")
+                let beforeWait = try await observe().requests.count
+                clock.addTimeInterval(10)
+                loader.tick()
+                scroll(bottom())
+                scroll(frame(first.thread,reference).minY+2)
+                try await settle()
+                let afterWait = try await observe().requests.dropFirst(beforeWait)
+                try require(afterWait.allSatisfy { $0.thread != first.thread || $0.kind != "messages" } &&
+                            buttons(first.thread,"다시 시도") == 1,"AT-ALD-32 no requests after ten seconds and scrolling")
                 try await control("cursor")
                 try pressRetry(first.thread)
             }
@@ -586,7 +616,7 @@ import Foundation
                     try require(requests.filter { $0.thread == first.thread && $0.cursor }.count == 2,"AT-ALD-11 requests")
                 }
             }
-        case "anchored", "anchored-last", "anchored-fail":
+        case "anchored", "anchored-last", "anchored-fail", "anchored-reopen", "anchored-live", "anchored-no-progress":
             view.revealHistorySearch(first,id:rows[120])
             try await wait("middle_open_held") { try await observe().held && model.historyReplyIDs(first) == Array(rows[120...169]) }
             try await settle()
@@ -600,6 +630,33 @@ import Foundation
             let opening = try await observe().requests.filter { $0.thread == first.thread && $0.cursor }
             try require(opening.count == 1 && opening.first?.responseIDs == Array(rows[70...119]) &&
                         abs(y(first.thread,rows[120])-openingY) <= 1,"AT-ALD-14 opening previous page")
+            if fixture.scenario == "anchored-reopen" {
+                try require(displayedReplies(first.thread) == Array(rows[70...169]),"AT-ALD-38 initial order")
+                try clickCard(first)
+                try require(view.history.contents.first { $0.id == first.thread }?.expanded == false,"AT-ALD-38 collapsed")
+                try clickCard(first)
+                try await wait("reopen_latest") { model.historyReplyIDs(first).last == rows[300] && !loader.busy }
+                try await settle()
+                try require(displayedReplies(first.thread) == Array(rows[251...300]),"AT-ALD-38 latest reply order")
+                try require(rows[70...169].allSatisfy { model.messages[$0] == nil },"AT-ALD-38 dropped resident bodies")
+                let beforeOlder = try await observe().requests.count
+                scroll(frame(first.thread,rows[251]).minY+2)
+                try await wait("reopen_prior") { model.historyReplyIDs(first).first == rows[201] && !loader.busy }
+                try await settle()
+                let previous = try await observe().requests.dropFirst(beforeOlder).filter { $0.thread == first.thread && $0.cursor }
+                try require(previous.count == 1 && previous.first?.responseIDs == Array(rows[201...250]) &&
+                            displayedReplies(first.thread) == Array(rows[201...300]),"AT-ALD-38 previous reply order")
+                break
+            }
+            var liveID: String?
+            if fixture.scenario == "anchored-live" {
+                let incoming = try await sendLiveMessage()
+                liveID = incoming
+                try await wait("live_in_middle") { model.messages[incoming] != nil && !loader.busy }
+                try await settle()
+                try require(displayedReplies(first.thread) == Array(rows[70...169]) && !rendered(incoming),
+                            "AT-ALD-39 live reply while history has a gap")
+            }
             for (tail,newTail) in [(169,218),(218,267),(267,300)] {
                 if fixture.scenario == "anchored-last" && tail == 169 { scroll(bottom()) }
                 else { scroll(frame(first.thread,rows[tail]).maxY-view.history.contentView.bounds.height+20) }
@@ -610,14 +667,29 @@ import Foundation
                     try await control("allow-newer")
                     try pressRetry(first.thread)
                 }
-                try await wait("next_page") { model.historyReplyIDs(first).last == rows[newTail] }
+                if fixture.scenario == "anchored-no-progress" && tail == 169 {
+                    try await wait("next_no_progress") { buttons(first.thread,"다시 시도") == 1 && !loader.busy }
+                    try await settle()
+                    let requests = try await observe().requests.filter { $0.thread == first.thread && $0.anchor == rows[169] }
+                    try require(requests.count == 1 && requests.first?.responseIDs == Array(rows[120...169]),
+                                "V-8 successful response left the same target")
+                    try await control("allow-newer")
+                    try pressRetry(first.thread)
+                }
+                let reachedEnd = newTail == 300 ? liveID : nil
+                let expectedIDs = Array(rows[70...newTail]) + [reachedEnd].compactMap { $0 }
+                try await wait("next_page") { model.historyReplyIDs(first).last == expectedIDs.last }
                 try await settle()
-                try require(model.historyReplyIDs(first) == Array(rows[70...newTail]),"AT-ALD-15 contiguous")
+                try require(model.historyReplyIDs(first) == expectedIDs,"AT-ALD-15 contiguous")
+                if liveID != nil {
+                    try require(displayedReplies(first.thread) == expectedIDs,"AT-ALD-39 reply order as the gap closes")
+                }
                 if tail == 169 { try require(abs(y(first.thread,rows[tail])-offset) <= 1,"AT-ALD-14 next page position") }
             }
             try require(noOldButtons(),"AT-ALD-14 old buttons")
             let afterNext = try await observe().requests.filter { $0.thread == first.thread && $0.kind == "messages" }
-            let expected = [rows[169],rows[218]] + (fixture.scenario == "anchored-fail" ? [rows[218]]:[]) + [rows[267]]
+            let expected = (fixture.scenario == "anchored-no-progress" ? [rows[169]]:[]) + [rows[169],rows[218]]
+                + (fixture.scenario == "anchored-fail" ? [rows[218]]:[]) + [rows[267]]
             try require(afterNext.filter { !$0.cursor }.compactMap(\.anchor) == expected &&
                         afterNext.filter(\.cursor).count == 1,"AT-ALD-15 requests")
             if fixture.scenario == "anchored" {
@@ -628,19 +700,24 @@ import Foundation
                 let previous = try await observe().requests.filter { $0.thread == first.thread && $0.kind == "messages" }.dropFirst(afterNext.count)
                 try require(previous.allSatisfy(\.cursor) &&
                             previous.compactMap(\.responseIDs) == [Array(rows[20...69]),Array(rows[0...19])] &&
-                            model.historyReplyIDs(first) == Array(rows.dropFirst()),"AT-ALD-28")
+                            model.historyReplyIDs(first) == Array(rows.dropFirst()) &&
+                            displayedReplies(first.thread) == Array(rows.dropFirst()),"AT-ALD-28")
             }
         case "live":
             try await wait("live_initial") { rendered(rows[10]) && !loader.busy }
+            try require(model.historyReplyIDs(first) == Array(rows.dropFirst()),"AT-ALD-39 complete initial history")
             scroll(bottom())
-            try await control("live")
-            try await wait("live_body") { model.timeline(first).last?.text.hasPrefix("fixture live") == true && !loader.busy }
+            let incoming = try await sendLiveMessage()
+            try await wait("held_live_refresh") { try await observe().held }
             try await settle()
+            try require(displayedReplies(first.thread).last == incoming,
+                        "AT-ALD-39 live reply before the refresh response")
+            try await control("release-live-refresh")
+            try await wait("live_refresh_finished") { !loader.busy }
             let visible = view.history.contentView.bounds
-            let last = model.timeline(first).last!
             try require(view.history.table.bounds.maxY-visible.maxY <= 2 &&
-                        visible.minY <= frame(first.thread,last.id).maxY &&
-                        visible.maxY >= frame(first.thread,last.id).maxY,"AT-ALD-35")
+                        visible.minY <= frame(first.thread,incoming).maxY &&
+                        visible.maxY >= frame(first.thread,incoming).maxY,"AT-ALD-35")
         default: throw HistoryFailure.invalidResponse
         }
 

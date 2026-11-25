@@ -158,10 +158,14 @@ import Foundation
         var anchor = state.anchor
         var attempts = 0
         var missing = Set<String>()
+        var rebuiltPage: [String:Any]?
         while true {
             if let active = cursor {
                 do {
                     let page = try await threadPage("messages",key:key,context:context,run:run,anchor:anchor,cursor:active,retry:!rebuild)
+                    if let rebuiltPage {
+                        try model.applyHistoryMessages(rebuiltPage,key:key,context:context,generation:generation,anchor:anchor,merge:.older)
+                    }
                     try model.applyHistoryMessages(page,key:key,context:context,generation:generation,anchor:anchor,merge:.older)
                     return
                 } catch HistoryFailure.server("cursor_expired", _) where rebuild {
@@ -176,6 +180,7 @@ import Foundation
                 let page = try await threadPage("messages",key:key,context:context,run:run,anchor:candidate,retry:false)
                 anchor = candidate
                 cursor = page["next"] as? String
+                rebuiltPage = page
                 if cursor == nil {
                     try model.applyHistoryMessages(page,key:key,context:context,generation:generation,anchor:anchor,merge:.older)
                     return
@@ -353,7 +358,7 @@ import Foundation
                         do {
                             try await self.load(target,context:context,run:run)
                             try self.check(run)
-                            self.loadStates[target] = nil
+                            self.loadStates[target] = self.needsLoad(target) ? .failed : nil
                             self.retried.remove(target)
                         } catch {
                             try self.check(run)

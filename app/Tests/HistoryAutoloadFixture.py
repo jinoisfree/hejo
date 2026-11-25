@@ -19,7 +19,8 @@ def fixture_id(number):
 @pytest.mark.parametrize("scenario", [
     "basic", "held", "missing", "retry", "retry-fails", "long",
     "viewport", "leave-room", "refresh-fails", "root-only",
-    "older", "anchored", "anchored-last", "anchored-fail",
+    "older", "anchored", "anchored-last", "anchored-fail", "anchored-reopen", "anchored-live",
+    "anchored-no-progress",
     "cursor-context", "cursor-expired", "cursor-far", "cursor-fails", "live", "root-edge",
     "repeat", "growth", "long-fail", "delete", "priority", "thread-pages", "budget",
     "evicted", "prefetch-eviction", "retry-outside", "refresh-count",
@@ -85,6 +86,7 @@ async def test_history_autoload(gate, tmp_path, scenario, monkeypatch):
         "refresh": False,
     }
     held = asyncio.Event()
+    live_refresh = asyncio.Event()
     original = gate.server.history_query
     root_to_thread = {ids[0]: key for key, ids in rows.items()}
     older_page_seen = False
@@ -110,6 +112,12 @@ async def test_history_autoload(gate, tmp_path, scenario, monkeypatch):
                 await asyncio.wait_for(held.wait(), 15)
             finally:
                 condition["held"] = False
+        if condition.get("live-refresh") and kind == "messages" and thread == chosen and not entry["cursor"] and not entry["anchor"]:
+            condition["held"] = True
+            try:
+                await asyncio.wait_for(live_refresh.wait(), 15)
+            finally:
+                condition["held"] = False
         if kind == "resolve" and isinstance(target, dict) and thread != chosen and not document.get("anchor"):
             if condition["hold"]:
                 condition["hold"] = False
@@ -131,6 +139,9 @@ async def test_history_autoload(gate, tmp_path, scenario, monkeypatch):
         if scenario == "anchored-fail" and kind == "messages" and entry["anchor"] == rows[threads[0]][218] and not entry["cursor"]:
             if not condition.get("newer-allowed"):
                 raise HistoryError("target_missing", 404)
+        if scenario == "anchored-no-progress" and entry["anchor"] == rows[threads[0]][169] and not entry["cursor"]:
+            if not condition.get("newer-allowed"):
+                document = dict(document, anchor=rows[threads[0]][120])
         result = await original(session, context, document, rooms)
         entry["responseIDs"] = [row["msg_id"] for row in result.get("items", []) if "msg_id" in row]
         return result
@@ -170,12 +181,18 @@ async def test_history_autoload(gate, tmp_path, scenario, monkeypatch):
             condition["newer-allowed"] = True
         elif action == "release":
             held.set()
+        elif action == "release-live-refresh":
+            live_refresh.set()
         elif action == "delete":
             await gate._record({"v": 1, "type": "delete", "scope": "thread", "room": "alpha", "thread": threads[0]})
         elif action == "live":
-            key = threads[0] if scenario == "live" else other
-            room = "alpha" if scenario == "live" else "beta"
-            await gate.send(room, "fixture live\nline 2\nline 3\nline 4\nline 5", metadata={"thread_id": key})
+            condition["live-refresh"] = scenario == "live"
+            same_thread = scenario in ("live", "anchored-live")
+            key = threads[0] if same_thread else other
+            room = "alpha" if same_thread else "beta"
+            sent = await gate.send(room, "fixture live\nline 2\nline 3\nline 4\nline 5", metadata={"thread_id": key})
+            assert sent.success
+            return web.json_response({"id": sent.message_id})
         else:
             raise web.HTTPBadRequest()
         return web.json_response({})
@@ -208,6 +225,7 @@ async def test_history_autoload(gate, tmp_path, scenario, monkeypatch):
             assert not observed and not legacy_http
     finally:
         held.set()
+        live_refresh.set()
         if process.returncode is None:
             process.kill()
             await process.wait()

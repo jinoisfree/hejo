@@ -1143,13 +1143,15 @@ import UniformTypeIdentifiers
     private func historyBodyPiece(_ target: HistoryCoordinator.AutoLoad, id: String) -> NativeThreadCard.Piece {
         controller.historyLoading.failed(target) ? historyRetryPiece(target,id:id):historyLoadingPiece(id:id)
     }
-    private func historyReplies(_ key: ConversationKey, messages: [ConversationMessage],
+    private func replyOrder(_ key: ConversationKey, messages: [ConversationMessage]) -> [String] {
+        guard controller.client.store.historyMode else { return messages.map(\.id) }
+        return controller.model.historyReplyIDs(key,pending:messages.filter(\.pending).map(\.id))
+    }
+    private func historyReplies(_ key: ConversationKey, messages: [ConversationMessage], order: [String],
                                 shown: Set<String>, expanded: Bool, edge:NSColor?) -> [NativeThreadCard.Piece] {
         let historyMode = controller.client.store.historyMode
         let ids = historyMode ? controller.model.historyReplyIDs(key) : []
-        let known = Set(ids)
         let byID = Dictionary(messages.map { ($0.id,$0) },uniquingKeysWith:{ first,_ in first })
-        let order = ids + messages.map(\.id).filter { !known.contains($0) }
         var pieces: [NativeThreadCard.Piece] = []
         let loader = controller.historyLoading
         if expanded, let id = ids.first, loader.failed(.older(key,id)) {
@@ -1190,7 +1192,7 @@ import UniformTypeIdentifiers
         })]
         if let failed { top.append(historyRetryPiece(failed,id:thread.id+":root-retry")) }
         let knownReplies = messages.filter { $0.id != summary?.rootID }
-        let replies = historyReplies(thread.key,messages:knownReplies,shown:Set(knownReplies.map(\.id)),expanded:expanded,edge:nil)
+        let replies = historyReplies(thread.key,messages:knownReplies,order:replyOrder(thread.key,messages:knownReplies),shown:Set(knownReplies.map(\.id)),expanded:expanded,edge:nil)
         return .init(id:thread.id,top:top,replies:replies.isEmpty ? nil:replies,rail:nil,actions:[.init(title:historyCopyKey==thread.key ? historyCopyProgress+" · 취소":"전체 복사",symbol:"doc.on.doc",label:"스레드 전체 복사",identifier:"copy-"+thread.id,color:.secondaryLabelColor,invoke:{[weak self] in self?.copyHistory(thread.key)})],deleting:nil,
             style:.init(inset:ThreadAppearance.inset,fill:0,stroke:NSColor.labelColor.withAlphaComponent(0.16),lineWidth:1,background:ThreadAppearance.surface(dark:dark),replyBackground:ThreadAppearance.replySurface(dark:dark)),
             bell:summary?.bell,onBell:{[weak self] in self?.controller.model.toggleBell(thread.key)},clickCard:pick,textClick:nil,
@@ -1205,7 +1207,11 @@ import UniformTypeIdentifiers
         let actualRoot=summary.flatMap { value in messages.first{$0.id==value.rootID} } ?? messages.first{$0.pending}
 #endif
         guard let root=actualRoot else {return unloadedThreadContent(thread,summary:summary,messages:messages,expanded:expanded)}
-        let replies=messages.filter{$0.id != root.id},foldable=replies.count>2
+        let candidates = messages.filter { $0.id != root.id }
+        let order = replyOrder(thread.key,messages:candidates)
+        let byID = Dictionary(uniqueKeysWithValues:candidates.map { ($0.id,$0) })
+        let replies = order.compactMap { byID[$0] }
+        let foldable = replies.count > 2
         let state=model.assessment(thread.key)
         let shown=expanded || !foldable ? replies:replies.filter{$0.id==replies.last?.id || state.buttons.contains($0.id)}
         let hidden=replies.count-shown.count,dark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua
@@ -1219,7 +1225,7 @@ import UniformTypeIdentifiers
             let faces=ThreadTools.answeredFaces(replies).map{(model.name($0),controller.avatar($0))}
             answer.append(.stack(faces:faces,title:"이전 답글 \(hidden)개",toggle:{ [weak self] in self?.togglePile(thread.key) },identifier:"stack-"+thread.id))
         }
-        answer += historyReplies(thread.key,messages:replies,shown:Set(shown.map(\.id)),expanded:expanded,edge:edge)
+        answer += historyReplies(thread.key,messages:replies,order:order,shown:Set(shown.map(\.id)),expanded:expanded,edge:edge)
         if controller.interruptions[thread.key] != nil {
             answer.append(.accessory(id:thread.id+":interruption",height:16,view:{
                 let label=NSTextField(labelWithString:"끼어들었어요");label.font = .systemFont(ofSize:ChatMetrics.auxiliaryFont);label.textColor = CardText.quiet(dark:dark)
