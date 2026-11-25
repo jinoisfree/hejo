@@ -20,7 +20,7 @@ def fixture_id(number):
     "basic", "held", "missing", "retry", "retry-fails", "long",
     "viewport", "leave-room", "refresh-fails", "root-only",
     "older", "anchored", "anchored-last", "anchored-fail", "anchored-reopen", "anchored-live",
-    "anchored-no-progress",
+    "anchored-no-progress", "anchored-send",
     "cursor-context", "cursor-expired", "cursor-far", "cursor-fails", "live", "live-new-thread", "root-edge",
     "repeat", "growth", "long-fail", "delete", "priority", "thread-pages", "budget",
     "evicted", "prefetch-eviction", "retry-outside", "refresh-count",
@@ -87,6 +87,7 @@ async def test_history_autoload(gate, tmp_path, scenario, monkeypatch):
     }
     held = asyncio.Event()
     live_refresh = asyncio.Event()
+    release_send = asyncio.Event()
     original = gate.server.history_query
     live_thread = fixture_id(400)
     root_to_thread = {ids[0]: key for key, ids in rows.items()}
@@ -148,6 +149,19 @@ async def test_history_autoload(gate, tmp_path, scenario, monkeypatch):
         return result
 
     gate.server.history_query = query
+    if scenario == "anchored-send":
+        original_receive = gate.receive
+
+        async def receive_after_release(frame, connection, raw=None):
+            if frame.get("thread") == threads[0]:
+                condition["sendHeld"] = True
+                try:
+                    await asyncio.wait_for(release_send.wait(), 15)
+                finally:
+                    condition["sendHeld"] = False
+            return await original_receive(frame, connection, raw=raw)
+
+        monkeypatch.setattr(gate, "receive", receive_after_release)
     legacy_http = []
     if scenario == "legacy":
         original_prepare = web.StreamResponse.prepare
@@ -170,7 +184,8 @@ async def test_history_autoload(gate, tmp_path, scenario, monkeypatch):
         monkeypatch.setattr(HistorySession, "content", content)
 
     async def observe(request):
-        return web.json_response(dict(requests=observed, held=condition.get("held", False)))
+        return web.json_response(dict(requests=observed, held=condition.get("held", False),
+                                      sendHeld=condition.get("sendHeld", False)))
 
     async def control(request):
         action = request.match_info["action"]
@@ -184,6 +199,8 @@ async def test_history_autoload(gate, tmp_path, scenario, monkeypatch):
             held.set()
         elif action == "release-live-refresh":
             live_refresh.set()
+        elif action == "release-send":
+            release_send.set()
         elif action == "delete":
             await gate._record({"v": 1, "type": "delete", "scope": "thread", "room": "alpha", "thread": threads[0]})
         elif action == "live-root":
@@ -239,6 +256,7 @@ async def test_history_autoload(gate, tmp_path, scenario, monkeypatch):
     finally:
         held.set()
         live_refresh.set()
+        release_send.set()
         if process.returncode is None:
             process.kill()
             await process.wait()

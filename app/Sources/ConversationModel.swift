@@ -525,6 +525,10 @@ struct ConversationThread: Identifiable {
         return history.messagePageIDs[key]?.contains(root) == true
     }
 
+    func hasUnloadedNewerReplies(_ key: ConversationKey) -> Bool {
+        (history.messagePages[key]?.newerCount ?? 0) > 0
+    }
+
     func historyReplyIDs(_ key: ConversationKey, pending: [String] = []) -> [String] {
         let page = history.messagePages[key]
         let completeLiveHistory = hasUnpagedLiveHistory(key)
@@ -553,7 +557,7 @@ struct ConversationThread: Identifiable {
         guard Set(incoming).count == incoming.count else { throw HistoryFailure.invalidResponse }
         let known = history.messagePageIDs[key] ?? []
         let previous = history.messagePages[key]
-        if merge == .refresh, previous?.newerCount ?? 0 > 0 { return }
+        if merge == .refresh, hasUnloadedNewerReplies(key) { return }
 
         let window = mergeHistoryReplyPage(incoming, into:known, previous:previous, state:&state, merge:merge)
         var order = window.ids

@@ -184,7 +184,7 @@ import UniformTypeIdentifiers
         clipboard.recoverLeftovers()
         for drag in [headerDrag,brandDrag] {drag.toolTip="드래그: 채팅창과 펫 함께 이동 · 더블클릭: 가로 2배 / 기본";drag.setAccessibilityLabel("채팅창과 펫 이동")}
         headerDrag.menuHelp="오른쪽 클릭: 제목·설명 편집 및 대화 메뉴"
-        controller.historyLoading.onAnchor = { [weak self] key,id in self?.history.scrollTo(key.thread,message:id) }
+        controller.historyLoading.onAnchor = { [weak self] key,id,bottom in self?.history.scrollTo(key.thread,message:id,bottom:bottom) }
         history.onViewport = { [weak self] ids in
             guard let self,self.controller.model.pinHistoryViewport(ids) else {return}
             DispatchQueue.main.async { [weak self] in self?.refresh() }
@@ -1356,6 +1356,7 @@ import UniformTypeIdentifiers
                 else if url.scheme=="hejo" {self.controller.openLink(url)}
                 else if CardText.mayOpen(url) {self.onOpenURL(url)}
             })
+        if mine { post.clientMessageID = message.clientMessageID }
         post.flash=message.id==highlightedMessageID && (highlightUntil.map{$0>islandModel.now} ?? (drawerSelectedID != nil))
         if !mine,continuation {post.continuation=true;if post.textHelp==nil {post.textHelp=post.time}}
         var pieces:[NativeThreadCard.Piece]=[.post(post)]

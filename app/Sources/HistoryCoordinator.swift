@@ -22,7 +22,10 @@ import Foundation
     private var visible = false
     private var reads: [(String,String,ConversationKey?,Int)] = []
     private var automaticRead: String?
-    private enum Demand: Equatable { case threads(String), messages(ConversationKey), restore(ConversationKey,String), open(ConversationKey,String?), content(ConversationKey,String) }
+    private enum Demand: Equatable {
+        case threads(String), messages(ConversationKey), restore(ConversationKey,String)
+        case open(ConversationKey,String?), openForReply(ConversationKey), content(ConversationKey,String)
+    }
     enum AutoLoad: Hashable {
         case thread(ConversationKey), root(ConversationKey), content(ConversationKey,String)
         case restore(ConversationKey,String), older(ConversationKey,String), newer(ConversationKey,String)
@@ -86,7 +89,7 @@ import Foundation
         case .restore(_,let id):
             return model.evictedHistoryBodies[id] != nil && visibleBodies.contains(id)
         case .older(_,let id): return model.history.messagePages[key]?.next != nil && model.historyReplyIDs(key).first == id
-        case .newer(_,let id): return (model.history.messagePages[key]?.newerCount ?? 0) > 0 && model.historyReplyIDs(key).last == id
+        case .newer(_,let id): return model.hasUnloadedNewerReplies(key) && model.historyReplyIDs(key).last == id
         }
     }
 
@@ -192,6 +195,11 @@ import Foundation
     }
 
     private var demands: [Demand] = []
+    private struct ReplyOpenWaiter {
+        let id: String
+        let continuation: CheckedContinuation<Void,Error>
+    }
+    private var replyOpenWaiters: [ConversationKey:[ReplyOpenWaiter]] = [:]
     func olderThreads() { enqueue(.threads(scope)) }
     func olderMessages(_ key: ConversationKey) { enqueue(.messages(key)) }
     @discardableResult func restoreEvicted(_ key:ConversationKey,before:Int?=nil,after:Int?=nil) -> Bool {
@@ -203,6 +211,28 @@ import Foundation
         // Selection already refreshes this complete live thread.
         if anchor == nil, model.selected == key, model.hasUnpagedLiveHistory(key) { return }
         enqueue(.open(key,anchor))
+    }
+    func prepareReply(_ key: ConversationKey, pendingID: String) async throws {
+        guard model.hasUnloadedNewerReplies(key) else { return }
+        try Task.checkCancellation()
+        guard client.isConnected, client.historySession != nil else { throw HistoryFailure.changed }
+        inputsChanged()
+        try await withCheckedThrowingContinuation { continuation in
+            replyOpenWaiters[key,default:[]].append(.init(id:pendingID,continuation:continuation))
+            enqueue(.openForReply(key))
+        }
+        try Task.checkCancellation()
+    }
+    private func finishReplyOpen(_ key: ConversationKey, result: Result<Void,Error>) {
+        for waiter in replyOpenWaiters.removeValue(forKey:key) ?? [] {
+            waiter.continuation.resume(with:result)
+        }
+    }
+    private func failReplyOpens(_ error: Error) {
+        for key in Array(replyOpenWaiters.keys) {
+            finishReplyOpen(key,result:.failure(error))
+        }
+        demands.removeAll { if case .openForReply = $0 { return true }; return false }
     }
     func content(_ id: String, key: ConversationKey) { enqueue(.content(key,id)) }
     func copy(_ key: ConversationKey, progress: (Int,Int)->Void) async throws -> String {
@@ -245,17 +275,32 @@ import Foundation
         case .content(let key,let id):
             try await content(id,key:key,context:context,run:run)
         case .open(let key,let anchor):
-            let page = try await threadPage("resolve",key:key,context:context,run:run,anchor:anchor)
-            try model.applyHistoryMessages(page,key:key,context:context,generation:generation,anchor:anchor)
-            guard let summary = model.history.summaries[key] else { return }
-            // Root is an explicit ID, never the first body of a partial page.
-            try await loadRoot(key,context:context,run:run)
-            try await content(summary.rootID,key:key,context:context,run:run)
-            if let anchor {try await content(anchor,key:key,context:context,run:run)}
+            try await loadThreadOpening(key,anchor:anchor,context:context,run:run)
+        case .openForReply(let key):
+            if model.hasUnloadedNewerReplies(key) {
+                try await loadThreadOpening(key,anchor:nil,context:context,run:run)
+                if model.selected == key { model.historyOpenAnchor = nil }
+            }
         }
         if publish { onChange?() }
         try check(run)
-        if case .open(let key,let anchor) = demand {onAnchor?(key,anchor)}
+        switch demand {
+        case .open(let key,let anchor): onAnchor?(key,anchor,false)
+        case .openForReply(let key):
+            if model.selected == key, let waiter = replyOpenWaiters[key]?.last {
+                onAnchor?(key,"pending:"+waiter.id,true)
+            }
+        default: break
+        }
+    }
+    private func loadThreadOpening(_ key: ConversationKey, anchor: String?, context: String, run: Int) async throws {
+        let page = try await threadPage("resolve",key:key,context:context,run:run,anchor:anchor)
+        try model.applyHistoryMessages(page,key:key,context:context,generation:generation,anchor:anchor)
+        guard let summary = model.history.summaries[key] else { return }
+        // Root is an explicit ID, never the first body of a partial page.
+        try await loadRoot(key,context:context,run:run)
+        try await content(summary.rootID,key:key,context:context,run:run)
+        if let anchor {try await content(anchor,key:key,context:context,run:run)}
     }
     private func content(_ id: String, key: ConversationKey, context: String, run: Int, retry: Bool = true) async throws {
         guard model.history.contentKeys[id] == key, let reference = model.history.contentReferences[id],
@@ -266,7 +311,7 @@ import Foundation
         try model.applyHistoryBody(body,expectedKey:key)
     }
     var onChange: (() -> Void)?
-    var onAnchor: ((ConversationKey,String?) -> Void)?
+    var onAnchor: ((ConversationKey,String?,Bool) -> Void)?
     var onReceipts: (([[String:Any]]) -> Void)?
     var pendingReceipts: (() -> [(String,String)])?
     private(set) var failure: Error?
@@ -274,7 +319,7 @@ import Foundation
     var showProgress: Bool { busy && (dirty || !demands.isEmpty || model.history.refreshing) }
     init(client: GateClient, model: ConversationModel) { self.client = client; self.model = model }
     deinit { task?.cancel() }
-    func stop() { loadingTargets=[]; loadStates=[:]; retried=[]; visibleBodies=[]; automaticAppends=[]; automaticPrependAnchors=[:]; model.historyRestorePin=nil; operation += 1; task?.cancel(); task = nil; reads = []; demands = []; input = nil; session = nil }
+    func stop() { loadingTargets=[]; loadStates=[:]; retried=[]; visibleBodies=[]; automaticAppends=[]; automaticPrependAnchors=[:]; model.historyRestorePin=nil; operation += 1; task?.cancel(); task = nil; reads = []; demands = []; failReplyOpens(HistoryFailure.changed); input = nil; session = nil }
     private var scope: String { model.isHome ? "home":model.selected?.employee ?? "home" }
     func inputsChanged() {
         guard client.store.historyMode, client.isConnected, let current = client.historySession else { return }
@@ -287,6 +332,7 @@ import Foundation
             let newSelection = selection != model.selected || selectionScope != scope || visible != model.visible
             guard newSession || newInput || newSelection else { return }
             operation += 1; model.historyRestorePin=nil; task?.cancel(); task = nil; reads = []; demands = []; failure = nil
+            failReplyOpens(HistoryFailure.changed)
             if newSession {
                 refreshFailed = false
                 generation = 0; seedNeeded = true; automaticRead = nil
@@ -351,6 +397,7 @@ import Foundation
                         try await self.demand(request,context:context,run:run)
                         try self.check(run)
                         self.demands.removeFirst()
+                        if case .openForReply(let key) = request { self.finishReplyOpen(key,result:.success(())) }
                     }
                     while !self.reads.isEmpty {
                         let request = self.reads.removeFirst()
@@ -388,6 +435,7 @@ import Foundation
                 guard self.operation == run else { return }
                 self.task = nil
                 self.dirty = false
+                self.failReplyOpens(error)
                 if !(error is CancellationError) && error as? HistoryFailure != .changed {
                     self.failure = error
                     self.refreshFailed = refreshing

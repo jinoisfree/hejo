@@ -31,6 +31,7 @@ import Foundation
     private struct Observation: Decodable {
         let requests: [Request]
         let held: Bool
+        let sendHeld: Bool
     }
 
 #if HEJO_LEGACY_REFERENCE
@@ -147,12 +148,13 @@ import Foundation
                 (card.top + (card.replies ?? [])).contains { if case .post(let post) = $0 { return post.id == id }; return false }
             }
         }
-        func displayedReplies(_ id: String) -> [String] {
+        func replyPosts(_ id: String) -> [NativeThreadCard.Post] {
             view.history.contents.first { $0.id == id }?.replies?.compactMap { piece in
-                if case .post(let post) = piece { return post.id }
+                if case .post(let post) = piece { return post }
                 return nil
             } ?? []
         }
+        func displayedReplies(_ id: String) -> [String] { replyPosts(id).map(\.id) }
         func clickCard(_ key: ConversationKey) throws {
             guard let card = view.history.contents.first(where:{ $0.id == key.thread }) else {
                 throw HistoryFailure.invalidResponse
@@ -621,7 +623,7 @@ import Foundation
                     try require(requests.filter { $0.thread == first.thread && $0.cursor }.count == 2,"AT-ALD-11 requests")
                 }
             }
-        case "anchored", "anchored-last", "anchored-fail", "anchored-reopen", "anchored-live", "anchored-no-progress":
+        case "anchored", "anchored-last", "anchored-fail", "anchored-reopen", "anchored-live", "anchored-no-progress", "anchored-send":
             view.revealHistorySearch(first,id:rows[120])
             try await wait("middle_open_held") { try await observe().held && model.historyReplyIDs(first) == Array(rows[120...169]) }
             try await settle()
@@ -635,6 +637,48 @@ import Foundation
             let opening = try await observe().requests.filter { $0.thread == first.thread && $0.cursor }
             try require(opening.count == 1 && opening.first?.responseIDs == Array(rows[70...119]) &&
                         abs(y(first.thread,rows[120])-openingY) <= 1,"AT-ALD-14 opening previous page")
+            if fixture.scenario == "anchored-send" {
+                try require(displayedReplies(first.thread) == Array(rows[70...169]) &&
+                            model.history.messagePages[first]?.newerCount == 131,"AT-ALD-41 initial reply window")
+                let text = "fixture reply sent from the anchored window"
+                let latest = Array(rows[251...300])
+                let beforeSend = try await observe().requests.count
+                controller.setText(text,for:first)
+                view.send()
+                try await wait("send_held") { try await observe().sendHeld }
+                try await settle()
+                let posts = replyPosts(first.thread)
+                guard let pending = posts.last, pending.pending, pending.mine, pending.time == "보내는 중",
+                      pending.text.string.contains(text), pending.id.hasPrefix("pending:") else {
+                    throw HistoryFailure.server("AT-ALD-41 pending reply piece",retryable:false)
+                }
+                try require(posts.map(\.id) == latest + [pending.id],"AT-ALD-41 latest reply IDs while sending")
+                let requests = try await observe().requests.dropFirst(beforeSend)
+                try require(requests.filter { $0.kind == "resolve" && $0.thread == first.thread &&
+                            $0.anchor == nil && $0.responseIDs == latest }.count == 1,"AT-ALD-41 anchorless opening")
+                let pendingFrame = frame(first.thread,pending.id)
+                let before = view.history.contentView.bounds
+                try require(before.minY <= pendingFrame.minY && before.maxY >= pendingFrame.maxY,"AT-ALD-41 sending reply visible")
+                let pendingY = pendingFrame.minY - before.minY
+                let clientID = String(pending.id.dropFirst("pending:".count))
+                try await control("release-send")
+                try await wait("reply_confirmed") {
+                    !loader.busy && model.timeline(first).contains { $0.clientMessageID == clientID }
+                }
+                try await settle()
+                guard let confirmed = model.timeline(first).first(where:{ $0.clientMessageID == clientID }),
+                      let posted = replyPosts(first.thread).last, posted.id == confirmed.id, !posted.pending else {
+                    throw HistoryFailure.server("AT-ALD-41 confirmed reply piece",retryable:false)
+                }
+                try require(displayedReplies(first.thread) == latest + [confirmed.id],"AT-ALD-41 confirmed reply IDs")
+                let confirmedFrame = frame(first.thread,confirmed.id)
+                let after = view.history.contentView.bounds
+                let confirmedY = confirmedFrame.minY - after.minY
+                try require(after.minY <= confirmedFrame.minY && after.maxY >= confirmedFrame.maxY &&
+                            abs(confirmedY - pendingY) <= 1,
+                            "AT-ALD-41 confirmed reply position \(pendingY) -> \(confirmedY), viewport \(after)")
+                break
+            }
             if fixture.scenario == "anchored-reopen" {
                 try require(displayedReplies(first.thread) == Array(rows[70...169]),"AT-ALD-38 initial order")
                 try clickCard(first)

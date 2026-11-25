@@ -37,6 +37,7 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
         var flash = false
         var textHelp:String? = nil
         var openLink: (URL) -> Void
+        var clientMessageID: String? = nil
     }
     enum Piece {
         case post(Post)
