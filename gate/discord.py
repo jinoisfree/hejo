@@ -77,6 +77,7 @@ class Discord:
         self.sent = []
         self.core_open = False
         self._webhooks = {}
+        self._followed_posts = set()
         self._receive_lock = asyncio.Lock()
         self.sent_path = self.settings_store.path / 'sent.jsonl'
         self._load_sent()
@@ -559,6 +560,7 @@ class Discord:
             finally:
                 if first_file:
                     first_file.close()
+        await self._follow(post, pair)
         for path in attachments:
             if not self.current(tag):
                 return
@@ -574,6 +576,22 @@ class Discord:
                 self._save_sent(tag, entry['channel'], post, str(result.id), msg_id)
             except Exception as exc:
                 log.warning('discord_file_send_failed kind=%s', type(exc).__name__)
+
+    async def _follow(self, post, pair):
+        key = (pair['tag'], post)
+        if key in self._followed_posts or not self.current(pair['tag']):
+            return
+        # Reserve before awaiting so simultaneous sends cannot add the same member twice.
+        self._followed_posts.add(key)
+        followed = False
+        try:
+            await _bot.http.add_user_to_thread(snowflake(post), snowflake(pair['user_id']))
+            followed = True
+        except Exception as exc:
+            log.warning('discord_follow_failed kind=%s', type(exc).__name__)
+        finally:
+            if not followed:
+                self._followed_posts.discard(key)
 
     def _load_sent(self):
         try:

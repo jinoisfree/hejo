@@ -1,4 +1,3 @@
 aiohttp
 jsonschema
 # Extended grapheme clusters must match Swift String prefixes in history summaries.
-regex==2026.11.19

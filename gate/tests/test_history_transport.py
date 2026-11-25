@@ -206,6 +206,28 @@ async def test_anchor_resolves_unloaded_position_and_keeps_real_root(gate, clien
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('library', ['_cf', '_icu'], ids=['core-foundation', 'icu'])
+async def test_history_capabilities_require_both_libraries(gate, monkeypatch, library):
+    from gate import history_search
+    from gate.history import HistoryError
+
+    url = f'http://127.0.0.1:{gate.server.port}/v1/history/capabilities'
+    async with ClientSession(trust_env=False) as http:
+        async with http.get(url) as response:
+            assert response.status == 200
+            assert (await response.json())['mode'] == 'history-v1'
+        monkeypatch.setattr(history_search, library, None)
+        assert not history_search.available()
+        with pytest.raises(HistoryError, match='unavailable'):
+            history_search.clusters('á')
+        async with http.get(url) as response:
+            assert response.status == 503
+            body = await response.json()
+            assert body['code'] == 'unavailable'
+            assert 'history-v1' not in body.values()
+
+
+@pytest.mark.asyncio
 async def test_capability_room_locale_search_and_response_contract(gate, client):
     from jsonschema import Draft202012Validator
     from gate.server import HISTORY_SCHEMA

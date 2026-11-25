@@ -11,6 +11,8 @@ GitHub 릴리스에서 한 줄로 설치한다. 터미널에 붙여 넣는다.
 
 앱을 열면 서버를 자동으로 찾는다. 처음이면 가입(Google로 계속하기 또는 아이디·비밀번호)하고, 그다음부터는 자동 로그인된다.
 
+휴대폰에서 디스코드로 방을 보고 쓰려면 [디스코드 연결 방법](docs/discord-setup.md)을 따른다.
+
 Hermes 플랫폼 플러그인 문과 별도 Mac 앱을 만드는 프로젝트다. 근간과 현재 범위는 [구조 원본](docs/ARCHITECTURE.md), 진행 상태와 판단은 [작업 문서](docs/changes/HEJO-FOUNDATION-20261114/)를 따른다.
 
 목록 선택 표시의 현행 계약은 [현재 명세](docs/spec/current/hejo-sidebar.md)를 따른다.
@@ -41,9 +43,9 @@ Python 3와 ruamel.yaml이 필요하다. `python3 scripts/scan_private.py`는 Gi
 
 ## 시험
 
-문의 Python 의존성은 `gate/requirements.txt`에 선언한다. 부분 기록 요약은 결합문자·이모지를 Swift와 같은 표시 문자 단위로 자르기 위해 regex를 사용한다. 운영 환경의 의존성 갱신은 설치 절차에서 별도로 수행한다.
+문의 Python 의존성은 `gate/requirements.txt`에 선언한다. 부분 기록 요약은 macOS의 ICU로 표시 문자 경계를 찾고 검색에는 CoreFoundation을 사용한다.
 
-Hermes 모듈·pytest·pytest-asyncio·aiohttp·jsonschema·regex·psutil·ruamel.yaml을 import할 수 있는 Python을 `HEJO_PYTHON`으로 정한다. Hermes 소스를 PYTHONPATH에, team-kit 라이브러리 위치를 `HEJO_TEAM_KIT_LIB`에 지정한다. `bash scripts/test.sh`는 gate/tests와 tests/acceptance 전체 및 AT-HF-22 실제 게이트웨이 러너를 실행한다. 시험은 임시 공항과 가짜 직원만 사용한다. 이어 macOS 앱 서명 빌드·AppKit 시험·임시 WebSocket 문 시험(AT-HF-23·24·25·47·48·52~56 및 대화 모델·첨부 왕복)을 실행한다. Xcode 명령행 도구와 아래 로컬 서명 인증서가 필요하다. 실제 로그인 항목 등록이나 운영 문 연결은 시험에서 하지 않는다.
+Hermes 모듈·pytest·pytest-asyncio·aiohttp·jsonschema·psutil·ruamel.yaml을 import할 수 있는 Python을 `HEJO_PYTHON`으로 정한다. Hermes 소스를 PYTHONPATH에, team-kit 라이브러리 위치를 `HEJO_TEAM_KIT_LIB`에 지정한다. `bash scripts/test.sh`는 gate/tests와 tests/acceptance 전체 및 AT-HF-22 실제 게이트웨이 러너를 실행한다. 시험은 임시 공항과 가짜 직원만 사용한다. 이어 macOS 앱 서명 빌드·AppKit 시험·임시 WebSocket 문 시험(AT-HF-23·24·25·47·48·52~56 및 대화 모델·첨부 왕복)을 실행한다. Xcode 명령행 도구와 아래 로컬 서명 인증서가 필요하다. 실제 로그인 항목 등록이나 운영 문 연결은 시험에서 하지 않는다.
 
 
 ## Mac 앱

@@ -81,6 +81,21 @@ private func islandMessage(_ seq:Int,_ key:ConversationKey = islandA,asked:Bool=
     time.addTimeInterval(1);try check(connection.snapshot().activity?.text.contains("2초 뒤") == true,"AT55 retry countdown uses injected clock")
     problem.status = .connected;connection.update(problem)
     try check(connection.snapshot().restored && connection.snapshot().activity?.text == "다시 연결됨","AT55 restored for two seconds")
+    let update = IslandModel(clock: { time })
+    update.update(IslandModel.Input(status: .connecting))
+    update.update(IslandModel.Input(status: .connected))
+    update.update(IslandModel.Input(status: .updateRequired))
+    let updateActivity = update.snapshot().activity
+    try check(updateActivity?.kind == .problem && updateActivity?.text == ConnectionStatus.updateRequired.text
+              && updateActivity?.action == nil && updateActivity?.tone == .red,
+              "AT-HO-05 island shows the door update warning without a reconnect action")
+    for status: ConnectionStatus in [.revoked, .wrongCode, .storageError, .tooLarge] {
+        let activity = state(IslandModel.Input(status: status)).activity
+        try check(activity?.kind == .problem && activity?.text == status.text && activity?.tone == .red
+                  && activity?.action == (status == .tooLarge ? nil : .reconnect),
+                  "AT-HO-05 island retains existing problem behavior")
+    }
+    print("AT-HO-05 ISLAND PASS")
     time.addTimeInterval(2.1);try check(!connection.snapshot().restored,"AT55 restored banner expires")
     problem.failure=IslandFailure(message:"연결을 확인해 주세요",firstWords:"Draft",retryKey:islandA,isSend:true);connection.update(problem)
     try check(connection.snapshot().activity?.text.contains("보내지 못함 · Draft") == true && connection.snapshot().activity?.action == .retry(islandA),"AT55 failure retains first words and retry key")

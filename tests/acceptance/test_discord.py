@@ -131,12 +131,19 @@ class Native:
         self.channels = self.posts = 0
         self.channel_failure = self.file_failure = self.typing_failure = False
         self.failures = []
-        self.http = SimpleNamespace(send_typing=self.send_typing)
+        self.follow_calls = []
+        self.follow_failure = False
+        self.http = SimpleNamespace(send_typing=self.send_typing, add_user_to_thread=self.add_user_to_thread)
     def add_listener(self, fn, name): self.listeners.append((fn, name))
     def get_guild(self, identifier): return self.guilds.get(str(identifier))
     async def send_typing(self, identifier):
         self.typing_calls.append(identifier)
         if self.typing_failure: raise OSError('post-sensitive')
+    async def add_user_to_thread(self, post, user):
+        self.follow_calls.append((post, user))
+        self.operations.append(('follow', post, user))
+        if self.follow_failure:
+            raise OSError(f'{post} {user}')
     async def emit(self, message): await self.listeners[0][0](message)
     def message(self, content='hello', *, guild='gld-A', user='usr-A', parent=None, post='post-in-1',
                 title='hello', starter=False, mid='dc-in-1', attachments=None, bot=False, webhook=None):
@@ -592,6 +599,72 @@ async def test_at_hd_31_32_33_37_38_settling_names_titles_and_mentions(gate,clie
     for _,args in native.calls:
         mentions=args['allowed_mentions']
         assert mentions.everyone is False and mentions.users is False and mentions.roles is False and args['wait'] is True
+
+
+async def test_at_hd_46_follow_once_per_post_and_retry_after_failure(gate, client, transport, runner, tmp_path, caplog):
+    _, native = transport
+    ws, _ = await client.pair(features=['discord'])
+    await group(gate)
+    await pair(gate, client, ws, native, user='1101')
+    await request(client, ws, 'discord_save', enabled=True)
+    tag = gate.discord.private()['pair']['tag']
+    await until(lambda: len(gate.discord.channels(tag)['channels']) == 4)
+    await drain(client, ws)
+    journal_start = len(gate.journal.records)
+    native.operations.clear()
+
+    thread = str(uuid.uuid4())
+    await client.send(ws, thread=thread, text='ping')
+    await wait_for_turns(runner, 1)
+    await settled(gate)
+    for text in ('pong', 'more'):
+        await gate.send('alpha', text, metadata={'thread_id': thread})
+        await settled(gate)
+    assert native.follow_calls == [('post-1', 1101)]
+    assert native.calls[0][1]['thread_name'] == 'ping'
+    assert [(args['username'], args['thread'].id) for _, args in native.calls[1:]] == [('Alpha', 'post-1')] * 2
+
+    home = gate.discord.vault.path.parent
+    await gate.discord.close()
+    gate.discord = door.Discord(gate, home)
+    gate.discord.settle_seconds = .05
+    await gate.send('alpha', 'after restart', metadata={'thread_id': thread})
+    await settled(gate)
+    assert native.follow_calls == [('post-1', 1101)] * 2
+    assert native.calls[-1][1]['thread'].id == 'post-1'
+
+    other = str(uuid.uuid4())
+    attachment = tmp_path / 'fixture.txt'
+    attachment.write_bytes(b'fixture')
+    native.follow_failure = True
+    caplog.clear()
+    await gate.send_document('alpha', str(attachment), caption='new post', metadata={'thread_id': other})
+    await settled(gate)
+    assert native.follow_calls[-1] == ('post-2', 1101)
+    assert [operation[0] for operation in native.operations[-3:]] == ['send', 'follow', 'send']
+    assert native.calls[-1][1]['files'][0].path.name == attachment.name
+    assert native.calls[-1][1]['thread'].id == 'post-2'
+    assert [record.getMessage() for record in caplog.records if record.name == 'gate.discord'] == [
+        'discord_follow_failed kind=OSError',
+    ]
+
+    native.follow_failure = False
+    await gate.send('alpha', 'retry', metadata={'thread_id': other})
+    await settled(gate)
+    assert native.follow_calls == [('post-1', 1101)] * 2 + [('post-2', 1101)] * 2
+    assert native.calls[-1][1]['thread'].id == 'post-2'
+    assert [args.get('content') for _, args in native.calls] == [
+        'ping', 'pong', 'more', 'after restart', 'new post', None, 'retry',
+    ]
+    assert all(not args['allowed_mentions'].everyone and not args['allowed_mentions'].users
+               and not args['allowed_mentions'].roles for _, args in native.calls)
+
+    records = gate.journal.records[journal_start:]
+    texts = ['ping', 'pong', 'more', 'after restart', 'new post', 'retry']
+    assert [(row['type'], row['text']) for row in records] == [('message', text) for text in texts]
+    frames = await drain(client, ws)
+    assert [frame['text'] for frame in frames if frame['type'] == 'message'] == texts
+    assert sorted(frame['type'] for frame in frames) == ['discord_status'] + ['message'] * 6 + ['typing'] * 2
 
 
 async def test_at_hd_34_both_windows_reflect_only_other_ingress(gate,client,transport,registered,monkeypatch):
