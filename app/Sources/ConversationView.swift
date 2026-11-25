@@ -190,7 +190,7 @@ import UniformTypeIdentifiers
             DispatchQueue.main.async { [weak self] in self?.refresh() }
         }
         history.onOlder = { [weak self] in self?.loadOlder() }
-        history.onNewer = { [weak self] in self?.restoreNewer() }
+        history.onLoadViewport = { [weak self] cards in self?.updateHistoryLoads(cards) }
         history.reduceMotion={ [weak self] in self?.reduceMotion() ?? true }
         history.onBlank={ [weak self] in self?.foldAll() }
         history.onMeasured={ [weak self] in self?.reportOpenHeight() }
@@ -643,6 +643,7 @@ import UniformTypeIdentifiers
             displayTimes=displayTimes.filter{model.messages[$0.key] != nil}
             displayTimeOrder.removeAll{displayTimes[$0]==nil}
             historyRenderedIDs.removeAll(keepingCapacity:true)
+            if controller.client.store.historyMode { preserveEvictedSlotHeights() }
             defer {
                 if model.store.historyMode {
                     postBodies=postBodies.filter { historyRenderedIDs.contains($0.key) }
@@ -711,7 +712,7 @@ import UniformTypeIdentifiers
                 var cards:[NativeThreadCard.Content]=[], previous:Date?
                 if controller.client.store.historyMode {
                     if controller.historyLoading.failure != nil {cards.append(historyStatusContent(failed:true))}
-                    else if controller.historyLoading.busy || !model.historyAggregatesReady {cards.append(historyStatusContent(failed:false))}
+                    else if controller.historyLoading.showProgress || !model.historyAggregatesReady {cards.append(historyStatusContent(failed:false))}
                 }
                 if shown.count<threads.count || (controller.client.store.historyMode && model.history.threadPages[model.isHome ? "home":current]?.next != nil) {cards.append(lineContent(id:"older",title:controller.client.replayComplete ? "이전 글 보기":"불러오는 중…",older:true))}
                 if threads.isEmpty {cards.append(lineContent(id:"empty",title:controller.client.replayComplete ? "아직 표시할 글이 없어요.":"불러오는 중…",top:40))}
@@ -724,8 +725,14 @@ import UniformTypeIdentifiers
                     cards.append(threadContent(thread));previous=date
                 }
                 ThreeTapDiagnostics.endSpan("refresh_cards", phase); phase = ThreeTapDiagnostics.startSpan()
-                history.show(cards,identity:current,entry:newest(current)?.thread,historyMode:controller.client.store.historyMode)
-                model.pinHistoryViewport(history.visibleMessageIDs)
+                let appended = controller.client.store.historyMode && controller.historyLoading.takeAutomaticAppends().contains { key in
+                    threads.contains { $0.key == key && shown.contains($0.id) }
+                }
+                let prependAnchor = controller.client.store.historyMode
+                    ? controller.historyLoading.takeAutomaticPrependAnchor(for:openThread):nil
+                history.show(cards,identity:current,entry:newest(current)?.thread,
+                             historyMode:controller.client.store.historyMode,autoloadAppended:appended,
+                             prependAnchor:prependAnchor)
                 if enteredPlace != current {enteredPlace=current;let last=threads.last?.key,newest=newest(current);history.enter(newest==last ? nil:newest?.thread)}
     #if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
                 if !automatic,!controller.client.store.historyMode,model.timeline(selected).isEmpty,controller.timeline(selected).isEmpty {replyMode=false}
@@ -1001,6 +1008,20 @@ import UniformTypeIdentifiers
     // Derived display values only. A changed input replaces the old value for that post.
     private static let postBodyCapacity = 2048
     private var historyRenderedIDs=Set<String>()
+    private var evictedSlotHeights: [String:CGFloat] = [:]
+
+    private func preserveEvictedSlotHeights() {
+        let evicted = controller.model.evictedHistoryBodies
+        evictedSlotHeights = evictedSlotHeights.filter { evicted[$0.key] != nil }
+        guard !evicted.isEmpty else { return }
+        for layout in history.layouts {
+            for placed in layout.placed {
+                if case .post(let post) = placed.piece, evicted[post.id] != nil {
+                    evictedSlotHeights[post.id] = placed.frame.height
+                }
+            }
+        }
+    }
     private var postBodies: [String: PostBody] = [:]
     private var postBodyOrder: [String] = []
     #if HEJO_PERF_TESTING
@@ -1053,20 +1074,31 @@ import UniformTypeIdentifiers
         if key != displayedKey {openThread=key}
         Task {await controller.sendCurrent(for:key,homeNew:homeNew,draftFrom:source)}
     }
-    private func restoreNewer() {
-        guard controller.client.store.historyMode,let key=openThread else {return}
-        let model=controller.model
-        let replies=model.messages.values.filter {$0.key==key && $0.id != model.history.summaries[key]?.rootID}
-        guard let after=replies.filter({history.visibleMessageIDs.contains($0.id)}).map(\.seq).max() ?? replies.map(\.seq).max() ?? model.history.summaries[key].flatMap({model.messages[$0.rootID]?.seq}) else {return}
-        _ = controller.historyLoading.restoreEvicted(key,after:after)
+    private func updateHistoryLoads(_ cards: [NativeThreadList.LoadCard]) {
+        let model = controller.model
+        let keys = Dictionary(threads.map { ($0.id,$0.key) },uniquingKeysWith:{ first,_ in first })
+        var targets: [HistoryCoordinator.AutoLoad] = []
+        var visibleBodies = Set<String>()
+        for group in [cards.filter(\.visible),cards.filter { !$0.visible }] {
+            for card in group {
+                guard let key = keys[card.id], let summary = model.history.summaries[key] else { continue }
+                visibleBodies.formUnion(card.visiblePieces)
+                targets.append(contentsOf:[.thread(key),.root(key),.content(key,summary.rootID),.restore(key,summary.rootID)])
+                let ids = model.historyReplyIDs(key)
+                for id in ids where card.pieces.contains(id) {
+                    targets.append(contentsOf:[.content(key,id),.restore(key,id)])
+                }
+                if key == openThread {
+                    if let id = ids.first, card.pieces.contains(id) { targets.append(.older(key,id)) }
+                    if let id = ids.last, card.pieces.contains(id) { targets.append(.newer(key,id)) }
+                }
+            }
+        }
+        controller.historyLoading.updateLoadingTargets(targets,visibleBodies:visibleBodies,scope:model.isHome ? "home":model.selectionIdentity)
     }
+
     @objc private func loadOlder() {
         let model=controller.model, scope=model.isHome ? "home":model.selectionIdentity
-        if controller.client.store.historyMode,let key=openThread {
-            let replies=model.messages.values.filter{$0.key==key && $0.id != model.history.summaries[key]?.rootID}
-            let before=replies.filter{history.visibleMessageIDs.contains($0.id)}.map(\.seq).min() ?? replies.map(\.seq).min()
-            if controller.historyLoading.restoreEvicted(key,before:before) {return}
-        }
         let more=controller.client.store.historyMode && model.history.threadPages[scope]?.next != nil
         if windowed.older(loadedCount:threads.count,hasEarlier:more) {controller.historyLoading.olderThreads()}
         refresh()
@@ -1091,38 +1123,74 @@ import UniformTypeIdentifiers
             let button=FileChip(title:title);button.invoke=invoke;return button
         })
     }
-    private func contentReferencePieces(_ key:ConversationKey)->[NativeThreadCard.Piece] {
-        var pieces:[NativeThreadCard.Piece]=[]
-        if controller.model.evictedHistoryBody(key) != nil {
-            pieces.append(historyActionPiece(id:key.readKey+":restore",title:"이전 본문 다시 불러오기") { [weak self] in _ = self?.controller.historyLoading.restoreEvicted(key) })
+    private func historyBodyTarget(_ id: String, key: ConversationKey) -> HistoryCoordinator.AutoLoad? {
+        let model = controller.model
+        if model.history.contentReferences[id] != nil { return .content(key,id) }
+        if model.evictedHistoryBodies[id] != nil { return .restore(key,id) }
+        return nil
+    }
+    private func historyLoadingPiece(id: String) -> NativeThreadCard.Piece {
+        .accessory(id:id,height:evictedSlotHeights[id] ?? 24,view:{
+            let label = NSTextField(labelWithString:"불러오는 중…")
+            label.font = .systemFont(ofSize:ChatMetrics.auxiliaryFont)
+            label.textColor = .secondaryLabelColor
+            return label
+        })
+    }
+    private func historyRetryPiece(_ target: HistoryCoordinator.AutoLoad, id: String) -> NativeThreadCard.Piece {
+        historyActionPiece(id:id,title:"다시 시도") { [weak self] in self?.controller.historyLoading.retry(target) }
+    }
+    private func historyBodyPiece(_ target: HistoryCoordinator.AutoLoad, id: String) -> NativeThreadCard.Piece {
+        controller.historyLoading.failed(target) ? historyRetryPiece(target,id:id):historyLoadingPiece(id:id)
+    }
+    private func historyReplies(_ key: ConversationKey, messages: [ConversationMessage],
+                                shown: Set<String>, expanded: Bool, edge:NSColor?) -> [NativeThreadCard.Piece] {
+        let historyMode = controller.client.store.historyMode
+        let ids = historyMode ? controller.model.historyReplyIDs(key) : []
+        let known = Set(ids)
+        let byID = Dictionary(messages.map { ($0.id,$0) },uniquingKeysWith:{ first,_ in first })
+        let order = ids + messages.map(\.id).filter { !known.contains($0) }
+        var pieces: [NativeThreadCard.Piece] = []
+        let loader = controller.historyLoading
+        if expanded, let id = ids.first, loader.failed(.older(key,id)) {
+            pieces.append(historyRetryPiece(.older(key,id), id:key.readKey+":older"))
         }
-        if (controller.model.history.messagePages[key]?.newerCount ?? 0)>0 {
-            pieces.append(historyActionPiece(id:key.readKey+":latest",title:"최근 답글 보기") { [weak self] in self?.controller.historyLoading.open(key) })
+        var previous: ConversationMessage?
+        for id in order {
+            if let message = byID[id], shown.contains(id) {
+                let continuation = message.role != "owner" && previous.map { $0.role != "owner" && $0.speaker == message.speaker } == true
+                pieces += postPieces(message,conversational:true,edge:edge,continuation:continuation)
+                previous = message
+            } else {
+                if historyMode, (expanded || ids.count <= 2 || id == ids.last), let target = historyBodyTarget(id,key:key) {
+                    pieces.append(historyBodyPiece(target,id:id))
+                }
+                previous = nil
+            }
         }
-        pieces += controller.model.history.contentReferences.keys.sorted().filter {controller.model.history.contentKeys[$0] == key}.map { id in
-            historyActionPiece(id:id+":content",title:"긴 원문 불러오기") { [weak self] in self?.controller.historyLoading.content(id,key:key) }
+        if expanded, let id = ids.last, loader.failed(.newer(key,id)) {
+            pieces.append(historyRetryPiece(.newer(key,id), id:key.readKey+":newer"))
         }
         return pieces
     }
     private func unloadedThreadContent(_ thread:ConversationThread,summary:HistoryThreadSummary?,messages:[ConversationMessage],expanded:Bool)->NativeThreadCard.Content {
         let dark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua
         let pick:()->Void={ [weak self] in self?.chooseThread(thread.key) }
-        var top:[NativeThreadCard.Piece]=[.accessory(id:thread.id+":summary",height:72,view:{
-            let label=NSTextField(wrappingLabelWithString:(summary?.rootPreview ?? thread.title)+"\n원문을 아직 불러오지 않았어요")
+        let loader = controller.historyLoading
+        let target = summary.flatMap { historyBodyTarget($0.rootID,key:thread.key) }
+        let failed = target.flatMap { loader.failed($0) ? $0 : nil }
+            ?? [HistoryCoordinator.AutoLoad.thread(thread.key),.root(thread.key)].first { loader.failed($0) }
+        let preview = summary?.rootPreview ?? thread.title
+        let status = failed == nil ? "불러오는 중…":"원문을 불러오지 못했어요"
+        let previewHeight = summary.flatMap { evictedSlotHeights[$0.rootID] } ?? 72
+        var top:[NativeThreadCard.Piece]=[.accessory(id:summary?.rootID ?? thread.id+":summary",height:previewHeight,view:{
+            let label=NSTextField(wrappingLabelWithString:preview+"\n"+status)
             label.font = .systemFont(ofSize:ChatMetrics.bodyFont);label.textColor = .secondaryLabelColor
             label.maximumNumberOfLines=3;return label
         })]
-        top.append(historyActionPiece(id:thread.id+":open",title:"원문 불러오기") { [weak self] in
-            guard let self else{return}
-            self.openThread=thread.key;self.controller.model.select(thread.key,inHome:self.controller.model.isHome,markRead:false)
-            self.controller.historyLoading.open(thread.key)
-        })
-        var replies:[NativeThreadCard.Piece]=contentReferencePieces(thread.key)
-        if controller.model.history.messagePages[thread.key]?.next != nil {
-            replies.append(historyActionPiece(id:thread.id+":older",title:"이전 답글 보기") { [weak self] in self?.controller.historyLoading.olderMessages(thread.key) })
-        }
-        // A recent reply does not become the root when the root is outside the page.
-        for message in messages where message.id != summary?.rootID {replies += postPieces(message,conversational:true,edge:nil)}
+        if let failed { top.append(historyRetryPiece(failed,id:thread.id+":root-retry")) }
+        let knownReplies = messages.filter { $0.id != summary?.rootID }
+        let replies = historyReplies(thread.key,messages:knownReplies,shown:Set(knownReplies.map(\.id)),expanded:expanded,edge:nil)
         return .init(id:thread.id,top:top,replies:replies.isEmpty ? nil:replies,rail:nil,actions:[.init(title:historyCopyKey==thread.key ? historyCopyProgress+" · 취소":"전체 복사",symbol:"doc.on.doc",label:"스레드 전체 복사",identifier:"copy-"+thread.id,color:.secondaryLabelColor,invoke:{[weak self] in self?.copyHistory(thread.key)})],deleting:nil,
             style:.init(inset:ThreadAppearance.inset,fill:0,stroke:NSColor.labelColor.withAlphaComponent(0.16),lineWidth:1,background:ThreadAppearance.surface(dark:dark),replyBackground:ThreadAppearance.replySurface(dark:dark)),
             bell:summary?.bell,onBell:{[weak self] in self?.controller.model.toggleBell(thread.key)},clickCard:pick,textClick:nil,
@@ -1146,20 +1214,12 @@ import UniformTypeIdentifiers
         let edge=owner.map{controller.avatar($0).color}
         var top=postPieces(root,conversational:false,edge:edge)
         if model.isHome,model.homeChannel==nil,root.role=="owner" {top.insert(.accessory(id:"home-owner:"+thread.key.readKey,height:28,view:{ [weak controller] in HomeOwnerView(name:model.name(root.speaker),avatar:controller?.avatar(root.speaker) ?? ProfileAvatar()) }),at:0)}
-        var answer:[NativeThreadCard.Piece]=controller.client.store.historyMode ? contentReferencePieces(thread.key):[]
-        if controller.client.store.historyMode,model.history.messagePages[thread.key]?.next != nil {
-            answer.append(historyActionPiece(id:thread.id+":older",title:"이전 답글 보기") { [weak self] in self?.controller.historyLoading.olderMessages(thread.key) })
-        }
+        var answer:[NativeThreadCard.Piece]=[]
         if hidden>0 {
             let faces=ThreadTools.answeredFaces(replies).map{(model.name($0),controller.avatar($0))}
             answer.append(.stack(faces:faces,title:"이전 답글 \(hidden)개",toggle:{ [weak self] in self?.togglePile(thread.key) },identifier:"stack-"+thread.id))
         }
-        let shownIDs=Set(shown.map(\.id))
-        for (index,message) in replies.enumerated() where shownIDs.contains(message.id) {
-            let previous=index>0 ? replies[index-1]:nil
-            let continuation=message.role != "owner" && previous.map{shownIDs.contains($0.id) && $0.role != "owner" && $0.speaker==message.speaker} == true
-            answer += postPieces(message,conversational:true,edge:edge,continuation:continuation)
-        }
+        answer += historyReplies(thread.key,messages:replies,shown:Set(shown.map(\.id)),expanded:expanded,edge:edge)
         if controller.interruptions[thread.key] != nil {
             answer.append(.accessory(id:thread.id+":interruption",height:16,view:{
                 let label=NSTextField(labelWithString:"끼어들었어요");label.font = .systemFont(ofSize:ChatMetrics.auxiliaryFont);label.textColor = CardText.quiet(dark:dark)

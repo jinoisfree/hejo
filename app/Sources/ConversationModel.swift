@@ -515,9 +515,16 @@ struct ConversationThread: Identifiable {
               complete == (page["next"] is NSNull) else { throw HistoryFailure.invalidResponse }
         return .init(context:context,next:page["next"] as? String,through:through,complete:complete)
     }
+    enum HistoryMessageMerge { case open, refresh, older, newer }
+
+    func historyReplyIDs(_ key: ConversationKey) -> [String] {
+        let root = history.summaries[key]?.rootID
+        return (history.messagePageIDs[key] ?? []).filter { $0 != root && !history.deletedMessages.contains($0) }
+    }
+
     /// Historical rows do not call apply(frame): that path advances the live cursor
     /// and handles live side effects. Newer live edits/deletes win over older pages.
-    func applyHistoryMessages(_ page: [String:Any], key: ConversationKey, context: String, generation: Int, anchor: String? = nil) throws {
+    func applyHistoryMessages(_ page: [String:Any], key: ConversationKey, context: String, generation: Int, anchor: String? = nil, merge: HistoryMessageMerge = .open) throws {
         guard history.accepts(context:context,generation:generation) else { throw HistoryFailure.changed }
         var state = try historyPageState(page,context:context)
         state.anchor = anchor; state.newerCount = HistoryHTTP.integer(page["newerCount"]) ?? 0
@@ -528,9 +535,38 @@ struct ConversationThread: Identifiable {
                 history.summaries[key] = summary
             }
         }
+        let rows = page["items"] as? [[String:Any]] ?? []
+        let incoming = rows.compactMap { $0["msg_id"] as? String }
+        let known = history.messagePageIDs[key] ?? []
+        let previous = history.messagePages[key]
+        let root = history.summaries[key]?.rootID
+        if merge == .refresh, previous?.newerCount ?? 0 > 0 { return }
+        if merge == .open, anchor != nil {
+            let retained = Set(incoming).union([root].compactMap { $0 })
+            let obsolete = messages.values.filter { $0.key == key && !retained.contains($0.id) }.map(\.id)
+            for id in obsolete {
+                messages[id] = nil
+                residentBudget.update(id,bytes:nil)
+            }
+        }
         if bodyCache == nil { bodyCache = try store.historyCache() }
         try bodyCache?.batch {
-            for row in page["items"] as? [[String:Any]] ?? [] { try applyHistoryBody(row, expectedKey:key) }
+            for row in rows { try applyHistoryBody(row, expectedKey:key) }
+        }
+        let knownIDs = Set(known)
+        let incomingIDs = Set(incoming)
+        switch merge {
+        case .open:
+            history.messagePageIDs[key] = incoming
+        case .older:
+            history.messagePageIDs[key] = incoming.filter { !knownIDs.contains($0) } + known
+            state.newerCount = previous?.newerCount ?? state.newerCount
+        case .newer, .refresh:
+            history.messagePageIDs[key] = known.filter { !incomingIDs.contains($0) } + incoming
+            if var earlier = previous, merge == .newer || knownIDs.contains(incoming.first ?? "") {
+                earlier.newerCount = state.newerCount
+                state = earlier
+            }
         }
         history.messagePages[key] = state
     }
@@ -623,6 +659,8 @@ struct ConversationThread: Identifiable {
                     history.deletedThreads[key] = seq
                     evictedHistoryBodies=evictedHistoryBodies.filter{$0.value.key != key || (history.revisions[$0.key] ?? 0) > seq}
                     if (history.summaries[key]?.revision ?? 0) <= seq {
+                        history.messagePages[key] = nil
+                        history.messagePageIDs[key] = nil
                         history.summaries[key] = nil
                         for scope in Array(history.threadOrder.keys) { history.threadOrder[scope]?.removeAll{$0 == key} }
                     }

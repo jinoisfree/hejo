@@ -534,6 +534,7 @@ async def test_controller_restores_evicted_body_without_resetting_cursor(gate, t
     # Four actual journal rows with a two-body injected budget, not a load run.
     original = gate.server.history_query
     restores = 0
+    restored_ids = []
     content_requests = 0
     content_waiting = asyncio.Event()
     release = asyncio.Event()
@@ -541,6 +542,7 @@ async def test_controller_restores_evicted_body_without_resetting_cursor(gate, t
         nonlocal restores
         if document['kind'] == 'resolve' and isinstance(document.get('target'), list) and document.get('limit') == 1:
             restores += 1
+            restored_ids.append(document["target"][0])
             if fault in ('edit', 'context') and restores == 1:
                 stale = await original(session, context, document, rooms)
                 await gate._record({'v':1,'type':'edit','msg_id':document['target'][0],'employee':'alpha','text':'restore edited body','final':True})
@@ -597,12 +599,8 @@ async def test_controller_restores_evicted_body_without_resetting_cursor(gate, t
         if ready != b'RESTORE_READY\n':
             _, stderr = await asyncio.wait_for(process.communicate(), 5)
             raise AssertionError(f'exit={process.returncode}; {stderr.decode()[:2500]}')
-        if fault in ('none', 'view-root', 'view-root-owner'):
+        if fault == 'none':
             assert restores == 1
-        elif fault in ('view', 'view-long'):
-            assert restores == 2
-        elif fault == 'view-cycle':
-            assert restores == 6
         elif fault == 'content-cancel':
             assert restores == 7
             assert content_requests > restores
@@ -610,11 +608,18 @@ async def test_controller_restores_evicted_body_without_resetting_cursor(gate, t
         stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=15)
         assert process.returncode == 0, stderr.decode()[-3000:]
         assert b'PASS evicted body restored without cursor reset' in stdout
+        if fault in ('view', 'view-long', 'view-cycle', 'view-root', 'view-root-owner'):
+            from collections import Counter
+
+            prefix = 'RESTORE_VISIBLE '
+            visible_events = [line[len(prefix):] for line in stderr.decode().splitlines() if line.startswith(prefix)]
+            assert Counter(restored_ids) == Counter(visible_events)
         if fault in ('view', 'view-long', 'view-cycle'):
             stages = [line for line in stderr.decode().splitlines() if line.startswith('RESTORE_STAGE ')]
-            assert stages == ['RESTORE_STAGE '+stage for stage in (
-                'initial-open', 'initial-open-complete', 'view-ready', 'first-wheel',
-                'first-restore-complete', 'second-wheel', 'anchor-settled')]
+            milestones = ['RESTORE_STAGE '+stage for stage in (
+                'initial-open', 'initial-open-complete', 'view-ready', 'first-wheel', 'second-wheel', 'anchor-settled')]
+            assert [stage for stage in stages if stage != 'RESTORE_STAGE first-restore-complete'] == milestones
+            assert stages.count('RESTORE_STAGE first-restore-complete') == 1
     except TimeoutError as error:
         # Preserve the failed phase and Swift error before reaping a crashed/hung child.
         if process.returncode is None:
