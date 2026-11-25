@@ -485,6 +485,7 @@ struct ConversationFailedSend: Identifiable {
             defer { ThreeTapDiagnostics.endSpan("model_change", span) }
             if self.client.replayComplete {self.model.clearArchivedPins();self.model.clearHomeChannelFlags()}
             if self.client.store.historyMode { self.historyLoading.inputsChanged() }
+            self.client.discord.layoutChanged()
             self.notifyChange()
         }
         model.memberState.onFailure = { [weak self] failed in
@@ -493,6 +494,14 @@ struct ConversationFailedSend: Identifiable {
         model.memberState.onUnpinned = { [weak self] count in self?.notice = "고정 자리 5개를 넘어 \(count)개의 고정을 풀었어요." }
         client.telegram.onChange = { [weak self] in self?.notifyChange() }
         client.discord.onChange = { [weak self] in self?.notifyChange() }
+        client.discord.layoutSource = { [weak self] in
+            guard let self, self.client.replayComplete else { return nil }
+            let state = self.model.memberState
+            guard state.store.settings.stateAccount == nil || (state.connected && state.hasFetched) else { return nil }
+            return self.model.sidebar.discordLayout(rooms: self.model.rooms,
+                                                    homeChannelID: self.model.homeChannel?.id,
+                                                    hidden: self.model.hidden)
+        }
         client.onFrame = { [weak self] frame in self?.receive(frame) }
         if client.store.historyMode {
             model.history.readIntent = { [weak self] action,room,key in self?.historyLoading.read(action:action,room:room,key:key) }

@@ -97,6 +97,8 @@ final class MemoryCredentials: GateCredentialStore {
                 } else if args.contains("--todo-drawer") {
                     try await todoDrawerTests(resourceDirectory:URL(fileURLWithPath:args.last!))
                     try await deadlineCloseTests(resourceDirectory:URL(fileURLWithPath:args.last!))
+                } else if args.contains("--discord-sections") {
+                    try await discordSectionsTests()
                 } else if args.contains("--discord") {
                     try await discordTests()
                 } else if args.contains("--telegram") {
@@ -227,6 +229,7 @@ final class MemoryCredentials: GateCredentialStore {
         #endif
         try await petPositionTests(resourceDirectory:URL(fileURLWithPath:CommandLine.arguments.last!))
         try await discordTests()
+        try await discordSectionsTests()
         try await telegramTests()
         try workMonitorTests();try await dashboardTests()
         try await calendarTests()

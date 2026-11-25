@@ -179,6 +179,7 @@ struct ReconnectDelay {
         if !welcomed {
             guard type == "welcome" || type == "pair_rejected" || type == "auth_rejected" else { throw GateFailure.protocolError }
         }
+        if type == "error", discord.receiveLayoutError(frame) { return true }
         if store.historyMode, frame["seq"] != nil {
             guard let seq = HistoryHTTP.integer(frame["seq"]), historySession != nil, seq > 0 else { throw GateFailure.protocolError }
             if seq <= liveSequence { return true }
