@@ -11,6 +11,8 @@ GitHub 릴리스에서 한 줄로 설치한다. 터미널에 붙여 넣는다.
 
 앱을 열면 서버를 자동으로 찾는다. 처음이면 가입(Google로 계속하기 또는 아이디·비밀번호)하고, 그다음부터는 자동 로그인된다.
 
+휴대폰에서 디스코드로 방을 보고 쓰려면 [디스코드 연결 방법](docs/discord-setup.md)을 따른다.
+
 Hermes 플랫폼 플러그인 문과 별도 Mac 앱을 만드는 프로젝트다. 근간과 현재 범위는 [구조 원본](docs/ARCHITECTURE.md), 진행 상태와 판단은 [작업 문서](docs/changes/HEJO-FOUNDATION-20261114/)를 따른다.
 
 목록 선택 표시의 현행 계약은 [현재 명세](docs/spec/current/hejo-sidebar.md)를 따른다.
