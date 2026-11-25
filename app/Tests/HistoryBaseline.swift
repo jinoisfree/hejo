@@ -73,7 +73,7 @@ private final class HistoryCredentials: GateCredentialStore {
                     if self.semantics == nil, !self.didSwitch, !self.controller.model.rooms.isEmpty {
                         self.view.chooseEmployee("alpha"); self.didSwitch = true
                     }
-                    if self.client.replayComplete, !self.finishing { self.finishing = true; Task { await self.finish() } }
+                    if self.client.replayComplete, self.client.discord.support == .supported, !self.finishing { self.finishing = true; Task { await self.finish() } }
                 }
             }
             timer?.resume()

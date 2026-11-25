@@ -15,7 +15,7 @@ BASE = "dba49a7ccea4b4212618ecf773e40c4e18f6bb67"
 FLAGS = ["--hejo-perf-regression", "--hejo-typing-boundaries", "--task40", "--task37",
          "--task39", "--task41", "--task43", "--task42", "--task38", "--task36",
          "--task47", "--task46", "--task45", "--task44", "--review56-existing",
-         "--review56", "--review55", "--telegram", "--todo-drawer", "--drawer-inline",
+         "--review56", "--review55", "--todo-drawer", "--drawer-inline",
          "--finder-picture", "--ui-clean-island", "--ui-clean-polish", "--ui-clean-polish-probe", "--connections", "--connection-stuck", "--thread-done", "--pet-position", "--hejo-reconnect-boundaries"]
 
 def write(path, value):

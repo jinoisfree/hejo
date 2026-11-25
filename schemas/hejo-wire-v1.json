@@ -79,24 +79,6 @@
       "$ref": "#/$defs/room_deleted"
     },
     {
-      "$ref": "#/$defs/telegram"
-    },
-    {
-      "$ref": "#/$defs/telegram_pair"
-    },
-    {
-      "$ref": "#/$defs/telegram_unpair"
-    },
-    {
-      "$ref": "#/$defs/telegram_save"
-    },
-    {
-      "$ref": "#/$defs/telegram_status"
-    },
-    {
-      "$ref": "#/$defs/telegram_code"
-    },
-    {
       "$ref": "#/$defs/deadlines"
     },
     {
@@ -1120,18 +1102,6 @@
           "$ref": "#/$defs/connection_action"
         },
         {
-          "$ref": "#/$defs/telegram"
-        },
-        {
-          "$ref": "#/$defs/telegram_pair"
-        },
-        {
-          "$ref": "#/$defs/telegram_unpair"
-        },
-        {
-          "$ref": "#/$defs/telegram_save"
-        },
-        {
           "$ref": "#/$defs/deadlines"
         },
         {
@@ -1200,12 +1170,6 @@
         },
         {
           "$ref": "#/$defs/connection_result"
-        },
-        {
-          "$ref": "#/$defs/telegram_status"
-        },
-        {
-          "$ref": "#/$defs/telegram_code"
         },
         {
           "$ref": "#/$defs/deadlines_status"
@@ -1684,163 +1648,6 @@
         "type",
         "ref",
         "reply"
-      ],
-      "additionalProperties": false
-    },
-    "telegram": {
-      "type": "object",
-      "properties": {
-        "v": {
-          "const": 1
-        },
-        "type": {
-          "const": "telegram"
-        },
-        "id": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 200
-        }
-      },
-      "required": [
-        "v",
-        "type",
-        "id"
-      ],
-      "additionalProperties": false
-    },
-    "telegram_pair": {
-      "type": "object",
-      "properties": {
-        "v": {
-          "const": 1
-        },
-        "type": {
-          "const": "telegram_pair"
-        },
-        "id": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 200
-        }
-      },
-      "required": [
-        "v",
-        "type",
-        "id"
-      ],
-      "additionalProperties": false
-    },
-    "telegram_unpair": {
-      "type": "object",
-      "properties": {
-        "v": {
-          "const": 1
-        },
-        "type": {
-          "const": "telegram_unpair"
-        },
-        "id": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 200
-        }
-      },
-      "required": [
-        "v",
-        "type",
-        "id"
-      ],
-      "additionalProperties": false
-    },
-    "telegram_save": {
-      "type": "object",
-      "properties": {
-        "v": {
-          "const": 1
-        },
-        "type": {
-          "const": "telegram_save"
-        },
-        "id": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 200
-        },
-        "enabled": {
-          "type": "boolean"
-        }
-      },
-      "required": [
-        "v",
-        "type",
-        "id",
-        "enabled"
-      ],
-      "additionalProperties": false
-    },
-    "telegram_status": {
-      "type": "object",
-      "properties": {
-        "v": {
-          "const": 1
-        },
-        "type": {
-          "const": "telegram_status"
-        },
-        "ref": {
-          "type": "string"
-        },
-        "enabled": {
-          "type": "boolean"
-        },
-        "platform_ready": {
-          "type": "boolean"
-        },
-        "paired": {
-          "type": "boolean"
-        },
-        "topic_problem": {
-          "type": "boolean"
-        }
-      },
-      "required": [
-        "v",
-        "type",
-        "enabled",
-        "platform_ready",
-        "paired",
-        "topic_problem"
-      ],
-      "additionalProperties": false
-    },
-    "telegram_code": {
-      "type": "object",
-      "properties": {
-        "v": {
-          "const": 1
-        },
-        "type": {
-          "const": "telegram_code"
-        },
-        "ref": {
-          "type": "string"
-        },
-        "code": {
-          "type": "string",
-          "minLength": 12,
-          "maxLength": 12
-        },
-        "expires_in": {
-          "const": 600
-        }
-      },
-      "required": [
-        "v",
-        "type",
-        "ref",
-        "code",
-        "expires_in"
       ],
       "additionalProperties": false
     },

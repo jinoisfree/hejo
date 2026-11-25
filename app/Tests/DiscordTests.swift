@@ -43,9 +43,11 @@ import AppKit
     try check(outgoing.last?["enabled"] as? Bool == false && section.enabled.state == .on, "AT-HD-50 waits for save acknowledgement")
     section.unpair.performClick(nil)
     try await waitFor { outgoing.last?["type"] as? String == "discord_unpair" }
-    try check(GateClient.features == ["rooms", "telegram", "discord"], "AT-HD-52 retains existing features")
+    try check(GateClient.features == ["rooms", "discord"], "AT-HD-52 / AT-HTR-20 exact feature list")
     let window = PetSettingsWindow()
-    try check(window.discordSection.superview != nil && window.discordSection.superview === window.telegramSection.superview, "AT-HD-53 same settings page")
+    let connectionPage = window.tabs.tabViewItems.first { $0.label == "연결과 동기화" }?.view
+    try check(connectionPage.map { window.discordSection.isDescendant(of: $0) } == true,
+              "AT-HD-53 / AT-HTR-21 Discord section on connection page")
     let hints = section.subviews.compactMap { ($0 as? NSTextField)?.stringValue }.joined(separator: " ")
     try check(["Message Content", "커뮤니티", "채널 관리", "웹후크 관리"].allSatisfy { hints.contains($0) }, "AT-HD-53 preparation")
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

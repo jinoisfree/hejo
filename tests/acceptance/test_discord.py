@@ -248,7 +248,7 @@ async def incoming(gate,native,channels,room='alpha',**fields):
 async def test_at_hd_01_registration_listener_is_independent(registered,transport):
     adapter,native=transport
     factory=registered.get_platform_handler_factories('discord')
-    assert len(factory)==1 and len(registered.get_platform_handler_factories('telegram'))==1
+    assert len(factory)==1
     original=adapter.handle_message
     factory[0][0](native,adapter);factory[0][0](native,adapter)
     assert adapter.handle_message==original and len(native.listeners)==1
@@ -665,29 +665,6 @@ async def test_at_hd_46_follow_once_per_post_and_retry_after_failure(gate, clien
     frames = await drain(client, ws)
     assert [frame['text'] for frame in frames if frame['type'] == 'message'] == texts
     assert sorted(frame['type'] for frame in frames) == ['discord_status'] + ['message'] * 6 + ['typing'] * 2
-
-
-async def test_at_hd_34_both_windows_reflect_only_other_ingress(gate,client,transport,registered,monkeypatch):
-    from test_telegram import Transport as TelegramTransport
-    from gate import telegram
-    phone=TelegramTransport();monkeypatch.setattr(telegram,'_telegram',None)
-    registered.get_platform_handler_factories('telegram')[0][0](None,phone)
-    _,native=transport;ws,_=await client.pair(features=['discord','telegram']);_,channels=await activate(gate,client,ws,native)
-    await ws.send_json({'v':1,'type':'telegram_pair','id':'tg-code'})
-    while True:
-        frame=await client.read(ws)
-        if frame.get('ref')=='tg-code': break
-    await phone.handle_message(phone.event(frame['code']));await client.until(ws,'telegram_status')
-    await ws.send_json({'v':1,'type':'telegram_save','id':'tg-on','enabled':True})
-    await until(lambda:gate.telegram.active())
-    await gate.telegram.sync_topics();phone.calls.clear();gate.telegram.settle_seconds=.05
-    topics=gate.telegram.topics(gate.telegram.private()['pair']['tag'])['topics']
-    await phone.handle_message(phone.event('tg',topic=topics['alpha']['topic']))
-    await settled(gate)
-    assert len(native.calls)==1 and native.calls[0][1]['content']=='tg' and native.calls[0][1]['username']=='사장'
-    await incoming(gate,native,channels,content='dc')
-    await until(lambda:not gate.telegram.workers);await settled(gate)
-    assert len(native.calls)==1 and [call[1] for call in phone.calls]==['[사장] dc']
 
 
 async def test_at_hd_35_long_split_reassembles_and_maps_after_restart(gate,client,transport):

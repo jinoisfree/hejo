@@ -1,4 +1,3 @@
-from legacy_feature_fixture import receive_legacy
 """Temporary loopback gateway; no Hermes home or external service is consulted."""
 import asyncio
 import json
@@ -57,22 +56,34 @@ async def main():
             if phase == "pair":
                 welcome["token"] = token
             await send(welcome)
+            # Observe and answer the status query before sending initial history.
+            query = await ws.receive_json(timeout=5)
+            validate(query)
+            assert query["type"] == "discord", query["type"]
+            await send(dict(type="discord_status", ref=query["id"], platform_ready=False, paired=False,
+                            enabled=False, channel_problem=False, core_open=False))
+
+            async def receive():
+                frame = await ws.receive_json()
+                validate(frame)
+                assert frame["type"] in {"sync", "pong"}, frame["type"]
+                return frame
             if phase == "pair":
                 async def record(seq):
                     await send(dict(type="delete", seq=seq, msg_id=str(uuid.uuid4())))
                 await record(1)
                 await record(1)  # At-least-once duplicate must not be cached twice.
                 await record(3)  # The client must discard the gap and ask from applied=1.
-                sync = await receive_legacy(ws); validate(sync)
+                sync = await receive()
                 assert sync["type"] == "sync" and sync["since"] == 1
                 await record(2); await record(3)
                 await send(dict(type="sync_done", ref=sync["id"], through=3, more=True, head_seq=4))
-                sync = await receive_legacy(ws); validate(sync)
+                sync = await receive()
                 assert sync["type"] == "sync" and sync["since"] == 3
                 await record(4)
                 await send(dict(type="sync_done", ref=sync["id"], through=4, more=False, head_seq=4))
                 await send(dict(type="ping"))
-                pong = await receive_legacy(ws); validate(pong); assert pong["type"] == "pong"
+                pong = await receive(); assert pong["type"] == "pong"
             else:
                 await send(dict(type="sync_done", ref="hello", through=4, more=False, head_seq=4))
             if phase == "too-large":
@@ -95,8 +106,11 @@ async def main():
                     stop_tasks.append(asyncio.create_task(outage()))
                 else:
                     last_recovery = time.monotonic()
-            async for _ in ws:
-                pass
+            async for message in ws:
+                if message.type == web.WSMsgType.TEXT:
+                    frame = json.loads(message.data)
+                    validate(frame)
+                    assert frame["type"] == "pong", frame["type"]
         except (ConnectionResetError, asyncio.CancelledError):
             pass
         except Exception as error:
@@ -123,6 +137,7 @@ async def main():
                 lines = pathlib.Path(directory, "cache/frames.jsonl").read_text().splitlines()
                 assert [json.loads(line)["seq"] for line in lines] == [1, 2, 3, 4]
             assert last_recovery is not None and last_recovery - outage_started < 40
+            print("AT-HTR-22 PASS: one Discord status query per welcome and initial history loaded")
             print("AT-HF-24 PASS: pair/keychain/restart; gap/duplicate/pages/ping PASS")
             print("AT-HF-25 PASS: ten-second outage; recovery within thirty seconds of listener restart")
             print("FRAME_SIZE PASS: 1009 and too_large surfaced; abnormal disconnect recovered")

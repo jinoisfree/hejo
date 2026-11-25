@@ -67,7 +67,7 @@ def fixture(count, long_thread):
 
 
 async def sample(binary, count, long_thread, semantic=False):
-    from aiohttp import web
+    from aiohttp import WSMsgType, web
     # HERMES_HOME is set before importing any gate dependency.
     with tempfile.TemporaryDirectory(prefix="hejo-history-") as directory:
         root = Path(directory).resolve()
@@ -87,20 +87,35 @@ async def sample(binary, count, long_thread, semantic=False):
         (journal.path / "2026-01.jsonl").write_bytes(raw)
         journal.open()
         auth = AuthStore(os.environ["HERMES_HOME"])
-        # The only non-history request made by GateClient is a telegram status
-        # query. Reject it without constructing an external platform bridge.
-        class NoExternalTransport:
+        queries = {}
+        class DiscordStatus:
             async def command(self, frame, conn):
-                assert frame["type"] == "telegram"
-                await conn.send(dict(v=1, type="error", code="unexpected_frame", ref=frame["id"]))
+                assert frame["type"] == "discord"
+                queries[conn] = queries.get(conn, 0) + 1
+                await conn.send(dict(v=1, type="discord_status", ref=frame["id"],
+                                     platform_ready=False, paired=False, enabled=False,
+                                     channel_problem=False, core_open=False))
         adapter = SimpleNamespace(journal=journal, auth=auth,
-            hub=SimpleNamespace(enabled=False), telegram=NoExternalTransport(),
+            hub=SimpleNamespace(enabled=False), discord=DiscordStatus(),
             employees=lambda: [dict(id=name, name=name.title(), aliases=[], avatar=None) for name in ("alpha", "beta", "gamma")])
         wire = dict(frames=0, bytes=0)
         original_socket = server_module.BoundedWebSocket
+        welcomed = set()
+        unexpected = []
+
         class MeasuredSocket(original_socket):
+            async def receive(self, *args, **kwargs):
+                message = await super().receive(*args, **kwargs)
+                if message.type == WSMsgType.TEXT:
+                    frame = json.loads(message.data)
+                    if frame["type"] not in {"hello", "sync", "pong", "discord"}:
+                        unexpected.append(frame["type"])
+                return message
+
             async def send_str(self, data, compress=None):
                 await super().send_str(data, compress=compress)
+                if self not in welcomed and json.loads(data)["type"] == "welcome":
+                    welcomed.add(self)
                 wire["frames"] += 1
                 wire["bytes"] += len(data.encode("utf-8"))
         server_module.BoundedWebSocket = MeasuredSocket
@@ -143,6 +158,8 @@ async def sample(binary, count, long_thread, semantic=False):
                 print(stderr.decode(errors="replace"), flush=True)
                 # Raw stderr may include host paths; keep only a digest in public evidence.
                 return dict(status="failed", exitCode=child.returncode, stderrSHA256=digest(stderr), stdoutSHA256=digest(stdout), inputSHA256=digest(raw))
+            assert not unexpected, unexpected
+            assert welcomed and {conn.ws: count for conn, count in queries.items()} == dict.fromkeys(welcomed, 1)
             result = json.loads((root / "result.json").read_text())
             result.update(status="completed", exitCode=0, inputSHA256=digest(raw), transmittedJSON=wire, outsideWriteDenied=True, guardExitCode=guard_code)
             assert (journal.path / "2026-01.jsonl").read_bytes() == raw

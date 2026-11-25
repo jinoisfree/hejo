@@ -75,7 +75,7 @@ import AppKit
             bubbleTimer=Timer(timeInterval:0.25,repeats:true){ [weak self] _ in Task { @MainActor in self?.refreshPetActivity(); self?.calendar.refresh() } }
             RunLoop.main.add(bubbleTimer!,forMode:.common)
             let previousChange = conversation.onChange
-            conversation.onChange = { [weak self] in previousChange?(); self?.refreshPetActivity(); if let self { self.petSettings?.refreshHome(rooms:self.conversation.model.rooms,selected:self.conversation.model.home.settings.channel);self.petSettings?.telegramSection.refresh();self.petSettings?.discordSection.refresh() } }
+            conversation.onChange = { [weak self] in previousChange?(); self?.refreshPetActivity(); if let self { self.petSettings?.refreshHome(rooms:self.conversation.model.rooms,selected:self.conversation.model.home.settings.channel);self.petSettings?.discordSection.refresh() } }
             conversationView.onUnread = { [weak self] count in self?.pet.pet.unreadCount = count }
             conversationView.onSidebarWidth = { [weak self] delta in
                 guard let self, let current = self.pet.placementTarget else { return }
@@ -352,7 +352,6 @@ import AppKit
         if petSettings == nil {
             let profile=conversation.model.employees.first
             let settings = PetSettingsWindow(previewName:profile?.name ?? "hejo",palette:{[weak conversation] dark in conversation?.palette(profile?.id ?? "",dark:dark) ?? CharacterPalette.make(hue:nil,dark:dark)})
-            settings.telegramSection.bind(client.telegram)
             settings.discordSection.bind(client.discord)
             settings.onName = { [weak self] value in self?.setPetName(value) }
             settings.onScale = { [weak self] value in self?.setPetScale(value) }
@@ -378,7 +377,6 @@ import AppKit
             settings.onSyncLayout = { [weak self] in self?.synchronizeLayout() }
             petSettings = settings
         }
-        petSettings?.telegramSection.refresh()
         petSettings?.discordSection.refresh()
         petSettings?.refreshHome(rooms:conversation.model.rooms,selected:conversation.model.home.settings.channel)
         petSettings?.bubbleReplyCheck.state=store.settings.bubbleReplyEnabled != false ? .on:.off

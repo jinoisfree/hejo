@@ -99,8 +99,6 @@ final class MemoryCredentials: GateCredentialStore {
                     try await deadlineCloseTests(resourceDirectory:URL(fileURLWithPath:args.last!))
                 } else if args.contains("--discord") {
                     try await discordTests()
-                } else if args.contains("--telegram") {
-                    try await telegramTests()
                 } else if args.contains("--review56-existing") {
                     try await review56Tests();try await memberStateTests();try await settingsTests();try await sidebarTests();try await updateTests()
                 } else if args.contains("--review56") {
@@ -227,7 +225,6 @@ final class MemoryCredentials: GateCredentialStore {
         #endif
         try await petPositionTests(resourceDirectory:URL(fileURLWithPath:CommandLine.arguments.last!))
         try await discordTests()
-        try await telegramTests()
         try workMonitorTests();try await dashboardTests()
         try await calendarTests()
         try webAddressTests()
