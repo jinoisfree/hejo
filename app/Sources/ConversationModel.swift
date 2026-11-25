@@ -517,10 +517,21 @@ struct ConversationThread: Identifiable {
     }
     enum HistoryMessageMerge { case open, refresh, older, newer }
 
+    func hasUnpagedLiveHistory(_ key: ConversationKey) -> Bool {
+        guard history.messagePages[key] == nil, let root = history.summaries[key]?.rootID,
+              !history.deletedMessages.contains(root) else { return false }
+        // Before a page arrives, only a root received in the ordered live stream
+        // proves that the available replies extend from the root to the end.
+        return history.messagePageIDs[key]?.contains(root) == true
+    }
+
     func historyReplyIDs(_ key: ConversationKey, pending: [String] = []) -> [String] {
+        let page = history.messagePages[key]
+        let completeLiveHistory = hasUnpagedLiveHistory(key)
+        guard page != nil || completeLiveHistory else { return [] }
         let root = history.summaries[key]?.rootID
         let replies = (history.messagePageIDs[key] ?? []).filter { $0 != root && !history.deletedMessages.contains($0) }
-        return history.messagePages[key]?.newerCount == 0 ? replies + pending : replies
+        return page?.newerCount == 0 || completeLiveHistory ? replies + pending : replies
     }
 
     /// Historical rows do not call apply(frame): that path advances the live cursor
@@ -609,7 +620,16 @@ struct ConversationThread: Identifiable {
 
     private func appendHistoryReply(_ message: ConversationMessage) {
         let key = message.key
-        guard var page = history.messagePages[key], page.newerCount == 0, message.seq > page.through,
+        guard var page = history.messagePages[key] else {
+            // A summary can arrive after the root and its replies. Keep the live
+            // order until the summary identifies whether this window has the root.
+            if let root = history.summaries[key]?.rootID, root != message.id, !hasUnpagedLiveHistory(key) { return }
+            if history.messagePageIDs[key]?.last != message.id {
+                history.messagePageIDs[key,default:[]].append(message.id)
+            }
+            return
+        }
+        guard page.newerCount == 0, message.seq > page.through,
               message.id != history.summaries[key]?.rootID else { return }
         page.through = message.seq
         history.messagePages[key] = page
@@ -731,13 +751,15 @@ struct ConversationThread: Identifiable {
                 let message = ConversationMessage(id: id, key: ConversationKey(employee: frame["room"] as? String ?? employee, thread: thread), role: role, text: text,
                     files: try decode(frame["files"] ?? [], as: [MessageFile].self), buttons: try decode(frame["buttons"] ?? [], as: [MessageButton].self),
                     replyState: frame["reply_state"] as? String, seq: seq, latestSeq: seq, timestamp: ts, clientMessageID: frame["client_msg_id"] as? String)
-                if store.historyMode, (messages[id]?.latestSeq ?? 0) > seq { break }
+                if store.historyMode {
+                    appendHistoryReply(message)
+                    if (messages[id]?.latestSeq ?? 0) > seq { break }
+                }
                 messages[id] = message;evictedHistoryBodies[id]=nil
                 messages[id]?.employee=employee
                 messages[id]?.answerTo=frame["answer_to"] as? String
                 if let checklist=frame["checklist"] { messages[id]?.checklist=try decode(checklist,as:ReplyChecklist.self) }
                 messages[id]?.branchFrom=(frame["branch_from"] as? [String:Any])?["thread"] as? String
-                if store.historyMode { appendHistoryReply(message) }
                 if !loadingRecords, hidden.contains(message.key.employee) { restore(message.key.employee); revealedHiddenRoom = true }
             case "edit":
                 guard let id = frame["msg_id"] as? String, let text = frame["text"] as? String, let final = frame["final"] as? Bool else { throw GateFailure.protocolError }

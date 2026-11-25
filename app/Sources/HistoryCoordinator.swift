@@ -198,7 +198,12 @@ import Foundation
         guard let id=model.evictedHistoryBody(key,before:before,after:after) else{return false}
         enqueue(.restore(key,id));return true
     }
-    func open(_ key: ConversationKey, anchor: String? = nil) { model.historyOpenAnchor = anchor; enqueue(.open(key,anchor)) }
+    func open(_ key: ConversationKey, anchor: String? = nil) {
+        model.historyOpenAnchor = anchor
+        // Selection already refreshes this complete live thread.
+        if anchor == nil, model.selected == key, model.hasUnpagedLiveHistory(key) { return }
+        enqueue(.open(key,anchor))
+    }
     func content(_ id: String, key: ConversationKey) { enqueue(.content(key,id)) }
     func copy(_ key: ConversationKey, progress: (Int,Int)->Void) async throws -> String {
         guard let context = model.history.context, client.isConnected else { throw HistoryFailure.changed }

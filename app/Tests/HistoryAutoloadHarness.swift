@@ -12,6 +12,11 @@ import Foundation
         let port: Int
     }
 
+    private struct LiveThread: Decodable {
+        let thread: String
+        let root: String
+    }
+
     private struct Request: Decodable {
         let kind: String
         let thread: String?
@@ -703,6 +708,28 @@ import Foundation
                             model.historyReplyIDs(first) == Array(rows.dropFirst()) &&
                             displayedReplies(first.thread) == Array(rows.dropFirst()),"AT-ALD-28")
             }
+        case "live-new-thread":
+            try await wait("existing_room_ready") { rootIDs.allSatisfy(rendered) && !loader.busy }
+            // Establish an explicit selection in the existing room before the live events.
+            try clickCard(chosen)
+            try await wait("existing_thread_selected") { model.selected == chosen && !loader.busy }
+            try require(model.selected == chosen,"AT-ALD-40 original selection")
+            let live = try JSONDecoder().decode(LiveThread.self,from:try await control("live-root"))
+            let newKey = ConversationKey(employee:"alpha",thread:live.thread)
+            try await wait("live_root") { rendered(live.root) && !loader.busy }
+            try require(model.selected == chosen,"AT-ALD-40 selection before the replies")
+            let replies = try JSONDecoder().decode([String].self,from:try await control("live-replies"))
+            try await wait("live_replies_received") { replies.allSatisfy { model.messages[$0] != nil } && !loader.busy }
+            try await settle()
+            try require(rendered(live.root) && displayedReplies(live.thread).last == replies.last,
+                        "AT-ALD-40 new thread shows live replies before opening")
+            try clickCard(newKey)
+            try await wait("new_thread_expanded") {
+                view.history.contents.first { $0.id == live.thread }?.expanded == true && !loader.busy
+            }
+            try require(displayedReplies(live.thread) == replies,"AT-ALD-40 expanded reply order")
+            let pages = try await observe().requests.filter { $0.thread == live.thread && ["messages","resolve"].contains($0.kind) }
+            try require(pages.count <= 1,"AT-ALD-40 at most one thread page (observed \(pages.count))")
         case "live":
             try await wait("live_initial") { rendered(rows[10]) && !loader.busy }
             try require(model.historyReplyIDs(first) == Array(rows.dropFirst()),"AT-ALD-39 complete initial history")

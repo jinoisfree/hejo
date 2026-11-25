@@ -21,7 +21,7 @@ def fixture_id(number):
     "viewport", "leave-room", "refresh-fails", "root-only",
     "older", "anchored", "anchored-last", "anchored-fail", "anchored-reopen", "anchored-live",
     "anchored-no-progress",
-    "cursor-context", "cursor-expired", "cursor-far", "cursor-fails", "live", "root-edge",
+    "cursor-context", "cursor-expired", "cursor-far", "cursor-fails", "live", "live-new-thread", "root-edge",
     "repeat", "growth", "long-fail", "delete", "priority", "thread-pages", "budget",
     "evicted", "prefetch-eviction", "retry-outside", "refresh-count",
     "legacy",
@@ -88,6 +88,7 @@ async def test_history_autoload(gate, tmp_path, scenario, monkeypatch):
     held = asyncio.Event()
     live_refresh = asyncio.Event()
     original = gate.server.history_query
+    live_thread = fixture_id(400)
     root_to_thread = {ids[0]: key for key, ids in rows.items()}
     older_page_seen = False
 
@@ -185,6 +186,18 @@ async def test_history_autoload(gate, tmp_path, scenario, monkeypatch):
             live_refresh.set()
         elif action == "delete":
             await gate._record({"v": 1, "type": "delete", "scope": "thread", "room": "alpha", "thread": threads[0]})
+        elif action == "live-root":
+            sent = await gate.send("alpha", "fixture new thread", metadata={"thread_id": live_thread})
+            assert sent.success
+            root_to_thread[sent.message_id] = live_thread
+            return web.json_response({"thread": live_thread, "root": sent.message_id})
+        elif action == "live-replies":
+            replies = []
+            for number in range(2):
+                sent = await gate.send("alpha", f"fixture live reply {number}", metadata={"thread_id": live_thread})
+                assert sent.success
+                replies.append(sent.message_id)
+            return web.json_response(replies)
         elif action == "live":
             condition["live-refresh"] = scenario == "live"
             same_thread = scenario in ("live", "anchored-live")
