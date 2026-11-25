@@ -126,6 +126,7 @@ class Discord:
         self._channel_lock = asyncio.Lock()
         self.rate_limit_sleep = asyncio.sleep
         self._retry_task = None
+        self._retry_tag = None
         self._sync_requested = asyncio.Event()
         self._sync_task = asyncio.create_task(self._sync_worker())
         self._connection_task = asyncio.create_task(self._watch_connection())
@@ -422,7 +423,9 @@ class Discord:
 
     def _schedule_sync(self, tag, delay):
         if self._retry_task is not None:
-            return
+            if self._retry_tag == tag:
+                return
+            self._retry_task.cancel()
 
         async def retry():
             try:
@@ -430,8 +433,11 @@ class Discord:
                 if self.current(tag):
                     self.request_sync()
             finally:
-                self._retry_task = None
+                if self._retry_task is asyncio.current_task():
+                    self._retry_task = None
+                    self._retry_tag = None
 
+        self._retry_tag = tag
         self._retry_task = asyncio.create_task(retry())
 
     def current(self, tag):

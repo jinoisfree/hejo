@@ -739,3 +739,28 @@ async def test_at_dk_30_full_archive(example, monkeypatch):
     assert operations(example, 'move') == [(example.room(example.g).id, 'hejo 보관')]
     assert example.entries['channels'][example.g]['closed']
     assert example.names('Work') == [] and not example.gate.discord.channel_problem
+
+
+async def test_new_pair_replaces_stale_reservation(example):
+    await example.activate()
+    bridge = example.gate.discord
+    waits = Waits(lambda delay: delay >= 60)
+    bridge.rate_limit_sleep = waits
+    example.failures['move'] = [RateLimited(.25)] * 3
+    await example.report()
+    await waits.entered_wait()
+    old_retry = bridge._retry_task
+
+    await example.command('discord_unpair')
+    await pair(example.gate, example.client, example.ws, example.native, guild='gld-B', user='usr-B')
+    example.failures['forum'] = [RateLimited(.5)] * 3
+    waits.entered.clear()
+    await example.command('discord_save', enabled=True)
+    await waits.entered_wait()
+    assert old_retry.cancelled()
+    assert waits.calls == [.25, .25, 60, .5, .5, 60]
+
+    waits.release.set()
+    await until(lambda: not bridge.channel_problem)
+    await example.synced()
+    assert len(example.entries['channels']) == 4
