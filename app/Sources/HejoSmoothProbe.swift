@@ -20,6 +20,7 @@ enum HejoSmoothProbe {
     static var refreshes = 0
     static var scrollStarts = 0
     static var phases: [String: [Double]] = [:]
+    static var transitionPath = ""
     static var transitionStart: Double?
     static var transitionSteps: [Double] = []
     static var transitionEnd: Double?

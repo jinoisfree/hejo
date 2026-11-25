@@ -2,7 +2,7 @@ import Foundation
 
 enum GateFailure: Error { case tooLarge, protocolError, storage, alreadyRunning, badAddress, badCode, notConnected }
 enum ConnectionStatus: Equatable {
-    case disconnected(Int), connecting, connected, wrongCode, revoked, tooLarge, storageError
+    case disconnected(Int), connecting, connected, wrongCode, revoked, tooLarge, storageError, updateRequired
     var text: String {
         switch self {
         case .disconnected(let n): return "서버와 연결이 끊겼어요 · \(n)초 뒤 다시 연결"
@@ -11,6 +11,7 @@ enum ConnectionStatus: Equatable {
         case .wrongCode: return "로그인하지 못했어요 · 다시 로그인해 주세요"
         case .revoked: return "이 기기가 로그아웃됐어요 · 다시 로그인해 주세요"
         case .tooLarge: return "너무 큼 · 보낼 내용을 줄여 주세요"
+        case .updateRequired: return "문을 업데이트해야 대화 기록을 열 수 있어요"
         case .storageError: return "연결 정보를 저장하지 못했어요 · 다시 시도해 주세요"
         }
     }
@@ -22,6 +23,12 @@ struct ReconnectDelay {
 }
 @MainActor final class GateClient {
     static let features = ["rooms", "telegram"]
+    lazy var history = HistoryHTTP(client: self)
+    private(set) var historySession: String?
+    private(set) var historyThrough = 0
+    private(set) var liveSequence = 0
+    private(set) var fileAccessRevision = 0
+    var onHistoryFrame: (([String:Any]) throws -> Void)?
     lazy var telegram = TelegramState { [weak self] frame in
         guard let self else { throw GateFailure.notConnected }
         try await self.send(frame)
@@ -106,7 +113,8 @@ struct ReconnectDelay {
     func stop() {
         generation += 1; worker?.cancel(); worker = nil
         socket?.cancel(with: .goingAway, reason: nil); socket = nil; pairCode = nil; signInFields = nil; token = nil
-        knownHead = nil; telegram.reset()
+        knownHead = nil
+        telegram.reset(); historySession = nil; historyThrough = 0; liveSequence = 0
         backoff.reset(); welcomed = false; syncing = false; replayComplete = false
     }
     private func connectLoop(run: Int) async {
@@ -119,8 +127,11 @@ struct ReconnectDelay {
         guard pairCode != nil || signInFields != nil || token != nil else { status = .revoked; return }
         while !Task.isCancelled && run == generation {
             knownHead = nil
+            historySession = nil
             status = .connecting; welcomed = false; syncing = false; replayComplete = false
             do {
+                if store.historyMode { try await history.preflight(address: store.settings.address) }
+                guard run == generation, !Task.isCancelled else { return }
                 let url = try Self.endpoint(store.settings.address)
                 var request = URLRequest(url: url); request.timeoutInterval = 5
                 let ws = URLSession.shared.webSocketTask(with: request); socket = ws; ws.maximumMessageSize = Self.maxFrameBytes; ws.resume()
@@ -130,7 +141,7 @@ struct ReconnectDelay {
                     ws.cancel(with: .goingAway, reason: nil)
                 }
                 defer { deadline.cancel() }
-                var hello: [String: Any] = ["v": 1, "type": "hello", "device_name": store.settings.deviceName, "app_version": AppIdentity.version, "since": store.settings.applied, "features":Self.features]
+                var hello: [String: Any] = ["v": 1, "type": "hello", "device_name": store.settings.deviceName, "app_version": AppIdentity.version, "since": store.settings.applied, "features":Self.features + (store.historyMode ? ["history-v1"] : [])]
                 if let pairCode { hello["pair_code"] = pairCode } else if let signInFields { hello.merge(signInFields) { $1 } } else { hello["token"] = token! }
                 try await ws.send(.string(Self.encoded(hello)))
                 while !Task.isCancelled && run == generation {
@@ -143,7 +154,9 @@ struct ReconnectDelay {
                 }
             } catch {
                 guard run == generation, !Task.isCancelled else { return }
-                knownHead = nil; welcomed = false; telegram.reset()
+                knownHead = nil
+                welcomed = false; historySession = nil; telegram.reset()
+                if error as? HistoryFailure == .updateRequired { status = .updateRequired; return }
                 if socket?.closeCode.rawValue == 1009 { status = .tooLarge }
                 if error is GateFailure { // Durable storage/protocol failures must not spin on reconnect.
                     if case GateFailure.storage = error { status = .storageError; return }
@@ -162,9 +175,24 @@ struct ReconnectDelay {
         if !welcomed {
             guard type == "welcome" || type == "pair_rejected" || type == "auth_rejected" else { throw GateFailure.protocolError }
         }
+        if store.historyMode, frame["seq"] != nil {
+            guard let seq = HistoryHTTP.integer(frame["seq"]), historySession != nil, seq > 0 else { throw GateFailure.protocolError }
+            if seq <= liveSequence { return true }
+            guard seq == liveSequence + 1, let consume = onHistoryFrame else { throw GateFailure.protocolError }
+            if type == "delete" || type == "room_delete" || type == "room_deleted" || type == "room" || type == "edit" && frame["files"] != nil {fileAccessRevision += 1}
+            try consume(frame)
+            liveSequence = seq
+            return true
+        }
         switch type {
         case "welcome":
-            knownHead = Self.headSequence(frame["head_seq"])
+            if store.historyMode {
+                guard let info = frame["history"] as? [String:Any], HistoryHTTP.integer(info["version"]) == 1,
+                      let session = info["session"] as? String, !session.isEmpty,
+                      let through = HistoryHTTP.integer(info["through"]), through == HistoryHTTP.integer(frame["head_seq"]) else { throw GateFailure.protocolError }
+                historySession = session; historyThrough = through; liveSequence = through
+            }
+            knownHead = store.historyMode ? nil : Self.headSequence(frame["head_seq"])
             if let issued = frame["token"] as? String {
                 let keychain = credentials, account = store.settings.credentialAccount
                 let saved = await Task.detached { keychain.save(issued, account: account) }.value
@@ -172,7 +200,7 @@ struct ReconnectDelay {
                 guard saved else { status = .storageError; return false }
                 token = issued; pairCode = nil; signInFields = nil
             }
-            welcomed = true; connectionEpoch += 1; replayComplete = false; backoff.reset(); status = .connected
+            welcomed = true; connectionEpoch += 1; replayComplete = store.historyMode; backoff.reset(); status = .connected
         case "pair_rejected": knownHead = nil; pairCode = nil; signInFields = nil; rejection = frame["reason"] as? String; status = .wrongCode; return false
         case "auth_rejected":
             guard frame["reason"] as? String == "revoked" else {throw GateFailure.protocolError}
@@ -180,25 +208,35 @@ struct ReconnectDelay {
             await Task.detached { keychain.delete(account: account) }.value
             if let run, run != generation { return false }
             knownHead = nil; token = nil; status = .revoked; return false
+#if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
         case "message", "edit", "delete", "state":
+            guard !store.historyMode else { throw GateFailure.protocolError }
             guard let seq = frame["seq"] as? Int, seq > 0 else { throw GateFailure.protocolError }
             if seq <= store.settings.applied { return true }
             if seq > store.settings.applied + 1 { knownHead = max(knownHead ?? seq, seq); replayComplete = false; if !syncing { syncing = true; try await sync() }; return true }
             do { try store.append(frame) } catch { throw GateFailure.storage }
         case "sync_done":
+            guard !store.historyMode else { throw GateFailure.protocolError }
             guard let through = frame["through"] as? Int, let more = frame["more"] as? Bool else { throw GateFailure.protocolError }
             if let head = Self.headSequence(frame["head_seq"]) { knownHead = max(knownHead ?? head, head) }
             syncing = false; replayComplete = !more && through <= store.settings.applied
             if more || through > store.settings.applied { syncing = true; try await sync() }
+#else
+        case "message", "edit", "delete", "state", "sync_done": throw GateFailure.protocolError
+#endif
         case "ping": try await send(["v": 1, "type": "pong"])
         case "error": if frame["code"] as? String == "too_large" { status = .tooLarge }
         default:
+#if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
             if let seq=frame["seq"] as? Int {
                 guard seq>0 else { throw GateFailure.protocolError }
                 if seq<=store.settings.applied { return true }
                 if seq>store.settings.applied+1 { knownHead=max(knownHead ?? seq,seq);replayComplete=false;if !syncing { syncing=true;try await sync() };return true }
                 do { try store.append(frame) } catch { throw GateFailure.storage }
             }
+#else
+            if frame["seq"] != nil { throw GateFailure.protocolError }
+#endif
         }
         if type == "welcome" {
             telegram.reset()
@@ -217,7 +255,9 @@ struct ReconnectDelay {
         request.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
         return request
     }
+#if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
     private func sync() async throws { try await send(["v": 1, "type": "sync", "id": UUID().uuidString.lowercased(), "since": store.settings.applied]) }
+#endif
     func send(_ frame: [String: Any]) async throws {
         let string: String
         do { string = try Self.encoded(frame) } catch { status = .tooLarge; throw error }

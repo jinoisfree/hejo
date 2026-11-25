@@ -8,6 +8,8 @@ import logging
 import os
 from pathlib import Path
 
+from .history import HistoryIndex
+
 log = logging.getLogger(__name__)
 RECORD_TYPES = {"message", "edit", "delete", "state", "room", "room_delete"}
 
@@ -24,6 +26,7 @@ class Journal:
         self.head = 0
         self.faulted = False
         self.fd = None
+        self.history = HistoryIndex()
         self.message_threads = {}
         self.deleted_threads = {}
         self.deleted_messages = set()
@@ -83,10 +86,12 @@ class Journal:
         self.message_threads, self.deleted_threads = {}, {}
         self.rooms, self.deleted_rooms = {}, {}
         self.deleted_messages = set()
+        self.history = HistoryIndex()
         for row in records:
             self._index(row)
 
     def _index(self, row):
+        self.history.apply(row)
         if row["type"] == "delete" and row.get("scope") != "thread":
             self.deleted_messages.add(row["msg_id"])
         if row["type"] == "room":

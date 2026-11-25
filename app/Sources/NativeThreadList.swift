@@ -12,6 +12,17 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
     }
     var onBlank: (() -> Void)?
     var onMeasured: (() -> Void)?
+    var onOlder: (() -> Void)?
+    var onNewer: (() -> Void)?
+    var onViewport: ((Set<String>) -> Void)?
+    var visibleMessageIDs: Set<String> {
+        let visible=contentView.bounds
+        return Set(layouts.flatMap { layout -> [String] in
+            guard let card=frame(for:layout.content.id),card.intersects(visible) else {return []}
+            return layout.anchors.filter {$0.value.offsetBy(dx:card.minX,dy:card.minY).intersects(visible)}.map(\.key)
+        })
+    }
+    private var olderRequestedAt = -Double.infinity
     let table = Table()
     private(set) var contents: [NativeThreadCard.Content] = []
     private(set) var layouts: [NativeThreadCard.Layout] = []
@@ -23,6 +34,7 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
     private var measuredWidth: CGFloat = 0
     private var identity = ""
     private var appearanceRevision=ChatAppearance.revision
+    private var historyMode=false
     private var scrollRevision = 0
     private var userScrolls = 0
     var clock:()->Double={ProcessInfo.processInfo.systemUptime}
@@ -38,6 +50,33 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
     private var entryActive=false
     var isFollowing:Bool {follow != nil}
     var hasDeferredUpdate:Bool {deferred != nil}
+    /// UTF-16 payload only: attributes, glyphs, images and allocator overhead are separate.
+    /// Two bytes per code unit, with a budget of twice the ordinary 5 MiB resident body budget.
+    var textPayloadBudgetBytes = 10 * 1024 * 1024
+    private func textPayloadBytes(_ groups:[[NativeThreadCard.Content]]) -> Int {
+        var strings:[ObjectIdentifier:NSAttributedString]=[:]
+        func add(_ text:NSAttributedString) {strings[ObjectIdentifier(text)]=text}
+        for cards in groups {for card in cards {for piece in card.top+(card.replies ?? []) {
+            switch piece {
+            case .post(let post): add(post.text);for mark in post.marks {add(mark.text)}
+            case .note(let mark,_): add(mark.text)
+            case .stack,.accessory: break
+            }
+        }}}
+        return strings.values.reduce(0) {$0+$1.length*2}
+    }
+    var renderedTextPayloadBytes:Int {
+        textPayloadBytes([contents,layouts.map(\.content),deferred?.0 ?? []])
+    }
+    var textKitPayloadBytes:Int {
+        var bytes=0
+        table.enumerateAvailableRowViews { row,_ in
+            guard let card=row.view(atColumn:0) as? NativeThreadCard else {return}
+            bytes += card.subviews.compactMap {$0 as? NSTextView}.reduce(0) {$0+($1.textStorage?.length ?? 0)*2}
+        }
+        return bytes
+    }
+    var textPayloadExcessBytes:Int {max(0,renderedTextPayloadBytes+textKitPayloadBytes-textPayloadBudgetBytes)}
     private var scrollMotion:(ease:WorkspaceEase,revision:Int,input:Int)?
     private var scrollTimer:Timer?
     override class var isCompatibleWithResponsiveScrolling:Bool {false}
@@ -53,6 +92,10 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
         table.blank = { [weak self] in self?.onBlank?() }
         contentInsets = NSEdgeInsets(top: 14, left: 0, bottom: 14, right: 0)
         table.resized = { [weak self] in self?.remeasure() }
+        contentView.postsBoundsChangedNotifications = true
+        observers.append(NotificationCenter.default.addObserver(forName:NSView.boundsDidChangeNotification,object:contentView,queue:.main) { [weak self] _ in
+            guard let self else {return};self.onViewport?(self.visibleMessageIDs)
+        })
     }
     required init?(coder: NSCoder) { fatalError() }
     deinit {scrollTimer?.invalidate();followTimer?.invalidate();deferredWork?.cancel();if let inputMonitor {NSEvent.removeMonitor(inputMonitor)};for observer in observers {NotificationCenter.default.removeObserver(observer)}}
@@ -69,20 +112,63 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
         let point=convert(event.locationInWindow,from:nil)
         var reading=(event.type == .scrollWheel || event.type == .leftMouseDown) && bounds.contains(point)
         if event.type == .keyDown,[49,115,116,119,121,123,124,125,126].contains(event.keyCode),let responder=window.firstResponder as? NSView {reading=responder===self || responder.isDescendant(of:self)}
-        if reading {readerInput(wheel:event.type == .scrollWheel)}
+        if reading {
+            readerInput(wheel:event.type == .scrollWheel)
+            if event.type == .scrollWheel { requestHistoryEdges(delta:event.scrollingDeltaY) }
+        }
     }
     func readerInput(wheel:Bool){
         userScrolls+=1;entryActive=false;follow=nil;followTimer?.invalidate();followTimer=nil
         scrollMotion=nil;scrollTimer?.invalidate();scrollTimer=nil
         if wheel {wheelAt=clock()}
     }
-    override func scrollWheel(with event:NSEvent){readerInput(wheel:true);super.scrollWheel(with:event)}
-    func show(_ contents:[NativeThreadCard.Content],identity:String,entry:String?=nil){
+    private func requestHistoryEdges(delta: CGFloat) {
+        guard clock()-olderRequestedAt > 0.35 else {return}
+        if delta>0,contentView.bounds.minY<=100 {
+            olderRequestedAt=clock();onOlder?()
+        } else if historyMode,delta<0,contentView.bounds.maxY>=table.bounds.maxY-100 {
+            olderRequestedAt=clock();onNewer?()
+        }
+    }
+    override func scrollWheel(with event:NSEvent){readerInput(wheel:true);super.scrollWheel(with:event);requestHistoryEdges(delta:event.scrollingDeltaY)}
+    private struct ReaderAnchor { let card: String; let message: String?; let offset: CGFloat; let input: Int; let revision: Int }
+    private func readerAnchor() -> ReaderAnchor? {
+        let visible = contentView.bounds
+        guard table.bounds.maxY-visible.maxY > 2 else { return nil }
+        for layout in layouts {
+            guard let card = frame(for:layout.content.id), card.intersects(visible) else { continue }
+            let message = layout.anchors.sorted { $0.value.minY < $1.value.minY }.first {
+                $0.value.offsetBy(dx:card.minX,dy:card.minY).intersects(visible)
+            }?.key
+            let rect = frame(for:layout.content.id,message:message) ?? card
+            return .init(card:layout.content.id,message:message,offset:rect.minY-visible.minY,input:userScrolls,revision:scrollRevision)
+        }
+        return nil
+    }
+    private func keep(_ anchor: ReaderAnchor) {
+        for delay in [0.0,0.06,0.2,0.4] { DispatchQueue.main.asyncAfter(deadline:.now()+delay) { [weak self] in
+            guard let self, self.userScrolls == anchor.input, self.scrollRevision == anchor.revision,
+                  self.follow == nil, self.resizing == nil, !self.entryActive,
+                  let rect = self.frame(for:anchor.card,message:anchor.message) else { return }
+            self.move(to:rect.minY-anchor.offset)
+        }}
+    }
+    func show(_ contents:[NativeThreadCard.Content],identity:String,entry:String?=nil,historyMode:Bool=false){
+        self.historyMode=historyMode
+        func bodyIDs(_ cards:[NativeThreadCard.Content])->Set<String> {
+            Set(cards.flatMap{($0.top+($0.replies ?? [])).compactMap{piece -> String? in
+                if case .post(let post)=piece {return post.id};return nil
+            }})
+        }
+        let removed=historyMode && !bodyIDs(self.contents).subtracting(bodyIDs(contents)).isEmpty
         if appearanceRevision != ChatAppearance.revision {
             appearanceRevision=ChatAppearance.revision;deferredWork?.cancel();deferredWork=nil;deferred=nil
             apply(contents,identity:identity,entry:entry);return
         }
-        if identity==self.identity,clock()-wheelAt<0.25 {
+        // Do not retain an extra generation of text while over budget. Required visible/
+        // pinned content remains displayed; its excess is observable instead of truncated.
+        let canDefer = !historyMode || textPayloadBytes([self.contents,self.layouts.map(\.content),contents])+textKitPayloadBytes <= textPayloadBudgetBytes
+        if !removed,canDefer,identity==self.identity,clock()-wheelAt<0.25 {
             let start=deferred?.3 ?? clock()
             if clock()-start<2 {
                 deferred=(contents,identity,entry,start);deferredWork?.cancel()
@@ -102,6 +188,7 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
         deferred=nil;deferredWork=nil;apply(contents,identity:identity,entry:entry)
     }
     private func apply(_ contents:[NativeThreadCard.Content],identity:String,entry:String?){
+        let anchor=historyMode ? readerAnchor():nil
         let changed=self.identity != identity,old=place(),oldStreaming = !streamingRows.isEmpty
         if changed {scrollRevision+=1;follow=nil;entryActive=true;entryID=entry}
         func streaming(_ content:NativeThreadCard.Content)->Bool {(content.top+(content.replies ?? [])).contains{if case .post(let post)=$0{return post.streaming};return false}}
@@ -113,7 +200,7 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
         else if let follow {
             if oldStreaming && streamingNow.isEmpty {settleUntil=clock()+1.2}
             if reduceMotion(){restore(follow)}else{startFollowing()}
-        } else if !changed,resizing==nil {keep(old)}
+        } else if !changed,resizing==nil {if let anchor {keep(anchor)} else {keep(old)}}
         streamingRows=streamingNow
     }
     private func place()->Place {Place(bottom:max(0,table.bounds.maxY-contentView.bounds.maxY),input:userScrolls,revision:scrollRevision)}
@@ -207,6 +294,9 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
         if resizing != nil {restoreResize();if ownsResize && !inLiveResize {resizing=nil}}
         if entryActive {placeEntry()}
         if abs(oldHeight - table.frame.height) > 0.5 { DispatchQueue.main.async { [weak self] in self?.onMeasured?() } }
+    }
+    func tableView(_ tableView:NSTableView,didRemove rowView:NSTableRowView,forRow row:Int) {
+        (rowView.view(atColumn:0) as? NativeThreadCard)?.releaseContent()
     }
     func numberOfRows(in tableView: NSTableView) -> Int { layouts.count }
     func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool { false }

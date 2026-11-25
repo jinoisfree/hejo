@@ -1,0 +1,65 @@
+[
+  {
+    "command": [
+      "git",
+      "rev-parse",
+      "HEAD"
+    ],
+    "exitCode": 0,
+    "output": "6bf9c3c6f6b9c563e3b4d44bf69d1014569579c0\n"
+  },
+  {
+    "command": [
+      "git",
+      "status",
+      "--short"
+    ],
+    "exitCode": 0,
+    "output": ""
+  },
+  {
+    "command": [
+      "git",
+      "diff",
+      "--exit-code",
+      "HEAD",
+      "--",
+      "app/Sources"
+    ],
+    "exitCode": 0,
+    "output": ""
+  },
+  {
+    "command": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "exitCode": 0,
+    "output": ""
+  },
+  {
+    "check": "frozen semantic byte comparison",
+    "mode": "direct",
+    "equal": true,
+    "snapshots": 58,
+    "performanceExists": false,
+    "execution": {
+      "exitCode": null,
+      "timeout": true,
+      "commit": "6bf9c3c6f6b9c563e3b4d44bf69d1014569579c0"
+    }
+  },
+  {
+    "check": "frozen semantic byte comparison",
+    "mode": "home",
+    "equal": true,
+    "snapshots": 58,
+    "performanceExists": false,
+    "execution": {
+      "exitCode": null,
+      "timeout": true,
+      "commit": "6bf9c3c6f6b9c563e3b4d44bf69d1014569579c0"
+    }
+  }
+]

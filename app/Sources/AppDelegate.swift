@@ -28,6 +28,7 @@ import AppKit
     private var calendarWindow: NSWindow?
     private var bubble: BubbleReveal!
     private var bubbleTimer: Timer?
+    private let historyBubble = HistoryBubbleResolver()
     private var bubbleReply:BubbleReplyCard!
     private var wasSending = false
     private var loginChangeFailed = false
@@ -42,7 +43,7 @@ import AppKit
     func applicationDidFinishLaunching(_ notification: Notification) {
         do {
             try FileManager.default.createDirectory(at: AppIdentity.support, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-            instance = try InstanceLock(directory: AppIdentity.support); store = try LocalStore();ChatAppearance.bind(store)
+            instance = try InstanceLock(directory: AppIdentity.support); store = try LocalStore(historyMode:true);ChatAppearance.bind(store)
             bubble = BubbleReveal(store:store)
             client = GateClient(store: store); pet = PetController(store: store, atlas: try SpriteAtlas())
             OptionWindows.petLevel = { [weak self] in self?.pet?.panel.level ?? .floating }
@@ -238,20 +239,29 @@ import AppKit
         guard !conversation.paused else { pet.pet.updateFoldedBubble(); return }
         let model = conversation.model
         let input=conversation.islandInput
-        let messages=Array(model.messages.values)
+        historyBubble.onChange = { [weak self] in self?.refreshPetActivity() }
+        historyBubble.refresh(client:client,model:model,bubble:bubble,chatOpen:pet.chatExpanded,now:Date())
+        var bodyByID=model.messages
+        for body in historyBubble.currentBodies(context:model.history.context) {bodyByID[body.id]=body}
+        let messages=Array(bodyByID.values)
         let questions=Set(model.rooms.flatMap{model.notices($0.id).filter(\.questions).flatMap(\.messages)})
         let readIDs=Set(messages.filter{ message in
             let key=message.key
             return message.latestSeq<=max(model.memberState.read("read:"+key.employee),model.memberState.read("thread:"+key.employee+"/"+key.thread))
         }.map(\.id))
-        let jumped=bubble.update(.init(messages:messages,calendarEvents:conversation.calendarEvents,questions:questions,typing:model.typing,names:input.names,muted:model.petMuted,readIDs:readIDs,opened:model.selected,chatOpen:pet.chatExpanded,paused:pet.pet.isPaused,ready:client.replayComplete,tasks:dashboardModel.tasks,selectedTask:dashboardModel.selectedID,screenFocus:workSnapshot?.screenFocus,failure:input.failure),now:Date())
+        let jumped=bubble.update(.init(messages:messages,calendarEvents:conversation.calendarEvents,questions:questions,typing:model.typing,names:input.names,muted:model.petMuted,readIDs:readIDs,opened:model.selected,chatOpen:pet.chatExpanded,paused:pet.pet.isPaused,ready:client.replayComplete,tasks:dashboardModel.tasks,selectedTask:dashboardModel.selectedID,screenFocus:workSnapshot?.screenFocus,failure:input.failure,history:.init(baseline:client.historyThrough,through:client.liveSequence,deletedIDs:model.history.deletedMessages,states:historyBubble.currentStates(context:model.history.context),deletedThreads:Set(model.history.deletedThreads.keys))),now:Date())
         if jumped {pet.pet.requestReplyJump()}
         var notice=bubble.notice
+        if historyBubble.failed {notice.detail="알림을 불러오지 못했어요. 대화를 다시 열어 확인해 주세요."}
         if bubble.persistenceFailed {notice.detail="알림을 저장하지 못했어요. 저장 공간을 확인해 주세요."}
+        func targetExists(_ key:ConversationKey) -> Bool {
+            guard model.rooms.contains(where:{$0.id==key.employee}),model.history.deletedThreads[key] == nil else {return false}
+            return bubbleReply.target?.key == key || model.history.summaries[key] != nil || historyBubble.currentStates(context:model.history.context).values.contains{$0.status == "present" && $0.conversationKey==key} || model.typing[key].map{$0>Date()} == true
+        }
         // A failed inline reply keeps its existing draft target; it does not become an alert bubble.
-        if notice.key==nil,notice.workState==nil,let old=bubbleReply.target,conversation.bubbleProblems[old.key] != nil,!model.petMuted.contains(old.key.employee),!model.timeline(old.key).isEmpty {notice.key=old.key}
+        if notice.key==nil,notice.workState==nil,let old=bubbleReply.target,conversation.bubbleProblems[old.key] != nil,!model.petMuted.contains(old.key.employee),targetExists(old.key) {notice.key=old.key}
         let target=notice.key.flatMap{key->BubbleReplyTarget? in
-            guard !model.timeline(key).isEmpty else{return nil}
+            guard targetExists(key) else{return nil}
             return BubbleReplyTarget(key:key,speaker:model.name(key.employee),working:conversation.working(key),queued:model.employees.first{$0.id==key.employee}?.queued ?? false)
         }
         if let target,target.working,conversation.interruptions[target.key] != nil {notice.detail=BubbleReply.interruptedSubtitle;notice.kind = .writing}

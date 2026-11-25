@@ -46,7 +46,7 @@ def build(evidence, baseline, skip=False):
     assert original.read_text().count(old) == 1
     instrumented = evidence / 'GateClient.swift'
     instrumented.write_text(original.read_text().replace(old, new))
-    options = ['-swift-version', '5', '-parse-as-library', '-O', '-whole-module-optimization', '-D', 'HEJO_PERF_TESTING', '-target', platform.machine() + '-apple-macosx13.0']
+    options = ['-swift-version', '5', '-parse-as-library', '-O', '-whole-module-optimization', '-D', 'HEJO_PERF_TESTING', '-D', 'HEJO_LEGACY_REFERENCE', '-target', platform.machine() + '-apple-macosx13.0']
     if baseline:
         options += ['-D', 'HEJO_RECONNECT_BASELINE']
     # Git history is provenance, not a build input: committing identical source must

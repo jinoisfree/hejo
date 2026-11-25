@@ -74,6 +74,17 @@ import AppKit
     try check(mid>visible.minY && mid<target,"AT91 0.24 scroll has an intermediate position")
     list.readerInput(wheel:false);await pause(0.5)
     let samples:[String:Double]=["centerMidY":Double(row.midY),"centerActualY":Double(centerActual),"endActualMaxY":Double(endActual),"endExpectedMaxY":Double(row.maxY),"smallGrowthStep":Double(smallStep),"firstGrowthStep":Double(first-before),"manualStoppedY":Double(stopped),"resizeOffset":Double(offset),"animatedMiddleY":Double(mid),"centerExpectedY":Double(row.midY-300/2),"followGap":400,"followFrames":1]
+    // History pages preserve the visible message, even when newer content changes below it.
+    list.reduceMotion={true};list.show(cards(),identity:"history-room",historyMode:true)
+    let anchorID="post-3",anchorRow="row-3"
+    let anchorRect=try homeRequire(list.frame(for:anchorRow,message:anchorID),"history anchor exists")
+    list.readerInput(wheel:false);list.contentView.scroll(to:CGPoint(x:0,y:anchorRect.minY+2))
+    let anchorOffset=list.frame(for:anchorRow,message:anchorID)!.minY-list.contentView.bounds.minY
+    list.show(cards(300),identity:"history-room",historyMode:true);await pause(0.45)
+    try check(abs(list.frame(for:anchorRow,message:anchorID)!.minY-list.contentView.bounds.minY-anchorOffset)<1,"history growth preserves visible message offset")
+    var historyPrefix=cards(300);var older=historyPrefix[0];older.id="history-prefix";older.top=[];historyPrefix.insert(older,at:0)
+    list.show(historyPrefix,identity:"history-room",historyMode:true);await pause(0.45)
+    try check(abs(list.frame(for:anchorRow,message:anchorID)!.minY-list.contentView.bounds.minY-anchorOffset)<1,"history prepend preserves visible message offset")
     try await workspaceMotionTests(outputDirectory:outputDirectory,samples:samples)
     try await heightFollowTests()
     print("AT-HF-91 APP PASS")
@@ -106,7 +117,7 @@ import AppKit
     let flashed=ui.history.contents.first{$0.id==a.key.thread} ?? ui.history.contents.first{$0.id==b.key.thread}!
     try check(flashed.style.stroke == .controlAccentColor && flashed.style.lineWidth==2,"AT91 flash accent 2pt outline")
     try check((flashed.top+(flashed.replies ?? [])).contains{if case .post(let p)=$0{return p.flash};return false},"AT91 flashing message has native accent background")
-    ui.openSearch();ui.search.stringValue="일정";ui.revealSearch(a);time.addTimeInterval(2);ui.tickIsland();ui.refresh()
+    ui.openSearch();ui.search.stringValue="일정";ui.revealHistorySearch(a.key,id:a.id);time.addTimeInterval(2);ui.tickIsland();ui.refresh()
     let highlighted=ui.history.contents.first{$0.id==a.key.thread}!
     let yellow=(highlighted.top+(highlighted.replies ?? [])).contains{piece in if case .post(let p)=piece {var found=false;p.text.enumerateAttribute(.backgroundColor,in:NSRange(location:0,length:p.text.length)){v,_,_ in if v as? NSColor == .yellow {found=true}};return found};return false}
     try check(yellow,"AT91 search emphasis survives 1.6 second flash")
@@ -136,13 +147,15 @@ import AppKit
     if let outputDirectory {
         try check(controller.canSend,"AT91 connected capture")
         try FileManager.default.createDirectory(at:outputDirectory,withIntermediateDirectories:true)
-        ui.openSearch();ui.search.stringValue="일정";ui.scheduleSearch();await pause(0.4)
-        let fixture:[String:Any] = ["title":ui.island.snapshot.title,"description":"","query":"일정","groups":ui.searchGroups.map {g in ["room":"hejo","latest":g.latest.timeIntervalSince1970,"root":g.root.text,"matches":g.matches.map {m in ["id":m.id,"body":m.text,"speaker":model.name(m.speaker),"date":ThreadTools.date(m.timestamp).timeIntervalSince1970]}] as [String:Any]}]
+        ui.openSearch();ui.search.stringValue="일정"
+        let captureGroups=WorkspaceSearch.groups("일정",messages:Array(model.messages.values),names:Dictionary(uniqueKeysWithValues:model.employees.map{($0.id,$0.name)}),hidden:model.hidden)
+        ui.searchResults.showHistory(workspaceHistoryGroups(captureGroups,query:"일정"),query:"일정",selection:0,name:model.name,room:{$0})
+        let fixture:[String:Any] = ["title":ui.island.snapshot.title,"description":"","query":"일정","groups":captureGroups.map {g in ["room":"hejo","latest":g.latest.timeIntervalSince1970,"root":g.root.text,"matches":g.matches.map {m in ["id":m.id,"body":m.text,"speaker":model.name(m.speaker),"date":ThreadTools.date(m.timestamp).timeIntervalSince1970]}] as [String:Any]}]
         try JSONSerialization.data(withJSONObject:fixture,options:[.prettyPrinted,.sortedKeys]).write(to:outputDirectory.appendingPathComponent("source-fixture.json"))
         for (theme,name) in [(NSAppearance.Name.aqua,"light"),(.darkAqua,"dark")] {
             NSApp.appearance=NSAppearance(named:theme);win.appearance=NSAppearance(named:theme);ui.appearance=NSAppearance(named:theme)
             let rect=CGRect(x:0,y:0,width:740,height:660);win.setContentSize(rect.size);ui.frame=rect;let canvas=ScrollCaptureCanvas(frame:rect);canvas.dark=name=="dark";canvas.appearance=NSAppearance(named:theme);win.contentView=canvas;canvas.addSubview(ui)
-            canvas.effectiveAppearance.performAsCurrentDrawingAppearance{ui.refresh();canvas.layoutSubtreeIfNeeded();ui.layoutSubtreeIfNeeded();func dirty(_ view:NSView){view.needsDisplay=true;view.subviews.forEach(dirty)};dirty(canvas);win.display();canvas.displayIfNeeded()};await pause(0.1)
+            canvas.effectiveAppearance.performAsCurrentDrawingAppearance{ui.refresh();ui.searchResults.showHistory(workspaceHistoryGroups(captureGroups,query:"일정"),query:"일정",selection:0,name:model.name,room:{$0});canvas.layoutSubtreeIfNeeded();ui.layoutSubtreeIfNeeded();func dirty(_ view:NSView){view.needsDisplay=true;view.subviews.forEach(dirty)};dirty(canvas);win.display();canvas.displayIfNeeded()};await pause(0.1)
             if let box=ui.searchResults.stack.arrangedSubviews.dropFirst().first,let color=box.layer?.backgroundColor.flatMap({NSColor(cgColor:$0)?.usingColorSpace(.sRGB)}) {try check(name=="dark" ? color.redComponent>0.9:color.redComponent<0.1,"AT91 search boxes repaint across appearance changes")}
             let bitmap=canvas.bitmapImageRepForCachingDisplay(in:canvas.bounds)!;canvas.cacheDisplay(in:canvas.bounds,to:bitmap);try bitmap.representation(using:.png,properties:[:])!.write(to:outputDirectory.appendingPathComponent("task40-hejo-"+name+".png"))
         }

@@ -1,0 +1,54 @@
+{
+  "status": "interim; executor running; not final verification",
+  "commit": "e63085d84d66caea2cf19fd2f9421231f6bdbcc3",
+  "modes": [
+    {
+      "mode": "typing-direct",
+      "exit": 0,
+      "timeout": false,
+      "events": 30,
+      "max_total_seconds": 0.018367666518315673,
+      "full_refreshes": 0
+    },
+    {
+      "mode": "typing-direct-receive",
+      "exit": 0,
+      "timeout": false,
+      "events": 30,
+      "max_total_seconds": 0.1365211249794811,
+      "full_refreshes": 0
+    },
+    {
+      "mode": "typing-group",
+      "exit": 0,
+      "timeout": false,
+      "events": 30,
+      "max_total_seconds": 0.01807937491685152,
+      "full_refreshes": 0
+    },
+    {
+      "mode": "typing-group-receive",
+      "exit": 0,
+      "timeout": false,
+      "events": 30,
+      "max_total_seconds": 0.18944954150356352,
+      "full_refreshes": 0
+    },
+    {
+      "mode": "typing-home",
+      "exit": 0,
+      "timeout": false,
+      "events": 30,
+      "max_total_seconds": 0.019093874841928482,
+      "full_refreshes": 0
+    },
+    {
+      "mode": "typing-home-receive",
+      "exit": 0,
+      "timeout": false,
+      "events": 30,
+      "max_total_seconds": 0.13963312492705882,
+      "full_refreshes": 0
+    }
+  ]
+}

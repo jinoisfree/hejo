@@ -153,6 +153,10 @@ class FileStore:
                 for info in descriptors]
 
     def registered(self, employee, file_id):
+        path, entry, _ = self.registered_entry(employee, file_id)
+        return path, entry["mime"]
+
+    def registered_entry(self, employee, file_id):
         if not EMPLOYEE.fullmatch(employee) or not ID.fullmatch(file_id):
             raise UnknownFile()
         for row in reversed(self.journal.records):
@@ -163,7 +167,7 @@ class FileStore:
                     path = self.checked(self.root / file_id / safe_name(entry["name"]))
                     if str(path) != entry["path"] or not path.is_file():
                         raise UnknownFile()
-                    return path, entry["mime"]
+                    return path, entry, row.get("ts")
         raise UnknownFile()
 
     async def copy(self, employee, file_path, file_name=None):

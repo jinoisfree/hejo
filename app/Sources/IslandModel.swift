@@ -12,6 +12,11 @@ struct IslandUpload: Equatable { var completed: Int; var total: Int }
 final class IslandModel {
     enum Kind: Int { case problem, question, worker }
     enum Action: Equatable { case drawer, reconnect, retry(ConversationKey), question(String, ConversationKey), worker(ConversationKey) }
+    struct Question {
+        var id: String, key: ConversationKey, speaker: String, text: String, seq: Int
+        init(_ message:ConversationMessage) {id=message.id;key=message.key;speaker=message.speaker;text=IslandModel.firstLine(message.text);seq=message.seq}
+        init(_ value:HistoryQuestion) {id=value.id;key=value.conversationKey;speaker=value.speaker;text=value.preview;seq=value.seq}
+    }
     struct Input {
         var messages: [ConversationMessage] = []
         var typing: [ConversationKey: Date] = [:]
@@ -25,6 +30,10 @@ final class IslandModel {
         var drawerOpen = false
         var title = "HEJO."
         var todoTotal = 0
+        var historyQuestions: [Question]?
+        var historyThrough: Int?
+        var historyReady = true
+        var questions: [Question] {historyQuestions ?? messages.filter{$0.role=="employee" && $0.replyState=="asked"}.map(Question.init)}
     }
     enum Tone: Equatable { case normal, orange, red, green }
     struct Activity {
@@ -89,7 +98,8 @@ final class IslandModel {
         let employees=Set(live.keys.map(\.employee))
         workingSince=workingSince.filter { employees.contains($0.key) }
         for employee in employees where workingSince[employee] == nil { workingSince[employee]=date }
-        let questions=next.messages.filter { $0.role == "employee" && $0.replyState == "asked" }.sorted { $0.seq < $1.seq }
+        guard next.historyReady else {input=next;return}
+        let questions=next.questions.sorted { $0.seq < $1.seq }
         if initialized {
             for message in questions where !asked.contains(message.id) && !next.muted.contains(message.key.employee) {
                 enqueue(Event(kind:.question,text:Self.firstLine(message.text),name:next.names[message.speaker] ?? message.key.employee,action:.question(message.id,message.key),remaining:4))
@@ -98,7 +108,7 @@ final class IslandModel {
                 enqueue(Event(kind:.worker,text:"답글 · 보기 ›",name:next.names[message.speaker] ?? message.key.employee,action:.worker(message.key),remaining:3))
             }
         }
-        asked=Set(questions.map(\.id)); highSequence=next.messages.map(\.seq).max() ?? 0
+        asked=Set(questions.map(\.id)); highSequence=next.historyThrough ?? next.messages.map(\.seq).max() ?? 0
         input=next; initialized=true
         // A question answered/deleted before its queued preview is shown must not remain actionable.
         func hiddenEvent(_ event: Event) -> Bool {
@@ -114,7 +124,7 @@ final class IslandModel {
     func snapshot() -> Snapshot {
         advance()
         let date=now
-        let questions=input.messages.filter { $0.role == "employee" && $0.replyState == "asked" }.sorted { $0.seq<$1.seq }
+        let questions=input.questions.sorted { $0.seq<$1.seq }
         var result=Snapshot(title:input.title,dot:input.todoTotal>0,drawerOpen:input.drawerOpen,
             hoverQuestion:questions.last.map { Self.firstLine($0.text)+" · 열기 ›" })
         if wasDisconnected {

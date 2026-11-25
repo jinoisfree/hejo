@@ -1,0 +1,1310 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "hejo bounded history requests",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/context"
+    },
+    {
+      "$ref": "#/$defs/query"
+    },
+    {
+      "$ref": "#/$defs/content"
+    }
+  ],
+  "$defs": {
+    "context": {
+      "type": "object",
+      "properties": {
+        "session": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "memberRevision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "ready": {
+          "type": "boolean"
+        },
+        "items": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^(read:|thread:|bell:|confirm:|check:)[^\\n]+$"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "v": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 4096
+              },
+              "at": {
+                "type": "number",
+                "minimum": 0
+              },
+              "dev": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            "required": [
+              "v",
+              "at",
+              "dev"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "home": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "uniqueItems": true
+        },
+        "hidden": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "uniqueItems": true
+        },
+        "names": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "additionalProperties": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "now": {
+          "type": "number"
+        },
+        "locale": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^[A-Za-z0-9_@=;.-]+$"
+        }
+      },
+      "required": [
+        "session",
+        "generation",
+        "memberRevision",
+        "ready",
+        "items",
+        "home",
+        "hidden",
+        "names",
+        "now"
+      ],
+      "additionalProperties": false
+    },
+    "query": {
+      "type": "object",
+      "properties": {
+        "session": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536
+        },
+        "context": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536
+        },
+        "request": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "kind": {
+          "enum": [
+            "overview",
+            "threads",
+            "messages",
+            "resolve",
+            "notices",
+            "search",
+            "receipt",
+            "read_plan",
+            "copy",
+            "questions",
+            "message_state"
+          ]
+        },
+        "scope": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50
+        },
+        "cursor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536
+        },
+        "target": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "room": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "thread": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "room",
+                "thread"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 50,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "uniqueItems": true
+            }
+          ]
+        },
+        "query": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "action": {
+          "enum": [
+            "seed",
+            "enter",
+            "mark_all",
+            "thread",
+            "notice",
+            "all_notices",
+            "finalize"
+          ]
+        },
+        "mode": {
+          "enum": [
+            "groups",
+            "sidebar",
+            "room",
+            "selection"
+          ]
+        },
+        "anchor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "copyRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536
+        }
+      },
+      "required": [
+        "session",
+        "context",
+        "request",
+        "kind",
+        "scope"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "overview"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "target": false,
+              "query": false,
+              "action": false,
+              "mode": {
+                "const": "sidebar"
+              },
+              "anchor": false,
+              "copyRef": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "notices"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "target": false,
+              "query": false,
+              "action": false,
+              "mode": {
+                "const": "sidebar"
+              },
+              "anchor": false,
+              "copyRef": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "threads"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "mode": {
+                "const": "selection"
+              },
+              "target": false,
+              "query": false,
+              "action": false,
+              "copyRef": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "messages"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "target": {
+                "type": "object"
+              },
+              "query": false,
+              "action": false,
+              "mode": false,
+              "copyRef": false
+            },
+            "required": [
+              "target"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "resolve"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "query": false,
+              "action": false,
+              "mode": false,
+              "copyRef": false
+            },
+            "required": [
+              "target"
+            ],
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "target": {
+                      "type": "array"
+                    }
+                  }
+                },
+                "then": {
+                  "properties": {
+                    "cursor": false,
+                    "anchor": false
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "receipt"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "target": {
+                "type": "array"
+              },
+              "query": false,
+              "action": false,
+              "mode": false,
+              "anchor": false,
+              "copyRef": false,
+              "cursor": false
+            },
+            "required": [
+              "target"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "search"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "mode": {
+                "enum": [
+                  "groups",
+                  "sidebar",
+                  "room"
+                ]
+              },
+              "target": false,
+              "action": false,
+              "copyRef": false
+            },
+            "required": [
+              "query"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "read_plan"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "action": {
+                "enum": [
+                  "seed",
+                  "enter",
+                  "mark_all",
+                  "thread",
+                  "notice",
+                  "all_notices"
+                ]
+              },
+              "target": {
+                "type": "object"
+              },
+              "query": false,
+              "mode": {
+                "const": "sidebar"
+              },
+              "anchor": false,
+              "copyRef": false
+            },
+            "required": [
+              "action"
+            ],
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "action": {
+                      "enum": [
+                        "thread",
+                        "notice"
+                      ]
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "target"
+                  ]
+                },
+                "else": {
+                  "properties": {
+                    "target": false
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "copy"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "target": {
+                "type": "object"
+              },
+              "action": {
+                "const": "finalize"
+              },
+              "query": false,
+              "mode": false,
+              "anchor": false
+            },
+            "required": [
+              "target"
+            ],
+            "allOf": [
+              {
+                "if": {
+                  "required": [
+                    "action"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "copyRef"
+                  ],
+                  "properties": {
+                    "cursor": false
+                  }
+                },
+                "else": {
+                  "properties": {
+                    "copyRef": false
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "questions"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "scope": {
+                "const": "home"
+              },
+              "target": false,
+              "query": false,
+              "action": false,
+              "mode": false,
+              "anchor": false,
+              "copyRef": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "message_state"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "target"
+            ],
+            "properties": {
+              "scope": {
+                "const": "home"
+              },
+              "target": {
+                "type": "array"
+              },
+              "query": false,
+              "action": false,
+              "mode": false,
+              "anchor": false,
+              "copyRef": false,
+              "cursor": false,
+              "limit": false
+            }
+          }
+        }
+      ]
+    },
+    "content": {
+      "type": "object",
+      "properties": {
+        "session": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536
+        },
+        "cursor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536
+        }
+      },
+      "required": [
+        "session",
+        "ref"
+      ],
+      "additionalProperties": false
+    },
+    "key": {
+      "type": "object",
+      "properties": {
+        "room": {
+          "type": "string"
+        },
+        "thread": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "room",
+        "thread"
+      ],
+      "additionalProperties": false
+    },
+    "assessment": {
+      "type": "object",
+      "properties": {
+        "requestID": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pendingID": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "working": {
+          "type": "boolean"
+        },
+        "settled": {
+          "type": "boolean"
+        },
+        "approved": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "requestID",
+        "pendingID",
+        "working",
+        "settled",
+        "approved"
+      ],
+      "additionalProperties": false
+    },
+    "notice": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "group": {
+          "type": "string"
+        },
+        "questions": {
+          "type": "boolean"
+        },
+        "title": {
+          "type": "string"
+        },
+        "speaker": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        },
+        "preview": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "group",
+        "questions",
+        "title",
+        "speaker",
+        "timestamp",
+        "preview"
+      ],
+      "additionalProperties": false
+    },
+    "summary": {
+      "type": "object",
+      "properties": {
+        "rootSeq": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "latestSeq": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "originalMaxSeq": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "messageCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "unread": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "waitingButtonCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "rootID": {
+          "type": "string"
+        },
+        "rootTime": {
+          "type": "string"
+        },
+        "lastTime": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "preview": {
+          "type": "string"
+        },
+        "rootPreview": {
+          "type": "string"
+        },
+        "key": {
+          "$ref": "#/$defs/key"
+        },
+        "assessment": {
+          "$ref": "#/$defs/assessment"
+        },
+        "bell": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "notice": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/notice"
+            }
+          ]
+        },
+        "nextNoticeExpiry": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "sidebarActivity": {
+          "type": "number"
+        },
+        "rootRole": {
+          "type": "string",
+          "enum": [
+            "owner",
+            "employee"
+          ]
+        },
+        "activity": {
+          "type": "object",
+          "properties": {
+            "lastSpeaker": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "working": {
+              "type": "boolean"
+            },
+            "latestEmployeeTime": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "lastSpeaker",
+            "working",
+            "latestEmployeeTime"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "rootSeq",
+        "latestSeq",
+        "originalMaxSeq",
+        "messageCount",
+        "unread",
+        "waitingButtonCount",
+        "revision",
+        "rootID",
+        "rootTime",
+        "lastTime",
+        "title",
+        "preview",
+        "rootPreview",
+        "key",
+        "assessment",
+        "bell",
+        "notice",
+        "nextNoticeExpiry",
+        "sidebarActivity",
+        "rootRole",
+        "activity"
+      ],
+      "additionalProperties": false
+    },
+    "totals": {
+      "type": "object",
+      "properties": {
+        "unread": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "questions": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "alerts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "nextNoticeExpiry": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "unread",
+        "questions",
+        "alerts",
+        "nextNoticeExpiry"
+      ],
+      "additionalProperties": false
+    },
+    "contextResponse": {
+      "type": "object",
+      "properties": {
+        "context": {
+          "type": "string"
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "memberRevision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "context",
+        "generation",
+        "memberRevision"
+      ],
+      "additionalProperties": false
+    },
+    "queryResponse": {
+      "type": "object",
+      "properties": {
+        "session": {
+          "type": "string"
+        },
+        "context": {
+          "type": "string"
+        },
+        "request": {
+          "type": "string"
+        },
+        "through": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object"
+          }
+        },
+        "next": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "totals": {
+          "$ref": "#/$defs/totals"
+        },
+        "root": {
+          "$ref": "#/$defs/summary"
+        },
+        "newerCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "copyRef": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "action": {
+          "type": "string"
+        },
+        "changes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "session",
+        "context",
+        "request",
+        "through",
+        "next",
+        "complete"
+      ],
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "required": [
+            "items"
+          ],
+          "properties": {
+            "changes": false
+          }
+        },
+        {
+          "required": [
+            "changes",
+            "action"
+          ],
+          "properties": {
+            "items": false
+          }
+        }
+      ]
+    },
+    "contentResponse": {
+      "type": "object",
+      "properties": {
+        "session": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "totalBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "next": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "data": {
+          "type": "string",
+          "maxLength": 349528,
+          "contentEncoding": "base64"
+        }
+      },
+      "required": [
+        "session",
+        "revision",
+        "offset",
+        "totalBytes",
+        "sha256",
+        "next",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "errorResponse": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "request": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "retryable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "code",
+        "request",
+        "retryable"
+      ],
+      "additionalProperties": false
+    },
+    "searchHit": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "snippet": {
+          "type": "string"
+        },
+        "speaker": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        },
+        "key": {
+          "$ref": "#/$defs/key"
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "role": {
+          "enum": [
+            "owner",
+            "employee"
+          ]
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "id",
+        "snippet",
+        "speaker",
+        "timestamp",
+        "key",
+        "notes",
+        "role",
+        "revision"
+      ],
+      "additionalProperties": false
+    },
+    "searchGroup": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/key"
+        },
+        "matches": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/$defs/searchHit"
+          }
+        },
+        "rootSnippet": {
+          "type": "string"
+        },
+        "latest": {
+          "type": "string"
+        },
+        "exact": {
+          "type": "boolean"
+        },
+        "root": {
+          "$ref": "#/$defs/summary"
+        }
+      },
+      "required": [
+        "key",
+        "matches",
+        "rootSnippet",
+        "latest",
+        "exact",
+        "root"
+      ],
+      "additionalProperties": false
+    },
+    "question": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "key": {
+          "$ref": "#/$defs/key"
+        },
+        "speaker": {
+          "type": "string"
+        },
+        "preview": {
+          "type": "string"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "id",
+        "key",
+        "speaker",
+        "preview",
+        "seq",
+        "revision"
+      ],
+      "additionalProperties": false
+    },
+    "messageState": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "present",
+            "deleted",
+            "missing"
+          ]
+        },
+        "key": {
+          "type": "object",
+          "properties": {
+            "room": {
+              "type": "string"
+            },
+            "thread": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "room",
+            "thread"
+          ],
+          "additionalProperties": false
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "read": {
+          "type": "boolean"
+        },
+        "eligible": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "status"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "present"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "key",
+              "seq",
+              "revision",
+              "read",
+              "eligible"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "deleted"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "revision"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "enum": [
+                  "deleted",
+                  "missing"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "key": false,
+              "seq": false,
+              "read": false,
+              "eligible": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "missing"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "revision": false
+            }
+          }
+        }
+      ]
+    }
+  },
+  "x-limits": {
+    "context_bytes": 2097152,
+    "query_bytes": 65536,
+    "query_text_bytes": 4096,
+    "page_items": 50,
+    "page_bytes": 524288,
+    "content_chunk_bytes": 262144,
+    "snapshots": 8,
+    "snapshot_bytes": 8388608,
+    "snapshot_seconds": 60
+  }
+}

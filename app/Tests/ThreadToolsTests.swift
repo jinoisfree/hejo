@@ -90,11 +90,11 @@ func controlFrame(_ seq:Int,thread:String=controlThread,text:String="✅ 보고�
     try client.pair(address:args[3],code:"test_code-12",device:"Thread fixture")
     try await waitFor{client.replayComplete && controller.model.messages[controlMessage] != nil}
     let key=ConversationKey(employee:"alpha",thread:controlThread),post=controller.model.messages[controlMessage]!
-    await controller.click(post.buttons[0],message:post)
-    await controller.click(post.buttons[1],message:post)
+    await controller.click(post.buttons[0],messageID:post.id,key:post.key,buttons:post.buttons)
+    await controller.click(post.buttons[1],messageID:post.id,key:post.key,buttons:post.buttons)
     try await waitFor{controller.model.messages[controlMessage]?.replyState=="answered"}
     try check(!controller.model.confirmed(post.id),"AT87 explicit reply Confirm sends its issued button; inferred Confirm alone is local")
-    await controller.click(post.buttons[2],message:post)
+    await controller.click(post.buttons[2],messageID:post.id,key:post.key,buttons:post.buttons)
     try await waitFor{controller.model.messages[controlMessage]?.replyState=="answered"}
     controller.setText("interrupt",for:key);await controller.sendCurrent(for:key)
     try check(controller.interruptions[key] != nil,"AT76 owner input while working marks interruption")

@@ -80,12 +80,21 @@ async def test_irs05_only_secure_fields_are_reflection_inputs(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_irs07_individual_delete_hides_and_cleans_attachment(gate,tmp_path):
+async def test_irs07_individual_delete_hides_and_cleans_attachment(gate,client):
+    from aiohttp import ClientSession
     async def chunks():yield b'fixture'
     info=await gate.files.stage('alpha','sample.txt',chunks());infos,moved=gate.files.promote('alpha',[info['file_id']])
     mid=str(uuid.uuid4());thread=str(uuid.uuid4())
     await gate.journal.append({'type':'message','msg_id':mid,'employee':'alpha','thread':thread,'role':'employee','text':'fixture'}, {'files':gate.files.registration('alpha','employee',infos)})
     path,_=gate.files.registered('alpha',info['file_id'])
+    ws, welcome = await client.pair(since=gate.journal.head, features=['rooms', 'history-v1'])
+    url = f"http://127.0.0.1:{gate.server.port}/v1/files/alpha/{info['file_id']}"
+    async with ClientSession(trust_env=False, headers={'Authorization': 'Bearer ' + welcome['token']}) as http:
+        async with http.get(url) as response:
+            assert response.status == 200 and await response.read() == b'fixture'
+        async with http.get(url + '/metadata') as response:
+            assert response.status == 404
+    await ws.close()
     await gate.journal.append({'type':'delete','msg_id':mid})
     with pytest.raises(UnknownFile):gate.files.registered('alpha',info['file_id'])
     gate.files.cleanup();assert not path.exists()

@@ -104,22 +104,17 @@ private final class WorkspaceCanvas:NSView {
     let field=WorkspaceSearch.attributed("needle",query:"needle")
     try check(field.attribute(.backgroundColor,at:0,effectiveRange:nil) as? NSColor == .systemYellow && field.attribute(.foregroundColor,at:0,effectiveRange:nil) as? NSColor == .black,"AT78 yellow black highlight")
     controller.onChange=redraw;ui.refresh()
-    let restored=try ConversationModel(store:try LocalStore(directory:home));try check(restored.messages.count==model.messages.count,"AT78 local cache projection search source survives reload")
-    ui.openSearch();ui.search.stringValue="search words";ui.scheduleSearch();await pause(0.1)
-    try check(ui.searchGroups.isEmpty,"AT78 query waits 0.25 seconds")
-    try await waitFor{ui.searchGroups.count==1};ui.moveSearch(1);ui.chooseSearch()
-    try check(!ui.isSearchOpen && ui.highlightedMessageID != nil,"AT78 Return opens matching thread with flash")
-    ui.openSearch();ui.search.stringValue="질문";ui.scheduleSearch();try await waitFor{ui.searchGroups.count==2};ui.moveSearch(1)
-    try check(ui.searchSelection==1,"AT78 down selects second result");ui.moveSearch(-1);try check(ui.searchSelection==0,"AT78 up selects first result");_=ui.closeSearchIfOpen()
-    ui.openSearch();ui.search.stringValue="needle";ui.scheduleSearch();try await waitFor{ui.searchGroups.first?.matches.first?.id==metadata}
-    ui.layoutSubtreeIfNeeded();ui.searchResults.layoutSubtreeIfNeeded()
-    let resultBox=ui.searchResults.stack.arrangedSubviews[1] as! NSStackView
-    let resultHeader=resultBox.arrangedSubviews[0] as! WorkspaceResultHeader
-    try check(abs(resultHeader.frame.width-(ui.searchResults.contentSize.width-48))<1 && resultHeader.date.frame.maxX>500 && resultBox.frame.height<180,"AT78 result hugs content and room/date header expands to result width instead of truncating at intrinsic width")
+    let restored=try ConversationModel(store:try LocalStore(directory:home));try check(restored.messages.count==model.messages.count,"Legacy rollback cache projection survives reload")
+    // Search debounce, keyboard selection and anchor resolution now run against the
+    // authenticated fixture in HistoryTransportHarness.controller-search.
+    // Keep this local corpus as an independent semantic oracle and capture fixture.
+    let captureGroups=workspaceHistoryGroups(WorkspaceSearch.groups("needle",messages:Array(model.messages.values),names:names,hidden:[]),query:"needle")
+    ui.openSearch();ui.search.stringValue="needle"
+    ui.searchResults.showHistory(captureGroups,query:"needle",selection:0,name:model.name,room:{$0})
     if let outputDirectory {
         try FileManager.default.createDirectory(at:outputDirectory,withIntermediateDirectories:true)
         let window=NSWindow(contentRect:ui.frame,styleMask:[.titled],backing:.buffered,defer:false);let canvas=WorkspaceCanvas(frame:ui.frame);canvas.addSubview(ui);window.contentView=canvas;window.appearance=NSAppearance(named:.aqua);window.orderFrontRegardless();ui.layoutSubtreeIfNeeded();await pause(0.1)
-        func capture(_ name:String) throws {ui.layoutSubtreeIfNeeded();let bitmap=canvas.bitmapImageRepForCachingDisplay(in:canvas.bounds)!;canvas.cacheDisplay(in:canvas.bounds,to:bitmap);try bitmap.representation(using:.png,properties:[:])!.write(to:outputDirectory.appendingPathComponent(name))}
+        func capture(_ name:String) throws {if ui.isSearchOpen {ui.searchResults.showHistory(captureGroups,query:"needle",selection:0,name:model.name,room:{$0})};ui.layoutSubtreeIfNeeded();let bitmap=canvas.bitmapImageRepForCachingDisplay(in:canvas.bounds)!;canvas.cacheDisplay(in:canvas.bounds,to:bitmap);try bitmap.representation(using:.png,properties:[:])!.write(to:outputDirectory.appendingPathComponent(name))}
         try capture("task26-search.png");_=ui.closeSearchIfOpen();ui.chooseEmployee("alpha");ui.refresh();try capture("task26-workspace.png");window.orderOut(nil)
     }
     let key=NSEvent.keyEvent(with:.keyDown,location:.zero,modifierFlags:.command,timestamp:0,windowNumber:0,context:nil,characters:"ㄹ",charactersIgnoringModifiers:"ㄹ",isARepeat:false,keyCode:3)!
@@ -149,4 +144,16 @@ private final class WorkspaceCanvas:NSView {
     try check(controller.draft.isEmpty && controller.notice.hasSuffix(" · 보내지 못한 글은 입력창 위 ‘되살리기’로 다시 쓸 수 있어요."),"AT79 rejection has original failure guidance")
     await pause(0.5);try check(!controller.sending && controller.failures.count==1,"AT79 no automatic retry after rejection")
     client.stop();print("AT-HF-79 WORKSPACE NETWORK PASS")
+}
+
+
+// Presentation-only conversion for legacy reference screenshots. Never enters Model/cache.
+func workspaceHistoryGroups(_ groups:[WorkspaceSearch.Group],query:String)->[HistorySearchGroup] {
+    groups.map { group in
+        HistorySearchGroup(key:.init(room:group.key.employee,thread:group.key.thread),
+            matches:group.matches.map { line in
+                let preview=WorkspaceSearch.preview(query,message:line)
+                return HistorySearchHit(id:line.id,snippet:WorkspaceSearch.snippet(preview.body,query:query),role:line.role,speaker:line.speaker,timestamp:line.timestamp,key:.init(room:line.key.employee,thread:line.key.thread),notes:preview.notes,revision:0)
+            },rootSnippet:group.root.text,latest:ISO8601DateFormatter().string(from:group.latest),exact:group.exact)
+    }
 }

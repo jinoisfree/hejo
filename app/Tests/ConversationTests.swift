@@ -26,7 +26,7 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     try commit(["v":1,"type":"edit","seq":2,"msg_id":messageA,"text":"streaming answer","final":false,"buttons":[["id":buttonA,"label":"Continue","kind":"reply","style":"primary"]]])
     try check(model.messages[messageA]?.streaming == true && model.messages.count == 1 && model.unread(key) == 0,"AT87 streaming edit retains original message read position")
     try commit(["v":1,"type":"state","seq":3,"msg_id":messageA,"reply_state":"closed"])
-    let post=model.messages[messageA]!, click=try ConversationModel.click(message:post,button:post.buttons[0])
+    let post=model.messages[messageA]!, click=try ConversationModel.click(messageID:post.id,buttons:post.buttons,button:post.buttons[0])
     try check(click["type"] as? String == "click" && click["msg_id"] as? String == messageA && click["button_id"] as? String == buttonA && click["employee"] == nil,"button uses only server-issued message/button identifiers")
     try model.apply(["v":1,"type":"typing","employee":"alpha","thread":threadA,"on":true,"ttl_seconds":6],now:Date(timeIntervalSince1970:1000))
     try model.apply(["v":1,"type":"typing","employee":"alpha","thread":threadB,"on":true,"ttl_seconds":6],now:Date(timeIntervalSince1970:1004))
@@ -135,7 +135,7 @@ private func message(_ seq: Int, id: String = messageA, employee: String = "alph
     pet.onExpansionChanged={controller.model.setVisible($0)}; pet.showChat()
     let post=controller.model.messages[messageA]!
     print("CONVERSATION_STAGE click"); fflush(stdout)
-    await controller.click(post.buttons[0],message:post)
+    await controller.click(post.buttons[0],messageID:post.id,key:post.key,buttons:post.buttons)
     try await waitFor { controller.model.messages[messageA]?.replyState == "closed" }
     let original=directory.appendingPathComponent("note.txt"); try Data("fixture attachment".utf8).write(to:original)
     controller.addAttachments([original]); controller.setText("reject attachment"); print("CONVERSATION_STAGE unknown_file"); fflush(stdout)

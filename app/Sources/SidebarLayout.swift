@@ -25,6 +25,9 @@ struct SidebarLayout {
             picture=try c.decodeIfPresent(String.self,forKey:.picture)
         }
     }
+    enum Freshness: Equatable { case unknown, updating, ready
+        var label: String {switch self {case .unknown:return "집계 확인 중";case .updating:return "집계 갱신 중";case .ready:return ""}}
+    }
     struct Item: Equatable {
         enum Kind { case home, group, direct }
         var id: String, name: String
@@ -35,6 +38,7 @@ struct SidebarLayout {
         var unread = 0, questions = 0, alerts = 0
         var muted = false
         var picture: String?
+        var freshness: Freshness = .ready
     }
     struct Row {
         enum Kind { case home, room, section, stack, divider, gap, search, hitHeading, hit }
@@ -44,6 +48,10 @@ struct SidebarLayout {
         var items: [Item] = []
         var open = false
         var picture: String?
+        var freshness: Freshness {
+            if items.contains(where:{$0.freshness == .unknown}) {return .unknown}
+            return items.contains(where:{$0.freshness == .updating}) ? .updating:.ready
+        }
         var stableID:String {kind == .room ? "room:"+id:kind == .home ? "home":id}
         var unread: Int { items.filter { !($0.muted && (kind == .section || kind == .stack)) }.reduce(0) { $0+$1.unread } }
         var questions: Int { items.filter { !$0.muted || kind == .room }.reduce(0) { $0+$1.questions } }

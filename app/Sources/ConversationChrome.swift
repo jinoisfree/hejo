@@ -37,7 +37,7 @@ final class EmployeeSidebarCell:NSTableCellView {
     var list=false {didSet{if oldValue != list,duration>0 {let fade=CATransition();fade.type = .fade;fade.duration=duration;fade.timingFunction=SidebarMotion.curve;layer?.add(fade,forKey:"sidebar-form")}}}
     var faces:[(String,ProfileAvatar)]=[],row:SidebarLayout.Row?,picture:NSImage?
     var duration:Double=0
-    let selection=CALayer(),heading=CATextLayer()
+    let selection=CALayer(),heading=CATextLayer(),freshnessMark=CATextLayer()
     private let counters=(0..<3).map{_ in CALayer()},numbers=(0..<3).map{_ in CATextLayer()},dots=(0..<3).map{_ in CALayer()}
     private let marks=(0..<5).map{_ in SidebarAXMark()}
     private var wasChosen=false
@@ -48,6 +48,7 @@ final class EmployeeSidebarCell:NSTableCellView {
         roomInk.cell=self;roomInk.wantsLayer=true;roomInk.layer?.zPosition=1;addSubview(roomInk)
         heading.zPosition=2;layer?.addSublayer(heading)
         for i in 0..<3 {counters[i].zPosition=2;dots[i].zPosition=2;layer?.addSublayer(counters[i]);counters[i].addSublayer(numbers[i]);layer?.addSublayer(dots[i]);numbers[i].alignmentMode = .center; numbers[i].contentsScale=NSScreen.main?.backingScaleFactor ?? 2}
+        freshnessMark.zPosition=2;layer?.addSublayer(freshnessMark);freshnessMark.contentsScale=NSScreen.main?.backingScaleFactor ?? 2;freshnessMark.alignmentMode = .center;freshnessMark.fontSize=12
         heading.contentsScale=NSScreen.main?.backingScaleFactor ?? 2;heading.truncationMode = .end
         for mark in marks {addSubview(mark);mark.setAccessibilityElement(true);mark.setAccessibilityRole(.image)}
     }
@@ -71,7 +72,7 @@ final class EmployeeSidebarCell:NSTableCellView {
         for i in 0..<3 {
             let home=row.kind == .home
             counters[i].isHidden=home;numbers[i].isHidden=home;dots[i].isHidden=home
-            let show=values[i]>0 && !home
+            let show=values[i]>0 && !home && row.freshness != .unknown
             SidebarMotion.change(counters[i],key:"opacity",to:show && !header ? 1.0:0.0,duration:duration)
             SidebarMotion.change(counters[i],key:"backgroundColor",to:colors[i].cgColor,duration:duration)
             counters[i].borderColor=(dark ? NSColor(white:0.12,alpha:1):.white).cgColor;counters[i].borderWidth=1
@@ -86,12 +87,20 @@ final class EmployeeSidebarCell:NSTableCellView {
             setAccessibilityLabel("\(name) \(row.items.count)개"+(!row.open && !labels.isEmpty ? ", 새 글 있음":"")+(row.open ? ", 펼쳐짐":", 접힘"));setAccessibilityValue(labels.joined(separator:", "))
             toolTip=name+" · 오른쪽 클릭으로 이름 편집 · "+(row.open ? "접기":"펼치기")
         } else {setAccessibilityLabel(name+(unread>0 ? ", 새 글 \(unread)개":"")+(faces.isEmpty ? "":", "+faces.map(\.0).joined(separator:", ")));toolTip=name}
+        freshnessMark.isHidden = row.freshness == .ready
+        freshnessMark.string = row.freshness == .unknown ? "?":"↻"
+        freshnessMark.foregroundColor = NSColor.secondaryLabelColor.cgColor
+        if row.freshness != .ready {
+            toolTip = (toolTip ?? name)+" · "+row.freshness.label
+            setAccessibilityLabel(name+", "+row.freshness.label)
+        }
         needsLayout=true;needsDisplay=true;roomInk.needsDisplay=true
     }
     override func viewDidChangeEffectiveAppearance(){super.viewDidChangeEffectiveAppearance();effectiveAppearance.performAsCurrentDrawingAppearance{refreshChrome()}}
     var faceRect:CGRect {let box:CGFloat=34;return CGRect(x:list ? (row?.kind == .home ? 20:36):(bounds.width-box)/2,y:list ? (bounds.height-box)/2:10,width:box,height:box)}
     static func markSize(_ name:String)->CGSize {NSImage(systemSymbolName:name,accessibilityDescription:nil)!.withSymbolConfiguration(.init(pointSize:8,weight:.regular))!.size}
     override func layout(){super.layout();guard let row else{return};let header=row.kind == .section || row.kind == .stack,box=faceRect
+        freshnessMark.frame=CGRect(x:bounds.width-17,y:2,width:14,height:16)
         CATransaction.begin();CATransaction.setDisableActions(true)
         roomInk.frame=bounds;roomInk.needsDisplay=true
         selection.frame=list ? CGRect(x:row.kind == .home ? 10:26,y:3,width:max(0,bounds.width-(row.kind == .home ? 20:36)),height:max(0,bounds.height-6)):bounds.insetBy(dx:8,dy:3)

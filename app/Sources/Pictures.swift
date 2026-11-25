@@ -96,3 +96,49 @@ enum PictureCodec {
         return nil
     }
 }
+
+/// Disposable attachment previews. Cells share the same image; weak entries account for
+/// images still displayed after cache eviction without extending their lifetime.
+@MainActor final class AttachmentThumbnailCache {
+    static let maximumPixelSize = 512
+    private final class Entry {
+        weak var image:NSImage?
+        let bytes:Int
+        init(_ image:NSImage,bytes:Int) {self.image=image;self.bytes=bytes}
+    }
+    private var cached:[String:NSImage]=[:],entries:[String:Entry]=[:],order:[String]=[]
+    let byteLimit:Int
+    init(byteLimit:Int=16*1024*1024) {self.byteLimit=max(0,byteLimit)}
+    var cachedBytes:Int {cached.keys.reduce(0) {$0+(entries[$1]?.bytes ?? 0)}}
+    var retainedBytes:Int {entries.values.reduce(0) {$0+($1.image == nil ? 0:$1.bytes)}}
+    var displayedExcessBytes:Int {max(0,retainedBytes-byteLimit)}
+    func image(_ id:String)->NSImage? {
+        guard let image=entries[id]?.image else {return nil}
+        if cached[id] != nil {order.removeAll {$0==id};order.append(id)}
+        return image
+    }
+    func removeAll() {cached.removeAll();entries.removeAll();order.removeAll()}
+    @discardableResult func load(_ url:URL,id:String) throws -> NSImage {
+        if let existing=image(id) {return existing}
+        guard let source=CGImageSourceCreateWithURL(url as CFURL,[kCGImageSourceShouldCache:false] as CFDictionary),
+              let thumbnail=CGImageSourceCreateThumbnailAtIndex(source,0,[
+                kCGImageSourceCreateThumbnailFromImageAlways:true,
+                kCGImageSourceCreateThumbnailWithTransform:true,
+                kCGImageSourceThumbnailMaxPixelSize:Self.maximumPixelSize,
+                kCGImageSourceShouldCacheImmediately:true] as CFDictionary),
+              thumbnail.width<=Self.maximumPixelSize,thumbnail.height<=Self.maximumPixelSize,
+              let context=CGContext(data:nil,width:thumbnail.width,height:thumbnail.height,bitsPerComponent:8,
+                bytesPerRow:thumbnail.width*4,space:CGColorSpace(name:CGColorSpace.sRGB)!,
+                bitmapInfo:CGImageAlphaInfo.premultipliedLast.rawValue) else {throw FileTransferFailure.invalidFile}
+        context.draw(thumbnail,in:CGRect(x:0,y:0,width:thumbnail.width,height:thumbnail.height))
+        guard let bitmap=context.makeImage() else {throw FileTransferFailure.invalidFile}
+        let image=NSImage(cgImage:bitmap,size:CGSize(width:bitmap.width,height:bitmap.height))
+        entries=entries.filter {$0.value.image != nil}
+        entries[id]=Entry(image,bytes:bitmap.bytesPerRow*bitmap.height)
+        cached[id]=image;order.append(id)
+        while cachedBytes>byteLimit || cached.count>128 {
+            let oldest=order.removeFirst();cached.removeValue(forKey:oldest)
+        }
+        return image
+    }
+}

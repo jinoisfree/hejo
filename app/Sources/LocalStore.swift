@@ -63,6 +63,7 @@ struct LocalSettings: Codable {
 /// A query replica, never a second conversation authority. Recover applied from the durable cache.
 final class LocalStore {
     let directory: URL
+    let historyMode: Bool
     /// In-memory invalidation token for derived member-state queries; never persisted.
     private(set) var memberStateRevision: UInt64 = 0
     private(set) var settings: LocalSettings { didSet {
@@ -71,14 +72,26 @@ final class LocalStore {
             memberStateRevision &+= 1
         }
     } }
+    // Legacy projection exists only in reference/rollback test builds.
+#if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
+    static let defaultHistoryMode = false
     private(set) var records: [[String: Any]] = []
+#else
+    static let defaultHistoryMode = true
+#endif
     var settingsURL: URL { directory.appendingPathComponent("hejo-local.json") }
     var cacheURL: URL { directory.appendingPathComponent("cache/frames.jsonl") }
-    init(directory: URL = AppIdentity.support) throws {
-        self.directory = directory
+    init(directory: URL = AppIdentity.support, historyMode: Bool = LocalStore.defaultHistoryMode) throws {
+#if !HEJO_LEGACY_REFERENCE && !HEJO_HISTORY_BASELINE && !HEJO_THREE_TAP_DIAGNOSTIC
+        guard historyMode else { throw GateFailure.protocolError }
+#endif
+        self.directory = directory; self.historyMode = historyMode
         try FileManager.default.createDirectory(at: directory.appendingPathComponent("cache"), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
         settings = (try? JSONDecoder().decode(LocalSettings.self, from: Data(contentsOf: directory.appendingPathComponent("hejo-local.json")))) ?? LocalSettings()
+        // History mode never opens, repairs or scans the legacy event log.
+        if historyMode { return }
+#if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
         let data = (try? Data(contentsOf: cacheURL)) ?? Data()
         var valid = Data(); var seq = 0
         for line in data.split(separator: 10, omittingEmptySubsequences: false).dropLast() {
@@ -91,20 +104,33 @@ final class LocalStore {
         // Repair an older cache that committed a scope marker before it could be compacted.
         for frame in records where frame["scope"] as? String == "thread" || frame["type"] as? String == "room_deleted" { try redactThread(frame) }
         try save()
+#endif
     }
+    /// Open only after authentication/member selection. A hub account and a
+    /// local paired identity never share partial history files.
+    func historyCache() throws -> HistoryCache {
+        guard historyMode else { throw CocoaError(.coderInvalidValue) }
+        return try HistoryCache(directory: directory, account: historyIdentity)
+    }
+    var historyIdentity: String { settings.address + "\n" + (settings.stateAccount ?? settings.credentialAccount) }
     func update(_ change: (inout LocalSettings) -> Void) throws {
         var next = settings; change(&next)
         try save(next); settings = next
     }
     func select(address: String, device: String) throws {
         if address != settings.address {
-            try Data().write(to: cacheURL, options: .atomic)
-            records = []; settings.applied = 0; settings.stateAccount = nil
+#if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
+            if !historyMode { try Data().write(to: cacheURL, options: .atomic) }
+            records = []
+#endif
+            settings.applied = 0; settings.stateAccount = nil
             settings.credentialAccount = UUID().uuidString.lowercased()
         }
         settings.address = address; settings.deviceName = device; try save()
     }
+#if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
     func append(_ frame: [String: Any]) throws {
+        guard !historyMode else { throw GateFailure.protocolError }
         guard let seq = frame["seq"] as? Int, seq == settings.applied + 1 else { throw GateFailure.protocolError }
         if frame["type"] as? String == "room_deleted" || (frame["type"] as? String == "delete" && frame["scope"] as? String == "thread") {
             let next = records + [frame]
@@ -145,6 +171,7 @@ final class LocalStore {
     }
     func hasFile(_ id:String)->Bool {records.contains { row in (row["files"] as? [[String:Any]] ?? []).contains{$0["file_id"] as? String==id} }}
     private func redactThread(_ point:[String:Any]) throws { try rewrite(Self.redacting(records,point:point)) }
+#endif
     private func save(_ value: LocalSettings? = nil) throws {
         let data = try JSONEncoder().encode(value ?? settings)
         let fresh = directory.appendingPathComponent(".settings-" + UUID().uuidString)

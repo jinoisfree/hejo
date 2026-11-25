@@ -1,6 +1,7 @@
 import Foundation
 import UniformTypeIdentifiers
 import Darwin
+import CryptoKit
 
 struct DownloadFileStore {
     var root: URL
@@ -79,7 +80,7 @@ struct DownloadFileStore {
 }
 
 // A redirect must never carry a gateway credential to a different endpoint.
-private final class GateRedirectPolicy: NSObject, URLSessionTaskDelegate {
+final class GateRedirectPolicy: NSObject, URLSessionTaskDelegate {
     func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
                     newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) { completionHandler(nil) }
 }
@@ -97,12 +98,77 @@ enum OutgoingFileProblem:Error,Equatable {
     nonisolated static let maxFileBytes = 50 * 1024 * 1024
     let client: GateClient
     private let session: URLSession
+    private var fileCacheStamp: String?
+    // Two maximum-sized attachments may remain idle; active readers are explicit exceptions.
+    nonisolated static let historyFileCacheBytes = 2 * maxFileBytes
+    nonisolated static let historyFileCacheCount = 128
+    private let historyFileByteLimit: Int
+    private var filePins: [URL:Int] = [:]
+    private(set) var historyFileBytes = 0
+    private(set) var historyPinnedFileBytes = 0
+    var historyFileExcessBytes: Int {max(0,historyFileBytes-historyFileByteLimit)}
     private let copies=DispatchQueue(label:"hejo.sent-files")
     let downloads: DownloadFileStore
-    init(client: GateClient, downloads: URL? = nil) {
+    init(client: GateClient, downloads: URL? = nil, historyFileByteLimit:Int = historyFileCacheBytes) {
+        precondition((1...Self.historyFileCacheBytes).contains(historyFileByteLimit))
+        self.historyFileByteLimit=historyFileByteLimit
         self.downloads=DownloadFileStore(root:downloads ?? DownloadFileStore.standard())
         self.client = client
         session = URLSession(configuration: .ephemeral, delegate: GateRedirectPolicy(), delegateQueue: nil)
+    }
+    var fileAccessIdentity: String {
+        client.store.historyIdentity + "\n" + String(client.connectionEpoch) + "\n" + String(client.fileAccessRevision)
+    }
+    /// Only disposable history attachments are removed. User Downloads and legacy caches are untouched.
+    func refreshFileCache() throws {
+        guard client.store.historyMode else {return}
+        let stamp = client.isConnected && client.historySession != nil ? fileAccessIdentity : "disconnected"
+        let root=client.store.directory.appendingPathComponent("cache/history-files",isDirectory:true)
+        if stamp != fileCacheStamp {
+            if FileManager.default.fileExists(atPath:root.path) {try FileManager.default.removeItem(at:root)}
+            fileCacheStamp = stamp
+        }
+        try trimHistoryFiles()
+    }
+    /// Pins protect asynchronous readers from capacity eviction, never from permission invalidation.
+    private func trimHistoryFiles(keeping:URL?=nil) throws {
+        guard client.store.historyMode else{return}
+        let root=client.store.directory.appendingPathComponent("cache/history-files",isDirectory:true)
+        var rows:[(url:URL,size:Int,date:Date)]=[]
+        if FileManager.default.fileExists(atPath:root.path) {
+            let namespaces=try FileManager.default.contentsOfDirectory(at:root,includingPropertiesForKeys:nil)
+            for namespace in namespaces {
+                for directory in try FileManager.default.contentsOfDirectory(at:namespace,includingPropertiesForKeys:nil) {
+                    for file in try FileManager.default.contentsOfDirectory(at:directory,includingPropertiesForKeys:nil) {
+                        let values=try file.resourceValues(forKeys:[.isRegularFileKey,.fileSizeKey,.contentModificationDateKey])
+                        if values.isRegularFile==true {rows.append((file,values.fileSize ?? 0,values.contentModificationDate ?? .distantPast))}
+                    }
+                }
+            }
+        }
+        historyFileBytes=rows.reduce(0){$0+$1.size};var count=rows.count
+        historyPinnedFileBytes=rows.filter{filePins[$0.url,default:0]>0 || $0.url==keeping}.reduce(0){$0+$1.size}
+        for row in rows.sorted(by:{$0.date==$1.date ? $0.url.path<$1.url.path:$0.date<$1.date}) {
+            if historyFileBytes<=historyFileByteLimit && count<=Self.historyFileCacheCount {break}
+            if filePins[row.url,default:0]>0 || row.url==keeping {continue}
+            try FileManager.default.removeItem(at:row.url)
+            let directory=row.url.deletingLastPathComponent()
+            if try FileManager.default.contentsOfDirectory(atPath:directory.path).isEmpty {try FileManager.default.removeItem(at:directory)}
+            historyFileBytes-=row.size;count-=1
+        }
+    }
+    private func checkHistoryAccess(_ stamp:String) throws {
+        guard client.isConnected,client.historySession != nil,fileAccessIdentity==stamp else {throw FileTransferFailure.unavailable}
+    }
+    /// HEAD rechecks current server registration after asynchronous disk/network work.
+    /// A cache hit is never an authorization grant.
+    private func validateHistoryFile(_ file:MessageFile,employee:String,stamp:String) async throws {
+        try checkHistoryAccess(stamp)
+        var request=try client.authorizedRequest(components:["v1","files",employee,file.fileID])
+        request.httpMethod="HEAD";request.timeoutInterval=10
+        let (_,response)=try await session.data(for:request)
+        try check(response);try checkHistoryAccess(stamp)
+        guard response.expectedContentLength==Int64(file.size) else {throw FileTransferFailure.changed}
     }
     static func quarantine(_ url:URL) throws {
         let value=Data("0083;\(String(Int(Date().timeIntervalSince1970),radix:16));hejo;".utf8)
@@ -141,6 +207,8 @@ enum OutgoingFileProblem:Error,Equatable {
         }
     }
     func upload(_ url: URL, employee: String, expectedSize:Int?=nil) async throws -> MessageFile {
+        try refreshFileCache()
+        let stamp=fileAccessIdentity
         let size=try expectedSize ?? Self.prepareUploads([url])[0]
         let data = try await Task.detached { () throws -> Data in
             let data:Data
@@ -157,18 +225,54 @@ enum OutgoingFileProblem:Error,Equatable {
             var body = Data("--\(boundary)\r\nContent-Disposition: form-data; name=\"file\"; filename=\"\(name)\"\r\nContent-Type: \(mime)\r\n\r\n".utf8)
             body.append(data); body.append(Data("\r\n--\(boundary)--\r\n".utf8)); return body
         }.value
+        if client.store.historyMode {try checkHistoryAccess(stamp)}
         var request = try client.authorizedRequest(components: ["v1", "files"], query: [URLQueryItem(name: "employee", value: employee)])
         request.httpMethod = "POST"; request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         let (responseData, response) = try await session.upload(for: request, from: body)
         try check(response)
+        if client.store.historyMode {try checkHistoryAccess(stamp)}
         let file = try JSONDecoder().decode(MessageFile.self, from: responseData); try Self.validate(file)
         guard file.size == data.count else { throw OutgoingFileProblem.changed(name) }; return file
+    }
+    func attachmentMetadata(employee:String,id:String) async throws -> (file:MessageFile,date:Date) {
+        try refreshFileCache()
+        let stamp=fileAccessIdentity
+        try checkHistoryAccess(stamp)
+        let request=try client.authorizedRequest(components:["v1","files",employee,id,"metadata"])
+        let (bytes,response)=try await session.bytes(for:request)
+        try check(response)
+        guard response.expectedContentLength<=16*1024 else {throw FileTransferFailure.invalidFile}
+        var data=Data()
+        for try await byte in bytes {
+            guard data.count<16*1024 else {throw FileTransferFailure.invalidFile}
+            data.append(byte)
+        }
+        try checkHistoryAccess(stamp)
+        guard let row=try JSONSerialization.jsonObject(with:data) as? [String:Any],
+              let fileRow=row["file"] as? [String:Any],let timestamp=row["ts"] as? String else {throw FileTransferFailure.invalidFile}
+        let file=try JSONDecoder().decode(MessageFile.self,from:JSONSerialization.data(withJSONObject:fileRow))
+        try Self.validate(file)
+        guard file.fileID==id else {throw FileTransferFailure.invalidFile}
+        let date=ThreadTools.date(timestamp)
+        guard date != Date.distantPast else {throw FileTransferFailure.invalidFile}
+        return (file,date)
     }
     /// User-requested open only. Thumbnail reads still use the disposable cache below.
     func openedFile(_ file:MessageFile, employee:String, date:Date) async throws -> (url:URL, problem:String?) {
         try Self.validate(file)
         // Construct the authenticated request before consulting a saved copy. A different employee's copy is never reused.
         _ = try client.authorizedRequest(components:["v1","files",employee,file.fileID])
+        if client.store.historyMode {
+            let stamp=fileAccessIdentity
+            let cached=try await download(file,employee:employee)
+            filePins[cached,default:0]+=1
+            defer {if filePins[cached]==1 {filePins[cached]=nil} else {filePins[cached,default:0]-=1}}
+            let data=try await Task.detached {try Data(contentsOf:cached)}.value
+            try await validateHistoryFile(file,employee:employee,stamp:stamp)
+            do {let saved=try downloads.save(data,room:employee,name:file.name,date:date,id:file.fileID);try Self.quarantine(saved);return(saved,nil)}
+            catch {return(cached,"파일을 저장하지 못했어요. \(error.localizedDescription)")}
+        }
+#if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
         let target=downloads.destination(room:employee,name:file.name,date:date,id:file.fileID)
         let deleted=Set(client.store.records.filter{$0["type"] as? String=="delete"}.compactMap{$0["msg_id"] as? String})
         let registered=client.store.records.contains { row in
@@ -183,6 +287,9 @@ enum OutgoingFileProblem:Error,Equatable {
         if wasRegistered && !client.store.hasFile(file.fileID) {throw FileTransferFailure.unavailable}
         do {let saved=try downloads.save(data,room:employee,name:file.name,date:date,id:file.fileID);try Self.quarantine(saved);return (saved,nil)
         } catch {return (cached,"파일을 저장하지 못했어요. \(error.localizedDescription)")}
+#else
+        throw FileTransferFailure.unavailable
+#endif
     }
     func keepSent(_ urls:[URL], date:Date) async {
         let downloads=self.downloads
@@ -193,7 +300,12 @@ enum OutgoingFileProblem:Error,Equatable {
     }
     func download(_ file: MessageFile, employee: String) async throws -> URL {
         try Self.validate(file)
-        let wasRegistered=client.store.hasFile(file.fileID)
+        try refreshFileCache()
+        let stamp=fileAccessIdentity
+#if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
+        let wasRegistered = !client.store.historyMode && client.store.hasFile(file.fileID)
+#endif
+        if client.store.historyMode {try checkHistoryAccess(stamp)}
         let request = try client.authorizedRequest(components: ["v1", "files", employee, file.fileID])
         let (temporary, response) = try await session.download(for: request)
         defer { try? FileManager.default.removeItem(at: temporary) }
@@ -202,14 +314,20 @@ enum OutgoingFileProblem:Error,Equatable {
         guard values.fileSize == file.size else { throw FileTransferFailure.changed }
         let cache = client.store.directory
         let data=try await Task.detached {try Data(contentsOf:temporary)}.value
+        if client.store.historyMode {try await validateHistoryFile(file,employee:employee,stamp:stamp)}
         // Serialize cache publication with scope redaction on the main actor, including an in-flight download.
+#if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
         if wasRegistered && !client.store.hasFile(file.fileID) {throw FileTransferFailure.unavailable}
-            let destination = cache.appendingPathComponent("cache/files/" + file.fileID, isDirectory: true)
+#endif
+            let namespace=SHA256.hash(data:Data(client.store.historyIdentity.utf8)).map{String(format:"%02x",$0)}.joined()
+            let folder=client.store.historyMode ? "cache/history-files/"+namespace+"/":"cache/files/"
+            let destination = cache.appendingPathComponent(folder + file.fileID, isDirectory: true)
             try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
             let target = destination.appendingPathComponent(file.name)
             try data.write(to: target, options: .atomic)
             try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: target.path)
             try Self.quarantine(target)
+            try trimHistoryFiles(keeping:target)
             return target
     }
 }

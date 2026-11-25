@@ -77,8 +77,8 @@ final class SidebarHitCell:NSTableCellView {
     override init(frame:CGRect){super.init(frame:frame);for field in [speaker,room,body]{addSubview(field)};speaker.font = .systemFont(ofSize:11,weight:.semibold);room.font = .systemFont(ofSize:10);room.textColor = SidebarTone.primary(0.7);body.font = .systemFont(ofSize:11);body.maximumNumberOfLines=2;body.lineBreakMode = .byTruncatingTail}
     required init?(coder:NSCoder){nil}
     override var isFlipped:Bool{true}
-    func configure(_ message:ConversationMessage,name:String,room title:String,query:String){speaker.stringValue=message.role=="owner" ? "나":name;room.stringValue=title
-        let text=NSMutableAttributedString(attributedString:WorkspaceSearch.attributed(WorkspaceSearch.snippet(message.text,query:query),query:query));text.addAttribute(.font,value:NSFont.systemFont(ofSize:11),range:NSRange(location:0,length:text.length));text.enumerateAttribute(.backgroundColor,in:NSRange(location:0,length:text.length)){value,range,_ in if value==nil {text.addAttribute(.foregroundColor,value:SidebarTone.primary(0.7),range:range)}};body.attributedStringValue=text;needsLayout=true}
+    func configureSnippet(_ snippet:String,speaker name:String,room title:String,query:String){speaker.stringValue=name;room.stringValue=title
+        let text=NSMutableAttributedString(attributedString:WorkspaceSearch.attributed(snippet,query:query));text.addAttribute(.font,value:NSFont.systemFont(ofSize:11),range:NSRange(location:0,length:text.length));text.enumerateAttribute(.backgroundColor,in:NSRange(location:0,length:text.length)){value,range,_ in if value==nil {text.addAttribute(.foregroundColor,value:SidebarTone.primary(0.7),range:range)}};body.attributedStringValue=text;needsLayout=true}
     override func layout(){super.layout();let width=max(1,bounds.width-28),trailing=min(width/2,room.intrinsicContentSize.width);speaker.frame=CGRect(x:16,y:6,width:max(1,width-trailing-4),height:14);room.frame=CGRect(x:bounds.width-12-trailing,y:6,width:trailing,height:14);body.frame=CGRect(x:16,y:22,width:width,height:max(1,bounds.height-30));body.preferredMaxLayoutWidth=width}
 }
 final class SidebarBlank:NSView {

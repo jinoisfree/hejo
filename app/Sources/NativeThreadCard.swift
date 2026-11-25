@@ -111,23 +111,25 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
     /// NSTextView and the offscreen calculator use the same zero-padding TextKit container.
     /// The same rendered body at the same width measures the same. Re-measuring a long answer for every frame of
     /// a height ease took tens of milliseconds each time; bodies come from a cache, so identity is the key.
-    private static var measured: [ObjectIdentifier: (text: NSAttributedString, width: CGFloat, size: NSSize)] = [:]
-    private static let measurementCapacity = 4096
-    private static var measurementOrder: [ObjectIdentifier] = []
+    private final class Measurement {
+        weak var text: NSAttributedString?
+        let width: CGFloat, size: NSSize
+        init(_ text:NSAttributedString,width:CGFloat,size:NSSize) {self.text=text;self.width=width;self.size=size}
+    }
+    // A layout lookup must not extend a body lifetime after resident/view eviction.
+    // Only bounded scalar metadata is retained; attributed runs and attachments are weak.
+    private static var measured: [ObjectIdentifier: Measurement] = [:]
     #if HEJO_PERF_TESTING
     static var smoothMeasurementCount: Int { measured.count }
-    static var smoothMeasurementCapacity: Int { measurementCapacity }
+    static var smoothMeasurementCapacity: Int { 256 }
     #endif
     static func textSize(_ text: NSAttributedString, width: CGFloat) -> NSSize {
         guard !(text is NSMutableAttributedString) else { return layoutSize(text, width: width) }
         if let hit = measured[ObjectIdentifier(text)], hit.text === text, abs(hit.width - width) < 0.01 { return hit.size }
         let size = layoutSize(text, width: width)
-        let id = ObjectIdentifier(text)
-        if measured[id] == nil {
-            if measured.count >= measurementCapacity { measured.removeValue(forKey: measurementOrder.removeFirst()) }
-            measurementOrder.append(id)
-        }
-        measured[id] = (text, width, size)
+        measured = measured.filter{$0.value.text != nil}
+        if measured.count >= 256 { measured.removeAll(keepingCapacity: true) }
+        measured[ObjectIdentifier(text)] = Measurement(text,width:width,size:size)
         return size
     }
     private static func layoutSize(_ text: NSAttributedString, width: CGFloat) -> NSSize {
@@ -606,6 +608,20 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
     }
     private var textLinks: [ObjectIdentifier: (URL) -> Void] = [:]
 
+    /// NSTableView may keep recycled views alive. Release bodies and action captures
+    /// as soon as their row leaves the table, before the next configuration.
+    func releaseContent() {
+        value=nil;textLinks.removeAll();register=nil
+        for text in texts {
+            text.cancelPendingClick();text.showsCaret=false;text.clicked=nil;text.openLink=nil
+            text.textStorage?.setAttributedString(NSAttributedString(string:""))
+            text.softenAppend(previous:"",streaming:false,reset:true);text.isHidden=true
+        }
+        for view in accessories.values {view.removeFromSuperview()};accessories.removeAll()
+        for stack in stacks {stack.toggle=nil;stack.faces=[];stack.isHidden=true}
+        for button in buttons {button.invoke=nil;button.isHidden=true}
+        bell.invoke=nil;bell.isHidden=true
+    }
     func configure(_ layout: Layout) {
         guard value?.identity != layout.identity else { return }
         let sameThread = value?.content.id == layout.content.id
@@ -658,13 +674,17 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
                 register?(id, view)
             }
         }
-        for index in textIndex..<texts.count { texts[index].isHidden = true; texts[index].showsCaret = false }
+        for index in textIndex..<texts.count {
+            let text=texts[index];text.isHidden=true;text.showsCaret=false;text.cancelPendingClick()
+            text.clicked=nil;text.openLink=nil;text.textStorage?.setAttributedString(NSAttributedString(string:""))
+            text.softenAppend(previous:"",streaming:false,reset:true)
+        }
         register?(c.id, area)
-        for index in stackIndex..<stacks.count { stacks[index].isHidden = true }
+        for index in stackIndex..<stacks.count { stacks[index].isHidden = true;stacks[index].toggle=nil;stacks[index].faces=[] }
         for (id, view) in accessories where !usedAccessories.contains(id) { view.removeFromSuperview(); accessories[id] = nil }
         while buttons.count < c.actions.count { let button = Button(); buttons.append(button); addSubview(button) }
         for (index, button) in buttons.enumerated() {
-            guard index < c.actions.count else { button.isHidden = true; continue }
+            guard index < c.actions.count else { button.isHidden = true;button.invoke=nil;continue }
             let action = c.actions[index]
             button.isHidden = false; button.isEnabled = action.enabled
             button.title = !layout.compact || action.alwaysLabel ? action.title : ""
@@ -675,6 +695,7 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
             button.needsDisplay = true
         }
         bell.isHidden = c.bell == nil
+        if c.bell == nil {bell.invoke=nil}
         if let unread = c.bell {
             bell.symbolName = unread ? "bell.fill" : "bell"
             bell.symbolColor = unread ? NSColor(srgbRed: 0.98, green: 0.78, blue: 0.18, alpha: 1) : c.quiet.withAlphaComponent(c.quiet.alphaComponent * 0.6)

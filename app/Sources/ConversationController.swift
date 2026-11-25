@@ -119,10 +119,34 @@ struct ConversationFailedSend: Identifiable {
     func stop() {
         pendingClose=nil;closesInFlight=[:];closesConfirming=[:];closeFailed=false
         timer?.invalidate();timer=nil
+        if client.store.historyMode { historyLoading.stop() }
     }
     private func resetCloses() {pendingClose=nil;closesInFlight=[:];closesConfirming=[:];closeFailed=false}
     let client: GateClient
     let model: ConversationModel
+    lazy var historyLoading: HistoryCoordinator = {
+        let loader = HistoryCoordinator(client:client,model:model)
+        loader.onChange = { [weak self] in self?.notifyChange() }
+        loader.pendingReceipts = { [weak self] in
+            guard let self else { return [] }
+            return self.pending.filter{$0.value.workspace == self.replicaAddress}.map{($0.key,$0.value.key.employee)}
+        }
+        loader.onReceipts = { [weak self] rows in self?.acceptHistoryReceipts(rows) }
+        return loader
+    }()
+    private func acceptHistoryReceipts(_ rows: [[String:Any]]) {
+        for row in rows {
+            guard let id = row["client_msg_id"] as? String, let entry = pending[id], entry.workspace == replicaAddress else { continue }
+            if row["status"] as? String == "accepted" || row["status"] as? String == "deleted" {
+                pending[id] = nil; reconnectPending.remove(id)
+                if newPostIDs.remove(id) != nil, entry.revision == composeRevision { followup = entry.key }
+                if row["status"] as? String == "accepted" { model.markThreadRead(entry.key) }
+                if !entry.draft.attachments.isEmpty { Task { await files.keepSent(entry.draft.attachments,date:entry.at) } }
+            }
+            // not_found is an ambiguous send outcome. Keep pending; never resend or fail it automatically.
+        }
+        notifyChange()
+    }
     let files: GateHTTP
     var calendarEvents: [CalendarEntry] = [] { didSet {
         if oldValue != calendarEvents {
@@ -156,8 +180,14 @@ struct ConversationFailedSend: Identifiable {
         HejoSmoothProbe.calendars[message.id,default:0]+=1
         #endif
         let result:[BubbleReveal.Action]
-        if message.role == "owner" || message.pending {result=[]}
-        else {result=BubbleReveal.Action.content(message.text,events:calendarEvents,at:ThreadTools.date(message.timestamp)).filter(\.isCalendar)}
+        if message.role == "owner" || message.pending || calendarEvents.isEmpty {
+            result = []
+        } else {
+            // Cards only show the calendar action. Link discovery belongs to the notification bubble.
+            let events = CalendarMatch.related(to: message.text, at: ThreadTools.date(message.timestamp),
+                                               events: calendarEvents, calendar: input.calendar)
+            result = events.isEmpty ? [] : [.calendar(events)]
+        }
         if calendarValues[message.id]==nil {
             if calendarOrder.count>=Self.calendarCapacity {calendarValues[calendarOrder.removeFirst()]=nil}
             calendarOrder.append(message.id)
@@ -267,7 +297,11 @@ struct ConversationFailedSend: Identifiable {
     @discardableResult func sendBubbleReply(_ key:ConversationKey) async ->Bool {
         let words=draft(for:key).text
         guard !words.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty,!bubblePending(key) else{return false}
-        guard !model.timeline(key).isEmpty,canSend else {bubbleProblems[key]="연결과 스레드를 확인해 주세요.";notifyChange();return false}
+#if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
+        guard (client.store.historyMode || !model.timeline(key).isEmpty),canSend else {bubbleProblems[key]="연결과 스레드를 확인해 주세요.";notifyChange();return false}
+#else
+        guard canSend else {bubbleProblems[key]="연결과 스레드를 확인해 주세요.";notifyChange();return false}
+#endif
         guard words.utf8.count<=65_536 else {bubbleProblems[key]="너무 큼 · 글은 64 KiB까지 보낼 수 있어요.";notifyChange();return false}
         bubbleProblems[key]=nil;drafts[key,default:ConversationDraft()].text=""
         return await transmit(key,draft:ConversationDraft(text:words),bubble:true)
@@ -290,8 +324,7 @@ struct ConversationFailedSend: Identifiable {
         updateDepth -= 1
         if updateDepth == 0 && (changePending || historyChangePending) {
             changePending = false
-            if deferringHistory { historyChangePending = true }
-            else { historyChangePending = false; onChange?() }
+            if deferringHistory { historyChangePending = true } else { notifyChange() }
         }
     }
     func notifyChange() {
@@ -301,15 +334,20 @@ struct ConversationFailedSend: Identifiable {
             }
             calendarOrder.removeAll{calendarValues[$0]==nil}
         }
+        if paused && client.store.historyMode { changePending = true; return }
         if isUpdating { changePending = true } else { historyChangePending = false; onChange?() }
     }
     var onConnectionsFrame: (([String:Any])->Void)?
     var onRevealThread: ((ConversationKey)->Void)?
+    private func revealThread(_ key: ConversationKey) { if !paused || !client.store.historyMode { onRevealThread?(key) } }
     private var stoppedTargets:[ConversationKey:String]=[:]
     var stopped:Set<ConversationKey> {Set(stoppedTargets.keys)}
     private func controlRecipient(_ key:ConversationKey,working:Bool=false)->String {
         if working,let writer=model.typingPeople[key]?.keys.sorted().first {return writer}
-        return stoppedTargets[key] ?? model.timeline(key).last(where:{$0.role != "owner"})?.speaker ?? key.employee
+#if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
+        if !client.store.historyMode {return stoppedTargets[key] ?? model.timeline(key).last(where:{$0.role != "owner"})?.speaker ?? key.employee}
+#endif
+        return stoppedTargets[key] ?? model.history.summaries[key]?.activity.lastSpeaker ?? key.employee
     }
     private(set) var interruptions: [ConversationKey:Date] = [:]
     private(set) var branching: [ConversationKey:Date] = [:]
@@ -326,7 +364,16 @@ struct ConversationFailedSend: Identifiable {
     }
     var clock:()->Date = Date.init
     func working(_ key:ConversationKey)->Bool {
-        model.typing[key] != nil || model.timeline(key).contains{$0.role != "owner" && ($0.streaming || (!$0.finalized && ThreadTools.thinking($0.text)))}
+#if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
+        if !client.store.historyMode {return model.typing[key] != nil || model.timeline(key).contains{$0.role != "owner" && ($0.streaming || (!$0.finalized && ThreadTools.thinking($0.text)))}}
+#endif
+        return model.typing[key] != nil || model.history.summaries[key]?.activity.working == true
+    }
+    private func employeeReplied(_ key:ConversationKey,after date:Date)->Bool {
+#if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
+        if !client.store.historyMode {return model.timeline(key).contains{$0.role=="employee" && ThreadTools.date($0.timestamp)>date}}
+#endif
+        return model.history.summaries[key]?.activity.latestEmployeeTime.map{$0 > date.timeIntervalSince1970} ?? false
     }
     func canInterrupt(_ key:ConversationKey)->Bool {
         guard let writer=model.typingPeople[key]?.keys.sorted().first else{return false}
@@ -336,14 +383,32 @@ struct ConversationFailedSend: Identifiable {
         guard let endpoint = try? GateClient.endpoint(client.store.settings.address), url.host == endpoint.host, url.port == endpoint.port,
               url.path.hasPrefix("/v1/files/") else { return false }
         let parts = url.pathComponents
-        guard parts.count == 5, let message = model.messages.values.first(where: { $0.speaker == parts[3] && $0.files.contains(where: { $0.fileID == parts[4] }) }),
-              let file = message.files.first(where: { $0.fileID == parts[4] }) else { transferFailed(FileTransferFailure.unavailable); return true }
-        Task { await open(file, employee: message.speaker, date: ThreadTools.date(message.timestamp)) }
+        guard parts.count == 5 else {return false}
+#if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
+        if !client.store.historyMode {
+            guard let message = model.messages.values.first(where: { $0.speaker == parts[3] && $0.files.contains(where: { $0.fileID == parts[4] }) }),
+                  let file = message.files.first(where: { $0.fileID == parts[4] }) else { transferFailed(FileTransferFailure.unavailable); return true }
+            Task { [speaker=message.speaker,date=ThreadTools.date(message.timestamp)] in await open(file, employee:speaker,date:date) }
+            return true
+        }
+#endif
+        Task {
+            do {
+                let metadata=try await files.attachmentMetadata(employee:parts[3],id:parts[4])
+                await open(metadata.file,employee:parts[3],date:metadata.date)
+            } catch {transferFailed(error);notifyChange()}
+        }
         return true
     }
+
     func openLink(_ url:URL) {
-        guard let key=ThreadTools.destination(url),!model.timeline(key).isEmpty else { notice="그 스레드를 불러오지 못했어요";return }
-        model.select(key);onRevealThread?(key)
+#if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
+        guard let key=ThreadTools.destination(url),client.store.historyMode || !model.timeline(key).isEmpty else { notice="그 스레드를 불러오지 못했어요";return }
+#else
+        guard let key=ThreadTools.destination(url) else {notice="그 스레드를 불러오지 못했어요";return}
+#endif
+        model.select(key);revealThread(key)
+        if client.store.historyMode {historyLoading.open(key)}
     }
     func branch(_ key:ConversationKey) async {
         if let at=branching[key],clock().timeIntervalSince(at)<6 {return}
@@ -362,6 +427,9 @@ struct ConversationFailedSend: Identifiable {
     }
     @discardableResult func sendText(_ text:String,key:ConversationKey,recipient:String?=nil) async -> Bool {
         guard canSend else {transferFailed(GateFailure.notConnected);return false}
+        if client.store.historyMode {
+            do {try await confirmReplyTarget(key)} catch {transferFailed(error);return false}
+        }
         let target=recipient ?? controlRecipient(key,working:text=="/stop")
         if let room=model.groups[key.employee],!room.members.contains(target) {transferFailed(GateFailure.notConnected);return false}
         if text != "/stop" {return await transmit(key,draft:ConversationDraft(text:text),recipient:target)}
@@ -373,6 +441,9 @@ struct ConversationFailedSend: Identifiable {
 
     func stop(_ key:ConversationKey) async {
         guard !stopped.contains(key),canSend else{return}
+        if client.store.historyMode {
+            do {try await confirmReplyTarget(key)} catch {transferFailed(error);return}
+        }
         stoppedTargets[key]=controlRecipient(key,working:true);if !(await sendText("/stop",key:key,recipient:stoppedTargets[key])) {stoppedTargets.removeValue(forKey:key)}
     }
     private(set) var transferFailure: IslandFailure? { didSet { notifyChange() } }
@@ -380,10 +451,16 @@ struct ConversationFailedSend: Identifiable {
     private var activeUploads:[ConversationKey:String]=[:]
     private(set) var uploads: [ConversationKey: IslandUpload] = [:] { didSet { notifyChange() } }
     var islandInput: IslandModel.Input {
-        IslandModel.Input(messages:Array(model.messages.values).map { var message=$0;if model.confirmed(message.id) {message.replyState=nil};return message },typing:model.typing,
+        var input=IslandModel.Input(messages:Array(model.messages.values).map { var message=$0;if model.confirmed(message.id) {message.replyState=nil};return message },typing:model.typing,
             names:Dictionary(uniqueKeysWithValues:model.employees.map { ($0.id,$0.name) }),
             unread:model.visibleUnreadTotal,selected:model.selected,
             status:client.status,failure:transferFailure ?? stateFailure,uploads:uploads,muted:model.petMuted)
+        if client.store.historyMode {
+            input.historyQuestions=model.history.questions.map(IslandModel.Question.init)
+            input.historyThrough=client.liveSequence
+            input.historyReady=client.isConnected && model.history.context != nil && !model.history.refreshing
+        }
+        return input
     }
     var onOpenFile: (URL) -> Void = { NSWorkspace.shared.open($0) }
     private(set) var paused = false
@@ -399,14 +476,15 @@ struct ConversationFailedSend: Identifiable {
     }
     private var replicaAddress: String
     private var timer: Timer?
-    init(client: GateClient, downloads:URL?=nil) throws {
-        self.client = client; replicaAddress = client.store.settings.address;draftAddress=replicaAddress; model = try ConversationModel(store: client.store); files = GateHTTP(client: client,downloads:downloads)
+    init(client: GateClient, downloads:URL?=nil, residentBudget:HistoryResidentBudget = HistoryResidentBudget()) throws {
+        self.client = client; replicaAddress = client.store.settings.address;draftAddress=replicaAddress; model = try ConversationModel(store: client.store,residentBudget:residentBudget); files = GateHTTP(client: client,downloads:downloads)
         model.noticeClock={ [weak self] in self?.clock() ?? Date() }
         model.onChange = { [weak self] in
             guard let self else{return}
             let span = ThreeTapDiagnostics.startSpan()
             defer { ThreeTapDiagnostics.endSpan("model_change", span) }
             if self.client.replayComplete {self.model.clearArchivedPins();self.model.clearHomeChannelFlags()}
+            if self.client.store.historyMode { self.historyLoading.inputsChanged() }
             self.notifyChange()
         }
         model.memberState.onFailure = { [weak self] failed in
@@ -415,6 +493,15 @@ struct ConversationFailedSend: Identifiable {
         model.memberState.onUnpinned = { [weak self] count in self?.notice = "고정 자리 5개를 넘어 \(count)개의 고정을 풀었어요." }
         client.telegram.onChange = { [weak self] in self?.notifyChange() }
         client.onFrame = { [weak self] frame in self?.receive(frame) }
+        if client.store.historyMode {
+            model.history.readIntent = { [weak self] action,room,key in self?.historyLoading.read(action:action,room:room,key:key) }
+            client.onHistoryFrame = { [weak self] frame in
+                guard let self else { throw HistoryFailure.changed }
+                try self.model.apply(frame)
+                self.receive(frame,modelApplied:true)
+                self.historyLoading.liveChanged()
+            }
+        }
         timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.pollUpdates()
@@ -422,21 +509,28 @@ struct ConversationFailedSend: Identifiable {
         }
     }
     deinit { timer?.invalidate() }
+    private func refreshFileCache() {
+        do {try files.refreshFileCache()}
+        catch {transferFailure=IslandFailure(message:"임시 첨부 파일을 정리하지 못했어요",firstWords:"")}
+    }
     /// The existing half-second tick also delivers history when arrivals stall.
     func pollUpdates() {
+        refreshFileCache()
         guard !paused else{return}
+        if client.store.historyMode { historyLoading.tick() }
         pollDeadlines()
         let old=(confirmingDelete.count,interruptions.count,branching.count)
         model.expireTyping()
         let now=clock();confirmingDelete=confirmingDelete.filter{now.timeIntervalSince($0.value)<4}
-        interruptions=interruptions.filter{key,at in working(key) && !model.timeline(key).contains{$0.role=="employee" && ThreadTools.date($0.timestamp)>at}}
+        interruptions=interruptions.filter{key,at in working(key) && !employeeReplied(key,after:at)}
         branching=branching.filter{now.timeIntervalSince($0.value)<6}
         if historyChangePending || old != (confirmingDelete.count,interruptions.count,branching.count) {notifyChange()}
     }
-    func receive(_ frame: [String: Any]) {
-        performUpdates(deferringHistory: frame["seq"] is Int && client.hasPendingHistory) { receiveFrame(frame) }
+    func receive(_ frame: [String: Any], modelApplied: Bool = false) {
+        performUpdates(deferringHistory: frame["seq"] is Int && client.hasPendingHistory) { receiveFrame(frame, modelApplied:modelApplied) }
     }
-    private func receiveFrame(_ frame: [String: Any]) {
+    private func receiveFrame(_ frame:[String:Any], modelApplied:Bool) {
+        refreshFileCache()
         let kind=frame["type"] as? String
         if kind=="deadline_close_status" || (kind=="error" && (frame["ref"] as? String).map{card(forCloseRef:$0) != nil} == true) {
             receiveClose(frame);return
@@ -447,7 +541,7 @@ struct ConversationFailedSend: Identifiable {
         }
 
         if ["connections_status","connection_result"].contains(frame["type"] as? String ?? "") {onConnectionsFrame?(frame);return}
-        if paused { pausedFrames.append(frame); return }
+        if paused && !client.store.historyMode { pausedFrames.append(frame); return }
         if ["welcome","roster"].contains(frame["type"] as? String ?? "") { pictures.invalidate() }
         if frame["type"] as? String == "welcome" { reconnectPending = Set(pending.keys) }
         if frame["type"] as? String == "sync_done", frame["more"] as? Bool == false {
@@ -471,11 +565,11 @@ struct ConversationFailedSend: Identifiable {
             requestDeadlines()
         }
         let previousRooms=Set(model.groups.keys)
-        do { try model.apply(frame) } catch { notice = "대화 기록을 읽지 못했어요. 다시 연결해 주세요." }
+        do { if !modelApplied { try model.apply(frame) } } catch { notice = "대화 기록을 읽지 못했어요. 다시 연결해 주세요." }
         if frame["type"] as? String=="welcome",frame["rooms"] != nil {model.clearArchivedPins()}
         if frame["type"] as? String=="room",let data=frame["room"] as? [String:Any],let id=data["id"] as? String,let room=model.groups[id],client.replayComplete {
             if makingRoom && !previousRooms.contains(id) {makingRoom=false;model.select(employee:id)}
-            if reopeningRoom==id,room.archived != true {reopeningRoom=nil;model.restore(id);model.select(employee:id);onRevealThread?(model.selected!)}
+            if reopeningRoom==id,room.archived != true {reopeningRoom=nil;model.restore(id);model.select(employee:id);revealThread(model.selected!)}
             if room.archived==true,model.selected?.employee==id {model.selectHome()}
         }
         if frame["type"] as? String=="room_deleted",let room=frame["id"] as? String {
@@ -484,13 +578,13 @@ struct ConversationFailedSend: Identifiable {
         if let employee=(frame["room"] ?? frame["employee"]) as? String,let thread=frame["thread"] as? String {
             let key=ConversationKey(employee:employee,thread:thread)
             if (frame["branch_from"] as? [String:Any])?["thread"] is String,client.replayComplete {
-                model.select(key);onRevealThread?(key)
+                model.select(key);revealThread(key)
             }
             if frame["role"] as? String == "owner",frame["text"] as? String != "/stop" { stoppedTargets.removeValue(forKey:key) }
             if frame["role"] as? String == "employee" { interruptions[key]=nil }
             if frame["role"] as? String == "employee",followup==key,!ThreadTools.thinking(frame["text"] as? String ?? "") {
                 followup=nil
-                if (model.selected?.employee==key.employee || model.isHome && model.homeScope.contains(key.employee)),draft.isEmpty {let home=model.isHome;model.select(key,notify:false,inHome:home);onRevealThread?(key)}
+                if (model.selected?.employee==key.employee || model.isHome && model.homeScope.contains(key.employee)),draft.isEmpty {let home=model.isHome;model.select(key,notify:false,inHome:home);revealThread(key)}
             }
             if !working(key) { interruptions[key]=nil }
         }
@@ -542,16 +636,20 @@ struct ConversationFailedSend: Identifiable {
     func pickHome(_ employee:String) {
         guard model.homeRecipients.members.contains(where:{$0.id==employee}) else{return}
         cancelFollowup()
-        if let key=model.selected,!model.timeline(key).isEmpty {model.selectHome()}
+#if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
+        if let key=model.selected,client.store.historyMode ? !newPostPlaces.contains(key) && key.employee != HomeRoom.id : !model.timeline(key).isEmpty {model.selectHome()}
+#else
+        if let key=model.selected,!newPostPlaces.contains(key),key.employee != HomeRoom.id {model.selectHome()}
+#endif
         guard let key=composeKey ?? model.selected else{return}
         let selected=drafts[key]?.picks.contains(employee)==true
         drafts[key,default:ConversationDraft()].picks=selected ? []:[employee]
         notifyChange()
     }
     func cancelFollowup() {composeRevision+=1;followup=nil}
-    private func saveFailure(_ key:ConversationKey,draft:ConversationDraft,reason:String,workspace:String?=nil,shown:String?=nil,newPost:Bool?=nil,place draftPlace:ConversationKey?=nil) {
+    private func saveFailure(_ key:ConversationKey,draft:ConversationDraft,reason:String,workspace:String?=nil,shown:String?=nil,newPost:Bool,place draftPlace:ConversationKey?=nil) {
         let address=workspace ?? replicaAddress,place=shown ?? model.selectionIdentity,destinationPlace=draftPlace
-        failures.append(.init(key:key,draft:draft,newPost:newPost ?? model.timeline(key).isEmpty,reason:reason,workspace:address,shown:place,place:destinationPlace))
+        failures.append(.init(key:key,draft:draft,newPost:newPost,reason:reason,workspace:address,shown:place,place:destinationPlace))
         if address==replicaAddress {notice=reason+" · 보내지 못한 글은 "+(place==model.selectionIdentity ? "입력창 위":"보낸 방의 입력창 위")+" ‘되살리기’로 다시 쓸 수 있어요."}
     }
     var currentFailures:[ConversationFailedSend] {failures.filter{$0.workspace==replicaAddress}}
@@ -568,8 +666,13 @@ struct ConversationFailedSend: Identifiable {
         guard let failure=failures.first(where:{$0.id==id}) else{return}
         guard failure.workspace==replicaAddress else{return}
         if failure.shown != model.selectionIdentity {onShowFailure?(failure);return}
-        if !failure.newPost && model.timeline(failure.key).isEmpty {notice="그 스레드를 아직 불러오지 못했어요. 잠시 뒤 다시 눌러 주세요.";return}
-        if !model.timeline(failure.key).isEmpty || model.rooms.contains(where:{$0.id==failure.key.employee}) {
+#if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
+        if !client.store.historyMode && !failure.newPost && model.timeline(failure.key).isEmpty {notice="그 스레드를 아직 불러오지 못했어요. 잠시 뒤 다시 눌러 주세요.";return}
+        let available = (!client.store.historyMode && !model.timeline(failure.key).isEmpty) || model.rooms.contains(where:{$0.id==failure.key.employee})
+#else
+        let available = model.rooms.contains(where:{$0.id==failure.key.employee})
+#endif
+        if available {
             let inHome=failure.shown==HomeRoom.id
             let key=failure.newPost ? failure.place ?? failure.key:failure.key
             moveDraft(from:composeKey,to:key,carry:model.selected==failure.key)
@@ -580,7 +683,7 @@ struct ConversationFailedSend: Identifiable {
             drafts[key]=ConversationDraft(text:[failure.draft.text,current.text].filter{!$0.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty}.joined(separator:"\n"),attachments:files,picks:current.picks.isEmpty ? failure.draft.picks:current.picks)
             failures.removeAll{$0.id==id};model.select(key,notify:false,inHome:inHome)
             onRestoreDraft?(key,failure.newPost,inHome)
-            if onRestoreDraft==nil && !failure.newPost {onRevealThread?(key)}
+            if onRestoreDraft==nil && !failure.newPost {revealThread(key)}
             notice="";transferFailure=nil;notifyChange()
         }
     }
@@ -619,28 +722,53 @@ struct ConversationFailedSend: Identifiable {
             }}
             target=ConversationKey(employee:employee,thread:UUID().uuidString.lowercased())
         } else if key==source,newPostPlaces.contains(source) {target=ConversationKey(employee:key.employee,thread:UUID().uuidString.lowercased())}
+#if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
+        let newPost = client.store.historyMode ? target != key : model.timeline(target).isEmpty
+#else
+        let newPost = target != key
+#endif
         guard canSend else {
             let reason=transferMessage(GateFailure.notConnected)
             transferFailure=IslandFailure(message:reason,firstWords:IslandModel.firstLine(outgoing.text),retryKey:target,isSend:true)
-            saveFailure(target,draft:outgoing,reason:reason,place:source);drafts[source]=ConversationDraft();notifyChange();return
+            saveFailure(target,draft:outgoing,reason:reason,newPost:newPost,place:source);drafts[source]=ConversationDraft();notifyChange();return
         }
         guard outgoing.text.utf8.count<=65_536 else {
             let reason="너무 큼 · 글은 64 KiB까지 보낼 수 있어요."
             transferFailure=IslandFailure(message:reason,firstWords:IslandModel.firstLine(outgoing.text),isSend:true)
-            saveFailure(target,draft:outgoing,reason:reason,place:source);drafts[source]=ConversationDraft();notifyChange();return
+            saveFailure(target,draft:outgoing,reason:reason,newPost:newPost,place:source);drafts[source]=ConversationDraft();notifyChange();return
         }
         drafts[source]=ConversationDraft()
-        _=await transmit(target,draft:outgoing,place:source)
+        _=await transmit(target,draft:outgoing,place:source,newPost:newPost)
     }
-    private func transmit(_ key:ConversationKey,draft:ConversationDraft,bubble:Bool=false,place:ConversationKey?=nil,recipient:String?=nil) async ->Bool {
+    /// Existing-thread intent is independent of resident bodies. This bounded query
+    /// authenticates the destination without adding its body to the display cache.
+    private func confirmReplyTarget(_ key:ConversationKey) async throws {
+        guard canSend,let context=model.history.context,let session=client.historySession else {throw GateFailure.notConnected}
+        let epoch=client.connectionEpoch,through=client.liveSequence
+        let page=try await client.history.query(context:context,kind:"resolve",scope:key.employee,
+            fields:["target":["room":key.employee,"thread":key.thread],"limit":1])
+        guard canSend,client.historySession==session,client.connectionEpoch==epoch,
+              model.history.context==context,client.liveSequence==through,
+              HistoryHTTP.integer(page["through"])==through else {throw HistoryFailure.changed}
+        guard let root=page["root"] as? [String:Any] else {throw HistoryFailure.invalidResponse}
+        let summary=try JSONDecoder().decode(HistoryThreadSummary.self,from:JSONSerialization.data(withJSONObject:root))
+        guard summary.conversationKey==key,summary.revision>(model.history.deletedThreads[key] ?? 0) else {throw HistoryFailure.changed}
+        model.history.summaries[key]=summary
+    }
+    private func transmit(_ key:ConversationKey,draft:ConversationDraft,bubble:Bool=false,place:ConversationKey?=nil,recipient:String?=nil,newPost:Bool=false) async ->Bool {
+#if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
+        let newPost = client.store.historyMode ? newPost : model.timeline(key).isEmpty
+#endif
         let id = UUID().uuidString.lowercased(), address = client.store.settings.address, epoch = client.connectionEpoch
-        let destination=sendFields(key,recipient:recipient ?? (bubble ? controlRecipient(key,working:true):nil))
-        if model.timeline(key).isEmpty {composeRevision+=1;followup=nil;newPostIDs.insert(id)}
-        let attempt=PendingSend(key:key,draft:draft,bubble:bubble,workspace:replicaAddress,shown:model.selectionIdentity,newPost:model.timeline(key).isEmpty,at:clock(),revision:composeRevision,place:place ?? key)
+        if newPost {composeRevision+=1;followup=nil;newPostIDs.insert(id)}
+        let attempt=PendingSend(key:key,draft:draft,bubble:bubble,workspace:replicaAddress,shown:model.selectionIdentity,newPost:newPost,at:clock(),revision:composeRevision,place:place ?? key)
         pending[id]=attempt;notice="";notifyChange()
         if !draft.attachments.isEmpty {activeUploads[key]=id;uploads[key]=IslandUpload(completed:0,total:draft.attachments.count) }
         defer {if activeUploads[key]==id,address==replicaAddress {uploads[key]=nil;activeUploads[key]=nil}}
+        var sendStarted = false
         do {
+            if client.store.historyMode && !newPost {try await confirmReplyTarget(key)}
+            let destination=sendFields(key,recipient:recipient ?? (bubble ? controlRecipient(key,working:true):nil))
             var uploaded: [MessageFile] = []
             let sizes=try GateHTTP.prepareUploads(draft.attachments)
             for (index,url) in draft.attachments.enumerated() {
@@ -649,11 +777,21 @@ struct ConversationFailedSend: Identifiable {
                 if activeUploads[key]==id {uploads[key]=IslandUpload(completed:uploaded.count,total:draft.attachments.count)}
             }
             guard address == client.store.settings.address, epoch == client.connectionEpoch, canSend else { throw GateFailure.notConnected }
+            if client.store.historyMode && !newPost && !draft.attachments.isEmpty {try await confirmReplyTarget(key)}
+            sendStarted = true
             try await client.send(["v":1, "type":"send", "id":id, "thread":key.thread,
                                    "text":draft.text.trimmingCharacters(in:.whitespacesAndNewlines), "client_msg_id":id, "files":uploaded.map(\.fileID)].merging(destination){$1})
-            model.markThreadRead(key)
+#if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
+            if !client.store.historyMode { model.markThreadRead(key) }
+#endif
             stoppedTargets.removeValue(forKey:key);if canInterrupt(key) {interruptions[key]=clock()}
         } catch {
+            if client.store.historyMode && sendStarted && !(error is GateFailure) {
+                // A write error after starting the WebSocket send cannot prove non-delivery.
+                // Retain the same client message ID until receipt lookup resolves it.
+                notice = "전송 결과를 확인하고 있어요."
+                historyLoading.liveChanged(); notifyChange(); return true
+            }
             pending[id] = nil;newPostIDs.remove(id)
             let reason=transferMessage(error)
             failPending(attempt,reason:reason)
@@ -662,10 +800,10 @@ struct ConversationFailedSend: Identifiable {
         }
         notifyChange();return true
     }
-    func click(_ button: MessageButton, message: ConversationMessage) async {
-        if button.kind=="reply",button.label=="의견" {model.select(message.key);onRevealThread?(message.key);return}
+    func click(_ button: MessageButton, messageID: String, key: ConversationKey, buttons: [MessageButton]) async {
+        if button.kind=="reply",button.label=="의견" {model.select(key);revealThread(key);return}
         guard canSend else { transferFailed(GateFailure.notConnected); return }
-        do { try await client.send(ConversationModel.click(message: message, button: button)); transferFailure=nil }
+        do { try await client.send(ConversationModel.click(messageID: messageID, buttons: buttons, button: button)); transferFailure=nil }
         catch { transferFailed(error) }
     }
     private var openingFiles=Set<String>()

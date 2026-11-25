@@ -36,18 +36,23 @@ enum ThreadTools {
         var seen=Set<String>()
         return Array(messages.dropLast().filter{$0.role=="employee" && seen.insert($0.speaker).inserted}.prefix(3)).map{$0.speaker}
     }
-    static func copy(_ messages:[ConversationMessage],key:ConversationKey,name:(String)->String,group:Bool=false,zone:TimeZone = .current)->String {
+    static func copyHeader(count:Int,key:ConversationKey,name:(String)->String,group:Bool)->String {
+        (group ? "#":"@")+name(key.employee)+" 스레드 · 글 \(count)개\n"+link(key).absoluteString
+    }
+    static func copySections(_ messages:[ConversationMessage],name:(String)->String,zone:TimeZone = .current)->[String] {
         let stamp=DateFormatter();stamp.locale=Locale(identifier:"en_US_POSIX");stamp.timeZone=zone;stamp.dateFormat="yyyy-MM-dd HH:mm"
-        let lines=messages.filter{$0.role=="owner" || !thinking($0.text)}
-        var sections=[(group ? "#":"@")+name(key.employee)+" 스레드 · 글 \(lines.count)개\n"+link(key).absoluteString]
-        sections += lines.map { message in
+        return messages.filter{$0.role=="owner" || !thinking($0.text)}.map { message in
             let body=message.text.replacingOccurrences(of:#"<((?:https?://|mailto:)[^<>\s]+)>"#,with:"$1",options:.regularExpression)
             var parts=["["+stamp.string(from:date(message.timestamp))+"] "+(message.role=="owner" ? "나":name(message.speaker))]
             if !body.isEmpty { parts.append(body) }
             if let state=message.replyState { parts.append("["+stateLabel(state)+"]") }
             parts += message.files.map{"📎 "+$0.name}
             return parts.joined(separator:"\n")
-        };return sections.joined(separator:"\n\n")
+        }
+    }
+    static func copy(_ messages:[ConversationMessage],key:ConversationKey,name:(String)->String,group:Bool=false,zone:TimeZone = .current)->String {
+        let sections=copySections(messages,name:name,zone:zone)
+        return ([copyHeader(count:sections.count,key:key,name:name,group:group)]+sections).joined(separator:"\n\n")
     }
     static func toggle(_ labels:[String],selected:Set<String>,label:String)->Set<String> {
         var next=selected.intersection(labels)
@@ -70,11 +75,13 @@ enum ThreadAssessment {
     struct Result {
         var request: ConversationMessage?
         var pending: ConversationMessage?
+        var requestID: String?
+        var pendingID: String?
         var buttons = Set<String>()
         var working = false
         var settled = false
         var approved = false
-        var color: String? { pending != nil ? "#E01E5A" : working ? "#ECB22E" : settled || approved ? "#2EB67D" : nil }
+        var color: String? { pending != nil || pendingID != nil ? "#E01E5A" : working ? "#ECB22E" : settled || approved ? "#2EB67D" : nil }
     }
     static let yes: Set<String> = ["승인","전송","발송","발송해","승인, 발송해","응","응응","ㅇㅇ","네","예","좋아","진행","그래","오케이","ok","yes"]
     private static let patterns = [

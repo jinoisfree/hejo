@@ -32,11 +32,12 @@ import Foundation
         var urgent: [Card] = [], rest: [Card] = []
         var counts: [Filter: Int] = [:]
         var available = false, failed = false
+        var historyUpdating = false
         /// Title of the deadline closing in five seconds (undo line), and whether a close just failed.
         var undoTitle: String?, closeFailed = false
         var total: Int { counts[.all] ?? 0 }
         var empty: Bool { urgent.isEmpty && rest.isEmpty }
-        var warning: String? { failed ? "마감을 읽지 못했어요. 잠시 뒤 다시 볼게요." : nil }
+        var warning: String? { historyUpdating ? "대화 알림을 갱신 중이에요." : failed ? "마감을 읽지 못했어요. 잠시 뒤 다시 볼게요." : nil }
         var closeWarning: String? { closeFailed ? "마감을 닫지 못했어요. 다시 해 주세요." : nil }
     }
     private(set) var deadlines: [Deadline] = []
@@ -53,16 +54,23 @@ import Foundation
     func snapshot(_ model: ConversationModel, filter: Filter = .all, now: Date, calendar: Calendar = .current, hidden: Set<String> = []) -> Snapshot {
         var cards: [Card] = [], seen=Set<String>()
         let muted=model.muted
+        let noticeByID=Dictionary(uniqueKeysWithValues:model.history.notices.map{($0.id,$0)})
         let rooms=model.rooms.map(\.id)+(model.home.settings.muted == true ? []:[HomeRoom.id])
         for room in rooms where !muted.contains(room) {
             for notice in model.notices(room,now:now) {
                 for id in notice.messages {
-                    guard let message=model.messages[id],!muted.contains(message.key.employee),seen.insert(id).inserted else{continue}
+                    let stored=model.store.historyMode ? nil:model.messages[id]
+                    let remote=model.store.historyMode ? noticeByID[id]:nil
+                    guard let key=remote?.conversationKey ?? stored?.key,
+                          let speaker=remote?.speaker ?? stored?.speaker,
+                          let timestamp=remote?.timestamp ?? stored?.timestamp,
+                          let preview=remote?.preview ?? stored.map({IslandModel.firstLine($0.text,limit:300)}),
+                          !muted.contains(key.employee),seen.insert(id).inserted else{continue}
                     let kind: Filter = notice.questions ? .question:.alert
-                    let stamp=model.date(message.timestamp),minutes=max(0,Int(now.timeIntervalSince(stamp)/60))
+                    let stamp=model.date(timestamp),minutes=max(0,Int(now.timeIntervalSince(stamp)/60))
                     let relative=minutes<1 ? "방금" : minutes<60 ? "\(minutes)분" : minutes<1440 ? "\(minutes/60)시간":"\(calendar.component(.month,from:stamp))/\(calendar.component(.day,from:stamp))"
-                    cards.append(Card(id:id,kind:kind,title:IslandModel.firstLine(message.text,limit:300),employee:message.speaker,
-                        name:model.name(message.speaker),status:notice.questions ? "답을 기다려요":"알림",statusUrgent:notice.questions,trailing:relative,key:message.key,messageID:id,
+                    cards.append(Card(id:id,kind:kind,title:preview,employee:speaker,
+                        name:model.name(speaker),status:notice.questions ? "답을 기다려요":"알림",statusUrgent:notice.questions,trailing:relative,key:key,messageID:id,
                         order:stamp,urgent:notice.questions))
                 }
             }
@@ -76,7 +84,8 @@ import Foundation
                 guard !hidden.contains(id) else{continue}
                 let dateStatus=days<0 ? "마감 \(-days)일 지남":days==0 ? "오늘 마감":days==1 ? "내일 마감":"마감 \(days)일 남음"
                 let message=item.notice.flatMap{model.messages[$0.messageID]}
-                let linked=message != nil || item.url != nil
+                let remoteKey=model.store.historyMode ? item.notice.map{ConversationKey(employee:item.employee,thread:$0.thread)}:nil
+                let linked=remoteKey != nil || message != nil || item.url != nil
                 let status=dateStatus+(item.origin.map{" · "+$0} ?? "")+(linked ? "":" · 연결된 대화 없음")
                 var text="\(bits[1])/\(bits[2])"
                 if days==0,let at=item.deadlineAt {
@@ -84,7 +93,7 @@ import Foundation
                     text=String(format:"%02d:%02d",calendar.component(.hour,from:stamp),calendar.component(.minute,from:stamp))
                 }
                 cards.append(Card(id:id,kind:.deadline,title:item.title,employee:item.employee,
-                    name:model.name(item.employee),status:status,statusUrgent:days<=1,trailing:text,key:message?.key,messageID:message?.id,url:item.url,order:due,urgent:days<=1,
+                    name:model.name(item.employee),status:status,statusUrgent:days<=1,trailing:text,key:remoteKey ?? message?.key,messageID:remoteKey != nil ? item.notice?.messageID:message?.id,url:item.url,order:due,urgent:days<=1,
                     deadlineRef:DeadlineRef(employee:item.employee,id:item.id),linked:linked))
             }
         }
@@ -99,6 +108,6 @@ import Foundation
         var counts=Dictionary(uniqueKeysWithValues:Filter.allCases.map{($0,0)})
         for card in cards {counts[card.kind,default:0]+=1};counts[.all]=cards.count
         let shown=cards.filter{filter == .all || $0.kind == filter}
-        return Snapshot(urgent:sorted(shown.filter(\.urgent)),rest:sorted(shown.filter{!$0.urgent}),counts:counts,available:available,failed:failed)
+        return Snapshot(urgent:sorted(shown.filter(\.urgent)),rest:sorted(shown.filter{!$0.urgent}),counts:counts,available:available,failed:failed,historyUpdating:model.store.historyMode && model.history.refreshing)
     }
 }

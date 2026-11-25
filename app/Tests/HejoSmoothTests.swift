@@ -75,17 +75,24 @@ private func smoothFrames() -> [[String: Any]] {
 }
 
 /// Same workload, actual AppKit handlers and synchronous layout; independent stores for all six runs.
-@MainActor private func smoothMeasure(_ frames: [[String: Any]], output: URL) throws -> [[String: Any]] {
+@MainActor private func smoothMeasure(_ frames: [[String: Any]], output: URL, paired: Bool = false) throws -> [[String: Any]] {
     var runs: [[String: Any]] = []
-    for run in 0...5 {
+    func cpuTime() -> Double {
+        var stamp = timespec()
+        precondition(clock_gettime(CLOCK_THREAD_CPUTIME_ID, &stamp) == 0)
+        return Double(stamp.tv_sec) + Double(stamp.tv_nsec) / 1_000_000_000
+    }
+    for run in 0...(paired ? 1 : 5) {
         print("SM_STAGE measurement run=\(run)"); fflush(stdout)
         let f = try SmoothFixture(frames); defer { f.dispose() }
-        var times: [String: Double] = [:], counters: [String: Any] = [:]
+        var times: [String: Double] = [:], cpu: [String: Double] = [:], counters: [String: Any] = [:]
         func measure(_ name: String, _ action: () throws -> Void) rethrows {
             HejoSmoothProbe.reset()
+            let startCPU = paired ? cpuTime() : 0
             let start = ProcessInfo.processInfo.systemUptime
             try action(); f.layout()
             times[name] = ProcessInfo.processInfo.systemUptime - start
+            if paired { cpu[name] = cpuTime() - startCPU }
             counters[name] = ["bodies": HejoSmoothProbe.bodies, "heights": HejoSmoothProbe.heights, "refreshes": HejoSmoothProbe.refreshes, "assessments": HejoSmoothProbe.assessments, "calendars": HejoSmoothProbe.calendars, "thinking":HejoSmoothProbe.thinking, "times":HejoSmoothProbe.times, "phases": HejoSmoothProbe.phases,"date_derivations":HejoSmoothProbe.dates,"member_merges":HejoSmoothProbe.memberMerges,"assessment_inputs":HejoSmoothProbe.assessmentInputs]
         }
         measure("select") { f.view.chooseThread(smoothThread(0, 95)) }
@@ -112,7 +119,10 @@ private func smoothFrames() -> [[String: Any]] {
             f.layout(); f.view.history.displayIfNeeded()
             scroll.append(ProcessInfo.processInfo.systemUptime - start)
         }
-        runs.append(["run": run, "warm_up": run == 0, "seconds": times, "counts": counters, "scroll_seconds": scroll])
+        var observation: [String: Any] = ["run": run, "warm_up": run == 0, "seconds": times,
+                                          "counts": counters, "scroll_seconds": scroll]
+        if paired { observation["cpu_seconds"] = cpu }
+        runs.append(observation)
         try smoothWrite(runs, output.appendingPathComponent("performance.json"))
     }
     return runs
@@ -150,13 +160,20 @@ private func smoothFrames() -> [[String: Any]] {
 }
 
 /// AT-SM-04/06: real PetController snapshot order, actual run loop and all transition timestamps.
-@MainActor private func smoothTransitions(_ frames: [[String: Any]], output: URL, resources: URL, checking: Bool) async throws {
+@MainActor private func smoothTransitions(_ frames: [[String: Any]], output: URL, resources: URL, checking: Bool, screenSample: Int? = nil) async throws {
     var results: [[String: Any]] = []
-    for run in 0...5 {
+    for run in screenSample.map({ [0, $0] }) ?? Array(0...5) {
         print("SM_STAGE transition run=\(run)"); fflush(stdout)
         let f = try SmoothFixture(frames)
         let pet = PetController(store: f.store, atlas: try SpriteAtlas(resourceDirectory: resources))
-        pet.displays = { [PetDisplay(frame: CGRect(x: 0, y: 0, width: 2400, height: 2200), visible: CGRect(x: 0, y: 40, width: 2400, height: 2100))] }
+        if screenSample != nil {
+            guard let screen = NSScreen.main else { throw TestFailure.assertion("S3 requires a real AppKit screen") }
+            pet.placePet(at: CGPoint(x: screen.visibleFrame.midX, y: screen.visibleFrame.midY))
+            pet.show()
+            try check(pet.panel.isVisible && pet.panel.screen != nil,"S3 panel must attach to a real display")
+        } else {
+            pet.displays = { [PetDisplay(frame: CGRect(x: 0, y: 0, width: 2400, height: 2200), visible: CGRect(x: 0, y: 40, width: 2400, height: 2100))] }
+        }
         pet.preferredChatSize = CGSize(width: 840, height: 760)
         pet.pet.installConversation(f.view); pet.installDrawer(f.view)
         pet.onExpansionChanged = { f.controller.model.setVisible($0) }
@@ -171,7 +188,17 @@ private func smoothFrames() -> [[String: Any]] {
                 snapshotExpected = Double(min(max(0, rect.midY - f.view.history.contentView.bounds.height / 2), max(0, f.view.history.table.bounds.height - f.view.history.contentView.bounds.height)))
             }
         }
-        HejoSmoothProbe.started = { before = HejoSmoothProbe.refreshes; HejoSmoothProbe.reset() }
+        var activity: NSObjectProtocol?
+        defer { if let activity { ProcessInfo.processInfo.endActivity(activity) } }
+        HejoSmoothProbe.transitionPath = ""
+        HejoSmoothProbe.started = {
+            before = HejoSmoothProbe.refreshes
+            HejoSmoothProbe.reset()
+            if screenSample != nil && ProcessInfo.processInfo.environment["HEJO_S3_LATENCY"] == "1" {
+                activity = ProcessInfo.processInfo.beginActivity(options: [.latencyCritical,.userInitiated],
+                                                                reason: "Hejo transition timing control")
+            }
+        }
         HejoSmoothProbe.reset()
         HejoSmoothProbe.events=[]
         let observer=HejoSmoothProbe.profiling ? CFRunLoopObserverCreateWithHandler(nil,CFRunLoopActivity.allActivities.rawValue,true,0) {_,activity in
@@ -184,6 +211,7 @@ private func smoothFrames() -> [[String: Any]] {
         while HejoSmoothProbe.transitionEnd == nil && ProcessInfo.processInfo.systemUptime < deadline { await pause(0.005) }
         if let observer {CFRunLoopRemoveObserver(CFRunLoopGetMain(),observer,.commonModes)}
         if HejoSmoothProbe.profiling {try smoothWrite(HejoSmoothProbe.events,output.appendingPathComponent("profile-\(run).json"))}
+        if let token = activity { ProcessInfo.processInfo.endActivity(token); activity = nil }
         duringRefresh = HejoSmoothProbe.refreshes; duringScroll = HejoSmoothProbe.scrollStarts
         let start = HejoSmoothProbe.transitionStart, steps = HejoSmoothProbe.transitionSteps, end = HejoSmoothProbe.transitionEnd
         await pause(0.8)
@@ -192,6 +220,7 @@ private func smoothFrames() -> [[String: Any]] {
         let valid = start != nil && end != nil && steps.count >= 6 && gaps.count == steps.count && gaps.allSatisfy { $0 >= 0 && $0 <= 0.050 } && end! - start! <= 0.350
         let placement = snapshotY.isFinite && snapshotExpected.isFinite && abs(snapshotY - snapshotExpected) < 1
         results.append(["run": run, "warm_up": run == 0, "start": start as Any? ?? NSNull(), "steps": steps, "end": end as Any? ?? NSNull(), "gaps": gaps,
+            "path": HejoSmoothProbe.transitionPath, "real_screen": screenSample != nil && pet.panel.screen != nil,
             "frame_pass": valid, "snapshot_y": snapshotY.isFinite ? snapshotY : -1, "expected_y": snapshotExpected.isFinite ? snapshotExpected : -1,
             "final_y": finalY, "placement_pass": placement, "before_refreshes": before, "during_refreshes": duringRefresh, "during_scroll_starts": duringScroll])
         try smoothWrite(results, output.appendingPathComponent("transitions.json"))
@@ -309,7 +338,7 @@ private func smoothAttributedEqual(_ left: NSAttributedString, _ right: NSAttrib
     try compare("check toggle")
     for query in ["합성","최종",""] {
         f.view.openSearch();f.view.search.stringValue=query
-        if let message=f.controller.model.messages[id] {f.view.revealSearch(message)}
+        if let message=f.controller.model.messages[id] {f.view.revealHistorySearch(message.key,id:message.id)}
         try compare("search " + query)
     }
     _=f.view.closeSearchIfOpen();f.view.chooseEmployee("fixture-0")
@@ -589,6 +618,116 @@ private func smoothAttributedEqual(_ left: NSAttributedString, _ right: NSAttrib
     while controls.isVisible && Date()<deadline {await pause(0.2)}
 }
 
+/// Compare the card's calendar projection with the previous full bubble action path.
+@MainActor private func smoothCalendarScenes(_ frames: [[String: Any]], output: URL) throws {
+    let fixture = try SmoothFixture(frames)
+    defer { fixture.dispose() }
+    let controller = fixture.controller
+    guard var message = controller.model.messages[smoothMessage(2, 0, 1)] else { throw TestFailure.assertion("S2 calendar fixture message") }
+    message.text = "합성 검토 일정이 있어요. https://example.invalid/fixture"
+    let date = ThreadTools.date(message.timestamp)
+    let event = CalendarEntry(identifier:"fixture-event",calendarID:"fixture-calendar",title:"합성 검토",
+                              start:date.addingTimeInterval(60),end:date.addingTimeInterval(3600))
+    controller.calendarEvents = []
+    func reference() -> [BubbleReveal.Action] {
+        if message.role == "owner" || message.pending { return [] }
+        return BubbleReveal.Action.content(message.text,events:controller.calendarEvents,
+                                           at:ThreadTools.date(message.timestamp)).filter(\.isCalendar)
+    }
+    var observations: [[String: Any]] = []
+    func observe(_ scene: String, omittedInput: [BubbleReveal.Action]? = nil) throws -> [BubbleReveal.Action] {
+        let expected = reference()
+        let actual = controller.calendarActions(for:message)
+        try check(actual == expected,"S2 calendar old-path equivalence " + scene)
+        if let omittedInput {
+            try check(omittedInput != expected,"S2 calendar mutation must be detectable " + scene)
+        }
+        let ids = actual.flatMap { action -> [String] in
+            if case .calendar(let matches) = action { return matches.map(\.identifier) }
+            return []
+        }
+        observations.append(["scene":scene,"eventIDs":ids,"actions":actual.map(\.title),
+                             "staleInputDiffers":omittedInput != nil])
+        return actual
+    }
+    let empty = try observe("no calendars despite link")
+    controller.calendarEvents = [event]
+    let found = try observe("calendar arrives",omittedInput:empty)
+    try check(found == [.calendar([event])],"S2 calendar is rendered alongside existing post link")
+    message.text = "일정 이름이 없는 합성 글입니다."
+    _ = try observe("body replacement",omittedInput:found)
+    message.text = "합성 검토 일정이 있어요. https://example.invalid/fixture"
+    _ = try observe("body restored")
+    let originalDate = message.timestamp
+    message.timestamp = "2027-01-01T00:00:00Z"
+    _ = try observe("timestamp replacement",omittedInput:found)
+    message.timestamp = originalDate
+    _ = try observe("timestamp restored")
+    message.role = "owner"
+    _ = try observe("owner role",omittedInput:found)
+    message.role = "employee"
+    _ = try observe("employee restored")
+    message.pending = true
+    _ = try observe("pending",omittedInput:found)
+    message.pending = false
+    _ = try observe("acknowledged")
+    controller.calendarEvents = []
+    _ = try observe("calendar removed",omittedInput:found)
+    try smoothWrite(observations, output.appendingPathComponent("calendar-scenes.json"))
+}
+
+/// Stable values from the actual card path, independently recorded by both builds.
+@MainActor private func smoothColdCardSnapshot(_ frames: [[String: Any]], output: URL) throws {
+    let fixture = try SmoothFixture(frames)
+    defer { fixture.dispose() }
+    fixture.view.chooseEmployee("fixture-2")
+    fixture.layout()
+    try smoothCompare(fixture, "first visit body, attributes and geometry")
+    func color(_ value: NSColor) -> [CGFloat] {
+        guard let rgb = value.usingColorSpace(.sRGB) else { return [] }
+        return [rgb.redComponent, rgb.greenComponent, rgb.blueComponent, rgb.alphaComponent]
+    }
+    func attributes(_ value: Any) -> Any {
+        if let value = value as? NSColor { return color(value) }
+        if let value = value as? NSFont {
+            return ["name":value.fontName,"size":value.pointSize,"traits":NSFontManager.shared.traits(of:value).rawValue] as [String: Any]
+        }
+        if let value = value as? URL { return value.absoluteString }
+        if let value = value as? NSParagraphStyle {
+            return ["alignment":value.alignment.rawValue,"lineSpacing":value.lineSpacing,"paragraphSpacing":value.paragraphSpacing,
+                    "headIndent":value.headIndent,"tailIndent":value.tailIndent,"firstLineHeadIndent":value.firstLineHeadIndent,
+                    "lineBreak":value.lineBreakMode.rawValue,"baseDirection":value.baseWritingDirection.rawValue,
+                    "minimumLineHeight":value.minimumLineHeight,"maximumLineHeight":value.maximumLineHeight] as [String: Any]
+        }
+        if let value = value as? TextLayout.Decoration {
+            return ["box":value.box ?? -1,"quotes":value.quotes.map { ["run":$0.run,"color":color($0.color)] as [String: Any] }] as [String: Any]
+        }
+        if let value = value as? NSNumber { return value }
+        if let value = value as? String { return value }
+        return String(reflecting: type(of: value))
+    }
+    let snapshot: [[String: Any]] = fixture.view.history.layouts.map { card in
+        let pieces = card.placed.map { piece -> [String: Any] in
+            var result: [String: Any] = ["frame":NSStringFromRect(piece.frame),"textFrame":NSStringFromRect(piece.text)]
+            if case .post(let post) = piece.piece {
+                var runs: [[String: Any]] = []
+                post.text.enumerateAttributes(in: NSRange(location:0,length:post.text.length)) { values, range, _ in
+                    let mapped = Dictionary(uniqueKeysWithValues: values.map { ($0.key.rawValue, attributes($0.value)) })
+                    runs.append(["location":range.location,"length":range.length,"values":mapped])
+                }
+                result["post"] = ["id":post.id,"text":post.text.string,"speaker":post.speaker,"time":post.time,
+                                  "color":color(post.nameColor),"fold":post.foldTitle ?? "",
+                                  "mine":post.mine,"pending":post.pending,"streaming":post.streaming,
+                                  "conversational":post.conversational,"continuation":post.continuation,"attributes":runs] as [String: Any]
+            }
+            return result
+        }
+        return ["id":card.content.id,"height":card.height,"pieces":pieces]
+    }
+    try check(!snapshot.isEmpty, "S2 empty cold-card snapshot")
+    try smoothWrite(snapshot, output.appendingPathComponent("cold-cards.json"))
+}
+
 @MainActor func hejoSmooth(mode: String, output: URL, resources: URL) async throws {
     guard ProcessInfo.processInfo.environment["HERMES_HOME"]?.contains("hejo-sm-") == true else { throw TestFailure.assertion("SM requires isolated HERMES_HOME") }
     NSApp.appearance = NSAppearance(named: .aqua)
@@ -596,7 +735,20 @@ private func smoothAttributedEqual(_ left: NSAttributedString, _ right: NSAttrib
     let frames = smoothFrames(), data = try JSONSerialization.data(withJSONObject: frames, options: [.sortedKeys])
     try data.write(to: output.appendingPathComponent("workload-frames.json"))
     try smoothWrite(["sha256": SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined(), "rooms": 8, "threads_per_room": 100, "posts_per_thread": 4, "lengths": [200,800,3000]], output.appendingPathComponent("workload.json"))
+    if mode == "s2-scenes" {
+        try smoothCalendarScenes(frames,output:output)
+        try smoothColdCardSnapshot(frames,output:output)
+        return
+    }
+    if mode == "s2-pair" {
+        _ = try smoothMeasure(frames, output: output, paired: true)
+        return
+    }
     if mode == "manual" {try await smoothManual(frames,output:output,resources:resources);return}
+    if mode.hasPrefix("s3-frame-"), let sample = Int(mode.dropFirst("s3-frame-".count)), (1...5).contains(sample) {
+        try await smoothTransitions(frames,output:output,resources:resources,checking:false,screenSample:sample)
+        return
+    }
     if mode == "transitions" {try await smoothTransitions(frames,output:output,resources:resources,checking:true);try await smoothTransitionBoundaries(frames,output:output,resources:resources);return}
     if mode == "cards" {try await smoothInvalidation(frames);return}
     if mode == "derived" {try smoothDerived(frames,output:output);try await smoothMemberState(frames,output:output);return}

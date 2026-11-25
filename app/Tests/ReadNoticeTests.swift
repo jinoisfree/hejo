@@ -145,7 +145,7 @@ import AppKit
     try await waitFor{controller.canSend && controller.model.messages.count==2}
     let first=controller.model.messages.values.first{$0.text=="항목 A"}!,second=controller.model.messages.values.first{$0.text=="항목 B"}!
     let expectsTarget=args[5]=="target"
-    await controller.click(first.buttons[0],message:first)
+    await controller.click(first.buttons[0],messageID:first.id,key:first.key,buttons:first.buttons)
     try await waitFor{controller.model.timeline(first.key).contains{$0.role=="owner"}}
     let owner=controller.model.timeline(first.key).first{$0.role=="owner"}!
     try check(owner.answerTo==(expectsTarget ? first.id:nil),"AT87 real click target decoded or old gate absent")

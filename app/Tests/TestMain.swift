@@ -33,6 +33,10 @@ final class MemoryCredentials: GateCredentialStore {
             do {
                 let args = CommandLine.arguments
                 #if HEJO_PERF_TESTING
+                if args.count == 3 && args[1] == "--hejo-s3-driver" {
+                    try await hejoTransitionClockTests(resources:URL(fileURLWithPath:args[2]))
+                    NSApp.terminate(nil); return
+                }
                 if args.count == 5 && args[1] == "--hejo-smooth" {
                     try await hejoSmooth(mode: args[2], output: URL(fileURLWithPath: args[3]), resources: URL(fileURLWithPath: args[4]))
                     NSApp.terminate(nil); return

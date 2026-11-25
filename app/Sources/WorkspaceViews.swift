@@ -1,19 +1,36 @@
 import AppKit
 
-/// Search results are an ephemeral view over the local projection, never another message store.
+/// Display rows carry snippets only; choosing a row resolves its message anchor.
+struct WorkspaceDisplayGroup {
+    var key: ConversationKey, rootPreview: String, matches: [WorkspaceDisplayHit], latest: Date
+}
+struct WorkspaceDisplayHit {
+    var id: String, key: ConversationKey, role: String, speaker: String, timestamp: String, body: String, notes: [String]
+}
 final class WorkspaceDocumentStack:NSStackView {override var isFlipped:Bool {true}}
 final class WorkspaceResults: NSScrollView {
     let stack=WorkspaceDocumentStack()
-    var onChoose:((Int,ConversationMessage)->Void)?
-    var groups:[WorkspaceSearch.Group]=[]
+    var onChooseHistory:((ConversationKey,String)->Void)?
     var selection=0
     override init(frame:NSRect) {
         super.init(frame:frame);drawsBackground=false;hasVerticalScroller=true;autohidesScrollers=true
         stack.orientation = .vertical;stack.alignment = .leading;stack.spacing=12;stack.edgeInsets=NSEdgeInsets(top:12,left:12,bottom:12,right:12);documentView=stack
     }
     required init?(coder:NSCoder) {fatalError()}
-    func show(_ groups:[WorkspaceSearch.Group],query:String,selection:Int,compact:Bool=false,name:(String)->String,room:(String)->String) {
-        self.groups=groups;self.selection=selection
+    func showHistory(_ groups:[HistorySearchGroup],query:String,selection:Int,name:(String)->String,room:(String)->String) {
+        let display=groups.map { group in WorkspaceDisplayGroup(key:group.conversationKey,rootPreview:group.rootSnippet,matches:group.matches.map { line in
+            WorkspaceDisplayHit(id:line.id,key:line.conversationKey,role:line.role,speaker:line.speaker,timestamp:line.timestamp,body:line.snippet,notes:line.notes)
+        },latest:ThreadTools.date(group.latest)) }
+        render(display,query:query,selection:selection,name:name,room:room) { [weak self] _,hit in self?.onChooseHistory?(hit.key,hit.id) }
+    }
+    func showStatus(_ text:String,retry:(()->Void)?=nil) {
+        for view in stack.arrangedSubviews { stack.removeArrangedSubview(view);view.removeFromSuperview() }
+        stack.addArrangedSubview(NSTextField(labelWithString:text))
+        if let retry { let button=FileChip(title:"다시 시도");button.invoke=retry;stack.addArrangedSubview(button) }
+        needsLayout=true
+    }
+    private func render(_ groups:[WorkspaceDisplayGroup],query:String,selection:Int,compact:Bool=false,name:(String)->String,room:(String)->String,choose:@escaping(Int,WorkspaceDisplayHit)->Void) {
+        self.selection=selection
         let primary:NSColor=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua ? .white:.black
         for view in stack.arrangedSubviews {stack.removeArrangedSubview(view);view.removeFromSuperview()}
         func label(_ text:String)->NSTextField {let v=NSTextField(wrappingLabelWithString:text);v.font = .systemFont(ofSize:11);return v}
@@ -21,9 +38,9 @@ final class WorkspaceResults: NSScrollView {
         for (index,group) in groups.enumerated() {
             let box=NSStackView();box.orientation = .vertical;box.alignment = .leading;box.spacing=8;box.edgeInsets=NSEdgeInsets(top:12,left:12,bottom:12,right:12)
             box.wantsLayer=true;box.layer?.cornerRadius=10;box.layer?.backgroundColor=primary.withAlphaComponent(index==selection ? 0.10:0.035).cgColor;box.layer?.borderWidth=1;box.layer?.borderColor=primary.withAlphaComponent(index==selection ? 0.22:0.06).cgColor
-            let title=WorkspaceResultHeader(title:compact ? room(group.key.employee)+" · "+name(group.key.employee):room(group.key.employee),date:compact ? nil:DateFormatter.localizedString(from:group.latest,dateStyle:.long,timeStyle:.none),preview:compact ? nil:WorkspaceSearch.snippet(group.root.text,query:query))
-            title.onClick={ [weak self] in if let line=group.matches.first {self?.onChoose?(index,line)} };box.addArrangedSubview(title)
-            let rootPreview=NSMutableAttributedString(attributedString:WorkspaceSearch.attributed(WorkspaceSearch.snippet(group.root.text,query:query),query:query));rootPreview.addAttribute(.font,value:NSFont.systemFont(ofSize:14,weight:.medium),range:NSRange(location:0,length:rootPreview.length));title.preview.attributedStringValue=rootPreview
+            let title=WorkspaceResultHeader(title:compact ? room(group.key.employee)+" · "+name(group.key.employee):room(group.key.employee),date:compact ? nil:DateFormatter.localizedString(from:group.latest,dateStyle:.long,timeStyle:.none),preview:compact ? nil:group.rootPreview)
+            title.onClick={ if let line=group.matches.first {choose(index,line)} };box.addArrangedSubview(title)
+            let rootPreview=NSMutableAttributedString(attributedString:WorkspaceSearch.attributed(group.rootPreview,query:query));rootPreview.addAttribute(.font,value:NSFont.systemFont(ofSize:14,weight:.medium),range:NSRange(location:0,length:rootPreview.length));title.preview.attributedStringValue=rootPreview
             for line in group.matches.prefix(3) {
                 let speaker=line.role=="owner" ? "나":name(line.speaker)
                 let heading=FileChip(title:speaker+"  "+DateFormatter.localizedString(from:ThreadTools.date(line.timestamp),dateStyle:.none,timeStyle:.short))
@@ -31,17 +48,16 @@ final class WorkspaceResults: NSScrollView {
                 let timeStart=(speaker as NSString).length
                 header.addAttribute(.foregroundColor,value:NSColor.secondaryLabelColor,range:NSRange(location:timeStart,length:header.length-timeStart));heading.attributedTitle=header
                 heading.isBordered=false;heading.font = .systemFont(ofSize:11);heading.alignment = .left
-                heading.invoke={ [weak self] in self?.onChoose?(index,line) };if !compact {box.addArrangedSubview(heading)}
-                let preview=WorkspaceSearch.preview(query,message:line)
-                let source=compact ? ([preview.body]+preview.notes).joined(separator:"\n"):preview.body
-                let text=label("");if compact {text.maximumNumberOfLines=2;text.lineBreakMode = .byTruncatingTail};text.attributedStringValue=WorkspaceSearch.attributed(WorkspaceSearch.snippet(source,query:query),query:query);box.addArrangedSubview(text)
-                let hit=WorkspaceHitView();hit.onClick={ [weak self] in self?.onChoose?(index,line) };text.addSubview(hit);hit.frame=text.bounds;hit.autoresizingMask=[.width,.height]
-                if !compact {for note in preview.notes {
+                heading.invoke={ choose(index,line) };if !compact {box.addArrangedSubview(heading)}
+                let source=line.body
+                let text=label("");if compact {text.maximumNumberOfLines=2;text.lineBreakMode = .byTruncatingTail};text.attributedStringValue=WorkspaceSearch.attributed(source,query:query);box.addArrangedSubview(text)
+                let hit=WorkspaceHitView();hit.onClick={ choose(index,line) };text.addSubview(hit);hit.frame=text.bounds;hit.autoresizingMask=[.width,.height]
+                if !compact {for note in line.notes {
                     let row=NSStackView();row.spacing=4
                     let file=note.hasPrefix("📎 "),words=file ? String(note.dropFirst(2)):note
                     if file {let icon=NSImageView();icon.image=NSImage(systemSymbolName:"paperclip",accessibilityDescription:nil);icon.contentTintColor=SidebarTone.primary(0.7);row.addArrangedSubview(icon)}
                     let field=label("");field.attributedStringValue=WorkspaceSearch.attributed(WorkspaceSearch.snippet(words,query:query),query:query);field.font = .systemFont(ofSize:11);row.addArrangedSubview(field);box.addArrangedSubview(row)
-                    let tap=WorkspaceHitView();tap.onClick={ [weak self] in self?.onChoose?(index,line) };row.addSubview(tap);tap.frame=row.bounds;tap.autoresizingMask=[.width,.height]
+                    let tap=WorkspaceHitView();tap.onClick={ choose(index,line) };row.addSubview(tap);tap.frame=row.bounds;tap.autoresizingMask=[.width,.height]
                 }}
             }
             if group.matches.count>3 {box.addArrangedSubview(label("+\(group.matches.count-3)건"))}

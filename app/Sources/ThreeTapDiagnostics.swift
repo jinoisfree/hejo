@@ -44,6 +44,12 @@ enum ThreeTapDiagnostics {
         if let observer { CFRunLoopAddObserver(CFRunLoopGetMain(), observer, .commonModes) }
         return observer
     }()
+    static func transitionDriver(_ route: String) {
+        // Keep the trace numeric: 1 screen display link, 2 CoreVideo, 3 fallback timer.
+        guard sample != nil else { return }
+        sample?["transition_driver"] = route == "screen_display_link" ? 1 : (route == "cv_display_link" ? 2 : 3)
+    }
+
     static func firstTick() {
         guard sample != nil, sample?["first_tick"] == nil else { return }
         sample?["first_tick"] = ProcessInfo.processInfo.systemUptime

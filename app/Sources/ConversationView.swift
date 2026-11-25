@@ -20,6 +20,7 @@ import UniformTypeIdentifiers
         highlightedMessageID=nil;highlightUntil=nil
         if let id=card.messageID,let key=card.key {
             reveal(key);highlightedMessageID=id;highlightUntil=card.kind == .alert ? islandModel.now.addingTimeInterval(1.5):nil
+            if controller.client.store.historyMode {controller.historyLoading.open(key,anchor:id)}
             refresh();history.scrollTo(key.thread)
         } else if activate,let url=card.url {onOpenURL(url);refresh()}
         else {refresh()}  // nowhere to go: the card shows "연결된 대화 없음" and only becomes selected
@@ -31,9 +32,16 @@ import UniformTypeIdentifiers
     var reduceMotion: () -> Bool = { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
     private var islandTimer:Timer?,streamTimer:Timer?
     private var streamReveal=StreamReveal()
-    private var thumbnails:[String:NSImage]=[:],failedThumbnails=Set<String>(),fetchingThumbnails=Set<String>(),busyFiles=Set<String>()
+    private var thumbnailAccessIdentity = ""
+    private let thumbnails=AttachmentThumbnailCache()
+    private var failedThumbnails=Set<String>(),fetchingThumbnails=Set<String>(),busyFiles=Set<String>()
     var clipboardBoard=NSPasteboard.general
     private var copiedID:String?
+    private var historyCopyTask:Task<Void,Never>?
+    var historyCopyInProgress:Bool {historyCopyTask != nil}
+    private var historyCopyKey:ConversationKey?
+    private var historyCopyProgress=""
+    private var historyCopyGeneration=UUID()
     private(set) var highlightedMessageID:String?
     private var highlightUntil:Date?
     var reconnect:()->Void
@@ -47,13 +55,10 @@ import UniformTypeIdentifiers
     let employeeSearch=NSSearchField(), search=NSSearchField()
     let searchResults=WorkspaceResults(frame:.zero)
     let noticeBar=WorkspaceDocumentStack(), failureBar=NSStackView()
-    private(set) var searchGroups:[WorkspaceSearch.Group]=[]
+    let historySearch=HistorySearchState(), historySidebarSearch=HistorySearchState()
     private(set) var searchSelection=0
-    private var searchGeneration=UUID(), searchInput="", searchSeq = -1
-    private var searchContext=""
     private var noticeSecond=0
     private var shownNotices:[RoomNotice]=[]
-    private var searchWork:DispatchWorkItem?
     private var searchHighlight:String?,searchHighlightThread:ConversationKey?
     private lazy var findRow=WorkspaceFindRow(field:search)
     let noticeScroll=NSScrollView()
@@ -149,7 +154,9 @@ import UniformTypeIdentifiers
         search.placeholderString="단어나 문장으로 검색"; search.delegate=self
         findRow.onClose={ [weak self] in _=self?.closeSearchIfOpen() }
         noticeScroll.documentView=noticeBar;noticeScroll.drawsBackground=false;noticeScroll.hasHorizontalScroller=true;noticeScroll.autohidesScrollers=true;noticeScroll.scrollerStyle = .overlay;noticeScroll.wantsLayer=true;noticeScroll.layer?.masksToBounds=true
-        searchResults.onChoose={ [weak self] _,line in self?.revealSearch(line) }
+        searchResults.onChooseHistory={ [weak self] key,id in self?.revealHistorySearch(key,id:id) }
+        historySearch.onChange={ [weak self] in self?.searchSelection=0;self?.refresh() }
+        historySidebarSearch.onChange={ [weak self] in self?.refresh() }
         sidebarSearch.onClear={ [weak self] in self?.employeeSearch.stringValue="";self?.refresh() }
         sidebarBlank.toggle={ [weak self] in self?.cycleSidebarWidth() }
         for stack in [noticeBar,failureBar] {stack.orientation = .vertical;stack.alignment = .leading;stack.spacing=6}
@@ -177,6 +184,13 @@ import UniformTypeIdentifiers
         clipboard.recoverLeftovers()
         for drag in [headerDrag,brandDrag] {drag.toolTip="드래그: 채팅창과 펫 함께 이동 · 더블클릭: 가로 2배 / 기본";drag.setAccessibilityLabel("채팅창과 펫 이동")}
         headerDrag.menuHelp="오른쪽 클릭: 제목·설명 편집 및 대화 메뉴"
+        controller.historyLoading.onAnchor = { [weak self] key,id in self?.history.scrollTo(key.thread,message:id) }
+        history.onViewport = { [weak self] ids in
+            guard let self,self.controller.model.pinHistoryViewport(ids) else {return}
+            DispatchQueue.main.async { [weak self] in self?.refresh() }
+        }
+        history.onOlder = { [weak self] in self?.loadOlder() }
+        history.onNewer = { [weak self] in self?.restoreNewer() }
         history.reduceMotion={ [weak self] in self?.reduceMotion() ?? true }
         history.onBlank={ [weak self] in self?.foldAll() }
         history.onMeasured={ [weak self] in self?.reportOpenHeight() }
@@ -208,7 +222,7 @@ import UniformTypeIdentifiers
         }; controller.onRevealThread={ [weak self] key in self?.openFromBubble(key) }; refresh()
     }
     required init?(coder:NSCoder) { fatalError() }
-    deinit { if let appearanceObserver {NotificationCenter.default.removeObserver(appearanceObserver)};islandTimer?.invalidate();streamTimer?.invalidate();workspaceTimer?.invalidate() }
+    deinit { historyCopyTask?.cancel(); if let appearanceObserver {NotificationCenter.default.removeObserver(appearanceObserver)};islandTimer?.invalidate();streamTimer?.invalidate();workspaceTimer?.invalidate() }
     func tickIsland(updateDrawer:Bool=true) {
         island.show(islandModel.snapshot())
         let second=Int(controller.clock().timeIntervalSince1970)
@@ -236,7 +250,7 @@ import UniformTypeIdentifiers
         let place=inHome ? HomeRoom.id:key.employee
         if identity != place { identity=place;windowed.reset() }
         writingPlace=controller.client.store.settings.address+"\u{1}"+place+(inHome ? controller.model.homeChannel.map{"/"+$0.id} ?? "":"")
-        searchOpen=false;searchGeneration=UUID();searchWork?.cancel();search.stringValue="";openThread=key;replyMode=true;automatic=false;controller.composeKey=key
+        searchOpen=false;historySearch.reset();search.stringValue="";openThread=key;replyMode=true;automatic=false;controller.composeKey=key
         controller.model.select(key,notify:false,inHome:inHome);controller.model.markAlertSeen(key)
     }
     func setSidebarWidth(_ value:CGFloat) {
@@ -376,12 +390,17 @@ import UniformTypeIdentifiers
         let namespace=controller.client.store.settings.address+"\u{1}"+employee+(home ? controller.model.homeChannel.map{"/"+$0.id} ?? "":"")
         writingPlace=namespace;identity=employee;windowed.reset()
         if let saved=lastPlaces[namespace],!controller.draft(for:saved).isEmpty {
+#if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
+            let savedDeleted = controller.client.store.historyMode ? controller.model.history.deletedThreads[saved] != nil : controller.model.timeline(saved).isEmpty
+#else
+            let savedDeleted = controller.model.history.deletedThreads[saved] != nil
+#endif
             automatic=autoKeys[namespace]==saved
             if automatic {controller.composeKey=saved;selectAutomatic(employee,home:home)}
-            else if controller.model.timeline(saved).isEmpty,newKeys[namespace] != saved {
+            else if savedDeleted,newKeys[namespace] != saved {
                 automatic=true;let next=autoKey(namespace,employee:employee)
                 controller.moveDraft(from:saved,to:next,carry:true);selectAutomatic(employee,home:home)
-            } else {replyMode = !controller.model.timeline(saved).isEmpty;openThread=replyMode ? saved:nil;controller.composeKey=saved;controller.model.select(saved,inHome:home,markRead:false)}
+            } else {replyMode = !savedDeleted;openThread=replyMode ? saved:nil;controller.composeKey=saved;controller.model.select(saved,inHome:home,markRead:false)}
             return
         }
         automatic=true;controller.composeKey=autoKey(namespace,employee:employee);selectAutomatic(employee,home:home)
@@ -392,19 +411,29 @@ import UniformTypeIdentifiers
     }
     private func newest(_ employee:String)->ConversationKey? {
         let model=controller.model
-        return model.withRenderValues {
-            let rows=employee==HomeRoom.id ? model.homeThreads:model.threads(employee:employee)
+        let rows=employee==HomeRoom.id ? model.homeThreads:model.threads(employee:employee)
+#if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
+        if !controller.client.store.historyMode {
             return rows.max {a,b in
-                let x=model.latestDate(a.key)
-                let y=model.latestDate(b.key)
-                return x==y ? (model.timeline(a.key).first?.seq ?? 0)<(model.timeline(b.key).first?.seq ?? 0):x<y
+                let x=model.history.summaries[a.key].map{model.date($0.lastTime)} ?? model.timeline(a.key).map{model.date($0.timestamp)}.max() ?? .distantPast
+                let y=model.history.summaries[b.key].map{model.date($0.lastTime)} ?? model.timeline(b.key).map{model.date($0.timestamp)}.max() ?? .distantPast
+                return x==y ? (model.history.summaries[a.key]?.rootSeq ?? model.timeline(a.key).first?.seq ?? 0)<(model.history.summaries[b.key]?.rootSeq ?? model.timeline(b.key).first?.seq ?? 0):x<y
             }?.key
         }
+#endif
+        return rows.compactMap {model.history.summaries[$0.key]}.max {a,b in
+            let x=model.date(a.lastTime),y=model.date(b.lastTime)
+            return x==y ? a.rootSeq<b.rootSeq:x<y
+        }?.conversationKey
     }
     private func selectAutomatic(_ employee:String,home:Bool) {
         let model=controller.model,namespace=controller.client.store.settings.address+"\u{1}"+employee+(home ? controller.model.homeChannel.map{"/"+$0.id} ?? "":"")
         let latest=home ? nil:newest(employee)
-        let target=latest.flatMap{model.timeline($0).first?.role=="employee" ? $0:nil}
+#if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
+        let target=latest.flatMap{(model.history.summaries[$0]?.rootRole ?? model.timeline($0).first?.role)=="employee" ? $0:nil}
+#else
+        let target=latest.flatMap{model.history.summaries[$0]?.rootRole=="employee" ? $0:nil}
+#endif
         replyMode=target != nil
         let key=target ?? autoKey(namespace,employee:employee)
         if target==nil {controller.registerNewPlace(key)}
@@ -424,7 +453,7 @@ import UniformTypeIdentifiers
         controller.moveDraft(from:controller.composeKey,to:key,carry:controller.model.selected==key);automatic=false;replyMode=true; openThread=openThread == key ? nil : key
         if openThread != key,searchHighlightThread==key {searchHighlight=nil;searchHighlightThread=nil}
         controller.model.select(key,inHome:controller.model.isHome);controller.model.markAlertSeen(key)
-        if openThread==key {history.scrollTo(key.thread,bottom:true)}
+        if openThread==key {if controller.client.store.historyMode {controller.historyLoading.open(key)};history.scrollTo(key.thread,bottom:true)}
     }
     private var pendingRevealScroll: String?
     private var preparingOpening=false
@@ -449,7 +478,7 @@ import UniformTypeIdentifiers
     }
     @discardableResult func closeSearchIfOpen() -> Bool {
         guard searchOpen else { return false }
-        searchOpen=false; searchGeneration=UUID();searchWork?.cancel();search.stringValue="";searchGroups=[];refresh(); return true
+        searchOpen=false; historySearch.reset();search.stringValue="";refresh(); return true
     }
     var isSearchOpen: Bool { searchOpen }
     func toggleSearch() {if searchOpen {_=closeSearchIfOpen()} else {openSearch()} }
@@ -466,36 +495,38 @@ import UniformTypeIdentifiers
         default:return false
         };return true
     }
-    func moveSearch(_ delta:Int) {searchSelection=min(max(0,searchSelection+delta),max(0,searchGroups.count-1));showSearchResults()}
-    func chooseSearch() {if searchGroups.indices.contains(searchSelection),let line=searchGroups[searchSelection].matches.first {revealSearch(line)}}
-    func revealSearch(_ message:ConversationMessage) {
-        expandedMessages.insert(message.id)
+    func moveSearch(_ delta:Int) {searchSelection=min(max(0,searchSelection+delta),max(0,historySearch.groups.count-1));showSearchResults()}
+    func chooseSearch() {
+        if historySearch.groups.indices.contains(searchSelection),let hit=historySearch.groups[searchSelection].matches.first {revealHistorySearch(hit.conversationKey,id:hit.id)}
+    }
+    func revealHistorySearch(_ key:ConversationKey,id:String) {
+        expandedMessages.insert(id)
         searchHighlight=search.stringValue.isEmpty ? employeeSearch.stringValue:search.stringValue
-        _=closeSearchIfOpen();reveal(message.key);searchHighlightThread=message.key;highlightedMessageID=message.id;highlightUntil=islandModel.now.addingTimeInterval(1.6)
-        refresh();history.scrollTo(message.key.thread,message:message.id)
+        _=closeSearchIfOpen();reveal(key);searchHighlightThread=key;highlightedMessageID=id;highlightUntil=islandModel.now.addingTimeInterval(1.6)
+        controller.historyLoading.open(key,anchor:id);refresh()
     }
     private func showSearchResults() {
         let model=controller.model
-        searchResults.show(searchGroups,query:search.stringValue,selection:searchSelection,name:model.name,room:{id in (id==HomeRoom.id || model.homeScope.contains(id)) ? model.header(HomeRoom.id).title:(model.groups[id] != nil ? "#":"@")+model.header(id).title})
+        if historySearch.busy {searchResults.showStatus("검색 중…")}
+        else if historySearch.failed {searchResults.showStatus("검색을 불러오지 못했어요",retry:{ [weak self] in self?.historySearch.retry() })}
+        else {searchResults.showHistory(historySearch.groups,query:search.stringValue,selection:searchSelection,name:model.name,room:{id in (id==HomeRoom.id || model.homeScope.contains(id)) ? model.header(HomeRoom.id).title:(model.groups[id] != nil ? "#":"@")+model.header(id).title})}
     }
     func scheduleSearch() {
         guard searchOpen else{return}
-        let query=search.stringValue
-        let context=controller.client.store.settings.address+"|"+(controller.client.store.settings.stateAccount ?? "")+"|"+controller.model.hidden.sorted().joined(separator:",")+"|"+controller.model.employees.map{$0.id+":"+$0.name}.joined(separator:",")
-        guard query != searchInput || searchSeq != controller.model.applied || context != searchContext else{return}
-        searchContext=context;searchInput=query;searchSeq=controller.model.applied;searchGeneration=UUID();searchWork?.cancel()
-        let generation=searchGeneration,model=controller.model,posts=Array(model.messages.values),names=Dictionary(uniqueKeysWithValues:model.employees.map{($0.id,$0.name)}),hidden=model.hidden
-        let work=DispatchWorkItem { [weak self] in
-            DispatchQueue.global(qos:.utility).async {
-                let groups=WorkspaceSearch.groups(query,messages:posts,names:names,hidden:hidden)
-                DispatchQueue.main.async { [weak self] in guard let self,self.searchOpen,self.searchGeneration==generation else{return};self.searchGroups=groups;self.searchSelection=0;self.showSearchResults();self.needsLayout=true }
-            }
-        }
-        searchWork=work;DispatchQueue.main.asyncAfter(deadline:.now()+0.25,execute:work)
+        historySearch.update(query:search.stringValue,mode:"groups",client:controller.client,model:controller.model)
+        showSearchResults()
     }
     func jumpNotice(_ item:RoomNotice) {
         guard !item.messages.isEmpty else{return}
         let next=item.questions ? (noticeCursor[item.id] ?? -1)+1:0,index=next%item.messages.count;noticeCursor[item.id]=index
+        if controller.client.store.historyMode {
+            let model=controller.model,id=item.messages[index],scope=model.isHome ? "home":model.selectionIdentity
+            guard let row=model.history.noticeRows[scope]?.first(where:{$0["id"] as? String == id}),
+                  let key=row["key"] as? [String:String],let room=key["room"],let thread=key["thread"] else{return}
+            let destination=ConversationKey(employee:room,thread:thread)
+            controller.cancelFollowup();reveal(destination);highlightedMessageID=id;highlightUntil=islandModel.now.addingTimeInterval(1.6)
+            controller.historyLoading.open(destination,anchor:id);return
+        }
         guard let message=controller.model.messages[item.messages[index]] else{return}
         controller.cancelFollowup();reveal(message.key);highlightedMessageID=message.id;highlightUntil=islandModel.now.addingTimeInterval(1.6)
         refresh();history.scrollTo(message.key.thread,message:message.id)
@@ -587,6 +618,10 @@ import UniformTypeIdentifiers
         return replyMode ? "스레드에 답글":model.selected.map{(model.groups[$0.employee] != nil ? "#":"@")+model.name($0.employee)+"에 새 글"} ?? "hejo에 새 글"
     }
     func refresh() {
+        if controller.client.store.historyMode,thumbnailAccessIdentity != controller.files.fileAccessIdentity {
+            thumbnailAccessIdentity=controller.files.fileAccessIdentity
+            thumbnails.removeAll();failedThumbnails=[];fetchingThumbnails=[]
+        }
         if controller.isUpdating { controller.notifyChange(); return }
         guard !rendering else { return }; rendering=true
         #if HEJO_PERF_TESTING
@@ -607,6 +642,13 @@ import UniformTypeIdentifiers
             let model=controller.model
             displayTimes=displayTimes.filter{model.messages[$0.key] != nil}
             displayTimeOrder.removeAll{displayTimes[$0]==nil}
+            historyRenderedIDs.removeAll(keepingCapacity:true)
+            defer {
+                if model.store.historyMode {
+                    postBodies=postBodies.filter { historyRenderedIDs.contains($0.key) }
+                    postBodyOrder.removeAll { postBodies[$0] == nil }
+                }
+            }
             let themeDark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua;version.textColor=CardText.quiet(dark:themeDark)
             streamReveal.receive(Array(model.messages.values),now:motionTime());streamReveal.advance(now:motionTime(),immediately:reduceMotion())
             if streamReveal.pending && streamTimer==nil {streamTimer=Timer.scheduledTimer(withTimeInterval:1.0/30,repeats:true){[weak self] _ in
@@ -617,13 +659,18 @@ import UniformTypeIdentifiers
             if composerAddress != controller.client.store.settings.address {composerAddress=controller.client.store.settings.address;automatic=true;controller.composeKey=nil;identity=""}
             if model.selected==nil {identity="";automatic=false;replyMode=false;controller.composeKey=nil;openThread=nil}
             else {
+    #if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
+            let replyDeleted = controller.composeKey.map {controller.client.store.historyMode ? model.history.deletedThreads[$0] != nil : model.timeline($0).isEmpty && controller.timeline($0).isEmpty} ?? false
+    #else
+            let replyDeleted = controller.composeKey.map {model.history.deletedThreads[$0] != nil} ?? false
+    #endif
             if identity != model.selectionIdentity || writingPlace != placeNamespace {
                 identity=model.selectionIdentity;windowed.reset();openThread=nil;automatic=true
                 if let saved=lastPlaces[placeNamespace],!controller.draft(for:saved).isEmpty,autoKeys[placeNamespace] != saved {
                     automatic=false;replyMode=newKeys[placeNamespace] != saved;openThread=replyMode ? saved:nil;controller.composeKey=saved;model.select(saved,notify:false,inHome:model.isHome)
                 } else {controller.composeKey=autoKey(placeNamespace,employee:model.isHome ? HomeRoom.id:identity);selectAutomatic(identity,home:model.isHome)}
             } else if automatic {selectAutomatic(identity,home:model.isHome)}
-            else if replyMode,let old=controller.composeKey,model.timeline(old).isEmpty,controller.timeline(old).isEmpty {
+            else if replyMode,let old=controller.composeKey,replyDeleted {
                 automatic=true;openThread=nil;let destination=autoKey(placeNamespace,employee:model.isHome ? HomeRoom.id:identity)
                 controller.moveDraft(from:controller.composeKey ?? old,to:destination,carry:true);selectAutomatic(identity,home:model.isHome)
             }
@@ -635,11 +682,11 @@ import UniformTypeIdentifiers
             let query=employeeSearch.stringValue.trimmingCharacters(in:.whitespacesAndNewlines),list=ConversationSidebar.isList(sidebarWidth),searching=list && !query.isEmpty
             sidebarRows=searching ? layout.items.filter{$0.name.localizedCaseInsensitiveContains(query)}.map{.init(kind:$0.kind == .home ? .home:.room,id:$0.id,name:$0.name,zone:layout.zone($0.id),items:[$0],picture:$0.picture)}:layout.rows
             if list {sidebarRows.insert(.init(kind:.search,id:"sidebar-search",name:""),at:0)}
+            historySidebarSearch.update(query:searching ? query:"",mode:"sidebar",client:controller.client,model:model)
             if searching {
-                let names=Dictionary(uniqueKeysWithValues:model.employees.map{($0.id,$0.name)})
-                let hits=WorkspaceSearch.sidebar(query,messages:Array(model.messages.values),names:names,hidden:model.hidden)
-                sidebarRows.append(.init(kind:.hitHeading,id:"hits-heading",name:hits.isEmpty ? "찾는 글이 없어요":"글 \(hits.count)건"))
-                sidebarRows += hits.map{.init(kind:.hit,id:"hit:"+$0.id,name:$0.id)}
+                let state=historySidebarSearch
+                sidebarRows.append(.init(kind:.hitHeading,id:"hits-heading",name:state.busy ? "검색 중…":state.failed ? "검색 실패 · 눌러서 다시 시도":state.hits.isEmpty ? "찾는 글이 없어요":"글 \(state.hits.count)건"))
+                sidebarRows += state.hits.map{.init(kind:.hit,id:"hit:"+$0.id,name:$0.id)}
             }
             composerMembers=model.isHome ? (model.homeChannel?.members ?? model.home.members.map(\.id)):selected.flatMap { model.room(for:$0.employee)?.members } ?? []
             if !model.isHome && composerMembers.count<2 {composerMembers=[]}
@@ -653,26 +700,38 @@ import UniformTypeIdentifiers
             ThreeTapDiagnostics.endSpan("refresh_sidebar", phase); phase = ThreeTapDiagnostics.startSpan()
             if let selected {
                 let current=model.selectionIdentity
-                threads=model.isHome ? model.homeThreads:(model.room(for:current).map { model.threads(room:$0,query:"") } ?? []).sorted { (model.timeline($0.key).first?.seq ?? 0) < (model.timeline($1.key).first?.seq ?? 0) }
+    #if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
+                threads=model.isHome ? model.homeThreads:(model.room(for:current).map { model.threads(room:$0,query:"") } ?? []).sorted { (model.history.summaries[$0.key]?.rootSeq ?? model.timeline($0.key).first?.seq ?? 0) < (model.history.summaries[$1.key]?.rootSeq ?? model.timeline($1.key).first?.seq ?? 0) }
+    #else
+                threads=model.isHome ? model.homeThreads:(model.room(for:current).map {model.threads(room:$0,query:"")} ?? []).sorted {(model.history.summaries[$0.key]?.rootSeq ?? 0)<(model.history.summaries[$1.key]?.rootSeq ?? 0)}
+    #endif
                 if identity != current { windowed.reset(); identity=current; openThread=nil }
                 threads=controller.includingPending(threads,scope:model.isHome ? model.homeScope:[current])
                 let shown=Set(windowed.visibleIDs(threads.map(\.id),revealing:openThread?.thread))
                 var cards:[NativeThreadCard.Content]=[], previous:Date?
-                if shown.count<threads.count {cards.append(lineContent(id:"older",title:controller.client.replayComplete ? "이전 글 보기":"불러오는 중…",older:true))}
+                if controller.client.store.historyMode {
+                    if controller.historyLoading.failure != nil {cards.append(historyStatusContent(failed:true))}
+                    else if controller.historyLoading.busy || !model.historyAggregatesReady {cards.append(historyStatusContent(failed:false))}
+                }
+                if shown.count<threads.count || (controller.client.store.historyMode && model.history.threadPages[model.isHome ? "home":current]?.next != nil) {cards.append(lineContent(id:"older",title:controller.client.replayComplete ? "이전 글 보기":"불러오는 중…",older:true))}
                 if threads.isEmpty {cards.append(lineContent(id:"empty",title:controller.client.replayComplete ? "아직 표시할 글이 없어요.":"불러오는 중…",top:40))}
                 if history.followsAnswer {let visibleRooms=Set(threads.map{ $0.key.employee });for line in model.messages.values where visibleRooms.contains(line.key.employee) && line.streaming && line.role != "owner" {expandedMessages.insert(line.id)}}
                 for thread in threads where shown.contains(thread.id) {
                     let timeline=controller.timeline(thread.key)
-                    let date=model.isHome ? model.latestDate(thread.key):model.date(timeline.first?.timestamp ?? "")
+                    let summary=model.history.summaries[thread.key]
+                    let date=summary.map{model.date(model.isHome ? $0.lastTime:$0.rootTime)} ?? (model.isHome ? timeline.map{model.date($0.timestamp)}.max() ?? .distantPast:model.date(timeline.first?.timestamp ?? ""))
                     if previous==nil || !Calendar.current.isDate(previous!,inSameDayAs:date) { cards.append(dayContent(date,id:thread.id)) }
                     cards.append(threadContent(thread));previous=date
                 }
                 ThreeTapDiagnostics.endSpan("refresh_cards", phase); phase = ThreeTapDiagnostics.startSpan()
-                history.show(cards,identity:current,entry:newest(current)?.thread)
+                history.show(cards,identity:current,entry:newest(current)?.thread,historyMode:controller.client.store.historyMode)
+                model.pinHistoryViewport(history.visibleMessageIDs)
                 if enteredPlace != current {enteredPlace=current;let last=threads.last?.key,newest=newest(current);history.enter(newest==last ? nil:newest?.thread)}
-                if !automatic,model.timeline(selected).isEmpty,controller.timeline(selected).isEmpty {replyMode=false}
+    #if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
+                if !automatic,!controller.client.store.historyMode,model.timeline(selected).isEmpty,controller.timeline(selected).isEmpty {replyMode=false}
+    #endif
 
-            } else { threads=[]; history.show([],identity:"") }
+            } else { threads=[]; history.show([],identity:"",historyMode:controller.client.store.historyMode) }
             ThreeTapDiagnostics.endSpan("refresh_history", phase); phase = ThreeTapDiagnostics.startSpan()
             let draft=controller.draft
             if !editor.editor.hasMarkedText() && (writingKey != controller.composeKey || editorFontSize != ChatMetrics.bodyFont || MessageFormat.serialize(editor.editor.attributedString(),baseSize:editorFontSize) != draft.text) {
@@ -798,7 +857,9 @@ import UniformTypeIdentifiers
         case .search:return 52
         case .gap:return 4
         case .hitHeading:return 26
-        case .hit:if let line=controller.model.messages[sidebarRows[row].name] {return SidebarHitCell.height(line.text,query:employeeSearch.stringValue,width:sidebarWidth)};return 44
+        case .hit:
+            guard let hit=historySidebarSearch.hits.first(where:{$0.id==sidebarRows[row].name}) else {return 44}
+            return SidebarHitCell.height(hit.snippet,query:employeeSearch.stringValue,width:sidebarWidth)
         case .divider:return 19
         case .section,.stack:return ConversationSidebar.isList(sidebarWidth) ? 29:36
         default:return ConversationSidebar.isList(sidebarWidth) ? 58:72
@@ -811,9 +872,10 @@ import UniformTypeIdentifiers
         if row==sidebarRows.count {return addRow};guard sidebarRows.indices.contains(row) else{return nil}
         let data=sidebarRows[row],id=NSUserInterfaceItemIdentifier(data.stableID)
         if data.kind == .search {return sidebarSearch}
-        if data.kind == .hit,let line=controller.model.messages[data.name] {
+        if data.kind == .hit {
+            guard let hit=historySidebarSearch.hits.first(where:{$0.id==data.name}) else {return nil}
             let cell=tableView.makeView(withIdentifier:id,owner:nil) as? SidebarHitCell ?? SidebarHitCell(frame:.zero);cell.identifier=id
-            cell.configure(line,name:controller.model.name(line.speaker),room:controller.model.header(line.key.employee).title,query:employeeSearch.stringValue);return cell
+            cell.configureSnippet(hit.snippet,speaker:hit.role=="owner" ? "나":controller.model.name(hit.speaker),room:controller.model.header(hit.key.room).title,query:employeeSearch.stringValue);return cell
         }
         if data.kind == .hitHeading {
             let cell=tableView.makeView(withIdentifier:id,owner:nil) as? SidebarHitsHeading ?? SidebarHitsHeading(frame:.zero);cell.identifier=id;cell.title.stringValue=data.name;return cell
@@ -875,9 +937,18 @@ import UniformTypeIdentifiers
     func tableView(_ tableView:NSTableView,shouldSelectRow row:Int)->Bool {
         guard sidebarRows.indices.contains(row) else { return false };let item=sidebarRows[row]
         if item.kind == .section || item.kind == .stack { controller.model.toggleSection(item.kind == .stack ? nil : item.zone);return false }
-        return item.kind == .room || item.kind == .home || item.kind == .hit
+        return item.kind == .room || item.kind == .home || item.kind == .hit || (item.kind == .hitHeading && controller.client.store.historyMode && historySidebarSearch.failed)
     }
-    func tableViewSelectionDidChange(_ notification:Notification) { if !sidebarUpdating,sidebarRows.indices.contains(employeeTable.selectedRow),sidebarRows[employeeTable.selectedRow].kind == .hit,let line=controller.model.messages[sidebarRows[employeeTable.selectedRow].name] {revealSearch(line);return};guard !rendering,!sidebarUpdating,sidebarRows.indices.contains(employeeTable.selectedRow),let employee=Optional(sidebarRows[employeeTable.selectedRow].id) else { return };chooseEmployee(employee) }
+    func tableViewSelectionDidChange(_ notification:Notification) {
+        if !sidebarUpdating,sidebarRows.indices.contains(employeeTable.selectedRow) {
+            let row=sidebarRows[employeeTable.selectedRow]
+            if row.kind == .hit {
+                if let hit=historySidebarSearch.hits.first(where:{$0.id==row.name}) {revealHistorySearch(hit.conversationKey,id:hit.id)}
+                return
+            }
+            if row.kind == .hitHeading {if historySidebarSearch.failed {historySidebarSearch.retry()};return}
+        }
+        guard !rendering,!sidebarUpdating,sidebarRows.indices.contains(employeeTable.selectedRow),let employee=Optional(sidebarRows[employeeTable.selectedRow].id) else { return };chooseEmployee(employee) }
     func tableView(_ tableView:NSTableView,pasteboardWriterForRow row:Int)->NSPasteboardWriting? {
         guard sidebarRows.indices.contains(row) else { return nil };let item=sidebarRows[row]
         guard item.kind == .room,item.zone != nil else { return nil }
@@ -929,6 +1000,7 @@ import UniformTypeIdentifiers
     }
     // Derived display values only. A changed input replaces the old value for that post.
     private static let postBodyCapacity = 2048
+    private var historyRenderedIDs=Set<String>()
     private var postBodies: [String: PostBody] = [:]
     private var postBodyOrder: [String] = []
     #if HEJO_PERF_TESTING
@@ -938,7 +1010,7 @@ import UniformTypeIdentifiers
     func smoothCopyInputs(from source: ConversationView) {
         streamReveal=source.streamReveal;openThread=source.openThread;expandedMessages=source.expandedMessages
         searchHighlight=source.searchHighlight;searchHighlightThread=source.searchHighlightThread
-        searchOpen=source.searchOpen;searchGroups=source.searchGroups;search.stringValue=source.search.stringValue
+        searchOpen=source.searchOpen;search.stringValue=source.search.stringValue
         highlightedMessageID=source.highlightedMessageID;highlightUntil=source.highlightUntil;drawerSelectedID=source.drawerSelectedID
         windowed=source.windowed;identity=source.identity;enteredPlace=source.enteredPlace
         automatic=source.automatic;replyMode=source.replyMode;autoKeys=source.autoKeys;newKeys=source.newKeys;lastPlaces=source.lastPlaces
@@ -981,7 +1053,24 @@ import UniformTypeIdentifiers
         if key != displayedKey {openThread=key}
         Task {await controller.sendCurrent(for:key,homeNew:homeNew,draftFrom:source)}
     }
-    @objc private func loadOlder() { _=windowed.older(loadedCount:threads.count,hasEarlier:false); refresh() }
+    private func restoreNewer() {
+        guard controller.client.store.historyMode,let key=openThread else {return}
+        let model=controller.model
+        let replies=model.messages.values.filter {$0.key==key && $0.id != model.history.summaries[key]?.rootID}
+        guard let after=replies.filter({history.visibleMessageIDs.contains($0.id)}).map(\.seq).max() ?? replies.map(\.seq).max() ?? model.history.summaries[key].flatMap({model.messages[$0.rootID]?.seq}) else {return}
+        _ = controller.historyLoading.restoreEvicted(key,after:after)
+    }
+    @objc private func loadOlder() {
+        let model=controller.model, scope=model.isHome ? "home":model.selectionIdentity
+        if controller.client.store.historyMode,let key=openThread {
+            let replies=model.messages.values.filter{$0.key==key && $0.id != model.history.summaries[key]?.rootID}
+            let before=replies.filter{history.visibleMessageIDs.contains($0.id)}.map(\.seq).min() ?? replies.map(\.seq).min()
+            if controller.historyLoading.restoreEvicted(key,before:before) {return}
+        }
+        let more=controller.client.store.historyMode && model.history.threadPages[scope]?.next != nil
+        if windowed.older(loadedCount:threads.count,hasEarlier:more) {controller.historyLoading.olderThreads()}
+        refresh()
+    }
     func attachmentPicker()->NSOpenPanel {
         let panel=NSOpenPanel();panel.level = .modalPanel;panel.canChooseDirectories=false;panel.allowsMultipleSelection=true
         panel.message="보낼 사진이나 파일을 고르세요.";panel.prompt="첨부"
@@ -997,10 +1086,58 @@ import UniformTypeIdentifiers
         guard let result=clipboard.read(board,available:max(0,10-controller.draft.attachments.count)) else { return false }
         controller.addAttachments(result.files); if let notice=result.notice { controller.notice=notice }; return true
     }
+    private func historyActionPiece(id:String,title:String,invoke:@escaping ()->Void)->NativeThreadCard.Piece {
+        .accessory(id:id,height:24,view:{
+            let button=FileChip(title:title);button.invoke=invoke;return button
+        })
+    }
+    private func contentReferencePieces(_ key:ConversationKey)->[NativeThreadCard.Piece] {
+        var pieces:[NativeThreadCard.Piece]=[]
+        if controller.model.evictedHistoryBody(key) != nil {
+            pieces.append(historyActionPiece(id:key.readKey+":restore",title:"이전 본문 다시 불러오기") { [weak self] in _ = self?.controller.historyLoading.restoreEvicted(key) })
+        }
+        if (controller.model.history.messagePages[key]?.newerCount ?? 0)>0 {
+            pieces.append(historyActionPiece(id:key.readKey+":latest",title:"최근 답글 보기") { [weak self] in self?.controller.historyLoading.open(key) })
+        }
+        pieces += controller.model.history.contentReferences.keys.sorted().filter {controller.model.history.contentKeys[$0] == key}.map { id in
+            historyActionPiece(id:id+":content",title:"긴 원문 불러오기") { [weak self] in self?.controller.historyLoading.content(id,key:key) }
+        }
+        return pieces
+    }
+    private func unloadedThreadContent(_ thread:ConversationThread,summary:HistoryThreadSummary?,messages:[ConversationMessage],expanded:Bool)->NativeThreadCard.Content {
+        let dark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua
+        let pick:()->Void={ [weak self] in self?.chooseThread(thread.key) }
+        var top:[NativeThreadCard.Piece]=[.accessory(id:thread.id+":summary",height:72,view:{
+            let label=NSTextField(wrappingLabelWithString:(summary?.rootPreview ?? thread.title)+"\n원문을 아직 불러오지 않았어요")
+            label.font = .systemFont(ofSize:ChatMetrics.bodyFont);label.textColor = .secondaryLabelColor
+            label.maximumNumberOfLines=3;return label
+        })]
+        top.append(historyActionPiece(id:thread.id+":open",title:"원문 불러오기") { [weak self] in
+            guard let self else{return}
+            self.openThread=thread.key;self.controller.model.select(thread.key,inHome:self.controller.model.isHome,markRead:false)
+            self.controller.historyLoading.open(thread.key)
+        })
+        var replies:[NativeThreadCard.Piece]=contentReferencePieces(thread.key)
+        if controller.model.history.messagePages[thread.key]?.next != nil {
+            replies.append(historyActionPiece(id:thread.id+":older",title:"이전 답글 보기") { [weak self] in self?.controller.historyLoading.olderMessages(thread.key) })
+        }
+        // A recent reply does not become the root when the root is outside the page.
+        for message in messages where message.id != summary?.rootID {replies += postPieces(message,conversational:true,edge:nil)}
+        return .init(id:thread.id,top:top,replies:replies.isEmpty ? nil:replies,rail:nil,actions:[.init(title:historyCopyKey==thread.key ? historyCopyProgress+" · 취소":"전체 복사",symbol:"doc.on.doc",label:"스레드 전체 복사",identifier:"copy-"+thread.id,color:.secondaryLabelColor,invoke:{[weak self] in self?.copyHistory(thread.key)})],deleting:nil,
+            style:.init(inset:ThreadAppearance.inset,fill:0,stroke:NSColor.labelColor.withAlphaComponent(0.16),lineWidth:1,background:ThreadAppearance.surface(dark:dark),replyBackground:ThreadAppearance.replySurface(dark:dark)),
+            bell:summary?.bell,onBell:{[weak self] in self?.controller.model.toggleBell(thread.key)},clickCard:pick,textClick:nil,
+            bubbleWidth:max(ChatMetrics.minimumBubbleWidth,(bounds.width-sidebarWidth-drawerShownWidth)*ChatMetrics.bubbleWidthFraction),quiet:.secondaryLabelColor,expanded:expanded)
+    }
     func threadContent(_ thread:ConversationThread)->NativeThreadCard.Content {
         let model=controller.model,messages=controller.timeline(thread.key),expanded=openThread==thread.key
-        guard let root=messages.first else {preconditionFailure("Empty thread projection")}
-        let replies=Array(messages.dropFirst()),foldable=replies.count>2
+        let summary=model.history.summaries[thread.key]
+#if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
+        let actualRoot=controller.client.store.historyMode ? (summary.flatMap { value in messages.first{$0.id==value.rootID} } ?? messages.first{$0.pending}):messages.first
+#else
+        let actualRoot=summary.flatMap { value in messages.first{$0.id==value.rootID} } ?? messages.first{$0.pending}
+#endif
+        guard let root=actualRoot else {return unloadedThreadContent(thread,summary:summary,messages:messages,expanded:expanded)}
+        let replies=messages.filter{$0.id != root.id},foldable=replies.count>2
         let state=model.assessment(thread.key)
         let shown=expanded || !foldable ? replies:replies.filter{$0.id==replies.last?.id || state.buttons.contains($0.id)}
         let hidden=replies.count-shown.count,dark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua
@@ -1009,7 +1146,10 @@ import UniformTypeIdentifiers
         let edge=owner.map{controller.avatar($0).color}
         var top=postPieces(root,conversational:false,edge:edge)
         if model.isHome,model.homeChannel==nil,root.role=="owner" {top.insert(.accessory(id:"home-owner:"+thread.key.readKey,height:28,view:{ [weak controller] in HomeOwnerView(name:model.name(root.speaker),avatar:controller?.avatar(root.speaker) ?? ProfileAvatar()) }),at:0)}
-        var answer:[NativeThreadCard.Piece]=[]
+        var answer:[NativeThreadCard.Piece]=controller.client.store.historyMode ? contentReferencePieces(thread.key):[]
+        if controller.client.store.historyMode,model.history.messagePages[thread.key]?.next != nil {
+            answer.append(historyActionPiece(id:thread.id+":older",title:"이전 답글 보기") { [weak self] in self?.controller.historyLoading.olderMessages(thread.key) })
+        }
         if hidden>0 {
             let faces=ThreadTools.answeredFaces(replies).map{(model.name($0),controller.avatar($0))}
             answer.append(.stack(faces:faces,title:"이전 답글 \(hidden)개",toggle:{ [weak self] in self?.togglePile(thread.key) },identifier:"stack-"+thread.id))
@@ -1031,7 +1171,7 @@ import UniformTypeIdentifiers
                 answer.append(.accessory(id:thread.id+":undo",height:24,view:{ [weak self] in
                     let row=NSStackView();row.spacing=6
                     let label=NSTextField(labelWithString:"중지를 요청했어요");label.font = .systemFont(ofSize:ChatMetrics.auxiliaryFont);label.textColor=CardText.quiet(dark:dark);row.addArrangedSubview(label)
-                    let undo=FileChip(title:"되돌리기");undo.controlSize = .small;undo.toolTip="이미 바꾼 것을 먼저 목록으로 보여 달라고 하고, 확인한 뒤 원래대로 되돌리게 해요";undo.isEnabled=self?.controller.canSend==true;undo.invoke={ [weak self] in Task {await self?.controller.sendText(ThreadTools.undo,key:thread.key)} };row.addArrangedSubview(undo)
+                    let undo=FileChip(title:"되돌리기");undo.controlSize = .small;undo.toolTip="이미 바꾼 것을 먼저 목록으로 보여 달라고 하고, 확인한 뒤 원래대로 되돌리게 해요";undo.isEnabled=self?.controller.canSend==true;undo.invoke={ [weak self] in Task { [key=thread.key] in await self?.controller.sendText(ThreadTools.undo,key:key)} };row.addArrangedSubview(undo)
                     return MessageAccessory(row,limit:row.fittingSize.width)
                 }))
             } else {
@@ -1044,11 +1184,11 @@ import UniformTypeIdentifiers
                 }
                 let activity=messages.last(where:{$0.role != "owner" && controller.model.thinking($0)})?.text.components(separatedBy:"\n").dropFirst().first ?? (messages.contains(where:{$0.streaming}) ? "답변을 작성하고 있습니다":"답변을 준비하고 있습니다")
                 answer.append(.accessory(id:thread.id+":work",height:WorkingControlRow.height(activity,width:max(1,bounds.width-sidebarWidth-drawerShownWidth-36),seconds:max(0,Int(controller.clock().timeIntervalSince(since)))),view:{ [weak self] in
-                    let control=WorkingControlRow(since:since,activity:activity,clock:{self?.islandModel.now ?? Date()},animationTime:{self?.motionTime() ?? 0},reduceMotion:{self?.reduceMotion() ?? true},stop:{ [weak self] in Task {await self?.controller.stop(thread.key)} });control.button.isEnabled=self?.controller.canSend==true;control.alphaValue=self?.controller.canSend==true ? 1:0.4;return control
+                    let control=WorkingControlRow(since:since,activity:activity,clock:{self?.islandModel.now ?? Date()},animationTime:{self?.motionTime() ?? 0},reduceMotion:{self?.reduceMotion() ?? true},stop:{ [weak self] in Task { [key=thread.key] in await self?.controller.stop(key)} });control.button.isEnabled=self?.controller.canSend==true;control.alphaValue=self?.controller.canSend==true ? 1:0.4;return control
                 }))
             }
         }
-        let tone=(state.pending != nil ? AttentionRail.color:state.color.flatMap(MessageFormat.color)) ?? (controller.working(thread.key) ? MessageFormat.color("#ECB22E"):state.request==nil ? messages.lazy.compactMap{ThreadTools.color($0.text)}.first:nil)
+        let tone=(state.pendingID != nil ? AttentionRail.color:state.color.flatMap(MessageFormat.color)) ?? (controller.working(thread.key) ? MessageFormat.color("#ECB22E"):state.requestID==nil && state.request==nil ? messages.lazy.compactMap{ThreadTools.color($0.text)}.first:nil)
         let target=replyMode && model.selected==thread.key
         let highlighted=messages.contains{$0.id==highlightedMessageID} && (highlightUntil.map{$0>islandModel.now} ?? (drawerSelectedID != nil))
         let now=controller.clock(),copiedLink=copiedID=="link:"+thread.id,copiedText=copiedID=="text:"+thread.id
@@ -1057,9 +1197,21 @@ import UniformTypeIdentifiers
         let quiet=CardText.quiet(dark:dark),accent=NSColor.controlAccentColor
         var actions:[NativeThreadCard.Action]=[
             .init(title:copiedLink ? "복사됨":"링크",symbol:copiedLink ? "checkmark":"link",label:"스레드 링크 복사",identifier:"copy-link-"+thread.id,color:copiedLink ? accent:quiet,invoke:{ [weak self] in self?.copyText(ThreadTools.link(thread.key).absoluteString,id:"link:"+thread.id) }),
-            .init(title:copiedText ? "복사됨":"복사",symbol:copiedText ? "checkmark":"doc.on.doc",label:"스레드 전체 복사",identifier:"copy-"+thread.id,color:copiedText ? accent:quiet,invoke:{ [weak self] in guard let self else{return};self.copyText(ThreadTools.copy(messages,key:thread.key,name:self.controller.model.name,group:self.controller.model.groups[thread.key.employee] != nil),id:"text:"+thread.id) })]
-        if !root.pending,messages.contains(where:{$0.role=="employee"}) {actions.append(.init(title:"분기",symbol:branchAsked ? "checkmark":"arrow.triangle.branch",label:"새 스레드로 이어가기",identifier:"branch-"+thread.id,enabled:controller.canSend && !branchAsked,color:branchAsked ? accent:replies.count>=50 ? .systemOrange:quiet,invoke:{ [weak self] in Task {await self?.controller.branch(thread.key)} }))}
-        if !root.pending,!controller.deleting.contains(thread.key),(replies.isEmpty ? root.role=="owner":model.selected==thread.key) {actions.append(.init(title:sure ? "정말 삭제":"삭제",symbol:"trash",label:sure ? "스레드 삭제 확인":"스레드 삭제",identifier:"delete-"+thread.id,enabled:controller.canSend,color:sure ? .systemRed:quiet,alwaysLabel:sure,invoke:{ [weak self] in Task {await self?.controller.deleteThread(thread.key)} }))}
+            .init(title:historyCopyKey==thread.key ? historyCopyProgress+" · 취소":copiedText ? "복사됨":"복사",symbol:copiedText ? "checkmark":"doc.on.doc",label:"스레드 전체 복사",identifier:"copy-"+thread.id,color:copiedText ? accent:quiet,invoke:{ [weak self] in guard let self else{return};
+#if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
+                if !self.controller.client.store.historyMode {self.copyText(ThreadTools.copy(messages,key:thread.key,name:self.controller.model.name,group:self.controller.model.groups[thread.key.employee] != nil),id:"text:"+thread.id);return}
+#endif
+                self.copyHistory(thread.key)
+             })]
+#if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
+        let hasEmployee=controller.client.store.historyMode ? summary?.activity.latestEmployeeTime != nil:messages.contains(where:{$0.role=="employee"})
+        let replyCount=controller.client.store.historyMode ? max(0,(summary?.messageCount ?? 1)-1):replies.count
+#else
+        let hasEmployee=summary?.activity.latestEmployeeTime != nil
+        let replyCount=max(0,(summary?.messageCount ?? 1)-1)
+#endif
+        if !root.pending,hasEmployee {actions.append(.init(title:"분기",symbol:branchAsked ? "checkmark":"arrow.triangle.branch",label:"새 스레드로 이어가기",identifier:"branch-"+thread.id,enabled:controller.canSend && !branchAsked,color:branchAsked ? accent:replyCount>=50 ? .systemOrange:quiet,invoke:{ [weak self] in Task { [key=thread.key] in await self?.controller.branch(key)} }))}
+        if !root.pending,!controller.deleting.contains(thread.key),(replyCount==0 ? root.role=="owner":model.selected==thread.key) {actions.append(.init(title:sure ? "정말 삭제":"삭제",symbol:"trash",label:sure ? "스레드 삭제 확인":"스레드 삭제",identifier:"delete-"+thread.id,enabled:controller.canSend,color:sure ? .systemRed:quiet,alwaysLabel:sure,invoke:{ [weak self] in Task { [key=thread.key] in await self?.controller.deleteThread(key)} }))}
         if foldable && expanded {actions.append(.init(title:"접기",symbol:"chevron.up",label:"접기",identifier:"fold-"+thread.id,color:quiet,alwaysLabel:true,invoke:{ [weak self] in self?.togglePile(thread.key) }))}
         return .init(id:thread.id,top:top,replies:answer.isEmpty ? nil:answer,rail:nil,actions:actions,deleting:controller.deleting.contains(thread.key) ? "삭제 중…":nil,
             style:.init(inset:ThreadAppearance.inset,fill:0,stroke:highlighted ? .controlAccentColor:target ? .controlAccentColor:NSColor.labelColor.withAlphaComponent(dark ? 0.16:0.12),lineWidth:highlighted ? 2:target ? 1.5:1,background:ThreadAppearance.surface(dark:dark),status:tone,replyBackground:ThreadAppearance.replySurface(dark:dark)),
@@ -1079,6 +1231,7 @@ import UniformTypeIdentifiers
         let input=PostBodyInput(id:message.id,original:message.text,shown:shown,mine:mine,pending:message.pending,streaming:streaming,dark:dark,
             nameColor:palette.name.nsColor,linkColor:palette.link.nsColor,edge:edge,appearance:ChatAppearance.revision,
             highlight:message.key==searchHighlightThread ? searchHighlight:nil)
+        if controller.model.store.historyMode {historyRenderedIDs.insert(message.id)}
         let rendered:PostBody
         if let cached=postBodies[message.id],input==cached.input,checksMatch(cached,message) {rendered=cached}
         else {
@@ -1128,11 +1281,12 @@ import UniformTypeIdentifiers
         #if HEJO_PERF_TESTING
         HejoSmoothProbe.identify(text,id:message.id)
         #endif
+        let messageID=message.id,checkBody=checks.isEmpty ? "":message.text
         var post=NativeThreadCard.Post(id:message.id,mine:mine,text:text,speaker:mine ? "나" : controller.model.name(message.speaker),time:message.pending ? "보내는 중":displayTime(message),avatar:controller.avatar(message.speaker),nameColor:mine ? .labelColor:palette.name.nsColor,
             conversational:conversational && !mine && !streaming && message.files.isEmpty && ThreadAppearance.isConversational(message.text),pending:message.pending,streaming:streaming,
-            marks:[],foldTitle:foldable ? (folded ? "더 보기" : "접기") : nil,fold:{ [weak self] in guard let self else { return }; if self.expandedMessages.contains(message.id) { self.expandedMessages.remove(message.id);self.longReplyBases[message.id]=nil;if self.longReplyBases.isEmpty {self.longReplyWindowBase=nil} } else { if self.longReplyWindowBase==nil {self.longReplyWindowBase=self.bounds.height};self.longReplyBases[message.id]=self.history.layouts.lazy.flatMap(\.placed).first{if case .post(let p)=$0.piece{return p.id==message.id};return false}?.frame.height;self.expandedMessages.insert(message.id) }; self.refresh() },textHelp:!message.files.isEmpty && text.string.contains(where:{$0=="☐" || $0=="☑"}) ? "체크박스를 누르면 내 확인 상태를 저장합니다.":nil,openLink:{ [weak self] url in
+            marks:[],foldTitle:foldable ? (folded ? "더 보기" : "접기") : nil,fold:{ [weak self] in guard let self else { return }; if self.expandedMessages.contains(messageID) { self.expandedMessages.remove(messageID);self.longReplyBases[messageID]=nil;if self.longReplyBases.isEmpty {self.longReplyWindowBase=nil} } else { if self.longReplyWindowBase==nil {self.longReplyWindowBase=self.bounds.height};self.longReplyBases[messageID]=self.history.layouts.lazy.flatMap(\.placed).first{if case .post(let p)=$0.piece{return p.id==messageID};return false}?.frame.height;self.expandedMessages.insert(messageID) }; self.refresh() },textHelp:!message.files.isEmpty && text.string.contains(where:{$0=="☐" || $0=="☑"}) ? "체크박스를 누르면 내 확인 상태를 저장합니다.":nil,openLink:{ [weak self] url in
                 guard let self else{return}
-                if url.scheme=="hejo-check",let offset=Int(url.lastPathComponent),let check=checks[offset] {self.controller.model.toggleCheck(message.id,line:check.line,original:check.original,body:message.text)}
+                if url.scheme=="hejo-check",let offset=Int(url.lastPathComponent),let check=checks[offset] {self.controller.model.toggleCheck(messageID,line:check.line,original:check.original,body:checkBody)}
                 else if url.scheme=="hejo" {self.controller.openLink(url)}
                 else if CardText.mayOpen(url) {self.onOpenURL(url)}
             })
@@ -1153,23 +1307,25 @@ import UniformTypeIdentifiers
                 return MessageAccessory(row, limit:10000,top:2)
             }))
         }
+        let fileSpeaker=message.speaker,fileDate=ThreadTools.date(message.timestamp)
         for file in message.files {
             if message.pending {pieces.append(.accessory(id:file.id,height:28,view:{MessageAccessory(NSTextField(labelWithString:file.name),mine:mine,limit:240)}));continue}
-            if file.mime.hasPrefix("image/") {requestThumbnail(file,employee:message.speaker)}
-            let picture=thumbnails[file.id],size=file.mime.hasPrefix("image/") ? FileTile.frameSize(picture):CGSize(width:240,height:FileTile.documentHeight)
+            let picture=thumbnails.image(file.id),size=file.mime.hasPrefix("image/") ? FileTile.frameSize(picture):CGSize(width:240,height:FileTile.documentHeight)
             pieces.append(.accessory(id:file.id,height:size.height,view:{ [weak self] in
-                let tile=FileTile(file:file);tile.picture=picture;tile.failed=self?.failedThumbnails.contains(file.id)==true;tile.busy=self?.busyFiles.contains(file.id)==true
+                if file.mime.hasPrefix("image/") {self?.requestThumbnail(file,employee:fileSpeaker)}
+                let tile=FileTile(file:file);tile.picture=self?.thumbnails.image(file.id);tile.failed=self?.failedThumbnails.contains(file.id)==true;tile.busy=self?.busyFiles.contains(file.id)==true
                 tile.invoke={ [weak self] in guard let self else{return};self.busyFiles.insert(file.id);self.refresh();Task {
-                    if await self.controller.open(file,employee:message.speaker,date:ThreadTools.date(message.timestamp)) {self.failedThumbnails.remove(file.id)}else{self.failedThumbnails.insert(file.id)}
+                    if await self.controller.open(file,employee:fileSpeaker,date:fileDate) {self.failedThumbnails.remove(file.id)}else{self.failedThumbnails.insert(file.id)}
                     self.busyFiles.remove(file.id);self.refresh()
                 }}
                 return MessageAccessory(tile,mine:mine,limit:size.width)
             }))
         }
+        let actionKey=message.key,actionSpeaker=message.speaker,actionButtons=message.buttons
         let pending=controller.model.assessment(message.key).buttons.contains(message.id)
         if let checklist=controller.checklistSelection(message),pending {
             pieces.append(.accessory(id:message.id+":checklist",height:ReplyChecklistView.height(checklist.items,width:max(1,bounds.width-sidebarWidth-drawerShownWidth-36-43),selected:Set(checklist.selected)),view:{ [weak self] in
-                let choices=ReplyChecklistView(checklist,changed:{ [weak self] selected in self?.controller.selectChecklist(message,selected:selected) }) { [weak self] text in Task {await self?.controller.sendText(text,key:message.key,recipient:message.speaker)} }
+                let choices=ReplyChecklistView(checklist,changed:{ [weak self] selected in self?.controller.selectChecklist(message,selected:selected) }) { [weak self] text in Task { [actionKey,actionSpeaker] in await self?.controller.sendText(text,key:actionKey,recipient:actionSpeaker)} }
                 return MessageAccessory(choices,limit:10000)
             }))
         }
@@ -1188,10 +1344,10 @@ import UniformTypeIdentifiers
                     button.invoke={ [weak self] in
                         guard let self,pressable,self.controller.model.assessment(message.key).buttons.contains(message.id) else{return}
                         self.replyMode=true;self.openThread=message.key;self.controller.model.select(message.key)
-                        if !message.buttons.isEmpty {Task {await self.controller.click(message.buttons[index],message:message)}}
+                        if !message.buttons.isEmpty {Task { [actionButtons,messageID,actionKey] in await self.controller.click(actionButtons[index],messageID:messageID,key:actionKey,buttons:actionButtons)}}
                         else if word=="확인" {self.controller.model.confirm(message)}
                         else if word=="의견" {self.window?.makeFirstResponder(self.editor.editor)}
-                        else {Task {await self.controller.sendText(word,key:message.key,recipient:message.speaker)}}
+                        else {Task { [actionKey,actionSpeaker] in await self.controller.sendText(word,key:actionKey,recipient:actionSpeaker)}}
                     }
                     stack.addArrangedSubview(button)
                 }
@@ -1212,20 +1368,48 @@ import UniformTypeIdentifiers
         }
         return pieces
     }
-    private func togglePile(_ key:ConversationKey) {openThread=openThread==key ? nil:key;if openThread != key,searchHighlightThread==key {searchHighlight=nil;searchHighlightThread=nil};refresh();if openThread==key {history.scrollTo(key.thread,bottom:true)}}
+    private func togglePile(_ key:ConversationKey) {openThread=openThread==key ? nil:key;if openThread != key,searchHighlightThread==key {searchHighlight=nil;searchHighlightThread=nil};refresh();if openThread==key {if controller.client.store.historyMode {controller.historyLoading.open(key)};history.scrollTo(key.thread,bottom:true)}}
     private func requestThumbnail(_ file:MessageFile,employee:String) {
-        guard thumbnails[file.id]==nil,!failedThumbnails.contains(file.id),!fetchingThumbnails.contains(file.id) else{return}
+        guard thumbnails.image(file.id)==nil,!failedThumbnails.contains(file.id),!fetchingThumbnails.contains(file.id) else{return}
         fetchingThumbnails.insert(file.id)
+        let stamp=controller.files.fileAccessIdentity
         Task { [weak self] in
             guard let self else{return}
-            do {let url=try await self.controller.files.download(file,employee:employee);guard let image=NSImage(contentsOf:url) else{throw FileTransferFailure.invalidFile};if self.thumbnails.count>256 {self.thumbnails.removeAll()};self.thumbnails[file.id]=image}
-            catch {self.failedThumbnails.insert(file.id)}
+            do {let url=try await self.controller.files.download(file,employee:employee);guard !self.controller.client.store.historyMode || self.controller.files.fileAccessIdentity==stamp else {return};_ = try self.thumbnails.load(url,id:file.id)}
+            catch {guard !self.controller.client.store.historyMode || self.controller.files.fileAccessIdentity==stamp else {return};self.failedThumbnails.insert(file.id)}
             self.fetchingThumbnails.remove(file.id);self.refresh()
+        }
+    }
+    func copyHistory(_ key:ConversationKey) {
+        if historyCopyKey==key {historyCopyTask?.cancel();historyCopyTask=nil;historyCopyKey=nil;historyCopyGeneration=UUID();refresh();return}
+        historyCopyTask?.cancel();historyCopyGeneration=UUID();let generation=historyCopyGeneration
+        historyCopyKey=key;historyCopyProgress="복사 준비 중";refresh()
+        historyCopyTask=Task { [weak self] in
+            guard let self else{return}
+            do {
+                let text=try await self.controller.historyLoading.copy(key) { done,total in
+                    self.historyCopyProgress="\(done)/\(total)개";self.refresh()
+                }
+                try Task.checkCancellation()
+                guard self.historyCopyGeneration==generation else{return}
+                self.copyText(text,id:"text:"+key.thread)
+            } catch {
+                if !(error is CancellationError),self.historyCopyGeneration==generation {
+                    self.controller.notice="전체 복사를 완료하지 못했어요. 다시 시도해 주세요."
+                }
+            }
+            guard self.historyCopyGeneration==generation else{return}
+            self.historyCopyTask=nil;self.historyCopyKey=nil;self.refresh()
         }
     }
     private func copyText(_ text:String,id:String) {
         clipboardBoard.clearContents();clipboardBoard.setString(text,forType:.string)
         copiedID=id;refresh();DispatchQueue.main.asyncAfter(deadline:.now()+1.6) { [weak self] in if self?.copiedID==id {self?.copiedID=nil;self?.refresh()} }
+    }
+    private func historyStatusContent(failed:Bool)->NativeThreadCard.Content {
+        var card=lineContent(id:"history-status",title:failed ? "대화를 불러오지 못했어요":"대화를 갱신하고 있어요…")
+        if failed {card.top.append(historyActionPiece(id:"history-retry",title:"다시 시도") { [weak self] in self?.controller.historyLoading.retry() })}
+        return card
     }
     private func dayContent(_ date:Date,id:String)->NativeThreadCard.Content {
         let title=CardText.day(date)

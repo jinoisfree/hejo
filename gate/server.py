@@ -18,6 +18,9 @@ from .deadlines import Deadlines
 from .files import MAX_FILE_BYTES, UnknownFile
 from .pictures import Pictures, MAX_PICTURE_BYTES, valid_png
 from .journal import HejoJournalError
+from .history import HistorySession, HistoryError, encoded, PAGE_BYTES
+from .history_queries import HistoryQueries, stamp
+from .history_search import available as history_search_available
 from hermes_constants import get_hermes_home
 
 SEND_TIMEOUT = 5.0
@@ -25,6 +28,9 @@ PONG_TIMEOUT = 30.0
 log = logging.getLogger(__name__)
 SCHEMA = json.loads((Path(__file__).resolve().parent.parent / "schemas" / "hejo-wire-v1.json").read_text())
 LIMITS = SCHEMA["x-limits"]
+HISTORY_SCHEMA = json.loads((Path(__file__).resolve().parent.parent / "schemas" / "hejo-history-v1.json").read_text())
+HISTORY_VALIDATORS = {kind: Draft202012Validator({**HISTORY_SCHEMA, "oneOf": [{"$ref": "#/$defs/" + kind}]})
+                      for kind in ("context", "query", "content")}
 CLIENT_VALIDATOR = Draft202012Validator({**SCHEMA, "oneOf": [{"$ref": "#/$defs/clientFrame"}]})
 NETWORKS = tuple(ipaddress.ip_network(net) for net in
                  ("127.0.0.0/8", "::1/128", "100.64.0.0/10", "fd7a:115c:a1e0::/48"))
@@ -68,6 +74,7 @@ class Connection:
     hub_token: str = None  # set for hub-issued sign-ins; re-checked with the hub while connected
     features: set = field(default_factory=set)
 
+    history: object = None
     deadline_waiters: set = field(default_factory=set)
 
     outgoing: deque = field(default_factory=deque)
@@ -137,8 +144,12 @@ class GateServer:
             raise ValueError("listen_address_forbidden")
         app = web.Application(client_max_size=MAX_FILE_BYTES + LIMITS["frame_bytes"])
         app.router.add_get("/v1/ws", self.websocket)
+        app.router.add_get("/v1/history/capabilities", self.history_capabilities)
+        for kind in ("context", "query", "content"):
+            app.router.add_post("/v1/history/" + kind, self.history_request)
         app.router.add_post("/v1/files", self.upload)
         app.router.add_get("/v1/files/{employee}/{file_id}", self.download)
+        app.router.add_get("/v1/files/{employee}/{file_id}/metadata", self.file_metadata)
         app.router.add_route("GET", "/v1/pictures/{kind}/{identifier}", self.picture)
         app.router.add_route("PUT", "/v1/pictures/{kind}/{identifier}", self.picture)
         app.router.add_route("DELETE", "/v1/pictures/{kind}/{identifier}", self.picture)
@@ -197,9 +208,203 @@ class GateServer:
         if not authorization.startswith("Bearer "):
             raise web.HTTPUnauthorized()
         try:
-            await self.authenticate(authorization[7:])
+            return await self.authenticate(authorization[7:])
         except AuthRejected:
             raise web.HTTPUnauthorized() from None
+
+    async def history_capabilities(self, request):
+        if not allowed_address(request.remote):
+            return web.json_response({'code': 'auth', 'request': None, 'retryable': False}, status=403)
+        if not history_search_available():
+            return web.json_response({'code': 'unavailable', 'request': None, 'retryable': True}, status=503)
+        return web.json_response({'version': 1, 'mode': 'history-v1', 'limits': HISTORY_SCHEMA['x-limits']},
+                                 headers={'Cache-Control': 'no-store'})
+
+    async def history_request(self, request):
+        ref = None
+        try:
+            device, hub_token = await self.http_auth(request)
+            kind = request.path.rsplit('/', 1)[-1]
+            limit = HISTORY_SCHEMA['x-limits']['context_bytes' if kind == 'context' else 'query_bytes']
+            body = bytearray()
+            async for chunk in request.content.iter_chunked(16384):
+                body.extend(chunk)
+                if len(body) > limit:
+                    raise HistoryError('too_large', 413)
+            try:
+                document = json.loads(body, parse_constant=lambda _: (_ for _ in ()).throw(ValueError()))
+            except (ValueError, UnicodeError, RecursionError):
+                raise HistoryError('invalid_query') from None
+            if not HISTORY_VALIDATORS[kind].is_valid(document):
+                raise HistoryError('invalid_query')
+            try:
+                encoded(document)  # Reject non-finite numbers and unpaired Unicode surrogates.
+            except (ValueError, UnicodeError, RecursionError):
+                raise HistoryError('invalid_query') from None
+            ref = document.get('request')
+            conn = next((c for c in self.connections if c.history is not None
+                         and c.history.token == document['session'] and not c.ws.closed), None)
+            if conn is None:
+                raise HistoryError('session_expired', 409)
+            if conn.device_id != device or bool(conn.hub_token) != bool(hub_token):
+                raise HistoryError('auth', 403)
+            session = conn.history
+            rooms = {e['id'] for e in self.adapter.employees()} | set(self.adapter.journal.rooms)
+            if kind == 'context':
+                context = session.set_context(document, rooms)
+                result = {'context': context.token, 'generation': document['generation'],
+                          'memberRevision': document['memberRevision']}
+            elif kind == 'content':
+                result = session.content(document['ref'], document.get('cursor'), rooms=rooms)
+            else:
+                context = session.context(document['context'])
+                if len(document.get('query', '').encode()) > HISTORY_SCHEMA['x-limits']['query_text_bytes']:
+                    raise HistoryError('too_large', 413)
+                result = await self.history_query(session, context, document, rooms)
+            if conn not in self.connections or conn.ws.closed:
+                raise HistoryError('session_expired', 409)
+            if kind == 'query':
+                session.context(document['context'])
+            payload = encoded(result)
+            if len(payload) > PAGE_BYTES:
+                raise HistoryError('too_large', 413)
+            return web.Response(body=payload, content_type='application/json', headers={'Cache-Control': 'no-store'})
+        except web.HTTPException as error:
+            if error.status not in (401, 403):
+                raise
+            return web.json_response({'code': 'auth', 'request': None, 'retryable': False}, status=error.status)
+        except HistoryError as error:
+            return web.json_response({'code': error.code, 'request': ref,
+                                      'retryable': error.status == 503}, status=error.status)
+
+    async def history_query(self, session, context, document, rooms):
+        kind, scope = document['kind'], document['scope']
+        if scope != 'home' and scope not in rooms:
+            raise HistoryError('target_missing', 404)
+        allowed = set(context.document['home']) & rooms if scope == 'home' else {scope}
+        if document.get('mode') == 'sidebar' and kind in ('overview', 'read_plan', 'notices'):
+            if scope != 'home' or kind == 'read_plan' and document.get('action') != 'seed':
+                raise HistoryError('invalid_query')
+            allowed = rooms
+        result = {'session': session.token, 'context': context.token, 'request': document['request'],
+                  'through': session.index.head, 'items': [], 'next': None, 'complete': True}
+        if not hasattr(context, 'queries'):
+            context.queries = HistoryQueries(session.index, context)
+        queries = context.queries
+        if kind in ('messages', 'copy') or kind == 'resolve' and isinstance(document.get('target'), dict):
+            target = document.get('target')
+            if not isinstance(target, dict) or target['room'] not in allowed:
+                raise HistoryError('invalid_query')
+            if kind == 'copy' and document.get('action') == 'finalize':
+                return {**result, **session.finish_copy(document.get('copyRef'), context=context.token, key=(target['room'], target['thread']))}
+            key = (target['room'], target['thread'])
+            root = await queries.summary(key)
+            if root is None:
+                raise HistoryError('target_missing', 404)
+            page = session.messages(context=context.token, request=document['request'],
+                                    key=(target['room'], target['thread']), limit=document.get('limit', 50),
+                                    cursor=document.get('cursor'), copy=kind == 'copy', anchor=document.get('anchor'))
+            page['root'] = root
+            return page
+        if kind == 'message_state':
+            if not context.document['ready']:
+                raise HistoryError('context_not_ready', 409)
+            from .history_queries import thinking
+            for identifier in document['target']:
+                key = session.index._keys.get(identifier)
+                item = session.index.resolve(identifier) if key and key[0] in rooms else None
+                state = {'id': identifier, 'status': 'missing'}
+                if item and item.get('deleted'):
+                    state = {'id': identifier, 'status': 'deleted', 'revision': item['revision']}
+                elif item:
+                    state = {'id': identifier, 'status': 'present',
+                             'key': {'room': key[0], 'thread': key[1]},
+                             'seq': item['seq'], 'revision': item['revision'],
+                             'read': item['revision'] <= max(context.read('read:'+key[0]),
+                                                            context.read('thread:'+key[0]+'/'+key[1])),
+                             'eligible': item['role'] == 'employee' and not thinking(item['text'])}
+                result['items'].append(state)
+            return result
+        if kind in ('receipt', 'resolve'):
+            target = document.get('target')
+            if not isinstance(target, list):
+                raise HistoryError('invalid_query')
+            for identifier in target:
+                if kind == 'receipt':
+                    item = session.index.receipt(identifier)
+                    if 'key' in item and item['key']['room'] not in allowed:
+                        item = {'client_msg_id': identifier, 'status': 'not_found'}
+                else:
+                    item = session.index.resolve(identifier)
+                    key = session.index._keys.get(identifier)
+                    if key is not None and key[0] not in allowed:
+                        item = None
+                    item = item or {'msg_id': identifier, 'missing': True}
+                    if len(encoded(item)) > (PAGE_BYTES - 4096) // len(target):
+                        item = {'msg_id': identifier, 'revision': item['revision'],
+                                'contentRef': session.content_ref(identifier, item['revision'])}
+                result['items'].append(item)
+            return result
+        if kind == 'read_plan':
+            # Cursor pages reuse the complete original plan, even if live messages
+            # or thread membership changed after its first page.
+            values = [] if document.get('cursor') else await queries.read_plan(
+                sorted(allowed), document.get('action'), document.get('target'))
+            if len(encoded(values)) > 1024 * 1024:
+                raise HistoryError('too_large', 413)
+            result = session.rows(document, values, freeze=True)
+            result['action'] = document.get('action')
+            result['changes'] = {item['id']: item['value'] for item in result.pop('items')}
+            return result
+        if kind == 'questions':
+            if scope != 'home':
+                raise HistoryError('invalid_query')
+            return session.rows(document, await queries.questions(sorted(rooms)))
+        if kind == 'search':
+            mode = document.get('mode', 'groups')
+            if mode not in ('groups', 'sidebar', 'room'):
+                raise HistoryError('unsupported_query')
+            if mode == 'room' and scope == 'home':
+                raise HistoryError('invalid_query')
+            # Workspace and sidebar search cover every authorized room, independent of home filters.
+            if mode in ('groups', 'sidebar') and scope == 'home':
+                allowed = rooms
+            values = await queries.search(document.get('query', ''), sorted(allowed), mode)
+            return session.rows(document, values)
+        if kind in ('threads', 'overview', 'notices'):
+            summaries = await queries.summaries(sorted(allowed))
+            notices = queries.notices(summaries)
+            totals = {'unread': sum(s['unread'] for s in summaries),
+                      'questions': sum(n['questions'] for n in notices),
+                      'alerts': sum(not n['questions'] for n in notices)}
+            expiries = [s['nextNoticeExpiry'] for s in summaries if s['nextNoticeExpiry'] is not None]
+            totals['nextNoticeExpiry'] = min(expiries, default=None)
+            if kind == 'notices':
+                return session.rows(document, notices, totals=totals)
+            if kind == 'overview':
+                values = []
+                for room in sorted(allowed):
+                    scoped = [s for s in summaries if s['key']['room'] == room]
+                    scoped_notices = [n for n in notices if n['key']['room'] == room]
+                    values.append({'id': room, 'unread': sum(s['unread'] for s in scoped),
+                                   'questions': sum(n['questions'] for n in scoped_notices),
+                                   'alerts': sum(not n['questions'] for n in scoped_notices),
+                                   'latestSeq': max((s['latestSeq'] for s in scoped), default=0),
+                                   'latestActivity': max((s['sidebarActivity'] for s in scoped), default=0)})
+                return session.rows(document, values, totals=totals)
+            if document.get('mode') == 'selection':
+                summaries.sort(key=lambda s: (-s['latestSeq'], s['key']['thread']))
+                older = False
+            elif document.get('mode') is not None:
+                raise HistoryError('invalid_query')
+            elif scope == 'home':
+                summaries.sort(key=lambda s: (stamp(s['lastTime']), s['key']['thread']))
+                older = True
+            else:
+                summaries.sort(key=lambda s: s['rootSeq'])
+                older = True
+            return session.rows(document, summaries, older=older, totals=totals)
+        raise HistoryError('unsupported_query')
 
     async def upload(self, request):
         await self.http_auth(request)
@@ -223,6 +428,16 @@ class GateServer:
         except OSError:
             log.error("attachment_upload_failed")
             raise web.HTTPInternalServerError() from None
+
+    async def file_metadata(self, request):
+        await self.http_auth(request)
+        try:
+            _, entry, timestamp = self.adapter.files.registered_entry(request.match_info["employee"], request.match_info["file_id"])
+        except (UnknownFile, OSError):
+            raise web.HTTPNotFound() from None
+        if not isinstance(timestamp, str) or not timestamp:
+            raise web.HTTPNotFound()
+        return web.json_response({"file": {key: entry[key] for key in ("file_id", "name", "mime", "size")}, "ts": timestamp})
 
     async def download(self, request):
         await self.http_auth(request)
@@ -335,6 +550,8 @@ class GateServer:
         # All queue transitions are synchronous on the server loop. Socket backpressure
         # belongs to each connection, outside the journal's publication lane.
         for conn in tuple(self.connections):
+            if conn.history is not None and frame.get('seq', conn.history.through + 1) <= conn.history.through:
+                continue
             if "seq" not in frame:
                 if not self.adapter.journal.room_id(frame) or "rooms" in conn.features:
                     conn.enqueue(frame)
@@ -458,15 +675,23 @@ class GateServer:
                 welcome["rooms"] = list(self.adapter.journal.rooms.values())
             if paired:
                 welcome["token"] = token
-            await conn.send(welcome)
-            since = hello.get("since", welcome["head_seq"])
-            if since > welcome["head_seq"]:
-                await self.error("invalid_since", hello.get("id"), conn)
-                return ws
-            # Enrol only after welcome: ephemeral frames cannot overtake it either.
-            # Records committed during welcome are recovered from its head snapshot.
-            self.connections.add(conn)
-            await self.sync(conn, since, hello.get("id", "hello"))
+            if "history-v1" in conn.features:
+                conn.history = HistorySession(self.adapter.journal.history)
+                welcome['history'] = {'version': 1, 'session': conn.history.token,
+                                      'through': conn.history.through}
+                # No await between H, welcome enqueue and publication enrollment.
+                sent = conn.enqueue(welcome)
+                conn.replaying = False
+                self.connections.add(conn)
+                await sent
+            else:
+                await conn.send(welcome)
+                since = hello.get("since", welcome["head_seq"])
+                if since > welcome["head_seq"]:
+                    await self.error("invalid_since", hello.get("id"), conn)
+                    return ws
+                self.connections.add(conn)
+                await self.sync(conn, since, hello.get("id", "hello"))
             async for message in ws:
                 if message.type in {WSMsgType.CLOSE, WSMsgType.CLOSED, WSMsgType.ERROR}:
                     break
@@ -506,7 +731,9 @@ class GateServer:
                         finally:
                             frame.pop('values',None)
                     elif frame["type"] == "sync":
-                        if frame["since"] > self.adapter.journal.head:
+                        if conn.history is not None:
+                            await self.error("unsupported_mode", frame.get("id"), conn)
+                        elif frame["since"] > self.adapter.journal.head:
                             await self.error("invalid_since", frame.get("id"), conn)
                         else:
                             await self.sync(conn, frame["since"], frame["id"])

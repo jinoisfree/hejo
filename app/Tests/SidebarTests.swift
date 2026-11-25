@@ -93,7 +93,10 @@ import QuartzCore
     let lookup=Dictionary(uniqueKeysWithValues:zip(ids,names))
     try check(WorkspaceSearch.sidebar("두 구절",messages:[message],names:lookup,hidden:[]).isEmpty && WorkspaceSearch.sidebar("생각 중",messages:[thought],names:lookup,hidden:[]).count==1,"AT89 sidebar phrase and thinking match original hits")
     ui.employeeSearch.stringValue="두 낱말";await settle()
-    let hitIndex=try homeRequire(ui.sidebarRows.firstIndex{$0.kind == .hit},"AT89 inline message hit"),hit=try homeRequire(ui.employeeTable.view(atColumn:0,row:hitIndex,makeIfNecessary:true) as? SidebarHitCell,"AT89 hit cell")
+    // Actual authenticated table insertion/selection is checked in controller-search.
+    // This fixture keeps the typography/highlight contract independent of networking.
+    let hit=SidebarHitCell(frame:.zero)
+    hit.configureSnippet("두 낱말 한 구절",speaker:"직원 B",room:"첫 방",query:"두 낱말")
     try check(hit.speaker.stringValue=="직원 B" && hit.room.stringValue=="첫 방" && hit.body.font?.pointSize==11 && hit.body.maximumNumberOfLines==2,"AT89 hit speaker and room separated")
     try check(SidebarHitCell.height("짧은 글",query:"글",width:212)<SidebarHitCell.height(String(repeating:"긴 글 ",count:18),query:"글",width:212),"AT89 one-line and two-line hit heights follow content")
     try check(hit.body.attributedStringValue.attribute(.foregroundColor,at:0,effectiveRange:nil) as? NSColor == .black,"AT89 highlight stays black on yellow")

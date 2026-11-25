@@ -58,9 +58,11 @@ async def test_at_sm_02_edit_state_buttons_images_delete(gate, local, airport, c
     # The baseline hash was measured before adding the local contract.
     # HEJO-DEADLINE-CLOSE added definitions only (verdict V-2).
     # HEJO-TELEGRAM replaced the external-messenger frames only (verdict 2차, HT-B02).
-    assert hashlib.sha256(wire.read_bytes()).hexdigest() == '7b3c2db703a83824ee6d173262bbefec34b5210c74954d7c5dc8556c1fb0f75b'
+    # HEJO-HISTORY adds only the negotiated, optional welcome.history field.
+    assert hashlib.sha256(wire.read_bytes()).hexdigest() == '7508984fd469bb0415483ffe1e99ebd0f2fd7461db8a82dae64eaf2f10040e94'
     assert RECORD_TYPES == {'message', 'edit', 'delete', 'state', 'room', 'room_delete'}
-    ws, _ = await client.pair()
+    ws, welcome = await client.pair()
+    assert 'history' not in welcome
     result = await local('POST', employee='alpha', text='initial')
     msg = result['msg_id']
     await client.read(ws)

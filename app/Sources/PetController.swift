@@ -88,7 +88,7 @@ final class PetController: NSObject {
         // A folded bubble finishes its genie transition before opening a new pane.
         if !chatExpanded { showChat() }
         func settled() {
-            if self.timer != nil { DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) { settled() }; return }
+            if self.transitionClock != nil { DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) { settled() }; return }
             web.open(url)
         }
         settled()
@@ -97,7 +97,7 @@ final class PetController: NSObject {
         guard let web else { return }
         let anchor = placementTarget?.anchorOrigin
         guard chatExpanded, let anchor else { if !web.open { web.unload() }; return }
-        let animated = timer == nil && !reducedMotion()
+        let animated = transitionClock == nil && !reducedMotion()
         web.sliding = animated
         if animated {
             onReadingResizeBegan?(); pet.beginWidthCover()
@@ -142,7 +142,13 @@ final class PetController: NSObject {
     }
     func finishPreview() { previewTimer?.invalidate(); previewTimer = nil; pet.previewRow = nil; pet.previewLook = false; pet.updateFoldedBubble() }
     private var appearanceObserver: NSObjectProtocol?
-    private var timer: Timer?,motionTimer:Timer?
+    private var transitionClock: PetTransitionClock?
+    private var motionTimer: Timer?
+
+    private func stopTransitionClock() {
+        transitionClock?.stop()
+        transitionClock = nil
+    }
     private var bubbleMotion=PetBubbleMotion()
     private var widthFadeStart:Double?
     private var transitionStart:Double=0,genieStart:CGFloat=0
@@ -199,7 +205,7 @@ final class PetController: NSObject {
         applyChatAppearance()
     }
     func applyChatAppearance(){panel.appearance=ChatAppearance.theme.appearance;pet.chatOpacityPercent=ChatAppearance.opacity;MainActor.assumeIsolated {pet.bubbleReply?.applyChatAppearance()}}
-    deinit { if let appearanceObserver {NotificationCenter.default.removeObserver(appearanceObserver)};previewTimer?.invalidate(); if let outsideMonitor {NSEvent.removeMonitor(outsideMonitor)};motionTimer?.invalidate();timer?.invalidate(); NotificationCenter.default.removeObserver(self); NSWorkspace.shared.notificationCenter.removeObserver(self); DistributedNotificationCenter.default().removeObserver(self) }
+    deinit { if let appearanceObserver {NotificationCenter.default.removeObserver(appearanceObserver)};previewTimer?.invalidate(); if let outsideMonitor {NSEvent.removeMonitor(outsideMonitor)};motionTimer?.invalidate();transitionClock?.stop(); NotificationCenter.default.removeObserver(self); NSWorkspace.shared.notificationCenter.removeObserver(self); DistributedNotificationCenter.default().removeObserver(self) }
     func show() { panel.orderFrontRegardless() }
     @objc func toggle() { if chatExpanded { collapseChat() } else { showChat() } }
     func threeFingerTapped() {
@@ -222,9 +228,9 @@ final class PetController: NSObject {
             return
         }
         ThreeTapDiagnostics.expanded(expanded)
-        let continuing=timer != nil && !pet.genie.isHidden
+        let continuing=transitionClock != nil && !pet.genie.isHidden
         let start=continuing ? transitionProgress:(expanded ? 0:1)
-        timer?.invalidate();timer=nil
+        stopTransitionClock()
         bubbleMotion.glide(now:clock())
         if !expanded { pet.disarmBubbleHover(); resizedBelow=nil }
         chatExpanded=expanded;panel.chatExpanded=expanded
@@ -263,8 +269,13 @@ final class PetController: NSObject {
         #if HEJO_PERF_TESTING
         HejoSmoothProbe.beginTransition()
         #endif
-        let t=Timer(timeInterval:1.0/60,repeats:true){[weak self] _ in ThreeTapDiagnostics.firstTick(); self?.stepTransition()}
-        timer=t;RunLoop.main.add(t,forMode:.common)
+        let driver = PetTransitionClock { [weak self] driver in
+            guard let self, self.transitionClock === driver else { return }
+            ThreeTapDiagnostics.firstTick()
+            self.stepTransition()
+        }
+        transitionClock = driver
+        driver.start(for: panel)
         #if HEJO_PERF_TESTING
         let profShow=ProcessInfo.processInfo.systemUptime
         #endif
@@ -274,12 +285,8 @@ final class PetController: NSObject {
         #endif
         ThreeTapDiagnostics.mark("transition_setup_end")
         // Preserve the synchronous starting pose, then submit the first elapsed-time
-        // frame without waiting for a 60 Hz timer. Ignore a superseded transition.
-        DispatchQueue.main.async { [weak self, weak t] in
-            guard let self, let t, self.timer === t else { return }
-            ThreeTapDiagnostics.firstTick()
-            self.stepTransition()
-        }
+        // frame without waiting for the display. A replaced clock ignores queued work.
+        DispatchQueue.main.async { [weak driver] in driver?.fire() }
     }
     func stepTransition(){
         #if HEJO_PERF_TESTING
@@ -295,7 +302,7 @@ final class PetController: NSObject {
         if let p=pet.placement {pet.updateGenie(p,progress:transitionProgress)}
         if fraction > 0 {ThreeTapDiagnostics.moved()}
         if fraction>=1 {
-            timer?.invalidate();timer=nil;pet.endGenie(expanded:chatExpanded)
+            stopTransitionClock();pet.endGenie(expanded:chatExpanded)
             if let target=placementTarget {
                 let screen=PetDisplay.nearest(to:CGPoint(x:target.globalSprite.midX,y:target.globalSprite.midY),in:displays())
                 bubbleMotion.retarget(target.globalBubble.origin,visibleFrame:screen.visible,now:clock(),immediately:true,size:target.globalBubble.size,headerAtTop:target.expanded && target.bubbleBelow)
@@ -314,7 +321,7 @@ final class PetController: NSObject {
     }
     func beginChatDrag(at point:CGPoint){
         guard chatExpanded,let target=placementTarget,chatDrag==nil else{return}
-        timer?.invalidate();timer=nil;pet.endGenie(expanded:true);apply(target)
+        stopTransitionClock();pet.endGenie(expanded:true);apply(target)
         chatDrag=(point,target);resizedBelow=target.bubbleBelow
     }
     func moveChatDrag(to point:CGPoint){
@@ -356,11 +363,11 @@ final class PetController: NSObject {
         paneBase=finalSplit.base;paneTargetWidth=finalSplit.pane
         placementTarget = target
         bubbleMotion.retarget(target.globalBubble.origin,visibleFrame:screen.visible,now:clock(),immediately:pet.placement==nil || reducedMotion() || resizeStart != nil,size:target.globalBubble.size,headerAtTop:target.expanded && target.bubbleBelow)
-        if timer==nil {stepPlacement()}
+        if transitionClock==nil {stepPlacement()}
         if motionTimer==nil {let t=Timer(timeInterval:1.0/60,repeats:true){[weak self] _ in self?.stepPlacement()};motionTimer=t;RunLoop.main.add(t,forMode:.common)}
     }
     func stepPlacement(){
-        guard let target=placementTarget,timer==nil else{return}
+        guard let target=placementTarget,transitionClock==nil else{return}
         if reducedMotion(){
             let screen=PetDisplay.nearest(to:CGPoint(x:target.globalSprite.midX,y:target.globalSprite.midY),in:displays())
             bubbleMotion.retarget(target.globalBubble.origin,visibleFrame:screen.visible,now:clock(),immediately:true,size:target.globalBubble.size,headerAtTop:target.expanded && target.bubbleBelow)
@@ -398,7 +405,7 @@ final class PetController: NSObject {
         CATransaction.commit()
     }
     func movePet(to origin: CGPoint) {
-        timer?.invalidate(); timer = nil; pet.endGenie(expanded: chatExpanded)
+        stopTransitionClock(); pet.endGenie(expanded: chatExpanded)
         placePet(at: origin)
     }
     func endPetDrag() {
@@ -433,7 +440,7 @@ final class PetController: NSObject {
         placePet(at:start.anchorOrigin,bubble:box)
     }
     @objc func screensChanged() {
-        timer?.invalidate(); timer = nil; pet.endGenie(expanded: chatExpanded)
+        stopTransitionClock(); pet.endGenie(expanded: chatExpanded)
         chatDrag=nil
         if let p = placementTarget { placePet(at: p.anchorOrigin, bubble:p.globalBubble) }
     }
@@ -445,7 +452,7 @@ final class PetController: NSObject {
     }
     func toggleChatWidth() {
         let wide = PetLayout.expandedSize.width * 2 + ConversationSidebar.width
-        let animated=chatExpanded && timer==nil && !reducedMotion()
+        let animated=chatExpanded && transitionClock==nil && !reducedMotion()
         if animated {onReadingResizeBegan?();pet.beginWidthCover();bubbleMotion.slideWidth(now:clock());widthFadeStart=nil}
         preferredChatSize.width = abs(preferredChatSize.width - wide) < 1 ? Self.defaultChatSize.width : wide
         saveChatSize()

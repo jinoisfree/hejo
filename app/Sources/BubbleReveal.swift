@@ -55,6 +55,24 @@ import AppKit
         var selectedTask: String?
         var screenFocus: ScreenFocus?
         var failure: IslandFailure?
+        /// Nil means the legacy input contains every body. History input is partial;
+        /// absence must never authorize deleting a reminder or dismissing a reply.
+        var history: HistoryInput?
+    }
+    struct HistoryInput {
+        let baseline: Int
+        let through: Int
+        let deletedIDs: Set<String>
+        var states: [String:HistoryMessageState] = [:]
+        var deletedThreads: Set<ConversationKey> = []
+    }
+    var historyDismissalKey: String { openedQuestions.sorted().joined(separator:"\n") }
+    func historyBodyCandidates(states:[String:HistoryMessageState],questions:Set<String>,muted:Set<String>,opened:ConversationKey?,now:Date) -> [String] {
+        let eligible=states.values.filter{$0.status == "present" && $0.eligible == true && $0.conversationKey.map{!muted.contains($0.employee)} == true}
+        var ids:[String]=[]
+        if let question=eligible.filter({questions.contains($0.id) && !openedQuestions.contains($0.id) && $0.conversationKey != opened}).min(by:{$0.seq!<$1.seq!}) {ids.append(question.id)}
+        if let reminder=eligible.filter({$0.read != true && reminders[$0.id].map{$0<=now.timeIntervalSince1970} == true}).min(by:{reminders[$0.id]!<reminders[$1.id]!}),!ids.contains(reminder.id) {ids.append(reminder.id)}
+        return ids
     }
     private let store: LocalStore
     private var initialized = false, highSequence = 0
@@ -86,24 +104,44 @@ import AppKit
     @discardableResult func update(_ input:Input, now:Date)->Bool {
         let sorted=input.messages.sorted{$0.seq<$1.seq}, ids=Set(sorted.map(\.id))
         let eligible=sorted.filter{$0.role=="employee" && !input.muted.contains($0.key.employee) && !ThreadTools.thinking($0.text)}
-        let liveQuestions=eligible.filter{input.questions.contains($0.id)}
-        openedQuestions.formIntersection(Set(liveQuestions.map(\.id)))
-        if input.chatOpen,let key=input.opened {openedQuestions.formUnion(liveQuestions.filter{$0.key==key}.map(\.id))}
-        let fresh=initialized && input.ready ? eligible.filter{$0.seq>highSequence}:[]
+        let questionIDs: Set<String>
+        if let history=input.history {
+            // A later resident question must not leap ahead of an unloaded earlier
+            // question. Metadata chooses the candidate; the body only renders it.
+            let first=history.states.values.filter{$0.status == "present" && input.questions.contains($0.id) && $0.eligible == true && !openedQuestions.contains($0.id) && $0.conversationKey.map{!input.muted.contains($0.employee)} == true}.min(by:{$0.seq!<$1.seq!})
+            questionIDs=Set(first.map{[$0.id]} ?? [])
+        } else {questionIDs=input.questions}
+        let liveQuestions=eligible.filter{questionIDs.contains($0.id)}
+        openedQuestions.formIntersection(input.history == nil ? Set(liveQuestions.map(\.id)) : input.questions)
+        if input.chatOpen,let key=input.opened {
+            openedQuestions.formUnion(liveQuestions.filter{$0.key==key}.map(\.id))
+            if let history=input.history {openedQuestions.formUnion(history.states.values.filter{input.questions.contains($0.id) && $0.conversationKey==key}.map(\.id))}
+        }
+        let boundary=max(highSequence,input.history?.baseline ?? 0)
+        let fresh=initialized && input.ready ? eligible.filter{$0.seq>boundary}:[]
         if input.ready {initialized=true}
-        highSequence=max(highSequence,sorted.map(\.seq).max() ?? 0)
-        let acknowledged=input.readIDs.union(input.chatOpen ? Set(sorted.map(\.id)):[])
+        highSequence=max(highSequence,input.history?.through ?? sorted.map(\.seq).max() ?? 0)
+        let acknowledged=input.readIDs.union(input.chatOpen ? Set(sorted.map(\.id)):[]).union(input.history?.states.values.filter{$0.read == true || input.chatOpen && $0.status == "present"}.map(\.id) ?? [])
+        func removed(_ id: String) -> Bool {
+            input.history.map { $0.deletedIDs.contains(id) || $0.states[id]?.status == "deleted" } ?? !ids.contains(id)
+        }
         if input.ready {
-            _=save(reminders.filter {ids.contains($0.key) && !acknowledged.contains($0.key)})
+            _=save(reminders.filter {!removed($0.key) && !acknowledged.contains($0.key)})
+        }
+        if input.ready,let history=input.history {
+            _=save(reminders.filter { id,due in
+                guard due<=now.timeIntervalSince1970,let state=history.states[id],state.status == "present" else {return true}
+                return state.eligible == true && state.conversationKey.map{!input.muted.contains($0.employee)} == true
+            })
         }
         if input.chatOpen || input.paused {current=nil}
         else if let newest=fresh.last {
             current=reply(newest,names:input.names,now:now,reminder:false)
-        } else if input.ready,let due=reminders.filter({$0.value<=now.timeIntervalSince1970}).min(by:{$0.value<$1.value}) {
+        } else if input.ready,let due=reminders.filter({$0.value<=now.timeIntervalSince1970 && (input.history == nil || ids.contains($0.key))}).min(by:{$0.value<$1.value}) {
             var next=reminders;next[due.key]=nil
             if save(next),let message=eligible.first(where:{$0.id==due.key}) {current=reply(message,names:input.names,now:now,reminder:true)}
         }
-        if let shown=current, shown.until!<=now || !ids.contains(shown.id ?? "") || acknowledged.contains(shown.id ?? "") || shown.key.map({input.muted.contains($0.employee)}) == true {current=nil}
+        if let shown=current, shown.until!<=now || removed(shown.id ?? "") || shown.key.map({input.history?.deletedThreads.contains($0) == true}) == true || acknowledged.contains(shown.id ?? "") || shown.key.map({input.muted.contains($0.employee)}) == true {current=nil}
         if let installedNotice, installedNotice.until! <= now { self.installedNotice = nil }
         let urgent = input.tasks.first { $0.state == .waiting || ($0.state == .failed && now.timeIntervalSince($0.updatedAt) < 60) }
         if input.paused {notice=Notice(kind:.idle,headline:"쉬고 있어요",detail:"메뉴에서 다시 시작할 수 있어요",key:nil)}

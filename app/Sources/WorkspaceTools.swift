@@ -1,14 +1,7 @@
 import AppKit
 
-/// Local search of the journal projection, with the original candidate budget before grouping.
+/// Shared text highlighting and snippet presentation. Search results come from the server.
 enum WorkspaceSearch {
-    struct Group {
-        var key: ConversationKey
-        var root: ConversationMessage
-        var matches: [ConversationMessage]
-        var exact: Bool
-        var latest: Date { ThreadTools.date(matches.first?.timestamp ?? root.timestamp) }
-    }
     static func normalized(_ text: String) -> String { text.trimmingCharacters(in:.whitespacesAndNewlines).precomposedStringWithCanonicalMapping.lowercased() }
     static func highlights(_ text: String, query: String) -> [Range<String.Index>] {
         let term=normalized(query);guard !term.isEmpty else{return []}
@@ -33,36 +26,7 @@ enum WorkspaceSearch {
         let result=NSMutableAttributedString(string:text,attributes:[.font:NSFont.systemFont(ofSize:12),.foregroundColor:NSColor.labelColor])
         for range in highlights(text,query:query) {result.addAttributes([.backgroundColor:NSColor.systemYellow,.foregroundColor:NSColor.black],range:NSRange(range,in:text))};return result
     }
-    static func words(_ line:ConversationMessage,names:[String:String])->String {
-        ([line.text]+line.files.map(\.name)+[line.role=="owner" ? "나":names[line.speaker] ?? line.speaker,line.replyState.map{ThreadTools.stateLabel($0)+" "+$0} ?? ""]).joined(separator:"\n")
-    }
-    static func preview(_ query:String,message:ConversationMessage)->(body:String,notes:[String]) {
-        let terms=normalized(query).split(whereSeparator:\.isWhitespace).map(String.init)
-        guard !terms.isEmpty,!terms.allSatisfy({normalized(message.text).contains($0)}) else{return(message.text,[])}
-        let notes=message.files.map{"📎 "+$0.name}+[message.replyState.map(ThreadTools.stateLabel) ?? ""]
-        return (message.text,notes.filter{note in terms.contains{normalized(note).contains($0)}})
-    }
-    static func groups(_ query:String,messages:[ConversationMessage],names:[String:String],hidden:Set<String>,limit:Int=200)->[Group] {
-        let term=normalized(query),terms=normalized(query).split(whereSeparator:\.isWhitespace).map(String.init)
-        guard !term.isEmpty else{return []}
-        let visible=messages.filter{!hidden.contains($0.key.employee)}
-        let roots=Dictionary(grouping:visible,by:\.key).mapValues{$0.min{$0.seq<$1.seq}!}
-        let found=visible.filter{line in
-            guard !ThreadTools.thinking(line.text) else{return false}
-            let text=normalized(words(line,names:names))
-            return text.contains(term) || terms.allSatisfy{text.contains($0)}
-        }.sorted{(ThreadTools.date($0.timestamp),$0.id)>(ThreadTools.date($1.timestamp),$1.id)}
-        return Dictionary(grouping:Array(found.prefix(max(0,limit))),by:\.key).map{key,lines in
-            Group(key:key,root:roots[key]!,matches:lines,exact:lines.contains{line in normalized(words(line,names:names)).contains(term)})
-        }.sorted{if $0.exact != $1.exact {return $0.exact};return ($0.latest,$0.key.readKey)>($1.latest,$1.key.readKey)}
-    }
-    static func sidebar(_ query:String,messages:[ConversationMessage],names:[String:String],hidden:Set<String>)->[ConversationMessage] {
-        let term=normalized(query);guard !term.isEmpty else{return []}
-        return messages.filter {line in
-            let content=([line.text]+line.files.map(\.name)+[line.role=="owner" ? "나":names[line.speaker] ?? line.speaker,line.replyState.map(ThreadTools.stateLabel) ?? ""]).joined(separator:"\n")
-            return normalized(content).contains(term)
-        }.sorted{(ThreadTools.date($0.timestamp),$0.id)>(ThreadTools.date($1.timestamp),$1.id)}.prefix(30).map{$0}
-    }
+
 }
 struct RoomNotice: Equatable {
     var id:String, title:String
@@ -71,36 +35,72 @@ struct RoomNotice: Equatable {
 }
 @MainActor extension ConversationModel {
     func notices(_ employee:String,now:Date?=nil)->[RoomNotice] {
-        return withRenderValues {
-            let now=now ?? renderTime
-            return cachedNotices(employee,now:now) {
-                var result:[RoomNotice]=[]
-                let scope=employee==HomeRoom.id ? homeScope:[employee]
-                let ordered=scope.flatMap{threads(employee:$0)}.sorted{a,b in
-                    let x=timeline(a.key).first!,y=timeline(b.key).first!
-                    return (date(x.timestamp),x.seq)<(date(y.timestamp),y.seq)
+#if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
+        if !store.historyMode {
+            return withRenderValues {
+                let now=now ?? renderTime
+                return cachedNotices(employee,now:now) {
+                    var result:[RoomNotice]=[]
+                    let scope=employee==HomeRoom.id ? homeScope:[employee]
+                    let ordered=scope.flatMap{threads(employee:$0)}.sorted{a,b in
+                        let x=timeline(a.key).first!,y=timeline(b.key).first!
+                        return (date(x.timestamp),x.seq)<(date(y.timestamp),y.seq)
+                    }
+                    for thread in ordered {
+                        let posts=timeline(thread.key).filter{$0.role=="owner" || !thinking($0)},state=assessment(thread.key)
+                        guard let root=posts.first,posts.last?.role != "owner",!state.working,!state.settled,!(state.request.map{confirmed($0.id)} ?? false),memberState.read("bell:"+thread.key.employee+"/"+thread.key.thread)<originalSeq(thread.key) else{continue}
+                        let id:String,title:String,message:String,questions:Bool
+                        if let asked=state.pending {id="question:"+asked.speaker;title=name(asked.speaker)+" 질문";message=asked.id;questions=true}
+                        else if state.request==nil,root.role=="employee",!posts.contains(where:{$0.role=="owner"}),now>=date(root.timestamp),now.timeIntervalSince(date(root.timestamp))<86400 {id="alert";title="알림";message=root.id;questions=false}
+                        else {continue}
+                        if let i=result.firstIndex(where:{$0.id==id}) {result[i].messages.append(message)} else {result.append(.init(id:id,title:title,questions:questions,messages:[message]))}
+                    }
+                    return result.filter(\.questions)+result.filter{!$0.questions}
                 }
-                for thread in ordered {
-                    let posts=timeline(thread.key).filter{$0.role=="owner" || !thinking($0)},state=assessment(thread.key)
-                    guard let root=posts.first,posts.last?.role != "owner",!state.working,!state.settled,!(state.request.map{confirmed($0.id)} ?? false),memberState.read("bell:"+thread.key.employee+"/"+thread.key.thread)<originalSeq(thread.key) else{continue}
-                    let id:String,title:String,message:String,questions:Bool
-                    if let asked=state.pending {id="question:"+asked.speaker;title=name(asked.speaker)+" 질문";message=asked.id;questions=true}
-                    else if state.request==nil,root.role=="employee",!posts.contains(where:{$0.role=="owner"}),now>=date(root.timestamp),now.timeIntervalSince(date(root.timestamp))<86400 {id="alert";title="알림";message=root.id;questions=false}
-                    else {continue}
-                    if let i=result.firstIndex(where:{$0.id==id}) {result[i].messages.append(message)} else {result.append(.init(id:id,title:title,questions:questions,messages:[message]))}
-                }
-                return result.filter(\.questions)+result.filter{!$0.questions}
             }
         }
+#endif
+        var result: [RoomNotice] = []
+            for row in history.noticeRows[employee == HomeRoom.id ? "home":employee] ?? [] {
+                guard let group = row["group"] as? String, let id = row["id"] as? String,
+                      let title = row["title"] as? String, let questions = row["questions"] as? Bool else { continue }
+                if let i = result.firstIndex(where:{$0.id == group}) { result[i].messages.append(id) }
+                else { result.append(.init(id:group,title:title,questions:questions,messages:[id])) }
+            }
+            return result
     }
     func markAlertSeen(_ key:ConversationKey) {
-        if notices(key.employee).filter({!$0.questions}).flatMap(\.messages).contains(where:{messages[$0]?.key==key}) {markNoticeRead(key)}
+#if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
+        if !store.historyMode {
+            if notices(key.employee).filter({!$0.questions}).flatMap(\.messages).contains(where:{messages[$0]?.key==key}) {markNoticeRead(key)}
+            return
+        }
+#endif
+        if history.noticeRows[key.employee]?.contains(where:{ row in
+                let target = row["key"] as? [String:String]
+                return row["questions"] as? Bool == false && target?["room"] == key.employee && target?["thread"] == key.thread
+            }) == true { markNoticeRead(key) }
+            return
     }
     func markNoticeRead(_ key:ConversationKey) {
-        let seq=String(originalSeq(key))
-        try? memberState.set(["bell:"+key.employee+"/"+key.thread:seq,"thread:"+key.employee+"/"+key.thread:seq])
+#if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
+        if !store.historyMode {
+            let seq=String(originalSeq(key))
+            try? memberState.set(["bell:"+key.employee+"/"+key.thread:seq,"thread:"+key.employee+"/"+key.thread:seq])
+            return
+        }
+#endif
+        history.readIntent?("notice",key.employee,key); return
     }
-    func readAllNotices(_ employee:String,now:Date=Date()) { for id in notices(employee,now:now).filter({!$0.questions}).flatMap(\.messages) {if let message=messages[id] {markNoticeRead(message.key)}} }
+    func readAllNotices(_ employee:String,now:Date=Date()) {
+#if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
+        if !store.historyMode {
+            for id in notices(employee,now:now).filter({!$0.questions}).flatMap(\.messages) {if let message=messages[id] {markNoticeRead(message.key)}}
+            return
+        }
+#endif
+        history.readIntent?("all_notices",employee,nil); return
+    }
     func header(_ employee:String)->(title:String,description:String) {
         if employee==HomeRoom.id {
             if let channel=homeChannel {return (channel.title,"#"+channel.title)}
