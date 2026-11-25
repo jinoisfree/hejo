@@ -33,7 +33,9 @@ class Journal:
         self.rooms, self.deleted_rooms = {}, {}
 
     def open(self):
-        self.path.mkdir(parents=True, mode=0o700, exist_ok=True)
+        # mkdir's mode applies only to the final component, so create the shared root first.
+        self.path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+        self.path.mkdir(mode=0o700, exist_ok=True)
         self.fd = os.open(self.path / ".lock", os.O_CREAT | os.O_RDWR, 0o600)
         try:
             fcntl.flock(self.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
