@@ -88,3 +88,26 @@
 5. 지적과 처분: P-1 해소(목업 정리 이식, 검사 종료 0). P-2 기술 부채(설정 보호 검사, 실행 중 앱). P-3 기술 부채(시험 임시 경로 이름 영향). 미해결 차단 없음.
 6. 현재 명세 반영: 공개 브랜치 문서 커밋에 `docs/ARCHITECTURE.md`(3절 금고·공용 창고, 4절 디스코드 문), `docs/spec/current/hejo-discord.md`(새), 작업 문서와 수락 시험 명세(절대 경로는 자리표시로 바꿈).
 7. 미검증 범위와 남은 위험: 실물 디스코드(M1~M10·M6b), 보관 글 묶음 재열림, 파일 한도, 앱 화면 실물. 공개 이력의 과거 커밋에는 목업 속 실명이 남아 있다(이력 재작성은 별도 결정).
+
+## 검증 판정: HEJO-DISCORD-20261124 — 검증 7회 (2026-11-25, 푸시 준비 merge `fcb5853e4244c904fe5e85e2ff54b2585ea61092`)
+
+1. 판정: **완료**(TASK-01·02·04). 푸시 승인 대기. TASK-03은 별도 인계.
+2. 검증 조건: 교차 모델, 다른 대화. 개발 worktree `role-workflow/37-cdc4976c` HEAD `fcb5853`(부모 `3b9da3d`, main `9bf1836`), 깨끗함. 공개 worktree `hejo-discord-public-20261125` HEAD `f69b46a`, 깨끗함, 원격 `github/main` = `27e0e95`.
+3. 설계 적합성: 변화 없음. merge는 매끄러움 개발 통합과 문서만 들여왔고 디스코드 19개 경로의 변경은 `3b9da3d`와 같다.
+4. 직접 확인한 것: `git merge-base --is-ancestor main fcb5853` 종료 0(로컬 main = `9bf1836`), 개발 작업 트리 변경 0, `app/Tests/TestMain.swift`의 디스코드 줄이 공개판과 같고 성능 회귀 진입점도 유지, 개발과 공개의 `ConversationController.swift` 차이는 매끄러움 작업의 공개·개발 차이뿐(디스코드 무관). 직접 실행: 개발 worktree `test_discord.py` → 종료 0, 48 passed(`/tmp/hd-v7-discord.log`). 구현 로그: `push-merge-suite.exit` 0(설정 보호 포함 전체 통과), build·scan 0.
+5. 지적: 없음.
+6. 푸시 방식: 공개 통합(`publicIntegration: {developmentCommit: fcb5853…, publicBase: 27e0e95…}`), 대상 공개 worktree `f69b46a` → `github/main`(빨리 감기). 이 판정 기록은 main 기준을 다시 앞서게 하지 않도록 푸시 뒤에 커밋한다.
+
+## 검증 판정: HEJO-DISCORD-20261124 — 검증 8회 (2026-11-25, 공개 재이식 `4f0c7b574e2751d3ba477f8c10a0cbe2d1489910`)
+
+1. 판정: **완료**(TASK-01·02·04). 푸시 승인 대기. TASK-03은 별도 인계.
+2. 검증 조건: 교차 모델, 다른 대화. 공개 worktree 브랜치 `hejo-discord-public-20261125b`: `5958959`(github/main) → `0830054`(목업 14개) → `4f0c7b5`(디스코드 19개), 깨끗함. 개발 worktree `91f6013`(부모 `fcb5853`, 로컬 main `0748f3d`), 깨끗함.
+3. 설계 적합성: 변화 없음. 공개 main의 기록 전송(HISTORY) 변경과 디스코드 추가가 함께 보존됨.
+4. 직접 확인한 것:
+   - `git ls-remote github refs/heads/main` = `5958959`. 로컬 main `0748f3d`가 개발 `91f6013`의 조상.
+   - 디스코드 19개: 11개 blob이 개발 트리와 같고, 나머지 8개는 디스코드 변경 줄이 개발판(`236b017..3b9da3d`)과 같음. 차이는 `GateClient.swift`의 공개판 HISTORY 문맥(`historySession` 초기화)과 AT-SM-02 해시 값뿐.
+   - 규격: `0830054` 대비 새 `$defs`는 디스코드 6종뿐, 기존 정의 변경은 `clientFrame`·`serverFrame`의 `oneOf` 뒤 추가뿐, 루트 `oneOf`도 뒤 추가뿐. SHA-256 `87aa0ca6…0ca8`이 시험의 새 값과 일치.
+   - 직접 실행(공개 `4f0c7b5`, Hermes venv + 구현 담당의 보충 의존성 폴더 `replay3-public-deps`): `pytest tests/acceptance gate/tests` → 종료 0, **511 passed**. `scan_private.py` → 종료 0. 로그 `.build/verify8/`. (보충 의존성 없이 처음 실행했을 때 `regex` 모듈 없음으로 수집 오류 11건 — 환경 문제, 제품 무관.)
+   - 구현 로그 대조: 공개 build 0, 디스코드 48·텔레그램 38 통과, mutation 5종 검출, `scripts/test.sh`는 설정 보호 단독 실패(Python 511·게이트웨이·앱 단위·연동 12·훅 9·다운로드 보호 통과). 개발 `replay3-dev-suite.exit` 0.
+5. 지적: 없음(P-2 설정 보호 기술 부채 유지).
+6. 문서: 공개 새 브랜치에 계획 담당 문서 커밋(ARCHITECTURE 디스코드 반영, `docs/spec/current/hejo-discord.md` 해시 갱신, 작업 문서 최신본 — 개인 절대 경로 자리표시). 푸시 방식은 공개 통합(`developmentCommit` `91f6013…`, `publicBase` `5958959…`).

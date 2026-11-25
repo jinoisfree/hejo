@@ -35,3 +35,12 @@
 - 할 일: 개발 worktree(브랜치 `role-workflow/37-cdc4976c`)에 그 시점의 로컬 `main`을 `git merge main`으로 합친다. 충돌은 `app/Sources/GateClient.swift`·`ConversationController.swift`·`app/Tests/TestMain.swift` 등에서 날 수 있다. 공개 통합 커밋 `86fb981`의 같은 파일(공개판은 이미 매끄러움 작업을 포함)을 기준으로 "양쪽 변경 모두 유지"로 정리한다. 의도 판단이 필요하면 멈추고 보고한다. rebase·force 금지.
 - 확인: 합친 뒤 개발 트리의 디스코드 19개 경로가 공개 커밋 `86fb981`과 같은지(앱 3개는 의미상 같은지) 비교해 기록한다. Hermes venv로 `scripts/test.sh`(설정 보호 단독 실패는 보충 1 조건), `app/scripts/build.sh`, `scan_private.py`, `test_discord.py`를 실행한다.
 - 공개 브랜치 `hejo-discord-public-20261125`(`f69b46a`)는 바꾸지 않는다. 계획 담당은 이 합치기가 끝날 때까지 `main`에 커밋하지 않는다.
+
+## 보충 3 (2026-11-25, 공개 main이 앞섬: 다시 옮기기)
+
+- 사실: 공개 원격 `github/main`이 `59589595bf769badfc7928ab1203f0b915cd3710`(HEJO-SMOOTH2/HISTORY, 부모 `27e0e95`)로 앞서 `f69b46a`는 빨리 감기가 안 된다. 그 커밋은 `gate/server.py`·`gate/__init__.py`·`schemas/hejo-wire-v1.json`·`tests/acceptance/test_slack_move_gate.py`(AT-SM-02 해시 `7508984f…`)·앱 4개(`AppDelegate`·`ConversationController`·`GateClient`·`TestMain`)를 바꿨고, 개발 main에서 복사된 옛 HEJO-DISCORD 작업 문서를 담았다. 디스코드 코드(`gate/discord.py`)는 없다. 목업 14개는 아직 옛 내용이다. 개발 로컬 `main`도 `0748f3d`로 다시 앞섰다.
+- A. 개발: 개발 worktree(`role-workflow/37-cdc4976c`)에 그 시점의 로컬 `main`을 다시 `git merge main`. 정리 원칙은 보충 2와 같다.
+- B. 공개: 같은 공개 worktree에서 `github/main`(`5958959`, 읽기로 재확인)을 시작점으로 새 브랜치 `hejo-discord-public-20261125b`를 만든다(옛 브랜치는 보존). 그 위에 `b68aaf2`(목업 14개)와 `86fb981`(디스코드 제품·시험)을 순서대로 cherry-pick한다. `f69b46a`(문서)는 가져오지 않는다 — 문서 커밋은 계획 담당이 다시 만든다. 충돌은 "공개 main의 새 변경(기록 전송 HISTORY 등)과 디스코드 추가를 모두 유지"로 정리하고, 의도 판단이 필요하면 멈춘다. 두 이력 merge·rebase·force 금지.
+- C. AT-SM-02: 합친 `schemas/hejo-wire-v1.json`이 `5958959` 대비 디스코드 정의 6종 추가와 세 `oneOf` 목록 뒤 추가뿐임을 JSON 비교로 확인한 뒤에만, 해시를 새 값으로 바꾸고 주석 한 줄(`HEJO-DISCORD added definitions only (verdict 2회, B-1)`)을 유지한다. 그 외 차이가 있으면 멈춘다.
+- D. 검사(공개 새 브랜치 최종 트리, Hermes venv): `scripts/test.sh`(설정 보호 단독 실패만 보충 1 조건), `app/scripts/build.sh`, `scan_private.py` 종료 0, `test_discord.py` 전체, `test_telegram.py`, mutation 5종. A의 개발 트리도 `scripts/test.sh`·`test_discord.py`. 디스코드 19개 경로를 개발 트리와 비교해 기록.
+- 계획 담당은 이 작업이 끝나 푸시될 때까지 개발 `main`에 커밋하지 않는다(이 보충과 verdict 7회는 미커밋으로 둔다).

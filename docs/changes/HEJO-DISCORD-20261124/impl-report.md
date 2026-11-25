@@ -1,4 +1,158 @@
-# 구현 인계: HEJO-DISCORD-20261124 — 검증 2회 보완 결과
+# 구현 인계: HEJO-DISCORD-20261124
+
+## 공개 재이식(5958959) 결과
+
+보충 3의 개발 병합과 공개 제품 재이식을 완료했다. 개발 전체 시험은 통과했다. 공개 전체 시험은 마지막 설정 메타데이터 검사에서 종료 1이었으며 보충 1의 예외 조건을 충족했다. 두 작업 트리는 깨끗하고 `.build` 증거는 추적 대상에서 제외된다.
+
+| 작업 | 커밋 | 기준 및 검증 트리 |
+|---|---|---|
+| 개발 `role-workflow/37-cdc4976c` 병합 | `91f6013bd71e782d20dfb0cbca51eaf2b3a184e4` | 부모 `fcb5853e4244c904fe5e85e2ff54b2585ea61092`, 로컬 `main` `0748f3d15cf52e0d72429360e4b19535c995c11a`. 트리 `d8490a477c059ab021d6d674f7218b3618ac31ab` |
+| 공개 `hejo-discord-public-20261125b` 목업 정리 14개 | `0830054e866d0c5c84bbe74bc63ad4a3718032f4` | 부모 `59589595bf769badfc7928ab1203f0b915cd3710`. 트리 `622234281aaab1b6c7c84bec47175675da4e902e` |
+| 공개 `hejo-discord-public-20261125b` 제품·시험 19개 | `4f0c7b574e2751d3ba477f8c10a0cbe2d1489910` | 부모 `0830054e866d0c5c84bbe74bc63ad4a3718032f4`. 트리 `7e76d6ceec91740e1ae61ecdc465d04c69193ff2` |
+
+- 개발 병합은 `git merge --no-commit main` 뒤 시험하고 `git commit --no-edit`로 마쳤다. `ConversationController.swift`와 `TestMain.swift`는 자동 병합됐다. `git merge-base --is-ancestor main HEAD`는 0이다.
+- 공개 `git ls-remote github refs/heads/main`은 시작과 작업 후 모두 `59589595bf769badfc7928ab1203f0b915cd3710`이다. `git fetch github refs/heads/main:refs/remotes/github/main`과 공개 최종 HEAD에 대한 `git merge-base --is-ancestor github/main HEAD`는 0이다. 이전 공개 브랜치는 `f69b46ab30a0e6b875ce894eaa2b081caaf185cf`를 유지한다. 새 브랜치의 두 커밋에는 목업 정리와 제품·시험만 담겼다.
+- 목업 cherry-pick은 충돌 없이 적용했다. 제품 cherry-pick에서 `app/Sources/GateClient.swift`의 기능 목록, `stop()`, 연결 실패 처리 세 곳이 충돌했다. 공개 HISTORY 기능 목록, 상태 초기화, 오류 처리와 기존 `knownHead`를 보존하고 디스코드 feature와 상태 초기화를 덧붙였다. `tests/acceptance/test_slack_move_gate.py` 충돌은 HISTORY 주석과 기존 단언, HEJO-DISCORD 주석을 함께 유지했다. 해시는 아래 JSON 비교를 통과한 뒤 바꿨다.
+- 공개 규격을 `5958959`와 JSON으로 구조 비교했다. 자동 병합이 루트 목록의 `deadlines` 앞에 넣은 새 참조 6개를 끝으로 옮겼다. 최종 차이는 디스코드 정의 6종과 root·clientFrame·serverFrame의 `oneOf` 끝에 추가한 참조뿐이다. 여섯 정의는 기존 이식본 `86fb981`과 같다. AT-SM-02 해시는 `87aa0ca6fd92ab66236ac66aa3243062f3d8635ba2bed06a64a0dd728aae0ca8`이다.
+- 개발·공개 양쪽에서 디스코드 19개 경로를 대조했다. 11개는 Git blob이 같다. `AppDelegate.swift`, `ConversationController.swift`, `TestMain.swift`, `gate/__init__.py`, `gate/server.py` 다섯 파일은 각 기준에 대한 디스코드 추가·제거 줄이 같다. `GateClient.swift`는 공개 HISTORY 초기화 문맥에 디스코드 동작을 동일하게 적용했다. 규격의 여섯 정의와 디스코드 참조가 일치하고, Slack 시험의 차이는 공개 규격 해시에 대응한다. `git diff --check`는 0이다.
+
+로그 경로는 해당 개발 또는 공개 worktree의 `.build/discord-evidence/` 기준이다. 시험은 Hermes venv를 사용했다. 앱 시험과 빌드는 Google 비밀 접근과 Sparkle 다운로드를 끈 시험 환경에서 실행했고, pytest에 중립적인 임시 경로를 지정했다.
+
+| 대상과 명령 | 실제 종료 및 결과 | 로그 또는 증거 |
+|---|---|---|
+| 개발 `git merge --no-commit main`, `git commit --no-edit` | 각각 0 | `replay3-dev-merge.log`, `replay3-dev-commit.log` |
+| 개발 `bash scripts/test.sh` | 0. Python 475개, 게이트웨이, 앱 단위, 연동 12개, 훅 9개, 설정·다운로드 보호 통과 | `replay3-dev-suite.log`, `replay3-dev-suite.exit` |
+| 개발 `python -m pytest tests/acceptance/test_discord.py -q -s -p no:cacheprovider` | 0. 48개, 정착 2.031초 | `replay3-dev-discord.log`, `replay3-dev-discord.exit` |
+| 공개 원격 조회 및 fetch | 각각 0 | `replay3-public-remote.log`, `replay3-public-final-remote.log`, `replay3-public-fetch.log` |
+| 공개 `git cherry-pick b68aaf2`, `git cherry-pick 86fb981`, `GIT_EDITOR=true git cherry-pick --continue` | 0, 1(충돌), 0 | `replay3-public-mockups.log`, `replay3-public-discord-pick.log`, `replay3-public-discord-continue.log` |
+| 공개 규격 JSON 비교와 양쪽 19개 대조 | 각각 0 | 공개 `replay3-public-schema.json`, `replay3-public-schema.log` 및 개발 `replay3-dev-public-compare.json`, `replay3-dev-discord-delta.patch`, `replay3-public-discord-delta.patch` |
+| 공개 `bash scripts/test.sh` | **1**. Python 511개, 게이트웨이, 앱 단위(AT-HD-50~53, AT-UC-32 포함), 연동 12개, 훅 9개, 다운로드 보호 통과. 마지막 `settings_guard.py`의 `Real settings metadata changed`만 실패해 보충 1 예외 적용 | `replay3-public-suite.log`, `replay3-public-suite.exit`, `replay3-public-suite-verdict.log` |
+| 공개 `bash app/scripts/build.sh` | 0. 서명 빌드 통과 | `replay3-public-build.log`, `replay3-public-build.exit` |
+| 공개 `python3 scripts/scan_private.py` | 0 | `replay3-public-scan.log`, `replay3-public-scan.exit` |
+| 공개 `python -m pytest tests/acceptance/test_discord.py -q -s -p no:cacheprovider` | 0. 48개, 정착 2.027초 | `replay3-public-discord-final.log`, `replay3-public-discord-final.exit` |
+| 공개 `python -m pytest tests/acceptance/test_telegram.py -q -p no:cacheprovider` | 0. 기존 시험 38개 | `replay3-public-telegram-final.log`, `replay3-public-telegram-final.exit` |
+| 공개 복제본에서 변이 5종 실행 후 로그·원복 검증 | 각 pytest 1(예상 단언 실패), 증거 판독과 최종 원복 대조 0 | `replay3-public-mutation-final.log`, `replay3-public-mutation-verdict.log`, `replay3-public-mutation-verdict.exit` |
+
+공개 첫 디스코드 시험은 Hermes venv에 공개판 의존성 `regex`가 없어 종료 1이었다. 초기 변이 결과도 같은 준비 오류로 증거에서 제외했다. `gate/requirements.txt`의 고정 버전 `regex==2026.11.19`만 공개 worktree의 `.build/discord-evidence/replay3-public-deps/`에 내려받아 `PYTHONPATH`로 시험에 제공했다(`uv -n pip install --python "$HEJO_PYTHON" --target <시험 의존성 폴더> --only-binary :all: --no-deps regex==2026.11.19`, 종료 0, `replay3-public-deps.log`). 재실행한 변이는 로그 요약기가 앱 로그의 `ERROR`까지 준비 오류로 잡아 초기 집계가 1이었다. pytest 실패 유형과 원복을 다시 판독한 최종 집계는 0이다.
+
+계획 담당의 공개 문서 커밋과 교차 검증, 사용자 승인에 따른 푸시가 남아 있다. TASK-03 운영 적용과 실물 확인은 이 인계의 검증 범위 밖이다.
+
+## 푸시 준비 merge 결과
+
+[확인] 개발 브랜치 `role-workflow/37-cdc4976c`에 로컬 `main`을 병합했다. 개발 병합 커밋은 `fcb5853e4244c904fe5e85e2ff54b2585ea61092`이며, 부모는 기존 개발 커밋 `3b9da3d3007f62d4cbce8f4669691f4eb73fcc63`과 `main` `9bf18368873135c79ab0b9763da365f7ead5dd33`이다. 검증한 트리 `7b3180d8e3d2cbd8f49405796f75756d7dd8d732`와 커밋 트리가 일치한다. 로컬 `main`과 매끄러움 통합 `e54e1c7`이 개발 HEAD의 조상이다. 작업 트리는 깨끗하고 루트 및 앱의 `.build`에 추적 파일이 없다.
+
+- `app/Tests/TestMain.swift:189`의 `unit()` 한 곳에서 충돌이 났다. 공개 통합본처럼 `HEJO_PERF_TESTING` 조건 안의 매끄러움 회귀 시험 뒤에 디스코드 시험을 두고, 그 다음에 기존 텔레그램 시험을 실행한다. `app/Sources/ConversationController.swift`는 자동 병합됐다.
+- 공개 제품 커밋 `86fb981ebba63264e73f84bf773199b05bd1c8c8`과 디스코드 19개 경로를 대조했다. 16개의 Git blob은 같았다. `GateClient.swift`, `ConversationController.swift`, `TestMain.swift`는 각각의 기준에서 추가·삭제된 디스코드 줄이 같다. `GateClient.swift` 비교에서만 공개 기준의 기존 `knownHead = nil;` 접두사를 제외했다. 공개판의 재연결·펫 위치 시험 등 기존 차이는 유지했다. 경로별 결과와 세 파일의 양쪽 패치를 보존했다.
+- 공개 브랜치 `hejo-discord-public-20261125`의 `f69b46ab30a0e6b875ce894eaa2b081caaf185cf`는 그대로다. 플러그인의 공개 통합 대상은 검증 담당이 이 공개 커밋과 위 개발 병합 커밋을 짝지어 확정한다.
+
+개발 worktree의 `.build/discord-evidence/`가 로그 기준이다. Python 검사는 `env.sh`의 Hermes venv로 실행했다. 임시 시험 경로에는 디스코드 ID 접두사를 쓰지 않았다.
+
+| 명령·검사 | 종료 코드와 관측 | 로그·근거 |
+|---|---|---|
+| `git merge --no-commit main` | 자동 병합 **1**, `TestMain.swift` 한 곳 충돌. 수동 해결 후 미해결 경로 0 | `push-merge.log`, `push-merge.exit` |
+| 19개 Git blob·앱 디스코드 줄 비교 및 `git diff --cached --check` | 각각 **0**, 16개 동일 blob과 3개 동일 변경 | `push-merge-compare.json`, `push-merge-dev-app.patch`, `push-merge-public-app.patch`, `push-merge-app-baseline-diff.patch` |
+| `python3 scripts/scan_private.py` | **0** | `push-merge-scan.log`, `push-merge-scan.exit` |
+| `HEJO_SKIP_GOOGLE_SECRET=1 HEJO_SPARKLE_OFFLINE=1 bash app/scripts/build.sh` | **0**, 서명 빌드 통과 | `push-merge-build.log`, `push-merge-build.exit` |
+| `PYTEST_ADDOPTS="--basetemp=/tmp/hejo-dev-merge-discord" "$HEJO_PYTHON" -m pytest tests/acceptance/test_discord.py -q -s -p no:cacheprovider` | **0**, 48개 통과, 정착 2.026초 | `push-merge-discord.log`, `push-merge-discord.exit` |
+| `HEJO_SKIP_GOOGLE_SECRET=1 HEJO_SPARKLE_OFFLINE=1 PYTEST_ADDOPTS="--basetemp=/tmp/hejo-dev-merge-suite" bash scripts/test.sh` | **0**, Python 475개, 게이트웨이, 앱 단위, 연동 12개, 훅 9개, 설정 및 다운로드 보호 모두 통과. 보충 1 예외 적용 없음 | `push-merge-suite.log`, `push-merge-suite.exit`, `push-merge-suite-verdict.log` |
+| `git commit --no-edit`, `git merge-base --is-ancestor main HEAD`, `git merge-base --is-ancestor e54e1c7 HEAD` | 각각 **0**, 두 부모 확인, 검사 트리 일치 | `push-merge-commit.log`, `push-merge-commit.exit`, `push-merge-tested-tree.txt`, `push-merge-final-commit.txt` |
+
+실물 검증·운영 적용은 TASK-03에 남는다. 이번 단계는 개발 병합의 구현과 자체 시험이며 푸시 승인은 별도다.
+
+## TASK-04 공개 통합 결과
+
+[확인] 보충 1대로 공개 브랜치 `hejo-discord-public-20261125`에 두 커밋을 생성했다. 목업 14개 정리 커밋은 `b68aaf2ab00528e9f3435182cb0915519fc4057c`, 디스코드 제품·시험 19개 커밋은 `86fb981ebba63264e73f84bf773199b05bd1c8c8`이다. 최종 검증 트리는 `d877c4ceb4b691e27c139f4804737feab2447858`이며 추적 작업 트리는 깨끗하다.
+
+- `github/main`을 이식 전과 보고 직전에 읽어 양쪽 모두 `27e0e95fab5de0294ae925c188bb50f5ba361411`임을 확인했다. `git merge-base --is-ancestor 27e0e95fab5de0294ae925c188bb50f5ba361411 86fb981ebba63264e73f84bf773199b05bd1c8c8`은 종료 0이다. 두 커밋이 공개 tip 위에 차례로 이어진다.
+- P-1 해소. `git diff 236b017 20f1f7c`에서 허가된 목업 14개만 그대로 적용했고, 각 파일은 정리 원본 커밋의 blob과 일치한다. 목업 커밋 뒤에도 스테이징된 디스코드 19개 blob이 보존됐으며, 디스코드 커밋은 앞서 검증한 이식본의 제품·시험 내용과 같다. 공개 이력의 기존 커밋은 그대로 남는다.
+- P-2는 인계서 조건 충족. `scripts/test.sh`의 실제 종료 코드는 1이다. Python 475개, 게이트웨이, AppKit 단위 시험, 연동 12개, 훅 9개와 다운로드 보호가 통과했다. 마지막 `settings_guard.py`의 `Real settings metadata changed`만 실패했다. 원본 로그와 별도로 `public-supp1-suite-verdict.log`에 보충 1에 따른 조건부 합격을 기록했다. `AT-UC-32`는 이번 실행에서 통과했다.
+- 이전 이식본의 디스코드·텔레그램·변이 증거는 아래 이력에 있다. 이번에는 목업만 추가했고 디스코드 48개와 Python 전체를 최종 커밋에서 다시 실행했다.
+
+로그 기준은 공개 worktree의 `.build/discord-evidence/`다. Hermes venv는 `env.sh`로 설정했으며 Python 임시 경로에는 디스코드 ID 접두사를 넣지 않았다.
+
+| 명령 | 종료 코드와 관측 | 로그·근거 |
+|---|---|---|
+| `git ls-remote github refs/heads/main` | 전·후 각각 **0**, 같은 공개 tip | `public-supp1-remote.log`, `public-supp1-final-remote.log` |
+| `git apply --check --index`, `git apply --index` | 각각 **0**, 목업 14개 패치 그대로 적용 | `public-supp1-privacy-check.log`, `public-supp1-privacy-apply.log`, 각 `.exit` |
+| 목업 14개와 디스코드 19개 각각 `git commit --only` | 각각 **0**, 위 두 해시 | `public-supp1-privacy-commit.log`, `public-supp1-discord-commit.log`, 각 `.exit`, `public-supp1-commits.json` |
+| `git merge-base --is-ancestor 27e0e95fab5de0294ae925c188bb50f5ba361411 86fb981ebba63264e73f84bf773199b05bd1c8c8` | **0**, 보고 직전에도 동일 | `public-supp1-ancestry.log`, `public-supp1-ancestry.exit` |
+| `python3 scripts/scan_private.py` | **0**, 최종 트리 개인값 검사 통과 | `public-supp1-scan.log`, `public-supp1-scan.exit` |
+| `HEJO_SKIP_GOOGLE_SECRET=1 HEJO_SPARKLE_OFFLINE=1 bash app/scripts/build.sh` | **0**, 최종 트리 서명 빌드 통과 | `public-supp1-build.log`, `public-supp1-build.exit` |
+| `PYTEST_ADDOPTS="--basetemp=/tmp/hejo-public-supp1-discord" "$HEJO_PYTHON" -m pytest tests/acceptance/test_discord.py -q -s -p no:cacheprovider` | **0**, 48개 통과, 정착 2.028초 | `public-supp1-discord.log`, `public-supp1-discord.exit` |
+| `HEJO_SKIP_GOOGLE_SECRET=1 HEJO_SPARKLE_OFFLINE=1 PYTEST_ADDOPTS="--basetemp=/tmp/hejo-public-supp1-suite" bash scripts/test.sh` | 실제 **1**, 설정 보호 단독 실패로 보충 1 조건부 합격. 로그 대조 명령 `python public-supp1-classify.py` **0** | `public-supp1-suite.log`, `public-supp1-suite.exit`, `public-supp1-suite-verdict.log`, `public-supp1-suite-verdict.exit` |
+
+공개 worktree는 `<공개 통합 worktree>`다. 이번 구현 후보는 이 저장소의 `github/main` 대상 `86fb981ebba63264e73f84bf773199b05bd1c8c8`이다. 계획 담당의 독립 재검증과 문서 커밋 후 실제 푸시 대상 해시를 확정한다. 실물과 운영 적용은 TASK-03 범위다.
+
+### 보충 1 이전 공개 이식 기록
+
+아래는 초기 이식본과 그때 확인한 차단의 기록이다.
+
+[확인] 검증 완료 개발 커밋 `3b9da3d3007f62d4cbce8f4669691f4eb73fcc63`의 제품·시험 변경 19개를 공개 worktree에 이식했다. 공개 브랜치는 `hejo-discord-public-20261125`이며, 공개 원격 `github/main` tip과 해당 worktree HEAD는 모두 `27e0e95fab5de0294ae925c188bb50f5ba361411`이다. 시작과 보고 직전 각각 `git ls-remote github refs/heads/main` 종료 0으로 확인했다. 독립 이력은 병합하지 않았다.
+
+[차단] 공개 기준 자체의 개인값 검사와 앱 설정 메타데이터 보호 검사가 각각 실패했다. 인계서의 필수 검사 종료 0 조건에 따라 19개를 스테이징한 상태로 남겼다. 통합 커밋과 푸시 후보는 아직 없다. 검증한 staged tree는 `d28813c94d3526ded7bc8932bee4893ef9cb6d58`이며, 추적 파일에 스테이징 밖 변경은 없다. 공개 기준을 부모로 삼는 새 커밋의 조상 검증은 후보 생성 뒤 수행한다.
+
+### 이식 범위와 공개판 조정
+
+- 19개 중 16개는 개발 검증본의 Git blob과 같다. 공개판에서 기존 내용이 달랐던 3개는 아래 위치에 같은 디스코드 동작만 추가했다. 이식 대상과 비교는 `public-transfer-verification.json`과 `public-app-adaptations.patch`에 남겼다.
+- `app/Sources/GateClient.swift:24`의 기능 배열, 29행 상태, 113·150행 연결 수명, 208~210행 상태 조회 및 프레임 처리. 공개판의 `knownHead` 초기화 및 재연결 처리를 보존했다.
+- `app/Tests/TestMain.swift:96`의 디스코드 전용 진입점, 225행 전체 단위 시험 호출. 공개판의 성능·재연결·펫 위치 시험 앞부분을 보존했다.
+- `app/Sources/ConversationController.swift:417`에 디스코드 상태 콜백을 추가했다. 공개판 위치 차이는 패치의 47줄 오프셋으로 처리됐다.
+- 통신 규격 SHA-256은 인계와 같은 `c91a7a4f93a008028809871f377cf6b240c4a4095fab819b48fc69d122ce4bec`이다. 목업·문서·텔레그램 구현과 Python 수락 시험은 이식 범위에 없다.
+
+### 차단 근거
+
+1. `scan_private.py`는 통합 staged tree와 공개 tip 단독 체크아웃에서 각각 종료 1이다. 경로·줄·범주·지문까지 같은 30건이 기존 목업 14개에서 검출됐으며 이식한 19개 경로의 검출은 0건이다. `public-scan-comparison.json`에 비교를 저장했다. 비공개 개발 이력의 목업 정리는 이번 이식에서 제외된다.
+2. `scripts/test.sh`의 Python 475개, 게이트웨이, 앱 단위 시험, 12개 연동 시험과 훅 9개는 통과했다. 마지막 `settings_guard.py`가 `Real settings metadata changed`로 종료 1을 냈다. 공개 tip 단독 `app/scripts/test.sh`도 모든 앱 시험을 마친 뒤 같은 단언에서 종료 1이었다. 기준판 실행 전후 메타데이터 요약에서 변경된 범주는 hejo뿐이다. 시험 프로세스가 없는 30초에도 해당 범주가 변했다. 변경 주체와 설정 내용은 확인하지 않았다. 다운로드 보호 검사는 두 실행에서 통과했다. 통합본과 기준판에서 `AT-UC-32`가 통과해 해당 재시도 조건은 발동하지 않았다.
+3. 처음 시험 경로에 사용한 `dc-` 문자열이 AT-HD-08의 로그 내 메시지 ID 접두사 검사와 충돌했다. 중립적인 임시 경로에서 시험을 다시 실행해 AT-HD-08을 포함한 Python 시험을 통과시켰다. 시험 기대값과 검증 트리는 동일하다.
+
+### 검증 기록
+
+공개 worktree `hejo-discord-public-20261125`의 `.build/discord-evidence/` 기준이다. Python 검사는 `env.sh`로 Hermes venv를 사용했고 앱 빌드와 시험은 `HEJO_SKIP_GOOGLE_SECRET=1 HEJO_SPARKLE_OFFLINE=1`로 실행했다.
+
+| 명령 | 종료 코드와 관측 | 로그·근거 |
+|---|---|---|
+| `git ls-remote github refs/heads/main` | 처음과 보고 직전 각각 **0**, 동일 tip | `public-base-remote.log`, `public-final-remote.log` |
+| `git apply --check --verbose public-transfer.patch` | **1**, GateClient·TestMain의 공개판 문맥 차이. 두 경로를 제외한 `git apply --index --verbose`는 **0**, 두 경로는 직접 이식 | `public-apply-check.log`, `public-apply-check.exit`, `public-apply.log`, `public-app-adaptations.patch` |
+| `bash app/scripts/build.sh` | **0**, 서명 빌드 통과 | `public-build.log`, `public-build.exit` |
+| `bash scripts/test.sh` 첫 실행 | **1**, 474 통과·1 실패. AT-HD-08 로그에 시험 임시 경로의 `dc-`가 들어감 | `public-full.log`, `public-full.exit` |
+| 중립 경로로 `bash scripts/test.sh` | **1**, Python 475개·게이트웨이·앱 단위·연동·훅 통과, 마지막 설정 보호 실패 | `public-full-final.log`, `public-full-final.exit` |
+| 공개 tip에서 `bash app/scripts/test.sh` | **1**, 앱 단위·연동·훅 통과, 마지막 설정 보호 동일 실패 | `public-base-app.log`, `public-base-app.exit`, `public-base-settings-summary.json`, `public-idle-settings.json` |
+| `python3 scripts/scan_private.py` 통합 staged tree와 공개 tip | 각각 **1**, 동일 30건·기존 14개 파일·이식 경로 0건 | `public-scan.log`, `public-scan-base.log`, 각 `.exit`, `public-scan-comparison.json` |
+| `python -m pytest tests/acceptance/test_discord.py -q -s -p no:cacheprovider` | 최초 **1**(위 임시 경로 문제), 중립 경로 **0**. 48개 통과, 정착 2.026초 | `public-discord.log`, `public-discord-final.log`, 각 `.exit` |
+| `python -m pytest tests/acceptance/test_telegram.py -q -s -p no:cacheprovider` | **0**, 38개 통과. 시험 파일은 공개 기준과 동일 | `public-telegram-final.log`, `public-telegram-final.exit` |
+| staged 복제본에서 `python .build/discord-evidence/mutation.py` | **0**, 5종 각각 기대한 pytest 종료 1, 원복 바이트 비교 통과 | `public-mutation.log`, `public-mutation.exit`, `public-mutation-src/.build/discord-evidence/mutation-results.json` |
+| `git diff --cached --check`, `git diff --quiet` | 각각 **0**, 검증 트리와 최종 스테이징 일치 | `public-tested-tree.txt`, `public-transfer-verification.json` |
+
+공개 worktree는 `<공개 통합 worktree>`다. 의도한 공개 대상은 이 저장소의 `github/main`이며 통합 커밋 없음으로 푸시 대상 확정은 보류했다. 다음 계획에서 공개 기준의 목업 검출 처리와 설정 보호 검증 환경을 정해야 한다. 실물과 운영 적용은 TASK-03 범위다.
+
+
+## 검증 3회 보완 결과
+
+[확인] F-1 구현과 자체 시험을 완료했다. 브랜치는 `role-workflow/37-cdc4976c`이며 최종 커밋은 `3b9da3d3007f62d4cbce8f4669691f4eb73fcc63`이다. 최종 커밋 트리 `01e175db3a76a1274c8e3e0765188b1018d92c09`가 검사 전에 기록한 트리와 일치하며 추적 작업 트리는 깨끗하다.
+
+- `git merge main`은 충돌 없이 종료했다. 병합 커밋은 `e6673e082adbf873b258712c5941aec0d3849cae`다. 부모는 이전 구현 커밋 `f6ec80026fded21b46fe6ea62a45eeee08a39c22`와 지정된 `main` `431d0dd5a565d06cc4834b9349edb7ea21525d66`이다. 목업 정리를 포함한 병합 직후 검사와 F-1 변경본 검사가 모두 종료 0이었다.
+- F-1은 `gate/discord.py`에 반영했다. 처음 새 포럼 글을 보내거나 기존 글 묶음 대신 새 포럼 글을 보낼 때 `NotFound`가 발생하면, 실패한 웹후크가 그 채널의 현재 캐시 항목일 때만 버린다. 해당 글은 실패 로그 한 줄로 끝나며 다음 글은 웹후크를 다시 찾거나 만든다.
+- `tests/acceptance/test_discord.py`의 발신 실패 시험 옆에 삭제된 웹후크를 재생성하는 두 사례를 추가했다. 첫 글의 전송 시도·실패 로그·발신 기록 불변과 다음 글의 전달을 확인한다. 기존 기대값과 AT 번호는 그대로다. 커밋은 이 두 파일에만 적용했다.
+- B-3의 기존 `AT-UC-32`는 첫 전체 실행에서 실패했다. 같은 트리로 한 번 재실행해 해당 단언을 포함한 앱 단위 시험과 이후 연동·훅 시험까지 모두 통과했다. 이전 통과 커밋 대비 앱 코드와 앱 시험 파일은 같다.
+
+아래 로그와 종료 코드 파일의 기준은 구현 worktree의 `.build/discord-evidence/`다. Python 검사는 `env.sh`로 Hermes venv를 사용했다. 빌드와 전체 시험에는 `HEJO_SKIP_GOOGLE_SECRET=1 HEJO_SPARKLE_OFFLINE=1`을 사용했다.
+
+| 명령 | 종료 코드와 관측 | 근거 |
+|---|---|---|
+| `git merge main` | **0**, 충돌 없음, 두 부모 확인 | `review3-merge.log`, `review3-merge.exit`, `review3-merge-commit.txt` |
+| `python3 scripts/scan_private.py` | 병합 직후와 F-1 변경본 각각 **0** | `review3-merge-scan.log`, `review3-merge-scan.exit`, `review3-scan.log`, `review3-scan.exit` |
+| `bash app/scripts/build.sh` | **0**, 서명 빌드 `BUILD_OK` | `review3-build.log`, `review3-build.exit` |
+| `bash scripts/test.sh` 첫 실행 | **1**, pytest 475개 통과, 게이트웨이 정상 종료, AppKit `AT-UC-32` 실패 | `review3-full.log`, `review3-full.exit` |
+| `bash scripts/test.sh` 동일 트리 재실행 | **0**, pytest 475개, 게이트웨이 정상 종료, AT-HD-50~53·AT-UC-30~35를 포함한 앱 단위 시험, 12개 fixture와 훅 9개 통과 | `review3-full-retry.log`, `review3-full-retry.exit` |
+| `PYTEST_ADDOPTS="--basetemp=/tmp/hejo-discord-review3-target" "$HEJO_PYTHON" -m pytest tests/acceptance/test_discord.py -q -s -p no:cacheprovider` | **0**, 48개 통과, 기본 2초 정착 경계 2.031초 관측 | `review3-discord.log`, `review3-discord.exit` |
+| `PYTEST_ADDOPTS="--basetemp=/tmp/hejo-discord-review3-mutation" "$HEJO_PYTHON" .build/discord-evidence/mutation.py` (staged 복제본 `review3-mutation-src`) | **0**, 기존 4개와 캐시 버림 제거 1개 모두 기대한 pytest 종료 1. 새 변이는 다음 글에서 웹후크가 재생성되지 않는 단언으로 검출, 원복 소스 바이트 비교 통과 | `review3-mutation.log`, `review3-mutation.exit`, 복제본의 `.build/discord-evidence/mutation-webhook-cache.log`, `mutation-results.json` |
+| `git diff --cached --check`, `git commit --only -- gate/discord.py tests/acceptance/test_discord.py` | 각각 **0**, 커밋 트리와 검증 트리 일치 | `review3-commit.log`, `review3-commit.exit`, `review3-tested-tree.txt`, `review3-final-commit.txt` |
+
+도달 수준은 문·앱 1~2, 정착 엔진 3이다. 실물 디스코드 동작과 보관 글 재열림·파일 한도는 TASK-03에서 검증할 범위다. 다음 단계는 계획 담당의 최종 독립 검토와 푸시 대상 확인이다.
+
+## 이전 검증 2회 보완 결과
+
+아래는 이전 변경본과 그때의 검증 기록이다.
 
 [확인] **TASK-01·02 구현 및 자체 시험 완료, 검토용 커밋 생성.** `f6ec80026fded21b46fe6ea62a45eeee08a39c22`, 브랜치 `role-workflow/37-cdc4976c`, 부모 `236b0177468b90d9ea23a1b1190e996db78a0694`. 구현 worktree의 19개 변경 경로만 `git commit --only`로 커밋했다. 커밋 내용은 검증한 파일별 SHA-256과 일치하고 추적 작업 트리는 깨끗하다. 독립 검증과 AT-HD-45 개인값 검사 종료 0은 남아 있다.
 
