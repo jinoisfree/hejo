@@ -33,11 +33,16 @@ import Foundation
         var counts: [Filter: Int] = [:]
         var available = false, failed = false
         var historyUpdating = false
+        var gateStatus: ConnectionStatus = .connected
         /// Title of the deadline closing in five seconds (undo line), and whether a close just failed.
         var undoTitle: String?, closeFailed = false
         var total: Int { counts[.all] ?? 0 }
         var empty: Bool { urgent.isEmpty && rest.isEmpty }
-        var warning: String? { historyUpdating ? "대화 알림을 갱신 중이에요." : failed ? "마감을 읽지 못했어요. 잠시 뒤 다시 볼게요." : nil }
+        var warning: String? {
+            if gateStatus == .updateRequired { return gateStatus.text }
+            if historyUpdating { return "대화 알림을 갱신 중이에요." }
+            return failed ? "마감을 읽지 못했어요. 잠시 뒤 다시 볼게요." : nil
+        }
         var closeWarning: String? { closeFailed ? "마감을 닫지 못했어요. 다시 해 주세요." : nil }
     }
     private(set) var deadlines: [Deadline] = []
@@ -51,7 +56,7 @@ import Foundation
         deadlines=(frame["items"] as? [[String:Any]] ?? []).compactMap(Deadline.init)
         failed = !(frame["failed"] as? [String] ?? []).isEmpty
     }
-    func snapshot(_ model: ConversationModel, filter: Filter = .all, now: Date, calendar: Calendar = .current, hidden: Set<String> = []) -> Snapshot {
+    func snapshot(_ model: ConversationModel, filter: Filter = .all, now: Date, calendar: Calendar = .current, hidden: Set<String> = [], gateStatus: ConnectionStatus = .connected) -> Snapshot {
         var cards: [Card] = [], seen=Set<String>()
         let muted=model.muted
         let noticeByID=Dictionary(uniqueKeysWithValues:model.history.notices.map{($0.id,$0)})
@@ -108,6 +113,6 @@ import Foundation
         var counts=Dictionary(uniqueKeysWithValues:Filter.allCases.map{($0,0)})
         for card in cards {counts[card.kind,default:0]+=1};counts[.all]=cards.count
         let shown=cards.filter{filter == .all || $0.kind == filter}
-        return Snapshot(urgent:sorted(shown.filter(\.urgent)),rest:sorted(shown.filter{!$0.urgent}),counts:counts,available:available,failed:failed,historyUpdating:model.store.historyMode && model.history.refreshing)
+        return Snapshot(urgent:sorted(shown.filter(\.urgent)),rest:sorted(shown.filter{!$0.urgent}),counts:counts,available:available,failed:failed,historyUpdating:model.store.historyMode && model.history.refreshing,gateStatus:gateStatus)
     }
 }

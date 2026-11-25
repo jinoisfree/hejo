@@ -37,7 +37,7 @@ struct ConversationFailedSend: Identifiable {
     private(set) var closeFailed=false
     var hiddenDeadlineCards: Set<String> { Set(closesInFlight.keys).union(closesConfirming.keys).union(pendingClose.map{[$0.cardID]} ?? []) }
     var drawerSnapshot: TodoDrawerModel.Snapshot {
-        var value=todoDrawer.snapshot(model,filter:drawerFilter,now:model.renderTime,hidden:hiddenDeadlineCards)
+        var value=todoDrawer.snapshot(model,filter:drawerFilter,now:model.renderTime,hidden:hiddenDeadlineCards,gateStatus:client.status)
         value.undoTitle=pendingClose?.title;value.closeFailed=closeFailed
         return value
     }

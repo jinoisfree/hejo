@@ -67,7 +67,16 @@ final class IslandModel {
     private var wasDisconnected = false
     init(clock: @escaping () -> Date = Date.init) { self.clock = clock }
     static func firstLine(_ text: String, limit: Int = 24) -> String { String((text.split(whereSeparator: \.isNewline).first.map(String.init) ?? "").prefix(limit)) }
-    private var problemVisible: Bool { wasDisconnected || (restoredUntil.map { $0 > now } ?? false) || input.failure != nil || !input.uploads.isEmpty || [.revoked,.wrongCode,.storageError,.tooLarge].contains(input.status) }
+    private var problemVisible: Bool { wasDisconnected || (restoredUntil.map { $0 > now } ?? false) || input.failure != nil || !input.uploads.isEmpty || connectionProblem != nil }
+    private var connectionProblem: Activity? {
+        let action: Action?
+        switch input.status {
+        case .revoked, .wrongCode, .storageError: action = .reconnect
+        case .tooLarge, .updateRequired: action = nil
+        default: return nil
+        }
+        return Activity(kind: .problem, text: input.status.text, action: action, tone: .red)
+    }
     private func advance() {
         let date=now
         if let lastTick, !problemVisible, var event=active { event.remaining -= max(0,date.timeIntervalSince(lastTick)); active=event.remaining>0 ? event : nil }
@@ -89,6 +98,7 @@ final class IslandModel {
             case .connected, .tooLarge:
                 if wasDisconnected && next.status == .connected { restoredUntil=date.addingTimeInterval(2) }
                 wasDisconnected=false; retryAt=nil
+            case .updateRequired: wasDisconnected=false; retryAt=nil; restoredUntil=nil
             default: wasDisconnected=false; retryAt=nil
             }
         }
@@ -134,8 +144,8 @@ final class IslandModel {
             result.activity=Activity(kind:.problem,text:text,action:.reconnect,tone:.orange);result.disconnected=true
         } else if let until=restoredUntil, until>date {
             result.activity=Activity(kind:.problem,text:"다시 연결됨",tone:.green);result.restored=true
-        } else if [.revoked,.wrongCode,.storageError,.tooLarge].contains(input.status) {
-            result.activity=Activity(kind:.problem,text:input.status.text,action:input.status == .tooLarge ? nil:.reconnect,tone:.red)
+        } else if let connectionProblem {
+            result.activity = connectionProblem
         } else if let failure=input.failure {
             let text=(failure.isSend ? "보내지 못함 · "+failure.firstWords+" · " : "")+failure.message+(failure.retryKey == nil ? "":" · 다시 보내기")
             result.activity=Activity(kind:.problem,text:text,action:failure.retryKey.map(Action.retry),tone:.red)

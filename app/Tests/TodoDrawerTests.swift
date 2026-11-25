@@ -18,6 +18,15 @@ import AppKit
     defer{try? FileManager.default.removeItem(at:home)}
     let store=try LocalStore(directory:home),client=GateClient(store:store,credentials:MemoryCredentials())
     let controller=try testConversation(client:client),model=controller.model
+    let historyStore = try LocalStore(directory: home.appendingPathComponent("history"), historyMode: true)
+    let historyController = try testConversation(client: GateClient(store: historyStore, credentials: MemoryCredentials()))
+    defer { historyController.client.stop() }
+    let refreshing = historyController.todoDrawer.snapshot(historyController.model, now: Date())
+    let needsUpdate = historyController.todoDrawer.snapshot(historyController.model, now: Date(), gateStatus: .updateRequired)
+    try check(refreshing.warning == "대화 알림을 갱신 중이에요." && needsUpdate.historyUpdating
+              && needsUpdate.warning == ConnectionStatus.updateRequired.text,
+              "AT-HO-05 drawer update warning takes priority over history refresh")
+    print("AT-HO-05 DRAWER PASS")
     var now=ThreadTools.date("2026-11-20T10:00:00+09:00")
     controller.clock={now}
     var calendar=Calendar(identifier:.gregorian);calendar.timeZone=TimeZone(identifier:"Asia/Seoul")!
