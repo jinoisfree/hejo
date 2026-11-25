@@ -3,7 +3,7 @@ import importlib.util
 
 
 def check_requirements():
-    return all(importlib.util.find_spec(name) is not None for name in ("aiohttp", "jsonschema", "regex"))
+    return all(importlib.util.find_spec(name) is not None for name in ("aiohttp", "jsonschema"))
 
 
 def create_adapter(config):

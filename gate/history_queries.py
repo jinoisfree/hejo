@@ -7,9 +7,8 @@ import asyncio
 from datetime import datetime, timezone
 import re
 import unicodedata
-import regex
 from .history import HistoryError
-from .history_search import ranges, snippet
+from .history_search import clusters, ranges, snippet
 
 YES = {'승인','전송','발송','발송해','승인, 발송해','응','응응','ㅇㅇ','네','예','좋아','진행','그래','오케이','ok','yes'}
 PATTERNS = {name: re.compile(pattern) for name, pattern in {'nothingWaiting': '승인(을|이)?\\s*(기다리는|해\\s*주실|해\\s*줄|할|받을|드릴)[^\\n.!?]{0,14}없', 'approval1': '승인(을|이)?\\s*((만|좀|다시|한\\s*번\\s*더)\\s*)*(하면|해\\s*줘(?!서)|해\\s*주|해\\s*줄래|해\\s*\\?|부탁|기다|필요|요청|할래|할까|바라|받아야|줘(?!서)|주면)', 'approval2': '승인[^\\n.!?]{0,14}?(이?라고|한\\s*마디)만?\\s*((다시|한\\s*번(\\s*더|만)?|정확히|꼭|바로|그냥)\\s*)*(((답(장|변)?|말씀?|입력)\\s*)?(해((?![가-힣])|\\s*(줘(?!서)|주))|하면)|(보내|적어|남겨|써|알려)((?![가-힣])|\\s*(줘(?!서)|주))|보내면|적으면|남기면|쓰면)'} .items()}
@@ -20,8 +19,7 @@ def thinking(text):
 
 
 def prefix(text, count):
-    # Swift String.prefix counts extended grapheme clusters, not code points.
-    return ''.join(match.group() for _, match in zip(range(count), regex.finditer(r'\X', text)))
+    return ''.join(clusters(text, limit=count))
 
 
 def stamp(text):
