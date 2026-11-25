@@ -13,7 +13,7 @@ import Foundation
 
     let values = [
         "layout:sections": #"[{"id":"1","name":""},{"id":"2","name":"Ops"}]"#,
-        "layout:home": #"{"channel":"pet-room"}"#,
+        "layout:home": #"{"channel":"P"}"#,
         "zone:G": "2", "zone:H": "9", "pin:beta": "1", "zone:beta": "2", "hide:alpha": "1"
     ]
     var remote = StateDocument(rev: 1, items: values.mapValues { .init(v: $0, at: 1, dev: "fixture") })
@@ -33,7 +33,7 @@ import Foundation
         let employees: [[String: Any]] = ["default", "alpha", "beta"].map {
             ["id": $0, "name": $0, "aliases": [String]()]
         }
-        let rooms: [[String: Any]] = ["G", "H", "K", "pet-room"].map {
+        let rooms: [[String: Any]] = ["G", "H", "K", "P"].map {
             ["id": $0, "title": $0, "lead": "alpha", "members": ["alpha", "beta"], "archived": $0 == "K"]
         }
         try await client.receive(["v": 1, "type": "welcome", "head_seq": 0,
@@ -55,7 +55,7 @@ import Foundation
         try check(report["v"] as? Int == 1 && report["type"] as? String == "discord_layout", "AT-DK-50 frame")
         try check(sections?.compactMap { $0["id"] as? String } == ["1", "2"], "AT-DK-50 section order")
         try check(sections?.compactMap { $0["name"] as? String } == ["section 1", "Ops"], "AT-DK-50 section names")
-        try check(sections?.compactMap { $0["rooms"] as? [String] } == [["H"], ["G", "beta"]], "AT-DK-50 section rooms")
+        try check(sections?.compactMap { $0["rooms"] as? [String] } == [["H", "P"], ["G", "beta"]], "AT-DK-50 section rooms")
         try check(stack?["name"] as? String == "DM" && stack?["rooms"] as? [String] == ["alpha", "default"], "AT-DK-50 stack")
     }
     func ack() async throws {
@@ -80,7 +80,7 @@ import Foundation
     try member.set(["zone:H": "2"], at: 2)
     try await waitFor { reports.count == 1 }
     let sections = reports[0]["sections"] as? [[String: Any]]
-    try check(sections?.compactMap { $0["rooms"] as? [String] } == [[], ["G", "H", "beta"]], "AT-DK-52 room moved")
+    try check(sections?.compactMap { $0["rooms"] as? [String] } == [["P"], ["G", "H", "beta"]], "AT-DK-52 room moved")
     try await ack()
     client.stop()
     try await welcome()

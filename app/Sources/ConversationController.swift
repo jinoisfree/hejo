@@ -498,9 +498,7 @@ struct ConversationFailedSend: Identifiable {
             guard let self, self.client.replayComplete else { return nil }
             let state = self.model.memberState
             guard state.store.settings.stateAccount == nil || (state.connected && state.hasFetched) else { return nil }
-            return self.model.sidebar.discordLayout(rooms: self.model.rooms,
-                                                    homeChannelID: self.model.homeChannel?.id,
-                                                    hidden: self.model.hidden)
+            return self.model.sidebar.discordLayout(rooms: self.model.rooms, hidden: self.model.hidden)
         }
         client.onFrame = { [weak self] frame in self?.receive(frame) }
         if client.store.historyMode {

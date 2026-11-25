@@ -85,12 +85,12 @@ struct SidebarLayout {
         }
     }
 
-    func discordLayout(rooms: [Room], homeChannelID: String?, hidden: Set<String>) -> DiscordLayout {
+    func discordLayout(rooms: [Room], hidden: Set<String>) -> DiscordLayout {
         var sectionRooms: [String: [String]] = [:]
         var stackRooms: [String] = []
         var seen = Set<String>()
         for room in rooms.sorted(by: { $0.id < $1.id }) {
-            guard room.archived != true, room.id != HomeRoom.id, room.id != homeChannelID,
+            guard room.archived != true, room.id != HomeRoom.id,
                   seen.insert(room.id).inserted else { continue }
             if room.kind == .direct && (isStacked(room.id) || hidden.contains(room.id)) {
                 stackRooms.append(room.id)
