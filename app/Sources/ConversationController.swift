@@ -492,6 +492,7 @@ struct ConversationFailedSend: Identifiable {
         }
         model.memberState.onUnpinned = { [weak self] count in self?.notice = "고정 자리 5개를 넘어 \(count)개의 고정을 풀었어요." }
         client.telegram.onChange = { [weak self] in self?.notifyChange() }
+        client.discord.onChange = { [weak self] in self?.notifyChange() }
         client.onFrame = { [weak self] frame in self?.receive(frame) }
         if client.store.historyMode {
             model.history.readIntent = { [weak self] action,room,key in self?.historyLoading.read(action:action,room:room,key:key) }

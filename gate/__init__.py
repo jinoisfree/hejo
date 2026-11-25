@@ -29,6 +29,8 @@ def parse_target(ref):
 def register(ctx):
     from .telegram import attach_telegram
     ctx.register_platform_handler("telegram", attach_telegram)
+    from .discord import attach_discord
+    ctx.register_platform_handler("discord", attach_discord)
     ctx.register_platform(
         name="hejo", label="hejo", adapter_factory=create_adapter,
         check_fn=check_requirements, allowed_users_env="HEJO_ALLOWED_USERS",

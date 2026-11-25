@@ -49,6 +49,7 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
     def __init__(self, config):
         super().__init__(config, Platform("hejo"))
         self.telegram = None
+        self.discord = None
         self.journal = None
         self.files = None
         self._file_cleanup_task = None
@@ -121,6 +122,8 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             self.auth = AuthStore(get_hermes_home())
             from .telegram import Telegram
             self.telegram = Telegram(self, get_hermes_home())
+            from .discord import Discord
+            self.discord = Discord(self, get_hermes_home())
             self.server = GateServer(self)
             await self._finish_thread_deletions()
             self.cleanup_rooms()
@@ -133,6 +136,8 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
         except (OSError, ValueError, HejoJournalError):
             if self.telegram:
                 await self.telegram.close()
+            if self.discord:
+                await self.discord.close()
             if self.server:
                 await self.server.stop()
             self.journal.close()
@@ -174,6 +179,8 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             return
         if self.telegram:
             await self.telegram.close()
+        if self.discord:
+            await self.discord.close()
         if self._register_task:
             self._register_task.cancel()
             await asyncio.gather(self._register_task, return_exceptions=True)
@@ -213,6 +220,8 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             await self.server.broadcast(saved)
         if self.telegram:
             self.telegram.recorded(saved)
+        if self.discord:
+            self.discord.recorded(saved)
         return saved
 
     def _validate_frame(self, frame):
@@ -801,6 +810,8 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
                                              "thread": thread, "on": True, "ttl_seconds": 6, **({"room":room} if room else {})})
             if self.telegram:
                 self.telegram.send_typing((room or chat_id, thread))
+            if self.discord:
+                self.discord.send_typing((room or chat_id, thread))
 
     async def stop_typing(self, chat_id, metadata=None):
         if self.forwarder:
@@ -829,6 +840,10 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             room = chat_id[5:] if chat_id.startswith("room:") else None
             for _, thread in sorted(stopping):
                 self.telegram.wake((room or chat_id, thread))
+        if self.discord:
+            room = chat_id[5:] if chat_id.startswith("room:") else None
+            for _, thread in sorted(stopping):
+                self.discord.wake((room or chat_id, thread))
 
     async def get_chat_info(self, chat_id):
         if self.forwarder:

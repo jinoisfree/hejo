@@ -703,6 +703,8 @@ class GateServer:
                 try:
                     if frame["type"] in {"telegram", "telegram_pair", "telegram_unpair", "telegram_save"}:
                         await self.adapter.telegram.command(frame, conn)
+                    elif frame["type"] in {"discord", "discord_pair", "discord_unpair", "discord_save"}:
+                        await self.adapter.discord.command(frame, conn)
                     elif frame["type"] == "roster":
                         await conn.send({"v": 1, "type": "roster", "ref": frame["id"],
                                          "employees": self.adapter.employees()})

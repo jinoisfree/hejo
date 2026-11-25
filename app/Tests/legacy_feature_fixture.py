@@ -1,6 +1,6 @@
-"""An old gate rejects the new optional query while preserving existing fixture assertions."""
+"""An old gate rejects optional feature queries while preserving existing fixture assertions."""
 async def reject_telegram(ws, frame):
-    if frame.get('type') != 'telegram':
+    if frame.get('type') not in {'telegram', 'discord'}:
         return False
     await ws.send_json({'v': 1, 'type': 'error', 'ref': frame['id'], 'code': 'unexpected_frame'})
     return True

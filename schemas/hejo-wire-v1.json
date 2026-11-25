@@ -107,6 +107,24 @@
     },
     {
       "$ref": "#/$defs/deadline_close_status"
+    },
+    {
+      "$ref": "#/$defs/discord"
+    },
+    {
+      "$ref": "#/$defs/discord_pair"
+    },
+    {
+      "$ref": "#/$defs/discord_unpair"
+    },
+    {
+      "$ref": "#/$defs/discord_save"
+    },
+    {
+      "$ref": "#/$defs/discord_status"
+    },
+    {
+      "$ref": "#/$defs/discord_code"
     }
   ],
   "$defs": {
@@ -1118,6 +1136,18 @@
         },
         {
           "$ref": "#/$defs/deadline_close"
+        },
+        {
+          "$ref": "#/$defs/discord"
+        },
+        {
+          "$ref": "#/$defs/discord_pair"
+        },
+        {
+          "$ref": "#/$defs/discord_unpair"
+        },
+        {
+          "$ref": "#/$defs/discord_save"
         }
       ]
     },
@@ -1182,6 +1212,12 @@
         },
         {
           "$ref": "#/$defs/deadline_close_status"
+        },
+        {
+          "$ref": "#/$defs/discord_status"
+        },
+        {
+          "$ref": "#/$defs/discord_code"
         }
       ]
     },
@@ -2131,6 +2167,167 @@
           }
         }
       ]
+    },
+    "discord": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "discord"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "discord_pair": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "discord_pair"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "discord_unpair": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "discord_unpair"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "discord_save": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "discord_save"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "id",
+        "enabled"
+      ],
+      "additionalProperties": false
+    },
+    "discord_status": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "discord_status"
+        },
+        "ref": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "platform_ready": {
+          "type": "boolean"
+        },
+        "paired": {
+          "type": "boolean"
+        },
+        "channel_problem": {
+          "type": "boolean"
+        },
+        "core_open": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "enabled",
+        "platform_ready",
+        "paired",
+        "channel_problem",
+        "core_open"
+      ],
+      "additionalProperties": false
+    },
+    "discord_code": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "discord_code"
+        },
+        "ref": {
+          "type": "string"
+        },
+        "code": {
+          "type": "string",
+          "minLength": 12,
+          "maxLength": 12
+        },
+        "expires_in": {
+          "const": 600
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "ref",
+        "code",
+        "expires_in"
+      ],
+      "additionalProperties": false
     }
   },
   "x-limits": {

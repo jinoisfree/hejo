@@ -51,6 +51,7 @@ class RoomCommands:
     async def room_command(self, frame, conn):
         async with self.files.lock, self._publish_lock:
             bridge = getattr(self, 'telegram', None)
+            discord = getattr(self, 'discord', None)
             identifier = frame.get('id') or str(uuid.uuid4())
             if identifier in self.journal.deleted_rooms:
                 await self.server.error('room_deleted', identifier, conn)
@@ -83,6 +84,8 @@ class RoomCommands:
                     log.warning('room_cleanup_pending')
         if bridge:
             bridge.recorded(saved)
+        if discord:
+            discord.recorded(saved)
 
     def cleanup_rooms(self):
         self.files.cleanup()

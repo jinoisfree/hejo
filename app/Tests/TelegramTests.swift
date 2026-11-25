@@ -40,7 +40,7 @@ import AppKit
     await state.query()
     state.receive(["type": "error", "ref": outgoing.last!["id"]!, "code": "unexpected_frame"])
     try check(section.status.stringValue == "서버가 지원하지 않음" && !section.pair.isEnabled, "AT-HT-52 legacy gate")
-    try check(GateClient.features == ["rooms", "telegram"], "AT-HT-51 advertised features")
+    try check(GateClient.features == ["rooms", "telegram", "discord"], "AT-HT-51 advertised features")
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: root) }
     let client = GateClient(store: try LocalStore(directory: root), credentials: MemoryCredentials())

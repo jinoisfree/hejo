@@ -59,7 +59,8 @@ async def test_at_sm_02_edit_state_buttons_images_delete(gate, local, airport, c
     # HEJO-DEADLINE-CLOSE added definitions only (verdict V-2).
     # HEJO-TELEGRAM replaced the external-messenger frames only (verdict 2차, HT-B02).
     # HEJO-HISTORY adds only the negotiated, optional welcome.history field.
-    assert hashlib.sha256(wire.read_bytes()).hexdigest() == '7508984fd469bb0415483ffe1e99ebd0f2fd7461db8a82dae64eaf2f10040e94'
+    # HEJO-DISCORD added definitions only (verdict 2회, B-1)
+    assert hashlib.sha256(wire.read_bytes()).hexdigest() == '87aa0ca6fd92ab66236ac66aa3243062f3d8635ba2bed06a64a0dd728aae0ca8'
     assert RECORD_TYPES == {'message', 'edit', 'delete', 'state', 'room', 'room_delete'}
     ws, welcome = await client.pair()
     assert 'history' not in welcome
