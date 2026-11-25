@@ -1,8 +1,10 @@
 """Discord forum window. The journal owns messages; this door owns only routing."""
 import asyncio
+from collections import defaultdict
 import hmac
 import json
 import logging
+import math
 import os
 from pathlib import Path
 import secrets
@@ -20,6 +22,46 @@ TYPING_SECONDS = 8.0
 MAX_SEND_FILE_BYTES = 8 * 1024 * 1024
 MAX_RECEIVE_FILE_BYTES = 50 * 1024 * 1024
 MAX_CONTENT_CHARACTERS = 2000
+CATEGORY_LIMIT = 50
+RETRY_ATTEMPTS = 3
+RETRY_DELAY = 60
+STACK = '~stack'
+DEFAULT_CATEGORY = object()
+ARCHIVE_CATEGORY = object()
+
+
+class SyncSuperseded(Exception):
+    """The pairing or enabled state changed during synchronization."""
+
+
+class SyncRateLimited(Exception):
+    def __init__(self, delay):
+        self.delay = delay
+
+
+def layout_ids_valid(layout):
+    section_ids = [section['id'] for section in layout['sections']]
+    room_ids = [room for group in [*layout['sections'], layout['stack']] for room in group['rooms']]
+    return (STACK not in section_ids and len(section_ids) == len(set(section_ids))
+            and len(room_ids) <= 2000 and len(room_ids) == len(set(room_ids)))
+
+
+async def rate_limit_delay(exc):
+    # Import only on a Discord call failure. The platform dependency is optional.
+    import discord
+    rate_limited = getattr(discord, 'RateLimited', ())
+    http_error = getattr(discord, 'HTTPException', ())
+    if isinstance(rate_limited, type) and isinstance(exc, rate_limited):
+        delay = exc.retry_after
+    elif isinstance(http_error, type) and isinstance(exc, http_error) and exc.status == 429:
+        try:
+            # discord.py decoded the HTTP body before constructing HTTPException.
+            delay = (await exc.response.json())['retry_after']
+        except Exception:
+            delay = RETRY_DELAY
+    else:
+        return None
+    return delay if type(delay) in (float, int) and math.isfinite(delay) and delay >= 0 else RETRY_DELAY
 
 
 def split_content(text):
@@ -82,6 +124,8 @@ class Discord:
         self.sent_path = self.settings_store.path / 'sent.jsonl'
         self._load_sent()
         self._channel_lock = asyncio.Lock()
+        self.rate_limit_sleep = asyncio.sleep
+        self._retry_task = None
         self._sync_requested = asyncio.Event()
         self._sync_task = asyncio.create_task(self._sync_worker())
         self._connection_task = asyncio.create_task(self._watch_connection())
@@ -138,6 +182,19 @@ class Discord:
             return
         if kind == 'discord':
             self.request_sync()
+            await conn.send(self.status(ref))
+            return
+        if kind == 'discord_layout':
+            layout = {key: frame[key] for key in ('sections', 'stack')}
+            if not layout_ids_valid(layout):
+                await self.adapter.server.error('bad_layout', ref, conn)
+                return
+            with self.settings_store.locked():
+                changed = layout != self.layout()
+                if changed:
+                    self.settings_store.write('layout.json', layout)
+            if changed:
+                self.request_sync()
             await conn.send(self.status(ref))
             return
         if kind == 'discord_pair':
@@ -284,6 +341,19 @@ class Discord:
                 **{room['id']: room['title'] for room in self.adapter.journal.rooms.values()
                    if not room.get('archived') and room['id'] not in self.adapter.journal.deleted_rooms}}
 
+    def layout(self):
+        from .server import CLIENT_VALIDATOR
+        try:
+            value = self.settings_store.read('layout.json', None)
+            if not isinstance(value, dict) or value.keys() != {'sections', 'stack'}:
+                return None
+            frame = {**value, 'v': 1, 'type': 'discord_layout', 'id': 'stored'}
+            if CLIENT_VALIDATOR.is_valid(frame) and layout_ids_valid(value):
+                return value
+        except (OSError, ValueError, TypeError, KeyError):
+            pass
+        return None
+
     def channels(self, tag):
         empty = {'tag': tag, 'category': None, 'archive': None, 'channels': {}}
         try:
@@ -291,6 +361,11 @@ class Discord:
             if value['tag'] != tag:
                 return empty
             entries = value['channels']
+            sections = value.get('sections', {})
+            if (not isinstance(sections, dict) or not all(isinstance(section, dict)
+                    and isinstance(section.get('category'), str) and isinstance(section.get('name'), str)
+                    for section in sections.values())):
+                return empty
             if (not all(value.get(k) is None or isinstance(value[k], str) for k in ('category', 'archive'))
                     or not isinstance(entries, dict) or not all(isinstance(room, str) and isinstance(entry, dict)
                     and isinstance(entry['channel'], str) and isinstance(entry['name'], str)
@@ -327,60 +402,37 @@ class Discord:
                 return
             pair = self.private()['pair']
             tag = pair['tag']
-            value = self.channels(tag)
-            desired = self.rooms()
-            problem = False
             try:
                 guild = _bot.get_guild(snowflake(pair['guild_id']))
-                category = guild.get_channel(snowflake(value['category'])) if value['category'] else None
-                if category is None:
-                    category = await guild.create_category('hejo')
-                    if not self.current(tag):
-                        return
-                    value['category'] = str(category.id)
-                    with self.settings_store.locked():
-                        self.settings_store.write('channels.json', value)
-                for room in dict.fromkeys([*desired, *value['channels']]):
-                    if not self.current(tag):
-                        return
-                    entry = value['channels'].get(room)
-                    closed = room not in desired
-                    try:
-                        channel = guild.get_channel(snowflake(entry['channel'])) if entry else None
-                        if channel is None and closed:
-                            continue
-                        destination = category
-                        if closed:
-                            destination = guild.get_channel(snowflake(value['archive'])) if value['archive'] else None
-                            if destination is None:
-                                destination = await guild.create_category('hejo 보관')
-                                value['archive'] = str(destination.id)
-                        if channel is None:
-                            channel = await guild.create_forum(name=desired[room], category=destination)
-                            entry = {'channel': str(channel.id), 'name': desired[room], 'closed': False}
-                        else:
-                            args = {}
-                            if not closed and entry['name'] != desired[room]:
-                                args['name'] = desired[room]
-                            if entry['closed'] != closed:
-                                args['category'] = destination
-                            if args:
-                                await channel.edit(**args)
-                            entry = {**entry, 'name': desired.get(room, entry['name']), 'closed': closed}
-                        if not self.current(tag):
-                            return
-                        value['channels'][room] = entry
-                        with self.settings_store.locked():
-                            self.settings_store.write('channels.json', value)
-                    except Exception as exc:
-                        log.warning('discord_channel_failed kind=%s', type(exc).__name__)
-                        problem = True
+                sync = ChannelSync(self, guild, tag)
+                await sync.run()
+                problem = sync.problem
+            except SyncSuperseded:
+                return
+            except SyncRateLimited as exc:
+                problem = True
+                if self.current(tag):
+                    self._schedule_sync(tag, exc.delay)
             except Exception as exc:
                 log.warning('discord_channel_failed kind=%s', type(exc).__name__)
                 problem = True
-            if self.channel_problem != problem:
+            if self.current(tag) and self.channel_problem != problem:
                 self.channel_problem = problem
                 await self.publish()
+
+    def _schedule_sync(self, tag, delay):
+        if self._retry_task is not None:
+            return
+
+        async def retry():
+            try:
+                await self.rate_limit_sleep(max(delay, RETRY_DELAY))
+                if self.current(tag):
+                    self.request_sync()
+            finally:
+                self._retry_task = None
+
+        self._retry_task = asyncio.create_task(retry())
 
     def current(self, tag):
         return self.active() and self.private()['pair']['tag'] == tag
@@ -665,12 +717,277 @@ class Discord:
 
     async def close(self):
         tasks = (self._sync_task, self._connection_task, *self.workers.values(), *self._typing_tasks)
+        if self._retry_task is not None:
+            tasks += (self._retry_task,)
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
         self.workers.clear()
         self.pending.clear()
         self._typing_tasks.clear()
+
+
+class ChannelSync:
+    """One reconciliation under the Discord channel lock."""
+
+    def __init__(self, door, guild, tag):
+        self.door, self.guild, self.tag = door, guild, tag
+        self.value = door.channels(tag)
+        self.layout = door.layout()
+        self.rooms = door.rooms()
+        self.entries = self.value['channels']
+        self.problem = False
+        self.updated_channels = {}
+        self.updated_parents = {}
+
+    def check_current(self):
+        if not self.door.current(self.tag):
+            raise SyncSuperseded
+
+    async def apply(self, call, *args, **kwargs):
+        for attempt in range(RETRY_ATTEMPTS):
+            self.check_current()
+            try:
+                result = await call(*args, **kwargs)
+            except Exception as exc:
+                self.check_current()
+                delay = await rate_limit_delay(exc)
+                if delay is None:
+                    log.warning('discord_channel_failed kind=%s', type(exc).__name__)
+                    self.problem = True
+                    return False, None
+                if attempt + 1 == RETRY_ATTEMPTS:
+                    log.warning('discord_channel_failed kind=%s', type(exc).__name__)
+                    raise SyncRateLimited(delay) from None
+                await self.door.rate_limit_sleep(delay)
+            else:
+                self.check_current()
+                return True, result
+
+    def save(self):
+        self.check_current()
+        with self.door.settings_store.locked():
+            self.door.settings_store.write('channels.json', self.value)
+
+    def channel(self, identifier):
+        return self.updated_channels.get(identifier) or self.guild.get_channel(snowflake(identifier))
+
+    def room_channel(self, room):
+        entry = self.entries.get(room)
+        return self.channel(entry['channel']) if entry else None
+
+    def parent(self, channel):
+        identifier = str(channel.id)
+        if identifier in self.updated_parents:
+            return self.updated_parents[identifier]
+        category = getattr(channel, 'category', None)
+        parent_id = getattr(channel, 'category_id', None)
+        return str(parent_id) if parent_id is not None else str(category.id) if category else None
+
+    def children(self, category):
+        identifier = str(category.id)
+        cached = getattr(category, 'channels', None)
+        if cached is None:
+            # The original acceptance suite uses a dictionary of simple channel doubles.
+            cached = self.guild.channels.values()
+        children = {str(child.id): child for child in cached if self.parent(child) == identifier}
+        for child_id, parent_id in self.updated_parents.items():
+            if parent_id == identifier:
+                children[child_id] = self.updated_channels[child_id]
+        return children
+
+    def category_entry(self, key):
+        if key is DEFAULT_CATEGORY:
+            return self.value.get('category'), 'hejo'
+        if key is ARCHIVE_CATEGORY:
+            return self.value.get('archive'), 'hejo 보관'
+        entry = self.value.get('sections', {}).get(key, {})
+        return entry.get('category'), entry.get('name')
+
+    def category(self, key):
+        identifier, _ = self.category_entry(key)
+        return self.channel(identifier) if identifier else None
+
+    async def ensure_category(self, key, name):
+        identifier, recorded_name = self.category_entry(key)
+        category = self.channel(identifier) if identifier else None
+        if category is None:
+            ok, category = await self.apply(self.guild.create_category, name)
+            if not ok:
+                return None
+            identifier = str(category.id)
+        elif recorded_name != name:
+            ok, edited = await self.apply(category.edit, name=name)
+            if not ok:
+                return category
+            category = edited or category
+        else:
+            return category
+        self.updated_channels[identifier] = category
+        if key is DEFAULT_CATEGORY:
+            self.value['category'] = identifier
+        elif key is ARCHIVE_CATEGORY:
+            self.value['archive'] = identifier
+        else:
+            self.value.setdefault('sections', {})[key] = {'category': identifier, 'name': name}
+        self.save()
+        return category
+
+    def room_order(self, room):
+        return self.rooms.get(room, self.entries.get(room, {}).get('name', '')).casefold(), room
+
+    def reserve(self, categories, destinations):
+        # Managed children can move out. All other occupants reduce the room capacity.
+        managed = {entry['channel'] for entry in self.entries.values()}
+        by_category = defaultdict(list)
+        for room, key in destinations.items():
+            by_category[key].append(room)
+        for key in [*categories, DEFAULT_CATEGORY]:
+            if key not in by_category:
+                continue
+            category = categories.get(key) or self.category(key)
+            reserved = len(self.children(category).keys() - managed) if category else 0
+            overflow = sorted(by_category[key], key=self.room_order)[max(0, CATEGORY_LIMIT - reserved):]
+            for room in overflow:
+                if key is DEFAULT_CATEGORY:
+                    del destinations[room]
+                else:
+                    by_category[DEFAULT_CATEGORY].append(room)
+                    destinations[room] = DEFAULT_CATEGORY
+            self.problem |= bool(overflow)
+
+    async def place(self, room, channel, category, *, temporary=False):
+        closed = room not in self.rooms
+        previous = self.entries.get(room)
+        name = None if closed else self.rooms[room]
+        category_id = str(category.id)
+        moved = channel is None or self.parent(channel) != category_id
+        if channel is None:
+            ok, channel = await self.apply(self.guild.create_forum, name=name, category=category)
+            if not ok:
+                return
+        else:
+            fields = {}
+            if moved:
+                fields['category'] = category
+            if name is not None and previous['name'] != name:
+                fields['name'] = name
+            if fields:
+                ok, edited = await self.apply(channel.edit, **fields)
+                if not ok:
+                    return
+                channel = edited or channel
+        identifier = str(channel.id)
+        self.updated_channels[identifier] = channel
+        if moved:
+            self.updated_parents[identifier] = category_id
+        entry = {'channel': identifier, 'name': name if name is not None else previous['name'],
+                 'closed': previous['closed'] if temporary else closed}
+        if entry != previous:
+            self.entries[room] = entry
+            self.save()
+
+    async def place_rooms(self, pending):
+        # Vacate existing channels before creating new ones. Break full-category
+        # cycles with a single temporary move through hejo.
+        while pending:
+            ready = []
+            for room, category in pending.items():
+                channel = self.room_channel(room)
+                if channel is None:
+                    continue
+                if self.parent(channel) == str(category.id) or len(self.children(category)) < CATEGORY_LIMIT:
+                    ready.append(room)
+                    await self.place(room, channel, category)
+            for room in ready:
+                del pending[room]
+            if ready:
+                continue
+            default_id = self.category_entry(DEFAULT_CATEGORY)[0]
+            wanted = {str(category.id) for category in pending.values()}
+            cycle_room = next((room for room, category in pending.items() if room in self.rooms
+                               and str(category.id) != default_id
+                               and (channel := self.room_channel(room)) is not None
+                               and (source := self.parent(channel)) != default_id
+                               and source in wanted), None)
+            if cycle_room is not None:
+                channel = self.room_channel(cycle_room)
+                staging = self.category(DEFAULT_CATEGORY)
+                if staging is None:
+                    staging = await self.ensure_category(DEFAULT_CATEGORY, 'hejo')
+                if staging is not None and len(self.children(staging)) < CATEGORY_LIMIT:
+                    await self.place(cycle_room, channel, staging, temporary=True)
+                    if self.parent(channel) != str(staging.id):
+                        del pending[cycle_room]
+                    continue
+            break
+
+        for room, category in pending.items():
+            if self.room_channel(room) is None and len(self.children(category)) < CATEGORY_LIMIT:
+                await self.place(room, None, category)
+            else:
+                self.problem = True
+
+    async def reorder(self, desired, occupants):
+        if len(desired) < 2:
+            return
+        order = lambda channel: (channel.position, channel.id)
+        if desired == sorted(desired, key=order):
+            return
+        # Update only managed IDs. Start after any tied position so Discord's
+        # snowflake tie-break cannot undo the requested order.
+        positions = sorted(channel.position for channel in desired)
+        if len(set(positions)) != len(positions):
+            start = max(channel.position for channel in occupants) + 1
+            positions = range(start, start + len(desired))
+        payload = [{'id': channel.id, 'position': position}
+                   for channel, position in zip(desired, positions) if channel.position != position]
+        await self.apply(_bot.http.bulk_channel_update, self.guild.id, payload)
+
+    async def run(self):
+        layout = self.layout
+        groups = [] if layout is None else [*((row['id'], row) for row in layout['sections']), (STACK, layout['stack'])]
+        destinations = {room: DEFAULT_CATEGORY for room in self.rooms}
+        categories = {}
+        for key, group in groups:
+            categories[key] = await self.ensure_category(key, group['name'])
+            for room in group['rooms']:
+                if room in destinations:
+                    destinations[room] = key
+        self.reserve(categories, destinations)
+        if DEFAULT_CATEGORY in destinations.values():
+            categories[DEFAULT_CATEGORY] = await self.ensure_category(DEFAULT_CATEGORY, 'hejo')
+        archived = [room for room in self.entries if room not in self.rooms and self.room_channel(room)]
+        if archived:
+            categories[ARCHIVE_CATEGORY] = await self.ensure_category(ARCHIVE_CATEGORY, 'hejo 보관')
+        destinations.update(dict.fromkeys(archived, ARCHIVE_CATEGORY))
+        pending = {room: categories[key] for room, key in destinations.items() if categories.get(key)}
+        await self.place_rooms(pending)
+
+        if layout is not None:
+            default = self.category(DEFAULT_CATEGORY)
+            archive = self.category(ARCHIVE_CATEGORY)
+            ordered = [category for category in [*(categories[key] for key, _ in groups), default, archive]
+                       if category is not None]
+            await self.reorder(ordered, ordered)
+            by_channel = {entry['channel']: room for room, entry in self.entries.items()}
+            for category in ordered:
+                children = self.children(category)
+                managed = sorted(children.keys() & by_channel.keys(), key=lambda cid: self.room_order(by_channel[cid]))
+                await self.reorder([children[cid] for cid in managed], children.values())
+
+        old_sections = self.value.get('sections', {}).keys() - {key for key, _ in groups}
+        for key in [*sorted(old_sections), DEFAULT_CATEGORY]:
+            category = self.category(key)
+            if category is None or self.children(category):
+                continue
+            ok, _ = await self.apply(category.delete)
+            if ok:
+                if key is DEFAULT_CATEGORY:
+                    self.value['category'] = None
+                else:
+                    del self.value['sections'][key]
+                self.save()
 
 
 class ExternalReply:

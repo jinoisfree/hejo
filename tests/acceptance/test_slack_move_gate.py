@@ -60,7 +60,8 @@ async def test_at_sm_02_edit_state_buttons_images_delete(gate, local, airport, c
     # HEJO-TELEGRAM replaced the external-messenger frames only (verdict 2차, HT-B02).
     # HEJO-HISTORY adds only the negotiated, optional welcome.history field.
     # HEJO-DISCORD added definitions only (verdict 2회, B-1)
-    assert hashlib.sha256(wire.read_bytes()).hexdigest() == '87aa0ca6fd92ab66236ac66aa3243062f3d8635ba2bed06a64a0dd728aae0ca8'
+    # AT-DK-22 permits only the discord_layout definition and two appended references.
+    assert hashlib.sha256(wire.read_bytes()).hexdigest() == '7eb917928a5d0c27191cc2a3ac04d154327ddd5d9b40b0a1fc1ecfcbbba9791c'
     assert RECORD_TYPES == {'message', 'edit', 'delete', 'state', 'room', 'room_delete'}
     ws, welcome = await client.pair()
     assert 'history' not in welcome
