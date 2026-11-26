@@ -39,19 +39,19 @@ enum ThreadTools {
     static func copyHeader(count:Int,key:ConversationKey,name:(String)->String,group:Bool)->String {
         (group ? "#":"@")+name(key.employee)+" 스레드 · 글 \(count)개\n"+link(key).absoluteString
     }
-    static func copySections(_ messages:[ConversationMessage],name:(String)->String,zone:TimeZone = .current)->[String] {
+    static func copySections(_ messages:[ConversationMessage],name:(String)->String,ownerName:String = OwnerProfile.fallbackName,zone:TimeZone = .current)->[String] {
         let stamp=DateFormatter();stamp.locale=Locale(identifier:"en_US_POSIX");stamp.timeZone=zone;stamp.dateFormat="yyyy-MM-dd HH:mm"
         return messages.filter{$0.role=="owner" || !thinking($0.text)}.map { message in
             let body=message.text.replacingOccurrences(of:#"<((?:https?://|mailto:)[^<>\s]+)>"#,with:"$1",options:.regularExpression)
-            var parts=["["+stamp.string(from:date(message.timestamp))+"] "+(message.role=="owner" ? "나":name(message.speaker))]
+            var parts=["["+stamp.string(from:date(message.timestamp))+"] "+(message.role=="owner" ? ownerName:name(message.speaker))]
             if !body.isEmpty { parts.append(body) }
             if let state=message.replyState { parts.append("["+stateLabel(state)+"]") }
             parts += message.files.map{"📎 "+$0.name}
             return parts.joined(separator:"\n")
         }
     }
-    static func copy(_ messages:[ConversationMessage],key:ConversationKey,name:(String)->String,group:Bool=false,zone:TimeZone = .current)->String {
-        let sections=copySections(messages,name:name,zone:zone)
+    static func copy(_ messages:[ConversationMessage],key:ConversationKey,name:(String)->String,ownerName:String = OwnerProfile.fallbackName,group:Bool=false,zone:TimeZone = .current)->String {
+        let sections=copySections(messages,name:name,ownerName:ownerName,zone:zone)
         return ([copyHeader(count:sections.count,key:key,name:name,group:group)]+sections).joined(separator:"\n\n")
     }
     static func toggle(_ labels:[String],selected:Set<String>,label:String)->Set<String> {

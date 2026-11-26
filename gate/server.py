@@ -11,12 +11,13 @@ from collections import deque
 from pathlib import Path
 from aiohttp import web, WSMsgType
 from jsonschema import Draft202012Validator
+from . import owner
 from .auth import AuthRejected
 from .connection_manager import Connections
 from .connections import ConnectionFailure
 from .deadlines import Deadlines
 from .files import MAX_FILE_BYTES, UnknownFile
-from .pictures import Pictures, MAX_PICTURE_BYTES, valid_png
+from .pictures import Pictures, MAX_PICTURE_BYTES, picture_address, valid_png
 from .journal import HejoJournalError
 from .history import HistorySession, HistoryError, encoded, PAGE_BYTES
 from .history_queries import HistoryQueries, stamp
@@ -133,11 +134,12 @@ class GateServer:
         self.tasks = set()
         self.port = None
         self.local = None
-        self.deadlines = Deadlines(get_hermes_home())
-        self.admin_connections = Connections(get_hermes_home(), adapter.employees)
+        self.home = Path(get_hermes_home())
+        self.deadlines = Deadlines(self.home)
+        self.admin_connections = Connections(self.home, adapter.employees)
         runner = getattr(adapter, "_message_handler", None)
         runner = getattr(runner, "__self__", None)
-        self.pictures = Pictures(get_hermes_home(), getattr(getattr(runner, "config", None), "multiplex_profiles", True))
+        self.pictures = Pictures(self.home, getattr(getattr(runner, "config", None), "multiplex_profiles", True))
 
     async def start(self, listen, port):
         if not listen or any(not allowed_address(addr) for addr in listen):
@@ -150,6 +152,8 @@ class GateServer:
         app.router.add_post("/v1/files", self.upload)
         app.router.add_get("/v1/files/{employee}/{file_id}", self.download)
         app.router.add_get("/v1/files/{employee}/{file_id}/metadata", self.file_metadata)
+        app.router.add_get("/v1/owner", self.owner_profile)
+        app.router.add_put("/v1/owner", self.owner_profile)
         app.router.add_route("GET", "/v1/pictures/{kind}/{identifier}", self.picture)
         app.router.add_route("PUT", "/v1/pictures/{kind}/{identifier}", self.picture)
         app.router.add_route("DELETE", "/v1/pictures/{kind}/{identifier}", self.picture)
@@ -447,6 +451,28 @@ class GateServer:
             raise web.HTTPNotFound() from None
         return web.FileResponse(path, headers={"Content-Type": mime, "X-Content-Type-Options": "nosniff"})
 
+    def roster_frame(self, ref, profile):
+        return {"v": 1, "type": "roster", "ref": ref,
+                "employees": self.adapter.employees(), "owner": profile}
+
+    async def owner_profile(self, request):
+        await self.http_auth(request)
+        if request.method == "PUT":
+            try:
+                data = await request.json()
+                if not isinstance(data, dict) or "name" not in data:
+                    raise ValueError("invalid_name")
+                owner.write_name(self.home, data["name"])
+            except (ValueError, RecursionError):
+                raise web.HTTPBadRequest(text="invalid_name") from None
+            except OSError:
+                log.error("owner_profile_write_failed")
+                raise web.HTTPInternalServerError() from None
+        profile = owner.profile(self.home)
+        if request.method == "PUT":
+            await self.broadcast(self.roster_frame("owner", profile))
+        return web.json_response({"ok": True, "owner": profile})
+
     async def picture(self, request):
         await self.http_auth(request)
         identifier = request.match_info["identifier"]
@@ -473,6 +499,8 @@ class GateServer:
 
     async def _picture(self, request):
         kind, identifier = request.match_info["kind"], request.match_info["identifier"]
+        if kind == "owner" and identifier != "owner":
+            raise web.HTTPNotFound()
         if kind == "employee" and identifier not in {e["id"] for e in self.adapter.employees()}:
             raise web.HTTPNotFound()
         if kind == "room" and not identifier.startswith(("home-", "section-")) and identifier not in self.adapter.journal.rooms:
@@ -493,12 +521,16 @@ class GateServer:
                 if not valid_png(bytes(data)):
                     raise web.HTTPUnsupportedMediaType(text="invalid_picture")
                 path = self.pictures.put(kind, identifier, bytes(data))
-                picture = f"/v1/pictures/{kind}/{identifier}?v={path.stat().st_mtime_ns}"
+                picture = picture_address(kind, identifier, path)
             else:
                 self.pictures.delete(kind, identifier)
-            if kind == "employee":
-                await asyncio.gather(*(c.send({"v": 1, "type": "roster", "ref": "picture", "employees": self.adapter.employees()}) for c in tuple(self.connections)))
-            return web.json_response({"ok": True, "picture": picture})
+            result = {"ok": True, "picture": picture}
+            if kind in {"employee", "owner"}:
+                profile = owner.profile(self.home)
+                await self.broadcast(self.roster_frame("owner" if kind == "owner" else "picture", profile))
+                if kind == "owner":
+                    result["owner"] = profile
+            return web.json_response(result)
         except KeyError:
             raise web.HTTPNotFound() from None
         except OSError:
@@ -670,7 +702,7 @@ class GateServer:
             conn = Connection(ws, device_id, replaying=True, hub_token=hub_token, features=set(hello.get("features", [])))
             welcome = {"v": 1, "type": "welcome", "device_id": device_id,
                        "gate_version": "1.0.0", "employees": self.adapter.employees(),
-                       "head_seq": self.adapter.journal.head}
+                       "head_seq": self.adapter.journal.head, "owner": owner.profile(self.home)}
             if "rooms" in conn.features:
                 welcome["rooms"] = list(self.adapter.journal.rooms.values())
             if paired:
@@ -704,8 +736,7 @@ class GateServer:
                     if frame["type"] in {"discord", "discord_pair", "discord_unpair", "discord_save"}:
                         await self.adapter.discord.command(frame, conn)
                     elif frame["type"] == "roster":
-                        await conn.send({"v": 1, "type": "roster", "ref": frame["id"],
-                                         "employees": self.adapter.employees()})
+                        await conn.send(self.roster_frame(frame["id"], owner.profile(self.home)))
                     elif frame['type'] == 'deadlines':
                         waiter = asyncio.create_task(self.send_deadlines(conn, frame['id']))
                         conn.deadline_waiters.add(waiter)

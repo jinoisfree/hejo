@@ -200,6 +200,31 @@ struct ConversationFailedSend: Identifiable {
         let person=model.person(matching:employee)
         return ProfileAvatar(color:PictureCodec.color(name:person?.name ?? employee,hex:person?.color),image:pictures.image(person?.avatar))
     }
+    func ownerAvatar() -> ProfileAvatar {
+        ProfileAvatar(color:PictureCodec.color(name:model.ownerName,hex:nil),image:pictures.image(model.owner?.avatar))
+    }
+    private var profileConnection: (String, Int, String?) {
+        (client.store.settings.address, client.connectionEpoch, client.bearer)
+    }
+    func setOwnerName(_ input: String) async -> String? {
+        let connection = profileConnection
+        let revision = model.ownerRevision
+        do {
+            let name = try OwnerProfile.normalized(input)
+            guard client.isConnected else { throw GateFailure.notConnected }
+            let profile = try await files.setOwnerName(name)
+            guard connection == profileConnection && client.isConnected else { throw GateFailure.notConnected }
+            // A later roster wins even when an older HTTP response is still in flight.
+            if revision == model.ownerRevision { model.setOwner(profile) }
+            return nil
+        } catch OwnerProfileFailure.invalidName {
+            return "이름은 줄바꿈이나 제어 문자 없이 20자까지 쓸 수 있어요."
+        } catch FileTransferFailure.unauthorized {
+            return "출입증을 확인하지 못했어요. 다시 연결해 주세요."
+        } catch {
+            return "이름을 저장하지 못했어요. 연결을 확인해 주세요."
+        }
+    }
     func palette(_ employee:String,dark:Bool)->CharacterPalette {
         let colors=model.employees.sorted{$0.name==$1.name ? $0.id<$1.id:$0.name<$1.name}.compactMap { person -> (id:String,color:NSColor)? in
             guard let hex=person.color,let color=MessageFormat.color(hex) else{return nil};return (person.id,color)
@@ -207,25 +232,34 @@ struct ConversationFailedSend: Identifiable {
         return CharacterPalette.make(hue:CharacterPalette.hues(colors:colors)[employee],dark:dark)
     }
     var pictureSender: ((String,String,Data?) async throws -> String?)?
-    func changePicture(kind:String,id:String,url:URL?,png:Data?=nil) async -> String? {
-        let address=client.store.settings.address,epoch=client.connectionEpoch,token=client.bearer
+    func changePicture(kind:String,id:String,url:URL?,png:Data?=nil,onFailure:((String)->Void)?=nil) async -> String? {
+        let connection = profileConnection
+        let revision = model.ownerRevision
         do {
             let data:Data?
             if let png {data=png}
             else if let url { data=try await Task.detached { try PictureCodec.png(Data(contentsOf:url)) }.value } else { data=nil }
-            guard address==client.store.settings.address,epoch==client.connectionEpoch,token==client.bearer else { return nil }
-            let picture:String?
-            if let pictureSender {picture=try await pictureSender(kind,id,data)}
-            else {picture=try await files.setPicture(kind:kind,id:id,data:data)}
-            guard address==client.store.settings.address,epoch==client.connectionEpoch,token==client.bearer else { return nil }
-            return picture
+            guard connection == profileConnection, kind != "owner" || client.isConnected else { throw FileTransferFailure.changed }
+            let response: GateHTTP.PictureResponse
+            if let pictureSender {
+                response = .init(picture:try await pictureSender(kind,id,data),owner:nil)
+            } else {
+                response = try await files.writePicture(kind:kind,id:id,data:data)
+            }
+            guard connection == profileConnection, kind != "owner" || client.isConnected else { throw FileTransferFailure.changed }
+            if kind == "owner", let owner = response.owner, revision == model.ownerRevision { model.setOwner(owner) }
+            return response.picture
         } catch {
+            let problem: String
             switch error {
-            case FileTransferFailure.invalidFile: notice="이미지 파일만 쓸 수 있어요"
-            case FileTransferFailure.tooLarge: notice="사진은 512 KiB까지 쓸 수 있어요"
-            case FileTransferFailure.unauthorized: notice="출입증을 확인하지 못했어요. 다시 연결해 주세요."
-            default: notice="사진을 바꾸지 못했어요. 연결을 확인해 주세요."
-            };return nil
+            case FileTransferFailure.invalidFile: problem="이미지 파일만 쓸 수 있어요"
+            case FileTransferFailure.tooLarge: problem="사진은 512 KiB까지 쓸 수 있어요"
+            case FileTransferFailure.unauthorized: problem="출입증을 확인하지 못했어요. 다시 연결해 주세요."
+            default: problem="사진을 바꾸지 못했어요. 연결을 확인해 주세요."
+            }
+            if let onFailure { onFailure(problem) }
+            else if connection == profileConnection { notice=problem }
+            return nil
         }
     }
     private var makingRoom=false

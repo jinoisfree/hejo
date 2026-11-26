@@ -3,7 +3,7 @@ import Foundation
 /// Explicit export only. Rows never enter the resident body cache or live cursor.
 @MainActor enum HistoryCopy {
     static func collect(http: HistoryHTTP, key: ConversationKey, context: String,
-                        name:(String)->String, group:Bool, check: () throws -> Void, progress: (Int,Int) -> Void) async throws -> String {
+                        name:(String)->String, ownerName:String, group:Bool, check: () throws -> Void, progress: (Int,Int) -> Void) async throws -> String {
         let target = ["room":key.employee,"thread":key.thread]
         var fields: [String:Any] = ["target":target]
         let directory=FileManager.default.temporaryDirectory.appendingPathComponent("history-copy-"+UUID().uuidString,isDirectory:true)
@@ -37,7 +37,7 @@ import Foundation
                       upperSequence == nil || message.seq < upperSequence! else { throw HistoryFailure.invalidResponse }
                 if firstSequence == nil {firstSequence=message.seq};lastSequence=message.seq
                 collected += 1
-                if let section=ThreadTools.copySections([message],name:name).first {
+                if let section=ThreadTools.copySections([message],name:name,ownerName:ownerName).first {
                     if pageVisible>0 {try handle.write(contentsOf:Data("\n\n".utf8))}
                     try handle.write(contentsOf:Data(section.utf8));pageVisible += 1;visible += 1
                 }

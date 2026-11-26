@@ -1,10 +1,12 @@
 import AppKit
+import UniformTypeIdentifiers
 
 /// Native settings controls. Persistence and device registration remain with the caller.
 @MainActor final class PetSettingsWindow: NSObject, NSTabViewDelegate {
     let window: NSWindow
     let tabs = NSTabView(frame: CGRect(x: 0, y: 0, width: 620, height: 640))
     let discordSection = DiscordSettingsSection()
+    let ownerProfile = OwnerProfileSection()
     let nameField = NSTextField(string: "")
     let nameHint = NSTextField(labelWithString: "1~20자 · 저장하면 모든 화면에 적용됩니다.")
     let scaleSlider = NSSlider(value: 100, minValue: 25, maxValue: 200, target: nil, action: nil)
@@ -119,7 +121,7 @@ import AppKit
         accountName.frame = CGRect(x: 24, y: 0, width: 312, height: 22)
         connectionStatus.frame = CGRect(x: 24, y: 0, width: 312, height: 22)
         page("계정", [[title("아이디", y: 30), accountName], [title("서버 연결 상태", y: 30), connectionStatus],
-            [button(openAccount, #selector(openAccountWindow))], [button(logout, #selector(logoutAccount))]])
+            [ownerProfile], [button(openAccount, #selector(openAccountWindow))], [button(logout, #selector(logoutAccount))]])
         tabs.delegate = self; refreshHome(rooms: [], selected: nil)
     }
     func present(name: String, percent: Double, bubble: Bool, account: String = "", status: String = "서버 연결 전") {
@@ -129,6 +131,12 @@ import AppKit
         refreshLogin(); accountName.stringValue = account.isEmpty ? "로그인 전" : account; connectionStatus.stringValue = status
         if let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) ?? window.screen ?? NSScreen.main { fit(to: screen.visibleFrame) }
         OptionWindows.show(window)
+    }
+    func focusOwnerProfile() {
+        tabs.selectTabViewItem(withIdentifier:"계정")
+        tabs.layoutSubtreeIfNeeded()
+        ownerProfile.scrollToVisible(ownerProfile.bounds)
+        window.makeFirstResponder(ownerProfile.name)
     }
     func fit(to visible: CGRect) {
         let titleBar = window.frame.height - window.contentRect(forFrameRect: window.frame).height
@@ -203,5 +211,115 @@ import AppKit
         let alert = NSAlert(); alert.messageText = "이 Mac 화면을 다른 Mac에도 맞출까요?"
         alert.informativeText = "같은 hejo 계정으로 로그인한 다른 Mac의 섹션·방 순서·접힘·숨김·알림 끄기·사진이 이 Mac과 같아져요. 읽음 표시는 어느 Mac에서 읽었든 그대로 합쳐져요."
         alert.addButton(withTitle: "맞추기"); alert.addButton(withTitle: "취소"); return alert
+    }
+}
+
+/// Settings reads and writes the gate-owned profile through the active conversation.
+@MainActor final class OwnerProfileSection: NSView, NSTextFieldDelegate {
+    override var isFlipped: Bool { true }
+    private final class AvatarView: NSView {
+        var profile = ProfileAvatar(), name = OwnerProfile.fallbackName
+        override func draw(_ dirtyRect:NSRect) { profile.draw(in:bounds,name:name) }
+    }
+
+    let name = NSTextField(string:"")
+    let save = NSButton(title:"이름 저장",target:nil,action:nil)
+    let choose = NSButton(title:"사진 고르기…",target:nil,action:nil)
+    let remove = NSButton(title:"사진 지우기",target:nil,action:nil)
+    let problem = NSTextField(wrappingLabelWithString:"")
+    private let avatar = AvatarView(frame:.zero)
+    private weak var controller: ConversationController?
+    private var editingName = false
+    private var busy = false
+    private var account = ""
+
+    init() {
+        super.init(frame:NSRect(x:24,y:0,width:340,height:204))
+        let heading = NSTextField(labelWithString:"내 프로필")
+        heading.font = .systemFont(ofSize:14,weight:.semibold)
+        name.placeholderString = "이름"
+        name.setAccessibilityLabel("내 프로필 이름")
+        name.delegate = self
+        avatar.setAccessibilityElement(true)
+        avatar.setAccessibilityRole(.image)
+        let empty = NSTextField(labelWithString:"비우면 '사장'으로 보여요")
+        let shared = NSTextField(wrappingLabelWithString:"직원 대화와 텔레그램·디스코드에도 이 이름이 쓰여요")
+        for note in [empty,shared,problem] { note.font = .systemFont(ofSize:12); note.textColor = .secondaryLabelColor }
+        problem.textColor = .systemRed
+        let views: [(NSView,NSRect)] = [
+            (heading,.init(x:0,y:0,width:320,height:22)),
+            (avatar,.init(x:0,y:30,width:44,height:44)),
+            (choose,.init(x:55,y:36,width:113,height:30)),
+            (remove,.init(x:172,y:36,width:102,height:30)),
+            (name,.init(x:0,y:82,width:222,height:26)),
+            (save,.init(x:230,y:79,width:92,height:31)),
+            (empty,.init(x:0,y:114,width:326,height:18)),
+            (shared,.init(x:0,y:134,width:326,height:31)),
+            (problem,.init(x:0,y:166,width:326,height:34))]
+        for (view,rect) in views { view.frame = rect;addSubview(view) }
+        for (button,action) in [(save,#selector(saveAction)),(choose,#selector(chooseAction)),(remove,#selector(removeAction))] {
+            button.target = self;button.action = action;button.bezelStyle = .rounded
+        }
+        name.target = self;name.action = #selector(saveAction)
+        refresh()
+    }
+    required init?(coder:NSCoder) { fatalError() }
+    func bind(_ controller:ConversationController) { self.controller = controller;refresh() }
+    private var draft: String { name.currentEditor()?.string ?? name.stringValue }
+    func refresh() {
+        let endpoint = controller.map { $0.client.store.settings.address + "\0" + $0.client.store.settings.credentialAccount } ?? ""
+        if endpoint != account {
+            account = endpoint;editingName = false;problem.stringValue = ""
+        }
+        if !editingName { name.stringValue = controller?.model.owner?.name ?? "" }
+        let displayName = controller?.model.ownerName ?? OwnerProfile.fallbackName
+        avatar.name = displayName
+        avatar.profile = controller?.ownerAvatar() ?? .init(color:PictureCodec.color(name:displayName,hex:nil))
+        avatar.setAccessibilityLabel(displayName + " 사진")
+        avatar.needsDisplay = true
+        updateControls()
+    }
+    private func updateControls() {
+        let connected = controller?.client.isConnected == true
+        choose.isEnabled = connected && !busy
+        remove.isEnabled = choose.isEnabled && controller?.model.owner?.avatar != nil
+        do { _ = try OwnerProfile.normalized(draft);save.isEnabled = choose.isEnabled }
+        catch { save.isEnabled = false }
+    }
+    func controlTextDidChange(_ notification:Notification) {
+        editingName = true
+        do { _ = try OwnerProfile.normalized(draft);problem.stringValue = "" }
+        catch { problem.stringValue = "이름은 줄바꿈이나 제어 문자 없이 20자까지 쓸 수 있어요." }
+        updateControls()
+    }
+    @objc private func saveAction() { Task { await saveName() } }
+    func saveName() async {
+        guard save.isEnabled, let controller else { return }
+        let value = draft, scope = account
+        editingName = true;busy = true;problem.stringValue = "";updateControls()
+        defer { busy = false;refresh() }
+        let error = await controller.setOwnerName(value)
+        guard scope == account else { return }
+        if let error { problem.stringValue = error }
+        else { editingName = draft != value }
+    }
+    @objc private func chooseAction() {
+        guard choose.isEnabled,let window else { return }
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.image]
+        panel.beginSheetModal(for:window) { [weak self] response in
+            guard response == .OK,let url = panel.url else { return }
+            Task { await self?.selectPicture(url) }
+        }
+    }
+    @objc private func removeAction() { Task { await selectPicture(nil) } }
+    func selectPicture(_ url:URL?) async {
+        guard (url == nil ? remove.isEnabled : choose.isEnabled),let controller else { return }
+        let scope = account
+        busy = true;problem.stringValue = "";updateControls()
+        defer { busy = false;refresh() }
+        _ = await controller.changePicture(kind:"owner",id:"owner",url:url,onFailure: { [weak self] error in
+            if let self,self.account == scope { self.problem.stringValue = error }
+        })
     }
 }

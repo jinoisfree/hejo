@@ -99,6 +99,71 @@ import UniformTypeIdentifiers
     private(set) var sidebarRows:[SidebarLayout.Row]=[]
     private var renderedSidebarIDs:[String]=[]
     private var renderedSidebarHeights:[CGFloat]=[]
+    private lazy var sidebarTraceID = UUID().uuidString
+    private var tracedSidebarEvent = 0
+    private var tracedSidebarUpdate = 0
+
+    private struct SidebarTraceSnapshot {
+        let origin: CGFloat
+        let positions: [[String: Any]]
+    }
+
+    private func sidebarTraceSnapshot(ids: [String]) -> SidebarTraceSnapshot {
+        let bounds = employeeScroll.contentView.bounds
+        var positions: [[String: Any]] = []
+        employeeTable.enumerateAvailableRowViews { view, index in
+            guard ids.indices.contains(index) else { return }
+            let frame = view.layer?.presentation()?.frame ?? view.frame
+            guard frame.intersects(bounds) else { return }
+            positions.append(["id": ids[index].hashValue, "y": employeeTable.convert(CGPoint(x:frame.minX,y:frame.minY), to:nil).y])
+        }
+        return .init(origin:bounds.minY, positions:positions)
+    }
+
+    private func traceSidebar(before: SidebarTraceSnapshot, previousIDs: [String],
+                              previousHeights: [CGFloat], ids: [String], heights: [CGFloat],
+                              layout: String, animated: Bool) {
+        let changed = previousIDs != ids || previousHeights != heights
+        if changed { tracedSidebarEvent += 1 }
+        tracedSidebarUpdate += 1
+        let event = tracedSidebarEvent
+        let update = tracedSidebarUpdate
+        func geometry(_ ids: [String], _ heights: [CGFloat]) -> [[String: Any]] {
+            zip(ids, heights).map { ["id": $0.hashValue, "height": $1] }
+        }
+        let beforeIndices = Dictionary(uniqueKeysWithValues:previousIDs.enumerated().map { ($1, $0) })
+        let afterIndices = Dictionary(uniqueKeysWithValues:ids.enumerated().map { ($1, $0) })
+        let changedRows: [[String: Any]] = (previousIDs + ids.filter { beforeIndices[$0] == nil }).compactMap { id in
+            let oldIndex = beforeIndices[id], newIndex = afterIndices[id]
+            let oldHeight = oldIndex.map { previousHeights[$0] } ?? 0
+            let newHeight = newIndex.map { heights[$0] } ?? 0
+            guard oldIndex != newIndex || oldHeight != newHeight else { return nil }
+            return ["id":id.hashValue, "ordinal":newIndex ?? oldIndex ?? 0,
+                    "before_height":oldHeight, "after_height":newHeight,
+                    "inserted":oldIndex == nil, "removed":newIndex == nil]
+        }
+        let fields: [String: Any] = [
+            "event": event, "update": update, "signature_changed": changed, "layout": layout,
+            "changed_rows": changedRows,
+            "origin_before": before.origin, "rows_before": before.positions,
+            "geometry_before": geometry(previousIDs, previousHeights), "geometry_after": geometry(ids, heights)
+        ]
+        func record(_ snapshot: SidebarTraceSnapshot, phase: String) {
+            var row = fields
+            row["phase"] = phase
+            row["origin_after"] = snapshot.origin
+            row["rows_after"] = snapshot.positions
+            ThreeTapDiagnostics.waitJitter("sidebar", view:sidebarTraceID, fields:row)
+        }
+        record(sidebarTraceSnapshot(ids:ids), phase:"immediate")
+        if animated {
+            DispatchQueue.main.asyncAfter(deadline:.now() + SidebarMotion.duration) { [weak self] in
+                guard let self, self.tracedSidebarEvent == event else { return }
+                record(self.sidebarTraceSnapshot(ids:ids), phase:"settled")
+            }
+        }
+    }
+
     private var sidebarRails:[String:CAShapeLayer]=[:]
     private var sidebarUpdating=false
     private lazy var sidebarSearch=SidebarSearchRow(field:employeeSearch)
@@ -115,6 +180,7 @@ import UniformTypeIdentifiers
     var chooseFiles:(NSOpenPanel,@escaping(NSApplication.ModalResponse)->Void)->Void = {panel,then in panel.begin(completionHandler:then)}
     private var shownSidebarWidth=ConversationSidebar.width, searchOpen=false, editorHeight:CGFloat=17
     var onCollapse:(()->Void)?
+    var onOwnerProfile:(()->Void)?
     var onOpenThreadHeight: ((CGFloat?) -> Void)?
     private var reportedOpenHeight: CGFloat?
     var onUnread:((Int)->Void)?, onSidebarWidth:((CGFloat)->Void)?
@@ -482,6 +548,9 @@ import UniformTypeIdentifiers
     }
     var isSearchOpen: Bool { searchOpen }
     func toggleSearch() {if searchOpen {_=closeSearchIfOpen()} else {openSearch()} }
+    func searchSpeaker(role:String,speaker:String) -> String {
+        role == "owner" ? controller.model.ownerName : controller.model.name(speaker)
+    }
     func openSearch() {searchHighlight=nil;searchHighlightThread=nil;searchOpen=true;refresh();window?.makeFirstResponder(search)}
     func handleWorkspaceKey(_ event:NSEvent)->Bool {
         if event.modifierFlags.contains(.command),["f","ㄹ"].contains(event.charactersIgnoringModifiers?.lowercased() ?? "") {openSearch();return true}
@@ -509,7 +578,7 @@ import UniformTypeIdentifiers
         let model=controller.model
         if historySearch.busy {searchResults.showStatus("검색 중…")}
         else if historySearch.failed {searchResults.showStatus("검색을 불러오지 못했어요",retry:{ [weak self] in self?.historySearch.retry() })}
-        else {searchResults.showHistory(historySearch.groups,query:search.stringValue,selection:searchSelection,name:model.name,room:{id in (id==HomeRoom.id || model.homeScope.contains(id)) ? model.header(HomeRoom.id).title:(model.groups[id] != nil ? "#":"@")+model.header(id).title})}
+        else {searchResults.showHistory(historySearch.groups,query:search.stringValue,selection:searchSelection,name:model.name,ownerName:model.ownerName,room:{id in (id==HomeRoom.id || model.homeScope.contains(id)) ? model.header(HomeRoom.id).title:(model.groups[id] != nil ? "#":"@")+model.header(id).title})}
     }
     func scheduleSearch() {
         guard searchOpen else{return}
@@ -882,7 +951,7 @@ import UniformTypeIdentifiers
         if data.kind == .hit {
             guard let hit=historySidebarSearch.hits.first(where:{$0.id==data.name}) else {return nil}
             let cell=tableView.makeView(withIdentifier:id,owner:nil) as? SidebarHitCell ?? SidebarHitCell(frame:.zero);cell.identifier=id
-            cell.configureSnippet(hit.snippet,speaker:hit.role=="owner" ? "나":controller.model.name(hit.speaker),room:controller.model.header(hit.key.room).title,query:employeeSearch.stringValue);return cell
+            cell.configureSnippet(hit.snippet,speaker:searchSpeaker(role:hit.role,speaker:hit.speaker),room:controller.model.header(hit.key.room).title,query:employeeSearch.stringValue);return cell
         }
         if data.kind == .hitHeading {
             let cell=tableView.makeView(withIdentifier:id,owner:nil) as? SidebarHitsHeading ?? SidebarHitsHeading(frame:.zero);cell.identifier=id;cell.title.stringValue=data.name;return cell
@@ -902,7 +971,10 @@ import UniformTypeIdentifiers
     private func updateSidebarRows(){
         guard !sidebarUpdating else{return};sidebarUpdating=true;defer{sidebarUpdating=false}
         let ids=sidebarRows.map(\.stableID)+(employeeSearch.stringValue.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty || !ConversationSidebar.isList(sidebarWidth) ? ["add"]:[])
-        let old=renderedSidebarIDs;renderedSidebarIDs=ids
+        let old=renderedSidebarIDs
+        let traceBefore = ThreeTapDiagnostics.output == nil ? nil : sidebarTraceSnapshot(ids:old)
+        let traceHeights = traceBefore == nil ? [] : renderedSidebarHeights
+        renderedSidebarIDs=ids
         let heights = ids.indices.map { tableView(employeeTable,heightOfRow:$0) }
         // Ordinary rows have fixed heights. Keep content/selection updates below, but
         // avoid asking AppKit to recreate their layout when those heights did not change.
@@ -915,6 +987,12 @@ import UniformTypeIdentifiers
         for i in sidebarRows.indices {if let cell=employeeTable.view(atColumn:0,row:i,makeIfNecessary:false) as? EmployeeSidebarCell {configureSidebarCell(cell,row:sidebarRows[i])}}
         if let index=rowIndex(for:controller.model.selectionIdentity) {employeeTable.selectRowIndexes(IndexSet(integer:index),byExtendingSelection:false)}else{employeeTable.deselectAll(nil)}
         layoutSidebarRails()
+        if let traceBefore {
+            let layout = old != ids ? "sidebar_motion" : changedHeights.isEmpty ? "none" : "row_heights"
+            traceSidebar(before:traceBefore, previousIDs:old, previousHeights:traceHeights,
+                         ids:ids, heights:heights, layout:layout,
+                         animated:layout != "none" && !old.isEmpty && !reduceMotion() && window != nil)
+        }
     }
     override func viewDidChangeEffectiveAppearance(){super.viewDidChangeEffectiveAppearance();needsLayout=true;needsDisplay=true;effectiveAppearance.performAsCurrentDrawingAppearance{if window != nil {refresh()};layoutSidebarRails()}}
     private func layoutSidebarRails(){
@@ -1043,7 +1121,7 @@ import UniformTypeIdentifiers
     func smoothClearBodies(){postBodies=[:];postBodyOrder=[]}
     func smoothHighlight(_ text:String?,key:ConversationKey){searchHighlight=text;searchHighlightThread=key}
     func smoothPostPieces(_ message: ConversationMessage,edge:NSColor?=nil) -> [NativeThreadCard.Piece] {
-        postPieces(message,conversational:false,edge:edge,extras:false)
+        postPieces(message,edge:edge,extras:false)
     }
     #endif
     private var appearanceObserver: NSObjectProtocol?
@@ -1148,7 +1226,7 @@ import UniformTypeIdentifiers
         return controller.model.historyReplyIDs(key,pending:messages.filter(\.pending).map(\.id))
     }
     private func historyReplies(_ key: ConversationKey, messages: [ConversationMessage], order: [String],
-                                shown: Set<String>, expanded: Bool, edge:NSColor?) -> [NativeThreadCard.Piece] {
+                                shown: Set<String>, expanded: Bool, edge:NSColor?, precedingOwner: ConversationMessage? = nil) -> [NativeThreadCard.Piece] {
         let historyMode = controller.client.store.historyMode
         let ids = historyMode ? controller.model.historyReplyIDs(key) : []
         let byID = Dictionary(messages.map { ($0.id,$0) },uniquingKeysWith:{ first,_ in first })
@@ -1157,11 +1235,13 @@ import UniformTypeIdentifiers
         if expanded, let id = ids.first, loader.failed(.older(key,id)) {
             pieces.append(historyRetryPiece(.older(key,id), id:key.readKey+":older"))
         }
-        var previous: ConversationMessage?
+        var previous = precedingOwner
         for id in order {
             if let message = byID[id], shown.contains(id) {
-                let continuation = message.role != "owner" && previous.map { $0.role != "owner" && $0.speaker == message.speaker } == true
-                pieces += postPieces(message,conversational:true,edge:edge,continuation:continuation)
+                let continuation = previous.map {
+                    $0.role == message.role && (message.role == "owner" || $0.speaker == message.speaker)
+                } == true
+                pieces += postPieces(message,edge:edge,continuation:continuation)
                 previous = message
             } else {
                 if historyMode, (expanded || ids.count <= 2 || id == ids.last), let target = historyBodyTarget(id,key:key) {
@@ -1218,14 +1298,14 @@ import UniformTypeIdentifiers
         let pick:()->Void={ [weak self] in self?.chooseThread(thread.key) }
         let owner=model.groups[thread.key.employee]==nil ? thread.key.employee:messages.first{$0.role=="employee"}?.speaker
         let edge=owner.map{controller.avatar($0).color}
-        var top=postPieces(root,conversational:false,edge:edge)
+        var top=postPieces(root,edge:edge)
         if model.isHome,model.homeChannel==nil,root.role=="owner" {top.insert(.accessory(id:"home-owner:"+thread.key.readKey,height:28,view:{ [weak controller] in HomeOwnerView(name:model.name(root.speaker),avatar:controller?.avatar(root.speaker) ?? ProfileAvatar()) }),at:0)}
         var answer:[NativeThreadCard.Piece]=[]
         if hidden>0 {
             let faces=ThreadTools.answeredFaces(replies).map{(model.name($0),controller.avatar($0))}
             answer.append(.stack(faces:faces,title:"이전 답글 \(hidden)개",toggle:{ [weak self] in self?.togglePile(thread.key) },identifier:"stack-"+thread.id))
         }
-        answer += historyReplies(thread.key,messages:replies,order:order,shown:Set(shown.map(\.id)),expanded:expanded,edge:edge)
+        answer += historyReplies(thread.key,messages:replies,order:order,shown:Set(shown.map(\.id)),expanded:expanded,edge:edge,precedingOwner:hidden==0 && root.role=="owner" ? root:nil)
         if controller.interruptions[thread.key] != nil {
             answer.append(.accessory(id:thread.id+":interruption",height:16,view:{
                 let label=NSTextField(labelWithString:"끼어들었어요");label.font = .systemFont(ofSize:ChatMetrics.auxiliaryFont);label.textColor = CardText.quiet(dark:dark)
@@ -1265,7 +1345,7 @@ import UniformTypeIdentifiers
             .init(title:copiedLink ? "복사됨":"링크",symbol:copiedLink ? "checkmark":"link",label:"스레드 링크 복사",identifier:"copy-link-"+thread.id,color:copiedLink ? accent:quiet,invoke:{ [weak self] in self?.copyText(ThreadTools.link(thread.key).absoluteString,id:"link:"+thread.id) }),
             .init(title:historyCopyKey==thread.key ? historyCopyProgress+" · 취소":copiedText ? "복사됨":"복사",symbol:copiedText ? "checkmark":"doc.on.doc",label:"스레드 전체 복사",identifier:"copy-"+thread.id,color:copiedText ? accent:quiet,invoke:{ [weak self] in guard let self else{return};
 #if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
-                if !self.controller.client.store.historyMode {self.copyText(ThreadTools.copy(messages,key:thread.key,name:self.controller.model.name,group:self.controller.model.groups[thread.key.employee] != nil),id:"text:"+thread.id);return}
+                if !self.controller.client.store.historyMode {self.copyText(ThreadTools.copy(messages,key:thread.key,name:self.controller.model.name,ownerName:self.controller.model.ownerName,group:self.controller.model.groups[thread.key.employee] != nil),id:"text:"+thread.id);return}
 #endif
                 self.copyHistory(thread.key)
              })]
@@ -1285,7 +1365,7 @@ import UniformTypeIdentifiers
             bubbleWidth:max(ChatMetrics.minimumBubbleWidth,(bounds.width-sidebarWidth-drawerShownWidth)*ChatMetrics.bubbleWidthFraction),quiet:quiet,expanded:expanded,replyTarget:target)
     }
     static let unavailableReply="정해진 버튼이 아니라 누를 수 없어요. 이 스레드에 글로 답해 주세요."
-    private func postPieces(_ message:ConversationMessage,conversational:Bool,edge:NSColor?,extras:Bool=true,continuation:Bool=false)->[NativeThreadCard.Piece] {
+    private func postPieces(_ message:ConversationMessage,edge:NSColor?,extras:Bool=true,continuation:Bool=false)->[NativeThreadCard.Piece] {
         let dark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua, mine=message.role == "owner"
         if !mine,continuation,controller.model.thinking(message) {return []}
         if !mine,controller.model.thinking(message) {return [.accessory(id:message.id+":thinking",height:34,view:{[weak controller] in TypingBubbleView(name:controller?.model.name(message.speaker) ?? "",avatar:controller?.avatar(message.speaker) ?? ProfileAvatar(),nameColor:controller?.palette(message.speaker,dark:dark).name.nsColor,activity:message.text.components(separatedBy:"\n").dropFirst().first ?? "답변을 준비하고 있습니다")} )]}
@@ -1348,17 +1428,17 @@ import UniformTypeIdentifiers
         HejoSmoothProbe.identify(text,id:message.id)
         #endif
         let messageID=message.id,checkBody=checks.isEmpty ? "":message.text
-        var post=NativeThreadCard.Post(id:message.id,mine:mine,text:text,speaker:mine ? "나" : controller.model.name(message.speaker),time:message.pending ? "보내는 중":displayTime(message),avatar:controller.avatar(message.speaker),nameColor:mine ? .labelColor:palette.name.nsColor,
-            conversational:conversational && !mine && !streaming && message.files.isEmpty && ThreadAppearance.isConversational(message.text),pending:message.pending,streaming:streaming,
+        var post=NativeThreadCard.Post(id:message.id,mine:mine,text:text,speaker:mine ? controller.model.ownerName : controller.model.name(message.speaker),time:message.pending ? "보내는 중":displayTime(message),avatar:mine ? controller.ownerAvatar() : controller.avatar(message.speaker),nameColor:mine ? .labelColor:palette.name.nsColor,
+            pending:message.pending,streaming:streaming,
             marks:[],foldTitle:foldable ? (folded ? "더 보기" : "접기") : nil,fold:{ [weak self] in guard let self else { return }; if self.expandedMessages.contains(messageID) { self.expandedMessages.remove(messageID);self.longReplyBases[messageID]=nil;if self.longReplyBases.isEmpty {self.longReplyWindowBase=nil} } else { if self.longReplyWindowBase==nil {self.longReplyWindowBase=self.bounds.height};self.longReplyBases[messageID]=self.history.layouts.lazy.flatMap(\.placed).first{if case .post(let p)=$0.piece{return p.id==messageID};return false}?.frame.height;self.expandedMessages.insert(messageID) }; self.refresh() },textHelp:!message.files.isEmpty && text.string.contains(where:{$0=="☐" || $0=="☑"}) ? "체크박스를 누르면 내 확인 상태를 저장합니다.":nil,openLink:{ [weak self] url in
                 guard let self else{return}
                 if url.scheme=="hejo-check",let offset=Int(url.lastPathComponent),let check=checks[offset] {self.controller.model.toggleCheck(messageID,line:check.line,original:check.original,body:checkBody)}
                 else if url.scheme=="hejo" {self.controller.openLink(url)}
                 else if CardText.mayOpen(url) {self.onOpenURL(url)}
             })
-        if mine { post.clientMessageID = message.clientMessageID }
+        if mine { post.clientMessageID = message.clientMessageID; post.onOwnerProfile = onOwnerProfile }
         post.flash=message.id==highlightedMessageID && (highlightUntil.map{$0>islandModel.now} ?? (drawerSelectedID != nil))
-        if !mine,continuation {post.continuation=true;if post.textHelp==nil {post.textHelp=post.time}}
+        if continuation {post.continuation=true;if post.textHelp==nil {post.textHelp=post.time}}
         var pieces:[NativeThreadCard.Piece]=[.post(post)]
         if !extras {return pieces}
         let calendarActions = controller.calendarActions(for: message)
@@ -1427,8 +1507,8 @@ import UniformTypeIdentifiers
         }
         if pending,!mine,message.files.isEmpty,let parts=ReplyButtonPolicy.split(message.text) {
             var head=message,detail=message;head.text=parts.head;detail.text=parts.detail;detail.id += ":detail"
-            let first=postPieces(head,conversational:false,edge:edge,extras:false,continuation:continuation)
-            let rest=postPieces(detail,conversational:false,edge:edge,extras:false).map { piece -> NativeThreadCard.Piece in
+            let first=postPieces(head,edge:edge,extras:false,continuation:continuation)
+            let rest=postPieces(detail,edge:edge,extras:false).map { piece -> NativeThreadCard.Piece in
                 if case .post(var post)=piece {post.continuation=true;return .post(post)};return piece
             }
             return first+Array(pieces.dropFirst())+rest

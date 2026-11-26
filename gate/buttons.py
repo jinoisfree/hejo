@@ -3,11 +3,11 @@ import re
 from agent.i18n import t
 
 
-def decision(button):
+def decision(button, owner="나"):
     kind, response = button["kind"], button["response"]
     if kind == "clarify":
         return t("platform.slack.clarify.awaiting" if button.get("other") else "platform.slack.clarify.resolved",
-                 user="나", choice=response)
+                 user=owner, choice=response)
     catalog = "slash_confirm" if kind == "slash" else "approval"
     return t(f"platform.telegram.{catalog}.resolved_{response}")
 

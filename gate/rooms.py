@@ -98,4 +98,4 @@ class RoomCommands:
                     or row['role'] == 'employee' and row['employee'] == employee), default=0)
         missed = [row for row in rows if row['seq'] > last]
         return conversation_lines(missed, {e['id']: e['name'] for e in self.employees()},
-                                  limit=20, characters=4000, line_characters=500)
+                                  owner=self.owner_label("나"), limit=20, characters=4000, line_characters=500)

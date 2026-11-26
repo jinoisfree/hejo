@@ -17,12 +17,12 @@ def thinking(text):
     return bool(re.fullmatch(r"[◐◓◑◒🤔\s]*생각\s*중\s*(?:\.{2,}|…)?\s*", text.split("\n", 1)[0]))
 
 
-def conversation_lines(messages, names, *, limit, characters, line_characters):
+def conversation_lines(messages, names, *, owner="나", limit, characters, line_characters):
     lines = []
     for row in messages:
         if row["role"] != "owner" and thinking(row["text"]):
             continue
-        name = "나" if row["role"] == "owner" else names.get(row["employee"], row["employee"])
+        name = owner if row["role"] == "owner" else names.get(row["employee"], row["employee"])
         body = row["text"].replace("\n", " ")[:line_characters]
         attachments = " ".join("📎" + entry["name"] for entry in row.get("files", []))
         lines.append(name + ": " + body + (" " + attachments if attachments else ""))

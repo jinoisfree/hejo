@@ -47,6 +47,8 @@ enum ChatMetrics {
     static let nameFont: CGFloat = 14
     static let auxiliaryFont: CGFloat = 11
     static var bodyFont: CGFloat { ChatAppearance.fontSize() }
+    static let bubbleCorner: CGFloat = 12
+    static let bubbleInset = NSSize(width: 12, height: 8)
     static let nameBodyGap: CGFloat = 4
     static let horizontalInset: CGFloat = 12
     static let minimumBubbleWidth: CGFloat = 240
@@ -154,15 +156,7 @@ enum ThreadAppearance {
     static func replySurface(dark: Bool) -> NSColor {
         (dark ? NSColor.white : NSColor.black).withAlphaComponent(dark ? 0.09 : 0.055)
     }
-    /// Reports, lists, quotes, code and long prose keep the full reading width.
-    static func isConversational(_ body: String) -> Bool {
-        let lines = body.components(separatedBy: "\n")
-        return !body.isEmpty && body.count <= 240 && lines.count <= 4 &&
-            !lines.contains { line in
-                let text = line.trimmingCharacters(in: .whitespaces)
-                return ["```", "|", ">", "#", "- ", "* ", "•", "1."].contains { text.hasPrefix($0) }
-            }
-    }
+
 }
 
 enum LongReply {

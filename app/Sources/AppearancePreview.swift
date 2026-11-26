@@ -6,7 +6,11 @@ final class AppearancePreview: NSView {
     private var size: CGFloat, opacity: Double, dark: Bool
     private var measured: ([String: CGRect]) -> Void
     private(set) var textFrames: [String: CGRect] = [:]
-    private var agentBubble = CGRect.zero, mineBubble = CGRect.zero, nameFrame = CGRect.zero, avatar = CGRect.zero, timeFrame = CGRect.zero
+    private(set) var agentBubble = CGRect.zero, mineBubble = CGRect.zero
+    private(set) var ownerNameFrame = CGRect.zero, ownerTimeFrame = CGRect.zero
+    private var nameFrame = CGRect.zero, avatar = CGRect.zero, ownerAvatar = CGRect.zero
+    private let ownerName = OwnerProfile.fallbackName
+    private let sampleTime = "오후 3:12"
     static let agentText = "오늘 나눌 이야기를 정리했어요. 함께 살펴볼까요?"
     static let mineText = "좋아, 첫 번째 이야기부터 보여 줘"
     init(name: String, agent: CharacterPalette, mine: UserBubblePalette, size: CGFloat, opacity: Double, dark: Bool, measured: @escaping ([String: CGRect]) -> Void) {
@@ -26,19 +30,32 @@ final class AppearancePreview: NSView {
         return CGSize(width:min(width,ceil(rect.width)),height:ceil(rect.height))
     }
     private func measure() {
-        let body=NSFont.systemFont(ofSize:size),caption=NSFont.systemFont(ofSize:11)
-        let a=textSize(Self.agentText,font:body,width:310),m=textSize(Self.mineText,font:body,width:480)
-        let n=textSize(name,font:.systemFont(ofSize:11,weight:.semibold),width:330),t=textSize("오후 3:12",font:caption,width:504)
-        let first=max(26,n.height+4+a.height+20),natural=32+first+10+m.height+16+10+t.height
-        sampleHeight=max(184,natural)
-        var y=16+(sampleHeight-natural)/2
-        avatar=CGRect(x:16,y:y,width:26,height:26);nameFrame=CGRect(x:50,y:y,width:n.width,height:n.height)
-        y+=n.height+4;agentBubble=CGRect(x:50,y:y,width:a.width+20,height:a.height+20)
-        textFrames["agent"]=CGRect(x:60,y:y+10,width:a.width,height:a.height)
-        y=16+(sampleHeight-natural)/2+first+10
-        mineBubble=CGRect(x:520-m.width-24,y:y,width:m.width+24,height:m.height+16)
-        textFrames["mine"]=CGRect(x:mineBubble.minX+12,y:y+8,width:m.width,height:m.height)
-        timeFrame=CGRect(x:520-t.width,y:mineBubble.maxY+10,width:t.width,height:t.height)
+        let body = NSFont.systemFont(ofSize:size), caption = NSFont.systemFont(ofSize:ChatMetrics.auxiliaryFont)
+        let nameFont = NSFont.systemFont(ofSize:ChatMetrics.nameFont,weight:.bold)
+        let padding = ChatMetrics.bubbleInset
+        let a = textSize(Self.agentText,font:body,width:310), m = textSize(Self.mineText,font:body,width:431)
+        let n = textSize(name,font:nameFont,width:330), mineName = textSize(ownerName,font:nameFont,width:200)
+        let t = textSize(sampleTime,font:caption,width:200)
+        let headerHeight = max(n.height,mineName.height,t.height)
+        let first = max(ChatMetrics.avatar,headerHeight+ChatMetrics.nameBodyGap+a.height+padding.height*2)
+        let second = max(ChatMetrics.avatar,headerHeight+ChatMetrics.nameBodyGap+m.height+padding.height*2)
+        let natural = 32+first+10+second
+        sampleHeight = max(184,natural)
+        let top = 16+(sampleHeight-natural)/2
+        let left: CGFloat = 16+ChatMetrics.avatar+9
+        let right: CGFloat = 520-ChatMetrics.avatar-9
+        avatar = CGRect(x:16,y:top,width:ChatMetrics.avatar,height:ChatMetrics.avatar)
+        nameFrame = CGRect(x:left,y:top,width:n.width,height:headerHeight)
+        let agentTop = top+headerHeight+ChatMetrics.nameBodyGap
+        agentBubble = CGRect(x:left,y:agentTop,width:a.width+padding.width*2,height:a.height+padding.height*2)
+        textFrames["agent"] = agentBubble.insetBy(dx:padding.width,dy:padding.height)
+        let ownerTop = top+first+10
+        ownerAvatar = CGRect(x:right+9,y:ownerTop,width:ChatMetrics.avatar,height:ChatMetrics.avatar)
+        ownerNameFrame = CGRect(x:right-mineName.width,y:ownerTop,width:mineName.width,height:headerHeight)
+        ownerTimeFrame = CGRect(x:ownerNameFrame.minX-6-t.width,y:ownerTop+nameFont.ascender-caption.ascender,width:t.width,height:t.height)
+        mineBubble = CGRect(x:right-m.width-padding.width*2,y:ownerTop+headerHeight+ChatMetrics.nameBodyGap,
+                            width:m.width+padding.width*2,height:m.height+padding.height*2)
+        textFrames["mine"] = mineBubble.insetBy(dx:padding.width,dy:padding.height)
         measured(textFrames)
     }
     private func rect(_ r:CGRect)->CGRect {CGRect(x:r.minX,y:bounds.height-r.maxY,width:r.width,height:r.height)}
@@ -49,15 +66,18 @@ final class AppearancePreview: NSView {
         let box=NSBezierPath(roundedRect:bounds,xRadius:10,yRadius:10)
         NSColor.windowBackgroundColor.setFill();box.fill()
         NSColor(white:dark ? 0.08:0.93,alpha:BubbleOpacity.alpha(progress:1,percent:opacity,reduceTransparency:false)).setFill();box.fill()
-        agent.name.nsColor.withAlphaComponent(0.25).setFill();NSBezierPath(roundedRect:rect(avatar),xRadius:7,yRadius:7).fill()
-        let initial=String(name.prefix(1)),f=NSFont.systemFont(ofSize:12,weight:.bold),s=(initial as NSString).size(withAttributes:[.font:f])
-        label(initial,CGRect(x:avatar.midX-s.width/2,y:avatar.midY-s.height/2,width:s.width,height:s.height),f,.labelColor)
-        label(name,nameFrame,.systemFont(ofSize:11,weight:.semibold),agent.name.nsColor)
-        agent.background.nsColor.setFill();NSBezierPath(roundedRect:rect(agentBubble),xRadius:14,yRadius:14).fill()
+        let nameFont = NSFont.systemFont(ofSize:ChatMetrics.nameFont,weight:.bold)
+        ProfileAvatar(color:agent.name.nsColor).draw(in:rect(avatar),name:name)
+        label(name,nameFrame,nameFont,agent.name.nsColor)
+        agent.background.nsColor.setFill()
+        NSBezierPath(roundedRect:rect(agentBubble),xRadius:ChatMetrics.bubbleCorner,yRadius:ChatMetrics.bubbleCorner).fill()
         label(Self.agentText,textFrames["agent"]!,.systemFont(ofSize:size),agent.foreground.nsColor)
-        mine.background.nsColor.setFill();NSBezierPath(roundedRect:rect(mineBubble),xRadius:16,yRadius:16).fill()
+        ProfileAvatar(color:PictureCodec.color(name:ownerName,hex:nil)).draw(in:rect(ownerAvatar),name:ownerName)
+        label(ownerName,ownerNameFrame,nameFont,.labelColor)
+        label(sampleTime,ownerTimeFrame,.systemFont(ofSize:ChatMetrics.auxiliaryFont),.secondaryLabelColor)
+        mine.background.nsColor.withAlphaComponent(mine.alpha).setFill()
+        NSBezierPath(roundedRect:rect(mineBubble),xRadius:ChatMetrics.bubbleCorner,yRadius:ChatMetrics.bubbleCorner).fill()
         label(Self.mineText,textFrames["mine"]!,.systemFont(ofSize:size),mine.foreground.nsColor)
-        label("오후 3:12",timeFrame,.systemFont(ofSize:11),.secondaryLabelColor)
         NSColor.labelColor.withAlphaComponent(0.12).setStroke();box.lineWidth=1;box.stroke()
     }
 }
