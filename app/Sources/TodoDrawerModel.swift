@@ -41,7 +41,6 @@ import Foundation
         var empty: Bool { urgent.isEmpty && rest.isEmpty }
         var warning: String? {
             if gateStatus == .updateRequired { return gateStatus.text }
-            if historyUpdating { return "대화 알림을 갱신 중이에요." }
             return failed ? "마감을 읽지 못했어요. 잠시 뒤 다시 볼게요." : nil
         }
         var closeWarning: String? { closeFailed ? "마감을 닫지 못했어요. 다시 해 주세요." : nil }

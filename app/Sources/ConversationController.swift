@@ -680,7 +680,7 @@ struct ConversationFailedSend: Identifiable {
                 guard let self else { throw HistoryFailure.changed }
                 try self.model.apply(frame)
                 self.receive(frame,modelApplied:true)
-                self.historyLoading.liveChanged()
+                if ConversationModel.affectsHistoryAggregates(frame) { self.historyLoading.liveChanged() }
             }
         }
         timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in

@@ -23,9 +23,9 @@ import AppKit
     defer { historyController.client.stop() }
     let refreshing = historyController.todoDrawer.snapshot(historyController.model, now: Date())
     let needsUpdate = historyController.todoDrawer.snapshot(historyController.model, now: Date(), gateStatus: .updateRequired)
-    try check(refreshing.warning == "대화 알림을 갱신 중이에요." && needsUpdate.historyUpdating
+    try check(refreshing.historyUpdating && refreshing.warning == nil && needsUpdate.historyUpdating
               && needsUpdate.warning == ConnectionStatus.updateRequired.text,
-              "AT-HO-05 drawer update warning takes priority over history refresh")
+              "AT-HO-05 drawer exposes refresh status separately from update warning")
     print("AT-HO-05 DRAWER PASS")
     var now=ThreadTools.date("2026-11-20T10:00:00+09:00")
     controller.clock={now}

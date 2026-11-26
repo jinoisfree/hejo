@@ -549,6 +549,11 @@ struct ConversationThread: Identifiable {
     }
     enum HistoryMessageMerge { case open, refresh, older, newer }
 
+    func canDisplayHistoryBody(_ id:String,in key:ConversationKey) -> Bool {
+        guard let root=history.summaries[key]?.rootID,messages[root] != nil,messages[id]?.key == key else { return false }
+        return id == root || historyReplyIDs(key).contains(id)
+    }
+
     func hasUnpagedLiveHistory(_ key: ConversationKey) -> Bool {
         guard history.messagePages[key] == nil, let root = history.summaries[key]?.rootID,
               !history.deletedMessages.contains(root) else { return false }
@@ -613,7 +618,13 @@ struct ConversationThread: Identifiable {
         }
         if bodyCache == nil { bodyCache = try store.historyCache() }
         try bodyCache?.batch {
-            for row in rows { try applyHistoryBody(row, expectedKey:key) }
+            for row in rows {
+                // Leave an unchanged, evicted slot to the existing viewport restore path.
+                if merge == .refresh,let id=row["msg_id"] as? String,
+                   evictedHistoryBodies[id] != nil,let revision=history.revisions[id],
+                   revision == HistoryHTTP.integer(row["revision"]) { continue }
+                try applyHistoryBody(row,expectedKey:key)
+            }
         }
         history.messagePageIDs[key] = order
         history.messagePages[key] = state
@@ -728,6 +739,10 @@ struct ConversationThread: Identifiable {
     private func decode<T: Decodable>(_ value: Any, as type: T.Type) throws -> T {
         try JSONDecoder().decode(type, from: JSONSerialization.data(withJSONObject: value))
     }
+    static func affectsHistoryAggregates(_ frame: [String:Any]) -> Bool {
+        !(frame["type"] as? String == "edit" && frame["final"] as? Bool == false)
+    }
+
     func apply(_ frame: [String: Any], now: Date = Date()) throws {
         let type = frame["type"] as? String ?? ""
         if type=="welcome" {
@@ -762,7 +777,7 @@ struct ConversationThread: Identifiable {
                         for scope in Array(history.threadOrder.keys) { history.threadOrder[scope]?.removeAll{$0 == key} }
                     }
                 }
-                history.refreshing = true
+                if Self.affectsHistoryAggregates(frame) { history.refreshing = true }
             }
             switch type {
             case "room":

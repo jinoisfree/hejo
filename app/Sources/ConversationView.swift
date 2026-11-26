@@ -9,6 +9,7 @@ import UniformTypeIdentifiers
         didSet {
             guard oldValue != drawerShownWidth else{return}
             todoDrawer.isHidden=drawerShownWidth<=0
+            if todoDrawer.isHidden { controller.historyLoading.updateCardTargets([]) }
             needsLayout=true;needsDisplay=true
         }
     }
@@ -19,9 +20,8 @@ import UniformTypeIdentifiers
         drawerSelectedID=card.kind == .alert ? nil:card.id
         highlightedMessageID=nil;highlightUntil=nil
         if let id=card.messageID,let key=card.key {
-            reveal(key);highlightedMessageID=id;highlightUntil=card.kind == .alert ? islandModel.now.addingTimeInterval(1.5):nil
-            if controller.client.store.historyMode {controller.historyLoading.open(key,anchor:id)}
-            refresh();history.scrollTo(key.thread)
+            highlightedMessageID=id;highlightUntil=card.kind == .alert ? islandModel.now.addingTimeInterval(1.5):nil
+            navigate(to:key,message:id)
         } else if activate,let url=card.url {onOpenURL(url);refresh()}
         else {refresh()}  // nowhere to go: the card shows "연결된 대화 없음" and only becomes selected
     }
@@ -183,6 +183,9 @@ import UniformTypeIdentifiers
     var onOwnerProfile:(()->Void)?
     var onOpenThreadHeight: ((CGFloat?) -> Void)?
     private var reportedOpenHeight: CGFloat?
+    private let historyRefresh=historyRefreshMark("대화를 갱신하고 있어요")
+    private let historyFailureBar=NSStackView()
+    private let historyRetry=FileChip(title:"다시 시도")
     var onUnread:((Int)->Void)?, onSidebarWidth:((CGFloat)->Void)?
     override var isFlipped:Bool { true }
     var threadTable:NSTableView { history.table }
@@ -203,6 +206,20 @@ import UniformTypeIdentifiers
         employeeScroll.makeBlankMenu = { [weak self] in self?.blankMenu() }
         employeeScroll.automaticallyAdjustsContentInsets=false;employeeScroll.contentInsets=NSEdgeInsets(top:4,left:0,bottom:0,right:0);employeeScroll.documentView=employeeTable; employeeScroll.drawsBackground=false; employeeScroll.hasVerticalScroller=true; employeeScroll.autohidesScrollers=true; employeeScroll.scrollerStyle = .overlay
         for view in [headerDrag,brandDrag,island,employeeScroll,brand,version,history,findRow,noticeScroll,notice,modeBackground,replyButton,newButton,inputBackground,editor,draftHint,attachButton,sendButton,attachmentScroll,handle,drop,composerFaceScroll,searchResults,sidebarBlank,failureBar,noticeIcon] { addSubview(view) }
+        let historyFailureLabel=NSTextField(labelWithString:"대화를 불러오지 못했어요")
+        historyFailureLabel.font = .systemFont(ofSize:11)
+        historyFailureLabel.textColor = .secondaryLabelColor
+        historyRetry.controlSize = .small
+        historyRetry.invoke = { [weak self] in self?.controller.historyLoading.retry() }
+        historyFailureBar.orientation = .horizontal
+        historyFailureBar.alignment = .centerY
+        historyFailureBar.edgeInsets = NSEdgeInsets(top:4,left:12,bottom:4,right:12)
+        historyFailureBar.addArrangedSubview(historyFailureLabel)
+        historyFailureBar.addArrangedSubview(historyRetry)
+        historyFailureBar.wantsLayer = true
+        historyFailureBar.isHidden = true
+        addSubview(historyRefresh)
+        addSubview(historyFailureBar)
         addRoom.nativeLabelGap=8;addRoom.isBordered=false;addRoom.font = .systemFont(ofSize:12,weight:.medium)
         composerFaces.reduceMotion={ [weak self] in self?.reduceMotion() ?? true }
         composerFaceScroll.documentView=composerFaces;composerFaceScroll.drawsBackground=false
@@ -250,7 +267,13 @@ import UniformTypeIdentifiers
         clipboard.recoverLeftovers()
         for drag in [headerDrag,brandDrag] {drag.toolTip="드래그: 채팅창과 펫 함께 이동 · 더블클릭: 가로 2배 / 기본";drag.setAccessibilityLabel("채팅창과 펫 이동")}
         headerDrag.menuHelp="오른쪽 클릭: 제목·설명 편집 및 대화 메뉴"
-        controller.historyLoading.onAnchor = { [weak self] key,id,bottom in self?.history.scrollTo(key.thread,message:id,bottom:bottom) }
+        controller.historyLoading.onRefreshStarted = { [weak self] in self?.updateHistoryStatus() }
+        controller.historyLoading.onAnchor = { [weak self] key,id,bottom in
+            guard let self else { return }
+            if bottom { self.history.scrollTo(key.thread,message:id,bottom:true) }
+            else if self.navigation?.key == key { self.refresh() }
+        }
+        history.onReaderInput = { [weak self] in self?.cancelNavigation() }
         history.onViewport = { [weak self] ids in
             guard let self,self.controller.model.pinHistoryViewport(ids) else {return}
             DispatchQueue.main.async { [weak self] in self?.refresh() }
@@ -259,13 +282,23 @@ import UniformTypeIdentifiers
         history.onLoadViewport = { [weak self] cards in self?.updateHistoryLoads(cards) }
         history.reduceMotion={ [weak self] in self?.reduceMotion() ?? true }
         history.onBlank={ [weak self] in self?.foldAll() }
-        history.onMeasured={ [weak self] in self?.reportOpenHeight() }
+        history.onMeasured={ [weak self] in
+            self?.reportOpenHeight()
+            self?.resolveNavigation()
+        }
         addSubview(todoDrawer);todoDrawer.isHidden=true
         todoDrawer.onFilter={ [weak self] filter in self?.controller.drawerFilter=filter;self?.refresh() }
         todoDrawer.onSelect={ [weak self] card in self?.selectDrawerCard(card,activate:false) }
         todoDrawer.onCard={ [weak self] card in self?.selectDrawerCard(card) }
         todoDrawer.onClose={ [weak self] in self?.onToggleDrawer?() }
         todoDrawer.onComplete={ [weak self] card in self?.controller.completeCard(card);self?.refresh() }
+        todoDrawer.onViewport = { [weak self] cards in
+            guard let self,self.controller.drawerVisible else { return }
+            self.controller.historyLoading.updateCardTargets(cards.compactMap { card in
+                guard let key = card.key,let message = card.messageID else { return nil }
+                return .init(key:key,message:message)
+            })
+        }
         todoDrawer.onCloseDeadline={ [weak self] card,outcome in self?.controller.closeDeadline(card,outcome:outcome);self?.refresh() }
         todoDrawer.onUndoClose={ [weak self] in self?.controller.undoClose();self?.refresh() }
         todoDrawer.onOpenSource={ [weak self] url in self?.onOpenURL(url) }
@@ -294,12 +327,27 @@ import UniformTypeIdentifiers
     }
     required init?(coder:NSCoder) { fatalError() }
     deinit { historyCopyTask?.cancel(); if let appearanceObserver {NotificationCenter.default.removeObserver(appearanceObserver)};islandTimer?.invalidate();streamTimer?.invalidate();workspaceTimer?.invalidate() }
+    private func updateHistoryStatus() {
+        let historyMode = controller.client.store.historyMode
+        let historyFailed = controller.historyLoading.failure != nil
+        historyFailureBar.isHidden = !historyMode || !historyFailed || searchOpen
+        historyRefresh.isHidden = !historyMode || historyFailed
+            || (!controller.historyLoading.showProgress && controller.model.historyAggregatesReady)
+        todoDrawer.setHistoryUpdating(historyMode && !historyFailed && controller.model.history.refreshing)
+    }
+
+    private func showDrawer() {
+        var snapshot = controller.drawerSnapshot
+        if controller.historyLoading.failure != nil { snapshot.historyUpdating = false }
+        todoDrawer.show(snapshot,filter:controller.drawerFilter,selected:drawerSelectedID)
+    }
+
     func tickIsland(updateDrawer:Bool=true) {
         island.show(islandModel.snapshot())
         let second=Int(controller.clock().timeIntervalSince1970)
         if second != noticeSecond {
             noticeSecond=second
-            if updateDrawer && controller.drawerVisible {todoDrawer.show(controller.drawerSnapshot,filter:controller.drawerFilter,selected:drawerSelectedID)}
+            if updateDrawer && controller.drawerVisible {showDrawer()}
             if let room=controller.model.selected?.employee,controller.model.notices(room) != shownNotices {refresh()}
         }
         if let until=highlightUntil, until<=islandModel.now { highlightUntil=nil;highlightedMessageID=nil;refresh() }
@@ -311,9 +359,9 @@ import UniformTypeIdentifiers
         case .retry(let key): retrySend(key)
         case .question(let id,let key):
             guard controller.model.messages[id]?.replyState == "asked" else { return }
-            reveal(key);highlightedMessageID=id;highlightUntil=islandModel.now.addingTimeInterval(1.5)
-            refresh();history.scrollTo(key.thread)
-        case .worker(let key): reveal(key);refresh();history.scrollTo(key.thread)
+            highlightedMessageID=id;highlightUntil=islandModel.now.addingTimeInterval(1.5)
+            navigate(to:key,message:id)
+        case .worker(let key): navigate(to:key)
         }
     }
     private func reveal(_ key:ConversationKey,inHome:Bool=false,direct:Bool=true) {
@@ -454,6 +502,7 @@ import UniformTypeIdentifiers
         else {lastPlaces[placeNamespace]=nil}
     }
     private func entry(_ employee:String,home:Bool) {
+        cancelNavigation()
         rememberPlace();controller.cancelFollowup();openThread=nil;searchHighlight=nil;searchHighlightThread=nil;enteredPlace=""
         let namespace=controller.client.store.settings.address+"\u{1}"+employee+(home ? controller.model.homeChannel.map{"/"+$0.id} ?? "":"")
         writingPlace=namespace;identity=employee;windowed.reset()
@@ -517,32 +566,93 @@ import UniformTypeIdentifiers
         entry(HomeRoom.id,home:true);refresh()
     }
     func chooseThread(_ key:ConversationKey) {
+        cancelNavigation()
         controller.cancelFollowup()
         controller.moveDraft(from:controller.composeKey,to:key,carry:controller.model.selected==key);automatic=false;replyMode=true; openThread=openThread == key ? nil : key
         if openThread != key,searchHighlightThread==key {searchHighlight=nil;searchHighlightThread=nil}
         controller.model.selectUserThread(key, inHome: controller.model.isHome)
-        if openThread==key {if controller.client.store.historyMode {controller.historyLoading.open(key)};history.scrollTo(key.thread,bottom:true)}
+        if openThread==key { positionUnfoldedThread(key) }
     }
-    private var pendingRevealScroll: String?
-    private var preparingOpening=false
-    private var openingEntry:String?
+
+    private func positionUnfoldedThread(_ key:ConversationKey) {
+        let opensPage = controller.client.store.historyMode && controller.historyLoading.open(key)
+        history.scrollTo(key.thread,bottom:!opensPage,keepCentered:opensPage)
+    }
+
+    private struct Navigation {
+        let key: ConversationKey
+        let message: String?
+        let immediate: Bool
+        let opensThreadWhenReady: Bool
+    }
+    private var navigation: Navigation?
+    private var preparingOpening = false
+
     func performUpdates(_ updates: () -> Void,opening:Bool=false) {
         let previous=preparingOpening;preparingOpening=opening
         defer{preparingOpening=previous}
         controller.performUpdates(updates)
     }
-    func finishOpeningEntry() {
-        guard let thread=openingEntry else{return}
-        openingEntry=nil
-        layoutSubtreeIfNeeded();history.layoutSubtreeIfNeeded()
-        history.enter(thread)
+
+    private func cancelNavigation() {
+        navigation = nil
+        controller.historyLoading.cancelNavigation()
+        history.stopTargetPositioning()
     }
-    func openFromBubble(_ key: ConversationKey, direct: Bool = true, inHome: Bool? = nil) {
-        reveal(key, inHome: inHome ?? (controller.model.isHome && controller.model.selected == key), direct: direct)
-        if preparingOpening {openingEntry=key.thread}
-        else if controller.isUpdating { pendingRevealScroll = key.thread }
+
+    private func navigate(to key:ConversationKey,message:String?=nil,inHome:Bool=false,direct:Bool=true) {
+        cancelNavigation()
+        let model = controller.model
+        let ready: Bool
+        if let message {
+            if controller.client.store.historyMode {
+                ready = model.canDisplayHistoryBody(message,in:key)
+            } else {
+                ready = model.messages[message] != nil
+            }
+        } else {
+            ready = model.history.summaries[key] != nil || history.frame(for:key.thread) != nil
+        }
+        let acrossRooms = model.selectionIdentity != (inHome ? HomeRoom.id:key.employee)
+        let opensThreadWhenReady = !ready && !acrossRooms && message != nil && openThread != key
+        let unfolded = openThread
+        navigation = .init(key:key,message:message,immediate:ready && (preparingOpening || acrossRooms),
+                           opensThreadWhenReady:opensThreadWhenReady)
+        history.beginTargetPositioning()
+        reveal(key,inHome:inHome,direct:direct)
+        if opensThreadWhenReady { openThread = unfolded }
+        if controller.client.store.historyMode {
+            controller.historyLoading.beginNavigation(key,message:message,needsBody:!ready)
+        }
         refresh()
-        if !controller.isUpdating && !preparingOpening { history.scrollTo(key.thread) }
+    }
+
+    private func resolveNavigation() {
+        guard let request = navigation,!preparingOpening else { return }
+        let message: String?
+        let hasBody = request.message.map { controller.model.messages[$0] != nil } ?? true
+        if hasBody && history.frame(for:request.key.thread,message:request.message,requiresMessage:true) != nil {
+            message = request.message
+        } else if let failure = controller.historyLoading.failure as? HistoryFailure,
+                  failure == .server("target_missing",retryable:false) {
+            cancelNavigation()
+            guard history.frame(for:request.key.thread) != nil else { return }
+            message = nil
+        } else {
+            return
+        }
+        navigation = nil
+        history.scrollTo(request.key.thread,message:message,immediate:request.immediate)
+    }
+
+    func finishOpeningEntry() {
+        layoutSubtreeIfNeeded()
+        history.layoutSubtreeIfNeeded()
+        resolveNavigation()
+    }
+
+    func openFromBubble(_ key:ConversationKey,direct:Bool=true,inHome:Bool?=nil) {
+        navigate(to:key,inHome:inHome ?? (controller.model.isHome && controller.model.selected == key),direct:direct)
     }
     @discardableResult func closeSearchIfOpen() -> Bool {
         guard searchOpen else { return false }
@@ -573,8 +683,8 @@ import UniformTypeIdentifiers
     func revealHistorySearch(_ key:ConversationKey,id:String) {
         expandedMessages.insert(id)
         searchHighlight=search.stringValue.isEmpty ? employeeSearch.stringValue:search.stringValue
-        _=closeSearchIfOpen();reveal(key);searchHighlightThread=key;highlightedMessageID=id;highlightUntil=islandModel.now.addingTimeInterval(1.6)
-        controller.historyLoading.open(key,anchor:id);refresh()
+        searchHighlightThread=key;highlightedMessageID=id;highlightUntil=islandModel.now.addingTimeInterval(1.6)
+        navigate(to:key,message:id)
     }
     private func showSearchResults() {
         let model=controller.model
@@ -595,12 +705,12 @@ import UniformTypeIdentifiers
             guard let row=model.history.noticeRows[scope]?.first(where:{$0["id"] as? String == id}),
                   let key=row["key"] as? [String:String],let room=key["room"],let thread=key["thread"] else{return}
             let destination=ConversationKey(employee:room,thread:thread)
-            controller.cancelFollowup();reveal(destination);highlightedMessageID=id;highlightUntil=islandModel.now.addingTimeInterval(1.6)
-            controller.historyLoading.open(destination,anchor:id);return
+            controller.cancelFollowup();highlightedMessageID=id;highlightUntil=islandModel.now.addingTimeInterval(1.6)
+            navigate(to:destination,message:id);return
         }
         guard let message=controller.model.messages[item.messages[index]] else{return}
-        controller.cancelFollowup();reveal(message.key);highlightedMessageID=message.id;highlightUntil=islandModel.now.addingTimeInterval(1.6)
-        refresh();history.scrollTo(message.key.thread,message:message.id)
+        controller.cancelFollowup();highlightedMessageID=message.id;highlightUntil=islandModel.now.addingTimeInterval(1.6)
+        navigate(to:message.key,message:message.id)
     }
     private func refreshWorkspaceBars() {
         let next=controller.model.notices(controller.model.selectionIdentity)
@@ -668,7 +778,7 @@ import UniformTypeIdentifiers
         controller.moveDraft(from:controller.composeKey,to:key,carry:controller.model.selected==key);automatic=false;controller.cancelFollowup();replyMode=true;openThread=key
         controller.model.selectUserThread(key, inHome: controller.model.isHome);history.scrollTo(key.thread)
     }
-    func foldAll() {searchHighlight=nil;searchHighlightThread=nil;expandedMessages.removeAll();longReplyBases.removeAll();longReplyWindowBase=nil;openThread=nil;createThread()}
+    func foldAll() {cancelNavigation();searchHighlight=nil;searchHighlightThread=nil;expandedMessages.removeAll();longReplyBases.removeAll();longReplyWindowBase=nil;openThread=nil;createThread()}
     func folded() {_=closeSearchIfOpen();foldAll();controller.folded()}
     var interruptible:ConversationKey? {
         guard let openThread,controller.model.typing[openThread] != nil else{return nil};return openThread
@@ -702,8 +812,7 @@ import UniformTypeIdentifiers
         #endif
         defer {
             rendering=false
-            if let thread=openingEntry {history.enter(thread)}
-            if let thread = pendingRevealScroll { pendingRevealScroll=nil; history.scrollTo(thread) }
+            resolveNavigation()
         }
         controller.model.withStableRenderValues {
             let span = ThreeTapDiagnostics.startSpan()
@@ -779,12 +888,12 @@ import UniformTypeIdentifiers
     #endif
                 if identity != current { windowed.reset(); identity=current; openThread=nil }
                 threads=controller.includingPending(threads,scope:model.isHome ? model.homeScope:[current])
-                let shown=Set(windowed.visibleIDs(threads.map(\.id),revealing:openThread?.thread))
-                var cards:[NativeThreadCard.Content]=[], previous:Date?
-                if controller.client.store.historyMode {
-                    if controller.historyLoading.failure != nil {cards.append(historyStatusContent(failed:true))}
-                    else if controller.historyLoading.showProgress || !model.historyAggregatesReady {cards.append(historyStatusContent(failed:false))}
+                if let navigation,navigation.opensThreadWhenReady,let message=navigation.message,
+                   model.canDisplayHistoryBody(message,in:navigation.key) {
+                    openThread = navigation.key
                 }
+                let shown=Set(windowed.visibleIDs(threads.map(\.id),revealing:navigation?.key.thread ?? openThread?.thread))
+                var cards:[NativeThreadCard.Content]=[], previous:Date?
                 if shown.count<threads.count || (controller.client.store.historyMode && model.history.threadPages[model.isHome ? "home":current]?.next != nil) {cards.append(lineContent(id:"older",title:controller.client.replayComplete ? "이전 글 보기":"불러오는 중…",older:true))}
                 if threads.isEmpty {cards.append(lineContent(id:"empty",title:controller.client.replayComplete ? "아직 표시할 글이 없어요.":"불러오는 중…",top:40))}
                 if history.followsAnswer {let visibleRooms=Set(threads.map{ $0.key.employee });for line in model.messages.values where visibleRooms.contains(line.key.employee) && line.streaming && line.role != "owner" {expandedMessages.insert(line.id)}}
@@ -841,6 +950,7 @@ import UniformTypeIdentifiers
             modeMotion.target(replyMode ? 1:0,now:motionTime(),immediate:reduceMotion())
             notice.stringValue=controller.notice
             ThreeTapDiagnostics.endSpan("refresh_composer", phase); phase = ThreeTapDiagnostics.startSpan()
+            updateHistoryStatus()
             refreshWorkspaceBars();scheduleSearch()
             ThreeTapDiagnostics.endSpan("refresh_workspace", phase); phase = ThreeTapDiagnostics.startSpan()
             var islandInput=controller.islandInput;islandInput.drawerOpen=controller.drawerOpen
@@ -848,7 +958,8 @@ import UniformTypeIdentifiers
             islandInput.todoTotal=controller.drawerSnapshot.total
             islandModel.update(islandInput);tickIsland(updateDrawer:false)
             ThreeTapDiagnostics.endSpan("refresh_island", phase); phase = ThreeTapDiagnostics.startSpan()
-            if controller.drawerVisible {todoDrawer.show(controller.drawerSnapshot,filter:controller.drawerFilter,selected:drawerSelectedID)}
+            if controller.drawerVisible {showDrawer()}
+            else { controller.historyLoading.updateCardTargets([]) }
             ThreeTapDiagnostics.endSpan("refresh_drawer", phase); phase = ThreeTapDiagnostics.startSpan()
             onUnread?(model.visibleUnreadTotal)
             reportOpenHeight()
@@ -864,7 +975,8 @@ import UniformTypeIdentifiers
         todoDrawer.frame=CGRect(x:left,y:0,width:drawerShownWidth,height:h)
         brandDrag.frame=CGRect(x:0,y:0,width:left,height:44); brand.frame=CGRect(x:0,y:7,width:left,height:18); version.frame=CGRect(x:0,y:26,width:left,height:12)
         headerDrag.frame=CGRect(x:x,y:0,width:right,height:44)
-        let islandWidth=island.fittedWidth(limit:max(0,right-24))
+        historyRefresh.frame=CGRect(x:w-24,y:14,width:14,height:16)
+        let islandWidth=island.fittedWidth(limit:max(0,right-42))
         island.frame=CGRect(x:x+12,y:7,width:islandWidth,height:30);island.layoutSubtreeIfNeeded()
         if employeeSearch.superview !== sidebarSearch {sidebarSearch.addSubview(employeeSearch)}
         employeeScroll.frame=CGRect(x:0,y:44,width:left,height:max(1,h-72))
@@ -887,6 +999,13 @@ import UniformTypeIdentifiers
         if !noticeScroll.isHidden {y+=38*bannerFraction}
         let bottom=max(y,h-composerHeight-noticeHeight-failureHeight)
         history.frame=CGRect(x:x,y:y,width:right,height:max(1,bottom-y)); notice.frame=CGRect(x:x+28,y:bottom+7,width:right-38,height:max(0,noticeHeight-10));noticeIcon.isHidden=noticeHeight==0;noticeIcon.frame=CGRect(x:x+10,y:bottom+9,width:13,height:13)
+        if !historyFailureBar.isHidden {
+            let size = historyFailureBar.fittingSize
+            let width = min(size.width,right)
+            historyFailureBar.frame = CGRect(x:x+(right-width)/2,y:max(y,bottom-size.height),width:width,height:size.height)
+            historyFailureBar.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+            historyFailureBar.layer?.cornerRadius = 6
+        }
         failureBar.frame=CGRect(x:x+10,y:bottom+noticeHeight+10+38,width:right-20,height:failureHeight)
         let top=bottom+noticeHeight+10
         let faceHeight:CGFloat=32,rowHeight:CGFloat=32
@@ -1515,7 +1634,7 @@ import UniformTypeIdentifiers
         }
         return pieces
     }
-    private func togglePile(_ key:ConversationKey) {openThread=openThread==key ? nil:key;if openThread != key,searchHighlightThread==key {searchHighlight=nil;searchHighlightThread=nil};refresh();if openThread==key {if controller.client.store.historyMode {controller.historyLoading.open(key)};history.scrollTo(key.thread,bottom:true)}}
+    private func togglePile(_ key:ConversationKey) {openThread=openThread==key ? nil:key;if openThread != key,searchHighlightThread==key {searchHighlight=nil;searchHighlightThread=nil};refresh();if openThread==key { positionUnfoldedThread(key) }}
     private func requestThumbnail(_ file:MessageFile,employee:String) {
         guard thumbnails.image(file.id)==nil,!failedThumbnails.contains(file.id),!fetchingThumbnails.contains(file.id) else{return}
         fetchingThumbnails.insert(file.id)
@@ -1552,11 +1671,6 @@ import UniformTypeIdentifiers
     private func copyText(_ text:String,id:String) {
         clipboardBoard.clearContents();clipboardBoard.setString(text,forType:.string)
         copiedID=id;refresh();DispatchQueue.main.asyncAfter(deadline:.now()+1.6) { [weak self] in if self?.copiedID==id {self?.copiedID=nil;self?.refresh()} }
-    }
-    private func historyStatusContent(failed:Bool)->NativeThreadCard.Content {
-        var card=lineContent(id:"history-status",title:failed ? "대화를 불러오지 못했어요":"대화를 갱신하고 있어요…")
-        if failed {card.top.append(historyActionPiece(id:"history-retry",title:"다시 시도") { [weak self] in self?.controller.historyLoading.retry() })}
-        return card
     }
     private func dayContent(_ date:Date,id:String)->NativeThreadCard.Content {
         let title=CardText.day(date)
