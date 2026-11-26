@@ -338,8 +338,12 @@ struct ConversationFailedSend: Identifiable {
         if isUpdating { changePending = true } else { historyChangePending = false; onChange?() }
     }
     var onConnectionsFrame: (([String:Any])->Void)?
-    var onRevealThread: ((ConversationKey)->Void)?
-    private func revealThread(_ key: ConversationKey) { if !paused || !client.store.historyMode { onRevealThread?(key) } }
+    var onRevealThread: ((ConversationKey, Bool) -> Void)?
+    @discardableResult private func revealThread(_ key: ConversationKey, direct: Bool = false) -> Bool {
+        guard !paused || !client.store.historyMode, let onRevealThread else { return false }
+        onRevealThread(key, direct)
+        return true
+    }
     private var stoppedTargets:[ConversationKey:String]=[:]
     var stopped:Set<ConversationKey> {Set(stoppedTargets.keys)}
     private func controlRecipient(_ key:ConversationKey,working:Bool=false)->String {
@@ -407,7 +411,7 @@ struct ConversationFailedSend: Identifiable {
 #else
         guard let key=ThreadTools.destination(url) else {notice="그 스레드를 불러오지 못했어요";return}
 #endif
-        model.select(key);revealThread(key)
+        if !revealThread(key, direct: true) { model.select(key) }
         if client.store.historyMode {historyLoading.open(key)}
     }
     func branch(_ key:ConversationKey) async {
@@ -805,7 +809,10 @@ struct ConversationFailedSend: Identifiable {
         notifyChange();return true
     }
     func click(_ button: MessageButton, messageID: String, key: ConversationKey, buttons: [MessageButton]) async {
-        if button.kind=="reply",button.label=="의견" {model.select(key);revealThread(key);return}
+        if button.kind == "reply", button.label == "의견" {
+            if !revealThread(key, direct: true) { model.select(key) }
+            return
+        }
         guard canSend else { transferFailed(GateFailure.notConnected); return }
         do { try await client.send(ConversationModel.click(messageID: messageID, buttons: buttons, button: button)); transferFailure=nil }
         catch { transferFailed(error) }

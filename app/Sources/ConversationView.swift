@@ -219,7 +219,11 @@ import UniformTypeIdentifiers
             let span = ThreeTapDiagnostics.startSpan()
             defer { ThreeTapDiagnostics.endSpan("controller_change", span) }
             self?.refresh()
-        }; controller.onRevealThread={ [weak self] key in self?.openFromBubble(key) }; refresh()
+        }
+        controller.onRevealThread = { [weak self] key, direct in
+            self?.openFromBubble(key, direct: direct, inHome: direct ? false : nil)
+        }
+        refresh()
     }
     required init?(coder:NSCoder) { fatalError() }
     deinit { historyCopyTask?.cancel(); if let appearanceObserver {NotificationCenter.default.removeObserver(appearanceObserver)};islandTimer?.invalidate();streamTimer?.invalidate();workspaceTimer?.invalidate() }
@@ -245,13 +249,14 @@ import UniformTypeIdentifiers
         case .worker(let key): reveal(key);refresh();history.scrollTo(key.thread)
         }
     }
-    private func reveal(_ key:ConversationKey,inHome:Bool=false) {
+    private func reveal(_ key:ConversationKey,inHome:Bool=false,direct:Bool=true) {
         rememberPlace()
         let place=inHome ? HomeRoom.id:key.employee
         if identity != place { identity=place;windowed.reset() }
         writingPlace=controller.client.store.settings.address+"\u{1}"+place+(inHome ? controller.model.homeChannel.map{"/"+$0.id} ?? "":"")
         searchOpen=false;historySearch.reset();search.stringValue="";openThread=key;replyMode=true;automatic=false;controller.composeKey=key
-        controller.model.select(key,notify:false,inHome:inHome);controller.model.markAlertSeen(key)
+        if direct { controller.model.selectUserThread(key, notify: false, inHome: inHome) }
+        else { controller.model.select(key, notify: false, inHome: inHome) }
     }
     func setSidebarWidth(_ value:CGFloat) {
         let next=ConversationSidebar.snapped(value); guard next != sidebarWidth else { return }
@@ -452,7 +457,7 @@ import UniformTypeIdentifiers
         controller.cancelFollowup()
         controller.moveDraft(from:controller.composeKey,to:key,carry:controller.model.selected==key);automatic=false;replyMode=true; openThread=openThread == key ? nil : key
         if openThread != key,searchHighlightThread==key {searchHighlight=nil;searchHighlightThread=nil}
-        controller.model.select(key,inHome:controller.model.isHome);controller.model.markAlertSeen(key)
+        controller.model.selectUserThread(key, inHome: controller.model.isHome)
         if openThread==key {if controller.client.store.historyMode {controller.historyLoading.open(key)};history.scrollTo(key.thread,bottom:true)}
     }
     private var pendingRevealScroll: String?
@@ -469,8 +474,8 @@ import UniformTypeIdentifiers
         layoutSubtreeIfNeeded();history.layoutSubtreeIfNeeded()
         history.enter(thread)
     }
-    func openFromBubble(_ key: ConversationKey) {
-        reveal(key,inHome:controller.model.isHome && controller.model.selected==key)
+    func openFromBubble(_ key: ConversationKey, direct: Bool = true, inHome: Bool? = nil) {
+        reveal(key, inHome: inHome ?? (controller.model.isHome && controller.model.selected == key), direct: direct)
         if preparingOpening {openingEntry=key.thread}
         else if controller.isUpdating { pendingRevealScroll = key.thread }
         refresh()
@@ -595,7 +600,7 @@ import UniformTypeIdentifiers
     func writeReply() {
         guard let key=(replyMode ? controller.model.selected:nil) ?? newest(controller.model.selectionIdentity) else{return}
         controller.moveDraft(from:controller.composeKey,to:key,carry:controller.model.selected==key);automatic=false;controller.cancelFollowup();replyMode=true;openThread=key
-        controller.model.select(key,inHome:controller.model.isHome);history.scrollTo(key.thread)
+        controller.model.selectUserThread(key, inHome: controller.model.isHome);history.scrollTo(key.thread)
     }
     func foldAll() {searchHighlight=nil;searchHighlightThread=nil;expandedMessages.removeAll();longReplyBases.removeAll();longReplyWindowBase=nil;openThread=nil;createThread()}
     func folded() {_=closeSearchIfOpen();foldAll();controller.folded()}

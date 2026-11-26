@@ -167,8 +167,14 @@ class HistoryQueries:
                     notice = {'id': posts[0]['msg_id'], 'group': 'alert', 'questions': False, 'title': '알림'}
         if notice:
             source = next(p for p in lines if p['msg_id'] == notice['id'])
-            first_line = next((line for line in source['text'].splitlines() if line), '')
-            notice.update(speaker=source['employee'], timestamp=source['ts'], preview=prefix(first_line, 300))
+            lines_with_text = (line for line in source['text'].splitlines() if line.strip())
+            preview = next(lines_with_text, '')
+            words = preview.split()
+            if words and all(word.startswith('@') and len(word) > 1 for word in words):
+                next_line = next(lines_with_text, '')
+                if next_line:
+                    preview += ' · ' + next_line
+            notice.update(speaker=source['employee'], timestamp=source['ts'], preview=prefix(preview, 300))
         bell = None
         if not state['working'] and not state['settled'] and not confirmed:
             if self.context.value('bell:' + key[0] + '/' + key[1]) is not None and bell_read >= original:

@@ -69,18 +69,27 @@ struct RoomNotice: Equatable {
             }
             return result
     }
-    func markAlertSeen(_ key:ConversationKey) {
+    private func markAlertSeen(_ key: ConversationKey) -> Bool {
 #if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
         if !store.historyMode {
-            if notices(key.employee).filter({!$0.questions}).flatMap(\.messages).contains(where:{messages[$0]?.key==key}) {markNoticeRead(key)}
-            return
+            guard notices(key.employee).filter({ !$0.questions }).flatMap(\.messages)
+                .contains(where: { messages[$0]?.key == key }) else { return false }
+            markNoticeRead(key)
+            return true
         }
 #endif
-        if history.noticeRows[key.employee]?.contains(where:{ row in
-                let target = row["key"] as? [String:String]
-                return row["questions"] as? Bool == false && target?["room"] == key.employee && target?["thread"] == key.thread
-            }) == true { markNoticeRead(key) }
-            return
+        guard history.noticeRows[key.employee]?.contains(where: { row in
+            let target = row["key"] as? [String: String]
+            return row["questions"] as? Bool == false && target?["room"] == key.employee && target?["thread"] == key.thread
+        }) == true else { return false }
+        markNoticeRead(key)
+        return true
+    }
+    func selectUserThread(_ key: ConversationKey, notify: Bool = true, inHome: Bool, markRead: Bool = true) {
+        select(key, notify: false, inHome: inHome, markRead: false)
+        // The notice plan already records both the alert and thread reads.
+        if !markAlertSeen(key), visible, markRead { markThreadRead(key) }
+        if notify { onChange?() }
     }
     func markNoticeRead(_ key:ConversationKey) {
 #if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC

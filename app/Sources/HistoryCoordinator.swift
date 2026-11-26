@@ -331,7 +331,9 @@ import Foundation
             let newInput = encoded != input
             let newSelection = selection != model.selected || selectionScope != scope || visible != model.visible
             guard newSession || newInput || newSelection else { return }
-            operation += 1; model.historyRestorePin=nil; task?.cancel(); task = nil; reads = []; demands = []; failure = nil
+            operation += 1; model.historyRestorePin=nil; task?.cancel(); task = nil; demands = []; failure = nil
+            if newSession { reads.removeAll() }
+            else { reads.removeAll { $0.3 != model.history.intentGeneration } }
             failReplyOpens(HistoryFailure.changed)
             if newSession {
                 refreshFailed = false

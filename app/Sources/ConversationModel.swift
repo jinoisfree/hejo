@@ -1031,7 +1031,14 @@ struct ConversationThread: Identifiable {
         if notify {onChange?()}
     }
     func newThread() { if let selected { select(ConversationKey(employee: selected.employee, thread: UUID().uuidString.lowercased())) } }
-    func setVisible(_ value: Bool) { if visible != value && store.historyMode { history.intentGeneration += 1 }; visible = value; if value {enterRoom(selectionIdentity)}; try? markVisibleRead(); onChange?() }
+    func setVisible(_ value: Bool) {
+        // Opening the chat can finish a direct selection already prepared by the bubble.
+        if visible && !value && store.historyMode { history.intentGeneration += 1 }
+        visible = value
+        if value { enterRoom(selectionIdentity) }
+        try? markVisibleRead()
+        onChange?()
+    }
     private func markVisibleRead() throws {
 #if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
         guard visible, let selected,bell(selected) != true else { return }
