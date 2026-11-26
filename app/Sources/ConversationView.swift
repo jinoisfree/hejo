@@ -99,6 +99,71 @@ import UniformTypeIdentifiers
     private(set) var sidebarRows:[SidebarLayout.Row]=[]
     private var renderedSidebarIDs:[String]=[]
     private var renderedSidebarHeights:[CGFloat]=[]
+    private lazy var sidebarTraceID = UUID().uuidString
+    private var tracedSidebarEvent = 0
+    private var tracedSidebarUpdate = 0
+
+    private struct SidebarTraceSnapshot {
+        let origin: CGFloat
+        let positions: [[String: Any]]
+    }
+
+    private func sidebarTraceSnapshot(ids: [String]) -> SidebarTraceSnapshot {
+        let bounds = employeeScroll.contentView.bounds
+        var positions: [[String: Any]] = []
+        employeeTable.enumerateAvailableRowViews { view, index in
+            guard ids.indices.contains(index) else { return }
+            let frame = view.layer?.presentation()?.frame ?? view.frame
+            guard frame.intersects(bounds) else { return }
+            positions.append(["id": ids[index].hashValue, "y": employeeTable.convert(CGPoint(x:frame.minX,y:frame.minY), to:nil).y])
+        }
+        return .init(origin:bounds.minY, positions:positions)
+    }
+
+    private func traceSidebar(before: SidebarTraceSnapshot, previousIDs: [String],
+                              previousHeights: [CGFloat], ids: [String], heights: [CGFloat],
+                              layout: String, animated: Bool) {
+        let changed = previousIDs != ids || previousHeights != heights
+        if changed { tracedSidebarEvent += 1 }
+        tracedSidebarUpdate += 1
+        let event = tracedSidebarEvent
+        let update = tracedSidebarUpdate
+        func geometry(_ ids: [String], _ heights: [CGFloat]) -> [[String: Any]] {
+            zip(ids, heights).map { ["id": $0.hashValue, "height": $1] }
+        }
+        let beforeIndices = Dictionary(uniqueKeysWithValues:previousIDs.enumerated().map { ($1, $0) })
+        let afterIndices = Dictionary(uniqueKeysWithValues:ids.enumerated().map { ($1, $0) })
+        let changedRows: [[String: Any]] = (previousIDs + ids.filter { beforeIndices[$0] == nil }).compactMap { id in
+            let oldIndex = beforeIndices[id], newIndex = afterIndices[id]
+            let oldHeight = oldIndex.map { previousHeights[$0] } ?? 0
+            let newHeight = newIndex.map { heights[$0] } ?? 0
+            guard oldIndex != newIndex || oldHeight != newHeight else { return nil }
+            return ["id":id.hashValue, "ordinal":newIndex ?? oldIndex ?? 0,
+                    "before_height":oldHeight, "after_height":newHeight,
+                    "inserted":oldIndex == nil, "removed":newIndex == nil]
+        }
+        let fields: [String: Any] = [
+            "event": event, "update": update, "signature_changed": changed, "layout": layout,
+            "changed_rows": changedRows,
+            "origin_before": before.origin, "rows_before": before.positions,
+            "geometry_before": geometry(previousIDs, previousHeights), "geometry_after": geometry(ids, heights)
+        ]
+        func record(_ snapshot: SidebarTraceSnapshot, phase: String) {
+            var row = fields
+            row["phase"] = phase
+            row["origin_after"] = snapshot.origin
+            row["rows_after"] = snapshot.positions
+            ThreeTapDiagnostics.waitJitter("sidebar", view:sidebarTraceID, fields:row)
+        }
+        record(sidebarTraceSnapshot(ids:ids), phase:"immediate")
+        if animated {
+            DispatchQueue.main.asyncAfter(deadline:.now() + SidebarMotion.duration) { [weak self] in
+                guard let self, self.tracedSidebarEvent == event else { return }
+                record(self.sidebarTraceSnapshot(ids:ids), phase:"settled")
+            }
+        }
+    }
+
     private var sidebarRails:[String:CAShapeLayer]=[:]
     private var sidebarUpdating=false
     private lazy var sidebarSearch=SidebarSearchRow(field:employeeSearch)
@@ -906,7 +971,10 @@ import UniformTypeIdentifiers
     private func updateSidebarRows(){
         guard !sidebarUpdating else{return};sidebarUpdating=true;defer{sidebarUpdating=false}
         let ids=sidebarRows.map(\.stableID)+(employeeSearch.stringValue.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty || !ConversationSidebar.isList(sidebarWidth) ? ["add"]:[])
-        let old=renderedSidebarIDs;renderedSidebarIDs=ids
+        let old=renderedSidebarIDs
+        let traceBefore = ThreeTapDiagnostics.output == nil ? nil : sidebarTraceSnapshot(ids:old)
+        let traceHeights = traceBefore == nil ? [] : renderedSidebarHeights
+        renderedSidebarIDs=ids
         let heights = ids.indices.map { tableView(employeeTable,heightOfRow:$0) }
         // Ordinary rows have fixed heights. Keep content/selection updates below, but
         // avoid asking AppKit to recreate their layout when those heights did not change.
@@ -919,6 +987,12 @@ import UniformTypeIdentifiers
         for i in sidebarRows.indices {if let cell=employeeTable.view(atColumn:0,row:i,makeIfNecessary:false) as? EmployeeSidebarCell {configureSidebarCell(cell,row:sidebarRows[i])}}
         if let index=rowIndex(for:controller.model.selectionIdentity) {employeeTable.selectRowIndexes(IndexSet(integer:index),byExtendingSelection:false)}else{employeeTable.deselectAll(nil)}
         layoutSidebarRails()
+        if let traceBefore {
+            let layout = old != ids ? "sidebar_motion" : changedHeights.isEmpty ? "none" : "row_heights"
+            traceSidebar(before:traceBefore, previousIDs:old, previousHeights:traceHeights,
+                         ids:ids, heights:heights, layout:layout,
+                         animated:layout != "none" && !old.isEmpty && !reduceMotion() && window != nil)
+        }
     }
     override func viewDidChangeEffectiveAppearance(){super.viewDidChangeEffectiveAppearance();needsLayout=true;needsDisplay=true;effectiveAppearance.performAsCurrentDrawingAppearance{if window != nil {refresh()};layoutSidebarRails()}}
     private func layoutSidebarRails(){

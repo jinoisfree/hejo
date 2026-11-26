@@ -137,6 +137,9 @@ final class MemoryCredentials: GateCredentialStore {
                     try await petWindowTests()
                 } else if args.count>2 && args[1]=="--task41-capture" {
                     try await petWindowTests(outputDirectory:URL(fileURLWithPath:args[2]))
+                } else if args.count >= 4 && args[1] == "--wait-jitter" {
+                    try await waitJitterTests(output:URL(fileURLWithPath:args[2]), targets:URL(fileURLWithPath:args[3]),
+                                              traceSubset:args.contains("--trace-subset"))
                 } else if args.contains("--task40") {
                     try await scrollTests()
                 } else if args.count>2 && args[1]=="--task40-capture" {

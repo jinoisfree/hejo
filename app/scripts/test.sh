@@ -44,3 +44,14 @@ printf '%s\n' 'AT-HF-23 PASS'
 "${HEJO_PYTHON:-python3}" Tests/test_hooks.py
 
 bash Tests/OwnerProfileTransport.sh
+
+wait_jitter_output="$PWD/.build/wait-jitter-tests"
+mkdir -p "$wait_jitter_output"
+wait_jitter_trace="$wait_jitter_output/trace.jsonl"
+rm -f "$wait_jitter_trace"
+HEJO_THREE_TAP_TRACE="$wait_jitter_trace" .build/app-tests --wait-jitter "$wait_jitter_output/enabled" Tests/WaitJitterTargets.json
+"${HEJO_PYTHON:-python3}" Tests/wait_jitter_trace.py "$wait_jitter_trace" --harness
+"${HEJO_PYTHON:-python3}" Tests/wait_jitter_trace_test.py
+wait_jitter_trace_hash="$(shasum -a 256 "$wait_jitter_trace")"
+env -u HEJO_THREE_TAP_TRACE .build/app-tests --wait-jitter "$wait_jitter_output/disabled" Tests/WaitJitterTargets.json --trace-subset
+[[ "$(shasum -a 256 "$wait_jitter_trace")" == "$wait_jitter_trace_hash" ]]
