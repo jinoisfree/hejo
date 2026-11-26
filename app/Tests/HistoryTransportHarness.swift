@@ -187,6 +187,12 @@ private final class HistoryTransportCredentials: GateCredentialStore {
             try await HistoryAlertSeenHarness.run(client:client,args:args)
             return
         }
+        if args.count > 6,args[5] == "autoload-input" {
+            try HistoryJumpInputHarness.runApplication {
+                try await HistoryAutoloadHarness.run(client:client,args:args)
+            }
+            return
+        }
         if args.count > 5, args[5] == "autoload" {
             try await HistoryAutoloadHarness.run(client:client,args:args)
             return
