@@ -66,10 +66,12 @@ async def test_history_autoload(gate, tmp_path, scenario, monkeypatch):
             if scenario == "budget":
                 text += " substantive fixture words" * 1600
             rows[key].append(msg_id)
+            # The root-only thread stays selected when the view chooses the room's newest card.
+            timestamp = "2026-01-02T00:00:00Z" if scenario == "root-only" and key == threads[0] else "2026-01-01T00:00:00Z"
             await gate.journal.append({
                 "v": 1, "type": "message", "msg_id": msg_id, "employee": "alpha",
                 "thread": key, "role": "employee", "text": text,
-                "files": [], "buttons": [], "ts": "2026-01-01T00:00:00Z",
+                "files": [], "buttons": [], "ts": timestamp,
             })
     if main_index:
         threads.insert(0, threads.pop(main_index))

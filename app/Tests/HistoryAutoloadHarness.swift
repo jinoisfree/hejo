@@ -138,6 +138,8 @@ import Foundation
         window.orderFrontRegardless()
         defer { window.orderOut(nil) }
         view.history.reduceMotion = { true }
+        let publishLoadViewport = view.history.onLoadViewport
+        if fixture.scenario == "root-only" { view.history.onLoadViewport = nil }
 
         func layout() {
             view.layoutSubtreeIfNeeded()
@@ -551,11 +553,24 @@ import Foundation
             try require(after.count == 3 && after.allSatisfy { $0.kind=="messages" && !$0.cursor && $0.anchor==nil },
                         "AT-ALD-25 selected refresh ownership")
         case "root-only":
+            try await wait("stable_root_selection") {
+                model.selected == first && !loader.busy && !model.history.refreshing
+            }
+            try require(model.messages[rows[0]] == nil &&
+                        model.historyReplyIDs(first) == Array(rows[71...120]) &&
+                        view.history.contents.first { $0.id == first.thread }?.expanded == false,
+                        "AT-ALD-13/26 selected collapsed thread with an unloaded root")
+            let before = try await observe().requests.count
+            view.history.onLoadViewport = publishLoadViewport
             scroll(frame(first.thread,rows[0]).minY)
             try await wait("selected_root") { rendered(rows[0]) && !loader.busy }
-            let final = try await observe().requests
-            try require(bodyRequests(final,for:first.thread).count == 1 &&
-                        final.filter { $0.kind == "messages" && $0.thread == first.thread && $0.cursor }.isEmpty,"AT-ALD-13/26")
+            let requests = try await observe().requests.dropFirst(before)
+            let rootRequests = bodyRequests(Array(requests),for:first.thread)
+            try require(model.selected == first && rootRequests.count == 1 &&
+                        rootRequests.first?.responseIDs == [rows[0]] &&
+                        requests.filter { $0.kind == "messages" && $0.thread == first.thread && $0.cursor }.isEmpty,
+                        "AT-ALD-13/26")
+            try require(!loader.failed(.root(first)), "AT-ALD-26 successful root must leave the load target satisfied")
         case "older", "cursor-context", "cursor-expired", "cursor-far", "cursor-fails", "root-edge":
             let far = fixture.scenario == "cursor-far"
             let initialStart = far ? 50:71
