@@ -775,7 +775,10 @@ struct ConversationFailedSend: Identifiable {
         defer {if activeUploads[key]==id,address==replicaAddress {uploads[key]=nil;activeUploads[key]=nil}}
         var sendStarted = false
         do {
-            if client.store.historyMode && !newPost {try await confirmReplyTarget(key)}
+            if client.store.historyMode && !newPost {
+                try await historyLoading.prepareReply(key,pendingID:id)
+                try await confirmReplyTarget(key)
+            }
             let destination=sendFields(key,recipient:recipient ?? (bubble ? controlRecipient(key,working:true):nil))
             var uploaded: [MessageFile] = []
             let sizes=try GateHTTP.prepareUploads(draft.attachments)

@@ -40,7 +40,7 @@ struct HistoryRoomTotals: Decodable {
 struct HistoryPageState {
     let context: String
     let next: String?
-    let through: Int
+    var through: Int
     let complete: Bool
     var anchor: String? = nil
     var newerCount: Int = 0
@@ -59,6 +59,7 @@ struct HistoryProjection {
     var questions: [HistoryQuestion] = []
     var totals: [String:HistoryRoomTotals] = [:]
     var threadPages: [String:HistoryPageState] = [:]
+    var messagePageIDs: [ConversationKey:[String]] = [:]
     var messagePages: [ConversationKey:HistoryPageState] = [:]
     var threadOrder: [String:[ConversationKey]] = [:]
     var revisions: [String:Int] = [:]
@@ -71,7 +72,7 @@ struct HistoryProjection {
     mutating func beginContext(_ context: String, generation: Int) {
         self.context = context; self.generation = generation; refreshing = true
         // Keep last values visible while refreshing; cursors belong to the old context.
-        threadPages = [:]; messagePages = [:]
+        threadPages = [:]
     }
     func accepts(context: String, generation: Int) -> Bool {
         self.context == context && self.generation == generation
