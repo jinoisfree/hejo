@@ -11,6 +11,7 @@
 - ddots(`<운영 저장소>/ddots`)와 hejo는 다른 앱이다. ddots에서 코드를 베껴 올 수 있지만 ddots 파일을 고치거나 두 앱 사이에 동기화 장치를 만들지 않는다.
 - `<운영 저장소>`는 운영자의 비공개 운영 저장소다. 이름·경로는 개인값이라 추적 파일에 쓰지 않고, 로컬 경로는 추적하지 않는 `AGENTS.local.md`에 적는다.
 - team-kit 변경은 운영 저장소 저장소의 규칙(`<운영 저장소>/AGENTS.md`, `./airport-check`)을 따른다.
+- 검증 중 hejo 앱을 실제로 설치·교체할 때 기존 앱 백업은 `/Applications`·`~/Applications` 밖(`~/Library/Application Support/hejo-backups/`)에 두고, 작업 판정 뒤 지운다.
 - 푸시는 사용자가 화면에서 승인하면 플러그인이 실행한다. 에이전트는 git push를 하지 않는다.
 
 ## 프로젝트 설정
