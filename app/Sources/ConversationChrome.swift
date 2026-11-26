@@ -282,6 +282,16 @@ final class FileChip: NSButton {
     override func acceptsFirstMouse(for event:NSEvent?) -> Bool { true }
 }
 final class PassiveLabel: NSTextField { override func hitTest(_ point:NSPoint) -> NSView? { nil } }
+func historyRefreshMark(_ label:String) -> NSTextField {
+    let mark = PassiveLabel(labelWithString:"↻")
+    mark.font = .systemFont(ofSize:12)
+    mark.textColor = .secondaryLabelColor
+    mark.alignment = .center
+    mark.setAccessibilityLabel(label)
+    mark.toolTip = label
+    mark.isHidden = true
+    return mark
+}
 /// SwiftUI's capsule/circle controls translated into native drawing, including its hit area.
 /// Shared track and segment geometry for composer modes and drawer filters.
 final class ComposerModeTrack: NSView {

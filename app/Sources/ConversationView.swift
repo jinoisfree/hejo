@@ -183,6 +183,9 @@ import UniformTypeIdentifiers
     var onOwnerProfile:(()->Void)?
     var onOpenThreadHeight: ((CGFloat?) -> Void)?
     private var reportedOpenHeight: CGFloat?
+    private let historyRefresh=historyRefreshMark("대화를 갱신하고 있어요")
+    private let historyFailureBar=NSStackView()
+    private let historyRetry=FileChip(title:"다시 시도")
     var onUnread:((Int)->Void)?, onSidebarWidth:((CGFloat)->Void)?
     override var isFlipped:Bool { true }
     var threadTable:NSTableView { history.table }
@@ -203,6 +206,20 @@ import UniformTypeIdentifiers
         employeeScroll.makeBlankMenu = { [weak self] in self?.blankMenu() }
         employeeScroll.automaticallyAdjustsContentInsets=false;employeeScroll.contentInsets=NSEdgeInsets(top:4,left:0,bottom:0,right:0);employeeScroll.documentView=employeeTable; employeeScroll.drawsBackground=false; employeeScroll.hasVerticalScroller=true; employeeScroll.autohidesScrollers=true; employeeScroll.scrollerStyle = .overlay
         for view in [headerDrag,brandDrag,island,employeeScroll,brand,version,history,findRow,noticeScroll,notice,modeBackground,replyButton,newButton,inputBackground,editor,draftHint,attachButton,sendButton,attachmentScroll,handle,drop,composerFaceScroll,searchResults,sidebarBlank,failureBar,noticeIcon] { addSubview(view) }
+        let historyFailureLabel=NSTextField(labelWithString:"대화를 불러오지 못했어요")
+        historyFailureLabel.font = .systemFont(ofSize:11)
+        historyFailureLabel.textColor = .secondaryLabelColor
+        historyRetry.controlSize = .small
+        historyRetry.invoke = { [weak self] in self?.controller.historyLoading.retry() }
+        historyFailureBar.orientation = .horizontal
+        historyFailureBar.alignment = .centerY
+        historyFailureBar.edgeInsets = NSEdgeInsets(top:4,left:12,bottom:4,right:12)
+        historyFailureBar.addArrangedSubview(historyFailureLabel)
+        historyFailureBar.addArrangedSubview(historyRetry)
+        historyFailureBar.wantsLayer = true
+        historyFailureBar.isHidden = true
+        addSubview(historyRefresh)
+        addSubview(historyFailureBar)
         addRoom.nativeLabelGap=8;addRoom.isBordered=false;addRoom.font = .systemFont(ofSize:12,weight:.medium)
         composerFaces.reduceMotion={ [weak self] in self?.reduceMotion() ?? true }
         composerFaceScroll.documentView=composerFaces;composerFaceScroll.drawsBackground=false
@@ -250,6 +267,7 @@ import UniformTypeIdentifiers
         clipboard.recoverLeftovers()
         for drag in [headerDrag,brandDrag] {drag.toolTip="드래그: 채팅창과 펫 함께 이동 · 더블클릭: 가로 2배 / 기본";drag.setAccessibilityLabel("채팅창과 펫 이동")}
         headerDrag.menuHelp="오른쪽 클릭: 제목·설명 편집 및 대화 메뉴"
+        controller.historyLoading.onRefreshStarted = { [weak self] in self?.updateHistoryStatus() }
         controller.historyLoading.onAnchor = { [weak self] key,id,bottom in
             guard let self else { return }
             if bottom { self.history.scrollTo(key.thread,message:id,bottom:true) }
@@ -308,12 +326,27 @@ import UniformTypeIdentifiers
     }
     required init?(coder:NSCoder) { fatalError() }
     deinit { historyCopyTask?.cancel(); if let appearanceObserver {NotificationCenter.default.removeObserver(appearanceObserver)};islandTimer?.invalidate();streamTimer?.invalidate();workspaceTimer?.invalidate() }
+    private func updateHistoryStatus() {
+        let historyMode = controller.client.store.historyMode
+        let historyFailed = controller.historyLoading.failure != nil
+        historyFailureBar.isHidden = !historyMode || !historyFailed || searchOpen
+        historyRefresh.isHidden = !historyMode || historyFailed
+            || (!controller.historyLoading.showProgress && controller.model.historyAggregatesReady)
+        todoDrawer.setHistoryUpdating(historyMode && !historyFailed && controller.model.history.refreshing)
+    }
+
+    private func showDrawer() {
+        var snapshot = controller.drawerSnapshot
+        if controller.historyLoading.failure != nil { snapshot.historyUpdating = false }
+        todoDrawer.show(snapshot,filter:controller.drawerFilter,selected:drawerSelectedID)
+    }
+
     func tickIsland(updateDrawer:Bool=true) {
         island.show(islandModel.snapshot())
         let second=Int(controller.clock().timeIntervalSince1970)
         if second != noticeSecond {
             noticeSecond=second
-            if updateDrawer && controller.drawerVisible {todoDrawer.show(controller.drawerSnapshot,filter:controller.drawerFilter,selected:drawerSelectedID)}
+            if updateDrawer && controller.drawerVisible {showDrawer()}
             if let room=controller.model.selected?.employee,controller.model.notices(room) != shownNotices {refresh()}
         }
         if let until=highlightUntil, until<=islandModel.now { highlightUntil=nil;highlightedMessageID=nil;refresh() }
@@ -861,10 +894,6 @@ import UniformTypeIdentifiers
                 }
                 let shown=Set(windowed.visibleIDs(threads.map(\.id),revealing:navigation?.key.thread ?? openThread?.thread))
                 var cards:[NativeThreadCard.Content]=[], previous:Date?
-                if controller.client.store.historyMode {
-                    if controller.historyLoading.failure != nil {cards.append(historyStatusContent(failed:true))}
-                    else if controller.historyLoading.showProgress || !model.historyAggregatesReady {cards.append(historyStatusContent(failed:false))}
-                }
                 if shown.count<threads.count || (controller.client.store.historyMode && model.history.threadPages[model.isHome ? "home":current]?.next != nil) {cards.append(lineContent(id:"older",title:controller.client.replayComplete ? "이전 글 보기":"불러오는 중…",older:true))}
                 if threads.isEmpty {cards.append(lineContent(id:"empty",title:controller.client.replayComplete ? "아직 표시할 글이 없어요.":"불러오는 중…",top:40))}
                 if history.followsAnswer {let visibleRooms=Set(threads.map{ $0.key.employee });for line in model.messages.values where visibleRooms.contains(line.key.employee) && line.streaming && line.role != "owner" {expandedMessages.insert(line.id)}}
@@ -921,6 +950,7 @@ import UniformTypeIdentifiers
             modeMotion.target(replyMode ? 1:0,now:motionTime(),immediate:reduceMotion())
             notice.stringValue=controller.notice
             ThreeTapDiagnostics.endSpan("refresh_composer", phase); phase = ThreeTapDiagnostics.startSpan()
+            updateHistoryStatus()
             refreshWorkspaceBars();scheduleSearch()
             ThreeTapDiagnostics.endSpan("refresh_workspace", phase); phase = ThreeTapDiagnostics.startSpan()
             var islandInput=controller.islandInput;islandInput.drawerOpen=controller.drawerOpen
@@ -928,7 +958,7 @@ import UniformTypeIdentifiers
             islandInput.todoTotal=controller.drawerSnapshot.total
             islandModel.update(islandInput);tickIsland(updateDrawer:false)
             ThreeTapDiagnostics.endSpan("refresh_island", phase); phase = ThreeTapDiagnostics.startSpan()
-            if controller.drawerVisible {todoDrawer.show(controller.drawerSnapshot,filter:controller.drawerFilter,selected:drawerSelectedID)}
+            if controller.drawerVisible {showDrawer()}
             else { controller.historyLoading.updateCardTargets([]) }
             ThreeTapDiagnostics.endSpan("refresh_drawer", phase); phase = ThreeTapDiagnostics.startSpan()
             onUnread?(model.visibleUnreadTotal)
@@ -945,7 +975,8 @@ import UniformTypeIdentifiers
         todoDrawer.frame=CGRect(x:left,y:0,width:drawerShownWidth,height:h)
         brandDrag.frame=CGRect(x:0,y:0,width:left,height:44); brand.frame=CGRect(x:0,y:7,width:left,height:18); version.frame=CGRect(x:0,y:26,width:left,height:12)
         headerDrag.frame=CGRect(x:x,y:0,width:right,height:44)
-        let islandWidth=island.fittedWidth(limit:max(0,right-24))
+        historyRefresh.frame=CGRect(x:w-24,y:14,width:14,height:16)
+        let islandWidth=island.fittedWidth(limit:max(0,right-42))
         island.frame=CGRect(x:x+12,y:7,width:islandWidth,height:30);island.layoutSubtreeIfNeeded()
         if employeeSearch.superview !== sidebarSearch {sidebarSearch.addSubview(employeeSearch)}
         employeeScroll.frame=CGRect(x:0,y:44,width:left,height:max(1,h-72))
@@ -968,6 +999,13 @@ import UniformTypeIdentifiers
         if !noticeScroll.isHidden {y+=38*bannerFraction}
         let bottom=max(y,h-composerHeight-noticeHeight-failureHeight)
         history.frame=CGRect(x:x,y:y,width:right,height:max(1,bottom-y)); notice.frame=CGRect(x:x+28,y:bottom+7,width:right-38,height:max(0,noticeHeight-10));noticeIcon.isHidden=noticeHeight==0;noticeIcon.frame=CGRect(x:x+10,y:bottom+9,width:13,height:13)
+        if !historyFailureBar.isHidden {
+            let size = historyFailureBar.fittingSize
+            let width = min(size.width,right)
+            historyFailureBar.frame = CGRect(x:x+(right-width)/2,y:max(y,bottom-size.height),width:width,height:size.height)
+            historyFailureBar.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+            historyFailureBar.layer?.cornerRadius = 6
+        }
         failureBar.frame=CGRect(x:x+10,y:bottom+noticeHeight+10+38,width:right-20,height:failureHeight)
         let top=bottom+noticeHeight+10
         let faceHeight:CGFloat=32,rowHeight:CGFloat=32
@@ -1633,11 +1671,6 @@ import UniformTypeIdentifiers
     private func copyText(_ text:String,id:String) {
         clipboardBoard.clearContents();clipboardBoard.setString(text,forType:.string)
         copiedID=id;refresh();DispatchQueue.main.asyncAfter(deadline:.now()+1.6) { [weak self] in if self?.copiedID==id {self?.copiedID=nil;self?.refresh()} }
-    }
-    private func historyStatusContent(failed:Bool)->NativeThreadCard.Content {
-        var card=lineContent(id:"history-status",title:failed ? "대화를 불러오지 못했어요":"대화를 갱신하고 있어요…")
-        if failed {card.top.append(historyActionPiece(id:"history-retry",title:"다시 시도") { [weak self] in self?.controller.historyLoading.retry() })}
-        return card
     }
     private func dayContent(_ date:Date,id:String)->NativeThreadCard.Content {
         let title=CardText.day(date)

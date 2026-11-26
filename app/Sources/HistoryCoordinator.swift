@@ -373,6 +373,7 @@ import Foundation
         try model.applyHistoryBody(body,expectedKey:key)
     }
     var onChange: (() -> Void)?
+    var onRefreshStarted: (() -> Void)?
     var onAnchor: ((ConversationKey,String?,Bool) -> Void)?
     var onReceipts: (([[String:Any]]) -> Void)?
     var pendingReceipts: (() -> [(String,String)])?
@@ -561,6 +562,7 @@ import Foundation
 
     private func refresh(context: String, run: Int) async throws {
         model.history.refreshing = true
+        onRefreshStarted?()
         var fields: [String:Any] = ["mode":"sidebar"], totals: [[String:Any]] = []
         repeat {
             let page = try await query("overview",scope:"home",context:context,run:run,fields:fields)

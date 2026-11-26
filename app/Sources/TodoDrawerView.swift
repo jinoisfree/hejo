@@ -17,12 +17,15 @@ import AppKit
     var onUndoClose: (() -> Void)?
     var onOpenSource: ((URL) -> Void)?
     private let footer=NSStackView()
+    private let warnings=NSStackView()
+    private let refreshMark=historyRefreshMark("대화 알림을 갱신 중이에요.")
+    private var warningText: [String] = []
     var avatar: (String) -> ProfileAvatar = {ProfileAvatar(color:PictureCodec.color(name:$0,hex:nil))}
     private var previous: TodoDrawerModel.Snapshot?, previousFilter: TodoDrawerModel.Filter?, previousSelection: String?
     private(set) var selectedID: String?
     override init(frame: NSRect) {
         super.init(frame:frame);wantsLayer=true;layer?.masksToBounds=true
-        filters.addSubview(close);filters.addSubview(filterTrack);addSubview(filters)
+        filters.addSubview(close);filters.addSubview(filterTrack);filters.addSubview(refreshMark);addSubview(filters)
         close.setAccessibilityLabel("처리할 일 닫기")
         scroll.drawsBackground=false;scroll.hasVerticalScroller=true;scroll.autohidesScrollers=true
         stack.orientation = .vertical;stack.alignment = .leading;stack.spacing=7
@@ -34,6 +37,13 @@ import AppKit
             MainActor.assumeIsolated { self?.reportViewport() }
         }
         footer.orientation = .horizontal;footer.edgeInsets=NSEdgeInsets(top:6,left:14,bottom:6,right:14);footer.isHidden=true;addSubview(footer)
+        warnings.orientation = .vertical
+        warnings.alignment = .leading
+        warnings.spacing = 3
+        warnings.edgeInsets = NSEdgeInsets(top:6,left:14,bottom:6,right:14)
+        warnings.wantsLayer = true
+        warnings.isHidden = true
+        addSubview(warnings)
         setAccessibilityLabel("처리할 일")
         appearanceObserver=NotificationCenter.default.addObserver(forName:ChatAppearance.didChange,object:nil,queue:.main){ [weak self] _ in
             MainActor.assumeIsolated { self?.needsDisplay=true;self?.cardViews.forEach{$0.needsDisplay=true} }
@@ -56,12 +66,18 @@ import AppKit
         filters.frame=CGRect(x:0,y:bounds.height-band,width:width,height:band)
         close.frame=CGRect(x:252,y:10,width:24,height:24)
         filterTrack.frame=CGRect(x:14,y:(band-ComposerModeTrack.height)/2,width:230,height:ComposerModeTrack.height)
+        refreshMark.frame=CGRect(x:width-14,y:(band-16)/2,width:14,height:16)
         let buttons=filterTrack.subviews.compactMap{$0 as? ComposerButton}
         if !buttons.isEmpty {
             let segmentWidth=(filterTrack.bounds.width-2*ComposerModeTrack.inset)/CGFloat(buttons.count)
             for (index,button) in buttons.enumerated() {button.frame=ComposerModeTrack.segment(in:filterTrack.bounds,offset:CGFloat(index)*segmentWidth,width:segmentWidth)}
         }
         footer.frame=CGRect(x:0,y:0,width:width,height:footerHeight)
+        if !warnings.isHidden {
+            let size = warnings.fittingSize
+            warnings.frame = CGRect(x:0,y:footerHeight,width:width,height:size.height)
+            warnings.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+        }
         scroll.frame=CGRect(x:0,y:footerHeight,width:width,height:max(0,bounds.height-band-footerHeight))
         stack.frame.size.width=PetController.drawerWidth
         stack.layoutSubtreeIfNeeded()
@@ -82,11 +98,20 @@ import AppKit
         }
         onViewport?(shown+adjacent)
     }
+    func setHistoryUpdating(_ updating:Bool) { refreshMark.isHidden = !updating }
+
     // The common title divider is already drawn by ConversationView at y=44.
     func show(_ value:TodoDrawerModel.Snapshot, filter:TodoDrawerModel.Filter, selected:String?) {
+        setHistoryUpdating(value.historyUpdating)
+        showWarnings([value.warning,value.closeWarning].compactMap { $0 })
         selectedID=selected
-        guard value != previous || filter != previousFilter || selected != previousSelection else{return}
-        previous=value;previousFilter=filter;previousSelection=selected
+        var cardsOnly = value
+        cardsOnly.historyUpdating = false
+        cardsOnly.gateStatus = .connected
+        cardsOnly.failed = false
+        cardsOnly.closeFailed = false
+        guard cardsOnly != previous || filter != previousFilter || selected != previousSelection else{return}
+        previous=cardsOnly;previousFilter=filter;previousSelection=selected
         for view in stack.arrangedSubviews {stack.removeArrangedSubview(view);view.removeFromSuperview()}
         func add(_ view:NSView){stack.addArrangedSubview(view);view.widthAnchor.constraint(equalTo:stack.widthAnchor,constant:-2*Self.inset).isActive=true}
         for button in filterTrack.subviews {button.removeFromSuperview()}
@@ -98,9 +123,6 @@ import AppKit
             button.setAccessibilitySelected(button.chosen)
             button.invoke={[weak self] in self?.onFilter?(kind)}
             filterTrack.addSubview(button)
-        }
-        for warning in [value.warning,value.closeWarning].compactMap({$0}) {
-            let line=NSTextField(wrappingLabelWithString:warning);line.font = .systemFont(ofSize:11);line.textColor = .secondaryLabelColor;add(line)
         }
         if value.empty {let empty=NSTextField(labelWithString:"모두 처리했어요");empty.textColor = .secondaryLabelColor;empty.font = .systemFont(ofSize:12);add(empty)}
         for (index,cards) in [value.urgent,value.rest].enumerated() where !cards.isEmpty {
@@ -123,6 +145,21 @@ import AppKit
         }
         needsLayout=true
     }
+    private func showWarnings(_ text: [String]) {
+        guard warningText != text else { return }
+        warningText = text
+        for view in warnings.arrangedSubviews { view.removeFromSuperview() }
+        for warning in text {
+            let label = NSTextField(wrappingLabelWithString:warning)
+            label.font = .systemFont(ofSize:11)
+            label.textColor = .secondaryLabelColor
+            label.preferredMaxLayoutWidth = PetController.drawerWidth-28
+            warnings.addArrangedSubview(label)
+        }
+        warnings.isHidden = text.isEmpty
+        needsLayout = true
+    }
+
     override func moveDown(_ sender:Any?) {moveSelection(1)}
     override func moveUp(_ sender:Any?) {moveSelection(-1)}
     private func moveSelection(_ delta:Int) {
