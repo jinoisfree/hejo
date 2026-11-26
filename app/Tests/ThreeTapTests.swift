@@ -1,4 +1,5 @@
 import AppKit
+import Darwin
 
 /// Transport substitute only: gesture and frame validation use the product code.
 final class FakeThreeTapReader: ThreeTapReading {
@@ -18,7 +19,48 @@ final class FakeThreeTapReader: ThreeTapReading {
     }
 }
 
+@MainActor private func threeTapSettingsWriteTests() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let store = try LocalStore(directory: directory, historyMode: true)
+    try store.update { $0.threeTapPendingUpdate = true }
+    let controller = try ThreeTapController(store: store, live: false, reader: FakeThreeTapReader(),
+                                            lookupUsesThreeFingers: { false }, machineName: { "검사용 Mac" })
+
+    func metadata() throws -> (inode: UInt64, seconds: Int, nanoseconds: Int) {
+        var info = stat()
+        try check(lstat(store.settingsURL.path, &info) == 0, "three-tap settings file exists")
+        return (info.st_ino, info.st_mtimespec.tv_sec, info.st_mtimespec.tv_nsec)
+    }
+
+    let initial = try metadata()
+    controller.receive(.absent)
+    let first = try metadata()
+    try check(first.inode != initial.inode, "first absent state saves the initialized failure list")
+    for _ in 0..<3 {
+        controller.receive(.absent)
+        try check(try metadata() == first, "unchanged absent state preserves settings inode and mtime")
+    }
+
+    controller.receive(.ready)
+    let changed = try metadata()
+    try check(changed.inode != first.inode, "changed trackpad state replaces the settings file")
+    let reopened = try LocalStore(directory: directory, historyMode: true)
+    try check(reopened.settings.threeTapPendingUpdate == false, "changed trackpad setting is durable")
+    controller.receive(.ready)
+    try check(try metadata() == changed, "repeated ready state leaves the changed settings file intact")
+
+    try FileManager.default.removeItem(at: store.settingsURL)
+    try FileManager.default.createDirectory(at: store.settingsURL, withIntermediateDirectories: false)
+    var notices: [String] = []
+    controller.onNotice = { text, _ in notices.append(text) }
+    controller.receive(.failed("합성 저장 실패"))
+    try check(notices.contains { $0.contains("설정을 저장하지 못했어요") }, "changed settings still report storage failure")
+    print("THREE_TAP_SETTINGS_WRITE_PASS")
+}
+
 @MainActor func threeTapTests(resourceDirectory: URL, outputDirectory: URL? = nil) async throws {
+    try threeTapSettingsWriteTests()
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
     let store = try LocalStore(directory: directory)

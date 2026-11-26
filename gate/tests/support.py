@@ -1,9 +1,35 @@
 """Isolated integration fixtures. The runner substitutes agent turns, never transport/auth."""
 import asyncio
 import os
+import shutil
+import tempfile
 import uuid
+from pathlib import Path
 import pytest
 import pytest_asyncio
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Remove an explicit --basetemp under the system temp dir when the run ends.
+
+    pytest never prunes a given --basetemp, and every airport fixture builds a full
+    HERMES_HOME, so `--basetemp=$(mktemp -d /tmp/xyz.XXXX)/t` runs pile up gigabytes.
+    The now-empty mktemp parent goes too. Set HEJO_KEEP_BASETEMP=1 to keep it.
+    """
+    given = session.config.option.basetemp
+    if not given or os.environ.get("HEJO_KEEP_BASETEMP") or hasattr(session.config, "workerinput"):
+        return
+    base = Path(given).resolve()
+    roots = {Path(root).resolve() for root in ("/tmp", tempfile.gettempdir())}
+    if not any(base != root and base.is_relative_to(root) for root in roots):
+        return
+    shutil.rmtree(base, ignore_errors=True)
+    parent = base.parent
+    if parent not in roots and any(parent.is_relative_to(root) for root in roots):
+        try:
+            parent.rmdir()
+        except OSError:
+            pass  # not empty: someone else's files live there
 
 
 @pytest.fixture

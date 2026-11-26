@@ -100,7 +100,11 @@ final class ThreeTapController: NSObject, NSWindowDelegate {
         }
     }
     private func persist(_ change: (inout LocalSettings) -> Void) -> Bool {
-        do { try store.update(change); return true }
+        let current = store.settings
+        var updated = current
+        change(&updated)
+        guard updated != current else { return true }
+        do { try store.update { $0 = updated }; return true }
         catch { onNotice?("설정을 저장하지 못했어요. 저장 공간을 확인해 주세요.", nil); return false }
     }
     func showNotice(_ text: String, failure: ThreeTapFailure?) {

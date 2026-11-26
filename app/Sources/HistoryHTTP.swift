@@ -87,11 +87,11 @@ enum HistoryFailure: Error, Equatable {
               Self.integer(response["memberRevision"]) == Self.integer(fields["memberRevision"]) else { throw HistoryFailure.invalidResponse }
         return token
     }
-    func query(context: String, kind: String, scope: String, fields: [String:Any] = [:]) async throws -> [String:Any] {
+    func query(context: String, kind: String, scope: String, fields: [String:Any] = [:], retry: Bool = true) async throws -> [String:Any] {
         let reference = UUID().uuidString.lowercased()
         var request = fields; request["context"] = context; request["kind"] = kind
         request["scope"] = scope; request["request"] = reference
-        let response = try await post("query", request, retry: kind != "copy")
+        let response = try await post("query", request, retry: retry && kind != "copy")
         guard response["session"] as? String == client.historySession,
               response["context"] as? String == context, response["request"] as? String == reference,
               Self.integer(response["through"]) != nil, let complete = Self.boolean(response["complete"]),

@@ -515,9 +515,32 @@ struct ConversationThread: Identifiable {
               complete == (page["next"] is NSNull) else { throw HistoryFailure.invalidResponse }
         return .init(context:context,next:page["next"] as? String,through:through,complete:complete)
     }
+    enum HistoryMessageMerge { case open, refresh, older, newer }
+
+    func hasUnpagedLiveHistory(_ key: ConversationKey) -> Bool {
+        guard history.messagePages[key] == nil, let root = history.summaries[key]?.rootID,
+              !history.deletedMessages.contains(root) else { return false }
+        // Before a page arrives, only a root received in the ordered live stream
+        // proves that the available replies extend from the root to the end.
+        return history.messagePageIDs[key]?.contains(root) == true
+    }
+
+    func hasUnloadedNewerReplies(_ key: ConversationKey) -> Bool {
+        (history.messagePages[key]?.newerCount ?? 0) > 0
+    }
+
+    func historyReplyIDs(_ key: ConversationKey, pending: [String] = []) -> [String] {
+        let page = history.messagePages[key]
+        let completeLiveHistory = hasUnpagedLiveHistory(key)
+        guard page != nil || completeLiveHistory else { return [] }
+        let root = history.summaries[key]?.rootID
+        let replies = (history.messagePageIDs[key] ?? []).filter { $0 != root && !history.deletedMessages.contains($0) }
+        return page?.newerCount == 0 || completeLiveHistory ? replies + pending : replies
+    }
+
     /// Historical rows do not call apply(frame): that path advances the live cursor
     /// and handles live side effects. Newer live edits/deletes win over older pages.
-    func applyHistoryMessages(_ page: [String:Any], key: ConversationKey, context: String, generation: Int, anchor: String? = nil) throws {
+    func applyHistoryMessages(_ page: [String:Any], key: ConversationKey, context: String, generation: Int, anchor: String? = nil, merge: HistoryMessageMerge = .open) throws {
         guard history.accepts(context:context,generation:generation) else { throw HistoryFailure.changed }
         var state = try historyPageState(page,context:context)
         state.anchor = anchor; state.newerCount = HistoryHTTP.integer(page["newerCount"]) ?? 0
@@ -528,12 +551,97 @@ struct ConversationThread: Identifiable {
                 history.summaries[key] = summary
             }
         }
+        let rows = page["items"] as? [[String:Any]] ?? []
+        let root = history.summaries[key]?.rootID
+        let incoming = rows.compactMap { $0["msg_id"] as? String }.filter { $0 != root }
+        guard Set(incoming).count == incoming.count else { throw HistoryFailure.invalidResponse }
+        let known = history.messagePageIDs[key] ?? []
+        let previous = history.messagePages[key]
+        if merge == .refresh, hasUnloadedNewerReplies(key) { return }
+
+        let window = mergeHistoryReplyPage(incoming, into:known, previous:previous, state:&state, merge:merge)
+        var order = window.ids
+        if state.newerCount == 0 {
+            // Live frames may have arrived while the HTTP page was in flight.
+            let seen = Set(order)
+            order += timeline(key).filter { $0.id != root && $0.seq > state.through && !seen.contains($0.id) }.map(\.id)
+        }
+        if window.replaced {
+            let retained = Set(order).union([root].compactMap { $0 })
+            let obsolete = Set(timeline(key).map(\.id))
+                .union(known)
+                .subtracting(retained)
+            for id in obsolete {
+                messages[id] = nil
+                residentBudget.update(id,bytes:nil)
+                evictedHistoryBodies[id] = nil
+                history.contentReferences[id] = nil
+                history.contentKeys[id] = nil
+            }
+        }
         if bodyCache == nil { bodyCache = try store.historyCache() }
         try bodyCache?.batch {
-            for row in page["items"] as? [[String:Any]] ?? [] { try applyHistoryBody(row, expectedKey:key) }
+            for row in rows { try applyHistoryBody(row, expectedKey:key) }
         }
+        history.messagePageIDs[key] = order
         history.messagePages[key] = state
     }
+
+    private func mergeHistoryReplyPage(_ incoming: [String], into known: [String], previous: HistoryPageState?,
+                                       state: inout HistoryPageState, merge: HistoryMessageMerge) -> (ids: [String], replaced: Bool) {
+        // An explicitly anchored opening starts a reading window around that message.
+        if merge == .open, state.anchor != nil { return (incoming, true) }
+        guard let previous, !known.isEmpty else { return (incoming, !known.isEmpty) }
+
+        let positions = Dictionary(uniqueKeysWithValues: known.enumerated().map { ($0.element,$0.offset) })
+        let common = incoming.enumerated().compactMap { index, id in positions[id].map { (index,$0) } }
+        if let first = common.first, let last = common.last {
+            let prefix = first.0 == 0 ? known.prefix(first.1) : known.prefix(0)
+            let suffix = last.0 == incoming.count-1 ? known.suffix(from:last.1+1) : known.suffix(0)
+            let newer = !suffix.isEmpty || merge == .older ? previous:state
+            if !prefix.isEmpty || (first == (0,0) && (merge == .newer || merge == .refresh)) {
+                state = previous
+            }
+            state.newerCount = newer.newerCount
+            state.through = newer.through
+            return (Array(prefix) + incoming + suffix, false)
+        }
+        // The previous-page cursor proves adjacency. An independent snapshot
+        // only proves it when both offsets refer to the same journal head.
+        if merge == .older || (previous.through == state.through && state.newerCount == previous.newerCount + known.count) {
+            state.newerCount = previous.newerCount
+            state.through = previous.through
+            return (incoming + known, false)
+        }
+        if previous.through == state.through && previous.newerCount == state.newerCount + incoming.count {
+            let newer = state
+            state = previous
+            state.newerCount = newer.newerCount
+            return (known + incoming, false)
+        }
+        return (incoming, true)
+    }
+
+    private func appendHistoryReply(_ message: ConversationMessage) {
+        let key = message.key
+        guard var page = history.messagePages[key] else {
+            // A summary can arrive after the root and its replies. Keep the live
+            // order until the summary identifies whether this window has the root.
+            if let root = history.summaries[key]?.rootID, root != message.id, !hasUnpagedLiveHistory(key) { return }
+            if history.messagePageIDs[key]?.last != message.id {
+                history.messagePageIDs[key,default:[]].append(message.id)
+            }
+            return
+        }
+        guard page.newerCount == 0, message.seq > page.through,
+              message.id != history.summaries[key]?.rootID else { return }
+        page.through = message.seq
+        history.messagePages[key] = page
+        if history.messagePageIDs[key]?.contains(message.id) == false {
+            history.messagePageIDs[key]?.append(message.id)
+        }
+    }
+
     func applyHistoryBody(_ row: [String:Any], expectedKey: ConversationKey? = nil) throws {
         try HistoryHTTP.validate(row,kind:"messages")
         guard let id = row["msg_id"] as? String else { throw HistoryFailure.invalidResponse }
@@ -623,6 +731,8 @@ struct ConversationThread: Identifiable {
                     history.deletedThreads[key] = seq
                     evictedHistoryBodies=evictedHistoryBodies.filter{$0.value.key != key || (history.revisions[$0.key] ?? 0) > seq}
                     if (history.summaries[key]?.revision ?? 0) <= seq {
+                        history.messagePages[key] = nil
+                        history.messagePageIDs[key] = nil
                         history.summaries[key] = nil
                         for scope in Array(history.threadOrder.keys) { history.threadOrder[scope]?.removeAll{$0 == key} }
                     }
@@ -645,7 +755,10 @@ struct ConversationThread: Identifiable {
                 let message = ConversationMessage(id: id, key: ConversationKey(employee: frame["room"] as? String ?? employee, thread: thread), role: role, text: text,
                     files: try decode(frame["files"] ?? [], as: [MessageFile].self), buttons: try decode(frame["buttons"] ?? [], as: [MessageButton].self),
                     replyState: frame["reply_state"] as? String, seq: seq, latestSeq: seq, timestamp: ts, clientMessageID: frame["client_msg_id"] as? String)
-                if store.historyMode, (messages[id]?.latestSeq ?? 0) > seq { break }
+                if store.historyMode {
+                    appendHistoryReply(message)
+                    if (messages[id]?.latestSeq ?? 0) > seq { break }
+                }
                 messages[id] = message;evictedHistoryBodies[id]=nil
                 messages[id]?.employee=employee
                 messages[id]?.answerTo=frame["answer_to"] as? String

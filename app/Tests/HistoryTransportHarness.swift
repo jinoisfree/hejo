@@ -130,6 +130,18 @@ private final class HistoryTransportCredentials: GateCredentialStore {
         guard captured==nil,list.contents.isEmpty,list.layouts.isEmpty,first.value==nil else {throw HistoryFailure.server("recycled_callback_retained",retryable:false)}
     }
     @MainActor static func main() async throws {
+#if HEJO_LEGACY_REFERENCE
+        let legacyArgs = CommandLine.arguments
+        if legacyArgs.count > 6, legacyArgs[5] == "autoload-legacy" {
+            let directory = URL(fileURLWithPath:legacyArgs[3])
+            let store = try LocalStore(directory:directory,historyMode:false)
+            let client = GateClient(store:store,credentials:HistoryTransportCredentials())
+            defer { client.stop() }
+            try await HistoryAutoloadHarness.runLegacy(client:client,args:legacyArgs)
+            return
+        }
+#endif
+
         let fixtureKey=ConversationKey(employee:"alpha",thread:"11111111-1111-4111-8111-111111111111")
         let fixture=ConversationMessage(id:"fixture",key:fixtureKey,role:"employee",text:"첫 글",files:[.init(fileID:"fixture-file",name:"sample.txt",mime:"text/plain",size:1)],buttons:[],replyState:"answered",seq:1,latestSeq:1,timestamp:"2026-01-01T00:00:00Z",clientMessageID:nil)
         let formatted=ThreadTools.copy([fixture],key:fixtureKey,name:{_ in "직원 A"},zone:TimeZone(secondsFromGMT:0)!)
@@ -171,6 +183,10 @@ private final class HistoryTransportCredentials: GateCredentialStore {
         try bubbleHistoryCheck(store:store,fixture:fixture)
         let client = GateClient(store:store, credentials:HistoryTransportCredentials())
         defer { client.stop() }
+        if args.count > 5, args[5] == "autoload" {
+            try await HistoryAutoloadHarness.run(client:client,args:args)
+            return
+        }
         if args.count > 5, ["controller-image","controller-file-budget","controller-restore","controller-group","controller-intent","controller","controller-plan","controller-pages","controller-copyfail","controller-search","controller-noticefail","controller-questions","controller-file","controller-file-delete","controller-file-reconnect","controller-cache","controller-receipt","controller-upload-delete","controller-upload-reconnect","controller-receipt-notfound","controller-receipt-deleted"].contains(args[5]) {
             try await controllerCheck(client:client,args:args)
             return
@@ -349,57 +365,133 @@ private final class HistoryTransportCredentials: GateCredentialStore {
             stage("initial-open-complete")
             guard model.messages[summary.rootID] != nil,let victim=model.evictedHistoryBody(key) else {throw HistoryFailure.server("fixture_no_eviction",retryable:false)}
             let page=model.history.messagePages[key],unread=model.unread(key)
-            if args.count>6,["view-root","view-root-owner"].contains(args[6]) {
-                let view=ConversationView(controller:controller,clipboardArea:URL(fileURLWithPath:args[3]).appendingPathComponent("clipboard"))
-                let window=NSWindow(contentRect:NSRect(x:0,y:0,width:900,height:420),styleMask:[.titled],backing:.buffered,defer:false)
-                window.contentView=view;window.orderFrontRegardless()
-                defer {window.orderOut(nil)}
-                view.chooseEmployee("alpha");view.chooseThread(key);view.refresh();view.layoutSubtreeIfNeeded()
-                try await wait {!controller.historyLoading.busy}
-                guard model.messages.count==1,let root=model.messages[summary.rootID],
-                      let next=model.evictedHistoryBody(key,after:root.seq),model.evictedHistoryBodies[next]?.seq==2 else {throw HistoryFailure.server("fixture_not_root_only",retryable:false)}
-                if args[6]=="view-root-owner" {
-                    guard root.role=="owner",view.threadContent(summary.thread).actions.contains(where:{$0.identifier=="branch-"+summary.thread.id}) else {throw HistoryFailure.server("unloaded_employee_branch_missing",retryable:false)}
+            if args.count>6,["view","view-long","view-cycle","view-root","view-root-owner"].contains(args[6]) {
+                let mode = args[6]
+                controller.setPaused(false)
+                let view = ConversationView(controller:controller,clipboardArea:URL(fileURLWithPath:args[3]).appendingPathComponent("clipboard"))
+                let list = view.history
+                let window = NSWindow(contentRect:NSRect(x:0,y:0,width:900,height:mode=="view" ? 700:420),
+                                      styleMask:[.titled],backing:.buffered,defer:false)
+                window.contentView = view
+                window.orderFrontRegardless()
+                defer { window.orderOut(nil) }
+
+                func visibleBodies() -> Set<String> {
+                    let bounds = list.contentView.bounds
+                    guard let index = list.layouts.firstIndex(where:{$0.content.id==key.thread}) else { return [] }
+                    let row = list.table.rect(ofRow:index)
+                    let prefix = "history-body:"
+                    let known = Set(model.historyReplyIDs(key)).union([summary.rootID])
+                    return Set(list.layouts[index].anchors.compactMap { id, local -> String? in
+                        guard local.offsetBy(dx:row.minX,dy:row.minY).intersects(bounds) else { return nil }
+                        let message = id.hasPrefix(prefix) ? String(id.dropFirst(prefix.count)):id
+                        return known.contains(message) ? message:nil
+                    })
                 }
-                view.history.readerInput(wheel:false)
-                view.history.contentView.scroll(to:NSPoint(x:0,y:max(0,view.history.table.bounds.maxY-view.history.contentView.bounds.height)))
-                view.history.reflectScrolledClipView(view.history.contentView)
-                let down=CGEvent(scrollWheelEvent2Source:nil,units:.pixel,wheelCount:1,wheel1:-40,wheel2:0,wheel3:0)!
-                view.history.scrollWheel(with:NSEvent(cgEvent:down)!)
-                try await wait {model.messages[next] != nil && !controller.historyLoading.busy}
-                guard model.messages[summary.rootID] != nil,model.evictedHistoryBodies[next]==nil,
-                      model.history.messagePages[key]?.next==page?.next,model.history.messagePages[key]?.complete==page?.complete,
-                      model.unread(key)==unread else {throw HistoryFailure.server("root_only_restore_semantics",retryable:false)}
+                var lastVisible = Set<String>()
+                let publish = list.onLoadViewport
+                list.onLoadViewport = { cards in
+                    guard !cards.isEmpty else { publish?(cards);return }
+                    let visible = visibleBodies()
+                    for id in visible.subtracting(lastVisible).sorted() where model.evictedHistoryBodies[id] != nil {
+                        FileHandle.standardError.write(Data(("RESTORE_VISIBLE "+id+"\n").utf8))
+                    }
+                    lastVisible = visible
+                    publish?(cards)
+                }
+                defer { list.onLoadViewport = publish }
+                func settleVisible() async throws {
+                    try await Task.sleep(nanoseconds:600_000_000)
+                    try await wait {
+                        view.layoutSubtreeIfNeeded()
+                        return !controller.historyLoading.busy && !list.hasDeferredUpdate &&
+                            visibleBodies().allSatisfy { model.messages[$0] != nil }
+                    }
+                }
+                func wheel(_ delta: Int32) {
+                    let event = CGEvent(scrollWheelEvent2Source:nil,units:.pixel,wheelCount:1,wheel1:delta,wheel2:0,wheel3:0)!
+                    list.scrollWheel(with:NSEvent(cgEvent:event)!)
+                }
+                func scroll(_ y: CGFloat) {
+                    list.readerInput(wheel:false)
+                    list.contentView.scroll(to:NSPoint(x:0,y:y))
+                    list.reflectScrolledClipView(list.contentView)
+                    view.layoutSubtreeIfNeeded()
+                }
+                func assertPreserved() throws {
+                    guard model.messages[summary.rootID] != nil,model.unread(key)==unread,
+                          model.history.messagePages[key]?.next==page?.next,
+                          model.history.messagePages[key]?.complete==page?.complete else {
+                        throw HistoryFailure.server("restore_changed_page_or_semantics",retryable:false)
+                    }
+                }
+
+                view.chooseEmployee("alpha");view.chooseThread(key);view.refresh();view.layoutSubtreeIfNeeded()
+                try await settleVisible()
+                try assertPreserved()
+                if mode=="view-root-owner" {
+                    guard model.messages[summary.rootID]?.role=="owner",
+                          view.threadContent(summary.thread).actions.contains(where:{$0.identifier=="branch-"+summary.thread.id}) else {
+                        throw HistoryFailure.server("unloaded_employee_branch_missing",retryable:false)
+                    }
+                }
+                if mode != "view-root" && mode != "view-root-owner" {
+                    stage("view-ready")
+                    if mode != "view" {
+                        guard list.table.bounds.height > list.contentView.bounds.height+100 else {
+                            throw HistoryFailure.server("fixture_not_scrollable",retryable:false)
+                        }
+                    }
+                    scroll(mode=="view" ? 0:40)
+                    stage("first-wheel")
+                    wheel(40)
+                    try await settleVisible()
+                    stage("first-restore-complete")
+                    try assertPreserved()
+                    scroll(0)
+                    guard let anchor = list.frame(for:key.thread,message:summary.rootID) else {
+                        throw HistoryFailure.server("fixture_no_view_anchor",retryable:false)
+                    }
+                    let offset = anchor.minY-list.contentView.bounds.minY
+                    if mode != "view" {
+                        let visible = visibleBodies()
+                        guard model.timeline(key).allSatisfy({ $0.id == summary.rootID || !visible.contains($0.id) }) else {
+                            throw HistoryFailure.server("fixture_reply_still_visible",retryable:false)
+                        }
+                    }
+                    stage("second-wheel")
+                    wheel(40)
+                    try await settleVisible()
+                    try assertPreserved()
+                    guard let restored = list.frame(for:key.thread,message:summary.rootID),
+                          abs(restored.minY-list.contentView.bounds.minY-offset)<1 else {
+                        throw HistoryFailure.server("fixture_anchor",retryable:false)
+                    }
+                    stage("anchor-settled")
+                }
+                if mode=="view-cycle" {
+                    FileHandle.standardOutput.write(Data("VIEW_CYCLE_STARTED\n".utf8))
+                    for _ in 0..<2 {
+                        scroll(max(0,list.table.bounds.maxY-list.contentView.bounds.height))
+                        wheel(-40)
+                        try await settleVisible()
+                        try assertPreserved()
+                        scroll(0)
+                        wheel(40)
+                        try await settleVisible()
+                        try assertPreserved()
+                    }
+                }
                 FileHandle.standardOutput.write(Data("RESTORE_READY\n".utf8))
-                try await wait {model.history.deletedThreads[key] != nil}
-                guard !model.evictedHistoryBodies.values.contains(where:{$0.key==key}) else {throw HistoryFailure.invalidResponse}
+                try await wait { model.history.deletedThreads[key] != nil }
+                guard !model.evictedHistoryBodies.values.contains(where:{$0.key==key}),model.messages[summary.rootID]==nil,
+                      !controller.historyLoading.restoreEvicted(key) else {
+                    throw HistoryFailure.server("deleted_eviction_restored",retryable:false)
+                }
                 print("PASS evicted body restored without cursor reset")
                 return
             }
-            var fixtureWindow:NSWindow?
-            if args.count>6,["view","view-long","view-cycle"].contains(args[6]) {
-                let view=ConversationView(controller:controller,clipboardArea:URL(fileURLWithPath:args[3]).appendingPathComponent("clipboard"))
-                let window=NSWindow(contentRect:NSRect(x:0,y:0,width:900,height:["view-long","view-cycle"].contains(args[6]) ? 420:700),styleMask:[.titled],backing:.buffered,defer:false)
-                window.contentView=view;fixtureWindow=window
-                if ["view-long","view-cycle"].contains(args[6]) {window.orderFrontRegardless()}
-                view.chooseEmployee("alpha");view.chooseThread(key);view.refresh();view.layoutSubtreeIfNeeded()
-                try await wait {!controller.historyLoading.busy}
-                stage("view-ready")
-                // Dispatch a real AppKit wheel event through the production View callback.
-                view.history.readerInput(wheel:false)
-                view.history.contentView.scroll(to:.zero)
-                if ["view-long","view-cycle"].contains(args[6]) {
-                    guard view.history.table.bounds.height>view.history.contentView.bounds.height+100 else {throw HistoryFailure.server("fixture_not_scrollable",retryable:false)}
-                    view.history.contentView.scroll(to:NSPoint(x:0,y:40))
-                }
-                let wheel=CGEvent(scrollWheelEvent2Source:nil,units:.pixel,wheelCount:1,wheel1:40,wheel2:0,wheel3:0)!
-                stage("first-wheel")
-                view.history.scrollWheel(with:NSEvent(cgEvent:wheel)!)
-                if ["view-long","view-cycle"].contains(args[6]) {try await wait {view.history.contentView.bounds.minY<40}}
-            } else {
-                guard controller.historyLoading.restoreEvicted(key),controller.historyLoading.restoreEvicted(key) else {throw HistoryFailure.invalidResponse}
-            }
-            defer {fixtureWindow?.orderOut(nil);withExtendedLifetime(fixtureWindow) {}}
+            guard controller.historyLoading.restoreEvicted(key),controller.historyLoading.restoreEvicted(key) else {throw HistoryFailure.invalidResponse}
             if args.count>6,args[6]=="content-cancel" {
                 try await wait {model.historyRestorePin==victim && model.history.contentReferences[victim] != nil}
                 guard let seq=model.evictedHistoryBodies[victim]?.seq,
@@ -456,62 +548,7 @@ private final class HistoryTransportCredentials: GateCredentialStore {
             if let other=model.evictedHistoryBody(key),let position=model.evictedHistoryBodies[other]?.seq {
                 guard model.evictedHistoryBody(key,before:position) != other else {throw HistoryFailure.invalidResponse}
             }
-            if args.count>6,["view","view-long","view-cycle"].contains(args[6]),let view=fixtureWindow?.contentView as? ConversationView {
-                // Network completion precedes the deferred AppKit presentation. Capture the
-                // next gesture's anchor only after the first restored body reaches the View.
-                try await wait {!view.history.hasDeferredUpdate && view.history.frame(for:key.thread,message:victim) != nil}
-                view.layoutSubtreeIfNeeded()
-                // A second wheel gesture restores a different evicted body without resetting the page.
-                let firstSequence=model.messages[victim]!.seq
-                guard let second=model.evictedHistoryBody(key,before:firstSequence),second != victim else {throw HistoryFailure.server("fixture_no_second_eviction",retryable:false)}
-                view.history.readerInput(wheel:false);view.history.contentView.scroll(to:.zero)
-                guard let anchor=view.history.frame(for:key.thread,message:summary.rootID) else {throw HistoryFailure.server("fixture_no_view_anchor",retryable:false)}
-                let offset=anchor.minY-view.history.contentView.bounds.minY
-                if ["view-long","view-cycle"].contains(args[6]) {
-                    guard model.messages.values.filter({$0.key==key && $0.id != summary.rootID}).allSatisfy({!view.history.visibleMessageIDs.contains($0.id)}) else {throw HistoryFailure.server("fixture_reply_still_visible",retryable:false)}
-                }
-                view.history.clock={ProcessInfo.processInfo.systemUptime+1}
-                let wheel=CGEvent(scrollWheelEvent2Source:nil,units:.pixel,wheelCount:1,wheel1:40,wheel2:0,wheel3:0)!
-                stage("second-wheel")
-                view.history.scrollWheel(with:NSEvent(cgEvent:wheel)!)
-                try await wait {!controller.historyLoading.busy}
-                try await wait {
-                    guard let restoredAnchor=view.history.frame(for:key.thread,message:summary.rootID) else {return false}
-                    return model.messages[second] != nil && model.messages[second]!.seq<firstSequence && model.evictedHistoryBodies[second]==nil &&
-                        abs(restoredAnchor.minY-view.history.contentView.bounds.minY-offset)<1 &&
-                        model.history.messagePages[key]?.next==page?.next && model.history.messagePages[key]?.complete==page?.complete
-                }
-            }
             stage("anchor-settled")
-            if args.count>6,args[6]=="view-cycle",let view=fixtureWindow?.contentView as? ConversationView {
-                FileHandle.standardOutput.write(Data("VIEW_CYCLE_STARTED\n".utf8))
-                var tick:Double=10
-                view.history.clock={ProcessInfo.processInfo.systemUptime+tick}
-                for _ in 0..<2 {
-                    guard let older=model.messages.values.filter({$0.key==key && $0.id != summary.rootID}).min(by:{$0.seq<$1.seq}),
-                          let newer=model.evictedHistoryBody(key,after:older.seq) else {throw HistoryFailure.server("fixture_no_newer_gap",retryable:false)}
-                    view.history.readerInput(wheel:false)
-                    view.history.contentView.scroll(to:NSPoint(x:0,y:max(0,view.history.table.bounds.maxY-view.history.contentView.bounds.height)))
-                    view.history.reflectScrolledClipView(view.history.contentView)
-                    tick+=1
-                    let down=CGEvent(scrollWheelEvent2Source:nil,units:.pixel,wheelCount:1,wheel1:-40,wheel2:0,wheel3:0)!
-                    view.history.scrollWheel(with:NSEvent(cgEvent:down)!)
-                    try await wait {model.messages[newer] != nil && !controller.historyLoading.busy}
-                    view.refresh();view.layoutSubtreeIfNeeded()
-                    view.history.contentView.scroll(to:NSPoint(x:0,y:max(0,view.history.table.bounds.maxY-view.history.contentView.bounds.height)))
-                    view.history.reflectScrolledClipView(view.history.contentView)
-                    try await wait {model.evictedHistoryBodies[older.id] != nil}
-                    view.history.readerInput(wheel:false);view.history.contentView.scroll(to:.zero)
-                    view.history.reflectScrolledClipView(view.history.contentView)
-                    tick+=1
-                    let up=CGEvent(scrollWheelEvent2Source:nil,units:.pixel,wheelCount:1,wheel1:40,wheel2:0,wheel3:0)!
-                    view.history.scrollWheel(with:NSEvent(cgEvent:up)!)
-                    try await wait {model.messages[older.id] != nil && !controller.historyLoading.busy}
-                    guard model.messages[summary.rootID] != nil,model.evictedHistoryBodies[older.id]==nil,
-                          model.history.messagePages[key]?.next==page?.next,model.history.messagePages[key]?.complete==page?.complete,
-                          model.unread(key)==unread else {throw HistoryFailure.server("view_roundtrip_semantics",retryable:false)}
-                }
-            }
             FileHandle.standardOutput.write(Data("RESTORE_READY\n".utf8))
             try await wait {model.history.deletedThreads[key] != nil}
             guard !model.evictedHistoryBodies.values.contains(where:{$0.key==key}),model.messages[summary.rootID]==nil,
