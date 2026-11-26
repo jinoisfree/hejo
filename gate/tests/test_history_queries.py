@@ -168,6 +168,8 @@ async def test_activity_preserves_last_employee_and_finalized_thinking():
 
 
 ALERT_PREVIEWS = [
+    pytest.param('@acct \n요약: 가짜', False, '@acct · 요약: 가짜', id='trailing-space'),
+    pytest.param('  @a @b\t\n본문', False, '@a @b · 본문', id='surrounding-space'),
     pytest.param('@acct\n\n요약: 가짜 소식 하나', False, '@acct · 요약: 가짜 소식 하나', id='single'),
     pytest.param('@a @b\n본문 줄', False, '@a @b · 본문 줄', id='multiple'),
     pytest.param('@acct 안녕하세요\n둘째 줄', False, '@acct 안녕하세요', id='inline'),

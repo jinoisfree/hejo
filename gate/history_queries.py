@@ -173,7 +173,7 @@ class HistoryQueries:
             if words and all(word.startswith('@') and len(word) > 1 for word in words):
                 next_line = next(lines_with_text, '')
                 if next_line:
-                    preview += ' · ' + next_line
+                    preview = preview.strip() + ' · ' + next_line
             notice.update(speaker=source['employee'], timestamp=source['ts'], preview=prefix(preview, 300))
         bell = None
         if not state['working'] and not state['settled'] and not confirmed:
