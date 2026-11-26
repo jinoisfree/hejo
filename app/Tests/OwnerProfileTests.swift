@@ -6,7 +6,7 @@ private let profileThread = "11111111-1111-4111-8111-111111111111"
 private let profileRoster: [[String:Any]] = [["id":"alpha","name":"알파","aliases":[]]]
 private let tableWords = String(repeating:"길게 적은 표 안쪽 글 ",count:6)
 private let codeWords = String(repeating:"a",count:190) + "END0123456"
-private let richBody = """
+let richBody = """
 | 항목 | 내용 | 상태 |
 | --- | --- | --- |
 | 짧은 칸 | \(tableWords) | 완료 |
@@ -54,7 +54,7 @@ private func post(_ piece:NativeThreadCard.Piece) throws -> NativeThreadCard.Pos
     return bitmap
 }
 
-@MainActor private func assertRichBody(_ layout:NativeThreadCard.Layout) throws {
+@MainActor func assertRichBody(_ layout:NativeThreadCard.Layout) throws {
     let item = layout.placed[0], card = profileCard(layout)
     guard let view = homeDescendants(card,NSTextView.self).first,
           let manager = view.layoutManager, let storage = view.textStorage, let container = view.textContainer else {

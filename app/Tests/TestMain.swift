@@ -52,7 +52,9 @@ final class MemoryCredentials: GateCredentialStore {
                     NSApp.terminate(nil); return
                 }
                 #endif
-                if args.count == 3 && args[1] == "--owner-profile-unit" {
+                if args.count == 2 && args[1] == "--bubble-width" {
+                    try bubbleWidthTests()
+                } else if args.count == 3 && args[1] == "--owner-profile-unit" {
                     try ownerProfileTests(output:URL(fileURLWithPath:args[2]))
                 } else if args.count == 7 && args[1] == "--owner-profile-transport" {
                     try await ownerProfileTransport(args)
