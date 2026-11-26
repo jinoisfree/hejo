@@ -562,7 +562,7 @@ class Discord:
             break
         from discord import AllowedMentions, File, Object, NotFound
         names = {e['id']: e['name'] for e in self.adapter.employees()}
-        label = '사장' if row['role'] == 'owner' else names.get(row['employee'], row['employee'])
+        label = self.adapter.owner_label('사장') if row['role'] == 'owner' else names.get(row['employee'], row['employee'])
         title = next((line.strip()[:100] for line in row['text'].splitlines() if line.strip()), '새 대화')
         text = row['text']
         replies = [b['label'] for b in row.get('buttons', []) if b['kind'] == 'reply']

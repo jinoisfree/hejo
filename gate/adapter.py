@@ -15,7 +15,7 @@ from gateway.platforms.event import MessageEvent
 from .auth import AuthStore
 from .hub import HubLink
 from .journal import Journal, HejoJournalError
-from . import roster
+from . import owner, roster
 from . import buttons as native_buttons
 from .files import FileStore, UnknownFile, RETENTION_SECONDS
 from .server import GateServer, LIMITS
@@ -70,6 +70,9 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
         runner = self.gateway_runner
         multiplex = getattr(getattr(runner, "config", None), "multiplex_profiles", True)
         return roster.employees(multiplex is not False)
+
+    def owner_label(self, default):
+        return owner.read(self.server.home)["name"] or default
 
     @property
     def forwarder(self):
@@ -302,7 +305,7 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
                 return
             title = posts[0]["text"].split("\n", 1)[0][:30]
             names = {entry["id"]: entry["name"] for entry in self.employees()}
-            context = conversation_lines(posts, names, limit=50, characters=16000, line_characters=2000)
+            context = conversation_lines(posts, names, owner=self.owner_label("나"), limit=50, characters=16000, line_characters=2000)
             try:
                 saved = await self.journal.append({"v": 1, "type": "message", "msg_id": str(uuid.uuid4()),
                     "employee": self.journal.rooms[room]["lead"] if room in self.journal.rooms else room, **({"room":room} if room in self.journal.rooms else {}), "thread": str(uuid.uuid4()), "role": "employee",
@@ -681,7 +684,7 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
                     await self.server.error("button_expired", frame.get("id"), conn)
                     return
                 result = await self.edit_message("room:"+message["room"] if message.get("room") else message["employee"],
-                    message["msg_id"], message["text"] + "\n\n" + native_buttons.decision(button),
+                    message["msg_id"], message["text"] + "\n\n" + native_buttons.decision(button, self.owner_label("나")),
                     finalize=True, metadata={"hejo_buttons":[]})
                 if not result.success:
                     await self.server.error("journal_write_failed", frame.get("id"), conn)
@@ -758,8 +761,12 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             except HejoJournalError:
                 self.files.rollback(moved)
                 return
+        name = self.owner_label(None)
+        source_name = {"user_name": name} if name is not None else {}
+
         async def deliver(target):
-            source = self.build_source(chat_id="room:"+room_id if room else employee, chat_type="dm", user_id="owner", thread_id=thread, message_id=msg_id)
+            source = self.build_source(chat_id="room:"+room_id if room else employee, chat_type="dm",
+                                       user_id="owner", thread_id=thread, message_id=msg_id, **source_name)
             source.profile = target
             text = with_context(contexts.get(target, ""), frame["text"], "방 대화 — 받기 전 글") if room else frame["text"]
             text = with_context(branch, text, "이전 스레드 대화")
@@ -769,7 +776,7 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
                 entry = store.lookup_by_session_key(self._source_session_key(source)) if store else None
                 if entry is None or entry.suspended:
                     names = {item["id"]:item["name"] for item in self.employees()}
-                    context = conversation_lines(history, names, limit=50, characters=16000, line_characters=2000)
+                    context = conversation_lines(history, names, owner=name or "나", limit=50, characters=16000, line_characters=2000)
                     if context:
                         restored = "[이전 스레드 대화]\n" + context
             token = _delivery_scope.set((target, source.chat_id, thread))

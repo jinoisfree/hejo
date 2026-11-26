@@ -1,4 +1,4 @@
-"""Profile-owned employee pictures and shared room pictures; no credential data."""
+"""Profile-owned employee pictures and shared room and owner pictures."""
 import colorsys
 import math
 import os
@@ -90,6 +90,10 @@ def valid_png(data):
         return False
 
 
+def picture_address(kind, identifier, path):
+    return f"/v1/pictures/{kind}/{identifier}?v={path.stat().st_mtime_ns}"
+
+
 class Pictures:
     def __init__(self, home, multiplex=True):
         self.home = Path(home)
@@ -104,9 +108,11 @@ class Pictures:
                 raise KeyError("unknown_employee")
             directory = Path(homes[identifier]) / "assets"
             path = directory / "avatar.png" if write else profile_picture(homes[identifier])
-        elif kind == "room":
+        elif kind == "room" or (kind == "owner" and identifier == "owner"):
             directory = self.home / "shared" / "hejo" / "pictures"
-            stem = identifier if identifier.startswith(("section-", "home-")) else "room-" + identifier
+            stem = identifier
+            if kind == "room" and not identifier.startswith(("section-", "home-")):
+                stem = "room-" + identifier
             path = directory / (stem + ".png")
         else:
             raise KeyError("unknown_picture")
@@ -120,8 +126,10 @@ class Pictures:
 
     def put(self, kind, identifier, data):
         path = self.path(kind, identifier, write=True)
+        if kind == "owner":
+            path.parent.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         path.parent.mkdir(parents=True, exist_ok=True, mode=0o755 if kind == "employee" else 0o700)
-        if kind == "room":
+        if kind != "employee":
             os.chmod(path.parent, 0o700)
         temporary = None
         try:

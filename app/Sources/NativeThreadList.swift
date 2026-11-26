@@ -10,6 +10,28 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
         }
         override func layout() { super.layout(); resized?() }
     }
+    private final class ReadingClipView: NSClipView {
+        var originDuringLayout: CGFloat?
+
+        private func heldOrigin(_ proposed: NSPoint, height: CGFloat) -> NSPoint {
+            guard let originDuringLayout, let documentView else { return proposed }
+            return NSPoint(x: proposed.x, y: min(originDuringLayout, max(0, documentView.bounds.maxY - height)))
+        }
+
+        override func constrainBoundsRect(_ proposedBounds: NSRect) -> NSRect {
+            var constrained = super.constrainBoundsRect(proposedBounds)
+            constrained.origin = heldOrigin(constrained.origin, height: constrained.height)
+            return constrained
+        }
+
+        override func setBoundsOrigin(_ newOrigin: NSPoint) {
+            super.setBoundsOrigin(heldOrigin(newOrigin, height: bounds.height))
+        }
+
+        override func scroll(to newOrigin: NSPoint) {
+            super.scroll(to: heldOrigin(newOrigin, height: bounds.height))
+        }
+    }
     var onBlank: (() -> Void)?
     var onMeasured: (() -> Void)?
     var onOlder: (() -> Void)?
@@ -86,6 +108,11 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
     private var appearanceRevision=ChatAppearance.revision
     private var historyMode=false
     private var scrollRevision = 0
+    private var keepGeneration = 0
+    private enum ReadingPosition {
+        case end(Place)
+        case anchor(ReaderAnchor)
+    }
     private var userScrolls = 0
     var clock:()->Double={ProcessInfo.processInfo.systemUptime}
     var automaticallyTicks=true
@@ -129,9 +156,109 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
     var textPayloadExcessBytes:Int {max(0,renderedTextPayloadBytes+textKitPayloadBytes-textPayloadBudgetBytes)}
     private var scrollMotion:(ease:WorkspaceEase,revision:Int,input:Int)?
     private var scrollTimer:Timer?
+    private var positioningRevision: Int?
+    private var isScrollingToTarget: Bool {
+        positioningRevision == scrollRevision || scrollMotion?.revision == scrollRevision
+    }
+    private struct TracedMove {
+        let reason: String
+        let generation: Int
+        let event: Int
+    }
+    private lazy var traceID = UUID().uuidString
+    private var tracedOrigin: CGFloat?
+    private var tracedMove: TracedMove?
+    private var tracedEvent = 0
+    private var tracedLayoutOperation: String?
+
+    private func traceBoundsChange() {
+        guard ThreeTapDiagnostics.output != nil else { return }
+        let origin = contentView.bounds.minY
+        defer { tracedOrigin = origin }
+        guard let previous = tracedOrigin, previous != origin else { return }
+        let move = tracedMove ?? .init(reason: "appkit", generation: keepGeneration, event: tracedEvent)
+        var fields: [String: Any] = [
+            "reason": move.reason, "generation": move.generation, "reserved_event": move.event,
+            "event": tracedEvent, "before": previous, "after": origin
+        ]
+        fields["layout_operation"] = tracedLayoutOperation
+        ThreeTapDiagnostics.waitJitter("thread_move", view: traceID, fields: fields)
+    }
+
+    private func traceInput(_ kind: String) {
+        guard ThreeTapDiagnostics.output != nil else { return }
+        ThreeTapDiagnostics.waitJitter("input", view: traceID, fields: ["input": kind])
+    }
+
+    private struct TracedLayout {
+        let ids: [String]
+        let heights: [CGFloat]
+        let frames: [CGRect]
+        let viewport: CGRect
+        let documentHeight: CGFloat
+    }
+
+    private func traceLayoutBefore() -> TracedLayout? {
+        guard ThreeTapDiagnostics.output != nil else { return nil }
+        let ids = layouts.map { $0.content.id }
+        let bounds = contentView.bounds
+        return .init(ids: ids, heights: rowHeights,
+                     frames: ids.indices.map { table.rect(ofRow: $0) },
+                     viewport: bounds, documentHeight: table.bounds.maxY)
+    }
+
+    private func traceLayoutChanges(_ previous: TracedLayout) -> (changed: Bool, rows: [[String: Any]], above: CGFloat) {
+        let ids = layouts.map { $0.content.id }
+        let changed = ids != previous.ids || rowHeights != previous.heights
+        guard changed else { return (false, [], 0) }
+        let old = Dictionary(uniqueKeysWithValues: previous.ids.enumerated().map { ($1, $0) })
+        let new = Dictionary(uniqueKeysWithValues: ids.enumerated().map { ($1, $0) })
+        var rows: [[String: Any]] = []
+        var above: CGFloat = 0
+        for id in previous.ids + ids.filter({ old[$0] == nil }) {
+            let oldIndex = old[id], newIndex = new[id]
+            let oldFrame = oldIndex.map { previous.frames[$0] }
+            let oldHeight = oldIndex.map { previous.heights[$0] } ?? 0
+            let newHeight = newIndex.map { rowHeights[$0] } ?? 0
+            guard oldHeight != newHeight || oldIndex != newIndex else { continue }
+            let insertionY = newIndex.flatMap { index in
+                ids[index...].compactMap { old[$0] }.first.map { previous.frames[$0].minY }
+            } ?? previous.documentHeight
+            let delta = newHeight - oldHeight + (oldIndex == nil ? table.intercellSpacing.height : 0)
+                - (newIndex == nil ? table.intercellSpacing.height : 0)
+            let y = oldFrame?.minY ?? insertionY
+            let top = previous.viewport.minY
+            if (oldFrame?.maxY ?? insertionY) <= top { above += delta }
+            rows.append(["id": id.hashValue, "ordinal": newIndex ?? oldIndex ?? 0,
+                         "before_y": y, "before_height": oldHeight, "delta": delta,
+                         "crosses_top": y < top && (oldFrame?.maxY ?? y) > top])
+        }
+        return (true, rows, above)
+    }
+
+    private func traceLayoutAfter(_ previous: TracedLayout, changed: Bool, rows: [[String: Any]], above: CGFloat) {
+        let origin = previous.viewport.minY
+        let height = table.bounds.maxY
+        let viewport = contentView.bounds.height
+        var fields: [String: Any] = [
+            "event": tracedEvent, "signature_changed": changed, "cards": rows,
+            "height_before": previous.documentHeight, "height_after": height,
+            "origin_before": origin, "origin_after": contentView.bounds.minY,
+            "viewport_before": previous.viewport.height, "viewport_after": viewport,
+            "end_gap": max(0, previous.documentHeight - previous.viewport.maxY), "above_delta": above
+        ]
+        if let follow {
+            fields["follow_gap"] = follow.bottom
+            let maximum = max(0, height - viewport)
+            fields["follow_distance"] = min(maximum, max(0, maximum - follow.bottom)) - origin
+        }
+        ThreeTapDiagnostics.waitJitter("thread_layout", view: traceID, fields: fields)
+    }
+
     override class var isCompatibleWithResponsiveScrolling:Bool {false}
     override init(frame: NSRect) {
         super.init(frame: frame)
+        contentView = ReadingClipView(frame: contentView.frame)
         drawsBackground = false; hasVerticalScroller = true; autohidesScrollers = true
         table.style = .plain; table.headerView = nil; table.backgroundColor = .clear; table.selectionHighlightStyle = .none
         table.focusRingType = .none; table.intercellSpacing = CGSize(width: 0, height: 18)
@@ -142,9 +269,11 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
         table.blank = { [weak self] in self?.onBlank?() }
         contentInsets = NSEdgeInsets(top: 14, left: 0, bottom: 14, right: 0)
         table.resized = { [weak self] in self?.remeasure() }
+        if ThreeTapDiagnostics.output != nil { tracedOrigin = contentView.bounds.minY }
         contentView.postsBoundsChangedNotifications = true
         observers.append(NotificationCenter.default.addObserver(forName:NSView.boundsDidChangeNotification,object:contentView,queue:.main) { [weak self] _ in
             guard let self else { return }
+            self.traceBoundsChange()
             self.reportLoadViewport()
         })
     }
@@ -153,7 +282,7 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
     override func viewDidMoveToWindow(){super.viewDidMoveToWindow();installInputMonitoring()}
     private func installInputMonitoring(){
         guard inputMonitor==nil else{return}
-        observers.append(NotificationCenter.default.addObserver(forName:NSScrollView.willStartLiveScrollNotification,object:self,queue:.main){[weak self] _ in self?.readerInput(wheel:false)})
+        observers.append(NotificationCenter.default.addObserver(forName:NSScrollView.willStartLiveScrollNotification,object:self,queue:.main){[weak self] _ in self?.traceInput("live_scroll");self?.readerInput(wheel:false)})
         inputMonitor=NSEvent.addLocalMonitorForEvents(matching:[.scrollWheel,.leftMouseDown,.keyDown]){[weak self] event in
             self?.observeInput(event);return event
         }
@@ -164,13 +293,16 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
         var reading=(event.type == .scrollWheel || event.type == .leftMouseDown) && bounds.contains(point)
         if event.type == .keyDown,[49,115,116,119,121,123,124,125,126].contains(event.keyCode),let responder=window.firstResponder as? NSView {reading=responder===self || responder.isDescendant(of:self)}
         if reading {
+            if event.type != .scrollWheel { traceInput(event.type == .keyDown ? "key" : "click") }
             readerInput(wheel:event.type == .scrollWheel)
             if event.type == .scrollWheel { requestHistoryEdges(delta:event.scrollingDeltaY) }
         }
     }
     func readerInput(wheel:Bool){
+        keepGeneration += 1
         userScrolls+=1;entryActive=false;follow=nil;followTimer?.invalidate();followTimer=nil
         replyPlacement=nil
+        positioningRevision=nil
         scrollMotion=nil;scrollTimer?.invalidate();scrollTimer=nil
         if wheel {wheelAt=clock()}
         loadViewportAfterPosition?.cancel()
@@ -183,7 +315,16 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
             olderRequestedAt=clock();onOlder?()
         }
     }
-    override func scrollWheel(with event:NSEvent){readerInput(wheel:true);super.scrollWheel(with:event);requestHistoryEdges(delta:event.scrollingDeltaY)}
+    override func scrollWheel(with event:NSEvent){
+        traceInput("wheel")
+        readerInput(wheel:true)
+        if ThreeTapDiagnostics.output != nil {
+            tracedMove = .init(reason: "reader", generation: keepGeneration, event: tracedEvent)
+        }
+        super.scrollWheel(with:event)
+        tracedMove = nil
+        requestHistoryEdges(delta:event.scrollingDeltaY)
+    }
     private struct ReaderAnchor { let card: String; let message: String?; let offset: CGFloat; let input: Int; let revision: Int }
     private var replyPlacement: (anchor: ReaderAnchor, confirmed: Bool)?
 
@@ -232,16 +373,11 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
         }
         return nil
     }
-    private func restore(_ anchor: ReaderAnchor) {
+    private func restore(_ anchor: ReaderAnchor, reservedEvent: Int? = nil) {
         guard userScrolls == anchor.input, scrollRevision == anchor.revision,
               follow == nil, resizing == nil, !entryActive,
               let rect = frame(for:anchor.card,message:anchor.message) else { return }
-        move(to:rect.minY-anchor.offset)
-    }
-    private func keep(_ anchor: ReaderAnchor) {
-        for delay in [0.0,0.06,0.2,0.4] {
-            DispatchQueue.main.asyncAfter(deadline:.now()+delay) { [weak self] in self?.restore(anchor) }
-        }
+        move(to:rect.minY-anchor.offset, reason:"anchor", reservedEvent:reservedEvent)
     }
     func show(_ contents:[NativeThreadCard.Content],identity:String,entry:String?=nil,historyMode:Bool=false, autoloadAppended:Bool=false, prependAnchor:String?=nil){
         self.historyMode=historyMode
@@ -263,7 +399,11 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
             if clock()-start<2 {
                 deferred=(contents,identity,entry,start,autoloadAppended || deferred?.4 == true,prependAnchor ?? deferred?.5);deferredWork?.cancel()
                 let work=DispatchWorkItem{[weak self] in self?.flushDeferred()};deferredWork=work
-                DispatchQueue.main.asyncAfter(deadline:.now()+0.25,execute:work);return
+                DispatchQueue.main.asyncAfter(deadline:.now()+0.25,execute:work)
+                if let before = traceLayoutBefore() {
+                    traceLayoutAfter(before, changed:false, rows:[], above:0)
+                }
+                return
             }
         }
         let appended = autoloadAppended || (identity == self.identity && deferred?.4 == true)
@@ -283,10 +423,12 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
         let outgoingReply = historyMode ? outgoingReplyAnchor(in:contents):nil
         let anchor = historyMode && outgoingReply == nil
             ? readerAnchor(allowAtEnd:autoloadAppended,preferredMessage:prependAnchor) : nil
+        keepGeneration += 1
         let oldHeights = rowHeights
+        let oldIDs = self.contents.map(\.id)
         let oldAnchors = historyMode ? layouts.map(\.anchors):[]
         let changed=self.identity != identity,old=place(),oldStreaming = !streamingRows.isEmpty
-        if changed {scrollRevision+=1;follow=nil;entryActive=true;entryID=entry}
+        if changed {traceInput("selection");scrollRevision+=1;follow=nil;entryActive=true;entryID=entry}
         func streaming(_ content:NativeThreadCard.Content)->Bool {(content.top+(content.replies ?? [])).contains{if case .post(let post)=$0{return post.streaming};return false}}
         let streamingNow=Set(contents.filter(streaming).map(\.id))
         streamingRows=Set(self.contents.filter(streaming).map(\.id)).union(streamingNow)
@@ -295,19 +437,20 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
         if entryActive {entryID=entry;placeEntry()}
         else if let follow {
             if oldStreaming && streamingNow.isEmpty {settleUntil=clock()+1.2}
-            if reduceMotion(){restore(follow)}else{startFollowing()}
-        } else if !changed,resizing==nil {
-            let geometryChanged = !historyMode || oldHeights != rowHeights || oldAnchors != layouts.map(\.anchors)
+            if reduceMotion(){restore(follow, reason:"follow")}else{startFollowing()}
+        } else if !changed,resizing==nil,!isScrollingToTarget {
+            let geometryChanged = oldHeights != rowHeights || oldIDs != contents.map(\.id)
+                || (historyMode && oldAnchors != layouts.map(\.anchors))
             if geometryChanged {
                 if let outgoingReply {
                     // While pending, scrollTo owns positioning and animation.
                     // Only the confirmation replaces that placement.
                     if replyPlacement?.confirmed == true {
-                        restore(outgoingReply)
-                        keep(outgoingReply)
+                        keep(.anchor(outgoingReply))
                     }
-                } else if let anchor { keep(anchor) }
-                else { keep(old) }
+                } else {
+                    keep(anchor.map(ReadingPosition.anchor) ?? .end(old))
+                }
                 prepareLoadViewport(after:0.4)
             }
         }
@@ -315,14 +458,53 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
         reportLoadViewport()
     }
     private func place()->Place {Place(bottom:max(0,table.bounds.maxY-contentView.bounds.maxY),input:userScrolls,revision:scrollRevision)}
-    private func move(to y:CGFloat){contentView.scroll(to:CGPoint(x:contentView.bounds.minX,y:min(max(0,y),max(0,table.bounds.height-contentView.bounds.height))));reflectScrolledClipView(contentView)}
-    private func restore(_ place:Place){guard place.input==userScrolls,place.revision==scrollRevision else{return};move(to:table.bounds.maxY-place.bottom-contentView.bounds.height)}
-    private func keep(_ place:Place){for delay in [0.0,0.06,0.2,0.4] {DispatchQueue.main.asyncAfter(deadline:.now()+delay){[weak self] in guard let self,self.follow==nil,self.resizing==nil,!self.entryActive else{return};self.restore(place)}}}
+    private func move(to y:CGFloat, reason:String, reservedEvent:Int?=nil){
+        if ThreeTapDiagnostics.output != nil {
+            tracedMove = .init(reason:reason, generation:keepGeneration, event:reservedEvent ?? tracedEvent)
+        }
+        defer { tracedMove = nil }
+        contentView.scroll(to:CGPoint(x:contentView.bounds.minX,y:min(max(0,y),max(0,table.bounds.height-contentView.bounds.height))))
+        reflectScrolledClipView(contentView)
+    }
+    private func restore(_ place:Place, reason:String, reservedEvent:Int?=nil){
+        guard place.input==userScrolls,place.revision==scrollRevision else{return}
+        move(to:table.bounds.maxY-place.bottom-contentView.bounds.height, reason:reason, reservedEvent:reservedEvent)
+    }
+    private func keep(_ position: ReadingPosition) {
+        let generation = keepGeneration
+        let reservedEvent = tracedEvent
+        let correct: () -> Void = { [weak self] in
+            guard let self, self.keepGeneration == generation, self.follow == nil,
+                  self.resizing == nil, !self.entryActive, !self.isScrollingToTarget else { return }
+            switch position {
+            case .end(let place): self.restore(place, reason:"keep", reservedEvent:reservedEvent)
+            case .anchor(let anchor): self.restore(anchor, reservedEvent:reservedEvent)
+            }
+        }
+        // Restore during this layout pass, before another snapshot can read the old origin.
+        correct()
+        for delay in [0.06, 0.2, 0.4] {
+            DispatchQueue.main.asyncAfter(deadline:.now()+delay, execute:correct)
+        }
+    }
     private func startFollowing(){guard automaticallyTicks,followTimer==nil else{return};let timer=Timer(timeInterval:1.0/60,repeats:true){[weak self] _ in self?.advanceFollow()};followTimer=timer;RunLoop.main.add(timer,forMode:.common)}
     /// Source glideStep: growth eases by elapsed frames, shrink settles immediately.
     func advanceFollow(){
         guard let follow,follow.input==userScrolls,follow.revision==scrollRevision else{self.follow=nil;followTimer?.invalidate();followTimer=nil;return}
-        let now=clock(),wanted=min(max(0,table.bounds.maxY-follow.bottom-contentView.bounds.height),max(0,table.bounds.maxY-contentView.bounds.height)),gap=wanted-contentView.bounds.minY
+        let now = clock()
+        let viewportHeight = contentView.bounds.height
+        let current = contentView.bounds.minY
+        let displayedEnd = max(0, table.bounds.maxY - viewportHeight - follow.bottom)
+        var wanted = displayedEnd
+        if !shrinking.isEmpty {
+            let settledHeight = layouts.reduce(CGFloat(0)) {
+                $0 + $1.height + table.intercellSpacing.height
+            }
+            let settledEnd = max(0, settledHeight - viewportHeight - follow.bottom)
+            // Avoid following the part of the document that is about to disappear.
+            wanted = min(displayedEnd, max(current, settledEnd))
+        }
+        let gap = wanted - current
         if abs(gap)<=0.5 {
             idle+=1
             if idle>=24,now>=settleUntil,streamingRows.isEmpty {self.follow=nil;followTimer?.invalidate();followTimer=nil};return
@@ -331,7 +513,7 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
         let next:CGFloat
         if gap<0 || reduceMotion(){next=wanted}
         else {let share=abs(gap)*(1-pow(0.8,frames));next=gap<=2 ? wanted:contentView.bounds.minY+min(abs(gap),36*frames,max(2,share))}
-        move(to:next)
+        move(to:next, reason:"follow")
     }
     func frame(for id:String,message:String?=nil)->CGRect? {
         guard let index=contents.firstIndex(where:{$0.id==id}),layouts.indices.contains(index) else{return nil}
@@ -358,8 +540,12 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
         return min(max(0,wanted),max(0,table.bounds.height-bounds.height))
     }
     func scrollTo(_ id:String,message:String?=nil,bottom:Bool=false){
+        traceInput("scroll_to")
+        keepGeneration += 1
+        let reservedEvent = tracedEvent
         entryActive=false;scrollRevision+=1;follow=nil
         let revision=scrollRevision,input=userScrolls
+        positioningRevision = revision
         replyPlacement = nil
         if historyMode, let message, message.hasPrefix("pending:"), let rect = frame(for:id,message:message) {
             let anchor = ReaderAnchor(card:id,message:message,offset:rect.minY-scrollOrigin(for:rect,bottom:bottom),
@@ -367,15 +553,18 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
             replyPlacement = (anchor, false)
         }
         prepareLoadViewport(after:0.46)
-        for delay in [0.0,0.15,0.45] {DispatchQueue.main.asyncAfter(deadline:.now()+delay){[weak self] in
-            guard let self,self.scrollRevision==revision,self.userScrolls==input,let rect=self.frame(for:id,message:message) else{return}
+        let delays = [0.0, 0.15, 0.45]
+        for (index, delay) in delays.enumerated() {DispatchQueue.main.asyncAfter(deadline:.now()+delay){[weak self] in
+            guard let self,self.scrollRevision==revision,self.userScrolls==input else{return}
+            defer { if index == delays.count - 1 { self.positioningRevision = nil } }
+            guard let rect=self.frame(for:id,message:message) else{return}
             let bounds=self.contentView.bounds
             let y=self.scrollOrigin(for:rect,bottom:bottom)
             if let placement = self.replyPlacement, !placement.confirmed {
                 let anchor = ReaderAnchor(card:id,message:message,offset:rect.minY-y,input:input,revision:revision)
                 self.replyPlacement = (anchor, false)
             }
-            if self.reduceMotion(){self.move(to:y)}else{
+            if self.reduceMotion(){self.move(to:y, reason:"scroll_to", reservedEvent:reservedEvent)}else{
                 #if HEJO_PERF_TESTING
                 HejoSmoothProbe.scrollStarts += 1
                 #endif
@@ -384,12 +573,12 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
             self.reflectScrolledClipView(self.contentView)
         }}
     }
-    func advanceScroll(){guard let motion=scrollMotion,motion.revision==scrollRevision,motion.input==userScrolls else{scrollMotion=nil;scrollTimer?.invalidate();scrollTimer=nil;return};move(to:motion.ease.value(clock()));if !motion.ease.pending(clock()) {scrollMotion=nil;scrollTimer?.invalidate();scrollTimer=nil;reportLoadViewport()}}
-    func enter(_ id:String?,bottom:Bool=false){scrollRevision+=1;follow=nil;entryActive=true;entryID=id;placeEntry(bottom:bottom)}
+    func advanceScroll(){guard let motion=scrollMotion,motion.revision==scrollRevision,motion.input==userScrolls else{scrollMotion=nil;scrollTimer?.invalidate();scrollTimer=nil;return};move(to:motion.ease.value(clock()), reason:"scroll_to");if !motion.ease.pending(clock()) {scrollMotion=nil;scrollTimer?.invalidate();scrollTimer=nil;reportLoadViewport()}}
+    func enter(_ id:String?,bottom:Bool=false){traceInput("entry");keepGeneration+=1;scrollRevision+=1;follow=nil;entryActive=true;entryID=id;placeEntry(bottom:bottom)}
     private func placeEntry(bottom:Bool=false){
         guard entryActive else{return}
-        if let id=entryID,let rect=frame(for:id) {move(to:bottom ? rect.maxY-contentView.bounds.height:rect.midY-contentView.bounds.height/2)}
-        else {move(to:table.bounds.height-contentView.bounds.height)}
+        if let id=entryID,let rect=frame(for:id) {move(to:bottom ? rect.maxY-contentView.bounds.height:rect.midY-contentView.bounds.height/2, reason:"entry")}
+        else {move(to:table.bounds.height-contentView.bounds.height, reason:"entry")}
         if !contents.isEmpty {entryActive=false}
     }
     func beginReadingResize(){guard resizing==nil else{return};let visible=contentView.bounds,id=contents.first{frame(for:$0.id)?.intersects(visible)==true}?.id
@@ -397,7 +586,7 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
     }
     func endReadingResize(){defer{resizing=nil};restoreResize()}
     private func restoreResize(){guard let held=resizing,held.input==userScrolls,held.revision==scrollRevision else{return}
-        if held.bottom {move(to:table.bounds.height-contentView.bounds.height)}else if let id=held.id,let rect=frame(for:id){move(to:rect.minY-held.offset)}
+        if held.bottom {move(to:table.bounds.height-contentView.bounds.height, reason:"resize")}else if let id=held.id,let rect=frame(for:id){move(to:rect.minY-held.offset, reason:"resize")}
     }
     override func viewWillStartLiveResize(){beginReadingResize();super.viewWillStartLiveResize()}
     override func viewDidEndLiveResize(){super.viewDidEndLiveResize();endReadingResize()}
@@ -406,11 +595,13 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
         let width = max(1, contentSize.width)
         guard !layingOut, force || abs(width - measuredWidth) > 0.5 else { return }
         layingOut = true; defer { layingOut = false }
+        let traceBefore = traceLayoutBefore()
         let resized=abs(width-measuredWidth)>0.5
         let ownsResize=resized && resizing==nil
         if ownsResize {beginReadingResize()}
         measuredWidth = width
-        let follows=followsAnswer,previousHeights=Dictionary(uniqueKeysWithValues:zip(layouts.map{$0.content.id},rowHeights))
+        let oldHeights = rowHeights
+        let follows=followsAnswer,previousHeights=Dictionary(uniqueKeysWithValues:zip(layouts.map{$0.content.id},oldHeights))
         let previousIDs = layouts.map { $0.content.id }
         layouts = contents.map { NativeThreadCard.layout($0, width: max(1, width - 2 * ChatMetrics.horizontalInset)) }
         rowHeights=layouts.map { layout in
@@ -421,17 +612,35 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
             if shown>height {DispatchQueue.main.asyncAfter(deadline:.now()+1.0/60){[weak self] in self?.remeasure(force:true)}}else{shrinking[layout.content.id]=nil}
             return shown
         }
-        table.tableColumns.first?.width = width
-        table.frame.size.width = width
+        let changes = traceBefore.map { traceLayoutChanges($0) }
+        if changes?.changed == true { tracedEvent += 1 }
+        defer {
+            if let traceBefore, let changes {
+                traceLayoutAfter(traceBefore, changed:changes.changed, rows:changes.rows, above:changes.above)
+            }
+        }
+        let clip = contentView as? ReadingClipView
+        if !resized && resizing == nil && !entryActive { clip?.originDuringLayout = contentView.bounds.minY }
+        tracedLayoutOperation = traceBefore == nil ? nil : "configure"
+        if table.tableColumns.first?.width != width { table.tableColumns.first?.width = width }
+        if table.frame.width != width { table.frame.size.width = width }
         if previousIDs == contents.map(\.id), table.numberOfRows == layouts.count {
             for index in layouts.indices {
                 (table.view(atColumn: 0, row: index, makeIfNecessary: false) as? NativeThreadCard)?.configure(layouts[index])
             }
-            table.noteHeightOfRows(withIndexesChanged: IndexSet(integersIn: layouts.indices))
+            let changedRows = IndexSet(layouts.indices.filter { oldHeights[$0] != rowHeights[$0] })
+            if !changedRows.isEmpty {
+                tracedLayoutOperation = traceBefore == nil ? nil : "row_heights"
+                table.noteHeightOfRows(withIndexesChanged: changedRows)
+            }
         } else { table.reloadData() }
         let height = rowHeights.reduce(CGFloat(0)) { $0 + $1 + table.intercellSpacing.height }
         let oldHeight = table.frame.height
-        table.frame.size.height = max(contentSize.height, height)
+        let documentHeight = max(contentSize.height, height)
+        tracedLayoutOperation = traceBefore == nil ? nil : "document_frame"
+        if table.frame.height != documentHeight { table.frame.size.height = documentHeight }
+        clip?.originDuringLayout = nil
+        tracedLayoutOperation = nil
         if resizing != nil {restoreResize();if ownsResize && !inLiveResize {resizing=nil}}
         if entryActive {placeEntry()}
         reportLoadViewport()

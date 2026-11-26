@@ -1,7 +1,7 @@
 import Foundation
 import CoreFoundation
 
-/// Opt-in timing only. Contact coordinates, device identifiers and conversation data never enter the trace.
+/// Opt-in timing and geometry. Contact coordinates, device identifiers and conversation data never enter the trace.
 enum ThreeTapDiagnostics {
     static let output = traceURL(ProcessInfo.processInfo.environment["HEJO_THREE_TAP_TRACE"])
     static func traceURL(_ path: String?) -> URL? {
@@ -99,10 +99,23 @@ enum ThreeTapDiagnostics {
         guard var row = sample, row["movement"] != nil, let output else { return }
         row["finished"] = ProcessInfo.processInfo.systemUptime
         sample = nil
-        let completed = row
+        append(row, to: output)
+    }
+
+    static func waitJitter(_ kind: String, view: String, fields: [String: Any]) {
+        guard let output else { return }
+        var row = fields
+        row["wait_jitter"] = kind
+        row["view"] = view
+        row["wall_ms"] = Int64(Date().timeIntervalSince1970 * 1000)
+        row["monotonic"] = ProcessInfo.processInfo.systemUptime
+        append(row, to: output)
+    }
+
+    private static func append(_ row: [String: Any], to output: URL) {
         writer.async {
             do {
-                var data = try JSONSerialization.data(withJSONObject: completed, options: [.sortedKeys]); data.append(10)
+                var data = try JSONSerialization.data(withJSONObject: row, options: [.sortedKeys]); data.append(10)
                 if !FileManager.default.fileExists(atPath: output.path) { try Data().write(to: output) }
                 let file = try FileHandle(forWritingTo: output); defer { try? file.close() }
                 try file.seekToEnd(); try file.write(contentsOf: data)

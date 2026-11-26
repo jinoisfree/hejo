@@ -25,7 +25,6 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
         var time: String
         var avatar: ProfileAvatar
         var nameColor: NSColor
-        var conversational = false
         /// The rest of a post shown after its buttons: words only, no face or name above them.
         var continuation = false
         var pending = false
@@ -38,6 +37,7 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
         var textHelp:String? = nil
         var openLink: (URL) -> Void
         var clientMessageID: String? = nil
+        var onOwnerProfile: (() -> Void)? = nil
     }
     enum Piece {
         case post(Post)
@@ -89,6 +89,7 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
         var text: NSRect = .zero
         var marks: [NSRect] = []
         var fold: NSRect = .zero
+        var name: NSRect = .zero
         var time: NSRect = .zero
         var aside: NSRect = .zero
         var bubble: NSRect = .zero
@@ -212,6 +213,11 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
     private static var streamHeights: [String: (width: CGFloat, height: CGFloat)] = [:]
     /// A written answer that became its final message eases from its tallest streamed height to its own.
     private static var releasing: [String: (from: CGFloat, since: TimeInterval, shown: CGFloat, at: TimeInterval)] = [:]
+    private static let avatarGap: CGFloat = 9
+    private static let headerGap: CGFloat = 6
+    private static let nameFont = NSFont.systemFont(ofSize: ChatMetrics.nameFont, weight: .bold)
+    private static func timeFont(mine: Bool) -> NSFont { .systemFont(ofSize: mine ? ChatMetrics.auxiliaryFont : 10) }
+
     static let releaseDuration: TimeInterval = 0.3
     static let releaseDelay: TimeInterval = 0.25
     static let releaseStep: CGFloat = 6
@@ -227,6 +233,8 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
         var placed: [Placed] = []
         var anchors: [String: NSRect] = [:]
         let header = Self.header(content, width: width)
+        let bodyFont = NSFont.systemFont(ofSize:ChatMetrics.bodyFont)
+        let singleLineHeight = ceil(bodyFont.ascender - bodyFont.descender + bodyFont.leading)
         var y = inset + (header.reserve > 0 ? 8 + header.reserve : 0)
         var first = true
         func gap() { if !first { y += 10 }; first = false }
@@ -235,26 +243,16 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
             switch piece {
             case .post(let post):
                 var item = Placed(piece: piece, frame: .zero)
-                if post.mine {
-                    let limit = max(1, min(width, content.bubbleWidth) - 24)
-                    let size = textSize(post.text, width: limit)
-                    let bubble = NSRect(x: x + width - size.width - 24, y: y, width: size.width + 24, height: size.height + 16)
-                    item.text = bubble.insetBy(dx: 12, dy: 8)
-                    item.aside = bubble
-                    var bottom = bubble.maxY
-                    if post.interrupted {
-                        item.fold = NSRect(x: x, y: bottom + ChatMetrics.nameBodyGap, width: width - 10, height: 14)
-                        bottom = item.fold.maxY
-                    }
-                    item.time = NSRect(x: x, y: bottom + ChatMetrics.nameBodyGap, width: width - 10, height: 14)
-                    item.frame = NSRect(x: x, y: y, width: width, height: item.time.maxY - y)
-                } else {
-                    let textX = x + ChatMetrics.avatar + 9, textWidth = max(1, width - ChatMetrics.avatar - 9)
-                    let bubble = post.conversational
-                    let limit = bubble ? max(1, min(textWidth, content.bubbleWidth) - 24) : textWidth
-                    let size = textSize(post.text, width: limit)
+                let padding = ChatMetrics.bubbleInset
+                let columnWidth = max(1, width - ChatMetrics.avatar - avatarGap)
+                let columnX = post.mine ? x : x + ChatMetrics.avatar + avatarGap
+                let limit = max(1, min(columnWidth, content.bubbleWidth) - padding.width * 2)
+                let size = textSize(post.text, width: limit)
+                // Reusing the measured width keeps TextKit's wrapped lines and percentage-based tables intact.
+                let bodyWidth = size.height <= singleLineHeight ? max(1, min(limit, size.width)) : limit
+                var bodyHeight = size.height
+                if !post.mine {
                     let heightKey = content.id + ":" + post.id
-                    var bodyHeight = size.height
                     if post.streaming {
                         if let old = streamHeights[heightKey], abs(old.width - limit) < 0.5 {
                             bodyHeight = max(bodyHeight, old.height)
@@ -284,24 +282,42 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
                             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0 / 60.0) { settle?(id) }
                         } else { streamHeights.removeValue(forKey: heightKey); releasing.removeValue(forKey: heightKey) }
                     } else { streamHeights.removeValue(forKey: heightKey); releasing.removeValue(forKey: heightKey) }
-                    if !post.continuation {
-                        item.aside = NSRect(x: x, y: y, width: ChatMetrics.avatar, height: ChatMetrics.avatar)
-                        item.time = NSRect(x: textX, y: y, width: textWidth, height: 16)
-                    }
-                    item.text = NSRect(x: textX + (bubble ? 12 : 0), y: y + (post.continuation ? 0 : 21) + (bubble ? 8 : 0),
-                                       width: bubble ? size.width : textWidth, height: bodyHeight)
-                    if bubble { item.bubble = item.text.insetBy(dx: -12, dy: -8) }
-                    var bottom = bubble ? item.bubble.maxY : item.text.maxY
-                    for mark in post.marks {
-                        let markSize = textSize(mark.text, width: max(1, textWidth - 10))
-                        let frame = NSRect(x: textX, y: bottom + 6, width: textWidth, height: markSize.height)
-                        item.marks.append(frame); bottom = frame.maxY
-                    }
-                    if post.foldTitle != nil {
-                        item.fold = NSRect(x: textX, y: bottom + 5, width: 70, height: 14); bottom = item.fold.maxY
-                    }
-                    item.frame = NSRect(x: x, y: y, width: width, height: post.continuation ? bottom - y : max(ChatMetrics.avatar, bottom - y))
                 }
+                if !post.continuation {
+                    item.aside = NSRect(x: post.mine ? x + width - ChatMetrics.avatar : x, y: y,
+                                        width: ChatMetrics.avatar, height: ChatMetrics.avatar)
+                    let timeFont = Self.timeFont(mine: post.mine)
+                    let timeWidth = min(columnWidth, ceil(Self.width(post.time, font: timeFont)))
+                    let gap = timeWidth > 0 ? Self.headerGap : 0
+                    let nameWidth = min(max(0, columnWidth - timeWidth - gap), ceil(Self.width(post.speaker, font: Self.nameFont)))
+                    let nameX = post.mine ? columnX + columnWidth - nameWidth : columnX
+                    item.name = NSRect(x: nameX, y: y, width: nameWidth, height: 17)
+                    let timeX = post.mine ? nameX - gap - timeWidth : item.name.maxX + gap
+                    item.time = NSRect(x: timeX, y: y + Self.nameFont.ascender - timeFont.ascender,
+                                       width: timeWidth, height: 14)
+                }
+                let textX = post.mine ? columnX + columnWidth - bodyWidth - padding.width : columnX + padding.width
+                let headerHeight = post.continuation ? 0 : 17 + ChatMetrics.nameBodyGap
+                item.text = NSRect(x: textX, y: y + headerHeight + padding.height, width: bodyWidth, height: bodyHeight)
+                item.bubble = item.text.insetBy(dx: -padding.width, dy: -padding.height)
+                if !post.mine, let title = post.foldTitle {
+                    let foldWidth = ceil(Self.width(title, font: .systemFont(ofSize: ChatMetrics.auxiliaryFont))) + 2
+                    item.fold = NSRect(x: item.text.minX, y: item.text.maxY + 5, width: min(max(bodyWidth, foldWidth), limit), height: 14)
+                    item.bubble.size.width = max(item.bubble.width, item.fold.maxX - item.bubble.minX + padding.width)
+                    item.bubble.size.height = item.fold.maxY - item.bubble.minY + padding.height
+                }
+                var bottom = item.bubble.maxY
+                if post.mine && post.interrupted {
+                    item.fold = NSRect(x: columnX, y: bottom + ChatMetrics.nameBodyGap, width: columnWidth, height: 14)
+                    bottom = item.fold.maxY
+                }
+                for mark in post.marks {
+                    let size = textSize(mark.text, width: max(1, columnWidth - 10))
+                    let frame = NSRect(x: columnX, y: bottom + 6, width: columnWidth, height: size.height)
+                    item.marks.append(frame)
+                    bottom = frame.maxY
+                }
+                item.frame = NSRect(x: x, y: y, width: width, height: max(item.aside.height, bottom - y))
                 anchors[post.id] = item.frame; anchors["message:" + post.id] = item.frame
                 placed.append(item); y = item.frame.maxY
             case .note(let mark, let mine):
@@ -747,6 +763,13 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
         if !bell.isHidden, let frame = value.header.bell { put(bell, frame) }
         put(area, NSRect(x: 0, y: 0, width: value.width, height: value.height))
     }
+    static func bubbleColor(for post:Post, style:Style, dark:Bool) -> NSColor {
+        if post.mine {
+            let palette = UserBubblePalette(dark:dark,pending:post.pending)
+            return palette.background.nsColor.withAlphaComponent(palette.alpha)
+        }
+        return style.replyBackground ?? NSColor.labelColor.withAlphaComponent(0.07)
+    }
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         guard let value else { return }
@@ -768,7 +791,7 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
             color.setFill(); NSBezierPath(roundedRect: rail.offsetBy(dx: dx, dy: 0), xRadius: 1, yRadius: 1).fill()
         }
         func label(_ string: String, frame: NSRect, font: NSFont, color: NSColor, right: Bool = false) {
-            let paragraph = NSMutableParagraphStyle(); paragraph.alignment = right ? .right : .left
+            let paragraph = NSMutableParagraphStyle(); paragraph.alignment = right ? .right : .left; paragraph.lineBreakMode = .byTruncatingTail
             (string as NSString).draw(in: frame.offsetBy(dx: dx, dy: 0), withAttributes: [.font: font, .foregroundColor: color, .paragraphStyle: paragraph])
         }
         for badge in value.header.badges {
@@ -780,7 +803,6 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
             let text = ceil(Self.footFont.ascender - Self.footFont.descender)
             label(badge.title, frame: NSRect(x: rect.minX + 11, y: rect.midY - text / 2, width: max(1, rect.width - 22), height: text), font: Self.footFont, color: color)
         }
-        let nameFont = NSFont.systemFont(ofSize: ChatMetrics.nameFont, weight: .bold)
         for item in value.placed {
             switch item.piece {
             case .post(let post):
@@ -788,34 +810,23 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
                     NSColor.controlAccentColor.withAlphaComponent(0.18).setFill()
                     NSBezierPath(roundedRect: item.frame.offsetBy(dx: dx, dy: 0), xRadius: 8, yRadius: 8).fill()
                 }
-                if post.mine {
-                    let mine = UserBubblePalette(dark: effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua, pending: post.pending)
-                    mine.background.nsColor.withAlphaComponent(mine.alpha).setFill()
-                    NSBezierPath(roundedRect: item.aside.offsetBy(dx: dx, dy: 0), xRadius: 16, yRadius: 16).fill()
-                    if post.interrupted { label("답이 중단됐어요", frame: item.fold, font: .systemFont(ofSize: ChatMetrics.auxiliaryFont), color: c.quiet, right: true) }
-                    label(post.time, frame: item.time, font: .systemFont(ofSize: ChatMetrics.auxiliaryFont), color: c.quiet, right: true)
-                } else {
-                    if !item.bubble.isEmpty {
-                        (c.style.replyBackground ?? NSColor.labelColor.withAlphaComponent(0.07)).setFill()
-                        NSBezierPath(roundedRect: item.bubble.offsetBy(dx: dx, dy: 0), xRadius: 12, yRadius: 12).fill()
-                    }
-                    if !post.continuation {
-                        let face = item.aside.offsetBy(dx: dx, dy: 0)
-                        post.avatar.draw(in: face, name: post.speaker)
-                        label(post.speaker, frame: item.time, font: nameFont, color: post.nameColor)
-                        let nameWidth = Self.width(post.speaker, font: nameFont)
-                        // The time sits on the name's baseline, as native's .firstTextBaseline places it.
-                        let timeFont = NSFont.systemFont(ofSize: 10)
-                        let timeTop = item.time.minY + nameFont.ascender - timeFont.ascender
-                        label(post.time, frame: NSRect(x: item.time.minX + nameWidth + 6, y: timeTop, width: max(1, item.time.width - nameWidth - 6), height: 14), font: timeFont, color: c.quiet)
-                    }
-                    for (index, frame) in item.marks.enumerated() where index < post.marks.count {
-                        post.marks[index].color.setFill()
-                        NSBezierPath(roundedRect: NSRect(x: dx + frame.minX, y: frame.minY, width: 3, height: frame.height), xRadius: 1.5, yRadius: 1.5).fill()
-                    }
-                    if let title = post.foldTitle {
-                        label(title, frame: item.fold, font: .systemFont(ofSize: ChatMetrics.auxiliaryFont), color: post.nameColor)
-                    }
+                let dark = effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua
+                Self.bubbleColor(for:post,style:c.style,dark:dark).setFill()
+                NSBezierPath(roundedRect: item.bubble.offsetBy(dx: dx, dy: 0),
+                             xRadius: ChatMetrics.bubbleCorner, yRadius: ChatMetrics.bubbleCorner).fill()
+                if !post.continuation {
+                    post.avatar.draw(in: item.aside.offsetBy(dx: dx, dy: 0), name: post.speaker)
+                    label(post.speaker, frame: item.name, font: Self.nameFont, color: post.nameColor, right: post.mine)
+                    label(post.time, frame: item.time, font: Self.timeFont(mine: post.mine), color: c.quiet, right: post.mine)
+                }
+                for (index, frame) in item.marks.enumerated() where index < post.marks.count {
+                    post.marks[index].color.setFill()
+                    NSBezierPath(roundedRect: NSRect(x: dx + frame.minX, y: frame.minY, width: 3, height: frame.height), xRadius: 1.5, yRadius: 1.5).fill()
+                }
+                if post.mine && post.interrupted {
+                    label("답이 중단됐어요", frame: item.fold, font: .systemFont(ofSize: ChatMetrics.auxiliaryFont), color: c.quiet, right: true)
+                } else if let title = post.foldTitle {
+                    label(title, frame: item.fold, font: .systemFont(ofSize: ChatMetrics.auxiliaryFont), color: post.nameColor)
                 }
             case .note(let mark, _):
                 mark.color.setFill()
@@ -840,6 +851,22 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
     }
     private let area = Area()
+    func ownerProfileMenu(at point: NSPoint) -> NSMenu? {
+        let point = point.applying(.init(translationX: -ChatMetrics.horizontalInset, y: 0))
+        guard let value else { return nil }
+        for item in value.placed {
+            guard case .post(let post) = item.piece, post.mine, !post.continuation,
+                  let action = post.onOwnerProfile,
+                  item.aside.contains(point) || item.name.union(item.time).contains(point) else { continue }
+            let menu = NSMenu()
+            menu.addItem(RoomActionItem("내 프로필…", action: action))
+            return menu
+        }
+        return nil
+    }
+    override func menu(for event: NSEvent) -> NSMenu? {
+        ownerProfileMenu(at: convert(event.locationInWindow, from: nil)) ?? super.menu(for: event)
+    }
     override func mouseDown(with event: NSEvent) {
         guard let value else { return }
         let point = convert(event.locationInWindow, from: nil).applying(.init(translationX: -ChatMetrics.horizontalInset, y: 0))

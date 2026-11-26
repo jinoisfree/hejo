@@ -428,7 +428,7 @@ class Telegram:
             break
         pair = self.private()['pair']
         names = {e['id']: e['name'] for e in self.adapter.employees()}
-        label = '사장' if row['role'] == 'owner' else names.get(row['employee'], row['employee'])
+        label = self.adapter.owner_label('사장') if row['role'] == 'owner' else names.get(row['employee'], row['employee'])
         text = f"[{label}] " + row['text']
         buttons = row.get('buttons', [])
         replies = [b['label'] for b in buttons if b['kind'] == 'reply']
