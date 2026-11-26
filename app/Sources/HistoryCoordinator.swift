@@ -116,7 +116,7 @@ import Foundation
         case .thread:
             let page = try await threadPage("resolve",key:key,context:context,run:run,retry:false)
             try model.applyHistoryMessages(page,key:key,context:context,generation:generation)
-            if let id = model.history.summaries[key]?.rootID, model.messages[id] == nil,
+            if let id = model.history.summaries[key]?.rootID,model.messages[id] == nil,
                model.history.contentReferences[id] == nil, model.evictedHistoryBodies[id] == nil {
                 try await loadRoot(key,context:context,run:run,retry:false)
             }
@@ -206,11 +206,31 @@ import Foundation
         guard let id=model.evictedHistoryBody(key,before:before,after:after) else{return false}
         enqueue(.restore(key,id));return true
     }
-    func open(_ key: ConversationKey, anchor: String? = nil) {
+    private var navigation: (key:ConversationKey,message:String?,needsBody:Bool)?
+
+    func beginNavigation(_ key:ConversationKey,message:String?,needsBody:Bool) {
+        inputsChanged()
+        navigation = (key,message,needsBody)
+        if needsBody { open(key,anchor:message) }
+    }
+
+    func cancelNavigation() {
+        guard let request = navigation else { return }
+        navigation = nil
+        if let message=request.message,model.historyOpenAnchor == message { model.historyOpenAnchor = nil }
+    }
+
+    @discardableResult func open(_ key: ConversationKey, anchor: String? = nil) -> Bool {
         model.historyOpenAnchor = anchor
-        // Selection already refreshes this complete live thread.
-        if anchor == nil, model.selected == key, model.hasUnpagedLiveHistory(key) { return }
+        if anchor == nil {
+            // The viewport restores evicted slots in an already fetched recent page.
+            if model.history.messagePages[key] != nil,!model.hasUnloadedNewerReplies(key),
+               model.evictedHistoryBody(key) != nil { return false }
+            // Selection already refreshes this complete live thread.
+            if model.selected == key,model.hasUnpagedLiveHistory(key) { return false }
+        }
         enqueue(.open(key,anchor))
+        return true
     }
     func prepareReply(_ key: ConversationKey, pendingID: String) async throws {
         guard model.hasUnloadedNewerReplies(key) else { return }
@@ -275,7 +295,10 @@ import Foundation
         case .content(let key,let id):
             try await content(id,key:key,context:context,run:run)
         case .open(let key,let anchor):
-            try await loadThreadOpening(key,anchor:anchor,context:context,run:run)
+            if anchor != nil || navigation?.key != key || navigation?.needsBody != true
+                || model.history.summaries[key] == nil {
+                try await loadThreadOpening(key,anchor:anchor,context:context,run:run)
+            }
         case .openForReply(let key):
             if model.hasUnloadedNewerReplies(key) {
                 try await loadThreadOpening(key,anchor:nil,context:context,run:run)
@@ -285,7 +308,9 @@ import Foundation
         if publish { onChange?() }
         try check(run)
         switch demand {
-        case .open(let key,let anchor): onAnchor?(key,anchor,false)
+        case .open(let key,let anchor):
+            if navigation?.key == key,navigation?.message == anchor { navigation?.needsBody = false }
+            onAnchor?(key,anchor,false)
         case .openForReply(let key):
             if model.selected == key, let waiter = replyOpenWaiters[key]?.last {
                 onAnchor?(key,"pending:"+waiter.id,true)
@@ -294,7 +319,19 @@ import Foundation
         }
     }
     private func loadThreadOpening(_ key: ConversationKey, anchor: String?, context: String, run: Int) async throws {
-        let page = try await threadPage("resolve",key:key,context:context,run:run,anchor:anchor)
+        func superseded() -> Bool {
+            guard let anchor,let navigation,navigation.key == key else { return false }
+            return navigation.message != anchor
+        }
+        guard !superseded() else { return }
+        let page: [String:Any]
+        do {
+            page = try await threadPage("resolve",key:key,context:context,run:run,anchor:anchor)
+        } catch {
+            if superseded() { return }
+            throw error
+        }
+        guard !superseded() else { return }
         try model.applyHistoryMessages(page,key:key,context:context,generation:generation,anchor:anchor)
         guard let summary = model.history.summaries[key] else { return }
         // Root is an explicit ID, never the first body of a partial page.
@@ -332,6 +369,10 @@ import Foundation
             let newSelection = selection != model.selected || selectionScope != scope || visible != model.visible
             guard newSession || newInput || newSelection else { return }
             operation += 1; model.historyRestorePin=nil; task?.cancel(); task = nil; demands = []; failure = nil
+            if let request = navigation {
+                if request.key != model.selected { cancelNavigation() }
+                else if request.needsBody { demands.append(.open(request.key,request.message)) }
+            }
             if newSession { reads.removeAll() }
             else { reads.removeAll { $0.3 != model.history.intentGeneration } }
             failReplyOpens(HistoryFailure.changed)
@@ -486,6 +527,11 @@ import Foundation
         // and starts a fresh generation if this transaction actually changes state.
         try model.applyHistoryReadPlan(changes,context:context,generation:generation,intent:intent)
     }
+    private func holdsNavigationMessage(in key: ConversationKey) -> Bool {
+        guard let navigation,let message=navigation.message,navigation.key == key,!navigation.needsBody else { return false }
+        return model.canDisplayHistoryBody(message,in:key)
+    }
+
     private func refresh(context: String, run: Int) async throws {
         model.history.refreshing = true
         var fields: [String:Any] = ["mode":"sidebar"], totals: [[String:Any]] = []
@@ -541,7 +587,8 @@ import Foundation
                 }
             }
         }
-        if let selected = model.selected, model.history.summaries[selected] != nil {
+        if let selected = model.selected, model.history.summaries[selected] != nil,
+           !holdsNavigationMessage(in:selected) {
             let page = try await query("messages",scope:selected.employee,context:context,run:run,
                                        fields:["target":["room":selected.employee,"thread":selected.thread]])
             if !demands.contains(where:{ if case .open(let key, .some) = $0 { return key == selected }; return false }) {

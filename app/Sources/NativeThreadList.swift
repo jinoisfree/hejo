@@ -12,10 +12,12 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
     }
     private final class ReadingClipView: NSClipView {
         var originDuringLayout: CGFloat?
+        var documentHeightDuringLayout: CGFloat?
 
         private func heldOrigin(_ proposed: NSPoint, height: CGFloat) -> NSPoint {
             guard let originDuringLayout, let documentView else { return proposed }
-            return NSPoint(x: proposed.x, y: min(originDuringLayout, max(0, documentView.bounds.maxY - height)))
+            let documentHeight = documentHeightDuringLayout ?? documentView.bounds.maxY
+            return NSPoint(x: proposed.x, y: min(originDuringLayout, max(0, documentHeight - height)))
         }
 
         override func constrainBoundsRect(_ proposedBounds: NSRect) -> NSRect {
@@ -154,11 +156,37 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
         return bytes
     }
     var textPayloadExcessBytes:Int {max(0,renderedTextPayloadBytes+textKitPayloadBytes-textPayloadBudgetBytes)}
-    private var scrollMotion:(ease:WorkspaceEase,revision:Int,input:Int)?
-    private var scrollTimer:Timer?
-    private var positioningRevision: Int?
-    private var isScrollingToTarget: Bool {
-        positioningRevision == scrollRevision || scrollMotion?.revision == scrollRevision
+    private struct ScrollTarget {
+        let card: String
+        let message: String?
+        let bottom: Bool
+        let keepCentered: Bool
+    }
+    private var scrollMotion: (target:ScrollTarget,ease:WorkspaceEase,revision:Int,input:Int)?
+    private var scrollTimer: Timer?
+    private var waitingForTarget = false
+    private var waitingOrigin: CGFloat?
+    private var measuredDocumentHeight: CGFloat = 0
+    private var heldTarget: (target:ScrollTarget,offset:CGFloat?)?
+    var onReaderInput: (() -> Void)?
+    private var isScrollingToTarget: Bool { waitingForTarget || scrollMotion != nil }
+
+    func beginTargetPositioning() {
+        stopTargetPositioning()
+        keepGeneration += 1
+        entryActive = false
+        follow = nil
+        waitingForTarget = true
+        waitingOrigin = contentView.bounds.minY
+    }
+
+    func stopTargetPositioning() {
+        waitingForTarget = false
+        waitingOrigin = nil
+        heldTarget = nil
+        scrollMotion = nil
+        scrollTimer?.invalidate()
+        scrollTimer = nil
     }
     private struct TracedMove {
         let reason: String
@@ -302,8 +330,9 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
         keepGeneration += 1
         userScrolls+=1;entryActive=false;follow=nil;followTimer?.invalidate();followTimer=nil
         replyPlacement=nil
-        positioningRevision=nil
-        scrollMotion=nil;scrollTimer?.invalidate();scrollTimer=nil
+        stopTargetPositioning()
+        if table.frame.height > measuredDocumentHeight { remeasure(force:true) }
+        onReaderInput?()
         if wheel {wheelAt=clock()}
         loadViewportAfterPosition?.cancel()
         loadViewportAfterPosition = nil
@@ -418,6 +447,7 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
             DispatchQueue.main.asyncAfter(deadline:.now()+0.25,execute:work);return
         }
         deferred=nil;deferredWork=nil;apply(contents,identity:identity,entry:entry,autoloadAppended:autoloadAppended,prependAnchor:prependAnchor)
+        onMeasured?()
     }
     private func apply(_ contents:[NativeThreadCard.Content],identity:String,entry:String?,autoloadAppended:Bool,prependAnchor:String?){
         let outgoingReply = historyMode ? outgoingReplyAnchor(in:contents):nil
@@ -428,21 +458,38 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
         let oldIDs = self.contents.map(\.id)
         let oldAnchors = historyMode ? layouts.map(\.anchors):[]
         let changed=self.identity != identity,old=place(),oldStreaming = !streamingRows.isEmpty
-        if changed {traceInput("selection");scrollRevision+=1;follow=nil;entryActive=true;entryID=entry}
+        if changed {
+            traceInput("selection");scrollRevision+=1;follow=nil
+            let waiting = waitingForTarget
+            stopTargetPositioning()
+            waitingForTarget = waiting
+            entryActive = true;entryID=entry
+        }
         func streaming(_ content:NativeThreadCard.Content)->Bool {(content.top+(content.replies ?? [])).contains{if case .post(let post)=$0{return post.streaming};return false}}
         let streamingNow=Set(contents.filter(streaming).map(\.id))
         streamingRows=Set(self.contents.filter(streaming).map(\.id)).union(streamingNow)
-        if outgoingReply==nil,!changed,follow==nil,!streamingNow.isEmpty,old.bottom<=120,resizing==nil {follow=Place(bottom:0,input:userScrolls,revision:scrollRevision);glidedAt=clock();idle=0}
+        if outgoingReply==nil,!changed,follow==nil,!isScrollingToTarget,!streamingNow.isEmpty,old.bottom<=120,resizing==nil {follow=Place(bottom:0,input:userScrolls,revision:scrollRevision);glidedAt=clock();idle=0}
         self.identity=identity;self.contents=contents;remeasure(force:true)
-        if entryActive {entryID=entry;placeEntry()}
-        else if let follow {
+        if entryActive {
+            entryID=entry
+            placeEntry()
+            if waitingForTarget { waitingOrigin = contentView.bounds.minY }
+        } else if waitingForTarget, let origin = waitingOrigin {
+            move(to:origin,reason:"keep")
+        } else if let follow {
             if oldStreaming && streamingNow.isEmpty {settleUntil=clock()+1.2}
             if reduceMotion(){restore(follow, reason:"follow")}else{startFollowing()}
         } else if !changed,resizing==nil,!isScrollingToTarget {
             let geometryChanged = oldHeights != rowHeights || oldIDs != contents.map(\.id)
                 || (historyMode && oldAnchors != layouts.map(\.anchors))
             if geometryChanged {
-                if let outgoingReply {
+                if prependAnchor != nil, let anchor {
+                    keep(.anchor(anchor))
+                } else if let heldTarget, let rect=targetFrame(heldTarget.target) {
+                    let origin = heldTarget.offset.map { rect.minY - $0 }
+                        ?? scrollOrigin(for:rect,bottom:heldTarget.target.bottom)
+                    move(to:origin,reason:"anchor")
+                } else if let outgoingReply {
                     // While pending, scrollTo owns positioning and animation.
                     // Only the confirmation replaces that placement.
                     if replyPlacement?.confirmed == true {
@@ -515,7 +562,7 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
         else {let share=abs(gap)*(1-pow(0.8,frames));next=gap<=2 ? wanted:contentView.bounds.minY+min(abs(gap),36*frames,max(2,share))}
         move(to:next, reason:"follow")
     }
-    func frame(for id:String,message:String?=nil)->CGRect? {
+    func frame(for id:String,message:String?=nil,requiresMessage:Bool=false)->CGRect? {
         guard let index=contents.firstIndex(where:{$0.id==id}),layouts.indices.contains(index) else{return nil}
         let row=table.rect(ofRow:index)
         guard let message else { return row }
@@ -532,49 +579,76 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
                 }
             }
         }
-        return row
+        return requiresMessage ? nil : row
+    }
+    private func targetFrame(_ target:ScrollTarget)->CGRect? {
+        frame(for:target.card,message:target.message,requiresMessage:target.message != nil)
     }
     private func scrollOrigin(for rect: CGRect, bottom: Bool) -> CGFloat {
         let bounds = contentView.bounds
         let wanted = bottom ? rect.maxY-bounds.height : rect.midY-bounds.height/2
-        return min(max(0,wanted),max(0,table.bounds.height-bounds.height))
+        return min(max(0,wanted),max(0,measuredDocumentHeight-bounds.height))
     }
-    func scrollTo(_ id:String,message:String?=nil,bottom:Bool=false){
+    func scrollTo(_ id:String,message:String?=nil,bottom:Bool=false,immediate:Bool=false,keepCentered:Bool=false) {
         traceInput("scroll_to")
+        stopTargetPositioning()
         keepGeneration += 1
-        let reservedEvent = tracedEvent
-        entryActive=false;scrollRevision+=1;follow=nil
-        let revision=scrollRevision,input=userScrolls
-        positioningRevision = revision
+        scrollRevision += 1
+        entryActive = false
+        follow = nil
         replyPlacement = nil
-        if historyMode, let message, message.hasPrefix("pending:"), let rect = frame(for:id,message:message) {
-            let anchor = ReaderAnchor(card:id,message:message,offset:rect.minY-scrollOrigin(for:rect,bottom:bottom),
-                                      input:input,revision:revision)
-            replyPlacement = (anchor, false)
+        let target = ScrollTarget(card:id,message:message,bottom:bottom,keepCentered:immediate || keepCentered)
+        guard let rect = targetFrame(target) else { return }
+        let goal = scrollOrigin(for:rect,bottom:bottom)
+        let pending = historyMode && message?.hasPrefix("pending:") == true
+        if pending,let message {
+            let anchor = ReaderAnchor(card:id,message:message,offset:rect.minY-goal,input:userScrolls,revision:scrollRevision)
+            replyPlacement = (anchor,false)
         }
-        prepareLoadViewport(after:0.46)
-        let delays = [0.0, 0.15, 0.45]
-        for (index, delay) in delays.enumerated() {DispatchQueue.main.asyncAfter(deadline:.now()+delay){[weak self] in
-            guard let self,self.scrollRevision==revision,self.userScrolls==input else{return}
-            defer { if index == delays.count - 1 { self.positioningRevision = nil } }
-            guard let rect=self.frame(for:id,message:message) else{return}
-            let bounds=self.contentView.bounds
-            let y=self.scrollOrigin(for:rect,bottom:bottom)
-            if let placement = self.replyPlacement, !placement.confirmed {
-                let anchor = ReaderAnchor(card:id,message:message,offset:rect.minY-y,input:input,revision:revision)
-                self.replyPlacement = (anchor, false)
-            }
-            if self.reduceMotion(){self.move(to:y, reason:"scroll_to", reservedEvent:reservedEvent)}else{
-                #if HEJO_PERF_TESTING
-                HejoSmoothProbe.scrollStarts += 1
-                #endif
-                self.scrollMotion=(WorkspaceEase(from:bounds.minY,to:y,start:self.clock()),revision,input)
-                if self.scrollTimer==nil {let timer=Timer(timeInterval:1.0/60,repeats:true){[weak self] _ in self?.advanceScroll()};self.scrollTimer=timer;RunLoop.main.add(timer,forMode:.common)}}
-            self.reflectScrolledClipView(self.contentView)
-        }}
+        if immediate || reduceMotion() {
+            move(to:goal,reason:"scroll_to")
+            if table.frame.height > measuredDocumentHeight { remeasure(force:true) }
+            if !pending { heldTarget = (target,target.keepCentered ? nil:rect.minY-goal) }
+            reportLoadViewport()
+            return
+        }
+        #if HEJO_PERF_TESTING
+        HejoSmoothProbe.scrollStarts += 1
+        #endif
+        scrollMotion = (target,.init(from:contentView.bounds.minY,to:goal,start:clock()),scrollRevision,userScrolls)
+        prepareLoadViewport(after:SidebarMotion.duration)
+        let timer = Timer(timeInterval:1.0/60,repeats:true) { [weak self] _ in self?.advanceScroll() }
+        scrollTimer = timer
+        RunLoop.main.add(timer,forMode:.common)
     }
-    func advanceScroll(){guard let motion=scrollMotion,motion.revision==scrollRevision,motion.input==userScrolls else{scrollMotion=nil;scrollTimer?.invalidate();scrollTimer=nil;return};move(to:motion.ease.value(clock()), reason:"scroll_to");if !motion.ease.pending(clock()) {scrollMotion=nil;scrollTimer?.invalidate();scrollTimer=nil;reportLoadViewport()}}
-    func enter(_ id:String?,bottom:Bool=false){traceInput("entry");keepGeneration+=1;scrollRevision+=1;follow=nil;entryActive=true;entryID=id;placeEntry(bottom:bottom)}
+
+    func advanceScroll() {
+        guard var motion = scrollMotion,motion.revision == scrollRevision,motion.input == userScrolls,
+              let frame = targetFrame(motion.target) else {
+            if scrollMotion != nil { stopTargetPositioning();remeasure(force:true) }
+            return
+        }
+        motion.ease.to = scrollOrigin(for:frame,bottom:motion.target.bottom)
+        let time = clock()
+        move(to:motion.ease.value(time),reason:"scroll_to")
+        if motion.ease.pending(time) {
+            scrollMotion = motion
+        } else {
+            stopTargetPositioning()
+            if table.frame.height > measuredDocumentHeight { remeasure(force:true) }
+            if replyPlacement == nil {
+                heldTarget = (motion.target,motion.target.keepCentered ? nil:frame.minY-motion.ease.to)
+            }
+            reportLoadViewport()
+        }
+    }
+
+    func enter(_ id:String?,bottom:Bool=false) {
+        traceInput("entry");keepGeneration+=1;scrollRevision+=1;follow=nil
+        heldTarget = nil
+        entryActive=true;entryID=id;placeEntry(bottom:bottom)
+        if waitingForTarget { waitingOrigin = contentView.bounds.minY }
+    }
     private func placeEntry(bottom:Bool=false){
         guard entryActive else{return}
         if let id=entryID,let rect=frame(for:id) {move(to:bottom ? rect.maxY-contentView.bounds.height:rect.midY-contentView.bounds.height/2, reason:"entry")}
@@ -590,7 +664,15 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
     }
     override func viewWillStartLiveResize(){beginReadingResize();super.viewWillStartLiveResize()}
     override func viewDidEndLiveResize(){super.viewDidEndLiveResize();endReadingResize()}
-    override func layout() { super.layout(); remeasure() }
+    override func layout() {
+        super.layout()
+        remeasure()
+        if !inLiveResize,let heldTarget,heldTarget.offset == nil,
+           let frame = targetFrame(heldTarget.target) {
+            let origin = scrollOrigin(for:frame,bottom:heldTarget.target.bottom)
+            if abs(origin-contentView.bounds.minY) > 0.5 { move(to:origin,reason:"anchor") }
+        }
+    }
     private func remeasure(force: Bool = false) {
         let width = max(1, contentSize.width)
         guard !layingOut, force || abs(width - measuredWidth) > 0.5 else { return }
@@ -620,7 +702,16 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
             }
         }
         let clip = contentView as? ReadingClipView
-        if !resized && resizing == nil && !entryActive { clip?.originDuringLayout = contentView.bounds.minY }
+        let height = rowHeights.reduce(CGFloat(0)) { $0 + $1 + table.intercellSpacing.height }
+        measuredDocumentHeight = max(contentSize.height,height)
+        // Keep the starting viewport scrollable while switching from an expanded card
+        // to a shorter document. The movement settles against the measured rows.
+        let targetOrigin = waitingOrigin ?? scrollMotion?.ease.from
+        let documentHeight = targetOrigin.map { max(measuredDocumentHeight,$0+contentView.bounds.height) } ?? measuredDocumentHeight
+        if !resized && resizing == nil && !entryActive {
+            clip?.originDuringLayout = contentView.bounds.minY
+            if targetOrigin != nil { clip?.documentHeightDuringLayout = documentHeight }
+        }
         tracedLayoutOperation = traceBefore == nil ? nil : "configure"
         if table.tableColumns.first?.width != width { table.tableColumns.first?.width = width }
         if table.frame.width != width { table.frame.size.width = width }
@@ -634,12 +725,11 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
                 table.noteHeightOfRows(withIndexesChanged: changedRows)
             }
         } else { table.reloadData() }
-        let height = rowHeights.reduce(CGFloat(0)) { $0 + $1 + table.intercellSpacing.height }
         let oldHeight = table.frame.height
-        let documentHeight = max(contentSize.height, height)
         tracedLayoutOperation = traceBefore == nil ? nil : "document_frame"
         if table.frame.height != documentHeight { table.frame.size.height = documentHeight }
         clip?.originDuringLayout = nil
+        clip?.documentHeightDuringLayout = nil
         tracedLayoutOperation = nil
         if resizing != nil {restoreResize();if ownsResize && !inLiveResize {resizing=nil}}
         if entryActive {placeEntry()}
