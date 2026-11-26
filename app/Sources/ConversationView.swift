@@ -9,6 +9,7 @@ import UniformTypeIdentifiers
         didSet {
             guard oldValue != drawerShownWidth else{return}
             todoDrawer.isHidden=drawerShownWidth<=0
+            if todoDrawer.isHidden { controller.historyLoading.updateCardTargets([]) }
             needsLayout=true;needsDisplay=true
         }
     }
@@ -272,6 +273,13 @@ import UniformTypeIdentifiers
         todoDrawer.onSelect={ [weak self] card in self?.selectDrawerCard(card,activate:false) }
         todoDrawer.onCard={ [weak self] card in self?.selectDrawerCard(card) }
         todoDrawer.onClose={ [weak self] in self?.onToggleDrawer?() }
+        todoDrawer.onViewport = { [weak self] cards in
+            guard let self,self.controller.drawerVisible else { return }
+            self.controller.historyLoading.updateCardTargets(cards.compactMap { card in
+                guard let key = card.key,let message = card.messageID else { return nil }
+                return .init(key:key,message:message)
+            })
+        }
         todoDrawer.onCloseDeadline={ [weak self] card,outcome in self?.controller.closeDeadline(card,outcome:outcome);self?.refresh() }
         todoDrawer.onUndoClose={ [weak self] in self?.controller.undoClose();self?.refresh() }
         todoDrawer.onOpenSource={ [weak self] url in self?.onOpenURL(url) }
@@ -921,6 +929,7 @@ import UniformTypeIdentifiers
             islandModel.update(islandInput);tickIsland(updateDrawer:false)
             ThreeTapDiagnostics.endSpan("refresh_island", phase); phase = ThreeTapDiagnostics.startSpan()
             if controller.drawerVisible {todoDrawer.show(controller.drawerSnapshot,filter:controller.drawerFilter,selected:drawerSelectedID)}
+            else { controller.historyLoading.updateCardTargets([]) }
             ThreeTapDiagnostics.endSpan("refresh_drawer", phase); phase = ThreeTapDiagnostics.startSpan()
             onUnread?(model.visibleUnreadTotal)
             reportOpenHeight()

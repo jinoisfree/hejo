@@ -6,6 +6,8 @@ import AppKit
     private lazy var close=TodoDrawerButton("✕"){[weak self] in self?.onClose?()}
     private let scroll=NSScrollView(), stack=NSStackView()
     private var appearanceObserver: NSObjectProtocol?
+    private var viewportObserver: NSObjectProtocol?
+    var onViewport: (([TodoDrawerModel.Card]) -> Void)?
     var onClose: (() -> Void)?
     var onFilter: ((TodoDrawerModel.Filter) -> Void)?
     var onSelect: ((TodoDrawerModel.Card) -> Void)?
@@ -26,6 +28,11 @@ import AppKit
         stack.orientation = .vertical;stack.alignment = .leading;stack.spacing=7
         stack.edgeInsets=NSEdgeInsets(top:Self.inset,left:Self.inset,bottom:Self.inset,right:Self.inset)
         scroll.documentView=stack;addSubview(scroll)
+        scroll.contentView.postsBoundsChangedNotifications = true
+        viewportObserver=NotificationCenter.default.addObserver(forName:NSView.boundsDidChangeNotification,
+            object:scroll.contentView,queue:.main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.reportViewport() }
+        }
         footer.orientation = .horizontal;footer.edgeInsets=NSEdgeInsets(top:6,left:14,bottom:6,right:14);footer.isHidden=true;addSubview(footer)
         setAccessibilityLabel("처리할 일")
         appearanceObserver=NotificationCenter.default.addObserver(forName:ChatAppearance.didChange,object:nil,queue:.main){ [weak self] _ in
@@ -33,7 +40,10 @@ import AppKit
         }
     }
     required init?(coder:NSCoder){fatalError()}
-    deinit { if let appearanceObserver { NotificationCenter.default.removeObserver(appearanceObserver) } }
+    deinit {
+        if let appearanceObserver { NotificationCenter.default.removeObserver(appearanceObserver) }
+        if let viewportObserver { NotificationCenter.default.removeObserver(viewportObserver) }
+    }
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance(); needsDisplay=true;cardViews.forEach{$0.needsDisplay=true}
     }
@@ -51,11 +61,26 @@ import AppKit
             let segmentWidth=(filterTrack.bounds.width-2*ComposerModeTrack.inset)/CGFloat(buttons.count)
             for (index,button) in buttons.enumerated() {button.frame=ComposerModeTrack.segment(in:filterTrack.bounds,offset:CGFloat(index)*segmentWidth,width:segmentWidth)}
         }
-        footer.frame=CGRect(x:0,y:0,width:PetController.drawerWidth,height:footerHeight)
+        footer.frame=CGRect(x:0,y:0,width:width,height:footerHeight)
         scroll.frame=CGRect(x:0,y:footerHeight,width:width,height:max(0,bounds.height-band-footerHeight))
         stack.frame.size.width=PetController.drawerWidth
         stack.layoutSubtreeIfNeeded()
         stack.frame.size.height=max(scroll.frame.height,stack.fittingSize.height)
+        stack.layoutSubtreeIfNeeded()
+        reportViewport()
+    }
+
+    private func reportViewport() {
+        guard !isHidden,scroll.contentView.bounds.height > 0 else { return }
+        let visible = scroll.contentView.bounds
+        let nearby = visible.insetBy(dx:0,dy:-visible.height)
+        var shown: [TodoDrawerModel.Card] = [], adjacent: [TodoDrawerModel.Card] = []
+        for view in cardViews {
+            let frame = view.convert(view.bounds,to:stack)
+            if frame.intersects(visible) { shown.append(view.card) }
+            else if frame.intersects(nearby) { adjacent.append(view.card) }
+        }
+        onViewport?(shown+adjacent)
     }
     // The common title divider is already drawn by ConversationView at y=44.
     func show(_ value:TodoDrawerModel.Snapshot, filter:TodoDrawerModel.Filter, selected:String?) {

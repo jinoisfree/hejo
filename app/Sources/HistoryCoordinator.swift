@@ -37,9 +37,33 @@ import Foundation
             }
         }
     }
-    private enum AutoState { case waiting(until: Date), failed }
+    private enum AutoState { case waiting(until: Date), failed(quiet: Bool) }
     private static let snapshotRetryDelay: TimeInterval = 60
     private var loadingTargets: [AutoLoad] = []
+    struct CardTarget: Equatable {
+        let key: ConversationKey
+        let message: String
+    }
+    private var cardTargets: [CardTarget] = []
+
+    func updateCardTargets(_ targets: [CardTarget]) {
+        guard client.store.historyMode,targets != cardTargets else { return }
+        cardTargets = targets
+        startIfNeeded()
+    }
+
+    private func cardLoad(_ target: CardTarget) -> AutoLoad? {
+        let key = target.key, id = target.message
+        let root = model.history.summaries[key]?.rootID
+        if model.history.messagePages[key] == nil && !model.hasUnpagedLiveHistory(key) { return .thread(key) }
+        if let root,model.messages[root] == nil,model.evictedHistoryBodies[root] == nil {
+            if model.history.contentReferences[root] != nil { return .content(key,root) }
+            return loadStates[.thread(key)] == nil ? .root(key):.thread(key)
+        }
+        guard id == root || model.historyReplyIDs(key).contains(id),
+              model.history.contentReferences[id] != nil,model.evictedHistoryBodies[id] == nil else { return nil }
+        return .content(key,id)
+    }
     private var loadStates: [AutoLoad:AutoState] = [:]
     private var retried = Set<AutoLoad>()
     private var visibleBodies = Set<String>()
@@ -53,7 +77,7 @@ import Foundation
         startIfNeeded()
     }
     func failed(_ target: AutoLoad) -> Bool {
-        if case .failed = loadStates[target] { return true }
+        if case .failed(quiet:false) = loadStates[target] { return true }
         return false
     }
     func retry(_ target: AutoLoad) {
@@ -96,27 +120,28 @@ import Foundation
     private func nextLoad() -> AutoLoad? {
         guard failure == nil else { return nil }
         let now = model.noticeClock()
-        return loadingTargets.first {
-            guard needsLoad($0) else { return false }
-            switch loadStates[$0] {
+        func available(_ target: AutoLoad) -> Bool {
+            switch loadStates[target] {
             case nil: return true
             case .waiting(let until): return now >= until
             case .failed: return false
             }
         }
+        return loadingTargets.first { needsLoad($0) && available($0) }
+            ?? cardTargets.lazy.compactMap { self.cardLoad($0) }.first(where:available)
     }
 
     private func startIfNeeded() {
         if dirty || (failure == nil && (!reads.isEmpty || !demands.isEmpty || nextLoad() != nil)) { start() }
     }
 
-    private func load(_ target: AutoLoad, context: String, run: Int) async throws {
+    private func load(_ target: AutoLoad, context: String, run: Int, forCard: Bool) async throws {
         let key = target.key
         switch target {
         case .thread:
             let page = try await threadPage("resolve",key:key,context:context,run:run,retry:false)
             try model.applyHistoryMessages(page,key:key,context:context,generation:generation)
-            if let id = model.history.summaries[key]?.rootID,model.messages[id] == nil,
+            if !forCard,let id = model.history.summaries[key]?.rootID,model.messages[id] == nil,
                model.history.contentReferences[id] == nil, model.evictedHistoryBodies[id] == nil {
                 try await loadRoot(key,context:context,run:run,retry:false)
             }
@@ -449,18 +474,20 @@ import Foundation
                         try self.check(run)
                     }
                     if !self.dirty, let target = self.nextLoad() {
+                        let quiet = !self.loadingTargets.contains(target) || !self.needsLoad(target)
                         if case .waiting = self.loadStates[target] { self.retried.insert(target) }
                         do {
-                            try await self.load(target,context:context,run:run)
+                            try await self.load(target,context:context,run:run,forCard:quiet)
                             try self.check(run)
-                            self.loadStates[target] = self.needsLoad(target) ? .failed : nil
+                            let unresolved = self.needsLoad(target) || self.cardTargets.contains { self.cardLoad($0) == target }
+                            self.loadStates[target] = unresolved ? .failed(quiet:quiet) : nil
                             self.retried.remove(target)
                         } catch {
                             try self.check(run)
                             if case .server(_, retryable:true) = error as? HistoryFailure, !self.retried.contains(target) {
                                 self.loadStates[target] = .waiting(until:self.model.noticeClock().addingTimeInterval(Self.snapshotRetryDelay))
                             } else {
-                                self.loadStates[target] = .failed
+                                self.loadStates[target] = .failed(quiet:quiet)
                             }
                         }
                         // Keep the displayed slots stable while restoring the bodies currently
