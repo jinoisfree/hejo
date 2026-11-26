@@ -1,5 +1,7 @@
 """Explicit small Swift/real-gate history test; never launches the installed app."""
 import asyncio
+from datetime import datetime, timezone
+import json
 from pathlib import Path
 import uuid
 import pytest
@@ -721,3 +723,170 @@ async def test_authenticated_thumbnail_view_lifetime(gate, tmp_path, monkeypatch
     finally:
         if process.returncode is None:
             process.kill(); await process.wait()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures('runner')
+@pytest.mark.parametrize(('case', 'scenario'), [
+    ('01', 'drawer'), ('02', 'click'), ('03', 'room'), ('04', 'reply'),
+    ('05', 'siblings'), ('06', 'question'), ('07a', 'notice-fails'),
+    ('07b', 'all-fail'), ('07c-notice', 'notice-fails'), ('07c-all', 'all-fail'),
+    ('12a', 'ordinary-click'), ('12b', 'ordinary-search'), ('13', 'supersede'),
+], ids=lambda value: value)
+async def test_alert_seen(gate, tmp_path, case, scenario):
+    from gate.history import HistoryError
+
+    stamp = datetime.now(timezone.utc).isoformat()
+    ordinary = scenario.startswith('ordinary-')
+    groups = []
+    group_count = 3 if scenario == 'siblings' else 2 if ordinary or scenario == 'supersede' else 1
+    for number in range(group_count):
+        thread = str(uuid.uuid4())
+        rows = []
+        for reply in range(2 if ordinary else 1):
+            rows.append(await gate.journal.append({
+                'type': 'message', 'v': 1, 'msg_id': str(uuid.uuid4()),
+                'employee': 'alpha', 'thread': thread, 'role': 'employee',
+                'text': f'fixture report {number} reply {reply}', 'files': [], 'buttons': [],
+                'reply_state': 'asked' if scenario == 'question' else None, 'ts': stamp,
+            }))
+        groups.append(rows)
+    selected = groups[1 if scenario == 'siblings' or ordinary else 0]
+    alternate = groups[0 if ordinary else -1]
+    target = alternate if case == '12b' else selected
+    thread, message_id = target[0]['thread'], target[0]['msg_id']
+    alternate_thread, alternate_id = alternate[0]['thread'], alternate[0]['msg_id']
+    scope = dict(room='alpha', thread=thread)
+    thread_key, bell_key = f'thread:alpha/{thread}', f'bell:alpha/{thread}'
+    seq = str(target[-1]['seq'])
+    original_query = gate.server.history_query
+    original_auth = gate.server.http_auth
+    fault = None
+    observed = []
+    holding_context = False
+    context_held, release_context = asyncio.Event(), asyncio.Event()
+
+    async def auth(request):
+        nonlocal holding_context
+        credentials = await original_auth(request)
+        if holding_context and request.path.endswith('/context'):
+            holding_context = False
+            context_held.set()
+            await release_context.wait()
+        return credentials
+
+    async def query(session, context, document, rooms):
+        if document['kind'] == 'read_plan':
+            action = document['action']
+            reject = fault == 'all-fail' or fault == 'notice-fails' and action == 'notice'
+            observed.append((action, document['scope'], document.get('target'), 409 if reject else 200))
+            if reject:
+                raise HistoryError('state_not_ready', 409)
+        return await original_query(session, context, document, rooms)
+
+    gate.server.history_query = query
+    gate.server.http_auth = auth
+    child = await asyncio.create_subprocess_exec(
+        str(Path('app/.build/history-transport-tests').resolve()),
+        f'127.0.0.1:{gate.server.port}', gate.auth.pair_code(), str(tmp_path/'alert-app'),
+        selected[0]['thread'], 'alert-seen', scenario, alternate_thread, alternate_id,
+        stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+    )
+    phases = {}
+    stderr_reader = asyncio.create_task(child.stderr.read())
+    try:
+        async with asyncio.timeout(35):
+            while line := await child.stdout.readline():
+                ready = json.loads(line)
+                phase = ready['phase']
+                start = len(observed)
+                fault = scenario if phase == 'click' and scenario in ('notice-fails', 'all-fail') else None
+                holding_context = phase == 'switch'
+                child.stdin.write(b'go\n')
+                await child.stdin.drain()
+                if holding_context:
+                    await context_held.wait()
+                    child.stdin.write(b'held\n')
+                    await child.stdin.drain()
+                    assert json.loads(await child.stdout.readline()) == {'release': True}
+                    release_context.set()
+                result = await child.stdout.readline()
+                assert result, (await stderr_reader).decode()[-3000:]
+                snapshot = json.loads(result)
+                assert snapshot['phase'] == phase
+                phases[phase] = snapshot, observed[start:]
+            assert await child.wait() == 0, (await stderr_reader).decode()[-3000:]
+    finally:
+        release_context.set()
+        if child.returncode is None:
+            child.kill()
+            await child.wait()
+        await stderr_reader
+
+    def requests(phase, action):
+        return [row for row in phases[phase][1] if row[0] == action]
+
+    def targeted(phase, target_scope=scope):
+        return [row for row in phases[phase][1] if row[2] == target_scope]
+
+    def check_seen(phase, *, only_notice=True):
+        snapshot, _ = phases[phase]
+        assert snapshot['selected'] == thread
+        rows = targeted(phase)
+        if not only_notice:
+            rows = [row for row in rows if row[0] == 'notice']
+        assert rows == [('notice', 'alpha', scope, 200)], (snapshot, phases[phase][1])
+        assert snapshot['reads'][bell_key] == snapshot['reads'][thread_key] == seq
+        assert message_id not in snapshot['cards']
+
+    if case in ('01', '02', '04'):
+        phase = {'01': 'drawer', '02': 'click', '04': 'reply'}[case]
+        snapshot, _ = phases[phase]
+        if case == '04':
+            assert snapshot['reply'] and snapshot['target'] == phases['room'][0]['target'] == thread
+        check_seen(phase)
+    elif case == '05':
+        snapshot, _ = phases['click']
+        assert snapshot['selected'] == thread
+        assert {key for key in snapshot['reads'] if key.startswith('bell:')} == {bell_key}
+        assert snapshot['cards'] == sorted(group[0]['msg_id'] for group in groups if group != target)
+    elif case == '03':
+        snapshot, _ = phases['room']
+        assert snapshot['selected'] == snapshot['target'] == thread and snapshot['reply']
+        assert requests('room', 'notice') == []
+        assert bell_key not in snapshot['reads'] and snapshot['cards'] == [message_id]
+    elif case == '06':
+        for phase in ('drawer', 'click', 'reply'):
+            assert requests(phase, 'notice') == []
+            assert phases[phase][0]['cards'] == [message_id]
+        assert phases['answer'][0]['cards'] == []
+        assert any(row.get('role') == 'owner' and row.get('thread') == thread
+                   and row.get('text') == 'fixture owner reply' for row in gate.journal.records)
+    elif case in ('07a', '07b'):
+        snapshot, _ = phases['click']
+        before = phases['room'][0]['reads']
+        assert snapshot['selected'] == thread and not snapshot['modal']
+        assert snapshot['cards'] == [message_id]
+        if case == '07b':
+            assert all(row[-1] == 409 for row in phases['click'][1])
+        assert targeted('click') == [('notice', 'alpha', scope, 409)], (snapshot, phases['click'][1])
+        assert all(snapshot['reads'].get(key) == before.get(key) for key in (bell_key, thread_key))
+    elif case.startswith('07c'):
+        check_seen('retry', only_notice=False)
+    elif ordinary:
+        phase, unread_field = ('click', 'unread') if case == '12a' else ('search', 'alternateUnread')
+        before = phases['expire'][0]
+        assert before['cards'] == [] and before[unread_field] == 2, before
+        snapshot, _ = phases[phase]
+        assert snapshot['selected'] == thread
+        assert targeted(phase) == [('thread', 'alpha', scope, 200)], (snapshot, phases[phase][1])
+        assert snapshot['reads'][thread_key] == seq and snapshot[unread_field] == 0
+    else:
+        snapshot, _ = phases['switch']
+        before = phases['room'][0]['reads']
+        assert context_held.is_set() and snapshot['selected'] == alternate_thread
+        assert targeted('switch') == []
+        assert all(snapshot['reads'].get(key) == before.get(key) for key in (bell_key, thread_key))
+        current = targeted('switch', dict(scope, thread=alternate_thread))
+        print(f'AT-AS-13: A target requests=0, B target requests={len(current)}')
+        assert current

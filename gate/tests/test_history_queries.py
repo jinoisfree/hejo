@@ -165,3 +165,83 @@ async def test_activity_preserves_last_employee_and_finalized_thinking():
     assert (await query.summary(key))['activity']['lastSpeaker']=='alpha'
     index.apply({'v':1,'type':'delete','seq':7,'msg_id':'fixture-1'})
     assert (await query.summary(key))['activity']=={'lastSpeaker':None,'working':False,'latestEmployeeTime':None}
+
+
+ALERT_PREVIEWS = [
+    pytest.param('@acct\n\n요약: 가짜 소식 하나', False, '@acct · 요약: 가짜 소식 하나', id='single'),
+    pytest.param('@a @b\n본문 줄', False, '@a @b · 본문 줄', id='multiple'),
+    pytest.param('@acct 안녕하세요\n둘째 줄', False, '@acct 안녕하세요', id='inline'),
+    pytest.param('@acct', False, '@acct', id='no-next-line'),
+    pytest.param('@acct\n\n', False, '@acct', id='blank-next-lines'),
+    pytest.param('보고 제목\n둘째 줄', False, '보고 제목', id='ordinary'),
+    pytest.param('@ 본문\n둘째', False, '@ 본문', id='bare-at'),
+    pytest.param('@acct\n' + '한' * 400, False, '@acct · ' + '한' * 292, id='capped-graphemes'),
+    pytest.param('@acct\n질문 줄', True, '@acct · 질문 줄', id='question'),
+]
+
+
+async def alert_preview_rows(text, asked):
+    index = HistoryIndex()
+    index.apply(post(1, text=text, reply_state='asked' if asked else None))
+    query = HistoryQueries(index, make_context())
+    return await query.summary(('alpha', 'fixture-thread')), await query.questions(['alpha'])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(('text', 'asked', 'expected'), ALERT_PREVIEWS)
+async def test_alert_seen_notice_preview_at_as_09(text, asked, expected):
+    summary, _ = await alert_preview_rows(text, asked)
+    assert summary['notice']['questions'] is asked
+    assert summary['notice']['preview'] == expected
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(('text', 'asked', '_expected'), ALERT_PREVIEWS)
+async def test_alert_seen_other_previews_at_as_10(text, asked, _expected):
+    summary, questions = await alert_preview_rows(text, asked)
+    # All fixture clusters are single code points except deliberately decomposed Hangul.
+    clusters = text.replace('한', '한')
+    def first(length):
+        return clusters[:length].replace('한', '한') if '한' in text else clusters[:length]
+    assert summary['title'] == first(48).replace('\n', ' ')
+    assert summary['preview'] == first(80)
+    assert summary['rootPreview'] == first(240)
+    if asked:
+        assert [row['preview'] for row in questions] == [text.splitlines()[0][:24]]
+    else:
+        assert questions == []
+
+
+def test_alert_seen_has_one_direct_selection_entry_at_as_08():
+    import re
+    from pathlib import Path
+
+    sources = Path(__file__).resolve().parents[2] / 'app' / 'Sources'
+    references = []
+    for path in sources.glob('*.swift'):
+        for number, line in enumerate(path.read_text().splitlines(), 1):
+            if re.search(r'\bmarkAlertSeen\s*\(', line):
+                references.append((path.name, number, line))
+    definitions = [ref for ref in references if 'func markAlertSeen' in ref[2]]
+    calls = [ref for ref in references if ref not in definitions]
+    assert len(definitions) == len(calls) == 1, references
+    path, number, _ = calls[0]
+    source = (sources / path).read_text()
+    owner = re.findall(r'^    (?:private )?func (\w+)\(', '\n'.join(source.splitlines()[:number]), re.M)[-1]
+    view = (sources / 'ConversationView.swift').read_text()
+
+    def method(name):
+        return re.search(rf'^    (?:private )?func {name}\(.*?^    }}', view, re.M | re.S)[0]
+
+    for name in ('reveal', 'chooseThread', 'writeReply'):
+        assert re.search(rf'\b{owner}\(', method(name)), name
+    for name in ('selectAutomatic', 'entry', 'createThread', 'refresh'):
+        assert not re.search(rf'\b{owner}\(', method(name)), name
+    if '원문 불러오기' in view:
+        assert re.search(rf'\b{owner}\(', method('unloadedThreadContent'))
+
+
+@pytest.mark.asyncio
+async def test_alert_seen_island_preview_caps_the_original_first_line_at_as_10():
+    _, questions = await alert_preview_rows('@' + 'a' * 30 + '\nsecond line', True)
+    assert [row['preview'] for row in questions] == ['@' + 'a' * 23]
