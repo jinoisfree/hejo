@@ -13,7 +13,57 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
     var onBlank: (() -> Void)?
     var onMeasured: (() -> Void)?
     var onOlder: (() -> Void)?
-    var onNewer: (() -> Void)?
+    struct LoadCard {
+        let id: String
+        let visible: Bool
+        let pieces: Set<String>
+        let visiblePieces: Set<String>
+    }
+    var onLoadViewport: (([LoadCard]) -> Void)?
+    private var loadViewportPending = false
+    private var loadViewportAfterPosition: DispatchWorkItem?
+    private func prepareLoadViewport(after delay: Double) {
+        guard historyMode else { return }
+        loadViewportAfterPosition?.cancel()
+        if loadViewportAfterPosition == nil { onLoadViewport?([]) }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            if let placement = self.replyPlacement, placement.confirmed {
+                self.restore(placement.anchor)
+                self.replyPlacement = nil
+            }
+            self.loadViewportAfterPosition = nil
+            self.reportLoadViewport()
+        }
+        loadViewportAfterPosition = work
+        DispatchQueue.main.asyncAfter(deadline:.now()+delay,execute:work)
+    }
+    private func reportLoadViewport() {
+        guard historyMode, !loadViewportPending, loadViewportAfterPosition == nil, scrollMotion == nil, onLoadViewport != nil else { return }
+        loadViewportPending = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.loadViewportPending = false
+            guard self.loadViewportAfterPosition == nil, self.scrollMotion == nil else { return }
+            let visible = self.contentView.bounds
+            let nearby = visible.insetBy(dx: 0, dy: -visible.height)
+            let cards = self.layouts.enumerated().compactMap { index, layout -> LoadCard? in
+                let row = self.table.rect(ofRow: index)
+                guard row.intersects(nearby) else { return nil }
+                var pieces = Set<String>(), visiblePieces = Set<String>()
+                for (id, local) in layout.anchors {
+                    let frame = local.offsetBy(dx:row.minX,dy:row.minY)
+                    if frame.intersects(nearby) { pieces.insert(id) }
+                    if frame.intersects(visible) { visiblePieces.insert(id) }
+                }
+                return LoadCard(id:layout.content.id,visible:row.intersects(visible),
+                                pieces:pieces,visiblePieces:visiblePieces)
+            }
+            let displayed = self.isHiddenOrHasHiddenAncestor ? []:cards
+            self.onViewport?(Set(displayed.flatMap(\.visiblePieces)))
+            self.onLoadViewport?(displayed)
+        }
+    }
     var onViewport: ((Set<String>) -> Void)?
     var visibleMessageIDs: Set<String> {
         let visible=contentView.bounds
@@ -41,7 +91,7 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
     var automaticallyTicks=true
     private var inputMonitor:Any?,observers:[NSObjectProtocol]=[]
     private var followTimer:Timer?,deferredWork:DispatchWorkItem?
-    private var deferred:([NativeThreadCard.Content],String,String?,Double)?
+    private var deferred:([NativeThreadCard.Content],String,String?,Double,Bool,String?)?
     private var wheelAt = -Double.infinity
     private struct Place {var bottom:CGFloat;var input:Int;var revision:Int}
     private var follow:Place?,settleUntil:Double=0,glidedAt:Double=0,idle=0
@@ -94,7 +144,8 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
         table.resized = { [weak self] in self?.remeasure() }
         contentView.postsBoundsChangedNotifications = true
         observers.append(NotificationCenter.default.addObserver(forName:NSView.boundsDidChangeNotification,object:contentView,queue:.main) { [weak self] _ in
-            guard let self else {return};self.onViewport?(self.visibleMessageIDs)
+            guard let self else { return }
+            self.reportLoadViewport()
         })
     }
     required init?(coder: NSCoder) { fatalError() }
@@ -119,22 +170,50 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
     }
     func readerInput(wheel:Bool){
         userScrolls+=1;entryActive=false;follow=nil;followTimer?.invalidate();followTimer=nil
+        replyPlacement=nil
         scrollMotion=nil;scrollTimer?.invalidate();scrollTimer=nil
         if wheel {wheelAt=clock()}
+        loadViewportAfterPosition?.cancel()
+        loadViewportAfterPosition = nil
+        reportLoadViewport()
     }
     private func requestHistoryEdges(delta: CGFloat) {
         guard clock()-olderRequestedAt > 0.35 else {return}
         if delta>0,contentView.bounds.minY<=100 {
             olderRequestedAt=clock();onOlder?()
-        } else if historyMode,delta<0,contentView.bounds.maxY>=table.bounds.maxY-100 {
-            olderRequestedAt=clock();onNewer?()
         }
     }
     override func scrollWheel(with event:NSEvent){readerInput(wheel:true);super.scrollWheel(with:event);requestHistoryEdges(delta:event.scrollingDeltaY)}
     private struct ReaderAnchor { let card: String; let message: String?; let offset: CGFloat; let input: Int; let revision: Int }
-    private func readerAnchor() -> ReaderAnchor? {
+    private var replyPlacement: (anchor: ReaderAnchor, confirmed: Bool)?
+
+    private func confirmingReplyAnchor(in contents: [NativeThreadCard.Content]) -> ReaderAnchor? {
+        guard let placement = replyPlacement, let pendingID = placement.anchor.message,
+              placement.anchor.input == userScrolls, placement.anchor.revision == scrollRevision,
+              let card = contents.first(where: { $0.id == placement.anchor.card }) else { return nil }
+        let clientID = String(pendingID.dropFirst("pending:".count))
+        guard (card.top + (card.replies ?? [])).contains(where: { piece in
+            if case .post(let post) = piece { return !post.pending && post.clientMessageID == clientID }
+            return false
+        }) else { return nil }
+        if placement.confirmed { return placement.anchor }
+        // Drop corrections captured against the provisional layout. Keep the
+        // outgoing reply anchored through the same viewport settling period.
+        scrollRevision += 1
+        follow = nil
+        let anchor = ReaderAnchor(card:placement.anchor.card,message:pendingID,offset:placement.anchor.offset,
+                                  input:userScrolls,revision:scrollRevision)
+        replyPlacement = (anchor, true)
+        return anchor
+    }
+    private func readerAnchor(allowAtEnd: Bool, preferredMessage: String?) -> ReaderAnchor? {
         let visible = contentView.bounds
-        guard table.bounds.maxY-visible.maxY > 2 else { return nil }
+        if let preferredMessage, let layout = layouts.first(where:{$0.anchors[preferredMessage] != nil}),
+           let rect = frame(for:layout.content.id,message:preferredMessage), rect.intersects(visible) {
+            return .init(card:layout.content.id,message:preferredMessage,offset:rect.minY-visible.minY,
+                         input:userScrolls,revision:scrollRevision)
+        }
+        guard allowAtEnd || table.bounds.maxY-visible.maxY > 2 else { return nil }
         for layout in layouts {
             guard let card = frame(for:layout.content.id), card.intersects(visible) else { continue }
             let message = layout.anchors.sorted { $0.value.minY < $1.value.minY }.first {
@@ -145,15 +224,18 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
         }
         return nil
     }
-    private func keep(_ anchor: ReaderAnchor) {
-        for delay in [0.0,0.06,0.2,0.4] { DispatchQueue.main.asyncAfter(deadline:.now()+delay) { [weak self] in
-            guard let self, self.userScrolls == anchor.input, self.scrollRevision == anchor.revision,
-                  self.follow == nil, self.resizing == nil, !self.entryActive,
-                  let rect = self.frame(for:anchor.card,message:anchor.message) else { return }
-            self.move(to:rect.minY-anchor.offset)
-        }}
+    private func restore(_ anchor: ReaderAnchor) {
+        guard userScrolls == anchor.input, scrollRevision == anchor.revision,
+              follow == nil, resizing == nil, !entryActive,
+              let rect = frame(for:anchor.card,message:anchor.message) else { return }
+        move(to:rect.minY-anchor.offset)
     }
-    func show(_ contents:[NativeThreadCard.Content],identity:String,entry:String?=nil,historyMode:Bool=false){
+    private func keep(_ anchor: ReaderAnchor) {
+        for delay in [0.0,0.06,0.2,0.4] {
+            DispatchQueue.main.asyncAfter(deadline:.now()+delay) { [weak self] in self?.restore(anchor) }
+        }
+    }
+    func show(_ contents:[NativeThreadCard.Content],identity:String,entry:String?=nil,historyMode:Bool=false, autoloadAppended:Bool=false, prependAnchor:String?=nil){
         self.historyMode=historyMode
         func bodyIDs(_ cards:[NativeThreadCard.Content])->Set<String> {
             Set(cards.flatMap{($0.top+($0.replies ?? [])).compactMap{piece -> String? in
@@ -163,7 +245,7 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
         let removed=historyMode && !bodyIDs(self.contents).subtracting(bodyIDs(contents)).isEmpty
         if appearanceRevision != ChatAppearance.revision {
             appearanceRevision=ChatAppearance.revision;deferredWork?.cancel();deferredWork=nil;deferred=nil
-            apply(contents,identity:identity,entry:entry);return
+            apply(contents,identity:identity,entry:entry,autoloadAppended:autoloadAppended,prependAnchor:prependAnchor);return
         }
         // Do not retain an extra generation of text while over budget. Required visible/
         // pinned content remains displayed; its excess is observable instead of truncated.
@@ -171,37 +253,54 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
         if !removed,canDefer,identity==self.identity,clock()-wheelAt<0.25 {
             let start=deferred?.3 ?? clock()
             if clock()-start<2 {
-                deferred=(contents,identity,entry,start);deferredWork?.cancel()
+                deferred=(contents,identity,entry,start,autoloadAppended || deferred?.4 == true,prependAnchor ?? deferred?.5);deferredWork?.cancel()
                 let work=DispatchWorkItem{[weak self] in self?.flushDeferred()};deferredWork=work
                 DispatchQueue.main.asyncAfter(deadline:.now()+0.25,execute:work);return
             }
         }
+        let appended = autoloadAppended || (identity == self.identity && deferred?.4 == true)
+        let preferred = prependAnchor ?? (identity == self.identity ? deferred?.5:nil)
         deferredWork?.cancel();deferredWork=nil;deferred=nil
-        apply(contents,identity:identity,entry:entry)
+        apply(contents,identity:identity,entry:entry,autoloadAppended:appended,prependAnchor:preferred)
     }
     func flushDeferred(){
-        guard let (contents,identity,entry,start)=deferred else{return}
+        guard let (contents,identity,entry,start,autoloadAppended,prependAnchor)=deferred else{return}
         if clock()-wheelAt<0.25,clock()-start<2 {
             let work=DispatchWorkItem{[weak self] in self?.flushDeferred()};deferredWork=work
             DispatchQueue.main.asyncAfter(deadline:.now()+0.25,execute:work);return
         }
-        deferred=nil;deferredWork=nil;apply(contents,identity:identity,entry:entry)
+        deferred=nil;deferredWork=nil;apply(contents,identity:identity,entry:entry,autoloadAppended:autoloadAppended,prependAnchor:prependAnchor)
     }
-    private func apply(_ contents:[NativeThreadCard.Content],identity:String,entry:String?){
-        let anchor=historyMode ? readerAnchor():nil
+    private func apply(_ contents:[NativeThreadCard.Content],identity:String,entry:String?,autoloadAppended:Bool,prependAnchor:String?){
+        let confirmedReply = historyMode ? confirmingReplyAnchor(in:contents):nil
+        let anchor=confirmedReply ?? (historyMode ? readerAnchor(allowAtEnd:autoloadAppended,preferredMessage:prependAnchor):nil)
+        let oldHeights = rowHeights
+        let oldAnchors = historyMode ? layouts.map(\.anchors):[]
         let changed=self.identity != identity,old=place(),oldStreaming = !streamingRows.isEmpty
         if changed {scrollRevision+=1;follow=nil;entryActive=true;entryID=entry}
         func streaming(_ content:NativeThreadCard.Content)->Bool {(content.top+(content.replies ?? [])).contains{if case .post(let post)=$0{return post.streaming};return false}}
         let streamingNow=Set(contents.filter(streaming).map(\.id))
         streamingRows=Set(self.contents.filter(streaming).map(\.id)).union(streamingNow)
-        if !changed,follow==nil,!streamingNow.isEmpty,old.bottom<=120,resizing==nil {follow=Place(bottom:0,input:userScrolls,revision:scrollRevision);glidedAt=clock();idle=0}
+        if confirmedReply==nil,!changed,follow==nil,!streamingNow.isEmpty,old.bottom<=120,resizing==nil {follow=Place(bottom:0,input:userScrolls,revision:scrollRevision);glidedAt=clock();idle=0}
         self.identity=identity;self.contents=contents;remeasure(force:true)
         if entryActive {entryID=entry;placeEntry()}
         else if let follow {
             if oldStreaming && streamingNow.isEmpty {settleUntil=clock()+1.2}
             if reduceMotion(){restore(follow)}else{startFollowing()}
-        } else if !changed,resizing==nil {if let anchor {keep(anchor)} else {keep(old)}}
+        } else if !changed,resizing==nil {
+            let geometryChanged = !historyMode || oldHeights != rowHeights || oldAnchors != layouts.map(\.anchors)
+            if geometryChanged {
+                if let anchor {
+                    // Place the acknowledged reply before another measured update
+                    // takes a reader anchor from the new layout.
+                    if confirmedReply != nil { restore(anchor) }
+                    keep(anchor)
+                } else { keep(old) }
+                prepareLoadViewport(after:0.4)
+            }
+        }
         streamingRows=streamingNow
+        reportLoadViewport()
     }
     private func place()->Place {Place(bottom:max(0,table.bounds.maxY-contentView.bounds.maxY),input:userScrolls,revision:scrollRevision)}
     private func move(to y:CGFloat){contentView.scroll(to:CGPoint(x:contentView.bounds.minX,y:min(max(0,y),max(0,table.bounds.height-contentView.bounds.height))));reflectScrolledClipView(contentView)}
@@ -225,15 +324,45 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
     func frame(for id:String,message:String?=nil)->CGRect? {
         guard let index=contents.firstIndex(where:{$0.id==id}),layouts.indices.contains(index) else{return nil}
         let row=table.rect(ofRow:index)
-        return message.flatMap{layouts[index].anchors[$0]}.map{$0.offsetBy(dx:row.minX,dy:row.minY)} ?? row
+        guard let message else { return row }
+        let layout = layouts[index]
+        if let rect = layout.anchors[message] { return rect.offsetBy(dx:row.minX,dy:row.minY) }
+        // An in-flight scroll can outlive the pending piece. Its server-confirmed
+        // replacement still identifies the same outgoing reply.
+        if message.hasPrefix("pending:") {
+            let clientID = String(message.dropFirst("pending:".count))
+            for item in layout.placed {
+                if case .post(let post) = item.piece, post.clientMessageID == clientID,
+                   let rect = layout.anchors[post.id] {
+                    return rect.offsetBy(dx:row.minX,dy:row.minY)
+                }
+            }
+        }
+        return row
+    }
+    private func scrollOrigin(for rect: CGRect, bottom: Bool) -> CGFloat {
+        let bounds = contentView.bounds
+        let wanted = bottom ? rect.maxY-bounds.height : rect.midY-bounds.height/2
+        return min(max(0,wanted),max(0,table.bounds.height-bounds.height))
     }
     func scrollTo(_ id:String,message:String?=nil,bottom:Bool=false){
         entryActive=false;scrollRevision+=1;follow=nil
+        prepareLoadViewport(after:0.46)
         let revision=scrollRevision,input=userScrolls
+        replyPlacement = nil
+        if historyMode, let message, message.hasPrefix("pending:"), let rect = frame(for:id,message:message) {
+            let anchor = ReaderAnchor(card:id,message:message,offset:rect.minY-scrollOrigin(for:rect,bottom:bottom),
+                                      input:input,revision:revision)
+            replyPlacement = (anchor, false)
+        }
         for delay in [0.0,0.15,0.45] {DispatchQueue.main.asyncAfter(deadline:.now()+delay){[weak self] in
             guard let self,self.scrollRevision==revision,self.userScrolls==input,let rect=self.frame(for:id,message:message) else{return}
-            let bounds=self.contentView.bounds,wanted=bottom ? rect.maxY-bounds.height:rect.midY-bounds.height/2
-            let y=min(max(0,wanted),max(0,self.table.bounds.height-bounds.height))
+            let bounds=self.contentView.bounds
+            let y=self.scrollOrigin(for:rect,bottom:bottom)
+            if let placement = self.replyPlacement, !placement.confirmed {
+                let anchor = ReaderAnchor(card:id,message:message,offset:rect.minY-y,input:input,revision:revision)
+                self.replyPlacement = (anchor, false)
+            }
             if self.reduceMotion(){self.move(to:y)}else{
                 #if HEJO_PERF_TESTING
                 HejoSmoothProbe.scrollStarts += 1
@@ -243,7 +372,7 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
             self.reflectScrolledClipView(self.contentView)
         }}
     }
-    func advanceScroll(){guard let motion=scrollMotion,motion.revision==scrollRevision,motion.input==userScrolls else{scrollMotion=nil;scrollTimer?.invalidate();scrollTimer=nil;return};move(to:motion.ease.value(clock()));if !motion.ease.pending(clock()) {scrollMotion=nil;scrollTimer?.invalidate();scrollTimer=nil}}
+    func advanceScroll(){guard let motion=scrollMotion,motion.revision==scrollRevision,motion.input==userScrolls else{scrollMotion=nil;scrollTimer?.invalidate();scrollTimer=nil;return};move(to:motion.ease.value(clock()));if !motion.ease.pending(clock()) {scrollMotion=nil;scrollTimer?.invalidate();scrollTimer=nil;reportLoadViewport()}}
     func enter(_ id:String?,bottom:Bool=false){scrollRevision+=1;follow=nil;entryActive=true;entryID=id;placeEntry(bottom:bottom)}
     private func placeEntry(bottom:Bool=false){
         guard entryActive else{return}
@@ -293,6 +422,7 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
         table.frame.size.height = max(contentSize.height, height)
         if resizing != nil {restoreResize();if ownsResize && !inLiveResize {resizing=nil}}
         if entryActive {placeEntry()}
+        reportLoadViewport()
         if abs(oldHeight - table.frame.height) > 0.5 { DispatchQueue.main.async { [weak self] in self?.onMeasured?() } }
     }
     func tableView(_ tableView:NSTableView,didRemove rowView:NSTableRowView,forRow row:Int) {
