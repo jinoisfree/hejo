@@ -10,11 +10,11 @@ import AppKit
 }
 
 @MainActor private func widthContent(
-    _ posts: [NativeThreadCard.Post], id: String = UUID().uuidString, width: CGFloat, inset: CGFloat = 18
+    _ posts: [NativeThreadCard.Post], id: String = UUID().uuidString, inset: CGFloat = 18
 ) -> NativeThreadCard.Content {
     .init(id: id, top: posts.map(NativeThreadCard.Piece.post), replies: nil, rail: nil, actions: [],
           deleting: nil, style: .init(inset: inset, fill: 0, stroke: nil, lineWidth: 0),
-          bell: nil, onBell: {}, clickCard: {}, bubbleWidth: width * ChatMetrics.bubbleWidthFraction,
+          bell: nil, onBell: {}, clickCard: {},
           quiet: .secondaryLabelColor, expanded: false)
 }
 
@@ -70,7 +70,7 @@ private func widthNear(_ actual: CGFloat, _ expected: CGFloat, _ label: String) 
     let long = widthText(String(repeating: "여러 문장이 이어지는 긴 글입니다. ", count: 15))
     let longPosts = [widthPost(long, mine: true), widthPost(long)]
     func pair(_ width: CGFloat) -> [NativeThreadCard.Placed] {
-        NativeThreadCard.layout(widthContent(longPosts, width: width), width: width).placed
+        NativeThreadCard.layout(widthContent(longPosts), width: width).placed
     }
     let wide = pair(900)
     observe("AT-BW-01") {
@@ -95,7 +95,7 @@ private func widthNear(_ actual: CGFloat, _ expected: CGFloat, _ label: String) 
     for mine in [true, false] {
         let role = mine ? "owner" : "employee"
         observe("AT-BW-04a \(role)") {
-            let item = NativeThreadCard.layout(widthContent([widthPost(multiline, mine: mine)], width: 900), width: 900).placed[0]
+            let item = NativeThreadCard.layout(widthContent([widthPost(multiline, mine: mine)]), width: 900).placed[0]
             try widthNear(item.text.height, ceil(referenceTextSize(multiline, width: 591.75).height), "unwrapped height")
             try widthNear(mine ? item.bubble.maxX : item.bubble.minX, mine ? 839 : 61, "aligned edge")
             try widthNear(item.bubble.width, ceil(lineWidth) + 24, "longest explicit line")
@@ -103,7 +103,7 @@ private func widthNear(_ actual: CGFloat, _ expected: CGFloat, _ label: String) 
         }
         observe("AT-BW-04b \(role)") {
             let single = widthText(lines[1])
-            let item = NativeThreadCard.layout(widthContent([widthPost(single, mine: mine)], width: 900), width: 900).placed[0]
+            let item = NativeThreadCard.layout(widthContent([widthPost(single, mine: mine)]), width: 900).placed[0]
             try widthNear(item.bubble.width, ceil(lineWidth) + 24, "single line")
         }
     }
@@ -126,7 +126,7 @@ private func widthNear(_ actual: CGFloat, _ expected: CGFloat, _ label: String) 
     for width: CGFloat in [900, 600] {
         let maximum = referenceBubbleWidth(width - 79)
         for (name, post) in cases {
-            let layout = NativeThreadCard.layout(widthContent([post], width: width), width: width)
+            let layout = NativeThreadCard.layout(widthContent([post]), width: width)
             let item = layout.placed[0]
             if name == "b" {
                 observe("AT-BW-05b TextKit W=\(Int(width))") { try assertRichBody(layout) }
@@ -152,7 +152,7 @@ private func widthNear(_ actual: CGFloat, _ expected: CGFloat, _ label: String) 
 
     func stream(_ text: NSAttributedString, id: String, width: CGFloat = 900, active: Bool = true) -> CGFloat {
         let post = widthPost(text, id: id, streaming: active)
-        return NativeThreadCard.layout(widthContent([post], id: "bubble-stream", width: width), width: width).placed[0].bubble.width
+        return NativeThreadCard.layout(widthContent([post], id: "bubble-stream"), width: width).placed[0].bubble.width
     }
     let broad = widthText(String(repeating: "넓은 줄 ", count: 9).trimmingCharacters(in: .whitespaces))
     let short = widthText("짧은 글")
@@ -189,7 +189,7 @@ private func widthNear(_ actual: CGFloat, _ expected: CGFloat, _ label: String) 
     defer { window.orderOut(nil) }
     list.automaticallyTicks = false
     list.reduceMotion = { true }
-    list.show(longPosts.map { widthContent([$0], width: 700, inset: 12) }, identity: "width-list")
+    list.show(longPosts.map { widthContent([$0], inset: 12) }, identity: "width-list")
 
     var observed: [CGFloat] = []
     for width: CGFloat in [700, 1000, 520] {
@@ -221,4 +221,47 @@ private func widthNear(_ actual: CGFloat, _ expected: CGFloat, _ label: String) 
     }
 
     try check(failures.isEmpty, "failed bubble width cases: \(failures.joined(separator: ", "))")
+}
+
+@MainActor func captureBubbleWidths(to output: URL) throws {
+    let samples = [
+        """
+        2026년 송년회 안내
+
+        • 일자: 2026년 12월 16일(수)
+        • 시간: 15:00
+        • 장소: 회사 2층 사무실
+
+        일정 등록
+        """,
+        """
+        송년회 일정 등록했습니다
+        12/16(수) 15:00~16:00, 회사 캘린더에 1건 들어갔습니다.
+        같은 날 다른 일정은 없어서 겹치는 일정도 없습니다.
+        따로 하실 일은 없습니다.
+        """,
+        "그날 참석 인원이 스무 명쯤 될 것 같은데 근처에 단체로 저녁 먹을 만한 곳을 몇 군데 찾아서 가격대랑 예약 가능 여부까지 같이 정리해 줄 수 있을까? 주차가 되는 곳이면 더 좋겠고 너무 시끄럽지 않은 곳으로 부탁해.",
+        "네, 스무 명이 한 번에 앉을 수 있고 주차가 되는 조용한 곳을 기준으로 찾아보겠습니다. 가격대와 예약 가능 시간, 단체석 유무를 표로 정리해서 오늘 안에 드리겠습니다. 후보는 세 군데 정도로 추리고 각 장소의 장단점을 한 줄씩 붙이겠습니다."
+    ]
+    let posts = samples.enumerated().map { index, sample in
+        let mine = index.isMultiple(of: 2)
+        let text = NSAttributedString(string: sample, attributes: [.font: NSFont.systemFont(ofSize: 14),
+                                                                  .foregroundColor: NSColor.white])
+        var post = widthPost(text, mine: mine)
+        post.nameColor = .white
+        post.time = "오후 3:0\(index + 2)"
+        return post
+    }
+    var content = widthContent(posts, inset: 12)
+    content.style.background = NSColor(white: 0.11, alpha: 1)
+    let layout = NativeThreadCard.layout(content, width: 687)
+    let card = NativeThreadCard(frame: NSRect(x: 0, y: 0, width: layout.width + 24, height: layout.height))
+    card.appearance = NSAppearance(named: .darkAqua)
+    card.configure(layout)
+    card.layoutSubtreeIfNeeded()
+    let image = try homeRequire(card.bitmapImageRepForCachingDisplay(in: card.bounds), "AT-BW-09 bitmap")
+    card.cacheDisplay(in: card.bounds, to: image)
+    let data = try homeRequire(image.representation(using: .png, properties: [:]), "AT-BW-09 PNG")
+    try data.write(to: output)
+    print("AT-BW-09 captured bubble widths \(layout.placed.map { $0.bubble.width })")
 }

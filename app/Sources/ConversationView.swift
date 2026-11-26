@@ -1275,7 +1275,7 @@ import UniformTypeIdentifiers
         return .init(id:thread.id,top:top,replies:replies.isEmpty ? nil:replies,rail:nil,actions:[.init(title:historyCopyKey==thread.key ? historyCopyProgress+" · 취소":"전체 복사",symbol:"doc.on.doc",label:"스레드 전체 복사",identifier:"copy-"+thread.id,color:.secondaryLabelColor,invoke:{[weak self] in self?.copyHistory(thread.key)})],deleting:nil,
             style:.init(inset:ThreadAppearance.inset,fill:0,stroke:NSColor.labelColor.withAlphaComponent(0.16),lineWidth:1,background:ThreadAppearance.surface(dark:dark),replyBackground:ThreadAppearance.replySurface(dark:dark)),
             bell:summary?.bell,onBell:{[weak self] in self?.controller.model.toggleBell(thread.key)},clickCard:pick,textClick:nil,
-            bubbleWidth:max(ChatMetrics.minimumBubbleWidth,(bounds.width-sidebarWidth-drawerShownWidth)*ChatMetrics.bubbleWidthFraction),quiet:.secondaryLabelColor,expanded:expanded)
+            quiet:.secondaryLabelColor,expanded:expanded)
     }
     func threadContent(_ thread:ConversationThread)->NativeThreadCard.Content {
         let model=controller.model,messages=controller.timeline(thread.key),expanded=openThread==thread.key
@@ -1361,7 +1361,7 @@ import UniformTypeIdentifiers
         return .init(id:thread.id,top:top,replies:answer.isEmpty ? nil:answer,rail:nil,actions:actions,deleting:controller.deleting.contains(thread.key) ? "삭제 중…":nil,
             style:.init(inset:ThreadAppearance.inset,fill:0,stroke:highlighted ? .controlAccentColor:target ? .controlAccentColor:NSColor.labelColor.withAlphaComponent(dark ? 0.16:0.12),lineWidth:highlighted ? 2:target ? 1.5:1,background:ThreadAppearance.surface(dark:dark),status:tone,replyBackground:ThreadAppearance.replySurface(dark:dark)),
             bell:model.bell(thread.key),onBell:{ [weak self] in self?.controller.model.toggleBell(thread.key) },clickCard:pick,textClick:!expanded && foldable ? pick:nil,
-            bubbleWidth:max(ChatMetrics.minimumBubbleWidth,(bounds.width-sidebarWidth-drawerShownWidth)*ChatMetrics.bubbleWidthFraction),quiet:quiet,expanded:expanded,replyTarget:target)
+            quiet:quiet,expanded:expanded,replyTarget:target)
     }
     static let unavailableReply="정해진 버튼이 아니라 누를 수 없어요. 이 스레드에 글로 답해 주세요."
     private func postPieces(_ message:ConversationMessage,edge:NSColor?,extras:Bool=true,continuation:Bool=false)->[NativeThreadCard.Piece] {
@@ -1561,7 +1561,7 @@ import UniformTypeIdentifiers
         let title=CardText.day(date)
         return .init(id:"date:"+id,top:[.accessory(id:"date-label:"+id,height:14,view:{
             let label=NSTextField(labelWithString:title);label.font = .systemFont(ofSize:ChatMetrics.auxiliaryFont);label.textColor = CardText.quiet(dark:self.effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua);label.alignment = .center;return label
-        })],replies:nil,rail:nil,actions:[],deleting:nil,style:.init(inset:0,fill:0,stroke:nil,lineWidth:0,background:.clear),bell:nil,onBell:{},clickCard:{},textClick:nil,bubbleWidth:500,quiet:.secondaryLabelColor,expanded:false)
+        })],replies:nil,rail:nil,actions:[],deleting:nil,style:.init(inset:0,fill:0,stroke:nil,lineWidth:0,background:.clear),bell:nil,onBell:{},clickCard:{},textClick:nil,quiet:.secondaryLabelColor,expanded:false)
     }
     private func lineContent(id:String,title:String,top:CGFloat=0,older:Bool=false)->NativeThreadCard.Content {
         .init(id:"line:"+id,top:[.accessory(id:id,height:top+(older ? 16:14),view:{[weak self] in
@@ -1569,7 +1569,7 @@ import UniformTypeIdentifiers
             if older {let button=FileChip(title:title);button.isBordered=false;button.font = .systemFont(ofSize:11);button.isEnabled=self?.controller.client.replayComplete==true;button.invoke={self?.loadOlder()};controls.addSubview(button);button.frame=CGRect(x:0,y:top,width:500,height:18);button.autoresizingMask = [.width]}
             else {let label=NSTextField(labelWithString:title);label.alignment = .center;label.font = .systemFont(ofSize:11);label.textColor=CardText.quiet(dark:self?.effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua);controls.addSubview(label);label.frame=CGRect(x:0,y:top,width:500,height:18);label.autoresizingMask = [.width]}
             return controls
-        })],replies:nil,rail:nil,actions:[],deleting:nil,style:.init(inset:0,fill:0,stroke:nil,lineWidth:0,background:.clear),bell:nil,onBell:{},clickCard:{},textClick:nil,bubbleWidth:500,quiet:.secondaryLabelColor,expanded:false)
+        })],replies:nil,rail:nil,actions:[],deleting:nil,style:.init(inset:0,fill:0,stroke:nil,lineWidth:0,background:.clear),bell:nil,onBell:{},clickCard:{},textClick:nil,quiet:.secondaryLabelColor,expanded:false)
     }
     private struct DisplayTimeInput:Equatable {let timestamp:String;let locale:Locale;let zone:TimeZone;let calendar:Calendar}
     private var displayTimes:[String:(input:DisplayTimeInput,text:String)]=[:]

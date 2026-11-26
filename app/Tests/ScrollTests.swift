@@ -19,7 +19,7 @@ import AppKit
     var now=10.0;list.clock={now};list.automaticallyTicks=false;list.reduceMotion={true}
     func cards(_ grow:CGFloat=0,stream:Bool=false)->[NativeThreadCard.Content] {(0..<18).map{i in
         let p=NativeThreadCard.Post(id:"post-\(i)",mine:false,text:NSAttributedString(string:"본문 \(i)"),speaker:"직원 A",time:"",avatar:ProfileAvatar(),nameColor:.labelColor,streaming:stream && i==17,openLink:{_ in})
-        return .init(id:"row-\(i)",top:[.post(p),.accessory(id:"space-\(i)",height:70+(i==17 ? grow:0),view:{NSView()})],replies:nil,rail:nil,actions:[],deleting:nil,style:.init(inset:12,fill:0,stroke:nil,lineWidth:1),bell:nil,onBell:{},clickCard:{},bubbleWidth:300,quiet:.secondaryLabelColor,expanded:false)
+        return .init(id:"row-\(i)",top:[.post(p),.accessory(id:"space-\(i)",height:70+(i==17 ? grow:0),view:{NSView()})],replies:nil,rail:nil,actions:[],deleting:nil,style:.init(inset:12,fill:0,stroke:nil,lineWidth:1),bell:nil,onBell:{},clickCard:{},quiet:.secondaryLabelColor,expanded:false)
     }}
     list.show(cards(),identity:"fake-room");list.layoutSubtreeIfNeeded()
     list.scrollTo("row-7");await pause(0.5)

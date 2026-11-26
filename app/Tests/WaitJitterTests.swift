@@ -93,7 +93,7 @@ private final class ArrowTarget: NSView {
             }
             return .init(id: "card-\(index)", top: pieces, replies: nil, rail: nil, actions: [],
                          deleting: nil, style: .init(inset: 12, fill: 0, stroke: nil, lineWidth: 1),
-                         bell: nil, onBell: {}, clickCard: {}, bubbleWidth: 300,
+                         bell: nil, onBell: {}, clickCard: {},
                          quiet: .secondaryLabelColor, expanded: false)
         }
         list.show(contents, identity: "fixture-room", historyMode: history)

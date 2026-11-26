@@ -66,7 +66,7 @@ private final class HistoryTransportCredentials: GateCredentialStore {
     @MainActor static func rendererLifetimeCheck() async throws {
         let post=NativeThreadCard.Post(id:"lifetime-post",mine:false,text:NSAttributedString(string:"fixture body"),speaker:"Fixture",time:"",avatar:ProfileAvatar(),nameColor:.labelColor,openLink:{_ in})
         let content=NativeThreadCard.Content(id:"lifetime-card",top:[.post(post)],replies:nil,rail:nil,actions:[],deleting:nil,
-            style:.init(inset:12,fill:0,stroke:nil,lineWidth:1),bell:nil,onBell:{},clickCard:{},bubbleWidth:300,quiet:.secondaryLabelColor,expanded:false)
+            style:.init(inset:12,fill:0,stroke:nil,lineWidth:1),bell:nil,onBell:{},clickCard:{},quiet:.secondaryLabelColor,expanded:false)
         let card=NativeThreadCard(frame:.zero)
         card.configure(NativeThreadCard.layout(content,width:320))
         guard card.subviews.compactMap({$0 as? NSTextView}).contains(where:{$0.string=="fixture body"}) else {throw HistoryFailure.invalidResponse}

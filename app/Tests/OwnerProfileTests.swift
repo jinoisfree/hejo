@@ -28,7 +28,7 @@ private func profileMessage(_ seq:Int, role:String, text:String, thread:String =
 @MainActor private func profileLayout(_ pieces:[NativeThreadCard.Piece], width:CGFloat) -> NativeThreadCard.Layout {
     let content = NativeThreadCard.Content(id:"profile-layout",top:pieces,replies:nil,rail:nil,actions:[],deleting:nil,
         style:.init(inset:18,fill:0,stroke:nil,lineWidth:0,background:.windowBackgroundColor),
-        bell:nil,onBell:{},clickCard:{},textClick:nil,bubbleWidth:width*ChatMetrics.bubbleWidthFraction,
+        bell:nil,onBell:{},clickCard:{},textClick:nil,
         quiet:.secondaryLabelColor,expanded:true)
     return NativeThreadCard.layout(content,width:width)
 }

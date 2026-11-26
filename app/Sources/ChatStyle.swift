@@ -52,7 +52,7 @@ enum ChatMetrics {
     static let nameBodyGap: CGFloat = 4
     static let horizontalInset: CGFloat = 12
     static let minimumBubbleWidth: CGFloat = 240
-    static let bubbleWidthFraction: CGFloat = 0.82
+    static let bubbleWidthFraction: CGFloat = 0.75
 }
 
 struct PaletteRGB: Equatable {

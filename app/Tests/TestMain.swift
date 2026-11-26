@@ -54,6 +54,8 @@ final class MemoryCredentials: GateCredentialStore {
                 #endif
                 if args.count == 2 && args[1] == "--bubble-width" {
                     try bubbleWidthTests()
+                } else if args.count == 3 && args[1] == "--bubble-width-capture" {
+                    try captureBubbleWidths(to: URL(fileURLWithPath: args[2]))
                 } else if args.count == 3 && args[1] == "--owner-profile-unit" {
                     try ownerProfileTests(output:URL(fileURLWithPath:args[2]))
                 } else if args.count == 7 && args[1] == "--owner-profile-transport" {
@@ -351,6 +353,7 @@ final class MemoryCredentials: GateCredentialStore {
         controller.panel.orderOut(nil)
         try check(LoginLaunchPresentation.resolve(.enabled, installed: false).canChange == false, "login registration requires installation")
         try ownerProfileTests()
+        try bubbleWidthTests()
         try await conversationUnitTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try conversationUpdateTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await transitionPreparationTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))

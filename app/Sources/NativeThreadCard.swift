@@ -68,7 +68,6 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
         var clickCard: () -> Void
         /// Only a folded thread opens from a click on its words; elsewhere the words are for selecting.
         var textClick: (() -> Void)?
-        var bubbleWidth: CGFloat
         var quiet: NSColor
         var expanded: Bool
         var replyTarget = false
@@ -113,10 +112,20 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
     /// NSTextView and the offscreen calculator use the same zero-padding TextKit container.
     /// The same rendered body at the same width measures the same. Re-measuring a long answer for every frame of
     /// a height ease took tens of milliseconds each time; bodies come from a cache, so identity is the key.
+    private struct TextMeasurement {
+        let size: NSSize
+        let fittedWidth: CGFloat?
+    }
     private final class Measurement {
         weak var text: NSAttributedString?
-        let width: CGFloat, size: NSSize
-        init(_ text:NSAttributedString,width:CGFloat,size:NSSize) {self.text=text;self.width=width;self.size=size}
+        let width: CGFloat
+        let geometry: TextMeasurement
+
+        init(_ text: NSAttributedString, width: CGFloat, geometry: TextMeasurement) {
+            self.text = text
+            self.width = width
+            self.geometry = geometry
+        }
     }
     // A layout lookup must not extend a body lifetime after resident/view eviction.
     // Only bounded scalar metadata is retained; attributed runs and attachments are weak.
@@ -126,15 +135,22 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
     static var smoothMeasurementCapacity: Int { 256 }
     #endif
     static func textSize(_ text: NSAttributedString, width: CGFloat) -> NSSize {
-        guard !(text is NSMutableAttributedString) else { return layoutSize(text, width: width) }
-        if let hit = measured[ObjectIdentifier(text)], hit.text === text, abs(hit.width - width) < 0.01 { return hit.size }
-        let size = layoutSize(text, width: width)
-        measured = measured.filter{$0.value.text != nil}
-        if measured.count >= 256 { measured.removeAll(keepingCapacity: true) }
-        measured[ObjectIdentifier(text)] = Measurement(text,width:width,size:size)
-        return size
+        measureText(text, width: width, fitBubble: false).size
     }
-    private static func layoutSize(_ text: NSAttributedString, width: CGFloat) -> NSSize {
+    private static func measureText(_ text: NSAttributedString, width: CGFloat, fitBubble: Bool) -> TextMeasurement {
+        guard !(text is NSMutableAttributedString) else { return layoutText(text, width: width, fitBubble: fitBubble) }
+        let key = ObjectIdentifier(text)
+        if let hit = measured[key], hit.text === text, hit.width == width,
+           !fitBubble || hit.geometry.fittedWidth != nil {
+            return hit.geometry
+        }
+        let geometry = layoutText(text, width: width, fitBubble: fitBubble)
+        measured = measured.filter { $0.value.text != nil }
+        if measured.count >= 256 { measured.removeAll(keepingCapacity: true) }
+        measured[key] = Measurement(text, width: width, geometry: geometry)
+        return geometry
+    }
+    private static func layoutText(_ text: NSAttributedString, width: CGFloat, fitBubble: Bool) -> TextMeasurement {
         #if HEJO_PERF_TESTING
         HejoSmoothProbe.measured(text)
         #endif
@@ -144,8 +160,42 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
         container.lineFragmentPadding = 0
         storage.addLayoutManager(manager); manager.addTextContainer(container)
         manager.ensureLayout(for: container)
-        let size = manager.usedRect(for: container).size
-        return NSSize(width: ceil(size.width), height: ceil(size.height))
+        let used = manager.usedRect(for: container)
+        let size = NSSize(width: ceil(used.width), height: ceil(used.height))
+        guard fitBubble else { return TextMeasurement(size: size, fittedWidth: nil) }
+
+        let candidate = max(1, ceil(used.maxX))
+        guard candidate < width, permitsWidthFitting(storage, manager: manager, container: container) else {
+            return TextMeasurement(size: size, fittedWidth: width)
+        }
+        // Reflow at the fitted width to keep TextKit's original line heights.
+        container.containerSize.width = candidate
+        manager.ensureLayout(for: container)
+        let fitted = manager.usedRect(for: container)
+        let fits = abs(used.height - fitted.height) < 0.01 && fitted.maxX <= candidate
+        return TextMeasurement(size: size, fittedWidth: fits ? candidate : width)
+    }
+    private static func permitsWidthFitting(_ storage: NSTextStorage, manager: NSLayoutManager, container: NSTextContainer) -> Bool {
+        var fits = true
+        storage.enumerateAttributes(in: NSRange(location: 0, length: storage.length)) { attributes, _, stop in
+            let style = attributes[.paragraphStyle] as? NSParagraphStyle ?? .default
+            let code = attributes[TextLayout.decoration] as? TextLayout.Decoration
+            if !style.textBlocks.isEmpty || code?.box != nil || (style.alignment != .left && style.alignment != .natural) {
+                fits = false
+                stop.pointee = true
+            }
+        }
+        guard fits else { return false }
+        let source = storage.string as NSString
+        manager.enumerateLineFragments(forGlyphRange: manager.glyphRange(for: container)) { _, _, _, glyphs, stop in
+            let characters = manager.characterRange(forGlyphRange: glyphs, actualGlyphRange: nil)
+            let sourceLine = source.lineRange(for: NSRange(location: characters.location, length: 0))
+            if NSMaxRange(characters) < NSMaxRange(sourceLine) {
+                fits = false
+                stop.pointee = true
+            }
+        }
+        return fits
     }
     private static var symbolSizes: [String: NSSize] = [:]
     static func symbolSize(_ name: String) -> NSSize {
@@ -210,7 +260,13 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
         return Header(bell: bell, badges: badges, reserve: inline ? 0 : badgeHeight / 2 + 12)
     }
 
-    private static var streamHeights: [String: (width: CGFloat, height: CGFloat)] = [:]
+    private struct StreamMeasurement {
+        let limit: CGFloat
+        let cardWidth: CGFloat
+        let height: CGFloat
+        var fittedWidth: CGFloat?
+    }
+    private static var streamMeasurements: [String: StreamMeasurement] = [:]
     /// A written answer that became its final message eases from its tallest streamed height to its own.
     private static var releasing: [String: (from: CGFloat, since: TimeInterval, shown: CGFloat, at: TimeInterval)] = [:]
     private static let avatarGap: CGFloat = 9
@@ -226,15 +282,14 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
     private static var measuredFont = ChatMetrics.bodyFont
     static func layout(_ content: Content, width: CGFloat) -> Layout {
         if measuredFont != ChatMetrics.bodyFont {
-            streamHeights.removeAll(); releasing.removeAll(); measuredFont = ChatMetrics.bodyFont
+            streamMeasurements.removeAll(); releasing.removeAll(); measuredFont = ChatMetrics.bodyFont
         }
         let inset = content.style.inset
         let usable = max(1, width - 2 * inset)
         var placed: [Placed] = []
         var anchors: [String: NSRect] = [:]
         let header = Self.header(content, width: width)
-        let bodyFont = NSFont.systemFont(ofSize:ChatMetrics.bodyFont)
-        let singleLineHeight = ceil(bodyFont.ascender - bodyFont.descender + bodyFont.leading)
+        let cardWidth = width
         var y = inset + (header.reserve > 0 ? 8 + header.reserve : 0)
         var first = true
         func gap() { if !first { y += 10 }; first = false }
@@ -246,21 +301,29 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
                 let padding = ChatMetrics.bubbleInset
                 let columnWidth = max(1, width - ChatMetrics.avatar - avatarGap)
                 let columnX = post.mine ? x : x + ChatMetrics.avatar + avatarGap
-                let limit = max(1, min(columnWidth, content.bubbleWidth) - padding.width * 2)
-                let size = textSize(post.text, width: limit)
-                // Reusing the measured width keeps TextKit's wrapped lines and percentage-based tables intact.
-                let bodyWidth = size.height <= singleLineHeight ? max(1, min(limit, size.width)) : limit
-                var bodyHeight = size.height
+                let maximum = min(columnWidth, max(ChatMetrics.minimumBubbleWidth, columnWidth * ChatMetrics.bubbleWidthFraction))
+                let limit = max(1, maximum - padding.width * 2)
+                let measurement = measureText(post.text, width: limit, fitBubble: true)
+                let foldWidth = post.mine ? nil : post.foldTitle.map {
+                    ceil(Self.width($0, font: .systemFont(ofSize: ChatMetrics.auxiliaryFont))) + 2
+                }
+                var bodyWidth = measurement.fittedWidth ?? limit
+                var bodyHeight = measurement.size.height
                 if !post.mine {
                     let heightKey = content.id + ":" + post.id
                     if post.streaming {
-                        if let old = streamHeights[heightKey], abs(old.width - limit) < 0.5 {
-                            bodyHeight = max(bodyHeight, old.height)
+                        if let old = streamMeasurements[heightKey] {
+                            if abs(old.limit - limit) < 0.5 { bodyHeight = max(bodyHeight, old.height) }
+                            if old.cardWidth == cardWidth, let fittedWidth = old.fittedWidth {
+                                bodyWidth = min(limit, max(bodyWidth, fittedWidth))
+                            }
                         }
-                        if streamHeights.count > 512, let oldest = streamHeights.keys.first { streamHeights.removeValue(forKey: oldest) }
-                        streamHeights[heightKey] = (limit, bodyHeight)
+                        if streamMeasurements.count > 512, let oldest = streamMeasurements.keys.first { streamMeasurements.removeValue(forKey: oldest) }
+                        streamMeasurements[heightKey] = StreamMeasurement(limit: limit, cardWidth: cardWidth, height: bodyHeight,
+                                                                          fittedWidth: min(limit, max(bodyWidth, foldWidth ?? 0)))
                         releasing.removeValue(forKey: heightKey)
-                    } else if let old = streamHeights[heightKey], abs(old.width - limit) < 0.5, old.height > bodyHeight + 0.5, post.foldTitle != "더 보기" {
+                    } else if let old = streamMeasurements[heightKey], abs(old.limit - limit) < 0.5, old.height > bodyHeight + 0.5, post.foldTitle != "더 보기" {
+                        streamMeasurements[heightKey]?.fittedWidth = nil
                         // The final message is the end point. Its height is its own, reached in one short ease
                         // rather than kept as blank space or dropped in a single frame.
                         let now = ProcessInfo.processInfo.systemUptime
@@ -280,8 +343,8 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
                         if bodyHeight > target + 0.5 {
                             let id = content.id
                             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0 / 60.0) { settle?(id) }
-                        } else { streamHeights.removeValue(forKey: heightKey); releasing.removeValue(forKey: heightKey) }
-                    } else { streamHeights.removeValue(forKey: heightKey); releasing.removeValue(forKey: heightKey) }
+                        } else { streamMeasurements.removeValue(forKey: heightKey); releasing.removeValue(forKey: heightKey) }
+                    } else { streamMeasurements.removeValue(forKey: heightKey); releasing.removeValue(forKey: heightKey) }
                 }
                 if !post.continuation {
                     item.aside = NSRect(x: post.mine ? x + width - ChatMetrics.avatar : x, y: y,
@@ -300,8 +363,7 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
                 let headerHeight = post.continuation ? 0 : 17 + ChatMetrics.nameBodyGap
                 item.text = NSRect(x: textX, y: y + headerHeight + padding.height, width: bodyWidth, height: bodyHeight)
                 item.bubble = item.text.insetBy(dx: -padding.width, dy: -padding.height)
-                if !post.mine, let title = post.foldTitle {
-                    let foldWidth = ceil(Self.width(title, font: .systemFont(ofSize: ChatMetrics.auxiliaryFont))) + 2
+                if let foldWidth {
                     item.fold = NSRect(x: item.text.minX, y: item.text.maxY + 5, width: min(max(bodyWidth, foldWidth), limit), height: 14)
                     item.bubble.size.width = max(item.bubble.width, item.fold.maxX - item.bubble.minX + padding.width)
                     item.bubble.size.height = item.fold.maxY - item.bubble.minY + padding.height
