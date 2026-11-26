@@ -21,6 +21,7 @@ import Foundation
     private var selectionScope = ""
     private var visible = false
     private var reads: [(String,String,ConversationKey?,Int)] = []
+    private var activeNoticeRead: (key: ConversationKey, run: Int)?
     private var automaticRead: String?
     private enum Demand: Equatable {
         case threads(String), messages(ConversationKey), restore(ConversationKey,String)
@@ -361,6 +362,8 @@ import Foundation
         guard client.store.historyMode, model.memberState.account.isEmpty || model.memberState.hasFetched else { return }
         let scope = room == HomeRoom.id ? "home":room
         let intent = model.history.intentGeneration
+        if action == "notice", let key, let activeNoticeRead,
+           activeNoticeRead.run == operation, activeNoticeRead.key == key { return }
         if !reads.contains(where:{$0.0 == action && $0.1 == scope && $0.2 == key && $0.3 == intent}) {
             reads.append((action,scope,key,intent))
         }
@@ -462,6 +465,12 @@ import Foundation
         return page
     }
     private func readPlan(_ action: String, scope: String, key: ConversationKey?, intent: Int, context: String, run: Int, sidebar: Bool = false) async throws {
+        // The queue entry is removed before this await. Coalesce repeated
+        // notice actions until the plan finishes or the operation is replaced.
+        if action == "notice", let key { activeNoticeRead = (key, run) }
+        defer {
+            if action == "notice", activeNoticeRead?.run == run { activeNoticeRead = nil }
+        }
         var fields: [String:Any] = ["action":action]
         if sidebar { fields["mode"] = "sidebar" }
         if let key { fields["target"] = ["room":key.employee,"thread":key.thread] }

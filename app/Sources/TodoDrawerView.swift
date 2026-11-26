@@ -185,7 +185,12 @@ final class TodoDrawerCardView: NSView {
         setAccessibilityRole(.button)
         setAccessibilityLabel(card.kind.rawValue+" · "+card.title+" · "+card.name+" · "+card.trailing+" · "+card.status)
         if let complete {
-            let name = card.kind == .question ? "확인 보내기" : "완료로 닫기"
+            let name: String
+            switch card.kind {
+            case .question: name = "확인 보내기"
+            case .deadline: name = "완료로 닫기"
+            case .alert, .all: name = "읽음으로 표시"
+            }
             setAccessibilityCustomActions([NSAccessibilityCustomAction(name: name, handler: {
                 complete()
                 return true

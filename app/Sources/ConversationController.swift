@@ -86,7 +86,9 @@ struct ConversationFailedSend: Identifiable {
             return card.deadlineRef != nil && closesInFlight[card.id] == nil && closesConfirming[card.id] == nil
         case .question:
             return canSend && card.key != nil && card.messageID != nil && confirmations[card.id] == nil
-        case .all, .alert:
+        case .alert:
+            return card.key != nil
+        case .all:
             return false
         }
     }
@@ -99,7 +101,9 @@ struct ConversationFailedSend: Identifiable {
         case .question:
             guard let key = card.key else { return }
             queueClose(card, action: .question(key, recipient: card.employee))
-        case .all, .alert:
+        case .alert:
+            if let key = card.key { model.markNoticeRead(key) }
+        case .all:
             break
         }
     }
