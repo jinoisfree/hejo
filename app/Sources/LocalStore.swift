@@ -9,7 +9,7 @@ enum AppIdentity {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent(name)
     }
 }
-struct LocalSettings: Codable {
+struct LocalSettings: Codable, Equatable {
     var address = ""
     var deviceName = "이 Mac"
     var credentialAccount = UUID().uuidString.lowercased()
