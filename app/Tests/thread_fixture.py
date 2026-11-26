@@ -1,4 +1,4 @@
-from legacy_feature_fixture import reject_telegram
+from legacy_feature_fixture import reject_discord
 """AT75/76 loopback client controls; external Hermes and journal are covered by gate tests."""
 import asyncio
 import json
@@ -47,7 +47,7 @@ async def main():
             async for item in ws:
                 if item.type != web.WSMsgType.TEXT: continue
                 frame = json.loads(item.data); validator.validate(frame)
-                if await reject_telegram(ws, frame): continue
+                if await reject_discord(ws, frame): continue
                 kind = frame["type"]
                 if kind == "click":
                     assert frame["button_id"] in [buttons[1]["id"], buttons[2]["id"]]

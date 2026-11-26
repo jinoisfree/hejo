@@ -3,7 +3,7 @@
 명세: `docs/changes/HEJO-OWNER-PROFILE-20261125/spec.md`. 기대값 출처는 명세 AC와 사용자 결정(brainstorm). 구현 코드에서 기대값을 가져오지 않는다.
 상태: 명세 확정 / 코드 미작성(구현 담당이 문 시험은 `gate/tests/test_owner_profile.py`, 앱 시험은 `app/Tests/OwnerProfileTests.swift`, 앱↔문 왕복 시험은 기존 loopback 하네스 방식(`app/Tests/HistoryTransportHarness.swift` + `gate/tests/history_transport_app.py`)을 본뜬 `app/Tests/OwnerProfileTransport.sh`로 옮김) / 실행 전 / 독립 검토는 계획 검증.
 
-공통 조건: 임시 `HERMES_HOME`, 가짜 명부(직원 `alpha` 이름 `알파`), 가짜 이름 `길동`·`가나다라마바사아자차카타파하가나다라마바`(20자)·그 뒤에 `사`를 붙인 21자. 실제 Slack·텔레그램·디스코드 전송 없음(기존 시험의 가짜 송신자 사용).
+공통 조건: 임시 `HERMES_HOME`, 가짜 명부(직원 `alpha` 이름 `알파`), 가짜 이름 `길동`·`가나다라마바사아자차카타파하가나다라마바`(20자)·그 뒤에 `사`를 붙인 21자. 실제 Slack·디스코드 전송 없음(기존 시험의 가짜 송신자 사용).
 
 ## 문 (pytest, 실제 aiohttp loopback 문)
 | ID | AC | 절차 | 기대 |
@@ -17,11 +17,11 @@
 | AT-OP-07 | REQ-OP-02.AC-01 | 설정 안 됨·`길동`+사진 각각에서 WS 연결 | welcome `owner`가 `{"name":null,"avatar":null}` / `{"name":"길동","avatar":"/v1/pictures/owner/owner?v=…"}` |
 | AT-OP-08 | REQ-OP-02.AC-02 | 기기 둘 연결, 한쪽에서 이름 PUT, 사진 PUT, 사진 DELETE, 직원 사진 PUT. 이어서 이름 `길동`·사진 있음 상태로 만든 뒤 한 기기가 명단 요청(`{"type":"roster","id":…}`)을 보냄 | 두 기기 모두 매번 `roster` 받음. 앞 셋은 `ref=="owner"`, 모두 `owner` 포함하며 값이 바뀐 상태. 명단 요청 응답(`ref`=요청 id)의 `owner`가 `{"name":"길동","avatar":"/v1/pictures/owner/owner?v=…"}`(현재 사진 주소와 같음) |
 | AT-OP-09 | REQ-OP-02.AC-03 | AT-OP-07·08의 실제 프레임(welcome, 명단 요청 응답, 세 종류 변경 알림)을 `schemas/hejo-wire-v1.json`으로 검사 | 모두 통과. `owner` 없는 기존 welcome 예시도 통과 |
-| AT-OP-10 | REQ-OP-03.AC-01 | 텔레그램·디스코드 가짜 송신으로 사장 글 거울 전송, 설정 안 됨 / `길동` | 텔레그램 글이 `[사장] `·`[길동] `으로 시작. 디스코드 표기도 `사장`·`길동` |
+| AT-OP-10 | REQ-OP-03.AC-01 | 디스코드 가짜 송신으로 사장 글 거울 전송, 설정 안 됨 / `길동` | 디스코드 표기가 `사장`·`길동`(텔레그램 부분은 HEJO-TELEGRAM-REMOVE로 삭제) |
 | AT-OP-11 | REQ-OP-03.AC-02 | 사장 글·직원 글이 있는 스레드에서 답글 맥락, 방 놓친 글 맥락 생성(설정 안 됨 / `길동`) | 사장 줄이 `나: …` / `길동: …`. 직원 줄 `알파: …` 그대로 |
 | AT-OP-12 | REQ-OP-03.AC-03 | 앱 프레임으로 사장 글 보냄, Hermes `handle_message` 가짜로 받은 이벤트 확인(설정 안 됨 / `길동`) | `source.user_name` None / `길동`. 두 경우 `user_id=="owner"`, `chat_id`·`thread_id` 같음 |
 | AT-OP-13 | REQ-OP-03.AC-04 | clarify 버튼 결정 문구 생성(설정 안 됨 / `길동`) | Hermes 문구의 사용자 자리가 `나` / `길동` |
-| AT-OP-14 | REQ-OP-03.AC-05 | 텔레그램으로 사장 글 1 보낸 뒤 이름 변경, 사장 글 2 보냄 | 글 1의 기록 텍스트·보낸 글 대응표 변화 없음, 글 2만 새 이름 |
+| AT-OP-14 | REQ-OP-03.AC-05 | 디스코드(가짜 송신)로 사장 글 1 보낸 뒤 이름 변경, 사장 글 2 보냄 | 글 1의 기록 행과 디스코드 보낸 글 대응표(`shared/hejo/discord/sent.jsonl`) 기존 바이트 변화 없음(뒤에 덧붙기만), 디스코드로 나간 글 1 표기 `사장`, 글 2 표기 `길동`. (HEJO-TELEGRAM-REMOVE: 텔레그램에서 디스코드로 옮김 — 요구 AC-05는 그대로) |
 
 ## 앱 (swiftc 시험, 실제 앱 코드)
 배치 시험은 `NativeThreadCard`의 배치 결과(조각별 frame·text·bubble·aside·time 사각형)를 읽는다. 폭은 600pt·360pt 두 가지.

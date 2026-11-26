@@ -137,7 +137,7 @@ async def socket_run(binary, output, frames):
                 async for message in ws:
                     if message.type == web.WSMsgType.TEXT:
                         frame = json.loads(message.data)
-                        assert frame['type'] in ('telegram_status', 'telegram', 'pong'), frame['type']
+                        assert frame['type'] in ('discord', 'pong'), frame['type']
         except (ConnectionResetError, asyncio.CancelledError):
             pass
         except Exception as exc:
@@ -171,7 +171,7 @@ async def boundary_socket_run(binary, output, frames):
             async def take(kind):
                 while True:
                     frame = await ws.receive_json()
-                    if frame['type'] == 'telegram':
+                    if frame['type'] == 'discord':
                         continue
                     assert frame['type'] == kind, (kind, frame['type'])
                     return frame

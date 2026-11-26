@@ -22,17 +22,13 @@ struct ReconnectDelay {
     mutating func reset() { attempt = 0 }
 }
 @MainActor final class GateClient {
-    static let features = ["rooms", "telegram", "discord"]
+    static let features = ["rooms", "discord"]
     lazy var history = HistoryHTTP(client: self)
     private(set) var historySession: String?
     private(set) var historyThrough = 0
     private(set) var liveSequence = 0
     private(set) var fileAccessRevision = 0
     var onHistoryFrame: (([String:Any]) throws -> Void)?
-    lazy var telegram = TelegramState { [weak self] frame in
-        guard let self else { throw GateFailure.notConnected }
-        try await self.send(frame)
-    }
     lazy var discord = DiscordState { [weak self] frame in
         guard let self else { throw GateFailure.notConnected }
         try await self.send(frame)
@@ -118,7 +114,7 @@ struct ReconnectDelay {
         generation += 1; worker?.cancel(); worker = nil
         socket?.cancel(with: .goingAway, reason: nil); socket = nil; pairCode = nil; signInFields = nil; token = nil
         knownHead = nil
-        telegram.reset(); discord.reset(); historySession = nil; historyThrough = 0; liveSequence = 0
+        discord.reset(); historySession = nil; historyThrough = 0; liveSequence = 0
         backoff.reset(); welcomed = false; syncing = false; replayComplete = false
     }
     private func connectLoop(run: Int) async {
@@ -159,7 +155,7 @@ struct ReconnectDelay {
             } catch {
                 guard run == generation, !Task.isCancelled else { return }
                 knownHead = nil
-                welcomed = false; historySession = nil; telegram.reset(); discord.reset()
+                welcomed = false; historySession = nil; discord.reset()
                 if error as? HistoryFailure == .updateRequired { status = .updateRequired; return }
                 if socket?.closeCode.rawValue == 1009 { status = .tooLarge }
                 if error is GateFailure { // Durable storage/protocol failures must not spin on reconnect.
@@ -244,9 +240,9 @@ struct ReconnectDelay {
 #endif
         }
         if type == "welcome" {
-            telegram.reset(); discord.reset()
-            if socket != nil { Task { await telegram.query(); await discord.query() } }
-        } else if telegram.receive(frame) || discord.receive(frame) { return true }
+            discord.reset()
+            if socket != nil { Task { await discord.query() } }
+        } else if discord.receive(frame) { return true }
         onFrame?(frame); return true
     }
     func authorizedRequest(components: [String], query: [URLQueryItem] = []) throws -> URLRequest {

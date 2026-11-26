@@ -5,7 +5,6 @@ import UniformTypeIdentifiers
 @MainActor final class PetSettingsWindow: NSObject, NSTabViewDelegate {
     let window: NSWindow
     let tabs = NSTabView(frame: CGRect(x: 0, y: 0, width: 620, height: 640))
-    let telegramSection = TelegramSettingsSection()
     let discordSection = DiscordSettingsSection()
     let ownerProfile = OwnerProfileSection()
     let nameField = NSTextField(string: "")
@@ -114,7 +113,7 @@ import UniformTypeIdentifiers
         homePicker.frame = CGRect(x: 24, y: 0, width: 312, height: 30)
         homePicker.setAccessibilityLabel("고정 채널"); homePicker.target = self; homePicker.action = #selector(changeHome)
         let homeTitle=title("고정 채널", y:38);homeTitle.frame=CGRect(x:24,y:38,width:312,height:22)
-        page("연결과 동기화", [[telegramSection], [discordSection], [button(NSButton(title: "에이전트 연결…", target: nil, action: nil), #selector(openConnections))],
+        page("연결과 동기화", [[discordSection], [button(NSButton(title: "에이전트 연결…", target: nil, action: nil), #selector(openConnections))],
             [button(hooksButton, #selector(showHooks))], [homeTitle, homePicker], [button(syncLayout, #selector(synchronizeLayout))],
             [note("이 Mac의 섹션·순서·접힘·숨김·사진을 다른 Mac에도 적용합니다. 다른 Mac에만 있는 배치·사진은 지웁니다.")]])
         page("고급", [[button(previewButton, #selector(preview))], [button(pointerButton, #selector(previewPointer))], [button(tapCopyButton, #selector(copyTapRequest))]])
@@ -244,7 +243,7 @@ import UniformTypeIdentifiers
         avatar.setAccessibilityElement(true)
         avatar.setAccessibilityRole(.image)
         let empty = NSTextField(labelWithString:"비우면 '사장'으로 보여요")
-        let shared = NSTextField(wrappingLabelWithString:"직원 대화와 텔레그램·디스코드에도 이 이름이 쓰여요")
+        let shared = NSTextField(wrappingLabelWithString:"직원 대화와 디스코드에도 이 이름이 쓰여요")
         for note in [empty,shared,problem] { note.font = .systemFont(ofSize:12); note.textColor = .secondaryLabelColor }
         problem.textColor = .systemRed
         let views: [(NSView,NSRect)] = [

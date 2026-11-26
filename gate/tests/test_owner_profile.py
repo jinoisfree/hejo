@@ -29,10 +29,8 @@ def bridge_tests(platform):
 
 
 discord = bridge_tests("discord")
-telegram = bridge_tests("telegram")
 discord_module = discord.discord_module
 discord_transport = discord.transport
-telegram_transport = telegram.transport
 
 pytestmark = pytest.mark.asyncio
 NAME = "길동"
@@ -234,30 +232,6 @@ async def test_at_op_08_09_roster_notifications_and_requested_snapshot(gate, cli
     assert response["owner"] == with_picture
 
 
-async def test_at_op_10_14_telegram_name_changes_only_new_posts(gate, client, http, runner, telegram_transport):
-    ws, welcome = await client.pair(features=["telegram"])
-    await telegram.activate(gate, client, ws, telegram_transport)
-    thread = str(uuid.uuid4())
-    await client.send(ws, thread=thread, text="first")
-    await wait_for_turns(runner, 1)
-    await telegram.settled(gate)
-    assert [call[1] for call in telegram_transport.calls] == ["[사장] first"]
-    initial_mapping = gate.telegram.sent_path.read_bytes()
-    initial_row = gate.journal.message(runner.events[0].message_id)
-    assert initial_mapping and initial_row["text"] == "first"
-
-    assert (await put_name(http, gate, welcome["token"]))["name"] == NAME
-    assert gate.telegram.sent_path.read_bytes() == initial_mapping
-    assert gate.journal.message(initial_row["msg_id"]) == initial_row
-    await client.send(ws, thread=thread, text="second")
-    await wait_for_turns(runner, 2)
-    await telegram.settled(gate)
-    assert [call[1] for call in telegram_transport.calls] == ["[사장] first", f"[{NAME}] second"]
-    mapping = gate.telegram.sent_path.read_bytes()
-    assert mapping.startswith(initial_mapping) and len(mapping.splitlines()) == 2
-    assert gate.journal.message(initial_row["msg_id"]) == initial_row
-
-
 async def test_at_op_10_discord_owner_name(gate, client, http, runner, discord_transport):
     _, native = discord_transport
     ws, welcome = await client.pair(features=["discord"])
@@ -272,6 +246,43 @@ async def test_at_op_10_discord_owner_name(gate, client, http, runner, discord_t
     await wait_for_turns(runner, 2)
     await discord.settled(gate)
     assert [call[1]["username"] for call in native.calls] == ["사장", NAME]
+
+
+async def test_at_op_14_discord_name_changes_only_new_posts(gate, client, http, runner, discord_transport):
+    _, native = discord_transport
+    ws, welcome = await client.pair(features=["discord"])
+    await discord.activate(gate, client, ws, native)
+    thread = str(uuid.uuid4())
+    await client.send(ws, thread=thread, text="first")
+    await wait_for_turns(runner, 1)
+    await discord.settled(gate)
+    assert [(fields["username"], fields["content"]) for _, fields in native.calls] == [("사장", "first")]
+
+    first_id = runner.events[0].message_id
+    journal_segment, first_line = next(
+        (segment, line)
+        for segment in gate.journal.path.glob("????-??.jsonl")
+        for line in segment.read_bytes().splitlines(keepends=True)
+        if json.loads(line).get("msg_id") == first_id
+    )
+    sent_path = gate.discord.sent_path
+    first_mapping = sent_path.read_bytes()
+    assert json.loads(first_line)["text"] == "first"
+    assert len(first_mapping.splitlines()) == 1
+
+    assert (await put_name(http, gate, welcome["token"]))["name"] == NAME
+    assert first_line in journal_segment.read_bytes().splitlines(keepends=True)
+    assert sent_path.read_bytes() == first_mapping
+
+    await client.send(ws, thread=thread, text="second")
+    await wait_for_turns(runner, 2)
+    await discord.settled(gate)
+    assert [(fields["username"], fields["content"]) for _, fields in native.calls] == [
+        ("사장", "first"), (NAME, "second"),
+    ]
+    assert first_line in journal_segment.read_bytes().splitlines(keepends=True)
+    mapping = sent_path.read_bytes()
+    assert mapping.startswith(first_mapping) and len(mapping.splitlines()) == 2
 
 
 @pytest.mark.parametrize("name", [None, NAME])

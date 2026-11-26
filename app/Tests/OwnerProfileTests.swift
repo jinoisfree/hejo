@@ -111,7 +111,7 @@ private func post(_ piece:NativeThreadCard.Piece) throws -> NativeThreadCard.Pos
     let section = settings.ownerProfile
     let labels = homeDescendants(section,NSTextField.self).map(\.stringValue)
     try check(labels.contains("내 프로필") && labels.contains("비우면 '사장'으로 보여요") &&
-              labels.contains("직원 대화와 텔레그램·디스코드에도 이 이름이 쓰여요") && section.name.placeholderString=="이름" &&
+              labels.contains("직원 대화와 디스코드에도 이 이름이 쓰여요") && section.name.placeholderString=="이름" &&
               section.save.title=="이름 저장" && section.choose.title=="사진 고르기…" && section.remove.title=="사진 지우기" &&
               !section.save.isEnabled && !section.choose.isEnabled && !section.remove.isEnabled,"AT-OP-20 disconnected controls")
 

@@ -530,7 +530,6 @@ struct ConversationFailedSend: Identifiable {
             self?.stateFailure = failed ? IslandFailure(message: "화면 상태를 맞추지 못했어요", firstWords: "") : nil
         }
         model.memberState.onUnpinned = { [weak self] count in self?.notice = "고정 자리 5개를 넘어 \(count)개의 고정을 풀었어요." }
-        client.telegram.onChange = { [weak self] in self?.notifyChange() }
         client.discord.onChange = { [weak self] in self?.notifyChange() }
         client.discord.layoutSource = { [weak self] in
             guard let self, self.client.replayComplete else { return nil }
