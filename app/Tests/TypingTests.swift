@@ -38,12 +38,6 @@ private func descendants<T:NSView>(_ root:NSView,_ type:T.Type)->[T] {
     var rows=descendants(ui,TypingRow.self)
     try check(rows.count == 1 && rows[0].frame.height == 22,"AT57 one typing row at accessory height 22")
     let row=rows[0];row.layoutSubtreeIfNeeded()
-    func capture(_ name:String) throws {
-        ui.layoutSubtreeIfNeeded();pet.pet.layoutSubtreeIfNeeded()
-        let image=pet.pet.bitmapImageRepForCachingDisplay(in:pet.pet.bounds)!
-        pet.pet.cacheDisplay(in:pet.pet.bounds,to:image)
-        try image.representation(using:.png,properties:[:])!.write(to:URL(fileURLWithPath:FileManager.default.currentDirectoryPath).appendingPathComponent(".build/"+name))
-    }
     row.tick();try check(row.elapsedText == "0초" && row.accessibilityLabel() == "답변을 준비하고 있습니다 0초","AT76 activity words and elapsed at 0s replace the AT57 waiting label")
     time.addTimeInterval(12);row.tick();try check(row.elapsedText == "12초","AT57 elapsed 12s")
     time.addTimeInterval(53);row.tick();try check(row.elapsedText == "65초","AT76 work row keeps elapsed seconds as ddots does")
@@ -53,7 +47,7 @@ private func descendants<T:NSView>(_ root:NSView,_ type:T.Type)->[T] {
     motion=0.8;row.tick();try check(row.shimmerPosition>start,"AT57 light band moves between 0s and 0.8s")
     motion=1.8;row.tick();try check(abs(row.shimmerPosition-start)<0.01,"AT90 activity shimmer repeats every 1.8s")
     let plain=TypingRow(since:time,clock:{time},animationTime:{motion},reduceMotion:{false});plain.frame=CGRect(x:0,y:0,width:500,height:22);plain.layoutSubtreeIfNeeded();motion=0;plain.tick();let plainStart=plain.shimmerPosition;motion=1.6;plain.tick();try check(abs(plain.shimmerPosition-plainStart)<0.01,"AT57 separate writing label retains 1.6s owner choice")
-    motion=0.5;time.addTimeInterval(-53);row.tick();try capture("task12-waiting-automatic.png")
+    motion=0.5;time.addTimeInterval(-53);row.tick();try capturePetPNG(ui, pet: pet, name: "task12-waiting-automatic.png")
     reduced=true;row.tick();try check(!row.isShimmering,"AT57 reduced motion stops shimmer")
     reduced=false
 
@@ -75,7 +69,7 @@ private func descendants<T:NSView>(_ root:NSView,_ type:T.Type)->[T] {
     blink=0.6;text.blinkCaret();try check(on && !text.caretShown,"AT57 caret blinks on/off at 0s/0.6s")
     let withCaret=text.frame;text.showsCaret=false;let withoutCaret=text.frame;text.showsCaret=true
     try check(withCaret == withoutCaret && !(text.textStorage?.string.contains("|") ?? true),"AT57 caret leaves text frame and storage unchanged")
-    blink=0;text.blinkCaret();try capture("task12-streaming-automatic.png")
+    blink=0;text.blinkCaret();try capturePetPNG(ui, pet: pet, name: "task12-streaming-automatic.png")
     NativeThreadCard.Text.caretReduceMotion={true};text.blinkCaret()
     try check(text.caretShown,"AT57 reduced motion holds caret on")
     NativeThreadCard.Text.caretReduceMotion={false}

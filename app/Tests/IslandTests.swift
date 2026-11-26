@@ -166,14 +166,8 @@ private func islandMessage(_ seq:Int,_ key:ConversationKey = islandA,asked:Bool=
     ui.island.show(working);ui.layoutSubtreeIfNeeded()
     try check(ui.island.animationSteps == 0 && !ui.island.isShimmering,"AT56 reduced motion has no width animation steps or shimmer")
     try check(ui.history.frame.minY == (ui.noticeBar.isHidden ? 44:82) && ui.notice.stringValue.contains("되살리기"),"AT77/79 notice bar has its own space; failure guidance stays above composer")
-    func capture(_ name:String) throws {
-        ui.layoutSubtreeIfNeeded();pet.pet.layoutSubtreeIfNeeded()
-        let image=pet.pet.bitmapImageRepForCachingDisplay(in:pet.pet.bounds)!
-        pet.pet.cacheDisplay(in:pet.pet.bounds,to:image)
-        try image.representation(using:.png,properties:[:])!.write(to:URL(fileURLWithPath:FileManager.default.currentDirectoryPath).appendingPathComponent(".build/"+name))
-    }
-    ui.island.show(working);try capture("task11-working-automatic.png")
-    ui.island.show(lost);try capture("task11-disconnected-automatic.png")
+    ui.island.show(working);try capturePetPNG(ui, pet: pet, name: "task11-working-automatic.png")
+    ui.island.show(lost);try capturePetPNG(ui, pet: pet, name: "task11-disconnected-automatic.png")
     pet.panel.orderOut(nil)
     try await uiCleanIslandTests(resourceDirectory:resourceDirectory)
     try await uiCleanPolishTests(resourceDirectory:resourceDirectory)

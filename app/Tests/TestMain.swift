@@ -3,6 +3,16 @@ import AppKit
 func check(_ condition: @autoclosure () throws -> Bool, _ message: String) throws {
     if try !condition() { throw TestFailure.assertion(message) }
 }
+@MainActor func capturePetPNG(_ conversation: ConversationView, pet: PetController, name: String) throws {
+    conversation.layoutSubtreeIfNeeded()
+    pet.pet.layoutSubtreeIfNeeded()
+    let bounds = pet.pet.bounds
+    let image = pet.pet.bitmapImageRepForCachingDisplay(in: bounds)!
+    pet.pet.cacheDisplay(in: bounds, to: image)
+    let output = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent(".build/" + name)
+    try image.representation(using: .png, properties: [:])!.write(to: output)
+}
+
 enum TestFailure: Error { case assertion(String) }
 @MainActor func pause(_ seconds: Double) async { try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000)) }
 @MainActor func waitForTransition(_ controller: PetController, progress: CGFloat) async {
