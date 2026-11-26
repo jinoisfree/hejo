@@ -243,7 +243,7 @@ import UniformTypeIdentifiers
         avatar.setAccessibilityElement(true)
         avatar.setAccessibilityRole(.image)
         let empty = NSTextField(labelWithString:"비우면 '사장'으로 보여요")
-        let shared = NSTextField(wrappingLabelWithString:"직원 대화와 텔레그램·디스코드에도 이 이름이 쓰여요")
+        let shared = NSTextField(wrappingLabelWithString:"직원 대화와 디스코드에도 이 이름이 쓰여요")
         for note in [empty,shared,problem] { note.font = .systemFont(ofSize:12); note.textColor = .secondaryLabelColor }
         problem.textColor = .systemRed
         let views: [(NSView,NSRect)] = [

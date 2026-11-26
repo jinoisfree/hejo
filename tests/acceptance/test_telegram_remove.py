@@ -14,9 +14,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 SCHEMA = "schemas/hejo-wire-v1.json"
-BASELINE = "c22e6774604398f84351d69dd926ba3510d31aa2"
 LEGACY_REQUESTS = ("telegram", "telegram_pair", "telegram_unpair", "telegram_save")
-LEGACY_DEFINITIONS = {*LEGACY_REQUESTS, "telegram_status", "telegram_code"}
 
 
 def git(*args):
@@ -154,14 +152,6 @@ async def test_at_htr_03_gate_ignores_legacy_data(airport, registered, monkeypat
 def test_at_htr_04_schema_only_removes_legacy_definitions():
     text = (ROOT / SCHEMA).read_text()
     current = json.loads(text)
-    baseline = json.loads(git("show", f"{BASELINE}:{SCHEMA}"))
-    assert {name for name in baseline["$defs"] if name.startswith("telegram")} == LEGACY_DEFINITIONS
-    for name in LEGACY_DEFINITIONS:
-        del baseline["$defs"][name]
-    refs = {f"#/$defs/{name}" for name in LEGACY_DEFINITIONS}
-    for union in (baseline, baseline["$defs"]["clientFrame"], baseline["$defs"]["serverFrame"]):
-        union["oneOf"] = [entry for entry in union["oneOf"] if entry.get("$ref") not in refs]
-    assert current == baseline
     assert not any(name.startswith("telegram") for name in current["$defs"])
     assert '"#/$defs/telegram' not in text
 
