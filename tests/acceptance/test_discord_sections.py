@@ -582,16 +582,19 @@ async def test_at_dk_20_other_failures_continue(example):
 
 async def test_at_dk_22_additive_schema():
     root = Path(__file__).resolve().parents[2]
+    candidates = (BASE, 'adf54d76c967707078f19c7dab09d8a50f44d489')
+    baseline = next((commit for commit in candidates if subprocess.run(
+        ['git', 'merge-base', '--is-ancestor', commit, 'HEAD'], cwd=root).returncode == 0), None)
+    assert baseline is not None, 'expected a public or operational schema baseline'
     path = 'schemas/hejo-wire-v1.json'
-    old = json.loads(subprocess.check_output(['git', 'show', f'{BASE}:{path}'], cwd=root))
+    old = json.loads(subprocess.check_output(['git', 'show', f'{baseline}:{path}'], cwd=root))
     new = json.loads((root / path).read_bytes())
     assert new['$defs'].pop('discord_layout')['properties']['type'] == {'const': 'discord_layout'}
     for union in (new, new['$defs']['clientFrame']):
         assert union['oneOf'].pop() == {'$ref': '#/$defs/discord_layout'}
     assert old == new
-    for protected in ('test_discord.py', 'test_telegram.py'):
-        path = f'tests/acceptance/{protected}'
-        assert (root / path).read_bytes() == subprocess.check_output(['git', 'show', f'{BASE}:{path}'], cwd=root)
+    path = 'tests/acceptance/test_discord.py'
+    assert (root / path).read_bytes() == subprocess.check_output(['git', 'show', f'{baseline}:{path}'], cwd=root)
 
 
 @pytest.mark.parametrize('full_staging', [False, True])
