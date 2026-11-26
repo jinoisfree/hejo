@@ -1,6 +1,28 @@
 import Foundation
 import CryptoKit
 
+struct OwnerProfile: Decodable, Equatable {
+    static let fallbackName = "사장"
+    var name: String?
+    var avatar: String?
+
+    static func normalized(_ input: String) throws -> String? {
+        if input.unicodeScalars.contains(where: { scalar in
+            switch scalar.properties.generalCategory {
+            case .control, .format, .surrogate, .privateUse, .unassigned, .lineSeparator, .paragraphSeparator:
+                return true
+            default:
+                return false
+            }
+        }) { throw OwnerProfileFailure.invalidName }
+        let name = input.trimmingCharacters(in: .whitespaces)
+        guard name.unicodeScalars.count <= 20 else { throw OwnerProfileFailure.invalidName }
+        return name.isEmpty ? nil : name
+    }
+}
+
+enum OwnerProfileFailure: Error { case invalidName }
+
 struct Employee: Codable, Equatable, Identifiable {
     var id: String
     var name: String
@@ -82,6 +104,16 @@ struct ConversationThread: Identifiable {
 /// The gateway journal is the authority. This projection is rebuilt from the durable frame replica.
 @MainActor final class ConversationModel {
     let store: LocalStore
+    private(set) var owner: OwnerProfile?
+    private(set) var ownerRevision = 0
+    var ownerName: String { owner?.name ?? OwnerProfile.fallbackName }
+
+    func setOwner(_ profile: OwnerProfile?, notify: Bool = true) {
+        guard owner != profile else { return }
+        owner = profile
+        ownerRevision += 1
+        if notify { onChange?() }
+    }
     var history = HistoryProjection() { didSet { invalidateRenderValues() } }
     var historyAggregatesReady: Bool { (memberState.account.isEmpty || memberState.hasFetched) && !history.refreshing && rooms.allSatisfy{history.totals[$0.id] != nil} }
     private var bodyCache: HistoryCache?
@@ -699,7 +731,7 @@ struct ConversationThread: Identifiable {
 #endif
         history.readIntent?("mark_all",employee,nil); return
     }
-    func resetReplica() { groups=[:];messages = [:]; typingPeople=[:];typing = [:]; typingSince = [:]; applied = 0; selected = nil; isHome=false; onChange?() }
+    func resetReplica() { setOwner(nil, notify:false);groups=[:];messages = [:]; typingPeople=[:];typing = [:]; typingSince = [:]; applied = 0; selected = nil; isHome=false; onChange?() }
     private func decode<T: Decodable>(_ value: Any, as type: T.Type) throws -> T {
         try JSONDecoder().decode(type, from: JSONSerialization.data(withJSONObject: value))
     }
@@ -793,6 +825,8 @@ struct ConversationThread: Identifiable {
             applied = seq
             if revealedHiddenRoom { onChange?() }
         } else if type == "welcome" || type == "roster" {
+            if let profile = frame["owner"] as? [String:Any] { setOwner(try decode(profile, as:OwnerProfile.self), notify:false) }
+            else if type == "welcome" { setOwner(nil, notify:false) }
             let rows = frame["employees"] as? [[String: Any]] ?? []
             if type=="welcome",let rooms=frame["rooms"] as? [[String:Any]] {groups=try Dictionary(uniqueKeysWithValues:rooms.map{row in let room=try decode(row,as:Room.self);return(room.id,room)})}
             employees = try rows.map { row in try decode(row, as: Employee.self) }

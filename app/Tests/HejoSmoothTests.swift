@@ -718,7 +718,7 @@ private func smoothAttributedEqual(_ left: NSAttributedString, _ right: NSAttrib
                 result["post"] = ["id":post.id,"text":post.text.string,"speaker":post.speaker,"time":post.time,
                                   "color":color(post.nameColor),"fold":post.foldTitle ?? "",
                                   "mine":post.mine,"pending":post.pending,"streaming":post.streaming,
-                                  "conversational":post.conversational,"continuation":post.continuation,"attributes":runs] as [String: Any]
+                                  "conversational":!piece.bubble.isEmpty,"continuation":post.continuation,"attributes":runs] as [String: Any]
             }
             return result
         }

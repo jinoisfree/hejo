@@ -42,7 +42,11 @@ final class MemoryCredentials: GateCredentialStore {
                     NSApp.terminate(nil); return
                 }
                 #endif
-                if args.contains("--hejo-reconnect-boundaries") {
+                if args.count == 3 && args[1] == "--owner-profile-unit" {
+                    try ownerProfileTests(output:URL(fileURLWithPath:args[2]))
+                } else if args.count == 7 && args[1] == "--owner-profile-transport" {
+                    try await ownerProfileTransport(args)
+                } else if args.contains("--hejo-reconnect-boundaries") {
                     #if HEJO_PERF_TESTING && !HEJO_RECONNECT_BASELINE
                     try await hejoReconnectBoundaries()
                     #else
@@ -328,6 +332,7 @@ final class MemoryCredentials: GateCredentialStore {
         controller.endPetDrag()
         controller.panel.orderOut(nil)
         try check(LoginLaunchPresentation.resolve(.enabled, installed: false).canChange == false, "login registration requires installation")
+        try ownerProfileTests()
         try await conversationUnitTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try conversationUpdateTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))
         try await transitionPreparationTests(resourceDirectory: URL(fileURLWithPath: CommandLine.arguments.last!))

@@ -186,18 +186,37 @@ enum OutgoingFileProblem:Error,Equatable {
     func picture(_ path:String) async throws -> Data {
         guard let uri=URLComponents(string:path),uri.scheme==nil,uri.host==nil,uri.fragment==nil else { throw FileTransferFailure.invalidFile }
         let segments=uri.path.split(separator:"/").map(String.init)
-        guard segments.count==4,segments[0]=="v1",segments[1]=="pictures",["employee","room"].contains(segments[2]) else { throw FileTransferFailure.invalidFile }
+        guard segments.count==4,segments[0]=="v1",segments[1]=="pictures",
+              ["employee","room"].contains(segments[2]) || (segments[2]=="owner" && segments[3]=="owner") else { throw FileTransferFailure.invalidFile }
         let request=try client.authorizedRequest(components:segments,query:uri.queryItems ?? [])
         let (data,response)=try await session.data(for:request);try check(response)
         return data // The 512 KiB limit is for PUT; existing profile photos may be larger.
     }
+    struct PictureResponse: Decodable {
+        var picture: String?
+        var owner: OwnerProfile?
+    }
+    func setOwnerName(_ name: String?) async throws -> OwnerProfile {
+        var request = try client.authorizedRequest(components:["v1", "owner"])
+        request.httpMethod = "PUT"
+        request.setValue("application/json", forHTTPHeaderField:"Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject:["name": (name as Any?) ?? NSNull()])
+        let (data, response) = try await session.data(for:request)
+        if (response as? HTTPURLResponse)?.statusCode == 400 { throw OwnerProfileFailure.invalidName }
+        try check(response)
+        struct Response: Decodable { let owner: OwnerProfile }
+        return try JSONDecoder().decode(Response.self, from:data).owner
+    }
     @discardableResult func setPicture(kind:String,id:String,data:Data?) async throws -> String? {
+        try await writePicture(kind:kind,id:id,data:data).picture
+    }
+    func writePicture(kind:String,id:String,data:Data?) async throws -> PictureResponse {
         if let data,data.count>PictureCodec.maximum { throw FileTransferFailure.tooLarge }
         var request=try client.authorizedRequest(components:["v1","pictures",kind,id])
         request.httpMethod=data==nil ? "DELETE" : "PUT";request.httpBody=data
         request.setValue("image/png",forHTTPHeaderField:"Content-Type")
         let (result,response)=try await session.data(for:request);try check(response)
-        return (try JSONSerialization.jsonObject(with:result) as? [String:Any])?["picture"] as? String
+        return try JSONDecoder().decode(PictureResponse.self, from:result)
     }
     nonisolated static func prepareUploads(_ urls:[URL]) throws ->[Int] {
         try urls.map {url in
