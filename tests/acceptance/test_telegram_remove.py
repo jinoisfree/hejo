@@ -34,9 +34,9 @@ def test_at_htr_01_registration(registered):
 
 
 def test_at_htr_02_tracked_sources():
-    excluded = {"docs/ARCHITECTURE.md", "tests/acceptance/HEJO-TELEGRAM-REMOVE.md",
+    excluded = {"tests/acceptance/HEJO-TELEGRAM-REMOVE.md",
                 "tests/acceptance/test_telegram_remove.py"}
-    excluded_dirs = ("docs/changes/", "docs/spec/current/")
+    excluded_dirs = ("docs/changes/",)
     remaining = []
     for item in git("ls-files", "-z").split(b"\0"):
         path = os.fsdecode(item)

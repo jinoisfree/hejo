@@ -1,4 +1,4 @@
-# HEJO-TELEGRAM-REMOVE 수락 시험 — 3판(계획 검증 2회차 반영)
+# HEJO-TELEGRAM-REMOVE 수락 시험 — 4판(계획 검증 2회차 반영, 검증 5회: AT-HTR-40·42 서버 관측 기준 정정)
 
 - 원본 요구: [spec.md](../../docs/changes/HEJO-TELEGRAM-REMOVE-20261125/spec.md). 상태: 모두 "명세 완료 · 코드 미작성 · 미실행 · 미검토".
 - 코드는 구현 담당이 공개판·운영판 worktree에 옮긴다. 자동 시험은 `tests/acceptance/test_telegram_remove.py`(문)와 `app/Tests/`(앱, 기존 `DiscordTests.swift`에 더하거나 새 파일 — `TestMain.swift` 등록)에 둔다. 기대값·합격 기준을 바꾸지 않는다. 바꿔야 한다고 판단되면 멈추고 보고한다.
@@ -12,7 +12,7 @@
 | AT-HTR-01 | 01.AC-01 | 문 등록 뒤 `get_platform_handler_factories('telegram')`, `('discord')` | 텔레그램 0개, 디스코드 1개. `hejo` 플랫폼 등록 1개 |
 | AT-HTR-02 | 01.AC-02, 05 | 저장소 추적 파일에서 대소문자 무시 `telegram` 검색(`docs/changes/` 제외. TASK-01·02 시점에는 계획 담당이 TASK-04에서 고칠 `docs/ARCHITECTURE.md`·`docs/spec/current/`도 제외하고, TASK-04 뒤 다시 제외 없이 실행) | 검사 제외 파일: `tests/acceptance/HEJO-TELEGRAM-REMOVE.md`·`test_telegram_remove.py`(이 시험 자신 — 부재 단언은 여기 AT-HTR-01에만 둔다). 나머지 모든 추적 파일에서 각 줄의 리터럴 `HEJO-TELEGRAM-REMOVE`·`HEJO-TELEGRAM`·`platform.telegram.`(Hermes 번역 키)을 지운 뒤 대소문자 무시 `telegram` 일치 0. 파일 `gate/telegram.py`·`gate/telegram_comments.py`·`app/Sources/TelegramState.swift` 없음 |
 | AT-HTR-03 | 01.AC-03 | 홈에 옛 `hejo/telegram.json`(0600, 임의 내용)과 `shared/hejo/telegram/settings.json`·`topics.json`을 미리 둠 → 문 켜기, 앱 짝짓기·연결, 글 1개 왕복, 문 끄기 | 기동·왕복 정상. (읽기 0) 문 켜기 전에 `sys.addaudithook`으로 `open`·`os.listdir`·`os.scandir`·`os.stat`류 감사 이벤트를 기록하기 시작해 문 끄기까지, 경로 인자가 두 위치(`hejo/telegram.json`, `shared/hejo/telegram/` 아래) 중 하나로 해석되는 이벤트 0건(전체 이벤트 수가 0이 아님도 확인 — 훅 동작 증명). (변경 0) 두 경로의 파일 목록·바이트·mtime 전후 동일. (생성 0) 미리 두지 않은 별도 홈에서 같은 흐름 뒤 `shared/hejo/telegram/` 없음 |
-| AT-HTR-04 | 02.AC-01 | `schemas/hejo-wire-v1.json` | `$defs`에 이름이 `telegram`으로 시작하는 정의 0, 파일 어디에도 `"#/$defs/telegram` 참조 0. 공개 main `c22e677`(운영판은 `7617b0d`) 판과 비교해 바뀐 것은 텔레그램 정의 6종과 그 참조 줄 제거뿐(JSON으로 읽어 그 키들만 뺀 기준 판과 같음) |
+| AT-HTR-04 | 02.AC-01 | `schemas/hejo-wire-v1.json` | `$defs`에 이름이 `telegram`으로 시작하는 정의 0, 파일 어디에도 `"#/$defs/telegram` 참조 0. 공개 main `c22e677`(운영판은 `7617b0d`) 판과 비교해 바뀐 것은 텔레그램 정의 6종과 그 참조 줄 제거뿐(JSON으로 읽어 그 키들만 뺀 기준 판과 같음). **허용된 뒤따른 추가(2026-11-26, HEJO-DISCORD-SECTIONS 검증 3회 V-04):** 비교 전에 현재 규격에서 이름이 `discord_layout`인 `$defs` 하나와 `clientFrame.oneOf`·루트 `oneOf` 끝의 그 참조를 걷어낸다(있을 때만, 그 밖의 추가는 여전히 실패). 근거: 이 시험의 의도는 "텔레그램 제거 외 변경 없음"이고, 뒤따른 작업의 승인된 추가 정의는 AT-SM-02 해시 이력처럼 이름을 적어 허용한다 |
 | AT-HTR-05 | 02.AC-02 | 연결된 앱 소켓에 `{"v":1,"type":T,"id":"x-T"}`(+ `telegram_save`는 `"enabled":true`)를 T = `telegram`·`telegram_pair`·`telegram_unpair`·`telegram_save` 순서로 보냄, 이어서 `discord` 상태 조회 | 각각 `{"type":"error","code":"unexpected_frame","ref":"x-T"}` 1개(네 `ref` 모두 확인). 이어서 같은 소켓으로 보낸 `{"v":1,"type":"discord","id":"dc-after"}`에 `discord_status`(ref `dc-after`) 응답, 소켓 닫힘 0. 기록장 불변 |
 | AT-HTR-06 | 02.AC-03 | `client.pair(features=["rooms","telegram","discord"])` | 짝짓기·`welcome` 성공, 디스코드 상태 조회 정상 |
 | AT-HTR-07 | 04.AC-02 | `gate.journal.RECORD_TYPES` | `{'message','edit','delete','state','room','room_delete'}`(AT-SM-02와 같음) |
@@ -53,9 +53,9 @@
 
 | ID | AC | 관측 | 기대 |
 |---|---|---|---|
-| AT-HTR-40 | 07.AC-01 | `gateway_state.json` `platforms`, 설치 링크 6개, 공용 RELEASE, capabilities | `telegram` 없음. `discord`·`hejo`·프로필별 `hejo` 5개·`slack`·`photon` 있음. 링크·RELEASE = 운영판 새 커밋 Q. capabilities 200 |
+| AT-HTR-40 | 07.AC-01 | `gateway_state.json` `platforms`, 설치 링크 6개, 공용 RELEASE, capabilities | 현재 게이트웨이(`gateway_state.json`의 `pid`)가 쓴 `telegram` 항목 없음. Hermes는 최상위 플랫폼 항목을 지우지 않으므로(`gateway/status.py` — `:` 없는 키는 유지) 이전 게이트웨이가 남긴 `telegram` 항목은 `writer_pid` ≠ 현재 `pid`이고 `state` ≠ `connected`이면 허용(검증 5회 실측). `discord`·`hejo`·프로필별 `hejo` 5개·`slack`·`photon` 있음. 링크·RELEASE = 운영판 새 커밋 Q. capabilities 200 |
 | AT-HTR-41 | 07.AC-02 | `<HOME>/hejo/telegram.json`, `<HOME>/shared/hejo/telegram/` | 없음. 백업 해시 = 원본 해시 기록 |
-| AT-HTR-42 | 07.AC-01 | 재시작 이후 게이트웨이 로그 | 새 ERROR/Traceback 0, 텔레그램 어댑터 연결 줄 0, 디스코드 봇 로그인 줄 있음. 토큰·id 원문이 hejo 로거 줄에 없음 |
+| AT-HTR-42 | 07.AC-01 | 재시작 이후 게이트웨이 로그 | Traceback 0. 새 ERROR는 기준 구간(재시작 전 24시간 `gateway.error.log`)에 이미 있던 종류(로거 이름의 홈 해시를 지운 로거 + 메시지 첫 낱말, 예: `hermes_plugins.hejo__home_*.adapter: hejo_primary_unavailable`, 그로 인한 `cron.scheduler … delivery error`)만 허용하고 새 종류 0 — 기존 운영에서 반복되던 오류는 이 작업의 판정 대상이 아니다(검증 5회 실측: 11-23부터 시간마다 발생), 텔레그램 어댑터 연결 줄 0, 디스코드 봇 로그인 줄 있음. 토큰·id 원문이 hejo 로거 줄에 없음 |
 | M1 | 07.AC-03 | 사장: 디스코드 방 채널에 직원 앞 글 1개 | hejo 앱과 디스코드에 직원 답이 보임 |
 | M2 | 07.AC-03 | 사장: (TASK-04 새 앱 설치 뒤) 설정 → 연결과 동기화 | 텔레그램 구역 없음, 디스코드 구역 있음 |
 | AT-HTR-43 | 07.AC-04 (운영 전 필수 리허설, 증거 3) | 운영 적용 전, 임시 `HERMES_HOME`(0700)에 가짜 `hejo/telegram.json`(0600)·`shared/hejo/telegram/{settings.json,topics.json,sent.jsonl}`(디렉터리 0700, 파일 0600, 가짜 내용)을 두고 design 4절 단계 4·5·7(백업 → `HERMES_HOME=<임시> hermes config set platforms.telegram.enabled false` → 원본 삭제) 뒤 [롤백]의 자료 복원·`hermes config unset platforms.telegram.enabled` 실행 | 경로별 sha256·권한 비트(파일·디렉터리)·파일 목록이 시작 기록과 같음. `HERMES_HOME=<임시> hermes config get platforms.telegram.enabled` 출력이 시작 기록과 같음(키 없음 상태). 운영 홈 접근 0(명령마다 `HERMES_HOME` 명시). 불일치면 운영 적용을 시작하지 않고 보고 |
