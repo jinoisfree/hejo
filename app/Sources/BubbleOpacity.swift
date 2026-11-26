@@ -17,13 +17,4 @@ enum BubbleOpacity {
         let fraction = min(1, max(0, progress.isFinite ? progress : 0))
         return collapsed + (clamped(percent) / 100 - collapsed) * fraction
     }
-
-    /// Light text on a dark tint over a white wallpaper, or dark text on a light tint over a black one.
-    static func worstContrast(alpha: Double, darkAppearance: Bool) -> Double {
-        func linear(_ value: Double) -> Double {
-            value <= 0.04045 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
-        }
-        let background = linear(darkAppearance ? 1 - alpha : alpha)
-        return darkAppearance ? 1.05 / (background + 0.05) : (background + 0.05) / 0.05
-    }
 }

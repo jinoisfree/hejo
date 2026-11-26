@@ -397,10 +397,6 @@ import UniformTypeIdentifiers
         do { try await controller.files.setPicture(kind:"room",id:"section-"+id,data:nil);controller.model.removeSection(id) }
         catch { controller.notice="섹션 사진을 지우지 못했어요. 다시 시도해 주세요." }
     }
-    private func deleteSectionPicture(_ id:String) async {
-        do { try await controller.files.setPicture(kind:"room",id:"section-"+id,data:nil);controller.model.editSection(id,clearPicture:true) }
-        catch { controller.notice="사진을 지우지 못했어요. 다시 시도해 주세요." }
-    }
     var picturePicker:()->NSOpenPanel = {NSOpenPanel()}
     var choosePictureFile:(NSOpenPanel,@escaping(NSApplication.ModalResponse)->Void)->Void = { $0.begin(completionHandler:$1) }
     func choosePicture(kind:String,id:String,section:String?=nil) {
@@ -1123,8 +1119,6 @@ import UniformTypeIdentifiers
         reduceMotion=source.reduceMotion;motionTime=source.motionTime
         history.automaticallyTicks=false;history.reduceMotion=source.history.reduceMotion;history.clock=source.history.clock
     }
-    func smoothClearBodies(){postBodies=[:];postBodyOrder=[]}
-    func smoothHighlight(_ text:String?,key:ConversationKey){searchHighlight=text;searchHighlightThread=key}
     func smoothPostPieces(_ message: ConversationMessage,edge:NSColor?=nil) -> [NativeThreadCard.Piece] {
         postPieces(message,edge:edge,extras:false)
     }

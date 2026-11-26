@@ -6,11 +6,6 @@ struct ScreenTarget: Codable, Equatable {
     let windowTitle: String?
     enum Observation { case absent, known(ScreenTarget), ambiguous }
 
-    static func fromOutput(_ output: Any?) -> ScreenTarget? {
-        if case .known(let target) = observation(from: output) { return target }
-        return nil
-    }
-
     /// Only a screen tool's observation header is read; body text and images are never retained.
     static func observation(from output: Any?) -> Observation {
         let texts: [String]

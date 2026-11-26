@@ -705,13 +705,6 @@ struct ConversationThread: Identifiable {
     private func changeState(_ values: [String: String?]) {
         do { try memberState.set(values) } catch { memberState.onFailure?(true) }
     }
-    func togglePin(_ employee: String) {
-        if pinned.contains(employee) { changeState(["pin:" + employee: nil]) }
-        else {
-            let used = Set(pinned.enumerated().map { index, room in memberState.value("pin:" + room).flatMap(Int.init) ?? index+1 })
-            if let free = (1...5).first(where: { !used.contains($0) }) { changeState(["pin:" + employee: String(free)]) }
-        }
-    }
     func toggleMute(_ employee: String) { if employee==HomeRoom.id {configureHome{$0.muted = $0.muted != true};return};changeState(["mute:" + employee: muted.contains(employee) ? nil : "1"]) }
     func hide(_ employee: String) { changeState(["hide:" + employee: "1", "pin:" + employee: nil]) }
     func restore(_ employee: String) { changeState(["hide:" + employee: nil]) }
