@@ -239,7 +239,7 @@ import Foundation
         guard let context = model.history.context, client.isConnected else { throw HistoryFailure.changed }
         let run = operation
         let names=Dictionary(uniqueKeysWithValues:Set(model.employees.map(\.id)).union(model.groups.keys).union([HomeRoom.id]).map{($0,model.name($0))})
-        return try await HistoryCopy.collect(http:client.history,key:key,context:context,name:{ names[$0] ?? $0 },group:model.groups[key.employee] != nil,check:{
+        return try await HistoryCopy.collect(http:client.history,key:key,context:context,name:{ names[$0] ?? $0 },ownerName:model.ownerName,group:model.groups[key.employee] != nil,check:{
             try self.check(run)
             guard self.model.history.context == context else { throw HistoryFailure.changed }
         },progress:progress)

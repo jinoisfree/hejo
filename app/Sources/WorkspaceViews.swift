@@ -17,11 +17,11 @@ final class WorkspaceResults: NSScrollView {
         stack.orientation = .vertical;stack.alignment = .leading;stack.spacing=12;stack.edgeInsets=NSEdgeInsets(top:12,left:12,bottom:12,right:12);documentView=stack
     }
     required init?(coder:NSCoder) {fatalError()}
-    func showHistory(_ groups:[HistorySearchGroup],query:String,selection:Int,name:(String)->String,room:(String)->String) {
+    func showHistory(_ groups:[HistorySearchGroup],query:String,selection:Int,name:(String)->String,ownerName:String = OwnerProfile.fallbackName,room:(String)->String) {
         let display=groups.map { group in WorkspaceDisplayGroup(key:group.conversationKey,rootPreview:group.rootSnippet,matches:group.matches.map { line in
             WorkspaceDisplayHit(id:line.id,key:line.conversationKey,role:line.role,speaker:line.speaker,timestamp:line.timestamp,body:line.snippet,notes:line.notes)
         },latest:ThreadTools.date(group.latest)) }
-        render(display,query:query,selection:selection,name:name,room:room) { [weak self] _,hit in self?.onChooseHistory?(hit.key,hit.id) }
+        render(display,query:query,selection:selection,name:name,ownerName:ownerName,room:room) { [weak self] _,hit in self?.onChooseHistory?(hit.key,hit.id) }
     }
     func showStatus(_ text:String,retry:(()->Void)?=nil) {
         for view in stack.arrangedSubviews { stack.removeArrangedSubview(view);view.removeFromSuperview() }
@@ -29,7 +29,7 @@ final class WorkspaceResults: NSScrollView {
         if let retry { let button=FileChip(title:"다시 시도");button.invoke=retry;stack.addArrangedSubview(button) }
         needsLayout=true
     }
-    private func render(_ groups:[WorkspaceDisplayGroup],query:String,selection:Int,compact:Bool=false,name:(String)->String,room:(String)->String,choose:@escaping(Int,WorkspaceDisplayHit)->Void) {
+    private func render(_ groups:[WorkspaceDisplayGroup],query:String,selection:Int,compact:Bool=false,name:(String)->String,ownerName:String,room:(String)->String,choose:@escaping(Int,WorkspaceDisplayHit)->Void) {
         self.selection=selection
         let primary:NSColor=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua ? .white:.black
         for view in stack.arrangedSubviews {stack.removeArrangedSubview(view);view.removeFromSuperview()}
@@ -42,7 +42,7 @@ final class WorkspaceResults: NSScrollView {
             title.onClick={ if let line=group.matches.first {choose(index,line)} };box.addArrangedSubview(title)
             let rootPreview=NSMutableAttributedString(attributedString:WorkspaceSearch.attributed(group.rootPreview,query:query));rootPreview.addAttribute(.font,value:NSFont.systemFont(ofSize:14,weight:.medium),range:NSRange(location:0,length:rootPreview.length));title.preview.attributedStringValue=rootPreview
             for line in group.matches.prefix(3) {
-                let speaker=line.role=="owner" ? "나":name(line.speaker)
+                let speaker=line.role=="owner" ? ownerName:name(line.speaker)
                 let heading=FileChip(title:speaker+"  "+DateFormatter.localizedString(from:ThreadTools.date(line.timestamp),dateStyle:.none,timeStyle:.short))
                 let header=NSMutableAttributedString(string:heading.title,attributes:[.font:NSFont.systemFont(ofSize:11),.foregroundColor:NSColor.labelColor])
                 let timeStart=(speaker as NSString).length

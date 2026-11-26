@@ -141,7 +141,7 @@ private func expectPosts(_ content:NativeThreadCard.Content,_ expected:[(String,
         let f=try await fixture();f.post("첫 글",role:"owner")
         let previous=f.post(precedingOwner ? "O":"A1",role:precedingOwner ? "owner":"employee"),thought=f.post("🤔 생각 중...")
         let content=try f.content()
-        try expectPosts(content,[(previous,false)],"AT-PG-09 thinking is not a post")
+        try expectPosts(content,[(previous,precedingOwner)],"AT-PG-09 thinking is not a post")
         try check(typingHeads(content).count==(precedingOwner ? 1:0) && workRows(content)==1,"AT-PG-09 thinking head and work row")
         if !precedingOwner {try check(!(content.replies ?? []).contains{if case .accessory(let id,_,_)=$0 {return id.hasPrefix(thought)};return false},"AT-PG-09 grouped thought has zero pieces")}
     }

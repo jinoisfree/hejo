@@ -369,6 +369,21 @@
         }
       ]
     },
+    "owner_profile": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": ["string", "null"],
+          "minLength": 1,
+          "maxLength": 20
+        },
+        "avatar": {
+          "type": ["string", "null"]
+        }
+      },
+      "required": ["name", "avatar"],
+      "additionalProperties": false
+    },
     "welcome": {
       "type": "object",
       "properties": {
@@ -392,6 +407,9 @@
         },
         "gate_version": {
           "type": "string"
+        },
+        "owner": {
+          "$ref": "#/$defs/owner_profile"
         },
         "employees": {
           "type": "array",
@@ -546,6 +564,9 @@
         "ref": {
           "type": "string",
           "minLength": 1
+        },
+        "owner": {
+          "$ref": "#/$defs/owner_profile"
         },
         "employees": {
           "type": "array",

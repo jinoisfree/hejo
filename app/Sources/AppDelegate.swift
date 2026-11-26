@@ -64,6 +64,7 @@ import AppKit
             conversationView.onOpenURL = { [weak self] url in self?.followLink(url) }
             conversation.onOpenFile = { [weak self] url in guard let self else { return }; if !self.pet.showBeside(url) { NSWorkspace.shared.open(url) } }
             pet.panel.onPageKey = { [weak self] event in guard let self, let web = self.pet.web, web.hasFocus(in: self.pet.panel) else { return false }; return web.handleShortcut(event) }
+            conversationView.onOwnerProfile = { [weak self] in self?.presentOptions(focusingOwner:true) }
             conversationView.onCollapse = { [weak self] in self?.pet.collapseChat() }
             pet.onReadingResizeBegan={ [weak conversationView] in conversationView?.beginReadingResize() };pet.onReadingResizeEnded={ [weak conversationView] in conversationView?.endReadingResize() }
             conversationView.onOpenThreadHeight = { [weak self] height in self?.pet.fitOpenThread(height) }
@@ -75,7 +76,7 @@ import AppKit
             bubbleTimer=Timer(timeInterval:0.25,repeats:true){ [weak self] _ in Task { @MainActor in self?.refreshPetActivity(); self?.calendar.refresh() } }
             RunLoop.main.add(bubbleTimer!,forMode:.common)
             let previousChange = conversation.onChange
-            conversation.onChange = { [weak self] in previousChange?(); self?.refreshPetActivity(); if let self { self.petSettings?.refreshHome(rooms:self.conversation.model.rooms,selected:self.conversation.model.home.settings.channel);self.petSettings?.telegramSection.refresh();self.petSettings?.discordSection.refresh() } }
+            conversation.onChange = { [weak self] in previousChange?(); self?.refreshPetActivity(); if let self { self.petSettings?.refreshHome(rooms:self.conversation.model.rooms,selected:self.conversation.model.home.settings.channel);self.petSettings?.telegramSection.refresh();self.petSettings?.discordSection.refresh();self.petSettings?.ownerProfile.refresh() } }
             conversationView.onUnread = { [weak self] count in self?.pet.pet.unreadCount = count }
             conversationView.onSidebarWidth = { [weak self] delta in
                 guard let self, let current = self.pet.placementTarget else { return }
@@ -104,7 +105,7 @@ import AppKit
                 return event
             }
             client.onStatus = { [weak self] status in
-                self?.pet.pet.statusLabel.stringValue = status.text; self?.petSettings?.updateConnection(status.text); self?.connection.update(status); self?.conversationView.refresh()
+                self?.pet.pet.statusLabel.stringValue = status.text; self?.petSettings?.updateConnection(status.text);self?.petSettings?.ownerProfile.refresh(); self?.connection.update(status); self?.conversationView.refresh()
                 self?.refreshPetActivity()
                 if status == .wrongCode || status == .revoked { self?.connection.present() }
             }
@@ -348,12 +349,14 @@ import AppKit
     }
     private func updateConnectionsLevel() { toolsWindow?.setPreferredLevel(OptionWindows.level(active:NSApp.isActive)) }
     func applicationDidResignActive(_ notification:Notification) { updateConnectionsLevel();OptionWindows.updateLevels(active:false) }
-    @objc private func showOptions() {
+    @objc private func showOptions() { presentOptions(focusingOwner:false) }
+    private func presentOptions(focusingOwner:Bool) {
         if petSettings == nil {
             let profile=conversation.model.employees.first
             let settings = PetSettingsWindow(previewName:profile?.name ?? "hejo",palette:{[weak conversation] dark in conversation?.palette(profile?.id ?? "",dark:dark) ?? CharacterPalette.make(hue:nil,dark:dark)})
             settings.telegramSection.bind(client.telegram)
             settings.discordSection.bind(client.discord)
+            settings.ownerProfile.bind(conversation)
             settings.onName = { [weak self] value in self?.setPetName(value) }
             settings.onScale = { [weak self] value in self?.setPetScale(value) }
             settings.onBubbleReply={ [weak self] enabled in
@@ -380,12 +383,14 @@ import AppKit
         }
         petSettings?.telegramSection.refresh()
         petSettings?.discordSection.refresh()
+        petSettings?.ownerProfile.refresh()
         petSettings?.refreshHome(rooms:conversation.model.rooms,selected:conversation.model.home.settings.channel)
         petSettings?.bubbleReplyCheck.state=store.settings.bubbleReplyEnabled != false ? .on:.off
         petSettings?.updateThreeTap(threeTap)
         refreshUpdates()
         petSettings?.present(name: store.settings.petName, percent: store.settings.petScalePercent ?? 100,
                              bubble: store.settings.bubbleAlwaysShown ?? false, account: currentAccount, status: client.status.text)
+        if focusingOwner { petSettings?.focusOwnerProfile() }
     }
     func applicationDidBecomeActive(_ notification: Notification) { conversation?.model.memberState.activate();calendar?.refresh(force:true);petSettings?.refreshLogin(LoginLaunchPresentation.resolve(LoginLaunch.state,installed:LoginLaunch.isInstalled(),failed:loginChangeFailed));updateConnectionsLevel();OptionWindows.updateLevels(active:true) }
     func configureUpdates(_ updates: AppUpdate) {

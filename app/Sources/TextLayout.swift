@@ -158,6 +158,7 @@ enum TextLayout {
                 let box = decorations[index].box
                 style.firstLineHeadIndent = left + boxPadding; style.headIndent = left + boxPadding; style.tailIndent = -boxPadding
                 style.lineSpacing = 1
+                style.lineBreakMode = .byCharWrapping
                 if position == 0 || decorations[shown[position - 1]].box != box { style.paragraphSpacingBefore = boxGap + 5 }
                 if position == shown.count - 1 || decorations[shown[position + 1]].box != box { style.paragraphSpacing = boxGap + 5 }
                 text.addAttributes([.font: code, .foregroundColor: NSColor.labelColor], range: range)
