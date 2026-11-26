@@ -221,6 +221,8 @@ final class MemoryCredentials: GateCredentialStore {
                     try await workspaceTests(outputDirectory:URL(fileURLWithPath:args[2]))
                 } else if args.count > 2 && args[1] == "--task25-capture" {
                     try await threadToolsTests(outputDirectory:URL(fileURLWithPath:args[2]))
+                } else if args.count == 9 && args[1] == "--card-alert" {
+                    try await CardAlertHarness.run(args)
                 } else if args.count == 6 && args[1] == "--card-done" {
                     try await cardDoneTests(args)
                 } else if args.count > 3 && args[1] == "--threads" {

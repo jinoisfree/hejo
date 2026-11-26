@@ -161,10 +161,8 @@ private final class CardEvidenceBackdrop: NSView {
         let question = try view("질문 A"), deadline = try view("완료 마감")
         for item in [question, deadline] { item.setFrameSize(CGSize(width: 268, height: 52)) }
         guard let asked = card("A") else { throw TestFailure.assertion("fixture question") }
-        var alert = TodoDrawerModel.Card(id: "alert", kind: .alert, title: "알림", employee: asked.employee,
+        let alert = TodoDrawerModel.Card(id: "alert", kind: .alert, title: "알림", employee: asked.employee,
             name: asked.name, status: "알림", statusUrgent: false, trailing: asked.trailing, order: now, urgent: false)
-        alert.key = asked.key
-        alert.messageID = asked.messageID
         var invalidDeadline = deadline.card
         invalidDeadline.deadlineRef = nil
         for item in [alert, invalidDeadline] {
@@ -173,7 +171,7 @@ private final class CardEvidenceBackdrop: NSView {
             disabled.frame = question.frame
             hover(disabled)
             try check(disabled.completionRect == nil && (disabled.accessibilityCustomActions() ?? []).isEmpty,
-                      "AT-CD-01/12 alert and reference-free deadline")
+                      "AT-CD-01/12 keyless alert and reference-free deadline")
         }
         try check(question.bounds.size == CGSize(width: 268, height: 52), "AT-CD-01 card size")
         for item in [question, deadline] {

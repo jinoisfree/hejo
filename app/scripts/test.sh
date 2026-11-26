@@ -45,6 +45,12 @@ printf '%s\n' 'AT-HF-23 PASS'
 "${HEJO_PYTHON:-python3}" Tests/test_hooks.py
 
 bash Tests/OwnerProfileTransport.sh
+(
+  cd ..
+  export HEJO_CARD_ALERT_BINARY=app/.build/app-tests
+  "${HEJO_PYTHON:-python3}" -m pytest app/Tests/test_card_alert_transport.py -q -s \
+    -o asyncio_default_fixture_loop_scope=function -p no:cacheprovider
+)
 
 wait_jitter_output="$PWD/.build/wait-jitter-tests"
 mkdir -p "$wait_jitter_output"
