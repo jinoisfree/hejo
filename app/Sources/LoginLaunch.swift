@@ -35,10 +35,16 @@ struct LoginLaunchPresentation: Equatable {
 }
 
 enum LoginLaunch {
-    static func isInstalled(bundle: URL = Bundle.main.bundleURL, home: URL = FileManager.default.homeDirectoryForCurrentUser) -> Bool {
-        let parent = bundle.resolvingSymlinksInPath().deletingLastPathComponent().path
-        return bundle.pathExtension == "app" && [home.appendingPathComponent("Applications").resolvingSymlinksInPath().path, "/Applications"].contains(parent)
+    static var applicationFolders: [URL] {
+        [URL(fileURLWithPath: "/Applications", isDirectory: true),
+         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications", isDirectory: true)]
     }
+
+    static func isInstalled(bundle: URL = Bundle.main.bundleURL, folders: [URL] = applicationFolders) -> Bool {
+        let parent = bundle.resolvingSymlinksInPath().deletingLastPathComponent().path
+        return bundle.pathExtension == "app" && folders.contains { $0.resolvingSymlinksInPath().path == parent }
+    }
+
     static var state: LoginLaunchState {
         switch SMAppService.mainApp.status {
         case .enabled: return .enabled

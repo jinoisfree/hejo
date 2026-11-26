@@ -44,6 +44,7 @@ import AppKit
         do {
             try FileManager.default.createDirectory(at: AppIdentity.support, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
             instance = try InstanceLock(directory: AppIdentity.support); store = try LocalStore(historyMode:true);ChatAppearance.bind(store)
+            StaleCopies.schedule()
             bubble = BubbleReveal(store:store)
             client = GateClient(store: store); pet = PetController(store: store, atlas: try SpriteAtlas())
             OptionWindows.petLevel = { [weak self] in self?.pet?.panel.level ?? .floating }

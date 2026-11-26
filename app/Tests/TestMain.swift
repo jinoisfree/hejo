@@ -101,6 +101,8 @@ final class MemoryCredentials: GateCredentialStore {
                 } else if args.contains("--todo-drawer") {
                     try await todoDrawerTests(resourceDirectory:URL(fileURLWithPath:args.last!))
                     try await deadlineCloseTests(resourceDirectory:URL(fileURLWithPath:args.last!))
+                } else if args.contains("--stale-copies") {
+                    try staleCopiesTests()
                 } else if args.contains("--discord-sections") {
                     try await discordSectionsTests()
                 } else if args.contains("--discord") {
@@ -233,6 +235,7 @@ final class MemoryCredentials: GateCredentialStore {
         #endif
         #endif
         try await petPositionTests(resourceDirectory:URL(fileURLWithPath:CommandLine.arguments.last!))
+        try staleCopiesTests()
         try await discordTests()
         try await discordSectionsTests()
         try workMonitorTests();try await dashboardTests()
