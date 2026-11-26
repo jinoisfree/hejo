@@ -10,6 +10,7 @@ import AppKit
     var onFilter: ((TodoDrawerModel.Filter) -> Void)?
     var onSelect: ((TodoDrawerModel.Card) -> Void)?
     var onCard: ((TodoDrawerModel.Card) -> Void)?
+    var onComplete: ((TodoDrawerModel.Card) -> Void)?
     /// Right-click menu on a deadline card: close as done / cancelled, open its source.
     var onCloseDeadline: ((TodoDrawerModel.Card,String) -> Void)?
     var onUndoClose: (() -> Void)?
@@ -74,7 +75,7 @@ import AppKit
             button.invoke={[weak self] in self?.onFilter?(kind)}
             filterTrack.addSubview(button)
         }
-        for warning in [value.warning,value.closeWarning].compactMap({$0}) {
+        for warning in [value.warning,value.confirmationWarning ?? value.closeWarning].compactMap({$0}) {
             let line=NSTextField(wrappingLabelWithString:warning);line.font = .systemFont(ofSize:11);line.textColor = .secondaryLabelColor;add(line)
         }
         if value.empty {let empty=NSTextField(labelWithString:"모두 처리했어요");empty.textColor = .secondaryLabelColor;empty.font = .systemFont(ofSize:12);add(empty)}
@@ -83,7 +84,15 @@ import AppKit
                 let divider=TodoDrawerDivider();add(divider);divider.heightAnchor.constraint(equalToConstant:1).isActive=true
             }
             for card in cards {
-                let view=TodoDrawerCardView(card:card,avatar:avatar(card.employee),selected:card.id == selected){[weak self] in guard let self else{return};self.window?.makeFirstResponder(self);self.onCard?(card)}
+                let complete: (() -> Void)? = value.completable.contains(card.id) ? { [weak self] in
+                    self?.onComplete?(card)
+                } : nil
+                let view = TodoDrawerCardView(card: card, avatar: avatar(card.employee),
+                                             selected: card.id == selected, complete: complete) { [weak self] in
+                    guard let self else { return }
+                    self.window?.makeFirstResponder(self)
+                    self.onCard?(card)
+                }
                 view.menuItems={[weak self] in self?.menu(for:card)}
                 add(view);view.heightAnchor.constraint(equalToConstant:52).isActive=true
             }
@@ -91,7 +100,8 @@ import AppKit
         for view in footer.arrangedSubviews {footer.removeArrangedSubview(view);view.removeFromSuperview()}
         footer.isHidden=value.undoTitle == nil
         if let title=value.undoTitle {
-            let label=NSTextField(labelWithString:"‘\(title)’ 닫음 ·");label.font = .systemFont(ofSize:11);label.textColor = .secondaryLabelColor
+            let action = value.undoKind == .question ? "확인 보냄" : "닫음"
+            let label=NSTextField(labelWithString:"‘\(title)’ \(action) ·");label.font = .systemFont(ofSize:11);label.textColor = .secondaryLabelColor
             label.lineBreakMode = .byTruncatingTail
             let undo=TodoDrawerButton("되돌리기"){[weak self] in self?.onUndoClose?()};undo.font = .systemFont(ofSize:11,weight:.semibold)
             footer.addArrangedSubview(label);footer.addArrangedSubview(undo)
@@ -141,16 +151,46 @@ private final class TodoDrawerDivider:NSView {
 final class TodoDrawerCardView: NSView {
     let card:TodoDrawerModel.Card, avatar:ProfileAvatar, selected:Bool
     let perform:()->Void
+    private let complete: (() -> Void)?
     var menuItems:(()->NSMenu?)?
     private(set) var hovered=false
     private var tracking:NSTrackingArea?
     override func menu(for event:NSEvent)->NSMenu? {menuItems?()}
     var unlinkedText:String? {card.kind == .deadline && !card.linked ? "연결된 대화 없음":nil}
     var avatarRect:CGRect {CGRect(x:16,y:13,width:26,height:26)}
-    init(card:TodoDrawerModel.Card,avatar:ProfileAvatar,selected:Bool,perform:@escaping()->Void){
-        self.card=card;self.avatar=avatar;self.selected=selected;self.perform=perform;super.init(frame:.zero)
-        setAccessibilityElement(true);setAccessibilityRole(.button)
+    private static let completionWidth: CGFloat = 44
+    var completionRect: CGRect? {
+        guard hovered, complete != nil else { return nil }
+        return CGRect(x: bounds.maxX - Self.completionWidth, y: bounds.minY,
+                      width: Self.completionWidth, height: bounds.height)
+    }
+    var trailingTextRect: CGRect? {
+        guard completionRect == nil else { return nil }
+        let width = max(28, (card.trailing as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 9)]).width)
+        return CGRect(x: bounds.maxX - 10 - width, y: 12, width: width, height: 13)
+    }
+    var statusTextRect: CGRect {
+        let end = completionRect.map { $0.minX - 8 } ?? (bounds.maxX - 10)
+        return CGRect(x: 50, y: 28, width: max(0, end - 50), height: 15)
+    }
+    init(card: TodoDrawerModel.Card, avatar: ProfileAvatar, selected: Bool,
+         complete: (() -> Void)? = nil, perform: @escaping () -> Void) {
+        self.card = card
+        self.avatar = avatar
+        self.selected = selected
+        self.complete = complete
+        self.perform = perform
+        super.init(frame: .zero)
+        setAccessibilityElement(true)
+        setAccessibilityRole(.button)
         setAccessibilityLabel(card.kind.rawValue+" · "+card.title+" · "+card.name+" · "+card.trailing+" · "+card.status)
+        if let complete {
+            let name = card.kind == .question ? "확인 보내기" : "완료로 닫기"
+            setAccessibilityCustomActions([NSAccessibilityCustomAction(name: name, handler: {
+                complete()
+                return true
+            })])
+        }
     }
     required init?(coder:NSCoder){fatalError()}
     override var isFlipped:Bool {true}
@@ -161,12 +201,34 @@ final class TodoDrawerCardView: NSView {
     }
     override func mouseEntered(with event:NSEvent){hovered=true;needsDisplay=true}
     override func mouseExited(with event:NSEvent){hovered=false;needsDisplay=true}
-    override func mouseDown(with event:NSEvent){perform()}
+    override func mouseDown(with event: NSEvent) {
+        if let strip = completionRect, strip.contains(convert(event.locationInWindow, from: nil)) {
+            complete?()
+        } else {
+            perform()
+        }
+    }
     override func accessibilityPerformPress()->Bool{perform();return true}
     override func draw(_ dirtyRect:NSRect){
         let dark=effectiveAppearance.bestMatch(from:[.darkAqua,.aqua]) == .darkAqua
         let box=NSBezierPath(roundedRect:bounds.insetBy(dx:0.5,dy:0.5),xRadius:10,yRadius:10)
         SidebarTone.cardFill(selected:selected,hovered:hovered,dark:dark).setFill();box.fill()
+        if let strip = completionRect {
+            NSGraphicsContext.saveGraphicsState()
+            box.addClip()
+            NSColor.systemGreen.setFill()
+            strip.fill()
+            NSColor.white.setStroke()
+            let check = NSBezierPath()
+            check.lineWidth = 2
+            check.lineCapStyle = .round
+            check.lineJoinStyle = .round
+            check.move(to: CGPoint(x: strip.midX - 6, y: strip.midY))
+            check.line(to: CGPoint(x: strip.midX - 2, y: strip.midY + 4))
+            check.line(to: CGPoint(x: strip.midX + 6, y: strip.midY - 4))
+            check.stroke()
+            NSGraphicsContext.restoreGraphicsState()
+        }
         SidebarTone.cardBorder(selected:selected,hovered:hovered).setStroke();box.lineWidth=1;box.stroke()
         if card.urgent {AttentionRail.color.setFill();NSBezierPath(roundedRect:AttentionRail.rect(in:bounds),xRadius:1.5,yRadius:1.5).fill()}
         let clip=CGPath(roundedRect:avatarRect,cornerWidth:7,cornerHeight:7,transform:nil)
@@ -175,13 +237,14 @@ final class TodoDrawerCardView: NSView {
             let style=NSMutableParagraphStyle();style.lineBreakMode = .byTruncatingTail
             (value as NSString).draw(in:rect,withAttributes:[.font:NSFont.systemFont(ofSize:size,weight:weight),.foregroundColor:color,.paragraphStyle:style])
         }
-        let trailingWidth=max(28,(card.trailing as NSString).size(withAttributes:[.font:NSFont.systemFont(ofSize:9)]).width)
-        text(card.title,CGRect(x:50,y:10,width:max(0,bounds.width-60-trailingWidth-6),height:16),11.5,.labelColor,.semibold)
-        text(card.trailing,CGRect(x:bounds.width-10-trailingWidth,y:12,width:trailingWidth,height:13),9,.secondaryLabelColor)
+        let trailing = trailingTextRect
+        let titleEnd = trailing.map { $0.minX - 6 } ?? statusTextRect.maxX
+        text(card.title, CGRect(x: 50, y: 10, width: max(0, titleEnd - 50), height: 16), 11.5, .labelColor, .semibold)
+        if let trailing { text(card.trailing, trailing, 9, .secondaryLabelColor) }
         let status=NSMutableAttributedString(string:card.status,attributes:[.font:NSFont.systemFont(ofSize:9.5),.foregroundColor:NSColor.secondaryLabelColor])
         if card.statusUrgent {let end=(card.status as NSString).range(of:" · ").location;status.addAttribute(.foregroundColor,value:AttentionRail.color,range:NSRange(location:0,length:end==NSNotFound ? status.length:end))}
         let style=NSMutableParagraphStyle();style.lineBreakMode = .byTruncatingTail
         status.addAttribute(.paragraphStyle,value:style,range:NSRange(location:0,length:status.length))
-        status.draw(in:CGRect(x:50,y:28,width:max(0,bounds.width-60),height:15))
+        status.draw(in: statusTextRect)
     }
 }

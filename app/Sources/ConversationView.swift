@@ -265,6 +265,7 @@ import UniformTypeIdentifiers
         todoDrawer.onSelect={ [weak self] card in self?.selectDrawerCard(card,activate:false) }
         todoDrawer.onCard={ [weak self] card in self?.selectDrawerCard(card) }
         todoDrawer.onClose={ [weak self] in self?.onToggleDrawer?() }
+        todoDrawer.onComplete={ [weak self] card in self?.controller.completeCard(card);self?.refresh() }
         todoDrawer.onCloseDeadline={ [weak self] card,outcome in self?.controller.closeDeadline(card,outcome:outcome);self?.refresh() }
         todoDrawer.onUndoClose={ [weak self] in self?.controller.undoClose();self?.refresh() }
         todoDrawer.onOpenSource={ [weak self] url in self?.onOpenURL(url) }

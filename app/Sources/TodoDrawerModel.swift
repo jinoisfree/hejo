@@ -34,8 +34,9 @@ import Foundation
         var available = false, failed = false
         var historyUpdating = false
         var gateStatus: ConnectionStatus = .connected
-        /// Title of the deadline closing in five seconds (undo line), and whether a close just failed.
-        var undoTitle: String?, closeFailed = false
+        var completable = Set<String>()
+        var undoTitle: String?, undoKind: Filter?
+        var closeFailed = false, confirmationFailed = false
         var total: Int { counts[.all] ?? 0 }
         var empty: Bool { urgent.isEmpty && rest.isEmpty }
         var warning: String? {
@@ -44,6 +45,7 @@ import Foundation
             return failed ? "마감을 읽지 못했어요. 잠시 뒤 다시 볼게요." : nil
         }
         var closeWarning: String? { closeFailed ? "마감을 닫지 못했어요. 다시 해 주세요." : nil }
+        var confirmationWarning: String? { confirmationFailed ? "확인을 보내지 못했어요. 다시 해 주세요." : nil }
     }
     private(set) var deadlines: [Deadline] = []
     private(set) var available = false, failed = false
@@ -64,6 +66,7 @@ import Foundation
         for room in rooms where !muted.contains(room) {
             for notice in model.notices(room,now:now) {
                 for id in notice.messages {
+                    guard !notice.questions || !hidden.contains(id) else { continue }
                     let stored=model.store.historyMode ? nil:model.messages[id]
                     let remote=model.store.historyMode ? noticeByID[id]:nil
                     guard let key=remote?.conversationKey ?? stored?.key,
