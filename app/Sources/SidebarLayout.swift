@@ -68,11 +68,47 @@ struct SidebarLayout {
     func name(_ section: Section) -> String { section.name.isEmpty ? "section \((sections.firstIndex(where:{$0.id==section.id}) ?? 0)+1)" : section.name }
     var stackName: String { stack.name.isEmpty ? "DM" : stack.name }
     func zone(_ id: String) -> String { sections.first(where:{$0.id==zones[id]})?.id ?? sections.first?.id ?? "1" }
+    struct DiscordLayout: Equatable {
+        struct Section: Equatable {
+            let id: String
+            let name: String
+            let rooms: [String]
+        }
+
+        let sections: [Section]
+        let stackName: String
+        let stackRooms: [String]
+
+        var fields: [String: Any] {
+            ["sections": sections.map { ["id": $0.id, "name": $0.name, "rooms": $0.rooms] },
+             "stack": ["name": stackName, "rooms": stackRooms]]
+        }
+    }
+
+    func discordLayout(rooms: [Room], hidden: Set<String>) -> DiscordLayout {
+        var sectionRooms: [String: [String]] = [:]
+        var stackRooms: [String] = []
+        var seen = Set<String>()
+        for room in rooms.sorted(by: { $0.id < $1.id }) {
+            guard room.archived != true, room.id != HomeRoom.id,
+                  seen.insert(room.id).inserted else { continue }
+            if room.kind == .direct && (isStacked(room.id) || hidden.contains(room.id)) {
+                stackRooms.append(room.id)
+            } else {
+                sectionRooms[zone(room.id), default: []].append(room.id)
+            }
+        }
+        return DiscordLayout(sections: sections.map {
+            .init(id: $0.id, name: name($0), rooms: sectionRooms[$0.id] ?? [])
+        }, stackName: stackName, stackRooms: stackRooms)
+    }
+
+    private func isStacked(_ id: String) -> Bool { pins[id] == nil }
     var stacked: [Item] {
-        items.filter { $0.kind == .direct && pins[$0.id] == nil }.sorted { ($0.rank,$0.name,$0.id)<($1.rank,$1.name,$1.id) }
+        items.filter { $0.kind == .direct && isStacked($0.id) }.sorted { ($0.rank,$0.name,$0.id)<($1.rank,$1.name,$1.id) }
     }
     func group(_ section: String) -> [Item] {
-        Self.sorted(items.filter { $0.kind != .home && !($0.kind == .direct && pins[$0.id] == nil) && zone($0.id)==section }, pins:pins)
+        Self.sorted(items.filter { $0.kind != .home && !($0.kind == .direct && isStacked($0.id)) && zone($0.id)==section }, pins:pins)
     }
     static func sorted(_ items: [Item], pins: [String: Int]) -> [Item] {
         let valid=pins.filter { (1...5).contains($0.value) }
