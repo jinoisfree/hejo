@@ -187,15 +187,23 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
     private struct ReaderAnchor { let card: String; let message: String?; let offset: CGFloat; let input: Int; let revision: Int }
     private var replyPlacement: (anchor: ReaderAnchor, confirmed: Bool)?
 
-    private func confirmingReplyAnchor(in contents: [NativeThreadCard.Content]) -> ReaderAnchor? {
+    private func outgoingReplyAnchor(in contents: [NativeThreadCard.Content]) -> ReaderAnchor? {
         guard let placement = replyPlacement, let pendingID = placement.anchor.message,
               placement.anchor.input == userScrolls, placement.anchor.revision == scrollRevision,
               let card = contents.first(where: { $0.id == placement.anchor.card }) else { return nil }
+        let pieces = card.top + (card.replies ?? [])
         let clientID = String(pendingID.dropFirst("pending:".count))
-        guard (card.top + (card.replies ?? [])).contains(where: { piece in
+        let confirmed = pieces.contains { piece in
             if case .post(let post) = piece { return !post.pending && post.clientMessageID == clientID }
             return false
-        }) else { return nil }
+        }
+        guard confirmed else {
+            let pending = pieces.contains { piece in
+                if case .post(let post) = piece { return post.pending && post.id == pendingID }
+                return false
+            }
+            return pending ? placement.anchor : nil
+        }
         if placement.confirmed { return placement.anchor }
         // Drop corrections captured against the provisional layout. Keep the
         // outgoing reply anchored through the same viewport settling period.
@@ -272,8 +280,9 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
         deferred=nil;deferredWork=nil;apply(contents,identity:identity,entry:entry,autoloadAppended:autoloadAppended,prependAnchor:prependAnchor)
     }
     private func apply(_ contents:[NativeThreadCard.Content],identity:String,entry:String?,autoloadAppended:Bool,prependAnchor:String?){
-        let confirmedReply = historyMode ? confirmingReplyAnchor(in:contents):nil
-        let anchor=confirmedReply ?? (historyMode ? readerAnchor(allowAtEnd:autoloadAppended,preferredMessage:prependAnchor):nil)
+        let outgoingReply = historyMode ? outgoingReplyAnchor(in:contents):nil
+        let anchor = historyMode && outgoingReply == nil
+            ? readerAnchor(allowAtEnd:autoloadAppended,preferredMessage:prependAnchor) : nil
         let oldHeights = rowHeights
         let oldAnchors = historyMode ? layouts.map(\.anchors):[]
         let changed=self.identity != identity,old=place(),oldStreaming = !streamingRows.isEmpty
@@ -281,7 +290,7 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
         func streaming(_ content:NativeThreadCard.Content)->Bool {(content.top+(content.replies ?? [])).contains{if case .post(let post)=$0{return post.streaming};return false}}
         let streamingNow=Set(contents.filter(streaming).map(\.id))
         streamingRows=Set(self.contents.filter(streaming).map(\.id)).union(streamingNow)
-        if confirmedReply==nil,!changed,follow==nil,!streamingNow.isEmpty,old.bottom<=120,resizing==nil {follow=Place(bottom:0,input:userScrolls,revision:scrollRevision);glidedAt=clock();idle=0}
+        if outgoingReply==nil,!changed,follow==nil,!streamingNow.isEmpty,old.bottom<=120,resizing==nil {follow=Place(bottom:0,input:userScrolls,revision:scrollRevision);glidedAt=clock();idle=0}
         self.identity=identity;self.contents=contents;remeasure(force:true)
         if entryActive {entryID=entry;placeEntry()}
         else if let follow {
@@ -290,12 +299,15 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
         } else if !changed,resizing==nil {
             let geometryChanged = !historyMode || oldHeights != rowHeights || oldAnchors != layouts.map(\.anchors)
             if geometryChanged {
-                if let anchor {
-                    // Place the acknowledged reply before another measured update
-                    // takes a reader anchor from the new layout.
-                    if confirmedReply != nil { restore(anchor) }
-                    keep(anchor)
-                } else { keep(old) }
+                if let outgoingReply {
+                    // While pending, scrollTo owns positioning and animation.
+                    // Only the confirmation replaces that placement.
+                    if replyPlacement?.confirmed == true {
+                        restore(outgoingReply)
+                        keep(outgoingReply)
+                    }
+                } else if let anchor { keep(anchor) }
+                else { keep(old) }
                 prepareLoadViewport(after:0.4)
             }
         }
@@ -347,7 +359,6 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
     }
     func scrollTo(_ id:String,message:String?=nil,bottom:Bool=false){
         entryActive=false;scrollRevision+=1;follow=nil
-        prepareLoadViewport(after:0.46)
         let revision=scrollRevision,input=userScrolls
         replyPlacement = nil
         if historyMode, let message, message.hasPrefix("pending:"), let rect = frame(for:id,message:message) {
@@ -355,6 +366,7 @@ final class NativeThreadList: NSScrollView, NSTableViewDataSource, NSTableViewDe
                                       input:input,revision:revision)
             replyPlacement = (anchor, false)
         }
+        prepareLoadViewport(after:0.46)
         for delay in [0.0,0.15,0.45] {DispatchQueue.main.asyncAfter(deadline:.now()+delay){[weak self] in
             guard let self,self.scrollRevision==revision,self.userScrolls==input,let rect=self.frame(for:id,message:message) else{return}
             let bounds=self.contentView.bounds
