@@ -298,6 +298,10 @@ import Foundation
             }
 
             let preInput = viewList.contentView.bounds.minY
+            if let controlOrigin = fixture.controlOrigin {
+                try require(abs(preInput-controlOrigin) <= 0.5,
+                            "AT-JO-04 input setup: contrast origin \(preInput) differs from \(controlOrigin)")
+            }
             try await HistoryJumpInputHarness.deliver(kind,in:window,to:viewList)
             var positions: [CGFloat] = []
             var appeared = -1
@@ -315,7 +319,7 @@ import Foundation
             }
             if cold { try require(appeared >= 0,"cold input target received") }
             let data = try JSONSerialization.data(withJSONObject:[
-                "origin":preInput,"bodyTick":appeared,"samples":positions
+                "origin":preInput,"input":kind.rawValue,"bodyTick":appeared,"samples":positions
             ])
             print("AT-JO-04 trajectory "+String(decoding:data,as:UTF8.self))
         case "jump-wait-drawer", "jump-wait-search", "jump-wait-notice",
@@ -600,7 +604,8 @@ import Foundation
             let entered = allLoads.count > firstLoads.count
             let reported = ready.count == Set(nearby).count && anchored == 0 && unchanged && stayed
                 && outside == 0 && !duplicate && entered && closed == 0
-            print("AT-JO-11 \(reported ? "PASS":"FAIL") ready=\(ready.count)/\(nearby.count) oldTargetAnchoredRequests=\(anchored) recentUnchanged=\(unchanged) viewUnchanged=\(stayed) originChange=\(originChange) visibleChange=\(visibleChange) outside=\(outside) duplicate=\(duplicate) entered=\(entered) closed=\(closed)")
+            let reportsReadiness = fixture.scenario == "jump-prefetch" || fixture.scenario == "jump-prefetch-delay"
+            print("AT-JO-11 \(reportsReadiness ? (reported ? "PASS":"FAIL"):"기록") ready=\(ready.count)/\(nearby.count) oldTargetAnchoredRequests=\(anchored) recentUnchanged=\(unchanged) viewUnchanged=\(stayed) originChange=\(originChange) visibleChange=\(visibleChange) outside=\(outside) duplicate=\(duplicate) entered=\(entered) closed=\(closed)")
             func clickMeasured(_ card:TodoDrawerModel.Card,expectWait:Bool) async throws -> (earliest:Int?,drawn:Int?,earlyMotion:CGFloat,moves:Int,rebounds:Int) {
                 view.setDrawerState(open:true,chatExpanded:true)
                 try await wait("delayed click starts idle") { !loader.busy && !model.history.refreshing }
@@ -804,6 +809,42 @@ import Foundation
             let refreshes = try await observe().requests.dropFirst(beforeRetry).filter { $0.kind == "overview" }.count
             print("AT-JO-14 refresh drawer shift=\(abs(refreshPosition.minY - before.minY)) accessibility=\(drawerRefreshLabel)")
             print("AT-JO-15 conversation inline failure row=\(failureRow != nil) retryRefreshes=\(refreshes)")
+            guard let previousSession = client.historySession,
+                  let root = (page["items"] as? [[String:Any]])?.first(where:{ $0["msg_id"] as? String == rows[0] })
+            else { throw HistoryFailure.invalidResponse }
+            try require(rendered(rows[0]),"reconnect fixture starts on the settled message")
+            let previousRefreshStarted = loader.onRefreshStarted
+            var seededRoot = false
+            var seedFailure: Error?
+            loader.onRefreshStarted = {
+                previousRefreshStarted?()
+                guard !seededRoot,seedFailure == nil,client.historySession != previousSession else { return }
+                // Exercise the session guard even if the old target is already resident.
+                do {
+                    try model.applyHistoryBody(root,expectedKey:first)
+                    seededRoot = model.messages[rows[0]] != nil
+                } catch { seedFailure = error }
+            }
+            defer { loader.onRefreshStarted = previousRefreshStarted }
+            client.stop()
+            try require(!client.isConnected && client.historySession == nil,"reconnect fixture is offline")
+            let reply = try JSONDecoder().decode([String:String].self,from:await control("status-offline-reply"))
+            guard let replyID = reply["id"] else { throw HistoryFailure.invalidResponse }
+            try require(!rendered(replyID),"offline reply has not been rendered")
+            let reconnectOffset = try await observe().requests.count
+            client.resume()
+            try await wait("reconnect refresh settled") {
+                client.isConnected && client.historySession != previousSession && !loader.busy && !model.history.refreshing
+            }
+            if let seedFailure { throw seedFailure }
+            layout()
+            try require(seededRoot,"reconnect fixture restored the previous target body")
+            let recentRequests = try await observe().requests.dropFirst(reconnectOffset).filter {
+                $0.kind == "messages" && $0.thread == first.thread && !$0.cursor && $0.anchor == nil
+            }
+            let returnedReply = recentRequests.contains { $0.responseIDs?.contains(replyID) == true }
+            try require(returnedReply && rendered(replyID),"reconnect refresh must request and render the offline reply")
+            print("AT-JO-14 reconnect PASS recentRequests=\(recentRequests.count) replyRendered=true")
         case "jump-stream", "jump-stream-interleave", "jump-stream-reconnect":
             let stream = try JSONDecoder().decode(LiveThread.self,from:await control("stream-open"))
             let key = ConversationKey(employee:first.employee,thread:stream.thread)

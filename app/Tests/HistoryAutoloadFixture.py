@@ -302,6 +302,10 @@ async def test_history_autoload(gate, tmp_path, scenario, monkeypatch):
             else:
                 stream_final = time.monotonic()
                 await gate._record({"type": "edit", "msg_id": stream_id, "text": "완료했어요. 승인해 줘.", "final": True})
+        elif action == "status-offline-reply":
+            sent = await gate.send("alpha", "fixture reply while disconnected", metadata={"thread_id": threads[0]})
+            assert sent.success
+            return web.json_response({"id": sent.message_id})
         elif action == "fail-refresh":
             condition["refresh"] = True
         elif action == "allow-newer":
@@ -396,7 +400,9 @@ async def test_history_autoload(gate, tmp_path, scenario, monkeypatch):
             )
             try:
                 control_stdout, control_stderr = await asyncio.wait_for(control_app.communicate(), 45)
-                assert control_app.returncode == 0, control_stderr.decode(errors="replace")[-2000:]
+                assert control_app.returncode == 0, (
+                    "AT-JO-04 contrast run failed:\n" + control_stderr.decode(errors="replace")[-2000:]
+                )
                 contrast = trajectory(control_stdout)
             finally:
                 if control_app.returncode is None:
@@ -405,8 +411,9 @@ async def test_history_autoload(gate, tmp_path, scenario, monkeypatch):
             assert len(measured["samples"]) == len(contrast["samples"])
             maximum_error = max(abs(left - right) for left, right in zip(measured["samples"], contrast["samples"]))
             print(f"AT-JO-04 {scenario} {'PASS' if maximum_error <= 0.5 else 'FAIL'} maxDifference={maximum_error}")
-            if os.environ.get("JUMP_ONCE_VERIFY_REFERENCE") == "1":
-                assert maximum_error <= 0.5
+            print(f"AT-JO-04 input={measured['input']} contrastInput={contrast['input']} "
+                  f"origin={measured['origin']} contrastOrigin={contrast['origin']}")
+            assert maximum_error <= 0.5
         if scenario in ("jump-stream", "jump-stream-interleave", "jump-stream-reconnect"):
             prefix = "AT-JO-18 canonical "
             summary, = [json.loads(line.removeprefix(prefix)) for line in stdout.decode().splitlines()

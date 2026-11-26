@@ -231,11 +231,11 @@ import Foundation
         guard let id=model.evictedHistoryBody(key,before:before,after:after) else{return false}
         enqueue(.restore(key,id));return true
     }
-    private var navigation: (key:ConversationKey,message:String?,needsBody:Bool)?
+    private var navigation: (key:ConversationKey,message:String?,needsBody:Bool,session:String?)?
 
     func beginNavigation(_ key:ConversationKey,message:String?,needsBody:Bool) {
         inputsChanged()
-        navigation = (key,message,needsBody)
+        navigation = (key,message,needsBody,session)
         if needsBody { open(key,anchor:message) }
     }
 
@@ -334,7 +334,10 @@ import Foundation
         try check(run)
         switch demand {
         case .open(let key,let anchor):
-            if navigation?.key == key,navigation?.message == anchor { navigation?.needsBody = false }
+            if navigation?.key == key,navigation?.message == anchor,navigation?.needsBody == true {
+                navigation?.needsBody = false
+                navigation?.session = session
+            }
             onAnchor?(key,anchor,false)
         case .openForReply(let key):
             if model.selected == key, let waiter = replyOpenWaiters[key]?.last {
@@ -556,7 +559,8 @@ import Foundation
         try model.applyHistoryReadPlan(changes,context:context,generation:generation,intent:intent)
     }
     private func holdsNavigationMessage(in key: ConversationKey) -> Bool {
-        guard let navigation,let message=navigation.message,navigation.key == key,!navigation.needsBody else { return false }
+        guard let navigation,let message=navigation.message,navigation.key == key,
+              !navigation.needsBody,navigation.session == session else { return false }
         return model.canDisplayHistoryBody(message,in:key)
     }
 

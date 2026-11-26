@@ -46,38 +46,33 @@ import AppKit
     }
 
     static func deliver(_ kind: ReadInput, in window: NSWindow, to list: NativeThreadList) async throws {
+        let previousReaderInput = list.onReaderInput
+        var reachedReader = false
+        list.onReaderInput = {
+            reachedReader = true
+            previousReaderInput?()
+        }
+        defer { list.onReaderInput = previousReaderInput }
         let center = list.convert(CGPoint(x:list.bounds.midX,y:list.bounds.midY),to:nil)
         switch kind {
         case .wheel:
-            guard CGPreflightPostEventAccess(),
-                  let event = CGEvent(scrollWheelEvent2Source:nil,units:.pixel,wheelCount:1,wheel1:-80,wheel2:0,wheel3:0),
-                  let screenTop = NSScreen.screens.first?.frame.maxY else {
-                throw HistoryFailure.server("AT-JO-04 wheel delivery unavailable",retryable:false)
+            let points: Int32 = -80
+            guard let wheel = CGEvent(scrollWheelEvent2Source:nil,units:.pixel,wheelCount:1,wheel1:points,wheel2:0,wheel3:0),
+                  let event = NSEvent(cgEvent:wheel) else {
+                throw HistoryFailure.server("AT-JO-04 input setup: could not create the wheel event",retryable:false)
             }
-            let initialPolicy = NSApp.activationPolicy()
-            let originalApp = NSWorkspace.shared.frontmostApplication
-            let originalLevel = window.level
-            let initialCursor = CGEvent(source:nil)?.location
-            defer {
-                if let initialCursor { CGWarpMouseCursorPosition(initialCursor) }
-                window.level = originalLevel
-                NSApp.setActivationPolicy(initialPolicy)
-                originalApp?.activate(options:[])
+            let origin = list.contentView.bounds.minY
+            // Use the native scroll responder without routing through the desktop cursor.
+            list.scrollWheel(with:event)
+            // AppKit applies wheel scrolling on the next run loop turn.
+            let expectedOrigin = origin - CGFloat(points)
+            for _ in 0..<30 where abs(list.contentView.bounds.minY-expectedOrigin) > 0.5 {
+                try await Task.sleep(nanoseconds:5_000_000)
             }
-            NSApp.setActivationPolicy(.regular)
-            NSApp.activate(ignoringOtherApps:true)
-            window.level = .popUpMenu
-            window.makeKeyAndOrderFront(nil)
-            for _ in 0..<20 where !window.isKeyWindow || !NSApp.isActive {
-                try await Task.sleep(nanoseconds:10_000_000)
+            let movement = list.contentView.bounds.minY - origin
+            guard abs(movement + CGFloat(points)) <= 0.5 else {
+                throw HistoryFailure.server("AT-JO-04 input setup: wheel moved \(movement)pt from \(origin)",retryable:false)
             }
-            let screen = window.convertPoint(toScreen:center)
-            let cursor = CGPoint(x:screen.x,y:screenTop-screen.y)
-            guard window.isKeyWindow && NSApp.isActive,CGWarpMouseCursorPosition(cursor) == .success else {
-                throw HistoryFailure.server("AT-JO-04 wheel target unavailable",retryable:false)
-            }
-            event.location = cursor
-            try await observe(eventType:.scrollWheel,in:window) { event.post(tap:.cghidEventTap) }
         case .click:
             let point = CGPoint(x:list.frame.maxX - 12,y:center.y)
             let local = list.table.convert(point,from:nil)
@@ -105,6 +100,9 @@ import AppKit
             else { throw HistoryFailure.invalidResponse }
             try await observe(eventType:.keyDown,in:window) { NSApp.postEvent(event,atStart:false) }
         }
+        guard reachedReader else {
+            throw HistoryFailure.server("AT-JO-04 input setup: \(kind.rawValue) did not reach the list",retryable:false)
+        }
     }
 
     private static func observe(eventType: NSEvent.EventType, in window: NSWindow, post: () -> Void) async throws {
@@ -117,7 +115,7 @@ import AppKit
         defer { if let monitor { NSEvent.removeMonitor(monitor) } }
         post()
         for _ in 0..<30 where !reachedWindow { try await Task.sleep(nanoseconds:5_000_000) }
-        guard reachedWindow else { throw HistoryFailure.server("AT-JO-04 input not delivered",retryable:false) }
+        guard reachedWindow else { throw HistoryFailure.server("AT-JO-04 input setup: event did not reach the window",retryable:false) }
     }
 }
 #endif

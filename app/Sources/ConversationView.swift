@@ -502,7 +502,6 @@ import UniformTypeIdentifiers
     }
     private func entry(_ employee:String,home:Bool) {
         cancelNavigation()
-        cancelNavigation()
         rememberPlace();controller.cancelFollowup();openThread=nil;searchHighlight=nil;searchHighlightThread=nil;enteredPlace=""
         let namespace=controller.client.store.settings.address+"\u{1}"+employee+(home ? controller.model.homeChannel.map{"/"+$0.id} ?? "":"")
         writingPlace=namespace;identity=employee;windowed.reset()
