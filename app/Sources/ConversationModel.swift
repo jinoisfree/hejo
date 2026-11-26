@@ -739,6 +739,10 @@ struct ConversationThread: Identifiable {
     private func decode<T: Decodable>(_ value: Any, as type: T.Type) throws -> T {
         try JSONDecoder().decode(type, from: JSONSerialization.data(withJSONObject: value))
     }
+    static func affectsHistoryAggregates(_ frame: [String:Any]) -> Bool {
+        !(frame["type"] as? String == "edit" && frame["final"] as? Bool == false)
+    }
+
     func apply(_ frame: [String: Any], now: Date = Date()) throws {
         let type = frame["type"] as? String ?? ""
         if type=="welcome" {
@@ -773,7 +777,7 @@ struct ConversationThread: Identifiable {
                         for scope in Array(history.threadOrder.keys) { history.threadOrder[scope]?.removeAll{$0 == key} }
                     }
                 }
-                history.refreshing = true
+                if Self.affectsHistoryAggregates(frame) { history.refreshing = true }
             }
             switch type {
             case "room":
