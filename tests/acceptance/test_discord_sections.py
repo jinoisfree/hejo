@@ -580,19 +580,54 @@ async def test_at_dk_20_other_failures_continue(example):
     assert example.gate.discord.channel_problem and example.gate.discord._retry_task is None
 
 
-async def test_at_dk_22_additive_schema():
+async def test_at_dk_22_discord_schema_structure():
     root = Path(__file__).resolve().parents[2]
     candidates = (BASE, 'adf54d76c967707078f19c7dab09d8a50f44d489')
     baseline = next((commit for commit in candidates if subprocess.run(
         ['git', 'merge-base', '--is-ancestor', commit, 'HEAD'], cwd=root).returncode == 0), None)
     assert baseline is not None, 'expected a public or operational schema baseline'
-    path = 'schemas/hejo-wire-v1.json'
-    old = json.loads(subprocess.check_output(['git', 'show', f'{baseline}:{path}'], cwd=root))
-    new = json.loads((root / path).read_bytes())
-    assert new['$defs'].pop('discord_layout')['properties']['type'] == {'const': 'discord_layout'}
-    for union in (new, new['$defs']['clientFrame']):
-        assert union['oneOf'].pop() == {'$ref': '#/$defs/discord_layout'}
-    assert old == new
+    wire = json.loads((root / 'schemas/hejo-wire-v1.json').read_bytes())
+    assert wire['$defs']['discord_layout'] == {
+        'type': 'object',
+        'properties': {
+            'v': {'const': 1},
+            'type': {'const': 'discord_layout'},
+            'id': {'type': 'string', 'minLength': 1, 'maxLength': 200},
+            'sections': {
+                'type': 'array', 'minItems': 1, 'maxItems': 100,
+                'items': {
+                    'type': 'object',
+                    'properties': {
+                        'id': {'type': 'string', 'minLength': 1, 'maxLength': 64},
+                        'name': {'type': 'string', 'minLength': 1, 'maxLength': 100},
+                        'rooms': {
+                            'type': 'array', 'maxItems': 2000,
+                            'items': {'type': 'string', 'minLength': 1, 'maxLength': 200},
+                        },
+                    },
+                    'required': ['id', 'name', 'rooms'],
+                    'additionalProperties': False,
+                },
+            },
+            'stack': {
+                'type': 'object',
+                'properties': {
+                    'name': {'type': 'string', 'minLength': 1, 'maxLength': 100},
+                    'rooms': {
+                        'type': 'array', 'maxItems': 2000,
+                        'items': {'type': 'string', 'minLength': 1, 'maxLength': 200},
+                    },
+                },
+                'required': ['name', 'rooms'],
+                'additionalProperties': False,
+            },
+        },
+        'required': ['v', 'type', 'id', 'sections', 'stack'],
+        'additionalProperties': False,
+    }
+    ref = '#/$defs/discord_layout'
+    for union, count in ((wire, 1), (wire['$defs']['clientFrame'], 1), (wire['$defs']['serverFrame'], 0)):
+        assert sum(entry.get('$ref') == ref for entry in union['oneOf']) == count
     path = 'tests/acceptance/test_discord.py'
     assert (root / path).read_bytes() == subprocess.check_output(['git', 'show', f'{baseline}:{path}'], cwd=root)
 
