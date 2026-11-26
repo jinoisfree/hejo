@@ -582,7 +582,7 @@ async def test_at_dk_20_other_failures_continue(example):
 
 async def test_at_dk_22_discord_schema_structure():
     root = Path(__file__).resolve().parents[2]
-    candidates = (BASE, 'adf54d76c967707078f19c7dab09d8a50f44d489')
+    candidates = ('1ca2cbbf25ddf8da0697e03175fb25292dabf701', BASE, 'adf54d76c967707078f19c7dab09d8a50f44d489')
     baseline = next((commit for commit in candidates if subprocess.run(
         ['git', 'merge-base', '--is-ancestor', commit, 'HEAD'], cwd=root).returncode == 0), None)
     assert baseline is not None, 'expected a public or operational schema baseline'

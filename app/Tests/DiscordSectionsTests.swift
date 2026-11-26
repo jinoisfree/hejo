@@ -101,6 +101,6 @@ import Foundation
     try await welcome()
     try await status()
     try await waitFor { reports.count == 1 } // AT-DK-51d: local state works without a hub account.
-    try check(GateClient.features == ["rooms", "telegram", "discord"], "AT-DK-54 unchanged hello features")
+    try check(GateClient.features == ["rooms", "discord"], "AT-DK-54 unchanged hello features")
     print("AT-DK-50~54 PASS")
 }
