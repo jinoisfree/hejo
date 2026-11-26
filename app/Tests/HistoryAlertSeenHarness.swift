@@ -51,8 +51,10 @@ import AppKit
         window.contentView = view
         window.orderFrontRegardless()
         defer { window.orderOut(nil) }
-        model.setVisible(true)
-        try await wait({ !controller.historyLoading.busy }, "visibility")
+        if scenario != "bubble" {
+            model.setVisible(true)
+            try await wait({ !controller.historyLoading.busy }, "visibility")
+        }
 
         func step(_ name: String, _ action: () async throws -> Void) async throws {
             try emit(["phase": name])
@@ -75,7 +77,30 @@ import AppKit
             }
             view.selectDrawerCard(card)
         }
-        if scenario == "drawer" || scenario == "question" {
+        if scenario == "bubble" {
+            let bubble = BubbleReveal(store: client.store)
+            let message = ConversationMessage(id: args[8], key: key, role: "employee", text: "fixture report",
+                                              files: [], buttons: [], seq: 1, latestSeq: 1, timestamp: "")
+            bubble.update(.init(ready: true), now: now)
+            bubble.update(.init(messages: [message], ready: true), now: now)
+            try check(bubble.notice.actions.contains(.openChat), "bubble_action")
+            guard let target = bubble.notice.key else { throw HistoryFailure.server("bubble_key", retryable: false) }
+            try await step("bubble") {
+                view.performUpdates({
+                    view.openFromBubble(target)
+                    bubble.dismiss()
+                    model.setVisible(true)
+                }, opening: true)
+                view.finishOpeningEntry()
+            }
+        } else if scenario == "island" {
+            let island = IslandModel()
+            island.update(.init(typing: [key: now.addingTimeInterval(30)]))
+            guard let action = island.snapshot().activity?.action else {
+                throw HistoryFailure.server("island_action", retryable: false)
+            }
+            try await step("island") { view.island.onAction?(action) }
+        } else if scenario == "drawer" || scenario == "question" {
             try await step("drawer") { try selectDrawer() }
         } else {
             try await step("room") { view.chooseEmployee(key.employee) }

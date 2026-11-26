@@ -728,7 +728,7 @@ async def test_authenticated_thumbnail_view_lifetime(gate, tmp_path, monkeypatch
 @pytest.mark.asyncio
 @pytest.mark.usefixtures('runner')
 @pytest.mark.parametrize(('case', 'scenario'), [
-    ('01', 'drawer'), ('02', 'click'), ('03', 'room'), ('04', 'reply'),
+    ('01', 'drawer'), ('01', 'bubble'), ('01', 'island'), ('02', 'click'), ('03', 'room'), ('04', 'reply'),
     ('05', 'siblings'), ('06', 'question'), ('07a', 'notice-fails'),
     ('07b', 'all-fail'), ('07c-notice', 'notice-fails'), ('07c-all', 'all-fail'),
     ('12a', 'ordinary-click'), ('12b', 'ordinary-search'), ('13', 'supersede'),
@@ -840,7 +840,7 @@ async def test_alert_seen(gate, tmp_path, case, scenario):
         assert message_id not in snapshot['cards']
 
     if case in ('01', '02', '04'):
-        phase = {'01': 'drawer', '02': 'click', '04': 'reply'}[case]
+        phase = {'01': scenario, '02': 'click', '04': 'reply'}[case]
         snapshot, _ = phases[phase]
         if case == '04':
             assert snapshot['reply'] and snapshot['target'] == phases['room'][0]['target'] == thread
