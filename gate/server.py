@@ -4,7 +4,6 @@ from dataclasses import dataclass, field
 import ipaddress
 import json
 import logging
-import os
 import traceback
 import time
 from collections import deque

@@ -2,11 +2,9 @@
 import asyncio
 import hashlib
 import json
-import os
 from pathlib import Path
 import re
 import time
-from urllib.parse import quote
 
 from aiohttp import ClientSession, ClientTimeout
 from .auth import AuthStore

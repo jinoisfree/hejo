@@ -1,10 +1,8 @@
 """Member-scoped connection documents and owner-confirmed actions; no journal/broadcast path."""
-import asyncio
 from datetime import datetime, timezone
 import json
 import logging
 from pathlib import Path
-import re
 import uuid
 from urllib.parse import quote
 

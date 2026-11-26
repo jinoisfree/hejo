@@ -1,6 +1,6 @@
 """Durable action receipts and bounded, fixed-command administration on the server."""
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime
 import json
 import os
 from pathlib import Path

@@ -19,7 +19,7 @@ from . import owner, roster
 from . import buttons as native_buttons
 from .files import FileStore, UnknownFile, RETENTION_SECONDS
 from .server import GateServer, LIMITS
-from .context import conversation_lines, thinking, with_context, split_text
+from .context import conversation_lines, with_context, split_text
 from .rooms import RoomCommands, recipients
 
 log = logging.getLogger(__name__)
