@@ -14,6 +14,7 @@ struct HistoryThreadSummary: Decodable {
     let rootSeq: Int, latestSeq: Int, originalMaxSeq: Int, revision: Int
     let title: String, preview: String, rootPreview: String
     let messageCount: Int, unread: Int, waitingButtonCount: Int
+    let waitingButtonIDs: [String]?
     let assessment: Assessment
     let bell: Bool?
     var conversationKey: ConversationKey { .init(employee:key.room, thread:key.thread) }

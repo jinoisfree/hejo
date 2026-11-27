@@ -963,9 +963,11 @@ struct ConversationThread: Identifiable {
             return result
         }
 #endif
-        guard let state = history.summaries[key]?.assessment else { return .init() }
+        guard let summary = history.summaries[key] else { return .init() }
+        let state = summary.assessment
             return .init(request:state.requestID.flatMap{messages[$0]},pending:state.pendingID.flatMap{messages[$0]},
-                         requestID:state.requestID,pendingID:state.pendingID,working:state.working,settled:state.settled,approved:state.approved)
+                         requestID:state.requestID,pendingID:state.pendingID,buttons:Set(summary.waitingButtonIDs ?? []),
+                         working:state.working,settled:state.settled,approved:state.approved)
     }
     func originalSeq(_ key:ConversationKey)->Int {
 #if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC

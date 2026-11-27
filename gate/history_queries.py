@@ -41,6 +41,18 @@ def trimmed_answer(text):
     return text.lower()
 
 
+RESULT_LABELS = ['확인', '되돌리기']
+
+
+def result_notice(post):
+    """Employee post whose raw button labels are exactly [확인, 되돌리기], in that order.
+
+    The app press rule (ReplyButtonPolicy.script) compares the labels unnormalized and in
+    order, so decorated or reversed labels stay ordinary requests.
+    """
+    return post['role'] == 'employee' and [b.get('label') for b in post.get('buttons') or []] == RESULT_LABELS
+
+
 def assess(lines, context):
     posts = [p for p in lines if p['role'] == 'owner' or not thinking(p['text'])]
     asks = [i for i, p in enumerate(posts) if p['role'] == 'employee'
@@ -66,25 +78,36 @@ def assess(lines, context):
                 targeted[post['answer_to']] = i
     def answer(i):
         return answers[i]
-    last = asks[-1]
-    asked = last if answer(last) is None else next((i for i in reversed(asks) if answer(i) is None and posts[i].get('buttons')), last)
-    request, answered = posts[asked], answer(asked)
-    said = trimmed_answer(posts[answered]['text']) if answered is not None else ''
-    finished = answered is not None and employees_after[answered]
-    result['requestID'] = request['msg_id']
-    if finished or request.get('reply_state') == 'closed':
-        result['settled'] = True
-    elif request.get('reply_state') == 'answered':
-        result['working'] = True
-    elif answered is None:
-        if context.value('confirm:' + request['msg_id']) is None:
-            result['pendingID'] = request['msg_id']
-    else:
-        result['approved'] = said in YES
+    def request_for(candidates):
+        last = candidates[-1]
+        return last if answer(last) is None else next(
+            (i for i in reversed(candidates) if answer(i) is None and posts[i].get('buttons')), last)
+    def judge(asked):
+        request, answered = posts[asked], answer(asked)
+        found = {'requestID': request['msg_id'], 'pendingID': None, 'working': False, 'settled': False, 'approved': False}
+        finished = answered is not None and employees_after[answered]
+        if finished or request.get('reply_state') == 'closed':
+            found['settled'] = True
+        elif request.get('reply_state') == 'answered':
+            found['working'] = True
+        elif answered is None:
+            if context.value('confirm:' + request['msg_id']) is None:
+                found['pendingID'] = request['msg_id']
+        else:
+            found['approved'] = trimmed_answer(posts[answered]['text']) in YES
+        return found
+    # An unanswered result notice reports an outcome and asks nothing: it is never the pending request.
+    held = {i for i in asks if answer(i) is None and result_notice(posts[i])}
+    real = [i for i in asks if i not in held]
+    if real:
+        result = judge(request_for(real))
+    if asks[-1] in held and result['pendingID'] is None:
+        result = {'requestID': posts[asks[-1]]['msg_id'], 'pendingID': None, 'working': False, 'settled': True, 'approved': False}
     waiting = {p['msg_id'] for i, p in enumerate(posts) if p['role'] == 'employee'
                and p.get('buttons') and p.get('reply_state') not in ('answered', 'closed') and answer(i) is None}
     if len(waiting) < 2:
         waiting = {result['pendingID']} if result['pendingID'] else set()
+    waiting |= {posts[i]['msg_id'] for i in held if posts[i].get('reply_state') not in ('answered', 'closed')}
     return result, waiting, posts
 
 
@@ -140,7 +163,8 @@ class HistoryQueries:
             self.cache.pop(key, None)
             return None
         root, last = lines[0], lines[-1]
-        state, buttons, posts = assess(lines, self.context)
+        state, waiting, posts = assess(lines, self.context)
+        buttons = [p['msg_id'] for p in sorted(posts, key=lambda p: p['seq']) if p['msg_id'] in waiting]
         original = max(p['seq'] for p in lines)
         read = max(self.context.read('read:' + key[0]), self.context.read('thread:' + key[0] + '/' + key[1]))
         unread = sum(p['role'] == 'employee' and p['seq'] > read and not thinking(p['text']) for p in lines)
@@ -185,7 +209,7 @@ class HistoryQueries:
                   'originalMaxSeq': original, 'lastTime': max((p['ts'] for p in lines), key=stamp),
                   'title': prefix(title, 48).replace('\n', ' '), 'preview': prefix(last['text'], 80),
                   'rootPreview': prefix(root['text'], 240), 'messageCount': len(lines), 'unread': unread,
-                  'assessment': state, 'bell': bell, 'waitingButtonCount': len(buttons), 'revision': revision,
+                  'assessment': state, 'bell': bell, 'waitingButtonCount': len(buttons), 'waitingButtonIDs': buttons, 'revision': revision,
                   'notice': notice, 'nextNoticeExpiry': expires,
                   'activity': {
                       'lastSpeaker': next((p['employee'] for p in reversed(lines) if p['role'] != 'owner'), None),
@@ -229,7 +253,7 @@ class HistoryQueries:
                 for number, identifier in enumerate(list(self.index.ids(key))):
                     message = self.index.message(identifier)
                     if (message is not None and message['role'] == 'employee'
-                            and message.get('reply_state') == 'asked'
+                            and message.get('reply_state') == 'asked' and not result_notice(message)
                             and self.context.value('confirm:' + identifier) is None):
                         first = next((line for line in message['text'].splitlines() if line), '')
                         result.append({'id': identifier, 'key': {'room': key[0], 'thread': key[1]},

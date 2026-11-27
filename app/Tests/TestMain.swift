@@ -225,6 +225,8 @@ final class MemoryCredentials: GateCredentialStore {
                     try await CardAlertHarness.run(args)
                 } else if args.count == 6 && args[1] == "--card-done" {
                     try await cardDoneTests(args)
+                } else if args.count == 5 && args[1] == "--result-done" {
+                    try await resultDoneTests(args)
                 } else if args.count > 3 && args[1] == "--threads" {
                     try await threadNetwork(args)
                 } else if args.count > 3 && args[1] == "--task17-capture" {
