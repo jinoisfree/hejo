@@ -198,4 +198,7 @@ class Journal:
                 result = None
             elif result is not None:
                 result.update({k: v for k, v in row.items() if k not in {"v", "type", "seq"}})
+                if row["type"] == "edit" and row.get("buttons") == [] and "buttons" in result.get("_meta", {}):
+                    # The edit retires resolver ids as well as visible buttons, including on recovery.
+                    result["_meta"] = {k: v for k, v in result["_meta"].items() if k != "buttons"}
         return result

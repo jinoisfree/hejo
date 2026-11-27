@@ -24,6 +24,10 @@ LABELS = {
 RESULTS = {"approve": "승인함", "reject": "거절함", "confirm": "확인함", "comment": "의견 보냄"}
 
 
+def has_native_buttons(message):
+    return any(button.get("kind") in ("approval", "clarify", "slash") for button in message.get("buttons") or ())
+
+
 def word(label):
     if label.startswith(":") and ":" in label[1:]:
         return label.split(":", 2)[2].strip()

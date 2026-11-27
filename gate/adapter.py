@@ -426,6 +426,8 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
                     msg_id=message_id, employee=previous["employee"], thread=previous["thread"], message_text=content, **({"room":previous["room"]} if previous.get("room") else {})))
             except ValueError as exc:
                 return SendResult(success=False, error=str(exc))
+        elif reply_rules.has_native_buttons(previous):
+            frame["buttons"] = []
         async with self._edit_lock:
             self._pending_edits[message_id] = (frame, internal)
             if finalize:
@@ -448,6 +450,10 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             self._pending_edits.pop(message_id, None)
             parts = self._stream_parts.setdefault(message_id, [message_id])
             last_message = self.journal.message(parts[-1]) or previous
+            if "hejo_buttons" not in metadata and reply_rules.has_native_buttons(last_message):
+                # The prompt belongs to the last part, even when the first part is the edit target.
+                metadata = dict(metadata, hejo_buttons=[])
+                metadata.pop("_hejo_native_buttons", None)
             try:
                 for index, chunk in enumerate(chunks):
                     last = index == len(chunks) - 1
@@ -810,22 +816,31 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
                 return await self._deliver_answer(question, answer, undo, conn, retry=True)
             if not undo or self._reply_clock() > datetime.fromisoformat(undo["until"]):
                 return await self.server.error("retract_expired", frame.get("id"), conn)
-            await self._record(dict(type="delete", msg_id=identifier,
-                                    **({"room":answer["room"]} if answer.get("room") else {})))
-            # The delete commits the cancellation. Report follow-up failures, then acknowledge it.
-            async with self._reply_errors(frame, conn):
+            try:
+                await self._record(dict(type="delete", msg_id=identifier,
+                                        **({"room": answer["room"]} if answer.get("room") else {})))
+            except Exception as exc:
+                # Publication can fail after the journal has already committed the delete.
+                if identifier not in self.journal.deleted_messages:
+                    raise FrameError("journal_write_failed") from exc
+                log.warning("retract_publish_failed type=%s", type(exc).__name__)
+            try:
                 if undo["kind"] == "reply" and question and question.get("reply_state") == "answered":
                     records = reversed(self.journal.records)
                     state = next((r for r in records if r.get("msg_id") == question["msg_id"] and "reply_state" in r), {})
                     remaining = self.journal.history.resolve(question["msg_id"]).get("answer")
                     if state.get("seq", 0) > answer["seq"] and not remaining:
                         await self.set_reply_state(question["msg_id"], "asked")
-            async with self._reply_errors(frame, conn):
+            except Exception as exc:
+                log.warning("retract_state_failed type=%s", type(exc).__name__)
+            try:
                 metadata = dict(message_id=answer["answer_to"], answer_id=identifier, label=undo["label"])
                 notified = await self._reply_event(answer, reply_rules.RETRACT_TEXT, str(uuid.uuid4()),
                                                    {"_hermes_retract": metadata}, conn)
                 if not notified:
-                    raise FrameError("button_expired")
+                    log.warning("retract_notify_failed type=not_delivered")
+            except Exception as exc:
+                log.warning("retract_notify_failed type=%s", type(exc).__name__)
             await conn.send(dict(v=1, type="retract_ack", answer_id=identifier))
 
     async def receive(self, frame, conn, raw=None, *, event_id=None, prior_context=None):

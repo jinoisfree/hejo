@@ -78,9 +78,7 @@ def answer_positions(posts):
     for i in reversed(range(len(posts))):
         post = posts[i]
         target = targeted.get(post['msg_id'])
-        native_pending = any(button.get('kind') in ('approval', 'clarify', 'slash')
-                             for button in post.get('buttons') or ())
-        answers[i] = general if target is None and not native_pending else target
+        answers[i] = general if target is None and not reply_rules.has_native_buttons(post) else target
         if post['role'] == 'owner':
             if post.get('answer_to') is None:
                 general = i

@@ -12,6 +12,8 @@ import json
 import secrets
 import time
 
+from .reply_rules import has_native_buttons
+
 
 class HistoryIndex:
     def __init__(self):
@@ -75,7 +77,7 @@ class HistoryIndex:
                 if kind == 'edit' and 'buttons' in row:
                     if row['buttons']:
                         self._resolved_native.discard(identifier)
-                    elif any(b.get('kind') in ('approval', 'slash', 'clarify') for b in message.get('buttons', [])):
+                    elif has_native_buttons(message):
                         self._resolved_native.add(identifier)
                 # Original sequence is the read boundary, revision is the update boundary.
                 message.update({k: deepcopy(v) for k, v in row.items()

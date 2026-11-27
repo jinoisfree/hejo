@@ -3,7 +3,7 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 from uuid import UUID
 
 import pytest
@@ -621,8 +621,8 @@ async def test_tk1_02_delivery_failure_receipts(gate, turns, monkeypatch, failur
     turns.conn.send.reset_mock()
     await change(gate, turns, a, id="cancel")
     frames = [call.args[0] for call in turns.conn.send.await_args_list]
-    assert [f["type"] for f in frames] == ["error", "retract_ack"]
-    assert frames[0]["ref"] == "cancel" and frames[1]["answer_id"] == a
+    # AT-HB-12b: the delete is the cancellation receipt boundary.
+    assert frames == [dict(v=1, type="retract_ack", answer_id=a)]
     assert projected(gate, q)["answer"] is None
 
 
@@ -735,3 +735,144 @@ async def test_tk1_02_journal_error_on_socket(gate, client, monkeypatch):
     frames = await client.until(ws, "roster")
     assert frames[:-1] == [dict(v=1, type="error", code="journal_write_failed", ref="request")]
     await ws.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("finalize", [False, True])
+async def test_at_hb_12b_hermes_settles_approval(gate, turns, client, monkeypatch, finalize):
+    from gate import buttons
+
+    ws, _ = await client.pair()
+    native = buttons.native_metadata("approval", "fixture", [("승인", "once", "primary")])
+    q = (
+        await gate.send(
+            "alpha",
+            "승인 요청",
+            metadata=dict(thread_id=THREAD, _hejo_native_buttons=native, _hejo_local={"origin": "fixture"}),
+        )
+    ).message_id
+    prompt = await client.read(ws)
+    old_id = prompt["buttons"][0]["id"]
+    assert old_id in gate.journal.message(q)["_meta"]["buttons"]
+
+    resolver = AsyncMock()
+    monkeypatch.setattr(buttons, "resolve", resolver)
+    result = await gate.edit_message("alpha", q, "승인 요청 시간이 지났습니다", finalize=finalize)
+    assert result.success
+    if not finalize:
+        assert q in gate._pending_edits  # Wait for the actual deferred publication.
+    edit = await client.read(ws)
+    assert (edit["type"], edit["msg_id"], edit["final"], edit["buttons"]) == ("edit", q, finalize, [])
+    await general_reply(gate, turns, "다음 작업을 알려 주세요")
+    restart(gate)
+    card = gate.journal.message(q)
+    assert card["buttons"] == [] and card["_meta"] == {"local": {"origin": "fixture"}}
+    assert projected(gate, q)["answer"]["text"] == "다음 작업을 알려 주세요"
+    summary = await HistoryQueries(gate.journal.history, context()).summary(("alpha", THREAD))
+    assert summary["waitingButtonIDs"] == [] and summary["bell"] is not True
+    assert (await click(gate, turns, q, old_id))["code"] == "button_expired"
+    resolver.assert_not_awaited()
+    await ws.close()
+
+
+@pytest.mark.asyncio
+async def test_at_hb_12b_unedited_clarify_waits_until_clicked(gate, turns, monkeypatch):
+    from tools import clarify_gateway
+
+    resolve = Mock(return_value=False)
+    monkeypatch.setattr(clarify_gateway, "resolve_gateway_clarify", resolve)
+    q = (
+        await gate.send_clarify(
+            "alpha", "어느 쪽인가요?", ["첫째"], "fixture", "session", metadata={"thread_id": THREAD}
+        )
+    ).message_id
+    turns.instant[0] += timedelta(hours=2)
+    await general_reply(gate, turns, "일반 답")
+    before = projected(gate, q)
+    assert before["answer"] is None and before["buttons"]
+    queries = HistoryQueries(gate.journal.history, context())
+    assert (await queries.summary(("alpha", THREAD)))["waitingButtonIDs"] == [q]
+    resolve.assert_not_called()
+    head = gate.journal.head
+    error = await click(gate, turns, q, before["buttons"][0]["id"], id="expired")
+    assert error == dict(v=1, type="error", code="button_expired", ref="expired")
+    resolve.assert_called_once_with("fixture", "첫째")
+    answer, delete, edit = [r for r in gate.journal.records if r["seq"] > head]
+    assert answer["answer_to"] == q and delete["type"] == "delete" and delete["msg_id"] == answer["msg_id"]
+    assert edit["msg_id"] == q and edit["buttons"] == []
+    assert projected(gate, q)["answer"]["text"] == "일반 답"
+    assert (await queries.summary(("alpha", THREAD)))["waitingButtonIDs"] == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["notify", "state", "delete", "publish"])
+async def test_at_hb_12b_single_retract_response(gate, client, turns, monkeypatch, caplog, failure):
+    from gate.journal import HejoJournalError
+
+    ws, _ = await client.pair()
+    q = await ask(gate)
+    await client.read(ws)
+    await ws.send_json(dict(v=1, type="click", msg_id=q, button_id="std:approve"))
+    a = (await client.until(ws, "click_ack"))[-1]["answer_id"]
+    await gate.set_reply_state(q, "answered")
+    await client.until(ws, "state")
+    head = gate.journal.head
+    secret = "private test detail"
+    if failure == "notify":
+        monkeypatch.setattr(gate, "receive", AsyncMock(side_effect=RuntimeError(secret)))
+    elif failure == "publish":
+        broadcast = gate.server.broadcast
+
+        async def publish(frame):
+            if frame["type"] == "delete":
+                raise RuntimeError(secret)
+            await broadcast(frame)
+
+        monkeypatch.setattr(gate.server, "broadcast", publish)
+    else:
+        append = gate.journal.append
+
+        async def write(frame, internal=None):
+            if frame["type"] == failure:
+                raise HejoJournalError(secret)
+            return await append(frame, internal)
+
+        monkeypatch.setattr(gate.journal, "append", write)
+
+    caplog.clear()
+    await ws.send_json(dict(v=1, type="retract", answer_id=a, id="cancel"))
+    await ws.send_json(dict(v=1, type="roster", id="barrier"))
+    frames = await client.until(ws, "roster")
+    replies = [f for f in frames[:-1] if "seq" not in f]
+    deletes = [r for r in gate.journal.records if r["seq"] > head and r["type"] == "delete"]
+    if failure == "delete":
+        assert replies == [dict(v=1, type="error", code="journal_write_failed", ref="cancel")]
+        assert deletes == [] and projected(gate, q)["answer"]["answer_id"] == a
+        assert turns.sink.await_count == 1
+    else:
+        assert replies == [dict(v=1, type="retract_ack", answer_id=a)]
+        assert [r["msg_id"] for r in deletes] == [a] and projected(gate, q)["answer"] is None
+        assert turns.sink.await_count == (1 if failure == "notify" else 2)
+        errors = [r.getMessage() for r in caplog.records if r.name == "gate.adapter"]
+        kind = "HejoJournalError" if failure == "state" else "RuntimeError"
+        assert errors == [f"retract_{failure}_failed type={kind}"]
+        assert secret not in caplog.text
+    await ws.close()
+
+
+@pytest.mark.asyncio
+async def test_at_hb_12b_split_native_card_edit(gate):
+    from gate import buttons
+
+    native = buttons.native_metadata("approval", "fixture", [("승인", "once", "primary")])
+    text = "줄" * 30000
+    sent = await gate.send(
+        "alpha", text, metadata=dict(thread_id=THREAD, expect_edits=True, _hejo_native_buttons=native)
+    )
+    assert sent.success
+    first, last = gate._stream_parts[sent.message_id]
+    assert not gate.journal.message(first)["buttons"] and gate.journal.message(last)["_meta"]["buttons"]
+    assert (await gate.edit_message("alpha", first, text + " 만료", finalize=False)).success
+    for mid in (first, last):
+        saved = gate.journal.message(mid)
+        assert saved["buttons"] == [] and not saved.get("_meta", {}).get("buttons")
