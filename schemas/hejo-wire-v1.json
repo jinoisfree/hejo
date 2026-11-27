@@ -110,6 +110,18 @@
     },
     {
       "$ref": "#/$defs/discord_layout"
+    },
+    {
+      "$ref": "#/$defs/retract"
+    },
+    {
+      "$ref": "#/$defs/redeliver"
+    },
+    {
+      "$ref": "#/$defs/retract_ack"
+    },
+    {
+      "$ref": "#/$defs/click_ack"
     }
   ],
   "$defs": {
@@ -183,6 +195,32 @@
             "danger",
             "default"
           ]
+        },
+        "role": {
+          "enum": [
+            "approve",
+            "reject",
+            "comment",
+            "confirm",
+            "undo",
+            "other"
+          ]
+        },
+        "icon": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "primary": {
+          "type": "boolean"
+        },
+        "accent": {
+          "enum": [
+            "green",
+            "blue"
+          ]
+        },
+        "repeat": {
+          "type": "boolean"
         }
       },
       "required": [
@@ -769,6 +807,10 @@
         "answer_to": {
           "type": "string",
           "minLength": 1
+        },
+        "undo_until": {
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -974,8 +1016,7 @@
         "v",
         "type",
         "seq",
-        "msg_id",
-        "reply_state"
+        "msg_id"
       ],
       "additionalProperties": false
     },
@@ -999,6 +1040,11 @@
         "button_id": {
           "type": "string",
           "minLength": 1
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
         }
       },
       "required": [
@@ -1026,7 +1072,10 @@
           "type": "string",
           "minLength": 1,
           "examples": [
-            "unknown_file"
+            "unknown_file",
+            "invalid_text",
+            "retract_expired",
+            "already_sent"
           ]
         },
         "ref": {
@@ -1145,6 +1194,12 @@
         },
         {
           "$ref": "#/$defs/discord_layout"
+        },
+        {
+          "$ref": "#/$defs/retract"
+        },
+        {
+          "$ref": "#/$defs/redeliver"
         }
       ]
     },
@@ -1209,6 +1264,12 @@
         },
         {
           "$ref": "#/$defs/discord_code"
+        },
+        {
+          "$ref": "#/$defs/retract_ack"
+        },
+        {
+          "$ref": "#/$defs/click_ack"
         }
       ]
     },
@@ -2243,6 +2304,126 @@
         "id",
         "sections",
         "stack"
+      ],
+      "additionalProperties": false
+    },
+    "retract": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "retract"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "answer_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "answer_id"
+      ],
+      "additionalProperties": false
+    },
+    "redeliver": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "redeliver"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "answer_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "answer_id"
+      ],
+      "additionalProperties": false
+    },
+    "retract_ack": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "retract_ack"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "answer_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "answer_id"
+      ],
+      "additionalProperties": false
+    },
+    "click_ack": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "type": {
+          "const": "click_ack"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "msg_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "button_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "answer_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "undo_seconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "undo_until": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "msg_id",
+        "button_id",
+        "answer_id",
+        "undo_seconds",
+        "undo_until"
       ],
       "additionalProperties": false
     }

@@ -294,13 +294,17 @@ class GateServer:
         if not hasattr(context, 'queries'):
             context.queries = HistoryQueries(session.index, context)
         queries = context.queries
-        if kind in ('messages', 'copy') or kind == 'resolve' and isinstance(document.get('target'), dict):
+        if kind in ('messages', 'copy', 'asks') or kind == 'resolve' and isinstance(document.get('target'), dict):
             target = document.get('target')
             if not isinstance(target, dict) or target['room'] not in allowed:
                 raise HistoryError('invalid_query')
             if kind == 'copy' and document.get('action') == 'finalize':
                 return {**result, **session.finish_copy(document.get('copyRef'), context=context.token, key=(target['room'], target['thread']))}
             key = (target['room'], target['thread'])
+            if kind == 'asks':
+                if 'cursor' not in document and next(session.index.ids(key), None) is None:
+                    raise HistoryError('target_missing', 404)
+                return session.rows(document, queries.asks(key))
             root = await queries.summary(key)
             if root is None:
                 raise HistoryError('target_missing', 404)
@@ -598,7 +602,11 @@ class GateServer:
         room = self.adapter.journal.room_id(frame)
         if room and "rooms" not in conn.features:
             return {"v": 1, "type": "delete", "seq": frame["seq"], "msg_id": frame.get("msg_id", "room:" + room)}
-        return self.adapter.journal.replay(frame)
+        public = self.adapter.journal.replay(frame)
+        if public.get("type") == "message" and public.get("role") == "employee":
+            from .history_queries import question_buttons
+            public["buttons"] = question_buttons(public)
+        return public
 
     async def sync(self, conn, since, ref):
         conn.replaying = True; conn.overflow = False; conn.queue.clear()
@@ -633,6 +641,10 @@ class GateServer:
                  for item in SCHEMA['$defs']['clientFrame']['oneOf']}
         if isinstance(frame, dict) and isinstance(frame.get('type'), str) and frame['type'] not in kinds:
             raise FrameError("unexpected_frame", ref)
+        if isinstance(frame, dict) and frame.get("type") == "click" and "text" in frame:
+            text = frame["text"]
+            if not isinstance(text, str) or not text.strip() or len(text) > 4000:
+                raise FrameError("invalid_text", ref)
         if not CLIENT_VALIDATOR.is_valid(frame):
             raise FrameError("invalid_frame", ref)
         if len(frame.get("text", "").encode()) > LIMITS["text_bytes"]:
@@ -771,6 +783,8 @@ class GateServer:
                         await self.adapter.receive(frame, conn)
                     elif frame["type"] == "click":
                         await self.adapter.click(frame, conn)
+                    elif frame["type"] in ("retract", "redeliver"):
+                        await self.adapter.change_answer(frame, conn)
                     elif frame["type"] == "thread_delete":
                         await self.adapter.thread_delete(frame, conn)
                     elif frame["type"] == "thread_branch":

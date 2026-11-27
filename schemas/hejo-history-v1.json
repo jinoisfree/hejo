@@ -153,7 +153,8 @@
             "read_plan",
             "copy",
             "questions",
-            "message_state"
+            "message_state",
+            "asks"
           ]
         },
         "scope": {
@@ -578,6 +579,29 @@
               "limit": false
             }
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "asks"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "target": {
+                "type": "object"
+              },
+              "query": false,
+              "action": false,
+              "mode": false,
+              "copyRef": false
+            },
+            "required": [
+              "target"
+            ]
+          }
         }
       ]
     },
@@ -679,6 +703,21 @@
         },
         "preview": {
           "type": "string"
+        },
+        "asksPreview": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "$ref": "#/$defs/ask"
+          }
+        },
+        "asksWaiting": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "asksAnswered": {
+          "type": "integer",
+          "minimum": 0
         }
       },
       "required": [
@@ -922,7 +961,18 @@
           "type": "array",
           "maxItems": 50,
           "items": {
-            "type": "object"
+            "type": "object",
+            "properties": {
+              "branch": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "answer": {
+                "$ref": "#/$defs/answer"
+              }
+            }
           }
         },
         "next": {
@@ -1300,6 +1350,156 @@
           }
         }
       ]
+    },
+    "answer": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "answer_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "role": {
+          "enum": [
+            "approve",
+            "reject",
+            "comment",
+            "confirm",
+            "undo",
+            "other"
+          ]
+        },
+        "result": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "at": {
+          "type": "string",
+          "minLength": 1
+        },
+        "undo_until": {
+          "type": "string",
+          "minLength": 1
+        },
+        "delivery": {
+          "enum": [
+            "unknown",
+            "sent"
+          ]
+        }
+      },
+      "required": [
+        "answer_id",
+        "label",
+        "role",
+        "result",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "ask": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "msg_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "text": {
+          "type": "string"
+        },
+        "buttons": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "label": {
+                "type": "string",
+                "maxLength": 30
+              },
+              "kind": {
+                "enum": [
+                  "reply",
+                  "approval",
+                  "clarify",
+                  "slash"
+                ]
+              },
+              "style": {
+                "enum": [
+                  "primary",
+                  "danger",
+                  "default"
+                ]
+              },
+              "role": {
+                "enum": [
+                  "approve",
+                  "reject",
+                  "comment",
+                  "confirm",
+                  "undo",
+                  "other"
+                ]
+              },
+              "icon": {
+                "type": "string",
+                "maxLength": 40
+              },
+              "primary": {
+                "type": "boolean"
+              },
+              "accent": {
+                "enum": [
+                  "green",
+                  "blue"
+                ]
+              },
+              "repeat": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "label",
+              "kind",
+              "style"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "answer": {
+          "$ref": "#/$defs/answer"
+        }
+      },
+      "required": [
+        "msg_id",
+        "text",
+        "buttons",
+        "answer"
+      ],
+      "additionalProperties": false
     }
   },
   "x-limits": {

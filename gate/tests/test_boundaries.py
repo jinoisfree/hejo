@@ -127,8 +127,9 @@ async def test_reply_hooks(gate, client, runner, monkeypatch):
     gate.register_click_handler("reply", handler)
     await ws.send_json({"v": 1, "type": "click", "msg_id": sent.message_id,
                         "button_id": message["buttons"][0]["id"]})
-    frames = await client.until(ws, "message")
-    assert [f["type"] for f in frames] == ["state", "message"]
+    # AT-HB-08 persists the answer before invoking the reply-state handler.
+    frames = await client.until(ws, "click_ack")
+    assert [f["type"] for f in frames if f["type"] != "typing"] == ["message", "state", "state", "click_ack"]
     await wait_for_turns(runner, 1)
     event = runner.events[0]
     assert event.text == "Accept" and event.source.thread_id == thread and event.source.profile == "alpha"
