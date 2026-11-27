@@ -1,0 +1,24 @@
+[설계 인계: HEJO-RESULT-DONE TASK-01~04 / 결과 알림(확인·되돌리기)을 질문에서 빼고 답 버튼 복구]
+
+0. 기준: 공개 `github/main` `63e7bf9da0789be6128f10afe8e5bb8ccda6fe90`, 운영 문 줄 `hejo-ref-photo-ops-20261126` `f7fdc1a6a43e04a34dc90385fe3193427d393414` / spec 4판(계획 검증 1~3회차 반영) / 2026-11-27 / 계획 검증 대기, 통과 뒤 구현 승인 / 연합개발(교차 모델 + 계획 검증)
+1. 공식 문서: [spec.md](spec.md)(0절 칸 표, 3절 AC, 4절 설계, 5절 운영·롤백), [tasks.md](tasks.md), [brainstorm.md](brainstorm.md), 수락 시험 [tests/acceptance/HEJO-RESULT-DONE.md](../../../tests/acceptance/HEJO-RESULT-DONE.md), [ARCHITECTURE](../../ARCHITECTURE.md), 현재 명세 [hejo-thread-status.md](../../spec/current/hejo-thread-status.md), 문 설치 선례 [HEJO-REF-PHOTO handoff-task05.md](../HEJO-REF-PHOTO-20261126/handoff-task05.md) 5번, 실제 대상 `<운영 저장소>/docs/changes/HEJO-RESULT-DONE-20261127/ops-targets.md`, 로컬 worktree 경로 `AGENTS.local.md`
+2. 요구와 수락 기준: REQ-RD-01~05, AC-01~15. 핵심: 버튼 라벨이 가공 없이 이 순서 그대로 [확인, 되돌리기]인 직원 글(역순은 기존 판정)(결과 알림)은 답 없는 질문이 아니다 → 초록·카드 없음·섬 질문 없음. 단 앞선 답 없는 진짜 질문은 가리지 않는다(AC-03). 문 요약이 `waitingButtonIDs`를 보내고 앱이 그 글에 답 버튼을 그린다. 답 없는 결과 알림은 초록이어도 버튼이 보인다.
+3. 유지할 계약: 문 요약의 기존 필드와 의미(`waitingButtonCount`는 새 목록 길이), `assessment` 필드, 섬 질문의 기존 대상(결과 알림만 빠짐), 버튼 누름 → 사장 글(`answer_to`) 기록, `ReplyButtonPolicy` 누름 규칙, 기록장 형식, 0.2.9 앱이 새 문 요약을 읽을 수 있음.
+4. 흐름: 기록장 → 문 `assess`(결과 알림 예외) → `summary`(`assessment`·`notice`·`waitingButtonIDs`)·`questions()` → 앱 `HistoryThreadSummary` → `assessment(key).buttons` → 띠 색·카드·답 버튼. 판정 원본은 문 한 곳이다.
+5. 기존 경로 판정: spec 4.4. 앱 `ThreadAssessment.assess`(옛 기준본 빌드 전용)는 고치지 않는다.
+6. 위험도: 일반(spec 상단). 증거 수준: spec 6절(AC-01~10·15 = 2, AC-12·13 = 3, AC-14 = 4는 사장 관측). 롤백: spec 5.3.
+7. 변경 성격: 의미 변경(판정 결과와 표시 변경). 비교: AT-RD-04·05는 기준 커밋과 같은 결과, AT-RD-12는 실제 기록 사본에서 바뀐 스레드 목록을 전부 확인.
+8. 수락 시험: AT-RD-01~15(01c·08b 포함, 4판), 명세 확정·코드 미작성·미실행·계획 검증 대기. 기대값 출처는 spec 3절과 기준 커밋 동작. 구현 담당이 `gate/tests/test_result_done.py`, `app/Tests/ResultDoneTests.swift`로 옮기고 기대값은 바꾸지 않는다. 착수 커밋에서 AT-RD-01~07의 (가) 판정 부분만 먼저 실행해 "기준본 기대" 열과 맞는지 확인하고(새 필드 `waitingButtonIDs` 단언과 앱 시험 AT-RD-08·08b는 기준본에서 실행하지 않음) `.build/result-done/baseline.log`에 남긴다(맞지 않으면 멈추고 보고).
+9. 작업 범위·금지·선행
+   - TASK-01(공개 worktree, `github/main` `63e7bf9`에서 새로 만듦): `gate/history_queries.py`, `schemas/hejo-history-v1.json`, `app/Sources/HistoryProjection.swift`, `app/Sources/ConversationModel.swift`(이력 분기 `assessment`만), 새 시험 파일. 앱 시험을 실제로 실행하기 위한 진입점 추가도 허용한다: `app/scripts/test.sh`에 fixture 실행 줄 한 줄, 새 가짜 문 fixture `app/Tests/result_done_fixture.py`(기존 `card_done_fixture.py` 방식), `app-tests` 모드 분기(기존 모드 분기가 있는 테스트 파일에 새 모드 연결만). 기존 시험의 기대값과 동작은 바꾸지 않는다. 실행 증거는 수락 시험 문서 끝 "실행 증거" 절대로 `.build/result-done/app-tests.log`(AT-RD-08·08b·09·10 PASS 줄)와 `.build/result-done/gate-tests.log`(pytest `-v`)를 남긴다. 시험: `HEJO_PYTHON=<Hermes venv python> bash scripts/test.sh` 전체, `python3 scripts/scan_private.py`. 커밋은 `git commit --only`로 이 경로만.
+   - TASK-02(운영 문 worktree, `f7fdc1a`에서 새로 만듦): TASK-01의 `gate/history_queries.py`·`schemas/hejo-history-v1.json` 변경과 문 시험 파일만 옮긴다(앱 파일 제외). 운영 줄의 다른 차이(알림 미리보기·`thinking` 위치)는 그대로 둔다. 같은 pytest를 운영 worktree에서 돌린다. AT-RD-11.
+   - TASK-03(서버 운영 적용, 사용자 2026-11-27 "설치까지" 승인): (1) 사전 확인: 유휴(처리 중 턴·작업 0), 직전 게이트웨이 시작 뒤 300초 초과, `<HOME>/plugins/hejo` 대상 = ops-targets 표 값. 다르면 멈춘다. (2) AT-RD-12: 기록장을 0700 임시 폴더에 복사해 기준·후보 `HistoryQueries`로 전체 요약을 비교하고, 결과 JSON(실제 id 포함)은 운영 저장소 작업 폴더에만 둔다. 공개 쪽 증거에는 개수와 판정만 쓴다. 임시 폴더는 판정 뒤 지운다. 기대와 다르면 적용하지 않고 멈춘다. (3) 적용 전 연결 줄 수·오류 줄 기준을 고정한다. (4) `install/hejo-release <공용 릴리스 폴더>/<후보 앞 12자>-result-done/hejo` → 새 릴리스의 `hejo-install --home <루트 홈>` 1회 → 재시작 1회(운영 `AGENTS.md` 재시작 절차, 선례 handoff-task05 (4)·(6) 순서). (5) AT-RD-13(플랫폼별 연결 줄 수가 적용 전과 모두 같음, 늘거나 줄면 실패). 실패하면 spec 5.3 롤백(재시작 1회 추가 허가) 뒤 멈추고 보고한다. (6) ops-targets.md에 적용 결과를 적고, 운영 저장소에는 `git commit --only docs/changes/HEJO-RESULT-DONE-20261127/`만 한다.
+   - TASK-04(공개 worktree, TASK-01 뒤): `app/Resources/Info.plist` 0.2.10 / 빌드 12, `tests/acceptance/test_ship.py` 기대값 같은 값, `bash app/scripts/build.sh`, AT-RD-15. 앱 설치·GitHub 릴리스 게시는 하지 않는다(사장 단계).
+   - 금지: Hermes 본체, ddots, team-kit 실행본·`./sync`, 금고·`.env`·`auth.json`·`config.yaml` 열기, 기록장 쓰기, 실제 Slack·hejo·고객 메시지 보내기, 허브 변경, 앱 `ThreadAssessment.assess` 변경, 다른 버튼 조합 판정 변경, 개발 `main`·planner checkout 제품 코드 수정, git push, rebase·force, 허가 밖 재시작.
+   - 병렬 갈래: 없음(갈래 3개 미만: TASK-02·04는 TASK-01 뒤, TASK-03은 TASK-02 뒤).
+10. 가정·미확정: 앱 GitHub 릴리스 게시 방법은 사장 단계라 이번 인계 밖이다. AC-14는 사장 관측 전까지 판정 보류(부분 완료 사유가 되지 않도록 TASK-03 결과까지를 구현 범위로 본다). 착수 차단 없음.
+11. 사용자 확인: 2026-11-27 브레인스토밍에서 사용자가 고칠 곳(문 판정 한 곳), 섬 질문 제외, 서버 설치까지, 답 버튼 복구 동시 진행, 되돌리기 버튼 유지를 골랐다.
+
+[인계 전 점검]
+- 기준 커밋 호환: `github/main`과 운영 줄 tip을 2026-11-27에 확인했다. 착수 때 `git fetch github` 뒤 tip이 바뀌었으면 `gate/history_queries.py`·`schemas/hejo-history-v1.json`·`HistoryProjection.swift`·`ConversationModel.swift` 변경 여부를 확인하고, 바뀌었으면 멈추고 보고한다.
+- G1: spec 3절, 사용자 결정 brainstorm. G2: spec 0·1·4절. G3: 수락 시험 명세, 계획 검증 대기. G4: 위험도·롤백(spec 5.3)·REQ→AC→시험→TASK(tasks.md).
