@@ -55,8 +55,8 @@ async def click(gate, turns, q, button="std:approve", **fields):
     return turns.conn.send.await_args.args[0]
 
 
-async def change(gate, turns, answer, action="retract"):
-    await gate.change_answer(dict(type=action, answer_id=answer), turns.conn)
+async def change(gate, turns, answer, action="retract", **fields):
+    await gate.change_answer(dict(type=action, answer_id=answer, **fields), turns.conn)
     return turns.conn.send.await_args.args[0]
 
 
@@ -183,6 +183,8 @@ async def test_at_hb_06_invalid_targets(gate, turns):
             buttons=[],
         )
     )
+    await gate.journal.append(dict(type="room", room=dict(id="other", members=["beta"], lead="beta")))
+    turns.conn.features.add("rooms")
     before = gate.journal.head
     assert (await click(gate, turns, "other-room"))["code"] == "button_expired"
     assert gate.journal.head == before
@@ -211,6 +213,7 @@ async def test_at_hb_08_09_10_11b_undo(gate, turns, seconds, expires):
     restart(gate)
     turns.sink.assert_awaited_once()
     turns.instant[0] += timedelta(seconds=seconds)
+    head = gate.journal.head
     frame = await change(gate, turns, a)
     if expires:
         assert frame["code"] == "retract_expired" and turns.sink.await_count == 1
@@ -225,6 +228,13 @@ async def test_at_hb_08_09_10_11b_undo(gate, turns, seconds, expires):
     )
     assert event.raw_message == {"_hermes_retract": dict(message_id=q, answer_id=a, label="승인")}
     assert not any(r.get("text") == event.text for r in gate.journal.records)
+    records = [row for row in gate.journal.records if row["seq"] > head]
+    assert [(r["type"], r["msg_id"], r.get("reply_state")) for r in records] == [
+        ("delete", a, None),
+        ("state", q, "asked"),
+    ]
+    repeated = (await click(gate, turns, q))["answer_id"]
+    assert (await change(gate, turns, repeated))["type"] == "retract_ack"
     b = (await click(gate, turns, q, "std:reject"))["answer_id"]
     before = gate.journal.head
     for identifier in (q, a):
@@ -238,13 +248,13 @@ async def test_at_hb_10b_crash_windows(gate, turns, monkeypatch, after_handoff):
     q = await ask(gate)
     original = gate._reply_event
 
-    async def interrupt(*args):
+    async def interrupt(*args, **kwargs):
         if after_handoff:
-            await original(*args)
-        raise RuntimeError("simulated stop")
+            await original(*args, **kwargs)
+        raise asyncio.CancelledError("simulated stop")
 
     monkeypatch.setattr(gate, "_reply_event", interrupt)
-    with pytest.raises(RuntimeError):
+    with pytest.raises(asyncio.CancelledError):
         await click(gate, turns, q)
     monkeypatch.setattr(gate, "_reply_event", original)
     restart(gate)
@@ -306,10 +316,12 @@ async def test_at_hb_12_native(gate, turns, monkeypatch, success):
     if success:
         assert frame["type"] == "click_ack" and not projected(gate, q)["buttons"]
         await change(gate, turns, frame["answer_id"])
-        assert not projected(gate, q).get("answer") and turns.sink.await_count == 1
+        assert not projected(gate, q).get("answer") and projected(gate, q)["buttons"] == []
+        assert turns.sink.await_count == 1
     else:
         assert frame["code"] == "button_expired"
-        assert gate.journal.records[-1]["type"] == "delete"
+        assert [r["type"] for r in gate.journal.records[-2:]] == ["delete", "edit"]
+        assert projected(gate, q)["buttons"] == []
     resolve.assert_awaited_once()
 
 
@@ -334,11 +346,11 @@ def test_at_hb_13_branch():
     index = HistoryIndex()
     for mid, role, fields in [
         ("q", "employee", dict(reply_state="asked")),
-        ("a", "owner", dict(answer_to="q")),
+        ("a", "owner", dict(answer_to="q", text="승인")),
         ("f", "employee", {}),
         ("g", "employee", {}),
         ("qq", "employee", dict(reply_state="asked")),
-        ("general", "owner", {}),
+        ("general", "owner", dict(text="일" * 30 + "뒤")),
         ("c", "employee", {}),
         ("qqq", "employee", dict(reply_state="asked")),
     ]:
@@ -353,7 +365,9 @@ def test_at_hb_13_branch():
         None,
         None,
     ]
+    assert index.resolve("q")["answer"]["label"] == "승인"
     assert index.resolve("qq")["answer"]["label"] is None
+    assert index.resolve("qq")["answer"]["text"] == "일" * 30
     seed(
         index,
         "opinion",
@@ -428,6 +442,7 @@ async def test_at_hb_14_14b_bounded_queries_and_cursor(gate):
         assert len(encoded(notice["preview"])) <= 900
         for row in notice["asksPreview"]:
             assert len(row["buttons"]) == 5 and row["buttons"][-1]["label"] == "기타"
+            assert all(all(ord(ch) >= 32 for ch in b["label"]) for b in row["buttons"])
             assert len(encoded(row["text"])) <= 240 and "\x02" not in row["text"]
 
 
@@ -435,8 +450,11 @@ async def test_at_hb_14_14b_bounded_queries_and_cursor(gate):
 async def test_at_hb_14_partial_answers_and_settled_notice(gate, turns):
     questions = [await ask(gate) for _ in range(3)]
     queries = HistoryQueries(gate.journal.history, context())
+    assert (await queries.summary(("alpha", THREAD)))["bell"] is True
     await click(gate, turns, questions[1])
-    notice = (await queries.summary(("alpha", THREAD)))["notice"]
+    summary = await queries.summary(("alpha", THREAD))
+    assert summary["bell"] is not True
+    notice = summary["notice"]
     assert (notice["asksWaiting"], notice["asksAnswered"]) == (2, 1)
     assert [row["msg_id"] for row in notice["asksPreview"]] == [questions[0], questions[2]]
     for q in (questions[0], questions[2]):
@@ -501,3 +519,219 @@ def test_at_hb_15_16_wire():
     assert CLIENT_VALIDATOR.is_valid(
         dict(v=1, type="click", msg_id="q", button_id="std:comment", text="의견")
     )
+
+
+async def general_reply(gate, turns, text):
+    await gate.receive(dict(employee="alpha", thread=THREAD, client_msg_id="general", text=text), turns.conn)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("outcome", ["resolved", "expired", "exception"])
+async def test_at_hb_11c_native_and_general(gate, turns, monkeypatch, outcome):
+    from gate import buttons
+
+    resolver = AsyncMock(
+        return_value=outcome == "resolved",
+        side_effect=RuntimeError("temporary") if outcome == "exception" else None,
+    )
+    monkeypatch.setattr(buttons, "resolve", resolver)
+    native = buttons.native_metadata("approval", "fixture", [("승인", "once", "primary")])
+    q = (
+        await gate.send("alpha", "승인 요청", metadata=dict(thread_id=THREAD, _hejo_native_buttons=native))
+    ).message_id
+    r = await ask(gate)
+    general = "아직 결정하지 않았습니다" * 4
+    await general_reply(gate, turns, general)
+    key = ("alpha", THREAD)
+    query = HistoryQueries(gate.journal.history, context())
+    summary = await query.summary(key)
+    assert summary["waitingButtonIDs"] == [q] and summary["assessment"]["pendingID"] == q
+    assert summary["notice"]["asksWaiting"] == 1 and summary["notice"]["asksPreview"][0]["msg_id"] == q
+    native_row, ordinary = query.asks(key)
+    assert native_row["answer"] is None
+    assert ordinary["answer"]["label"] is None and ordinary["answer"]["text"] == general[:30]
+    assert (await click(gate, turns, r))["code"] == "button_expired"
+
+    button = native_row["buttons"][0]["id"]
+    frame = await click(gate, turns, q, button, id="request")
+    resolver.assert_awaited_once()
+    if outcome == "exception":
+        assert frame["code"] == "button_expired" and frame["ref"] == "request"
+        assert projected(gate, q)["answer"] is None and projected(gate, q)["buttons"] == native_row["buttons"]
+        resolver.side_effect = None
+        resolver.return_value = True
+        assert (await click(gate, turns, q, button))["type"] == "click_ack"
+        return
+    if outcome == "resolved":
+        assert projected(gate, q)["answer"]["answer_id"] == frame["answer_id"]
+        state = (await query.summary(key))["assessment"]
+        assert state["requestID"] == q and state["approved"] and state["pendingID"] is None
+        assert (await click(gate, turns, q, button))["code"] == "button_expired"
+        resolver.assert_awaited_once()
+        assert (await change(gate, turns, frame["answer_id"]))["type"] == "retract_ack"
+    else:
+        assert frame["code"] == "button_expired" and frame["ref"] == "request"
+        assert gate.journal.records[-2]["type"] == "delete"
+    restart(gate)
+    question = projected(gate, q)
+    assert question["buttons"] == [] and question["answer"]["text"] == general[:30]
+    assert question["answer"]["label"] is None
+    assert q not in (await HistoryQueries(gate.journal.history, context()).summary(key))["waitingButtonIDs"]
+
+
+@pytest.mark.asyncio
+async def test_at_hb_11c_general_survives_retraction(gate, turns):
+    q = await ask(gate)
+    ack = await click(gate, turns, q)
+    await general_reply(gate, turns, "일반 답")
+    assert projected(gate, q)["answer"]["answer_id"] == ack["answer_id"]
+    await change(gate, turns, ack["answer_id"])
+    assert projected(gate, q)["answer"]["text"] == "일반 답"
+    assert (await click(gate, turns, q))["code"] == "button_expired"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["false", "exception", "membership"])
+async def test_tk1_02_delivery_failure_receipts(gate, turns, monkeypatch, failure):
+    q = await ask(gate)
+    if failure == "membership":
+        gate.register_click_handler(
+            "reply", AsyncMock(side_effect=lambda _: monkeypatch.setattr(gate, "employees", lambda: []))
+        )
+    else:
+        monkeypatch.setattr(
+            gate,
+            "receive",
+            AsyncMock(
+                return_value=False, side_effect=RuntimeError("temporary") if failure == "exception" else None
+            ),
+        )
+    error = await click(gate, turns, q, id="click-req")
+    code = {"false": "button_expired", "exception": "dispatch_failed", "membership": "unknown_employee"}[
+        failure
+    ]
+    assert error == dict(v=1, type="error", code=code, ref="click-req")
+    answer = projected(gate, q)["answer"]
+    assert answer["delivery"] == "unknown"
+    if failure == "membership":
+        return
+    a = answer["answer_id"]
+    error = await change(gate, turns, a, "redeliver", id="retry")
+    assert error["type"] == "error" and error["ref"] == "retry"
+    turns.conn.send.reset_mock()
+    await change(gate, turns, a, id="cancel")
+    frames = [call.args[0] for call in turns.conn.send.await_args_list]
+    assert [f["type"] for f in frames] == ["error", "retract_ack"]
+    assert frames[0]["ref"] == "cancel" and frames[1]["answer_id"] == a
+    assert projected(gate, q)["answer"] is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("retry", [False, True])
+async def test_tk1_03_room_reply_includes_missed_post(gate, client, turns, retry):
+    from gate.tests.test_rooms import create
+
+    ws, _ = await client.pair(features=["rooms"])
+    room = await create(client, ws)
+    turns.conn.features.add("rooms")
+    q = (
+        await gate.send(
+            "room:" + room,
+            "승인 요청",
+            metadata=dict(thread_id=THREAD, hermes_profile="alpha", hejo_reply_state="asked"),
+        )
+    ).message_id
+    result = await gate.send(
+        "room:" + room, "다른 직원의 추가 설명", metadata=dict(thread_id=THREAD, hermes_profile="beta")
+    )
+    assert result.success
+    if retry:
+        turns.sink.side_effect = RuntimeError("temporary")
+        assert (await click(gate, turns, q, id="initial"))["code"] == "dispatch_failed"
+        answer_id = projected(gate, q)["answer"]["answer_id"]
+        later = await gate.send(
+            "room:" + room, "나중에 온 글", metadata=dict(thread_id=THREAD, hermes_profile="beta")
+        )
+        assert later.success
+        turns.sink.side_effect = None
+        assert (await change(gate, turns, answer_id, "redeliver"))["type"] == "click_ack"
+    else:
+        assert (await click(gate, turns, q))["type"] == "click_ack"
+    event = turns.sink.await_args.args[0]
+    assert event.source.profile == "alpha" and event.text == "승인"
+    assert "다른 직원의 추가 설명" in event.channel_context
+    assert "나중에 온 글" not in event.channel_context
+    assert "다른 직원의 추가 설명" not in gate.room_context(room, THREAD, "alpha")
+    await ws.close()
+
+
+@pytest.mark.asyncio
+async def test_tk1_05_live_and_replayed_button_transitions(gate, client):
+    ws, _ = await client.pair()
+    q = (await gate.send("alpha", "초안")).message_id
+    assert (await client.read(ws))["buttons"] == []
+    for text, expected in [("승인해 주세요", reply_rules.standard()), ("초안 수정", [])]:
+        assert (await gate.edit_message("alpha", q, text, finalize=True)).success
+        edit = await client.read(ws)
+        assert edit["type"] == "edit" and edit["buttons"] == expected
+        assert Draft202012Validator(SCHEMA).is_valid(edit)
+    await gate.set_reply_state(q, "asked")
+    state = await client.read(ws)
+    assert state["buttons"] == reply_rules.standard() and Draft202012Validator(SCHEMA).is_valid(state)
+    await ws.close()
+    await gate.disconnect()
+    assert await gate.connect()
+    ws, _ = await client.pair(since=0)
+    replay = await client.until(ws, "sync_done")
+    assert [r["buttons"] for r in replay if r.get("msg_id") == q] == [
+        [],
+        reply_rules.standard(),
+        [],
+        reply_rules.standard(),
+    ]
+    await ws.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("operation", ["click", "marker", "retract"])
+async def test_tk1_02_journal_errors_reference_request(gate, turns, monkeypatch, operation):
+    from gate.journal import HejoJournalError
+
+    q = await ask(gate)
+    if operation == "retract":
+        answer = (await click(gate, turns, q))["answer_id"]
+    append = gate.journal.append
+    fail_on = {"click": "message", "marker": "state", "retract": "delete"}[operation]
+
+    async def failing_append(frame, internal=None):
+        if frame["type"] == fail_on:
+            raise HejoJournalError("fault")
+        return await append(frame, internal)
+
+    monkeypatch.setattr(gate.journal, "append", failing_append)
+    if operation == "retract":
+        error = await change(gate, turns, answer, id="request")
+        assert projected(gate, q)["answer"]["answer_id"] == answer
+    else:
+        error = await click(gate, turns, q, id="request")
+        expected = projected(gate, q)["answer"]
+        if operation == "marker":
+            assert expected["delivery"] == "unknown" and turns.sink.await_count == 1
+        else:
+            assert expected is None and turns.sink.await_count == 0
+    assert error["type"] == "error" and error["code"] == "journal_write_failed" and error["ref"] == "request"
+
+
+@pytest.mark.asyncio
+async def test_tk1_02_journal_error_on_socket(gate, client, monkeypatch):
+    from gate.journal import HejoJournalError
+
+    ws, _ = await client.pair()
+    q = await ask(gate)
+    await client.until(ws, "message")
+    monkeypatch.setattr(gate.journal, "append", AsyncMock(side_effect=HejoJournalError("fault")))
+    await ws.send_json(dict(v=1, type="click", id="request", msg_id=q, button_id="std:approve"))
+    await ws.send_json(dict(v=1, type="roster", id="barrier"))
+    frames = await client.until(ws, "roster")
+    assert frames[:-1] == [dict(v=1, type="error", code="journal_write_failed", ref="request")]
+    await ws.close()

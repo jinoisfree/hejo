@@ -26,6 +26,8 @@ class HistoryIndex:
         self._undos = {}
         self._fields = {}
         self._resolved_native = set()
+        # Sparse transitions for replay: a later edit must not change an earlier frame.
+        self._default_button_changes = {}
         self._deleted_threads = set()
         self._deleted_rooms = set()
 
@@ -67,6 +69,9 @@ class HistoryIndex:
         elif kind in {'edit', 'state'}:
             message = self._messages.get(identifier)
             if message is not None:
+                track_buttons = message.get('role') == 'employee' and any(
+                    k in row for k in ('buttons', 'text', 'reply_state', 'checklist'))
+                had_defaults = track_buttons and self._has_default_buttons(message)
                 if kind == 'edit' and 'buttons' in row:
                     if row['buttons']:
                         self._resolved_native.discard(identifier)
@@ -75,8 +80,19 @@ class HistoryIndex:
                 # Original sequence is the read boundary, revision is the update boundary.
                 message.update({k: deepcopy(v) for k, v in row.items()
                                 if k not in {'v', 'type', 'seq', '_meta'}})
+                if track_buttons and not row.get('buttons'):
+                    defaults = self._has_default_buttons(message)
+                    if defaults != had_defaults or (defaults and 'buttons' in row):
+                        self._default_button_changes[seq] = defaults
                 self._revisions[identifier] = seq
                 self._thread_revisions[self._keys[identifier]] = seq
+
+    def _has_default_buttons(self, message):
+        from .history_queries import has_default_buttons
+        return message['msg_id'] not in self._resolved_native and has_default_buttons(message)
+
+    def default_button_change(self, seq):
+        return self._default_button_changes.get(seq)
 
     def _delete(self, identifier, revision):
         message = self._messages.pop(identifier, None)

@@ -106,7 +106,8 @@ async def test_at_hf_18(gate, client, runner):
         await click(ws, message)
         # AT-HB-12 removes the persisted answer when the resolver fails.
         frames = await client.until(ws, "error")
-        assert [f["type"] for f in frames] == ["message", "delete", "error"]
+        assert [f["type"] for f in frames] == ["message", "delete", "edit", "error"]
+        assert frames[-2]["buttons"] == []
         assert frames[-1]["code"] == "button_expired"
         resolve.assert_called_once_with("fixture-session", "once")
         other.assert_not_called()

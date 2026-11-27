@@ -606,6 +606,13 @@ class GateServer:
         if public.get("type") == "message" and public.get("role") == "employee":
             from .history_queries import question_buttons
             public["buttons"] = question_buttons(public)
+        elif public.get("type") in ("edit", "state"):
+            from . import reply_rules
+            defaults = self.adapter.journal.history.default_button_change(public["seq"])
+            if defaults is not None:
+                public["buttons"] = reply_rules.standard() if defaults else []
+            elif "buttons" in public:
+                public["buttons"] = reply_rules.styled(public["buttons"])
         return public
 
     async def sync(self, conn, since, ref):

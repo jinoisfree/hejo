@@ -64,7 +64,8 @@ async def test_at_sm_02_edit_state_buttons_images_delete(gate, local, airport, c
     # AT-DK-22 permits only the discord_layout definition and two appended references.
     # HEJO-TELEGRAM-REMOVE removed the HEJO-TELEGRAM definitions only
     # AT-HB-15: the wire contract adds targeted replies, undo and explicit delivery.
-    assert hashlib.sha256(wire.read_bytes()).hexdigest() == '71ea8ae77f1b5a241e08e484d77dcc3c4f3e0d22f68c36cf8ae19b7502e04d9c'
+    # TK1-05 also projects question button transitions on state frames.
+    assert hashlib.sha256(wire.read_bytes()).hexdigest() == '2c176e7c1291a822611e730f01028ff83ee5b2093afb243bfe351d3444816f4d'
     assert RECORD_TYPES == {'message', 'edit', 'delete', 'state', 'room', 'room_delete'}
     ws, welcome = await client.pair()
     assert 'history' not in welcome

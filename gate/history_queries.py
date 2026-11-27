@@ -60,11 +60,15 @@ def question(post):
         or post.get('checklist') is not None or approval(post['text']))
 
 
+def has_default_buttons(post):
+    return not post.get('buttons') and post.get('checklist') is None and question(post)
+
+
 def question_buttons(post):
     buttons = post.get('buttons') or []
     if buttons:
         return reply_rules.styled(buttons)
-    if question(post) and post.get('checklist') is None:
+    if has_default_buttons(post):
         return reply_rules.standard()
     return []
 
@@ -73,8 +77,10 @@ def answer_positions(posts):
     answers, targeted, general = {}, {}, None
     for i in reversed(range(len(posts))):
         post = posts[i]
-        candidates = (general, targeted.get(post['msg_id']))
-        answers[i] = min((v for v in candidates if v is not None), default=None)
+        target = targeted.get(post['msg_id'])
+        native_pending = any(button.get('kind') in ('approval', 'clarify', 'slash')
+                             for button in post.get('buttons') or ())
+        answers[i] = general if target is None and not native_pending else target
         if post['role'] == 'owner':
             if post.get('answer_to') is None:
                 general = i
@@ -111,7 +117,7 @@ def thread_fields(lines, undos, resolved_native):
         target = posts[answers[i]] if answers[i] is not None else None
         # A native resolution keeps its answer visible until it is retracted.
         if resolved:
-            is_question = target is not None and target.get('answer_to') == identifier
+            is_question = target is not None
         else:
             is_question = question(post)
         if is_question:
@@ -171,7 +177,12 @@ def assess(lines, context):
             if (answer(i) is None and post.get('reply_state') not in ('answered', 'closed')
                     and context.value('confirm:' + post['msg_id']) is None):
                 return i
-        return candidates[-1]
+        latest = candidates[-1]
+        if answer(latest) is None:
+            return latest
+        # A newer targeted decision can finish an older prompt after a newer one was answered.
+        answered = (i for i in candidates if answer(i) is not None)
+        return max(answered, key=lambda i: (answer(i), i))
     def judge(asked):
         request, answered = posts[asked], answer(asked)
         found = {'requestID': request['msg_id'], 'pendingID': None, 'working': False, 'settled': False, 'approved': False}
@@ -309,7 +320,7 @@ class HistoryQueries:
         if not state['working'] and not state['settled'] and not confirmed:
             if self.context.value('bell:' + key[0] + '/' + key[1]) is not None and bell_read >= original:
                 bell = False
-            elif notice:
+            elif notice and posts[-1]['role'] != 'owner':
                 bell = True
         title = root['text'] or next((f['name'] for f in root.get('files', [])), '대화')
         result = {'key': {'room': key[0], 'thread': key[1]}, 'rootID': root['msg_id'],
