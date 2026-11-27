@@ -56,7 +56,7 @@ enum SettingsPages {
         super.init(frame: NSRect(x: 24, y: 0, width: 340, height: 390))
         let title = NSTextField(labelWithString: "디스코드")
         title.font = .systemFont(ofSize: 14, weight: .semibold)
-        let hint = NSTextField(wrappingLabelWithString: "디스코드 개발자 포털에서 봇을 만들고 Message Content Intent를 켜세요. 서버를 만든 뒤 커뮤니티를 켜고, 봇을 채널 보기·메시지 보내기·공개 스레드에서 메시지 보내기·메시지 기록 보기·첨부·채널 관리·웹후크 관리 권한으로 초대하세요. 이 코드를 서버의 일반 채널에 입력한 뒤 연결을 켜면 방마다 포럼 채널이 생깁니다.")
+        let hint = NSTextField(wrappingLabelWithString: "디스코드 개발자 포털에서 봇을 만들고 Message Content Intent를 켜세요. 서버를 만든 뒤 커뮤니티를 켜고, 봇을 채널 보기·메시지 보내기·공개 스레드에서 메시지 보내기·메시지 기록 보기·첨부·채널 관리·웹후크 관리·스레드 관리 권한으로 초대하세요. 이 코드를 서버의 일반 채널에 입력한 뒤 연결을 켜면 방마다 포럼 채널이 생깁니다.")
         hint.font = .systemFont(ofSize: 12); hint.textColor = .secondaryLabelColor
         let views: [(NSView, NSRect)] = [
             (title, NSRect(x: 0, y: 0, width: 320, height: 22)),

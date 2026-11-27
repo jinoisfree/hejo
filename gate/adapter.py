@@ -239,6 +239,7 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             if key in self.journal.deleted_threads and key[0] not in self.journal.deleted_rooms and msg_id not in deleted:
                 saved = await self.journal.append({"v": 1, "type": "delete", "msg_id": msg_id})
                 await self.server.broadcast(saved)
+                self.discord.recorded(saved)
         self.files.cleanup()
 
     async def thread_delete(self, frame, conn):
@@ -264,6 +265,7 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
                     await self.server.error("journal_write_failed", frame.get("id"), conn)
                     return
                 await self.server.broadcast(saved)
+                self.discord.recorded(saved)
             else:
                 await conn.send(self.journal.public(self.journal.deleted_threads[key]))
             try:

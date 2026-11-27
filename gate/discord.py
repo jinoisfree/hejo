@@ -1,6 +1,7 @@
 """Discord forum window. The journal owns messages; this door owns only routing."""
 import asyncio
-from collections import defaultdict
+from collections import Counter, defaultdict
+from contextlib import AsyncExitStack, asynccontextmanager
 import hmac
 import json
 import logging
@@ -10,10 +11,13 @@ from pathlib import Path
 import secrets
 import tempfile
 import time
+from types import SimpleNamespace
+from weakref import WeakValueDictionary
 
 from .auth import AuthStore, PAIR_TTL, digest
 from .context import thinking
 from .files import UnknownFile
+from .history_queries import assess
 
 log = logging.getLogger(__name__)
 _discord = _bot = None
@@ -23,11 +27,15 @@ MAX_SEND_FILE_BYTES = 8 * 1024 * 1024
 MAX_RECEIVE_FILE_BYTES = 50 * 1024 * 1024
 MAX_CONTENT_CHARACTERS = 2000
 CATEGORY_LIMIT = 50
+AUTO_ARCHIVE_MINUTES = 1440
 RETRY_ATTEMPTS = 3
 RETRY_DELAY = 60
 STACK = '~stack'
 DEFAULT_CATEGORY = object()
 ARCHIVE_CATEGORY = object()
+FOLLOW_STEPS = ('remove_post', 'remove_messages', 'update', 'rename', 'archive', 'duration')
+IGNORED_POST_MESSAGES = {'recipient_add', 'recipient_remove', 'channel_name_change', 'pins_add'}
+EMPTY_CONTEXT = SimpleNamespace(value=lambda _: None)
 
 
 class SyncSuperseded(Exception):
@@ -72,6 +80,10 @@ def split_content(text):
         chunks.append(text[:end])
         text = text[end:]
     return chunks + [text]
+
+
+def post_title(text):
+    return next((line.strip()[:100] for line in text.splitlines() if line.strip()), '새 대화')
 
 
 def snowflake(value):
@@ -121,6 +133,10 @@ class Discord:
         self._webhooks = {}
         self._followed_posts = set()
         self._receive_lock = asyncio.Lock()
+        self._post_locks = WeakValueDictionary()
+        self._startup_tags = set()
+        self._startup_task = None
+        self._rename_tasks = {}
         self.sent_path = self.settings_store.path / 'sent.jsonl'
         self._load_sent()
         self._channel_lock = asyncio.Lock()
@@ -408,6 +424,11 @@ class Discord:
                 sync = ChannelSync(self, guild, tag)
                 await sync.run()
                 problem = sync.problem
+                if not problem and self.current(tag) and tag not in self._startup_tags:
+                    self._startup_tags.add(tag)
+                    if self._startup_task is not None:
+                        self._startup_task.cancel()
+                    self._startup_task = asyncio.create_task(self._reconcile(tag))
             except SyncSuperseded:
                 return
             except SyncRateLimited as exc:
@@ -443,17 +464,24 @@ class Discord:
     def current(self, tag):
         return self.active() and self.private()['pair']['tag'] == tag
 
-    def events(self, tag):
+    def correspondences(self, tag):
         journal = self.adapter.journal
-        messages = {row['msg_id']: row for row in journal.records if row['type'] == 'message'}
-        events = []
-        for row in messages.values():
+        for row in journal.records:
+            if row['type'] != 'message' or row['role'] != 'owner':
+                continue
             parts = row.get('client_msg_id', '').split(':')
             if len(parts) == 5 and parts[:2] == ['discord', tag]:
-                events.append((row['seq'], parts[2], parts[3], row['msg_id']))
+                _, _, ch, post, dc = parts
+                yield ch, post, row['msg_id'], dc, False
         for row in self.sent:
-            if row['tag'] == tag and row['msg_id'] in messages:
-                events.append((messages[row['msg_id']]['seq'], row['ch'], row['post'], row['msg_id']))
+            if row['tag'] == tag:
+                yield row['ch'], row['post'], row['msg_id'], row['dc'], True
+
+    def events(self, tag):
+        journal = self.adapter.journal
+        messages = {row['msg_id']: row['seq'] for row in journal.records if row['type'] == 'message'}
+        events = [(messages[mid], ch, post, mid) for ch, post, mid, _, _ in self.correspondences(tag)
+                  if mid in messages]
         # Stable order lets the replacement post of the same message supersede its predecessor.
         return sorted(events, key=lambda item: item[0])
 
@@ -466,16 +494,26 @@ class Discord:
         return key
 
     def recorded(self, row):
-        if row['type'] in {'room', 'room_delete'}:
+        kind = row['type']
+        if kind in {'room', 'room_delete'}:
             self.request_sync()
             return
-        key = self.adapter.journal.message_threads.get(row.get('msg_id'))
-        if not key:
+        if kind not in {'message', 'edit', 'state', 'delete'} or not self.active():
             return
-        if (row['type'] == 'message' and self.active() and key[0] in self.rooms()
-                and (row['role'] == 'employee' or not row.get('client_msg_id', '').startswith('discord:'))):
-            self.pending.setdefault(key, []).append((row['msg_id'], self.private()['pair']['tag']))
-        if key in self.pending:
+        mid = row['msg_id']
+        key = self.adapter.journal.message_threads.get(mid)
+        if not key or key[0] not in self.rooms():
+            return
+        tag = self.private()['pair']['tag']
+        send = kind == 'message' and (
+            row['role'] == 'employee' or not row.get('client_msg_id', '').startswith('discord:'))
+        queue = self.pending.get(key, [])
+        # A queued send reads the final journal value. Only an edit arriving after
+        # it was taken off the queue needs a separate follow-up.
+        if kind != 'edit' or not any(job == (mid, tag, 'send') for job in queue):
+            queue.append((mid, tag, 'send' if send else kind))
+            self.pending[key] = queue
+        if queue:
             self.changed[key] = asyncio.get_running_loop().time()
             self.wake(key)
 
@@ -495,9 +533,12 @@ class Discord:
         try:
             while self.pending.get(key):
                 self.wakes[key].clear()
-                msg_id, tag = self.pending[key][0]
+                msg_id, tag, kind = self.pending[key][0]
                 row = self.adapter.journal.message(msg_id)
-                if row and row['role'] == 'employee':
+                if not self.current(tag):
+                    self.pending[key].pop(0)
+                    continue
+                if kind != 'delete' and (kind != 'send' or (row and row['role'] == 'employee')):
                     delay = self.changed[key] + self.settle_seconds - asyncio.get_running_loop().time()
                     if delay > 0:
                         await asyncio.sleep(delay)
@@ -506,29 +547,207 @@ class Discord:
                         await self.wakes[key].wait()
                         continue
                 self.pending[key].pop(0)
+                if kind == 'send':
+                    try:
+                        await self._send_message(msg_id, key, tag)
+                    except Exception as exc:
+                        log.warning('discord_send_failed kind=%s', type(exc).__name__)
                 try:
-                    await self._send_message(msg_id, key, tag)
-                except Exception as exc:
-                    log.warning('discord_send_failed kind=%s', type(exc).__name__)
+                    await self._follow_record(tag, key, msg_id, kind)
+                except SyncSuperseded:
+                    continue
         finally:
             self.pending.pop(key, None)
             self.workers.pop(key, None)
             self.wakes.pop(key, None)
             self.changed.pop(key, None)
 
+    def post_lock(self, tag, post):
+        return self._post_locks.setdefault((tag, post), asyncio.Lock())
+
+    def check_current(self, tag):
+        if not self.current(tag):
+            raise SyncSuperseded
+
+    async def discord_call(self, tag, call, *args, **kwargs):
+        self.check_current(tag)
+        result = await call(*args, **kwargs)
+        self.check_current(tag)
+        return result
+
+    def post_states(self, tag):
+        journal = self.adapter.journal
+        original = {row['msg_id']: row['seq'] for row in journal.records if row['type'] == 'message'}
+        edited = {row['msg_id'] for row in journal.records if row['type'] == 'edit'}
+        posts = {}
+        for ch, post, mid, dc, sent in self.correspondences(tag):
+            state = posts.setdefault(post, PostState(ch))
+            key = journal.message_threads.get(mid)
+            if key:
+                state.keys.add(key)
+            if ch != state.channel:
+                state.conflicting_channel = True
+            if sent:
+                state.sent.setdefault(mid, []).append(dc)
+            else:
+                state.owner[mid] = dc
+            if mid not in original:
+                continue
+            if mid in journal.deleted_messages or key in journal.deleted_threads:
+                state.dead.add(mid)
+            if original[mid] < state.first_seq:
+                state.first_seq = original[mid]
+                state.title_message = mid if sent else None
+            if sent and mid in edited:
+                state.edited.add(mid)
+        return posts
+
+    def post_settled(self, post, tag):
+        key = self.reply_thread(post, tag)
+        if key is None:
+            return False
+        index = self.adapter.journal.history
+        lines = [row for identifier in index.ids(key) if (row := index.message(identifier)) is not None]
+        result, _, _ = assess(lines, EMPTY_CONTEXT)
+        return result['settled']
+
+    async def _follow_record(self, tag, key, mid, kind):
+        self.check_current(tag)
+        stats = Counter()
+        kept = set()
+        for post, state in self.post_states(tag).items():
+            if key not in state.keys:
+                continue
+            if kind == 'delete':
+                steps = FOLLOW_STEPS[:2]
+            elif kind == 'edit' and mid in state.sent:
+                steps = ('update', 'rename', 'archive')
+            else:
+                steps = ('archive',)
+            if any(job_tag == tag and job_kind == 'send' for _, job_tag, job_kind in self.pending.get(key, ())):
+                steps = tuple(step for step in steps if step != 'archive')
+            if steps:
+                await self._match_post(tag, post, steps, kept, stats, edit_mid=mid)
+
+    async def _reconcile(self, tag):
+        stats = Counter()
+        kept = set()
+        posts = self.post_states(tag)
+        try:
+            for step in FOLLOW_STEPS:
+                for post in posts:
+                    await self._match_post(tag, post, (step,), kept, stats)
+        except SyncSuperseded:
+            return
+        for task in stats.pop('title_retries', []):
+            await task
+        if not self.current(tag):
+            return
+        log.info('discord_reconcile removed_posts=%d removed_messages=%d kept_posts=%d edited=%d '
+                 'renamed=%d archived=%d failed=%d', stats['removed_posts'], stats['removed_messages'],
+                 stats['kept_posts'], stats['edited'], stats['renamed'], stats['archived'], stats['failed'])
+
+    async def _match_post(self, tag, post, steps, kept, stats, *, edit_mid=None):
+        async with self.post_lock(tag, post):
+            self.check_current(tag)
+            state = self.post_states(tag).get(post)
+            if state is None:
+                return
+            follow = PostFollow(self, tag, post, state, kept, stats)
+            for step in steps:
+                await follow.apply(step, edit_mid)
+
+    def retry_title(self, tag, post, delay, stats):
+        key = (tag, post)
+        if key in self._rename_tasks:
+            return
+
+        async def retry(delay):
+            try:
+                for _ in range(RETRY_ATTEMPTS):
+                    await self.rate_limit_sleep(delay)
+                    async with self.post_lock(tag, post):
+                        self.check_current(tag)
+                        state = self.post_states(tag).get(post)
+                        if state is None or state.whole_deleted:
+                            return
+                        follow = PostFollow(self, tag, post, state, set(), stats)
+                        try:
+                            await follow.rename()
+                        except SyncRateLimited as exc:
+                            delay = exc.delay
+                        else:
+                            return
+                follow.failed('rename', SyncRateLimited(delay))
+            except SyncSuperseded:
+                pass
+            except Exception as exc:
+                stats['failed'] += 1
+                log.warning('discord_rename_failed kind=%s', type(exc).__name__)
+            finally:
+                self._rename_tasks.pop(key, None)
+
+        task = asyncio.create_task(retry(delay))
+        self._rename_tasks[key] = task
+        stats.setdefault('title_retries', []).append(task)
+
+    async def rename_post(self, thread, title):
+        # Thread.edit retries a 429 internally with the original payload. Return
+        # the delay to the post lane so it can obtain the latest title on retry.
+        from aiohttp import ClientTimeout, request
+        from discord import HTTPException
+        from discord.http import Route
+
+        http = _bot.http
+        route = Route('PATCH', '/channels/{channel_id}', channel_id=thread.id)
+        headers = {'Authorization': 'Bot ' + http.token, 'User-Agent': http.user_agent}
+        fields = {'name': title}
+        if thread.archived:
+            fields['archived'] = False
+        async with request(route.method, route.url, json=fields, headers=headers,
+                           proxy=http.proxy, proxy_auth=http.proxy_auth,
+                           allow_redirects=False, timeout=ClientTimeout(total=30)) as response:
+            if response.status == 429:
+                delay = await rate_limit_delay(HTTPException(response, None))
+                raise SyncRateLimited(delay if delay is not None else RETRY_DELAY)
+            if response.status != 200:
+                raise HTTPException(response, None)
+
     def anchor(self, key, tag, channel):
         journal = self.adapter.journal
         return next((post for _, ch, post, mid in reversed(self.events(tag))
                      if ch == channel and journal.message_threads.get(mid) == key), None)
 
-    async def webhook(self, channel):
+    async def webhook(self, channel, *, create=True):
         key = (_bot, str(channel.id))
         if key not in self._webhooks:
             hooks = await channel.webhooks()
             hook = next((hook for hook in hooks if hook.name == 'hejo'
                          and getattr(hook.user, 'id', None) == _bot.user.id), None)
-            self._webhooks[key] = hook or await channel.create_webhook(name='hejo')
+            if hook is None:
+                if not create:
+                    raise LookupError('missing_hejo_webhook')
+                hook = await channel.create_webhook(name='hejo')
+            self._webhooks[key] = hook
         return self._webhooks[key]
+
+    def render_message(self, row):
+        text = row['text']
+        replies = [b['label'] for b in row.get('buttons', []) if b['kind'] == 'reply']
+        if replies:
+            text += '\n선택: ' + ' / '.join(replies)
+        if any(b['kind'] != 'reply' for b in row.get('buttons', [])):
+            text += '\n(이 선택은 hejo 앱에서 눌러 주세요)'
+        attachments = []
+        for file in row.get('files', []):
+            try:
+                path, _ = self.adapter.files.registered(row['employee'], file['file_id'])
+                if path.stat().st_size > MAX_SEND_FILE_BYTES:
+                    raise ValueError('too_large')
+                attachments.append(path)
+            except (UnknownFile, OSError, ValueError):
+                text += f"\n📎 {file['name']} (hejo 앱에서 열기)"
+        return text, attachments
 
     async def _send_message(self, msg_id, key, tag):
         row = self.adapter.journal.message(msg_id)
@@ -560,29 +779,25 @@ class Discord:
                     await self.wakes[key].wait()
                     continue
             break
+        post = self.anchor(key, tag, entry['channel'])
+        async with AsyncExitStack() as locks:
+            if post is not None:
+                await locks.enter_async_context(self.post_lock(tag, post))
+            row = self.adapter.journal.message(msg_id)
+            if not row or not self.current(tag) or key[0] not in self.rooms():
+                return
+            await self._deliver_message(row, key, tag, pair, guild, entry, post, locks)
+
+    async def _deliver_message(self, row, key, tag, pair, guild, entry, post, locks):
+        msg_id = row['msg_id']
         from discord import AllowedMentions, File, Object, NotFound
         names = {e['id']: e['name'] for e in self.adapter.employees()}
         label = self.adapter.owner_label('사장') if row['role'] == 'owner' else names.get(row['employee'], row['employee'])
-        title = next((line.strip()[:100] for line in row['text'].splitlines() if line.strip()), '새 대화')
-        text = row['text']
-        replies = [b['label'] for b in row.get('buttons', []) if b['kind'] == 'reply']
-        if replies:
-            text += '\n선택: ' + ' / '.join(replies)
-        if any(b['kind'] != 'reply' for b in row.get('buttons', [])):
-            text += '\n(이 선택은 hejo 앱에서 눌러 주세요)'
-        attachments = []
-        for file in row.get('files', []):
-            try:
-                path, _ = self.adapter.files.registered(row['employee'], file['file_id'])
-                if path.stat().st_size > MAX_SEND_FILE_BYTES:
-                    raise ValueError('too_large')
-                attachments.append(path)
-            except (UnknownFile, OSError, ValueError):
-                text += f"\n📎 {file['name']} (hejo 앱에서 열기)"
+        title = post_title(row['text'])
+        text, attachments = self.render_message(row)
         channel = guild.get_channel(snowflake(entry['channel']))
         webhook_key = (_bot, str(channel.id))
         hook = await self.webhook(channel)
-        post = self.anchor(key, tag, entry['channel'])
         chunks = split_content(text) if text else ['']
         for chunk in chunks:
             if not self.current(tag) or key[0] not in self.rooms() or key in self.adapter.journal.deleted_threads:
@@ -598,6 +813,8 @@ class Discord:
                     try:
                         result = await hook.send(**args, thread=Object(id=post))
                     except NotFound:
+                        if not self.current(tag) or key[0] not in self.rooms() or key in self.adapter.journal.deleted_threads:
+                            return
                         if first_file:
                             # Webhook.send closes uploaded files even when HTTP returns 404.
                             first_file.close()
@@ -608,7 +825,10 @@ class Discord:
                     result = await hook.send(**args, thread_name=title)
                 if not result:
                     raise OSError('send_failed')
-                post = str(result.channel.id)
+                destination = str(result.channel.id)
+                if destination != post:
+                    await locks.enter_async_context(self.post_lock(tag, destination))
+                post = destination
                 self._save_sent(tag, entry['channel'], post, str(result.id), msg_id)
             except NotFound:
                 # Creating a post failed. Leave webhook recovery to the next message.
@@ -722,7 +942,10 @@ class Discord:
         task.add_done_callback(self._typing_tasks.discard)
 
     async def close(self):
-        tasks = (self._sync_task, self._connection_task, *self.workers.values(), *self._typing_tasks)
+        tasks = (self._sync_task, self._connection_task, *self.workers.values(), *self._typing_tasks,
+                 *self._rename_tasks.values())
+        if self._startup_task is not None:
+            tasks += (self._startup_task,)
         if self._retry_task is not None:
             tasks += (self._retry_task,)
         for task in tasks:
@@ -731,6 +954,280 @@ class Discord:
         self.workers.clear()
         self.pending.clear()
         self._typing_tasks.clear()
+
+
+class PostState:
+    """A view of one forum post reconstructed from journal and sent correspondences."""
+
+    def __init__(self, channel):
+        self.channel = channel
+        self.conflicting_channel = False
+        self.sent, self.owner = {}, {}
+        self.keys, self.dead, self.edited = set(), set(), set()
+        self.first_seq = math.inf
+        self.title_message = None
+
+    @property
+    def whole_deleted(self):
+        return (self.sent.keys() | self.owner.keys()) <= self.dead
+
+    @property
+    def dead_sent(self):
+        live = {dc for mid, ids in self.sent.items() if mid not in self.dead for dc in ids}
+        owners = set(self.owner.values())
+        return tuple(dict.fromkeys(dc for mid, ids in self.sent.items() if mid in self.dead
+                                   for dc in ids if dc not in live and dc not in owners))
+
+
+class PostFollow:
+    """Compare one post with the current journal while holding its mutation lane."""
+
+    def __init__(self, door, tag, post, state, kept, stats):
+        self.door, self.tag, self.post = door, tag, post
+        self.state, self.kept, self.stats = state, kept, stats
+        self.thread = None
+        self.skip_title = False
+        self.missing = False
+
+    def failed(self, operation, exc):
+        self.stats['failed'] += 1
+        log.warning('discord_%s_failed kind=%s', operation, type(exc).__name__)
+
+    async def call(self, method, *args, **kwargs):
+        return await self.door.discord_call(self.tag, method, *args, **kwargs)
+
+    async def locate(self):
+        from discord import NotFound
+        if self.thread is None and not self.missing:
+            try:
+                thread = await self.call(_bot.fetch_channel, snowflake(self.post))
+            except NotFound:
+                self.missing = True
+                return None
+            pair = self.door.private()['pair']
+            if (self.state.conflicting_channel or str(thread.parent_id) != self.state.channel
+                    or str(thread.guild.id) != pair['guild_id']):
+                raise ValueError('unexpected_forum_post')
+            self.thread = thread
+        return self.thread
+
+    async def webhook(self):
+        if self.thread.parent is None:
+            raise LookupError('unavailable_forum_parent')
+        return await self.call(self.door.webhook, self.thread.parent, create=False)
+
+    async def edit_thread(self, **fields):
+        edited = await self.call(self.thread.edit, **fields)
+        if edited is not None:
+            self.thread = edited
+
+    @asynccontextmanager
+    async def writable(self):
+        archived = self.thread.archived
+        if archived:
+            await self.edit_thread(archived=False)
+        try:
+            yield
+        finally:
+            if archived and self.door.current(self.tag):
+                await self.edit_thread(archived=True)
+
+    async def apply(self, step, edit_mid):
+        operation = {'remove_post': 'remove', 'remove_messages': 'remove',
+                     'update': 'update', 'rename': 'rename', 'archive': 'archive', 'duration': 'archive'}[step]
+        try:
+            if step == 'remove_post':
+                if self.state.whole_deleted:
+                    await self.remove_post()
+                return
+            if step == 'remove_messages':
+                if not self.state.whole_deleted or self.post in self.kept:
+                    await self.remove_messages()
+                return
+            if self.state.whole_deleted:
+                return
+            if step == 'update':
+                for mid in self.state.sent:
+                    if mid in self.state.edited and (edit_mid is None or mid == edit_mid):
+                        await self.update(mid)
+            elif step == 'rename':
+                if not self.skip_title and (edit_mid is None or edit_mid == self.state.title_message):
+                    if (self.tag, self.post) not in self.door._rename_tasks:
+                        await self.rename()
+            elif step == 'archive':
+                if self.door.post_settled(self.post, self.tag) and await self.locate() and not self.thread.archived:
+                    await self.edit_thread(archived=True)
+                    self.stats['archived'] += 1
+            elif await self.locate() and not self.thread.archived:
+                if self.thread.auto_archive_duration != AUTO_ARCHIVE_MINUTES:
+                    await self.edit_thread(auto_archive_duration=AUTO_ARCHIVE_MINUTES)
+        except SyncSuperseded:
+            raise
+        except SyncRateLimited as exc:
+            if step == 'rename':
+                self.door.retry_title(self.tag, self.post, exc.delay, self.stats)
+            else:
+                self.failed(operation, exc)
+        except Exception as exc:
+            self.failed(operation, exc)
+
+    async def remove_post(self):
+        from discord import NotFound
+        thread = await self.locate()
+        if thread is not None:
+            if not thread.permissions_for(thread.guild.me).read_message_history:
+                raise PermissionError('unreadable_history')
+            try:
+                seen = []
+                async for message in thread.history(limit=None):
+                    self.door.check_current(self.tag)
+                    seen.append((str(message.id), getattr(message.type, 'name', None)))
+                # New inbound records may have arrived while reading the Discord history.
+                state = self.door.post_states(self.tag).get(self.post)
+                if state is None or state.conflicting_channel:
+                    return
+                self.state = state
+                if not state.whole_deleted:
+                    return
+                known = set(state.dead_sent) | set(state.owner.values())
+                if any(kind not in IGNORED_POST_MESSAGES and
+                       (kind not in {'default', 'reply'} or dc not in known) for dc, kind in seen):
+                    self.kept.add(self.post)
+                    self.stats['kept_posts'] += 1
+                    log.info('discord_remove_kept count=1')
+                    return
+                await self.call(thread.delete)
+            except NotFound:
+                pass
+        self.missing = True
+        self.stats['removed_posts'] += 1
+
+    async def remove_messages(self):
+        from discord import NotFound, Object
+        ids = self.state.dead_sent
+        if not ids:
+            return
+        thread = await self.locate()
+        if thread is None:
+            self.stats['removed_messages'] += len(ids)
+            return
+        remaining = []
+        for dc in ids:
+            try:
+                await self.call(thread.fetch_message, snowflake(dc))
+            except NotFound:
+                self.stats['removed_messages'] += 1
+            else:
+                remaining.append(dc)
+        if not remaining:
+            return
+        hook = await self.webhook()
+        thread_ref = Object(id=snowflake(self.post))
+        async with self.writable():
+            for dc in remaining:
+                try:
+                    await self.call(hook.delete_message, snowflake(dc), thread=thread_ref)
+                except SyncSuperseded:
+                    raise
+                except NotFound:
+                    self.stats['removed_messages'] += 1
+                except Exception as exc:
+                    self.failed('remove', exc)
+                else:
+                    self.stats['removed_messages'] += 1
+
+    async def update(self, mid):
+        from discord import AllowedMentions, NotFound, Object
+        row = self.door.adapter.journal.message(mid)
+        if not row:
+            return
+        thread = await self.locate()
+        # An absent post has no surviving body chunks.
+        known = []
+        try:
+            if thread is not None:
+                ref = Object(id=snowflake(self.post))
+                for dc in dict.fromkeys(self.state.sent[mid]):
+                    try:
+                        message = await self.call(thread.fetch_message, snowflake(dc))
+                    except NotFound:
+                        continue
+                    if message.content:
+                        known.append((message, dc))
+            if not known:
+                self.stats['failed'] += 1
+                log.warning('discord_update_failed kind=NotFound')
+                self.skip_title |= mid == self.state.title_message
+                return
+            text, _ = self.door.render_message(row)
+            desired = split_content(text) if text else []
+            edits = [(message, dc, value) for (message, dc), value in zip(known, desired)
+                     if message.content != value]
+            remove = known[len(desired):]
+            add = desired[len(known):]
+            if not (edits or remove or add):
+                return
+            hook = await self.webhook()
+            mentions = AllowedMentions.none()
+            changed = False
+            async with self.writable():
+                for message, dc, value in edits:
+                    try:
+                        await self.call(hook.edit_message, snowflake(dc), thread=ref, content=value,
+                                        allowed_mentions=mentions)
+                    except SyncSuperseded:
+                        raise
+                    except Exception as exc:
+                        self.failed('update', exc)
+                        self.skip_title |= mid == self.state.title_message
+                    else:
+                        changed = True
+                for message, dc in remove:
+                    if message.attachments:
+                        # Clear text without removing a file carried by the same Discord message.
+                        await self.call(hook.edit_message, snowflake(dc), thread=ref, content='',
+                                        allowed_mentions=mentions)
+                    else:
+                        await self.call(hook.delete_message, snowflake(dc), thread=ref)
+                    changed = True
+                for value in add:
+                    sent = await self.call(hook.send, thread=ref, content=value,
+                                           username=known[0][0].author.display_name, allowed_mentions=mentions, wait=True)
+                    if not sent:
+                        raise OSError('send_failed')
+                    self.door._save_sent(self.tag, self.state.channel, self.post, str(sent.id), mid)
+                    changed = True
+            self.stats['edited'] += int(changed)
+        except SyncSuperseded:
+            raise
+        except Exception as exc:
+            self.failed('update', exc)
+            self.skip_title |= mid == self.state.title_message
+
+    async def rename(self):
+        mid = self.state.title_message
+        if mid is None or not await self.locate():
+            return
+        row = self.door.adapter.journal.message(mid)
+        if row is None:
+            return
+        title = post_title(row['text'])
+        if self.thread.name == title:
+            return
+        try:
+            await self.call(self.door.rename_post, self.thread, title)
+        except (SyncSuperseded, SyncRateLimited):
+            raise
+        except Exception as exc:
+            delay = await rate_limit_delay(exc)
+            if delay is None:
+                self.failed('rename', exc)
+            else:
+                raise SyncRateLimited(delay) from None
+        else:
+            self.stats['renamed'] += 1
+            if self.thread.archived:
+                await self.edit_thread(archived=True)
 
 
 class ChannelSync:
@@ -968,7 +1465,15 @@ class ChannelSync:
             categories[ARCHIVE_CATEGORY] = await self.ensure_category(ARCHIVE_CATEGORY, 'hejo 보관')
         destinations.update(dict.fromkeys(archived, ARCHIVE_CATEGORY))
         pending = {room: categories[key] for room, key in destinations.items() if categories.get(key)}
+        existing = {entry['channel'] for entry in self.entries.values()}
         await self.place_rooms(pending)
+        for room in self.rooms:
+            channel = self.room_channel(room)
+            if channel is None:
+                continue
+            duration = getattr(channel, 'default_auto_archive_duration', AUTO_ARCHIVE_MINUTES)
+            if str(channel.id) not in existing or duration != AUTO_ARCHIVE_MINUTES:
+                await self.apply(channel.edit, default_auto_archive_duration=AUTO_ARCHIVE_MINUTES)
 
         if layout is not None:
             default = self.category(DEFAULT_CATEGORY)
