@@ -89,13 +89,21 @@ class RoomCommands:
         for identifier in self.journal.deleted_rooms:
             self.server.pictures.delete('room', identifier)
 
-    def room_context(self, room, thread, employee):
-        rows = [self.journal.message(row['msg_id']) for row in self.journal.records
-                if row['type'] == 'message' and self.journal.message_threads.get(row['msg_id']) == (room, thread)]
-        rows = [row for row in rows if row]
-        # Receiving an owner post is durable metadata on that owner post; own answers also mark receipt.
-        last = max((row['seq'] for row in rows if employee in row.get('_meta', {}).get('recipients', [])
-                    or row['role'] == 'employee' and row['employee'] == employee), default=0)
-        missed = [row for row in rows if row['seq'] > last]
+    def room_context(self, room, thread, employee, *, before=None):
+        missed = []
+        for row in self.journal.records:
+            if before is not None and row['seq'] >= before:
+                break
+            if row['type'] != 'message' or self.journal.message_threads.get(row['msg_id']) != (room, thread):
+                continue
+            current = self.journal.history.message(row['msg_id'])
+            if current is None:
+                continue
+            # The original message names the recipients. Later delivery markers have their own metadata.
+            if employee in row.get('_meta', {}).get('recipients', ()) or (
+                    row['role'] == 'employee' and row['employee'] == employee):
+                missed.clear()
+            else:
+                missed.append(current)
         return conversation_lines(missed, {e['id']: e['name'] for e in self.employees()},
                                   owner=self.owner_label("나"), limit=20, characters=4000, line_characters=500)

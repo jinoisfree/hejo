@@ -1,6 +1,7 @@
 """Native Hermes prompt construction and public resolver dispatch."""
 import re
 from agent.i18n import t
+from .reply_rules import styled
 
 
 def decision(button, owner="나"):
@@ -18,9 +19,9 @@ def plain_labels(content):
 
 
 def native_metadata(kind, session_key, choices, **fields):
-    return [{"kind": kind, "session_key": session_key, "label": label[:30],
+    return styled([{"kind": kind, "session_key": session_key, "label": label[:30],
              "response": response, "style": style or "default", **fields}
-            for label, response, style in choices]
+            for label, response, style in choices])
 
 
 async def resolve(button):

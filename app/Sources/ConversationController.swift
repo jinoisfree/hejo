@@ -29,45 +29,25 @@ struct ConversationFailedSend: Identifiable {
     struct PendingClose {
         enum Action {
             case deadline(TodoDrawerModel.DeadlineRef, outcome: String)
-            case question(ConversationKey, recipient: String)
 
             var kind: TodoDrawerModel.Filter {
                 switch self {
                 case .deadline: return .deadline
-                case .question: return .question
                 }
             }
         }
         let cardID: String, title: String, action: Action, sendAt: Date
     }
     private struct InFlightClose { let id: String, employee: String, timeoutAt: Date }
-    private struct CardConfirmation {
-        enum Phase {
-            case preparing
-            case awaiting(showAt: Date)
-            case unresolved
-            case accepted(until: Date)
-        }
-        let clientMessageID: String
-        var phase: Phase = .preparing
-
-        var hidden: Bool {
-            if case .unresolved = phase { return false }
-            return true
-        }
-    }
     static let closeUndoSeconds: TimeInterval=5, closeResponseSeconds: TimeInterval=75
     private(set) var pendingClose: PendingClose?
     private var closesInFlight=[String:InFlightClose]()          // card id -> request
     private var closesConfirming=[String:(seq:Int,employee:String)]()
-    private var confirmations = [String: CardConfirmation]()    // card id -> send result
     private(set) var closeFailed=false
-    private var confirmationFailed = false
 
     private var hiddenCards: Set<String> {
         var hidden = Set(closesInFlight.keys).union(closesConfirming.keys)
         if let pendingClose { hidden.insert(pendingClose.cardID) }
-        for (id, confirmation) in confirmations where confirmation.hidden { hidden.insert(id) }
         return hidden
     }
     var drawerSnapshot: TodoDrawerModel.Snapshot {
@@ -76,7 +56,6 @@ struct ConversationFailedSend: Identifiable {
         value.undoTitle = pendingClose?.title
         value.undoKind = pendingClose?.action.kind
         value.closeFailed = closeFailed
-        value.confirmationFailed = confirmationFailed
         return value
     }
     func canCompleteCard(_ card: TodoDrawerModel.Card) -> Bool {
@@ -85,7 +64,7 @@ struct ConversationFailedSend: Identifiable {
         case .deadline:
             return card.deadlineRef != nil && closesInFlight[card.id] == nil && closesConfirming[card.id] == nil
         case .question:
-            return canSend && card.key != nil && card.messageID != nil && confirmations[card.id] == nil
+            return false
         case .alert:
             return card.key != nil
         case .all:
@@ -94,13 +73,11 @@ struct ConversationFailedSend: Identifiable {
     }
     func completeCard(_ card: TodoDrawerModel.Card) {
         guard canCompleteCard(card) else { return }
-        confirmationFailed = false
         switch card.kind {
         case .deadline:
             closeDeadline(card, outcome: "done")
         case .question:
-            guard let key = card.key else { return }
-            queueClose(card, action: .question(key, recipient: card.employee))
+            return
         case .alert:
             if let key = card.key { model.markNoticeRead(key) }
         case .all:
@@ -111,7 +88,7 @@ struct ConversationFailedSend: Identifiable {
         guard drawerOpen != open || drawerChatExpanded != chatExpanded else{return}
         let wasVisible=drawerVisible
         drawerOpen=open;drawerChatExpanded=chatExpanded
-        if drawerVisible && !wasVisible { closeFailed=false;confirmationFailed=false;requestDeadlines() }
+        if drawerVisible && !wasVisible { closeFailed=false;requestDeadlines() }
         notifyChange()
     }
     func pollDeadlines() {
@@ -157,61 +134,9 @@ struct ConversationFailedSend: Identifiable {
         let lost=closesInFlight.filter{now>=$0.value.timeoutAt}.map(\.key)
         for card in lost {failClose(card)}
 
-        var changed = pruneAcceptedConfirmations(at: now)
-        for (card, confirmation) in confirmations {
-            if case .awaiting(let showAt) = confirmation.phase, now >= showAt {
-                confirmations[card]?.phase = .unresolved
-                changed = true
-            }
-        }
-        if changed { notifyChange() }
     }
     private func executeClose(_ close: PendingClose) {
-        switch close.action {
-        case .deadline(let ref, let outcome):
-            sendClose(close.cardID, ref: ref, outcome: outcome)
-        case .question(let key, let recipient):
-            let id = UUID().uuidString.lowercased()
-            confirmations[close.cardID] = CardConfirmation(clientMessageID: id)
-            Task { [weak self] in
-                guard let self, self.confirmations[close.cardID]?.clientMessageID == id else { return }
-                if !(await self.sendText("확인", key: key, recipient: recipient, confirmationID: id)),
-                   self.confirmationFailed(id: id) {
-                    self.notifyChange()
-                }
-            }
-        }
-    }
-    private func confirmationCard(for id: String) -> String? {
-        confirmations.first { $0.value.clientMessageID == id }?.key
-    }
-    @discardableResult
-    private func confirmationFailed(id: String) -> Bool {
-        guard let card = confirmationCard(for: id) else { return false }
-        confirmations[card] = nil
-        confirmationFailed = true
-        return true
-    }
-    private func confirmationAccepted(id: String) {
-        guard let card = confirmationCard(for: id) else { return }
-        confirmations[card]?.phase = .accepted(until: clock().addingTimeInterval(Self.closeResponseSeconds))
-    }
-    private func pruneAcceptedConfirmations(at now: Date) -> Bool {
-        let accepted = confirmations.compactMap { card, confirmation -> (String, Date)? in
-            guard case .accepted(let until) = confirmation.phase else { return nil }
-            return (card, until)
-        }
-        guard !accepted.isEmpty else { return false }
-        let listed: Set<String>
-        if client.store.historyMode {
-            listed = Set(model.history.notices.lazy.filter(\.questions).map(\.id))
-        } else {
-            let cards = todoDrawer.snapshot(model, filter: .question, now: model.renderTime)
-            listed = Set((cards.urgent + cards.rest).map(\.id))
-        }
-        let released = accepted.filter { now >= $0.1 || !listed.contains($0.0) }
-        for (card, _) in released { confirmations[card] = nil }
-        return !released.isEmpty
+        if case .deadline(let ref,let outcome)=close.action {sendClose(close.cardID,ref:ref,outcome:outcome)}
     }
     private func sendClose(_ card: String, ref: TodoDrawerModel.DeadlineRef, outcome: String) {
         let id=UUID().uuidString.lowercased()
@@ -253,8 +178,6 @@ struct ConversationFailedSend: Identifiable {
     }
     private func resetCloses() {
         pendingClose=nil;closesInFlight=[:];closesConfirming=[:];closeFailed=false
-        confirmations.removeAll()
-        confirmationFailed = false
     }
     let client: GateClient
     let model: ConversationModel
@@ -273,7 +196,6 @@ struct ConversationFailedSend: Identifiable {
             guard let id = row["client_msg_id"] as? String, let entry = pending[id], entry.workspace == replicaAddress else { continue }
             if row["status"] as? String == "accepted" || row["status"] as? String == "deleted" {
                 pending[id] = nil; reconnectPending.remove(id)
-                confirmationAccepted(id: id)
                 if newPostIDs.remove(id) != nil, entry.revision == composeRevision { followup = entry.key }
                 if row["status"] as? String == "accepted" { model.markThreadRead(entry.key) }
                 if !entry.draft.attachments.isEmpty { Task { await files.keepSent(entry.draft.attachments,date:entry.at) } }
@@ -497,7 +419,6 @@ struct ConversationFailedSend: Identifiable {
         }
     }
     func notifyChange() {
-        if !confirmations.isEmpty { _ = pruneAcceptedConfirmations(at: clock()) }
         if !calendarValues.isEmpty {
             calendarValues=calendarValues.filter { key,_ in
                 key.hasPrefix("pending:") ? pending[String(key.dropFirst(8))] != nil:model.messages[key] != nil
@@ -599,14 +520,14 @@ struct ConversationFailedSend: Identifiable {
         do { try await client.send(["v":1,"type":"thread_delete","id":UUID().uuidString.lowercased(),"room":key.employee,"thread":key.thread]) }
         catch {deleting.remove(key);transferFailed(error)}
     }
-    @discardableResult func sendText(_ text:String,key:ConversationKey,recipient:String?=nil,confirmationID:String?=nil) async -> Bool {
+    @discardableResult func sendText(_ text:String,key:ConversationKey,recipient:String?=nil) async -> Bool {
         guard canSend else {transferFailed(GateFailure.notConnected);return false}
         if client.store.historyMode {
             do {try await confirmReplyTarget(key)} catch {transferFailed(error);return false}
         }
         let target=recipient ?? controlRecipient(key,working:text=="/stop")
         if let room=model.groups[key.employee],!room.members.contains(target) {transferFailed(GateFailure.notConnected);return false}
-        if text != "/stop" {return await transmit(key,draft:ConversationDraft(text:text),recipient:target,confirmationID:confirmationID)}
+        if text != "/stop" {return await transmit(key,draft:ConversationDraft(text:text),recipient:target)}
         let id=UUID().uuidString.lowercased()
         do {try await client.send(["v":1,"type":"send","id":id,"thread":key.thread,"client_msg_id":id,"text":text].merging(sendFields(key,recipient:target)){$1})}
         catch {transferFailed(error);return false}
@@ -699,6 +620,16 @@ struct ConversationFailedSend: Identifiable {
         refreshFileCache()
         guard !paused else{return}
         if client.store.historyMode { historyLoading.tick() }
+        undoDeadlines=undoDeadlines.filter{$0.value.end.addingTimeInterval(6)>clock()}
+        for request in replyRequests.values {
+            if request.kind=="click", canSend, clock().timeIntervalSince(request.sentAt)>=10 {
+                replyRequests[request.id]=nil
+                refreshReply(request,reconnecting:true)
+                replyChanged()
+            } else if request.epoch != client.connectionEpoch {
+                refreshReply(request,reconnecting:true)
+            }
+        }
         pollDeadlines()
         let old=(confirmingDelete.count,interruptions.count,branching.count)
         model.expireTyping()
@@ -713,6 +644,12 @@ struct ConversationFailedSend: Identifiable {
     private func receiveFrame(_ frame:[String:Any], modelApplied:Bool) {
         refreshFileCache()
         let kind=frame["type"] as? String
+        // Older gates close their button with durable state and never send a click_ack.
+        if kind=="state",let id=frame["msg_id"] as? String,let state=frame["reply_state"] as? String,state != "asked",
+           let old=replyRequests.values.first(where:{$0.question==id && $0.kind=="click" && $0.button?.role==nil}) {
+            replyRequests[old.id]=nil;replyVersion+=1
+        }
+        if receiveReply(frame) {return}
         if kind=="deadline_close_status" || (kind=="error" && (frame["ref"] as? String).map{card(forCloseRef:$0) != nil} == true) {
             receiveClose(frame);return
         }
@@ -733,13 +670,13 @@ struct ConversationFailedSend: Identifiable {
             }
             for id in unconfirmed {
                 if let entry = pending.removeValue(forKey: id) {
-                    confirmationFailed(id: id)
                     failPending(entry, reason: "전송 확인이 없어요. 내용을 확인하고 다시 보내 주세요.")
                 }
                 newPostIDs.remove(id)
             }
         }
         if frame["type"] as? String == "welcome", replicaAddress != client.store.settings.address {
+            replyRequests.removeAll();replyUpdates.removeAll();lastClick.removeAll();editingComments.removeAll();commentDrafts.removeAll();undoDeadlines.removeAll();batchFailures.removeAll();branchTarget=nil
             todoDrawer.receive(["available":false]);resetCloses();prepareDraftAddress();model.resetReplica();newPostIDs=[];followup=nil;transferFailure=nil;bubbleProblems=[:];uploads=[:];activeUploads=[:];stoppedTargets=[:];interruptions=[:];branching=[:];deleting=[];confirmingDelete=[:];checklistSelections=[:];replicaAddress = client.store.settings.address
         }
         if kind=="welcome" {
@@ -775,7 +712,6 @@ struct ConversationFailedSend: Identifiable {
         if frame["scope"] as? String == "thread",let room=frame["room"] as? String,let thread=frame["thread"] as? String {
             let key=ConversationKey(employee:room,thread:thread)
             for (id, entry) in pending where entry.workspace == replicaAddress && entry.key == key {
-                if let card = confirmationCard(for: id) { confirmations[card] = nil }
                 pending[id] = nil
             }
             bubbleProblems[key]=nil;deleting.remove(key);stoppedTargets.removeValue(forKey:key);interruptions[key]=nil
@@ -783,7 +719,6 @@ struct ConversationFailedSend: Identifiable {
             checklistSelections=checklistSelections.filter{model.messages[$0.key] != nil}
         }
         if let id = frame["client_msg_id"] as? String, let entry = pending.removeValue(forKey: id) {
-            confirmationAccepted(id: id)
             if newPostIDs.remove(id) != nil,entry.revision==composeRevision {followup=entry.key}
             model.markThreadRead(entry.key)
             transferFailure=nil;notice=""
@@ -808,7 +743,6 @@ struct ConversationFailedSend: Identifiable {
             let repair=["unknown_file","too_large","button_expired"].contains(frame["code"] as? String ?? "")
             transferFailure=IslandFailure(message:message,firstWords:entry.map { IslandModel.firstLine($0.draft.text) } ?? "",retryKey:repair ? nil : entry?.key,isSend:entry != nil)
             if let entry {
-                if let ref = frame["ref"] as? String { confirmationFailed(id: ref) }
                 failPending(entry, reason: message)
             }
         }
@@ -900,6 +834,12 @@ struct ConversationFailedSend: Identifiable {
         guard let key=destination ?? model.selected else{return}
         let source=draftFrom ?? (destination==nil ? composeKey:nil) ?? key
         let draft=drafts[source] ?? ConversationDraft()
+        if let branch=branchTarget,branch.key==key {
+            guard draft.attachments.isEmpty else {notice="갈래 의견에는 첨부를 보낼 수 없어요.";return}
+            let comment=MessageButton(id:"std:comment",label:"의견",kind:"reply",style:"secondary",role:"comment")
+            await click(comment,messageID:branch.id,key:key,buttons:[],text:draft.text)
+            return
+        }
         let home=key.employee==HomeRoom.id || homeNew
         let channel=home ? model.homeChannel:nil,picked=draft.picks.first
         var outgoing=draft,target=key
@@ -947,11 +887,11 @@ struct ConversationFailedSend: Identifiable {
         guard summary.conversationKey==key,summary.revision>(model.history.deletedThreads[key] ?? 0) else {throw HistoryFailure.changed}
         model.history.summaries[key]=summary
     }
-    private func transmit(_ key:ConversationKey,draft:ConversationDraft,bubble:Bool=false,place:ConversationKey?=nil,recipient:String?=nil,newPost:Bool=false,confirmationID:String?=nil) async ->Bool {
+    private func transmit(_ key:ConversationKey,draft:ConversationDraft,bubble:Bool=false,place:ConversationKey?=nil,recipient:String?=nil,newPost:Bool=false) async ->Bool {
 #if HEJO_LEGACY_REFERENCE || HEJO_HISTORY_BASELINE || HEJO_THREE_TAP_DIAGNOSTIC
         let newPost = client.store.historyMode ? newPost : model.timeline(key).isEmpty
 #endif
-        let id = confirmationID ?? UUID().uuidString.lowercased()
+        let id = UUID().uuidString.lowercased()
         let address = client.store.settings.address, epoch = client.connectionEpoch
         if newPost {composeRevision+=1;followup=nil;newPostIDs.insert(id)}
         let attempt=PendingSend(key:key,draft:draft,bubble:bubble,workspace:replicaAddress,shown:model.selectionIdentity,newPost:newPost,at:clock(),revision:composeRevision,place:place ?? key)
@@ -974,10 +914,6 @@ struct ConversationFailedSend: Identifiable {
             }
             guard address == client.store.settings.address, epoch == client.connectionEpoch, canSend else { throw GateFailure.notConnected }
             if client.store.historyMode && !newPost && !draft.attachments.isEmpty {try await confirmReplyTarget(key)}
-            if confirmationID != nil {
-                guard let card = confirmationCard(for: id) else { throw GateFailure.notConnected }
-                confirmations[card]?.phase = .awaiting(showAt: clock().addingTimeInterval(Self.closeResponseSeconds))
-            }
             sendStarted = true
             try await client.send(["v":1, "type":"send", "id":id, "thread":key.thread,
                                    "text":draft.text.trimmingCharacters(in:.whitespacesAndNewlines), "client_msg_id":id, "files":uploaded.map(\.fileID)].merging(destination){$1})
@@ -1000,14 +936,148 @@ struct ConversationFailedSend: Identifiable {
         }
         notifyChange();return true
     }
-    func click(_ button: MessageButton, messageID: String, key: ConversationKey, buttons: [MessageButton]) async {
-        if button.kind == "reply", button.label == "의견" {
-            if !revealThread(key, direct: true) { model.select(key) }
+    struct ReplyRequest {
+        let id: String, question: String, key: ConversationKey, kind: String
+        let button: MessageButton?, answerID: String?, epoch: Int
+        let text: String?, sentAt:Date, batch:Bool
+    }
+    private(set) var batchFailures=[String:String]()
+    func clearBatchFailures() {batchFailures.removeAll()}
+    private(set) var replyRequests: [String:ReplyRequest] = [:]
+    struct ReplyUpdate { let answer: QuestionAnswer?; let through: Int }
+    private var replyUpdates: [String:ReplyUpdate] = [:]
+    private struct UndoWindow {let end:Date, seconds:TimeInterval, epoch:Int}
+    private var undoDeadlines=[String:UndoWindow]()
+    func undoEnd(_ answer:QuestionAnswer)->Date {
+        if let window=undoDeadlines[answer.answerID], window.epoch==client.connectionEpoch {return window.end}
+        guard let until=answer.undoUntil else{return .distantPast}
+        return model.date(until).addingTimeInterval(-client.history.gateClockOffset)
+    }
+    func undoDuration(_ answer:QuestionAnswer)->TimeInterval {
+        if let seconds=undoDeadlines[answer.answerID]?.seconds {return max(1,seconds)}
+        if let until=answer.undoUntil, let at=answer.at {
+            return max(1,model.date(until).timeIntervalSince(model.date(at)))
+        }
+        return 5 // Legacy history without the answer timestamp.
+    }
+    private var resolvingReplies = Set<String>()
+    var branchTarget: (key:ConversationKey,id:String,title:String)?
+    var commentDrafts = [String:String](), editingComments = [String:MessageButton]()
+    var lastClick=[String:String]()
+    var replyVersion = 0
+    func replyChanged() { replyVersion += 1; notifyChange() }
+    func currentAnswer(_ id:String, history:QuestionAnswer?, revision:Int) -> QuestionAnswer? {
+        if let update=replyUpdates[id], update.through >= revision { return update.answer }
+        return history
+    }
+    func selectBranch(_ row:QuestionRow,key:ConversationKey) {
+        branchTarget=(key,row.messageID,String((row.text.components(separatedBy:.newlines).first ?? "").prefix(30)))
+        if !revealThread(key,direct:true) {model.select(key)}
+        replyChanged()
+    }
+    func clearBranch() {branchTarget=nil;replyChanged()}
+    func click(_ button: MessageButton, messageID:String,key:ConversationKey,buttons:[MessageButton],text:String?=nil,batch:Bool=false) async {
+        guard buttons.contains(button) || (button.id=="std:comment" && text != nil) else { return }
+        if button.acceptsComment && text==nil {
+            if !revealThread(key,direct:true) {model.select(key)}
+            editingComments[messageID]=button;replyChanged();return
+        }
+        await requestReply("click",question:messageID,key:key,button:button,text:text,batch:batch)
+    }
+    func requestReply(_ kind:String,question:String,key:ConversationKey,button:MessageButton?=nil,text:String?=nil,answerID:String?=nil,batch:Bool=false) async {
+        batchFailures[question]=nil
+        guard canSend else {
+            if batch {batchFailures[question]="연결이 복구된 뒤 다시 보내 주세요.";replyChanged()}
+            else {notice="연결이 복구된 뒤 다시 보내 주세요."}
             return
         }
-        guard canSend else { transferFailed(GateFailure.notConnected); return }
-        do { try await client.send(ConversationModel.click(messageID: messageID, buttons: buttons, button: button)); transferFailure=nil }
-        catch { transferFailed(error) }
+        guard !replyRequests.values.contains(where:{$0.question==question}) else {return}
+        let id=UUID().uuidString.lowercased()
+        var frame:[String:Any]=["v":1,"id":id,"type":kind]
+        if let button {frame["msg_id"]=question;frame["button_id"]=button.id}
+        if let text {
+            guard !text.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty,text.unicodeScalars.count<=4000 else {notice="의견은 1~4000자로 입력해 주세요.";return}
+            frame["text"]=text
+        }
+        if let answerID {frame["answer_id"]=answerID}
+        replyRequests[id]=ReplyRequest(id:id,question:question,key:key,kind:kind,button:button,answerID:answerID,epoch:client.connectionEpoch,text:text,sentAt:clock(),batch:batch)
+        replyChanged()
+        do { try await client.send(frame) }
+        catch { replyChanged() } // A socket failure cannot establish whether the gate recorded it.
+    }
+    private func receiveReply(_ frame:[String:Any]) -> Bool {
+        let type=frame["type"] as? String
+        let request:ReplyRequest?
+        switch type {
+        case "error": request=(frame["ref"] as? String).flatMap{replyRequests[$0]}
+        case "click_ack": request=replyRequests.values.first{$0.question==frame["msg_id"] as? String && ($0.button?.id==frame["button_id"] as? String || $0.kind=="redeliver" && $0.answerID==frame["answer_id"] as? String)}
+        case "retract_ack": request=replyRequests.values.first{$0.kind=="retract" && $0.answerID==frame["answer_id"] as? String}
+        default: return false
+        }
+        guard let r=request else{return false}
+        replyRequests[r.id]=nil
+        let revision=client.store.historyMode ? client.liveSequence:client.store.settings.applied
+        if type=="error" {
+            if r.kind=="retract" {notice="지금은 취소할 수 없어요"}
+            else {
+                let reason:String
+                switch frame["code"] as? String {
+                case "button_expired": reason="이미 처리된 질문이에요."
+                case "already_sent": reason="이미 전달한 답이에요."
+                case "invalid_text": reason="의견은 1~4000자로 입력해 주세요."
+                default: reason="답을 보내지 못했어요."
+                }
+                if r.batch {batchFailures[r.question]=reason} else {notice=reason}
+            }
+            if r.kind != "retract" { refreshReply(r) }
+        } else if type=="retract_ack" {
+            if replyUpdates[r.question]?.answer?.answerID==r.answerID || replyUpdates[r.question]==nil {
+                replyUpdates[r.question]=ReplyUpdate(answer:nil,through:revision)
+            }
+            if lastClick[r.question]==r.answerID {lastClick[r.question]=nil}
+            notice="취소했어요 · 직원이 이미 처리했다면 되돌려지지 않아요"
+            refreshReply(r)
+        } else if let answerID=frame["answer_id"] as? String {
+            if r.kind=="click" {lastClick[r.question]=answerID}
+            if r.kind=="click",let seconds=frame["undo_seconds"] as? Int {undoDeadlines[answerID]=UndoWindow(end:clock().addingTimeInterval(TimeInterval(seconds)),seconds:TimeInterval(seconds),epoch:client.connectionEpoch)}
+            let existing=currentAnswer(r.question,history:model.messages[r.question]?.answer,revision:revision)
+            let role=r.button?.role ?? existing?.role ?? "other", label=r.button?.label ?? existing?.label
+            let result=existing?.answerID==answerID ? existing?.result:label
+            let answer=QuestionAnswer(answerID:answerID,label:label,role:role,result:result,text:r.text,at:nil,undoUntil:frame["undo_until"] as? String,delivery:"sent")
+            replyUpdates[r.question]=ReplyUpdate(answer:answer,through:revision)
+            editingComments[r.question]=nil;commentDrafts[r.question]=nil
+            if branchTarget?.id==r.question,r.button?.id=="std:comment" {
+                if drafts[r.key]?.text==r.text {drafts[r.key]?.text=""};branchTarget=nil
+            }
+            refreshReply(r)
+        }
+        replyChanged();return true
+    }
+    private func refreshReply(_ r:ReplyRequest,reconnecting:Bool=false) {
+        guard canSend,let context=model.history.context,resolvingReplies.insert(r.id).inserted else{return}
+        let epoch=client.connectionEpoch, previous=replyUpdates[r.question]?.answer?.answerID
+        Task {
+            defer {resolvingReplies.remove(r.id)}
+            do {
+                let cancelled=reconnecting && r.kind=="retract" ? r.answerID:nil
+                let targets=[r.question]+(cancelled.map{[$0]} ?? [])
+                let page=try await client.history.query(context:context,kind:"resolve",scope:r.key.employee,fields:["target":targets])
+                guard let items=page["items"] as? [[String:Any]], items.count==targets.count,
+                      var row=items.first,row["msg_id"] as? String==r.question else{return}
+                let original=cancelled.flatMap{id in items.first{$0["msg_id"] as? String==id}}
+                let stillPresent=original.map{$0["deleted"] as? Bool != true && $0["missing"] as? Bool != true} ?? false
+                if let ref=row["contentRef"] as? String,let rev=row["revision"] as? Int {row=try await client.history.content(reference:ref,id:r.question,revision:rev)}
+                guard client.connectionEpoch==epoch,model.history.context==context,let through=page["through"] as? Int else{return}
+                let answer=try (row["answer"] as? [String:Any]).map{try JSONDecoder().decode(QuestionAnswer.self,from:JSONSerialization.data(withJSONObject:$0))}
+                guard previous==replyUpdates[r.question]?.answer?.answerID else{return}
+                if through >= (replyUpdates[r.question]?.through ?? 0) {replyUpdates[r.question]=ReplyUpdate(answer:answer,through:through)}
+                if reconnecting,r.kind=="click" {lastClick[r.question]=answer?.answerID}
+                if reconnecting,replyRequests.removeValue(forKey:r.id) != nil,r.kind=="retract" {
+                    notice=stillPresent ? "취소되지 않았어요":"취소했어요"
+                }
+                replyChanged()
+            } catch { /* Reconnect reconciliation retries on the next connected tick. */ }
+        }
     }
     private var openingFiles=Set<String>()
     @discardableResult func open(_ file: MessageFile, employee: String, date:Date) async ->Bool {

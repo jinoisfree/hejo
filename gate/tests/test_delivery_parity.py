@@ -125,12 +125,16 @@ async def test_native_labels_outcome_and_repeat_are_idempotent(gate, client, mon
         assert [b['label'] for b in message['buttons']] == ['한 번 승인','항상 승인','취소']
         click={'v':1,'type':'click','msg_id':sent.message_id,'button_id':message['buttons'][0]['id']}
         await ws.send_json(click)
-        edit=await client.read(ws)
+        # AT-HB-12 records the answer before the native outcome edit.
+        frames = await client.until(ws, 'click_ack')
+        assert [f['type'] for f in frames] == ['message', 'edit', 'state', 'click_ack']
+        edit = frames[1]
         assert edit['type']=='edit' and edit['buttons']==[] and '한 번 승인' in edit['text']
         assert edit['text'].rsplit('\n\n',1)[-1]==t('platform.telegram.slash_confirm.resolved_once')
         assert '이(가)' not in edit['text']
         await ws.send_json(click)
         await ws.send_json({'v':1,'type':'roster','id':'barrier'})
+        assert (await client.read(ws))['code']=='button_expired'
         assert (await client.read(ws))['ref']=='barrier'
         assert resolver.await_count==1
     await gate.send_clarify('alpha','Choose',['A'],'fake-clarify','fake-session')

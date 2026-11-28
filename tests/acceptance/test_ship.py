@@ -215,6 +215,6 @@ def test_at84_fixed_sdk_pin_and_install_same_tag():
     assert 'archive="hejo-${tag#v}-arm64.zip"' in installer
     assert '/releases/download/$tag/$archive' in installer and '/tar.gz/refs/tags/$tag' in installer
     value=plistlib.loads((root/'app/Resources/Info.plist').read_bytes())
-    assert value['CFBundleShortVersionString']=='0.2.10' and value['CFBundleVersion']=='12'
+    assert value['CFBundleShortVersionString']=='0.2.11' and value['CFBundleVersion']=='13'
     assert value['SURequireSignedFeed'] and value['SUVerifyUpdateBeforeExtraction']
     assert not value['SUEnableAutomaticChecks'] and not value['SUAutomaticallyUpdate']

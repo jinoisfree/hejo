@@ -12,6 +12,8 @@ import json
 import secrets
 import time
 
+from .reply_rules import has_native_buttons
+
 
 class HistoryIndex:
     def __init__(self):
@@ -23,6 +25,11 @@ class HistoryIndex:
         self._revisions = {}
         self._thread_revisions = {}
         self._receipts = {}
+        self._undos = {}
+        self._fields = {}
+        self._resolved_native = set()
+        # Sparse transitions for replay: a later edit must not change an earlier frame.
+        self._default_button_changes = {}
         self._deleted_threads = set()
         self._deleted_rooms = set()
 
@@ -41,6 +48,11 @@ class HistoryIndex:
         identifier = row.get('msg_id')
         if identifier is None:
             return
+        undo = row.get('_meta', {}).get('undo')
+        if kind == 'message' and undo:
+            self._undos[identifier] = dict(undo)
+        if kind == 'state' and identifier in self._undos and row.get('_meta', {}).get('delivered'):
+            self._undos[identifier]['delivered'] = True
         if kind == 'message':
             key = (row.get('room', row['employee']), row['thread'])
             self._keys[identifier] = key
@@ -59,11 +71,30 @@ class HistoryIndex:
         elif kind in {'edit', 'state'}:
             message = self._messages.get(identifier)
             if message is not None:
+                track_buttons = message.get('role') == 'employee' and any(
+                    k in row for k in ('buttons', 'text', 'reply_state', 'checklist'))
+                had_defaults = track_buttons and self._has_default_buttons(message)
+                if kind == 'edit' and 'buttons' in row:
+                    if row['buttons']:
+                        self._resolved_native.discard(identifier)
+                    elif has_native_buttons(message):
+                        self._resolved_native.add(identifier)
                 # Original sequence is the read boundary, revision is the update boundary.
                 message.update({k: deepcopy(v) for k, v in row.items()
                                 if k not in {'v', 'type', 'seq', '_meta'}})
+                if track_buttons and not row.get('buttons'):
+                    defaults = self._has_default_buttons(message)
+                    if defaults != had_defaults or (defaults and 'buttons' in row):
+                        self._default_button_changes[seq] = defaults
                 self._revisions[identifier] = seq
                 self._thread_revisions[self._keys[identifier]] = seq
+
+    def _has_default_buttons(self, message):
+        from .history_queries import has_default_buttons
+        return message['msg_id'] not in self._resolved_native and has_default_buttons(message)
+
+    def default_button_change(self, seq):
+        return self._default_button_changes.get(seq)
 
     def _delete(self, identifier, revision):
         message = self._messages.pop(identifier, None)
@@ -71,6 +102,9 @@ class HistoryIndex:
         if message is None:
             return
         key = self._keys[identifier]
+        self._fields.pop(key, None)
+        self._undos.pop(identifier, None)
+        self._resolved_native.discard(identifier)
         entries = self._threads[key]
         position = bisect_left(entries, (message['seq'], identifier))
         if position < len(entries) and entries[position][1] == identifier:
@@ -82,7 +116,10 @@ class HistoryIndex:
 
     def _delete_thread(self, key, revision):
         self._deleted_threads.add(key)
+        self._fields.pop(key, None)
         for _, identifier in self._threads.pop(key, ()):
+            self._undos.pop(identifier, None)
+            self._resolved_native.discard(identifier)
             self._messages.pop(identifier, None)
             self._revisions[identifier] = revision
         self._rooms.get(key[0], set()).discard(key)
@@ -97,9 +134,21 @@ class HistoryIndex:
     def resolve(self, identifier):
         message = self.message(identifier)
         if message is not None:
+            key = self._keys[identifier]
+            revision = self.thread_revision(key)
+            cached = self._fields.get(key)
+            if cached is None or cached[0] != revision:
+                from .history_queries import thread_fields
+                lines = [self._messages[i] for i in self.ids(key)]
+                cached = self._fields[key] = (revision, thread_fields(lines, self._undos, self._resolved_native))
+            # Answers and branches can change when a different post is edited or deleted.
+            message.update(deepcopy(cached[1].get(identifier, {'branch': None})), revision=revision)
             return message
         revision = self._revisions.get(identifier)
         return {'msg_id': identifier, 'deleted': True, 'revision': revision} if revision is not None else None
+
+    def undo(self, identifier):
+        return deepcopy(self._undos.get(identifier))
 
     def receipt(self, client_message_id):
         entry = self._receipts.get(client_message_id)

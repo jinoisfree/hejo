@@ -283,15 +283,9 @@ private final class FoldedTextSurface:NSView {
 }
 
 /// Native button event/AX handling with the original folded bubble's drawing and truncation.
-final class BubbleActionButton:NSButton {
+final class BubbleActionButton: HejoButton {
     var invoke:(()->Void)?
-    init(title:String){super.init(frame:.zero);self.title=title;isBordered=false;target=self;action=#selector(pressed)}
+    init(title:String){super.init(frame:.zero);truncatesTitle=true;configure(title){[weak self] in self?.invoke?()}}
     required init?(coder:NSCoder){fatalError()}
-    @objc private func pressed(){invoke?()}
     override func acceptsFirstMouse(for event:NSEvent?)->Bool {true}
-    override func draw(_ rect:NSRect){
-        NSColor.labelColor.withAlphaComponent(0.12).setFill();NSBezierPath(roundedRect:bounds,xRadius:12,yRadius:12).fill()
-        let paragraph=NSMutableParagraphStyle();paragraph.alignment = .center;paragraph.lineBreakMode = .byTruncatingTail
-        (title as NSString).draw(in:bounds.insetBy(dx:6,dy:5),withAttributes:[.font:NSFont.systemFont(ofSize:11,weight:.medium),.foregroundColor:NSColor.labelColor,.paragraphStyle:paragraph])
-    }
 }

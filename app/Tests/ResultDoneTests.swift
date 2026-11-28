@@ -90,10 +90,12 @@ import AppKit
     case "prefixed", "padded", "reversed":
         try check(state.pendingID == last && state.color == "#E01E5A", "AT-RD-01b/01c red, pending is the notice")
         let undo = try chip("되돌리기")
-        try check(!undo.isEnabled, "AT-RD-01b/01c undo stays disabled by the existing press rule")
+        let undoID=try buttonID(last,undo.replyWord!)
+        // AT-HB-31 delegates button eligibility to the gate.
+        try check(undo.isEnabled, "gate supplied undo is enabled")
         try await press("되돌리기")
         let wire = try await observe()
-        try check(wire.clicks.isEmpty && wire.sends == 0, "AT-RD-01b/01c disabled undo sends nothing")
+        try check(wire.clicks.count == 1 && wire.clicks[0]["button_id"]==undoID && wire.sends == 0, "AT-HB-31 click with gate id")
         print("AT-RD-01b-app-" + mode + " PASS")
     case "legacy":
         try check(state.buttons.isEmpty && state.pendingID == question && chips().isEmpty,

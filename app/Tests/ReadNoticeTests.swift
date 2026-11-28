@@ -91,15 +91,15 @@ import AppKit
     let defaultCard=try card(later.key.thread)
     try check(accessories(defaultCard).allSatisfy{homeDescendants($0,FileChip.self).isEmpty},"AT87 typed answered request has no reply chips")
     let unknownViews=accessories(try card(unknown.key.thread)),unknownChips=unknownViews.flatMap{homeDescendants($0,FileChip.self)}
-    try check(unknownChips.count==1 && unknownChips.allSatisfy{!$0.isEnabled && $0.toolTip==ConversationView.unavailableReply},"AT87 out of policy buttons dim and explain")
+    // AT-HB-30/31. The authenticated gate supplies the choices; this fixture is offline.
+    try check(unknownChips.count==1 && unknownChips[0].isEnabled==controller.canSend && unknownChips[0].accessibilityLabel()=="알 수 없는 동작","AT-HB-31 gate-issued label")
     try check(try card(work.key.thread).style.status==MessageFormat.color("#ECB22E"),"AT87 actual card working rail yellow")
     let generated=view.history.contents.flatMap{$0.top+($0.replies ?? [])}.compactMap{piece ->NativeThreadCard.Post? in if case .post(let p)=piece{return p};return nil}.flatMap(\.marks)
     try check(generated.isEmpty,"AT87 no generated settled text line")
     let fresh=try post("승인해줘",age:100)
     view.refresh();let defaultViews=accessories(try card(fresh.key.thread)),chips=defaultViews.flatMap{homeDescendants($0,FileChip.self)}
-    try check(chips.map{$0.accessibilityLabel() ?? ""}==["승인","거절","의견","확인"],"AT87 no-button approval gets four original actions")
-    try check(chips.last?.toolTip=="메시지를 보내지 않고 넘어가기","AT87 confirm tooltip")
-    chips.last?.invoke?();try check(model.confirmed(fresh.id) && model.timeline(fresh.key).count==1,"AT87 confirm writes member state without sending")
+    // AT-HB-31. An old gate with no issued IDs has no clickable defaults.
+    try check(chips.isEmpty && !model.confirmed(fresh.id) && model.timeline(fresh.key).count==1,"AT-HB-31 no fabricated buttons or local confirmation")
     let colored=try post("<span style=\"color:#A000D0\">☐ 내 확인</span>",role:"owner",age:90)
     view.refresh()
     let mine=try card(colored.key.thread).top.compactMap{piece ->NativeThreadCard.Post? in if case .post(let p)=piece{return p};return nil}.first!

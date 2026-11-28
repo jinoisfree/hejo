@@ -2,6 +2,7 @@
 import asyncio
 from collections import Counter, defaultdict
 from contextlib import AsyncExitStack, asynccontextmanager
+from datetime import datetime
 import hmac
 import json
 import logging
@@ -14,10 +15,11 @@ import time
 from types import SimpleNamespace
 from weakref import WeakValueDictionary
 
+from . import reply_rules
 from .auth import AuthStore, PAIR_TTL, digest
 from .context import thinking
 from .files import UnknownFile
-from .history_queries import assess
+from .history_queries import assess, ask_row
 
 log = logging.getLogger(__name__)
 _discord = _bot = None
@@ -103,8 +105,57 @@ def closed_for(user_id, author, guild, channel_ids):
         return False
 
 
+def component_ui():
+    # Interactions need the component-capable Discord SDK. Keep text-only transports usable.
+    try:
+        from discord import ui
+    except ImportError:
+        return False
+    return callable(getattr(ui.View, 'add_item', None))
+
+
+GLYPHS = {'circle': '○', 'xmark': '✕', 'pencil': '✎', 'checkmark': '✓',
+          'arrow.uturn.backward': '↶', 'play': '▶', 'arrow.down': '↓',
+          'note.text': '✎', 'doc.on.doc': '✎'}
+
+
+def discord_label(label, icon):
+    glyph = GLYPHS.get(icon)
+    return f'{glyph} {label}' if glyph else label
+
+
+def waiting_card(card):
+    return ('answer' in card and card['answer'] is None and bool(card['buttons'])
+            and card.get('reply_state') not in ('answered', 'closed'))
+
+
+def component_view(items):
+    from discord import ui
+    view = ui.View(timeout=None)
+    for label, identifier, style in items:
+        view.add_item(ui.Button(label=label, custom_id=identifier, style=style))
+    # Only the global listener dispatches these ids, including after a restart.
+    view.stop()
+    return view
+
+
+def component_signature(items):
+    return [(b.custom_id, b.label, b.style) for b in items]
+
+
+class ButtonResponse:
+    features = {'rooms'}
+
+    def __init__(self):
+        self.frame = {}
+
+    async def send(self, frame):
+        if frame['type'] in {'error', 'click_ack', 'retract_ack'}:
+            self.frame = frame
+
+
 def attach_discord(native, adapter):
-    """Attach one independent listener. Never wrap native ingress or do network I/O."""
+    """Attach independent listeners once, without wrapping native ingress or doing network I/O."""
     global _discord, _bot
     _discord, _bot = adapter, native
     if getattr(native, '_hejo_discord_listener', False):
@@ -115,6 +166,13 @@ def attach_discord(native, adapter):
         if bridge is not None:
             await bridge.on_message(message)
     native.add_listener(on_message, 'on_message')
+    if component_ui():
+        async def on_interaction(interaction):
+            from .adapter import _primary
+            bridge = getattr(_primary, 'discord', None)
+            if bridge is not None:
+                await bridge.on_interaction(interaction)
+        native.add_listener(on_interaction, 'on_interaction')
     native._hejo_discord_listener = True
 
 
@@ -128,6 +186,8 @@ class Discord:
         self.settle_seconds = SETTLE_SECONDS
         self.pending, self.changed, self.workers, self.wakes = {}, {}, {}, {}
         self._typing_tasks, self._typing_at = set(), {}
+        self._button_tasks = set()
+        self._question_changes = defaultdict(dict)
         self.sent = []
         self.core_open = False
         self._webhooks = {}
@@ -265,6 +325,108 @@ class Discord:
         # One admission lane also prevents duplicate attachment staging across concurrent events.
         async with self._receive_lock:
             await self._receive_message(message)
+
+    def interaction_denial(self, interaction, tag):
+        pair = self.private()['pair']
+        if (not pair or str(interaction.guild_id) != pair['guild_id']
+                or str(interaction.user.id) != pair['user_id']):
+            return '사장만 누를 수 있어요'
+        if pair['tag'] != tag or not self.active():
+            return '다시 연결한 뒤에는 hejo에서 눌러 주세요'
+
+    async def on_interaction(self, interaction):
+        custom_id = (interaction.data or {}).get('custom_id')
+        if not isinstance(custom_id, str) or not custom_id.startswith('hejo:'):
+            return
+        try:
+            parts = custom_id.split(':', 3)
+            if len(parts) != 4:
+                return
+            _, tag, mid, button_id = parts
+            denied = self.interaction_denial(interaction, tag)
+            if denied:
+                return await interaction.response.send_message(denied, ephemeral=True)
+            message = interaction.message
+            if not any(getattr(button, 'custom_id', None) == custom_id
+                       for row in getattr(message, 'components', ()) for button in row.children):
+                return await interaction.response.send_message('지금은 처리할 수 없어요', ephemeral=True)
+            if mid == 'x':
+                answer = self.adapter.journal.history.message(button_id) or {}
+                question_id = answer.get('answer_to')
+            else:
+                question_id = mid
+            post = str(interaction.channel_id)
+            mapped = any(row['tag'] == tag and row['post'] == post and row['msg_id'] == question_id
+                         and (mid == 'x' or row['dc'] == str(message.id)) for row in reversed(self.sent))
+            if not mapped:
+                return await interaction.response.send_message('지금은 처리할 수 없어요', ephemeral=True)
+            if mid != 'x':
+                card = self.adapter.journal.history.resolve(mid) or {}
+                choices = ask_row(card)['buttons'] if waiting_card(card) else []
+                button = next((b for b in choices if b['id'] == button_id), None)
+                if not button:
+                    return await interaction.response.send_message('지금은 처리할 수 없어요', ephemeral=True)
+                if button['role'] == 'comment':
+                    return await self.open_comment(interaction, tag, mid, button_id)
+            await self.submit_button(interaction, tag, mid, button_id)
+        except Exception as exc:
+            log.warning('discord_interaction_failed kind=%s', type(exc).__name__)
+
+    async def open_comment(self, interaction, tag, mid, button_id):
+        from discord import ui, TextStyle
+        door = self
+
+        class Comment(ui.Modal):
+            async def on_submit(self, submission):
+                try:
+                    denied = door.interaction_denial(submission, tag)
+                    if denied:
+                        return await submission.response.send_message(denied, ephemeral=True)
+                    await door.submit_button(submission, tag, mid, button_id, text=field.value)
+                except Exception as exc:
+                    log.warning('discord_interaction_failed kind=%s', type(exc).__name__)
+
+        modal = Comment(title='의견', timeout=300)
+        field = ui.TextInput(label='의견', style=TextStyle.paragraph, min_length=1, max_length=4000)
+        modal.add_item(field)
+        await interaction.response.send_modal(modal)
+
+    async def submit_button(self, interaction, tag, mid, button_id, **fields):
+        from discord import ButtonStyle
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        denied = self.interaction_denial(interaction, tag)
+        if denied:
+            return await interaction.followup.send(denied, ephemeral=True)
+        response = ButtonResponse()
+        if mid == 'x':
+            await self.adapter.change_answer({'type': 'retract', 'answer_id': button_id}, response)
+        else:
+            await self.adapter.click(dict(msg_id=mid, button_id=button_id, **fields), response, source='discord')
+        ack = response.frame
+        if ack.get('type') == 'click_ack':
+            remaining = (datetime.fromisoformat(ack['undo_until']) - self.adapter._reply_clock()).total_seconds()
+            seconds = min(ack['undo_seconds'], remaining - (reply_rules.UNDO_GRACE_SECONDS - ack['undo_seconds']))
+            if seconds <= 0:
+                return await interaction.followup.send('보냈어요', ephemeral=True)
+            deadline = asyncio.get_running_loop().time() + seconds
+            view = component_view([('취소', f"hejo:{tag}:x:{ack['answer_id']}", ButtonStyle.secondary)])
+            sent = await interaction.followup.send('보냈어요', ephemeral=True, view=view, wait=True)
+            async def expire():
+                await asyncio.sleep(max(0, deadline - asyncio.get_running_loop().time()))
+                try:
+                    await sent.edit(view=None)
+                except Exception as exc:
+                    log.warning('discord_interaction_failed kind=%s', type(exc).__name__)
+            task = asyncio.create_task(expire())
+            self._button_tasks.add(task)
+            task.add_done_callback(self._button_tasks.discard)
+        else:
+            text = '취소했어요' if ack.get('type') == 'retract_ack' else '지금은 처리할 수 없어요'
+            if mid != 'x' and ack.get('type') == 'error':
+                card = self.adapter.journal.history.resolve(mid) or {}
+                if (card.get('answer') or {}).get('delivery') == 'unknown':
+                    text = '답은 기록됐지만 직원에게 갔는지 확인하지 못했어요. hejo에서 다시 보내기를 눌러 주세요.'
+            await interaction.followup.send(text, ephemeral=True)
 
     async def _receive_message(self, message):
         if (not self.adapter.is_connected or not platform_ready() or message.guild is None
@@ -507,15 +669,46 @@ class Discord:
         tag = self.private()['pair']['tag']
         send = kind == 'message' and (
             row['role'] == 'employee' or not row.get('client_msg_id', '').startswith('discord:'))
-        queue = self.pending.get(key, [])
-        # A queued send reads the final journal value. Only an edit arriving after
-        # it was taken off the queue needs a separate follow-up.
-        if kind != 'edit' or not any(job == (mid, tag, 'send') for job in queue):
-            queue.append((mid, tag, 'send' if send else kind))
-            self.pending[key] = queue
-        if queue:
-            self.changed[key] = asyncio.get_running_loop().time()
-            self.wake(key)
+        queue = self.pending.setdefault(key, [])
+        now = asyncio.get_running_loop().time()
+        if component_ui():
+            journal = self.adapter.journal
+            original = row
+            if kind == 'delete':
+                original = next((r for r in reversed(journal.records)
+                                 if r.get('msg_id') == mid and r['type'] == 'message'), {})
+            targets = []
+            if original.get('role') == 'owner':
+                target = original.get('answer_to')
+                if target:
+                    targets.append(target)
+                    undo = journal.history.undo(mid) or {}
+                    if reply_rules.word(undo.get('label', original['text'])) != '의견':
+                        send = False
+                else:
+                    # General replies can answer several earlier questions. Native cards
+                    # retain their exception through the same history projection as click.
+                    for q in journal.history.ids(key):
+                        card = journal.history.resolve(q)
+                        if card['seq'] >= original['seq']:
+                            break
+                        if 'answer' in card and (kind == 'delete' or (card['answer'] or {}).get('answer_id') == mid):
+                            targets.append(q)
+            elif kind == 'state' and 'reply_state' in row:
+                targets.append(mid)
+            for target in targets:
+                if (target, tag, 'send') in queue:
+                    continue
+                card_job = (target, tag, 'question')
+                self._question_changes[key][card_job] = now
+                if card_job not in queue:
+                    queue.append(card_job)
+        # A queued send reads the latest projection, including edits and answers.
+        job = (mid, tag, 'send' if send else kind)
+        if kind != 'edit' or ((mid, tag, 'send') not in queue and job not in queue):
+            queue.append(job)
+        self.changed[key] = now
+        self.wake(key)
 
     def wake(self, key):
         if key not in self.pending:
@@ -533,23 +726,35 @@ class Discord:
         try:
             while self.pending.get(key):
                 self.wakes[key].clear()
-                msg_id, tag, kind = self.pending[key][0]
-                row = self.adapter.journal.message(msg_id)
+                queue = self.pending[key]
+                index = 0
+                if self.typing(key):
+                    # A streaming employee post ahead of a card must not block its result.
+                    index = next((i for i, job in enumerate(queue) if job[2] == 'question'), 0)
+                job = queue[index]
+                msg_id, tag, kind = job
+                row = self.adapter.journal.history.message(msg_id)
                 if not self.current(tag):
-                    self.pending[key].pop(0)
+                    queue.pop(index)
+                    self._question_changes.get(key, {}).pop(job, None)
                     continue
                 if kind != 'delete' and (kind != 'send' or (row and row['role'] == 'employee')):
-                    delay = self.changed[key] + self.settle_seconds - asyncio.get_running_loop().time()
+                    changed = self._question_changes[key][job] if kind == 'question' else self.changed[key]
+                    delay = changed + self.settle_seconds - asyncio.get_running_loop().time()
                     if delay > 0:
                         await asyncio.sleep(delay)
                         continue
-                    if self.typing(key):
+                    if kind != 'question' and self.typing(key):
                         await self.wakes[key].wait()
                         continue
-                self.pending[key].pop(0)
+                queue.pop(index)
+                if kind == 'question':
+                    del self._question_changes[key][job]
                 if kind == 'send':
                     try:
                         await self._send_message(msg_id, key, tag)
+                        if (msg_id, tag, 'send') in queue:
+                            continue
                     except Exception as exc:
                         log.warning('discord_send_failed kind=%s', type(exc).__name__)
                 try:
@@ -561,6 +766,7 @@ class Discord:
             self.workers.pop(key, None)
             self.wakes.pop(key, None)
             self.changed.pop(key, None)
+            self._question_changes.pop(key, None)
 
     def post_lock(self, tag, post):
         return self._post_locks.setdefault((tag, post), asyncio.Lock())
@@ -607,7 +813,8 @@ class Discord:
         if key is None:
             return False
         index = self.adapter.journal.history
-        lines = [row for identifier in index.ids(key) if (row := index.message(identifier)) is not None]
+        read = index.resolve if component_ui() else index.message
+        lines = [read(identifier) for identifier in index.ids(key)]
         result, _, _ = assess(lines, EMPTY_CONTEXT)
         return result['settled']
 
@@ -620,7 +827,7 @@ class Discord:
                 continue
             if kind == 'delete':
                 steps = FOLLOW_STEPS[:2]
-            elif kind == 'edit' and mid in state.sent:
+            elif kind in ('question', 'edit') and mid in state.sent:
                 steps = ('update', 'rename', 'archive')
             else:
                 steps = ('archive',)
@@ -731,13 +938,48 @@ class Discord:
             self._webhooks[key] = hook
         return self._webhooks[key]
 
-    def render_message(self, row):
+    def question_display(self, row, tag):
+        from discord import ButtonStyle
+        projected = self.adapter.journal.history.resolve(row['msg_id']) or {}
+        answer = projected.get('answer')
+        if answer:
+            if answer['label'] is None:
+                owner = self.adapter.journal.history.message(answer['answer_id']) or {}
+                discord_origin = owner.get('client_msg_id', '').startswith('discord:')
+            else:
+                undo = self.adapter.journal.history.undo(answer['answer_id']) or {}
+                discord_origin = undo.get('source') == 'discord'
+            source = '디스코드에서' if discord_origin else 'hejo에서'
+            label = reply_rules.word(answer['label'] or '')
+            icon = reply_rules.LABELS.get(label, (None, None))[1]
+            result = discord_label(answer['result'] or '답변함', icon)
+            return f'\n{result} · {source}', None
+        if not waiting_card(projected):
+            return '', None
+        buttons = ask_row(projected)['buttons']
+        items = []
+        for btn in buttons:
+            label = reply_rules.word(btn['label'])
+            identifier = f"hejo:{tag}:{row['msg_id']}:{btn['id']}"
+            if len(identifier) > 100:
+                return '\n선택: ' + ' / '.join(b['label'] for b in buttons) + '\n(이 선택은 hejo 앱에서 눌러 주세요)', None
+            style = ButtonStyle.primary if label == '승인' else ButtonStyle.secondary
+            items.append((discord_label(label, btn.get('icon')), identifier, style))
+        return '', component_view(items)
+
+    def render_message(self, row, tag):
         text = row['text']
-        replies = [b['label'] for b in row.get('buttons', []) if b['kind'] == 'reply']
-        if replies:
-            text += '\n선택: ' + ' / '.join(replies)
-        if any(b['kind'] != 'reply' for b in row.get('buttons', [])):
-            text += '\n(이 선택은 hejo 앱에서 눌러 주세요)'
+        view = None
+        suffix = ''
+        if component_ui():
+            if row['role'] == 'employee':
+                suffix, view = self.question_display(row, tag)
+        else:
+            replies = [b['label'] for b in row.get('buttons', []) if b['kind'] == 'reply']
+            if replies:
+                text += '\n선택: ' + ' / '.join(replies)
+            if any(b['kind'] != 'reply' for b in row.get('buttons', [])):
+                text += '\n(이 선택은 hejo 앱에서 눌러 주세요)'
         attachments = []
         for file in row.get('files', []):
             try:
@@ -747,7 +989,7 @@ class Discord:
                 attachments.append(path)
             except (UnknownFile, OSError, ValueError):
                 text += f"\n📎 {file['name']} (hejo 앱에서 열기)"
-        return text, attachments
+        return text + suffix, attachments, view
 
     async def _send_message(self, msg_id, key, tag):
         row = self.adapter.journal.message(msg_id)
@@ -763,22 +1005,15 @@ class Discord:
         if (not entry or entry['closed'] or not self.current(tag) or key[0] not in self.rooms()
                 or not guild or guild.get_channel(snowflake(entry['channel'])) is None):
             return
-        # Topic creation can yield for a long time; settle the current journal value again.
-        while True:
-            row = self.adapter.journal.message(msg_id)
-            if (not row or thinking(row['text']) or not self.active() or self.private()['pair']['tag'] != tag
-                    or key[0] not in self.rooms() or key in self.adapter.journal.deleted_threads):
-                return
-            if row['role'] == 'employee':
-                self.wakes[key].clear()
-                delay = self.changed[key] + self.settle_seconds - asyncio.get_running_loop().time()
-                if delay > 0:
-                    await asyncio.sleep(delay)
-                    continue
-                if self.typing(key):
-                    await self.wakes[key].wait()
-                    continue
-            break
+        # Channel synchronization can yield. Return the send to the settlement queue
+        # so a button result can still run while the employee is typing.
+        row = self.adapter.journal.message(msg_id)
+        if not row or thinking(row['text']) or not self.current(tag):
+            return
+        if row['role'] == 'employee' and (self.typing(key) or
+                asyncio.get_running_loop().time() < self.changed[key] + self.settle_seconds):
+            self.pending[key].insert(0, (msg_id, tag, 'send'))
+            return
         post = self.anchor(key, tag, entry['channel'])
         async with AsyncExitStack() as locks:
             if post is not None:
@@ -794,15 +1029,17 @@ class Discord:
         names = {e['id']: e['name'] for e in self.adapter.employees()}
         label = self.adapter.owner_label('사장') if row['role'] == 'owner' else names.get(row['employee'], row['employee'])
         title = post_title(row['text'])
-        text, attachments = self.render_message(row)
+        text, attachments, view = self.render_message(row, tag)
         channel = guild.get_channel(snowflake(entry['channel']))
         webhook_key = (_bot, str(channel.id))
         hook = await self.webhook(channel)
         chunks = split_content(text) if text else ['']
-        for chunk in chunks:
+        for index, chunk in enumerate(chunks):
             if not self.current(tag) or key[0] not in self.rooms() or key in self.adapter.journal.deleted_threads:
                 return
             args = {'content': chunk, 'username': label, 'allowed_mentions': AllowedMentions.none(), 'wait': True}
+            if view and index == len(chunks) - 1:
+                args['view'] = view
             # Discord rejects an empty message. File-only rows start the post with the first file.
             first_path = attachments.pop(0) if not chunk and attachments else None
             first_file = File(first_path) if first_path is not None else None
@@ -943,7 +1180,7 @@ class Discord:
 
     async def close(self):
         tasks = (self._sync_task, self._connection_task, *self.workers.values(), *self._typing_tasks,
-                 *self._rename_tasks.values())
+                 *self._rename_tasks.values(), *self._button_tasks)
         if self._startup_task is not None:
             tasks += (self._startup_task,)
         if self._retry_task is not None:
@@ -1047,8 +1284,20 @@ class PostFollow:
             if self.state.whole_deleted:
                 return
             if step == 'update':
+                if edit_mid is not None:
+                    if edit_mid in self.state.sent:
+                        await self.update(edit_mid)
+                    return
                 for mid in self.state.sent:
-                    if mid in self.state.edited and (edit_mid is None or mid == edit_mid):
+                    if mid in self.state.dead:
+                        continue
+                    if component_ui():
+                        card = self.door.adapter.journal.history.resolve(mid) or {}
+                        if 'answer' in card:
+                            if waiting_card(card):
+                                await self.update(mid)
+                            continue
+                    if mid in self.state.edited:
                         await self.update(mid)
             elif step == 'rename':
                 if not self.skip_title and (edit_mid is None or edit_mid == self.state.title_message):
@@ -1152,17 +1401,25 @@ class PostFollow:
                         message = await self.call(thread.fetch_message, snowflake(dc))
                     except NotFound:
                         continue
-                    if message.content:
+                    # A file-only question can carry its controls on the first attachment.
+                    if message.content or getattr(message, 'components', []) or (
+                            component_ui() and dc == self.state.sent[mid][0] and message.attachments
+                            and row.get('files') and not row['text']):
                         known.append((message, dc))
             if not known:
                 self.stats['failed'] += 1
                 log.warning('discord_update_failed kind=NotFound')
                 self.skip_title |= mid == self.state.title_message
                 return
-            text, _ = self.door.render_message(row)
-            desired = split_content(text) if text else []
-            edits = [(message, dc, value) for (message, dc), value in zip(known, desired)
-                     if message.content != value]
+            text, _, view = self.door.render_message(row, self.tag)
+            desired = split_content(text) if text or view else []
+            edits = []
+            for index, ((message, dc), value) in enumerate(zip(known, desired)):
+                wanted = view if index == len(desired) - 1 else None
+                present = [b for action_row in getattr(message, 'components', []) for b in action_row.children]
+                changed_view = component_signature(present) != component_signature(wanted.children if wanted else [])
+                if message.content != value or changed_view:
+                    edits.append((dc, value, {'view': wanted} if changed_view else {}))
             remove = known[len(desired):]
             add = desired[len(known):]
             if not (edits or remove or add):
@@ -1171,10 +1428,10 @@ class PostFollow:
             mentions = AllowedMentions.none()
             changed = False
             async with self.writable():
-                for message, dc, value in edits:
+                for dc, value, fields in edits:
                     try:
                         await self.call(hook.edit_message, snowflake(dc), thread=ref, content=value,
-                                        allowed_mentions=mentions)
+                                        allowed_mentions=mentions, **fields)
                     except SyncSuperseded:
                         raise
                     except Exception as exc:
@@ -1186,13 +1443,14 @@ class PostFollow:
                     if message.attachments:
                         # Clear text without removing a file carried by the same Discord message.
                         await self.call(hook.edit_message, snowflake(dc), thread=ref, content='',
-                                        allowed_mentions=mentions)
+                                        allowed_mentions=mentions, **({'view': None} if getattr(message, 'components', []) else {}))
                     else:
                         await self.call(hook.delete_message, snowflake(dc), thread=ref)
                     changed = True
-                for value in add:
+                for index, value in enumerate(add):
                     sent = await self.call(hook.send, thread=ref, content=value,
-                                           username=known[0][0].author.display_name, allowed_mentions=mentions, wait=True)
+                                           username=known[0][0].author.display_name, allowed_mentions=mentions, wait=True,
+                                           **({'view': view} if view and index == len(add) - 1 else {}))
                     if not sent:
                         raise OSError('send_failed')
                     self.door._save_sent(self.tag, self.state.channel, self.post, str(sent.id), mid)

@@ -1,7 +1,9 @@
 """Hermes adapter: routes normalized events and commits outbound frames before delivery."""
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from weakref import WeakValueDictionary
 from dataclasses import replace
+from contextlib import asynccontextmanager
 from contextvars import ContextVar
 import mimetypes
 import logging
@@ -15,10 +17,10 @@ from gateway.platforms.event import MessageEvent
 from .auth import AuthStore
 from .hub import HubLink
 from .journal import Journal, HejoJournalError
-from . import owner, roster
+from . import owner, roster, reply_rules
 from . import buttons as native_buttons
 from .files import FileStore, UnknownFile, RETENTION_SECONDS
-from .server import GateServer, LIMITS
+from .server import FrameError, GateServer, LIMITS
 from .context import conversation_lines, with_context, split_text
 from .rooms import RoomCommands, recipients
 
@@ -28,6 +30,7 @@ _primary = None
 # its scheduled callbacks inherit the admitted event's scope, not the listener's
 # default profile. No process-global current employee or second message store.
 _delivery_scope = ContextVar("hejo_delivery_scope", default=None)
+_reply_task = ContextVar("hejo_reply_task", default=None)
 REPLY_STATES = {"asked", "answered", "closed"}
 
 
@@ -62,7 +65,8 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
         self._edit_tasks = {}
         self._typing_threads = {}
         self._click_handlers = {}
-        self._native_click_lock = asyncio.Lock()
+        self._question_locks = WeakValueDictionary()
+        self._reply_clock = lambda: datetime.now(timezone.utc)
         self._stream_parts = {}
 
     def employees(self):
@@ -208,7 +212,10 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             try:
                 saved = await self.journal.append(dict(frame, v=1), internal)
             except HejoJournalError:
-                await self.server.error("journal_write_failed")
+                # A click/retract request reports this failure once, with its request id.
+                # Background writes still broadcast the journal fault.
+                if _reply_task.get() is not asyncio.current_task():
+                    await self.server.error("journal_write_failed")
                 raise
             await self.server.broadcast(saved)
         if self.discord:
@@ -323,7 +330,7 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             buttons.append({"id": button_id, "label": entry["label"],
                             "kind": entry["kind"], "style": entry["style"]})
             mappings[button_id] = {**context, **entry, "button_id": button_id}
-        return buttons, {"buttons": mappings} if mappings else None
+        return reply_rules.styled(buttons), {"buttons": mappings} if mappings else None
 
     def _sending_employee(self, chat_id, metadata):
         return (metadata or {}).get("hermes_profile") or (
@@ -419,6 +426,8 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
                     msg_id=message_id, employee=previous["employee"], thread=previous["thread"], message_text=content, **({"room":previous["room"]} if previous.get("room") else {})))
             except ValueError as exc:
                 return SendResult(success=False, error=str(exc))
+        elif reply_rules.has_native_buttons(previous):
+            frame["buttons"] = []
         async with self._edit_lock:
             self._pending_edits[message_id] = (frame, internal)
             if finalize:
@@ -441,6 +450,10 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             self._pending_edits.pop(message_id, None)
             parts = self._stream_parts.setdefault(message_id, [message_id])
             last_message = self.journal.message(parts[-1]) or previous
+            if "hejo_buttons" not in metadata and reply_rules.has_native_buttons(last_message):
+                # The prompt belongs to the last part, even when the first part is the edit target.
+                metadata = dict(metadata, hejo_buttons=[])
+                metadata.pop("_hejo_native_buttons", None)
             try:
                 for index, chunk in enumerate(chunks):
                     last = index == len(chunks) - 1
@@ -659,98 +672,241 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             raise ValueError("invalid_click_handler")
         self._click_handlers[kind] = handler
 
-    async def click(self, frame, conn):
-        message = self.journal.message(frame["msg_id"])
-        button = (message or {}).get("_meta", {}).get("buttons", {}).get(frame["button_id"])
-        if button and button["kind"] != "reply":
-            async with self._native_click_lock:
-                message = self.journal.message(frame["msg_id"])
-                if not message or not any(b["id"] == frame["button_id"] for b in message.get("buttons", [])):
-                    return
-                if self._is_sender_authorized("owner", "dm", "room:"+message["room"] if message.get("room") else message["employee"], thread_id=message["thread"]) is False:
-                    await self.server.error("unauthorized", frame.get("id"), conn)
-                    return
-                if not await native_buttons.resolve(button):
-                    await self.server.error("button_expired", frame.get("id"), conn)
-                    return
-                result = await self.edit_message("room:"+message["room"] if message.get("room") else message["employee"],
-                    message["msg_id"], message["text"] + "\n\n" + native_buttons.decision(button, self.owner_label("나")),
-                    finalize=True, metadata={"hejo_buttons":[]})
-                if not result.success:
-                    await self.server.error("journal_write_failed", frame.get("id"), conn)
-            return
-        if not button or not any(b["id"] == frame["button_id"] for b in message.get("buttons", [])):
-            await self.server.error("button_expired", frame.get("id"), conn)
-            return
-        click = {key: button[key] for key in
-                 ("msg_id", "button_id", "label", "employee", "thread", "message_text")}
-        if message.get("room"):
-            click["room"]=message["room"]
-        click["message_text"] = message["text"]
-        handler = self._click_handlers.get("reply")
-        if handler and await handler(click):
-            return
-        await self.receive({"employee": click["employee"], "thread": click["thread"],
-                            "targeted": True,
-                            "text": click["label"], "client_msg_id": str(uuid.uuid4()),
-                            "id": frame.get("id"), "answer_to": click["msg_id"], **({"room":click["room"]} if click.get("room") else {})}, conn,
-                           raw={"_hermes_button": {"label": click["label"], "message_id": click["msg_id"],
-                                                   "message_text": click["message_text"]}})
+    def _question_lock(self, identifier):
+        return self._question_locks.setdefault(identifier, asyncio.Lock())
 
-    async def receive(self, frame, conn, raw=None):
+    def _question_error(self, question, conn):
+        room = question.get("room")
+        if room:
+            current = self.journal.rooms.get(room)
+            if "rooms" not in conn.features or not current or question["employee"] not in current["members"]:
+                return "button_expired"
+        if question["employee"] not in {employee["id"] for employee in self.employees()}:
+            return "button_expired"
+        if self._is_sender_authorized("owner", "dm", "room:" + room if room else question["employee"],
+                                      thread_id=question["thread"]) is False:
+            return "unauthorized"
+
+    @asynccontextmanager
+    async def _reply_errors(self, request, conn):
+        token = _reply_task.set(asyncio.current_task())
+        try:
+            yield
+        except FrameError as exc:
+            await self.server.error(str(exc), request.get("id"), conn)
+        except HejoJournalError:
+            await self.server.error("journal_write_failed", request.get("id"), conn)
+        except (ThreadDeleted, RoomDeleted):
+            await self.server.error("button_expired", request.get("id"), conn)
+        except Exception as exc:
+            log.warning("reply_dispatch_failed type=%s", type(exc).__name__)
+            await self.server.error("dispatch_failed", request.get("id"), conn)
+        finally:
+            _reply_task.reset(token)
+
+    async def click(self, frame, conn, *, source=None):
+        identifier = frame["msg_id"]
+        async with self._reply_errors(frame, conn), self._question_lock(identifier):
+            original = self.journal.message(identifier)
+            projected = self.journal.history.resolve(identifier)
+            if not original or not projected or "answer" not in projected:
+                return await self.server.error("button_expired", frame.get("id"), conn)
+            if error := self._question_error(original, conn):
+                return await self.server.error(error, frame.get("id"), conn)
+            button_id = frame["button_id"]
+            button = next((b for b in projected["buttons"] if b["id"] == button_id), None)
+            if button_id == "std:comment":
+                button = reply_rules.standard()[2]
+            if not button:
+                return await self.server.error("button_expired", frame.get("id"), conn)
+            text = button["label"]
+            if button["role"] == "comment":
+                text = frame.get("text")
+                if not isinstance(text, str) or not text.strip() or len(text) > 4000:
+                    return await self.server.error("invalid_text", frame.get("id"), conn)
+                text = text.strip()
+            elif "text" in frame:
+                return await self.server.error("invalid_text", frame.get("id"), conn)
+            if projected["answer"] and not button["repeat"]:
+                return await self.server.error("button_expired", frame.get("id"), conn)
+            now = self._reply_clock()
+            until = (now + timedelta(seconds=reply_rules.UNDO_GRACE_SECONDS)).isoformat()
+            undo = dict(until=until, button_id=button_id, kind=button["kind"], label=button["label"])
+            if source is not None:
+                undo["source"] = source
+            room = {"room": original["room"]} if original.get("room") else {}
+            prior_context = self.room_context(original["room"], original["thread"], original["employee"]) if room else None
+            answer = await self._record(dict(type="message", msg_id=str(uuid.uuid4()), employee=original["employee"],
+                thread=original["thread"], role="owner", text=text, files=[], buttons=[], reply_state=None,
+                client_msg_id=str(uuid.uuid4()), ts=now.isoformat(), answer_to=identifier, undo_until=until, **room),
+                {"undo":undo, **({"recipients":[original["employee"]]} if room else {})})
+            await self._deliver_answer(original, answer, undo, conn, retry=False, prior_context=prior_context)
+
+    async def _deliver_answer(self, question, answer, undo, conn, *, retry, prior_context=None):
+        room = {"room": question["room"]} if question.get("room") else {}
+        identifier = question["msg_id"]
+        if undo["kind"] == "reply":
+            click = dict(msg_id=identifier, button_id=undo["button_id"], label=undo["label"],
+                         employee=question["employee"], thread=question["thread"], message_text=question["text"], **room)
+            handler = self._click_handlers.get("reply")
+            if not handler or not await handler(click):
+                metadata = dict(label=undo["label"], message_id=identifier, message_text=question["text"])
+                if reply_rules.word(undo["label"]) == "의견":
+                    metadata.update(label="의견", comment=True)
+                if retry and room:
+                    prior_context = self.room_context(question["room"], question["thread"], question["employee"],
+                                                      before=answer["seq"])
+                delivered = await self._reply_event(question, answer["text"], answer["msg_id"],
+                                                    {"_hermes_button": metadata}, conn, prior_context=prior_context)
+                if not delivered:
+                    raise FrameError("button_expired")
+        else:
+            mapping = question.get("_meta", {}).get("buttons", {}).get(undo["button_id"])
+            if retry and not mapping:
+                mapping = next((row["_meta"]["buttons"][undo["button_id"]] for row in reversed(self.journal.records)
+                                if row.get("msg_id") == identifier and undo["button_id"] in
+                                row.get("_meta", {}).get("buttons", {})), None)
+            try:
+                resolved = mapping is not None and await native_buttons.resolve(mapping)
+            except Exception as exc:
+                log.warning("native_reply_failed type=%s", type(exc).__name__)
+                if not retry:
+                    await self._record(dict(type="delete", msg_id=answer["msg_id"], **room))
+                raise FrameError("button_expired") from None
+            if not resolved and not retry:
+                await self._record(dict(type="delete", msg_id=answer["msg_id"], **room))
+            chat = "room:" + question["room"] if room else question["employee"]
+            text = question["text"]
+            if resolved:
+                text += "\n\n" + native_buttons.decision(mapping, self.owner_label("나"))
+            if question.get("buttons"):
+                result = await self.edit_message(chat, identifier, text, finalize=True, metadata={"hejo_buttons":[]})
+                if not result.success:
+                    raise FrameError("journal_write_failed")
+            if not resolved:
+                raise FrameError("button_expired")
+        await self._record(dict(type="state", msg_id=answer["msg_id"], **room),
+                           {"delivered": self._reply_clock().isoformat()})
+        await conn.send(dict(v=1, type="click_ack", msg_id=identifier, button_id=undo["button_id"],
+                             answer_id=answer["msg_id"], undo_seconds=reply_rules.UNDO_SECONDS, undo_until=undo["until"]))
+
+    async def _reply_event(self, question, text, event_id, raw, conn, *, prior_context=None):
+        frame = dict(employee=question["employee"], thread=question["thread"], targeted=True, text=text)
+        if question.get("room"):
+            frame["room"] = question["room"]
+        return await self.receive(frame, conn, raw=raw, event_id=event_id, prior_context=prior_context)
+
+    async def change_answer(self, frame, conn):
+        identifier = frame["answer_id"]
+        answer = self.journal.message(identifier)
+        if not answer or answer.get("role") != "owner":
+            return await self.server.error("retract_expired", frame.get("id"), conn)
+        async with self._reply_errors(frame, conn), self._question_lock(answer.get("answer_to") or identifier):
+            if not self.journal.message(identifier):
+                raise FrameError("retract_expired")
+            if error := self._question_error(answer, conn):
+                raise FrameError(error)
+            if not answer.get("answer_to"):
+                raise FrameError("already_sent" if frame["type"] == "redeliver" else "retract_expired")
+            question = self.journal.message(answer["answer_to"])
+            undo = self.journal.history.undo(identifier)
+            if frame["type"] == "redeliver":
+                if not undo or undo.get("delivered"):
+                    return await self.server.error("already_sent", frame.get("id"), conn)
+                if question is None:
+                    return await self.server.error("button_expired", frame.get("id"), conn)
+                return await self._deliver_answer(question, answer, undo, conn, retry=True)
+            if not undo or self._reply_clock() > datetime.fromisoformat(undo["until"]):
+                return await self.server.error("retract_expired", frame.get("id"), conn)
+            try:
+                await self._record(dict(type="delete", msg_id=identifier,
+                                        **({"room": answer["room"]} if answer.get("room") else {})))
+            except Exception as exc:
+                # Publication can fail after the journal has already committed the delete.
+                if identifier not in self.journal.deleted_messages:
+                    raise FrameError("journal_write_failed") from exc
+                log.warning("retract_publish_failed type=%s", type(exc).__name__)
+            try:
+                if undo["kind"] == "reply" and question and question.get("reply_state") == "answered":
+                    records = reversed(self.journal.records)
+                    state = next((r for r in records if r.get("msg_id") == question["msg_id"] and "reply_state" in r), {})
+                    remaining = self.journal.history.resolve(question["msg_id"]).get("answer")
+                    if state.get("seq", 0) > answer["seq"] and not remaining:
+                        await self.set_reply_state(question["msg_id"], "asked")
+            except Exception as exc:
+                log.warning("retract_state_failed type=%s", type(exc).__name__)
+            try:
+                metadata = dict(message_id=answer["answer_to"], answer_id=identifier, label=undo["label"])
+                notified = await self._reply_event(answer, reply_rules.RETRACT_TEXT, str(uuid.uuid4()),
+                                                   {"_hermes_retract": metadata}, conn)
+                if not notified:
+                    log.warning("retract_notify_failed type=not_delivered")
+            except Exception as exc:
+                log.warning("retract_notify_failed type=%s", type(exc).__name__)
+            await conn.send(dict(v=1, type="retract_ack", answer_id=identifier))
+
+    async def receive(self, frame, conn, raw=None, *, event_id=None, prior_context=None):
         room_id = frame.get("room")
         employee = frame["employee"]
         thread = frame.get("thread") or str(uuid.uuid4())
         async with self.files.lock:
-            if room_id in self.journal.deleted_rooms:
-                await self.server.error("room_deleted", frame.get("id"), conn)
-                return
             room = self.journal.rooms.get(room_id)
-            if room_id and not room:
-                await self.server.error("room_not_found", frame.get("id"), conn)
-                return
-            if room and employee not in room['members']:
-                await self.server.error('room_member_required', frame.get('id'), conn)
-                return
             known = {e["id"] for e in self.employees()}
-            if employee not in known:
-                await self.server.error("unknown_employee", frame.get("id"), conn)
-                return
             scope = room_id or employee
-            if self.journal.deleted(scope, thread):
-                await self.server.error("thread_deleted", frame.get("id"), conn)
+            error = None
+            if room_id in self.journal.deleted_rooms:
+                error = "room_deleted"
+            elif room_id and not room:
+                error = "room_not_found"
+            elif room and employee not in room['members']:
+                error = "room_member_required"
+            elif employee not in known:
+                error = "unknown_employee"
+            elif self.journal.deleted(scope, thread):
+                error = "thread_deleted"
+            if error:
+                if event_id is not None:
+                    raise FrameError(error)
+                await self.server.error(error, frame.get("id"), conn)
                 return
-            for row in self.journal.records:
-                if row.get("role") == "owner" and row.get("client_msg_id") == frame["client_msg_id"]:
-                    await conn.send(self.server.project(row, conn))
-                    return True
+            if event_id is None:
+                for row in self.journal.records:
+                    if row.get("role") == "owner" and row.get("client_msg_id") == frame["client_msg_id"]:
+                        await conn.send(self.server.project(row, conn))
+                        return True
             targets = ([employee] if frame.get('targeted') else recipients(frame["text"], room, self.employees(), self.journal, thread)) if room else [employee]
             if not set(targets) <= known:
                 await self.server.error("unknown_employee", frame.get("id"), conn)
                 return
-            contexts = {target:self.room_context(room_id, thread, target) for target in targets} if room else {}
+            if prior_context is not None:
+                contexts = {employee: prior_context}
+            else:
+                contexts = {target:self.room_context(room_id, thread, target) for target in targets} if room else {}
             previous = [row for row in self.journal.records if row["type"] == "message"
-                        and self.journal.message_threads.get(row["msg_id"]) == (scope, thread)]
+                        and row["msg_id"] != event_id and self.journal.message_threads.get(row["msg_id"]) == (scope, thread)]
             branch = next((row.get("_meta", {}).get("branch_context", "") for row in previous), "") if not any(row.get("role") == "owner" for row in previous) else ""
             history = [self.journal.message(row["msg_id"]) for row in previous] if not room and not branch else []
             history = [row for row in history if row]
-            try:
-                attachments, moved = self.files.promote(employee, frame.get("files", []))
-            except (UnknownFile, OSError):
-                await self.server.error("unknown_file", frame.get("id"), conn)
-                return
-            try:
-                registrations = self.files.registration(employee, "owner", attachments)
-                internal = {"files":registrations, **({"recipients":targets} if room else {})}
-                msg_id = str(uuid.uuid4())
-                await self._record({"type":"message", "msg_id":msg_id, "employee":employee,
-                    "thread":thread, "role":"owner", "text":frame["text"], "files":attachments,
-                    "buttons":[], "reply_state":None, "client_msg_id":frame["client_msg_id"],
-                    "ts":datetime.now(timezone.utc).isoformat(), **({"room":room_id} if room else {}),
-                    **({"answer_to":frame["answer_to"]} if frame.get("answer_to") else {})}, internal)
-            except HejoJournalError:
-                self.files.rollback(moved)
-                return
+            msg_id = event_id
+            registrations = []
+            if event_id is None:
+                try:
+                    attachments, moved = self.files.promote(employee, frame.get("files", []))
+                except (UnknownFile, OSError):
+                    await self.server.error("unknown_file", frame.get("id"), conn)
+                    return
+                try:
+                    registrations = self.files.registration(employee, "owner", attachments)
+                    internal = {"files":registrations, **({"recipients":targets} if room else {})}
+                    msg_id = str(uuid.uuid4())
+                    await self._record({"type":"message", "msg_id":msg_id, "employee":employee,
+                        "thread":thread, "role":"owner", "text":frame["text"], "files":attachments,
+                        "buttons":[], "reply_state":None, "client_msg_id":frame["client_msg_id"],
+                        "ts":datetime.now(timezone.utc).isoformat(), **({"room":room_id} if room else {}),
+                        **({"answer_to":frame["answer_to"]} if frame.get("answer_to") else {})}, internal)
+                except HejoJournalError:
+                    self.files.rollback(moved)
+                    return
         name = self.owner_label(None)
         source_name = {"user_name": name} if name is not None else {}
 
@@ -761,6 +917,12 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             text = with_context(contexts.get(target, ""), frame["text"], "방 대화 — 받기 전 글") if room else frame["text"]
             text = with_context(branch, text, "이전 스레드 대화")
             restored = None
+            if event_id is not None:
+                context = contexts.get(target) or branch
+                if context:
+                    heading = "방 대화 — 받기 전 글" if room else "이전 스레드 대화"
+                    restored = f"[{heading}]\n{context}"
+                text = frame["text"]
             if history:
                 store = getattr(self, "_session_store", None)
                 entry = store.lookup_by_session_key(self._source_session_key(source)) if store else None

@@ -30,6 +30,7 @@ struct HistoryNotice: Decodable {
     let id: String, group: String, title: String, speaker: String, timestamp: String, preview: String
     let key: HistoryThreadSummary.Key
     let questions: Bool
+    var asksPreview: [QuestionRow]?, asksWaiting: Int?, asksAnswered: Int?
     let revision: Int
     var conversationKey: ConversationKey { .init(employee:key.room,thread:key.thread) }
 }

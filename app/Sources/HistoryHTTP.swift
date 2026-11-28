@@ -12,6 +12,14 @@ enum HistoryFailure: Error, Equatable {
 @MainActor final class HistoryHTTP {
     private unowned let client: GateClient
     private let session = URLSession(configuration: .ephemeral, delegate: GateRedirectPolicy(), delegateQueue: nil)
+    private static let httpDate: DateFormatter = {
+        let format=DateFormatter()
+        format.locale=Locale(identifier:"en_US_POSIX")
+        format.timeZone=TimeZone(secondsFromGMT:0)
+        format.dateFormat="EEE, dd MMM yyyy HH:mm:ss z"
+        return format
+    }()
+    private(set) var gateClockOffset: TimeInterval = 0
     static let pageBytes = 512 * 1024
     init(client: GateClient) { self.client = client }
     deinit { session.invalidateAndCancel() }
@@ -71,6 +79,9 @@ enum HistoryFailure: Error, Equatable {
                 guard response.statusCode == 200 else {
                     guard let code = value["code"] as? String, let retryable = Self.boolean(value["retryable"]) else { throw HistoryFailure.invalidResponse }
                     throw HistoryFailure.server(code, retryable: retryable)
+                }
+                if let stamp=response.value(forHTTPHeaderField:"Date"), let gate=Self.httpDate.date(from:stamp) {
+                    gateClockOffset=gate.addingTimeInterval(0.5).timeIntervalSinceNow
                 }
                 return value
             } catch let error as URLError where retry && attempt == 0 && [.timedOut,.networkConnectionLost,.cannotConnectToHost].contains(error.code) {
@@ -163,6 +174,9 @@ enum HistoryFailure: Error, Equatable {
                   let files = row["files"] as? [[String:Any]], let buttons = row["buttons"] as? [[String:Any]] else { throw HistoryFailure.invalidResponse }
             _ = try JSONDecoder().decode([MessageFile].self, from: JSONSerialization.data(withJSONObject: files))
             _ = try JSONDecoder().decode([MessageButton].self, from: JSONSerialization.data(withJSONObject: buttons))
+        } else if kind == "asks" {
+            guard let id=row["id"] as? String, id == row["msg_id"] as? String else { throw HistoryFailure.invalidResponse }
+            _ = try JSONDecoder().decode(QuestionRow.self, from: JSONSerialization.data(withJSONObject:row))
         } else if kind == "threads" || row["rootID"] != nil {
             guard let key = row["key"] as? [String:String], key["room"] != nil, key["thread"] != nil,
                   row["title"] is String, row["preview"] is String, row["rootID"] is String,

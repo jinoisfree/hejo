@@ -7,3 +7,5 @@ export HERMES_DISABLE_LAZY_INSTALLS=1
   -o asyncio_default_fixture_loop_scope=function -p no:cacheprovider
 "${HEJO_PYTHON:-python3}" -m gate.tests.gateway_delivery
 bash app/scripts/test.sh
+
+HEJO_BUTTON_SNAP="$PWD/.build/buttons/snap" "${HEJO_PYTHON:-python3}" app/Tests/result_done_fixture.py app/.build/app-tests buttons

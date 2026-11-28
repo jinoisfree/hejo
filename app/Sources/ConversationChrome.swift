@@ -248,33 +248,18 @@ final class ConversationHeaderDrag: NSView {
     override func mouseUp(with event:NSEvent) { if dragging { onEnded?() } else if event.clickCount == 2 { onDoubleClick?() }; start=nil; dragging=false }
     override func viewWillMove(toWindow newWindow:NSWindow?) { if newWindow == nil { if dragging { onEnded?() }; start=nil; dragging=false }; super.viewWillMove(toWindow:newWindow) }
 }
-final class FileChip: NSButton {
+final class FileChip: HejoButton {
     var invoke: (() -> Void)?
     /// ReplyActionLabel's native equivalent; other chips retain their usual AppKit bezel.
     var nativeLabelGap:CGFloat?
     var replyWord:String? {didSet{invalidateIntrinsicContentSize();needsDisplay=true}}
-    override var intrinsicContentSize:NSSize {
-        guard let word=replyWord else{return super.intrinsicContentSize}
-        return NSSize(width:ReplyButtonPolicy.symbol(word) != nil ? 36:max(36,(word as NSString).size(withAttributes:[.font:NSFont.systemFont(ofSize:12,weight:.semibold)]).width+20),height:30)
-    }
-    private func colorAlpha(_ opacity:CGFloat)->CGFloat {SidebarTone.primary(1).alphaComponent*opacity}
     override func draw(_ dirtyRect:NSRect) {
         if let gap=nativeLabelGap,let image,imagePosition == .imageLeading {
             let attributes:[NSAttributedString.Key:Any]=[.font:font ?? NSFont.systemFont(ofSize:12,weight:.medium),.foregroundColor:SidebarTone.primary(0.7)]
             FileTile.symbol("plus.circle",point:12,at:CGPoint(x:image.size.width/2,y:bounds.midY),color:SidebarTone.primary(0.7),weight:.medium)
             let size=(title as NSString).size(withAttributes:attributes);(title as NSString).draw(at:CGPoint(x:image.size.width+gap,y:bounds.midY-size.height/2),withAttributes:attributes);return
         }
-        guard let word=replyWord else{super.draw(dirtyRect);return}
-        let color=SidebarTone.primary(1),alpha:CGFloat=colorAlpha(isEnabled ? 1:0.4)
-        let box=NSBezierPath(roundedRect:bounds.insetBy(dx:0.5,dy:0.5),xRadius:8,yRadius:8)
-        color.withAlphaComponent(0.07*alpha).setFill();box.fill();color.withAlphaComponent(0.18*alpha).setStroke();box.lineWidth=1;box.stroke()
-        if !ReplyButtonPolicy.standard.contains(word),let symbol=ReplyButtonPolicy.symbol(word) {
-            FileTile.symbol(symbol,point:14,at:CGPoint(x:bounds.midX,y:bounds.midY),color:color.withAlphaComponent(alpha))
-        } else {
-            let attributes:[NSAttributedString.Key:Any]=[.font:NSFont.systemFont(ofSize:12,weight:.semibold),.foregroundColor:color.withAlphaComponent(alpha)]
-            let size=(word as NSString).size(withAttributes:attributes)
-            (word as NSString).draw(at:CGPoint(x:bounds.midX-size.width/2,y:bounds.midY-size.height/2),withAttributes:attributes)
-        }
+        super.draw(dirtyRect)
     }
     init(title:String) { super.init(frame:.zero); self.title=title; bezelStyle = .rounded; target=self; action = #selector(pressed); setContentCompressionResistancePriority(.defaultLow,for:.horizontal) }
     required init?(coder:NSCoder) { fatalError() }
@@ -306,7 +291,7 @@ final class ComposerModeTrack: NSView {
     }
 }
 
-final class ComposerButton: NSButton {
+final class ComposerButton: HejoButton {
     var invoke:(() -> Void)?, chosen=false,mode=false
     var textAlpha:CGFloat=1
     var selection:CGFloat?
@@ -325,6 +310,7 @@ final class ComposerButton: NSButton {
         NSBezierPath(roundedRect:bounds,xRadius:bounds.height/2,yRadius:bounds.height/2).fill()
         let ordinary:NSColor=mode && isEnabled ? .labelColor:.labelColor.withAlphaComponent(isEnabled ? 0.7:0.42)
         let color:NSColor=mode ? ordinary.blended(withFraction:amount,of:.white) ?? .white:chosen ? .white:ordinary
+        if usesReplyStyle && hovered {NSColor.systemBlue.withAlphaComponent(0.18).setFill();Self.pillPath(bounds).fill()}
         if let symbol,let image=NSImage(systemSymbolName:symbol,accessibilityDescription:title)?.withSymbolConfiguration(.init(pointSize:point,weight:chosen ? .bold : .regular)) {
             let tinted=image.copy() as! NSImage; tinted.lockFocus(); color.set(); CGRect(origin:.zero,size:image.size).fill(using:.sourceAtop); tinted.unlockFocus()
             tinted.draw(in:CGRect(x:(bounds.width-image.size.width)/2,y:(bounds.height-image.size.height)/2,width:image.size.width,height:image.size.height))

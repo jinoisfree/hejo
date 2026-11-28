@@ -174,39 +174,18 @@ private final class CardEvidenceBackdrop: NSView {
                       "AT-CD-01/12 keyless alert and reference-free deadline")
         }
         try check(question.bounds.size == CGSize(width: 268, height: 52), "AT-CD-01 card size")
-        for item in [question, deadline] {
-            try check(item.completionRect == nil && item.trailingTextRect != nil, "AT-CD-01 before hover")
-            hover(item)
-            try check(item.completionRect == CGRect(x: 224, y: 0, width: 44, height: 52)
-                      && item.trailingTextRect == nil && item.statusTextRect.maxX <= 216,
-                      "AT-CD-01 hover geometry")
-        }
-        try render(question, name: "question")
-        try render(deadline, name: "deadline")
-        try check(question.accessibilityCustomActions()?.map(\.name) == ["확인 보내기"], "AT-CD-12 question name")
-        try check(deadline.accessibilityCustomActions()?.map(\.name) == ["완료로 닫기"], "AT-CD-12 deadline name")
-        try check(deadline.accessibilityCustomActions()?.first?.handler?() == true, "AT-CD-12 deadline dispatch")
-        try check(controller.drawerSnapshot.undoTitle == "완료 마감", "AT-CD-12 deadline undo")
+        // AT-HB-35 removes the question confirmation strip; deadlines keep their own close action.
+        try check(deadline.completionRect == nil && deadline.trailingTextRect != nil, "AT-CD-01 deadline before hover")
+        hover(question);hover(deadline)
+        try check(question.completionRect==nil && (question.accessibilityCustomActions() ?? []).isEmpty,"AT-HB-35 no question strip")
+        try check(deadline.completionRect==CGRect(x:224,y:0,width:44,height:52) && deadline.trailingTextRect == nil && deadline.statusTextRect.maxX <= 216,"AT-CD-01 deadline geometry")
+        try check(deadline.accessibilityCustomActions()?.map(\.name) == ["완료로 닫기"],"AT-CD-12 deadline action name")
+        try render(question,name:"question");try render(deadline,name:"deadline")
+        try check(deadline.accessibilityCustomActions()?.first?.handler?()==true && controller.drawerSnapshot.undoTitle=="완료 마감","AT-CD-12 deadline dispatch")
         controller.undoClose()
-        try check(question.accessibilityCustomActions()?.first?.handler?() == true, "AT-CD-12 question dispatch")
-        try check(controller.drawerSnapshot.undoTitle == "질문 A", "AT-CD-12 question undo")
-        controller.undoClose()
-        click(try view("질문 A"), offset: -1)
-        try check(opened == [asked.id] && controller.drawerSnapshot.undoTitle == nil, "AT-CD-10 outside strip")
-        let count = controller.drawerSnapshot.counts[.question]
-        let questionToClose = try view("질문 A")
-        click(questionToClose)
-        controller.completeCard(asked)
-        repaint()
-        try check(opened == [asked.id] && card("A") == nil && controller.drawerSnapshot.counts[.question] == count.map { $0 - 1 }
-                  && drawer.footerText == "‘질문 A’ 확인 보냄 ·", "AT-CD-03 hidden, count, undo copy, no open")
-        await tick(4.9)
-        let beforeSend = try await observe()
-        try check(beforeSend.seen.isEmpty, "AT-CD-03 before five seconds")
-        await tick(0.11)
-        try await waitFor { !controller.sending && controller.model.timeline(asked.key!).contains { $0.text == "확인" } }
-        let wire = try await observe()
-        try check(wire.seen == ["A"] && wire.clicks == 0, "AT-CD-03/03b one confirmation, no button click")
+        click(question)
+        await tick(6)
+        try check(opened==[asked.id] && controller.drawerSnapshot.undoTitle==nil,"AT-HB-35 opens legacy question without sending")
     case "deadline":
         click(try view("완료 마감"))
         repaint()
@@ -216,117 +195,22 @@ private final class CardEvidenceBackdrop: NSView {
         try check(beforeSend.seen.isEmpty, "AT-CD-04 before five seconds")
         await tick(0.11)
         try await waitForFrames(["done"])
-    case "undo":
-        let order = snapshotCards().map(\.id)
-        click(try view("질문 A"))
-        await tick(2)
-        repaint()
-        let buttons = drawer.subviews.compactMap { $0 as? NSStackView }
-            .flatMap(\.arrangedSubviews).compactMap { $0 as? NSButton }
-        guard let undo = buttons.first(where: { $0.title == "되돌리기" }) else {
-            throw TestFailure.assertion("AT-CD-05 missing undo button")
-        }
-        undo.performClick(nil)
-        await tick(10)
-        try check(snapshotCards().map(\.id) == order && controller.drawerSnapshot.undoTitle == nil, "AT-CD-05 undo order")
-    case "stop":
-        click(try view("질문 A"))
-        await tick(2)
-        controller.stop()
-        await tick(10)
-    case "mixed":
-        click(try view("질문 A"))
-        await tick(1)
+    case "undo","stop":
         click(try view("완료 마감"))
-        repaint()
-        try check(drawer.footerText == "‘완료 마감’ 닫음 ·" && opened.isEmpty, "AT-CD-04/06 one footer, no open")
-        await tick(1)
-        try await waitForFrames(["A"])
-        click(try view("질문 C"))
-        await tick(1)
-        try await waitForFrames(["A", "done"])
-        let rightClick = NSEvent.mouseEvent(with: .rightMouseDown, location: .zero, modifierFlags: [],
-            timestamp: 0, windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!
-        let menu = try view("취소 마감").menu(for: rightClick)
-        (menu?.item(withTitle: "취소로 닫기") as? RoomActionItem)?.trigger()
-        await tick(1)
-        try await waitForFrames(["A", "done", "C"])
-        await tick(4)
-        try await waitForFrames(["A", "done", "C", "cancel"])
-    case "ack":
-        click(try view("질문 A"))
-        await tick(5)
-        try await waitFor { controller.model.history.notices.contains { $0.preview == "질문 A" } && !controller.sending }
-        await tick(30)
-        try check(card("A") == nil, "AT-CD-08a acknowledged but old list")
-        try await refreshHistory(["hide": "A"])
-        controller.pollDeadlineCloses()
-        try check(card("A") == nil, "AT-CD-08b absent list")
-        try await refreshHistory(["show": "A"])
-        try check(try hasStrip("질문 A"), "AT-CD-08b reappeared with action")
-        click(try view("질문 B"))
-        await tick(5)
-        try await waitFor { !controller.sending }
-        await tick(75)
-        try check(try hasStrip("질문 B") && controller.drawerSnapshot.confirmationWarning == nil, "AT-CD-08c accepted timeout")
+        await tick(2)
+        if mode=="stop" {controller.stop()} else {controller.undoClose()}
+        await tick(10)
+        let observed=try await observe()
+        try check(observed.seen.isEmpty,"deadline close was cancelled")
+    case "mixed":
+        click(try view("완료 마감"))
+        let event=NSEvent.mouseEvent(with:.rightMouseDown,location:.zero,modifierFlags:[],timestamp:0,windowNumber:window.windowNumber,context:nil,eventNumber:0,clickCount:1,pressure:0)!
+        let menu=try view("취소 마감").menu(for:event)
+        (menu?.item(withTitle:"취소로 닫기") as? RoomActionItem)?.trigger()
+        await tick(6);try await waitForFrames(["done","cancel"])
     case "offline":
-        click(try view("질문 A"))
-        client.stop()
-        await tick(5)
-        let question = try view("질문 A")
-        hover(question)
-        try check(question.completionRect == nil && (question.accessibilityCustomActions() ?? []).isEmpty,
-                  "AT-CD-02/09a offline")
-        try check(try hasStrip("완료 마감"), "AT-CD-02 deadline works offline")
-        try check(controller.transferFailure != nil && controller.drawerSnapshot.confirmationWarning == "확인을 보내지 못했어요. 다시 해 주세요.",
-                  "AT-CD-09a failure")
-        controller.setDrawerState(open: true, chatExpanded: true)
-        try check(controller.drawerSnapshot.confirmationWarning == nil, "AT-CD-09a reopen")
-    case "reject":
-        click(try view("질문 A"))
-        await tick(5)
-        try await waitFor { controller.drawerSnapshot.confirmationWarning != nil }
-        try check(try hasStrip("질문 A") && controller.failures.contains { $0.draft.text == "확인" }, "AT-CD-09b ref restores card/draft")
-        click(try view("질문 A"))
-        try check(controller.drawerSnapshot.confirmationWarning == nil, "AT-CD-09b next click clears")
-        controller.undoClose()
-    case "uncertain", "reconnect":
-        let thread = card("A")!.key!.thread
-        let restoreTransport = loseWriteCompletion(for: thread, address: address)
-        defer { restoreTransport() }
-        click(try view("질문 A"))
-        await tick(5)
-        try await waitFor { controller.sending && controller.notice == "전송 결과를 확인하고 있어요." }
-        try await waitForFrames(["A"])
-        if mode == "reconnect" {
-            let epoch = client.connectionEpoch
-            client.resume()
-            try await waitFor {
-                controller.canSend && client.connectionEpoch > epoch && !controller.historyLoading.busy
-                    && controller.model.history.notices.contains { $0.preview == "질문 A" }
-            }
-            // This frame is consumed by the controller's replay-finalization path.
-            controller.receive(["v": 1, "type": "sync_done", "more": false])
-            try check(try hasStrip("질문 A") && controller.drawerSnapshot.confirmationWarning != nil, "AT-CD-09c sync rejection")
-        } else {
-            await tick(74)
-            try check(card("A") == nil, "AT-CD-09d hidden before timeout")
-            await tick(2)
-            let visible = try view("질문 A")
-            hover(visible)
-            try check(visible.completionRect == nil && (visible.accessibilityCustomActions() ?? []).isEmpty
-                      && controller.drawerSnapshot.confirmationWarning == nil, "AT-CD-09d visible, locked, no warning")
-            click(visible)
-            try check(opened == [visible.card.id] && controller.drawerSnapshot.undoTitle == nil,
-                      "AT-CD-09d locked card click only opens the conversation")
-            try await refreshHistory(["receipt": "not_found"])
-            let receipts = try await observe().receipts
-            try check(receipts.contains("not_found"), "AT-CD-09d not_found observed")
-            try check(card("A") != nil && !(try hasStrip("질문 A")) && controller.sending,
-                      "AT-CD-09d not_found keeps unresolved")
-            try await refreshHistory(["receipt": "accepted"])
-            try check(!controller.sending && card("A") == nil, "AT-CD-09d accepted hides again")
-        }
+        client.stop();await tick(6)
+        try check(try hasStrip("완료 마감") && !(try hasStrip("질문 A")),"AT-HB-35 offline deadline and question")
     default:
         throw TestFailure.assertion("unexpected card fixture scenario")
     }

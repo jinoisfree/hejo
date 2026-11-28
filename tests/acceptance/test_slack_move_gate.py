@@ -63,7 +63,9 @@ async def test_at_sm_02_edit_state_buttons_images_delete(gate, local, airport, c
     # HEJO-OWNER-PROFILE added the optional owner field and its definition only (tasks D-03)
     # AT-DK-22 permits only the discord_layout definition and two appended references.
     # HEJO-TELEGRAM-REMOVE removed the HEJO-TELEGRAM definitions only
-    assert hashlib.sha256(wire.read_bytes()).hexdigest() == '966e53c37070dde9f8c671392e02ddce1898ccbe45bc5756c13d5ed3580a138d'
+    # AT-HB-15: the wire contract adds targeted replies, undo and explicit delivery.
+    # TK1-05 also projects question button transitions on state frames.
+    assert hashlib.sha256(wire.read_bytes()).hexdigest() == '2c176e7c1291a822611e730f01028ff83ee5b2093afb243bfe351d3444816f4d'
     assert RECORD_TYPES == {'message', 'edit', 'delete', 'state', 'room', 'room_delete'}
     ws, welcome = await client.pair()
     assert 'history' not in welcome

@@ -70,6 +70,7 @@ import AppKit
             pet.onReadingResizeBegan={ [weak conversationView] in conversationView?.beginReadingResize() };pet.onReadingResizeEnded={ [weak conversationView] in conversationView?.endReadingResize() }
             conversationView.onOpenThreadHeight = { [weak self] height in self?.pet.fitOpenThread(height) }
             pet.panel.onWorkspaceKey = { [weak self] event in guard let self, self.pet.web?.hasFocus(in:self.pet.panel) != true else {return false}; return self.conversationView.handleWorkspaceKey(event) }
+            pet.panel.onCancelComposerBranch = { [weak conversationView] in conversationView?.cancelComposerBranch() ?? false }
             pet.panel.onCollapse = { [weak self] in guard let self else { return }; if !self.conversationView.pickingFiles && !self.conversationView.closeSearchIfOpen() { self.pet.collapseChat() } }
             pet.pet.onBubbleOpen = { [weak self] key in guard let self else {return};self.openBubble(key) }
             pet.pet.onClick={ [weak self] in guard let self else{return};if self.pet.chatExpanded {self.pet.collapseChat()} else {self.openBubble(self.pet.pet.bubbleTarget)} }

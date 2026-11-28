@@ -70,18 +70,24 @@ async def click(ws, message, index=0):
 
 async def test_at_hf_17(gate, client):
     ws, _ = await client.pair()
+    async def expect_native_edit():
+        # AT-HB-12 persists the native answer, retires buttons, then acknowledges.
+        frames = await client.until(ws, "click_ack")
+        assert [f["type"] for f in frames] == ["message", "edit", "state", "click_ack"]
+        assert frames[1]["buttons"] == []
+
     with patch("tools.approval.resolve_gateway_approval", return_value=1) as resolve_approval, \
          patch("tools.clarify_gateway.resolve_gateway_clarify", return_value=True) as resolve_clarify, \
          patch("tools.slash_confirm.resolve", new_callable=AsyncMock, return_value="done") as resolve_slash:
         await gate._send_exec_approval_prompt(approval())
         await click(ws, await client.read(ws))
-        assert (await client.read(ws))["buttons"] == []  # REQ-HF-42: outcome edit retires the card.
+        await expect_native_edit()  # REQ-HF-42: outcome edit retires the card.
         await gate.send_clarify("alpha", "Choose", ["First", "Second"], "fixture-clarify", "fixture-session")
         await click(ws, await client.read(ws))
-        assert (await client.read(ws))["buttons"] == []
+        await expect_native_edit()
         await gate.send_slash_confirm("alpha", "Confirm", "Reload?", "fixture-session", "fixture-confirm")
         await click(ws, await client.read(ws))
-        assert (await client.read(ws))["buttons"] == []
+        await expect_native_edit()
         # Round trip a request after clicks so dispatch is known to have completed.
         await ws.send_json({"v": 1, "type": "roster", "id": "barrier"})
         assert (await client.read(ws))["ref"] == "barrier"
@@ -98,7 +104,11 @@ async def test_at_hf_18(gate, client, runner):
     with patch("tools.approval.resolve_gateway_approval", return_value=0) as resolve, \
          patch("tools.clarify_gateway.resolve_gateway_clarify") as other:
         await click(ws, message)
-        assert (await client.read(ws))["code"] == "button_expired"
+        # AT-HB-12 removes the persisted answer when the resolver fails.
+        frames = await client.until(ws, "error")
+        assert [f["type"] for f in frames] == ["message", "delete", "edit", "error"]
+        assert frames[-2]["buttons"] == []
+        assert frames[-1]["code"] == "button_expired"
         resolve.assert_called_once_with("fixture-session", "once")
         other.assert_not_called()
         assert runner.events == []

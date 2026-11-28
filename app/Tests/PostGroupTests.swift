@@ -110,11 +110,11 @@ private func expectPosts(_ content:NativeThreadCard.Content,_ expected:[(String,
         try check(posts(content).map(\.id)==[a,b],"AT-PG-05 \(middle) prerequisite: exactly A1, A2")
         try expectPosts(content,[(a,false),(b,false)],"AT-PG-05 \(middle) hidden predecessor breaks group")
     }
-    // AT-PG-06: both pieces of a split reply belong to the same preceding employee.
+    // AT-HB-34 / AT-PG-06: a question stays whole and grouped with its preceding employee.
     do {
         let f=try await fixture();f.post("첫 글",role:"owner")
         let a=f.post("A1"),s=f.post("**할 일**\n검토해 주세요.\n\n**자세한 내용**\n설명입니다.",buttons:true)
-        try expectPosts(f.content(),[(a,false),(s,true),(s+":detail",true)],"AT-PG-06 split head and detail")
+        try expectPosts(f.content(),[(a,false),(s,true)],"AT-PG-06 whole question")
     }
     // AT-PG-07: typing after the employee's file contributes only the work row.
     do {

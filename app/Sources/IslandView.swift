@@ -104,7 +104,7 @@ import AppKit
         switch snapshot.activity?.tone ?? .normal{case .normal:return .labelColor;case .orange:return .systemOrange;case .red:return .systemRed;case .green:return .systemGreen}
     }
     override func draw(_ dirtyRect:NSRect){
-        let path=NSBezierPath(roundedRect:bounds.insetBy(dx:0.5,dy:0.5),xRadius:15,yRadius:15)
+        let path=HejoButton.pillPath(bounds.insetBy(dx:0.5,dy:0.5))
         NSColor.labelColor.withAlphaComponent(0.055).setFill();path.fill()
         (snapshot.drawerOpen ? NSColor.controlAccentColor:snapshot.activity == nil ? NSColor.labelColor.withAlphaComponent(0.13):activityColor.withAlphaComponent(0.55)).setStroke();path.lineWidth=1;path.stroke()
         NSGraphicsContext.saveGraphicsState();path.addClip();defer{NSGraphicsContext.restoreGraphicsState()}

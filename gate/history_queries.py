@@ -8,7 +8,8 @@ from datetime import datetime, timezone
 import re
 import unicodedata
 from .context import thinking
-from .history import HistoryError
+from . import reply_rules
+from .history import HistoryError, encoded
 from .history_search import clusters, ranges, snippet
 
 YES = {'승인','전송','발송','발송해','승인, 발송해','응','응응','ㅇㅇ','네','예','좋아','진행','그래','오케이','ok','yes'}
@@ -53,35 +54,133 @@ def result_notice(post):
     return post['role'] == 'employee' and [b.get('label') for b in post.get('buttons') or []] == RESULT_LABELS
 
 
-def assess(lines, context):
-    posts = [p for p in lines if p['role'] == 'owner' or not thinking(p['text'])]
-    asks = [i for i, p in enumerate(posts) if p['role'] == 'employee'
-            and (p.get('reply_state') is not None or p.get('buttons') or p.get('checklist') is not None or approval(p['text']))]
-    result = {'requestID': None, 'pendingID': None, 'working': False, 'settled': False, 'approved': False}
-    if not asks:
-        return result, set(), posts
-    # First qualifying owner response after each post, in one reverse pass.
+def question(post):
+    return post['role'] == 'employee' and not thinking(post['text']) and (
+        post.get('reply_state') is not None or bool(post.get('buttons'))
+        or post.get('checklist') is not None or approval(post['text']))
+
+
+def has_default_buttons(post):
+    return not post.get('buttons') and post.get('checklist') is None and question(post)
+
+
+def question_buttons(post):
+    buttons = post.get('buttons') or []
+    if buttons:
+        return reply_rules.styled(buttons)
+    if has_default_buttons(post):
+        return reply_rules.standard()
+    return []
+
+
+def answer_positions(posts):
     answers, targeted, general = {}, {}, None
-    employees_after = [False] * len(posts)
-    seen_employee = False
-    for i in range(len(posts)-1, -1, -1):
+    for i in reversed(range(len(posts))):
         post = posts[i]
-        candidates = [value for value in (general, targeted.get(post['msg_id'])) if value is not None]
-        answers[i] = min(candidates, default=None)
-        employees_after[i] = seen_employee
-        if post['role'] == 'employee' and post.get('final') is not False:
-            seen_employee = True
+        target = targeted.get(post['msg_id'])
+        answers[i] = general if target is None and not reply_rules.has_native_buttons(post) else target
         if post['role'] == 'owner':
             if post.get('answer_to') is None:
                 general = i
             else:
                 targeted[post['answer_to']] = i
+    return answers
+
+
+def answer_fields(owner, undo):
+    label = None
+    if owner.get('answer_to'):
+        label = undo['label'] if undo else owner['text']
+    word = reply_rules.word(label or '')
+    role, _ = reply_rules.LABELS.get(word, ('other', None))
+    result = reply_rules.RESULTS[role] if word in reply_rules.STANDARD else label
+    answer = dict(answer_id=owner['msg_id'], label=label, role=role, result=result, at=owner['ts'])
+    if label is None:
+        answer['text'] = prefix(owner['text'], 30)
+    elif role == 'comment':
+        answer['text'] = owner['text']
+    if undo:
+        answer.update(undo_until=undo['until'], delivery='sent' if undo.get('delivered') else 'unknown')
+    return answer
+
+
+def thread_fields(lines, undos, resolved_native):
+    posts = [p for p in lines if p['role'] == 'owner' or not thinking(p['text'])]
+    answers = answer_positions(posts)
+    fields = {}
+    branch = None
+    for i, post in enumerate(posts):
+        identifier = post['msg_id']
+        resolved = identifier in resolved_native
+        target = posts[answers[i]] if answers[i] is not None else None
+        # A native resolution keeps its answer visible until it is retracted.
+        if resolved:
+            is_question = target is not None
+        else:
+            is_question = question(post)
+        if is_question:
+            branch = None
+            answer = answer_fields(target, undos.get(target['msg_id'])) if target else None
+            fields[identifier] = dict(branch=None, answer=answer, buttons=[] if resolved else question_buttons(post))
+        else:
+            if post['role'] == 'owner':
+                branch = post.get('answer_to')
+            fields[identifier] = dict(branch=branch)
+    return fields
+
+
+def bounded_preview(text, count, budget):
+    first = text.partition('\n')[0]
+    clean = re.sub(r'[\x00-\x08\x0a-\x1f]', '', first)
+    parts = clusters(clean, limit=count)
+    trimmed = ''.join(parts)
+    if len(encoded(trimmed)) <= budget:
+        return trimmed
+    while parts and len(encoded(''.join(parts) + '…')) > budget:
+        parts.pop()
+    return ''.join(parts) + '…'
+
+
+def ask_row(post):
+    buttons = post['buttons']
+    if len(buttons) > 5:
+        buttons = buttons[:4] + [buttons[-1] if buttons[-1]['kind'] == 'clarify' else buttons[4]]
+    buttons = [dict(b, label=re.sub(r'[\x00-\x1f]', '', b['label'])[:30]) for b in buttons]
+    answer = post['answer']
+    if answer and 'text' in answer:
+        answer = dict(answer, text=bounded_preview(answer['text'], 80, 240))
+    return dict(id=post['msg_id'], msg_id=post['msg_id'], text=bounded_preview(post['text'], 80, 240),
+                buttons=buttons, answer=answer)
+
+
+def assess(lines, context):
+    posts = [p for p in lines if p['role'] == 'owner' or not thinking(p['text'])]
+    asks = [i for i, p in enumerate(posts) if 'answer' in p or ('branch' not in p and question(p))]
+    result = {'requestID': None, 'pendingID': None, 'working': False, 'settled': False, 'approved': False}
+    if not asks:
+        return result, set(), posts
+    # First qualifying owner response after each post, in one reverse pass.
+    answers = answer_positions(posts)
+    employees_after = [False] * len(posts)
+    seen_employee = False
+    for i in reversed(range(len(posts))):
+        employees_after[i] = seen_employee
+        if posts[i]['role'] == 'employee' and posts[i].get('final') is not False:
+            seen_employee = True
     def answer(i):
         return answers[i]
     def request_for(candidates):
-        last = candidates[-1]
-        return last if answer(last) is None else next(
-            (i for i in reversed(candidates) if answer(i) is None and posts[i].get('buttons')), last)
+        for i in reversed(candidates):
+            post = posts[i]
+            if (answer(i) is None and post.get('reply_state') not in ('answered', 'closed')
+                    and context.value('confirm:' + post['msg_id']) is None):
+                return i
+        latest = candidates[-1]
+        if answer(latest) is None:
+            return latest
+        # A newer targeted decision can finish an older prompt after a newer one was answered.
+        answered = (i for i in candidates if answer(i) is not None)
+        return max(answered, key=lambda i: (answer(i), i))
     def judge(asked):
         request, answered = posts[asked], answer(asked)
         found = {'requestID': request['msg_id'], 'pendingID': None, 'working': False, 'settled': False, 'approved': False}
@@ -104,10 +203,12 @@ def assess(lines, context):
     if asks[-1] in held and result['pendingID'] is None:
         result = {'requestID': posts[asks[-1]]['msg_id'], 'pendingID': None, 'working': False, 'settled': True, 'approved': False}
     waiting = {p['msg_id'] for i, p in enumerate(posts) if p['role'] == 'employee'
+               and context.value('confirm:' + p['msg_id']) is None
                and p.get('buttons') and p.get('reply_state') not in ('answered', 'closed') and answer(i) is None}
     if len(waiting) < 2:
         waiting = {result['pendingID']} if result['pendingID'] else set()
-    waiting |= {posts[i]['msg_id'] for i in held if posts[i].get('reply_state') not in ('answered', 'closed')}
+    waiting |= {posts[i]['msg_id'] for i in held if posts[i].get('reply_state') not in ('answered', 'closed')
+                and context.value('confirm:' + posts[i]['msg_id']) is None}
     return result, waiting, posts
 
 
@@ -145,6 +246,10 @@ class HistoryQueries:
         self.index, self.context = index, context
         self.cache = {}
 
+    def asks(self, key):
+        return [ask_row(post) for identifier in self.index.ids(key)
+                if (post := self.index.resolve(identifier)) and 'answer' in post]
+
     async def summary(self, key):
         revision = self.index.thread_revision(key)
         cached = self.cache.get(key)
@@ -152,7 +257,7 @@ class HistoryQueries:
             return cached[1]
         lines = []
         for number, identifier in enumerate(list(self.index.ids(key))):
-            message = self.index.message(identifier)
+            message = self.index.resolve(identifier)
             if message is not None:
                 lines.append(message)
             if number % 50 == 49:
@@ -172,7 +277,7 @@ class HistoryQueries:
         bell_read = self.context.read('bell:' + key[0] + '/' + key[1])
         notice = None
         expires = None
-        if posts and posts[-1]['role'] != 'owner' and not state['working'] and not state['settled'] and not confirmed and bell_read < original:
+        if posts and not state['working'] and not state['settled'] and not confirmed and bell_read < original:
             if state['pendingID']:
                 asked = next(p for p in posts if p['msg_id'] == state['pendingID'])
                 speaker = asked['employee']
@@ -196,11 +301,24 @@ class HistoryQueries:
                 if next_line:
                     preview = preview.strip() + ' · ' + next_line
             notice.update(speaker=source['employee'], timestamp=source['ts'], preview=prefix(preview, 300))
+        if notice and notice['questions']:
+            questions = [p for p in posts if 'answer' in p]
+            pending = [p for p in questions if p['answer'] is None
+                       and self.context.value('confirm:' + p['msg_id']) is None
+                       and p.get('reply_state') not in ('answered', 'closed')]
+            previews = []
+            for post in pending[:3]:
+                row = ask_row(post)
+                del row['id']
+                previews.append(row)
+            notice.update(asksPreview=previews, asksWaiting=len(pending),
+                          asksAnswered=sum(p['answer'] is not None for p in questions),
+                          preview=bounded_preview(preview, 300, 900))
         bell = None
         if not state['working'] and not state['settled'] and not confirmed:
             if self.context.value('bell:' + key[0] + '/' + key[1]) is not None and bell_read >= original:
                 bell = False
-            elif notice:
+            elif notice and posts[-1]['role'] != 'owner':
                 bell = True
         title = root['text'] or next((f['name'] for f in root.get('files', [])), '대화')
         result = {'key': {'room': key[0], 'thread': key[1]}, 'rootID': root['msg_id'],

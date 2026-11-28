@@ -82,6 +82,9 @@ extension HistoryHTTP {
             replyState:row["reply_state"] as? String,seq:row["seq"] as! Int,latestSeq:row["revision"] as! Int,
             timestamp:row["ts"] as! String,clientMessageID:row["client_msg_id"] as? String)
         message.employee = row["employee"] as? String; message.answerTo = row["answer_to"] as? String
+        message.isQuestion = row["answer"] != nil
+        message.branch = row["branch"] as? String
+        if let answer=row["answer"] as? [String:Any] { message.answer=try decode(answer,as:QuestionAnswer.self) }
         message.branchFrom = (row["branch_from"] as? [String:Any])?["thread"] as? String
         if let checklist = row["checklist"] { message.checklist = try decode(checklist,as:ReplyChecklist.self) }
         message.streaming = row["final"] as? Bool == false; message.finalized = row["final"] as? Bool == true
