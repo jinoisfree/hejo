@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock
 import pytest
 
 from gate import discord as door
-from gate.server import CLIENT_VALIDATOR
 from test_buttons import change, click, projected, restart, turns
 from test_discord import client, discord_module as text_sdk, gate, named_roster, registered, settled, transport
 from test_discord_follow import FollowHook, lab
@@ -148,10 +147,6 @@ async def test_at_hb_21_22_dispatch_then_retract(gate, lab, turns, monkeypatch, 
 async def test_at_hb_22_source_survives_recovery(gate, lab, turns):
     q, message = await waiting(gate, lab)
     identifier = buttons(message)[0].custom_id
-    frame = dict(v=1, type='click', msg_id=q, button_id='std:approve')
-    assert CLIENT_VALIDATOR.is_valid(frame)
-    assert not CLIENT_VALIDATOR.is_valid(dict(frame, source='discord'))
-
     await listener(lab)(event(identifier))
     await settled(gate)
     message.content = '확인해 주세요'
@@ -160,6 +155,27 @@ async def test_at_hb_22_source_survives_recovery(gate, lab, turns):
     assert message.content.endswith('○ 승인함 · 디스코드에서')
     assert not message.components
     assert turns.sink.await_count == 1
+
+
+async def test_at_hb_22_app_click_rejects_source_fields(gate, client, lab, turns):
+    q, message = await waiting(gate, lab)
+    ws, _ = await client.pair()
+    frame = dict(v=1, type='click', msg_id=q, button_id='std:approve')
+    head = gate.journal.head
+    for field in ('origin', 'source'):
+        await ws.send_json({**frame, 'id': field, field: 'discord'})
+        error = (await client.until(ws, 'error'))[-1]
+        assert error['code'] == 'invalid_frame' and error['ref'] == field
+        assert gate.journal.head == head and projected(gate, q)['answer'] is None
+        turns.sink.assert_not_awaited()
+
+    await ws.send_json(frame)
+    ack = (await client.until(ws, 'click_ack'))[-1]
+    undo = gate.journal.history.undo(ack['answer_id'])
+    assert undo['button_id'] == frame['button_id'] and 'source' not in undo
+    await settled(gate)
+    assert message.content.endswith('○ 승인함 · hejo에서')
+    turns.sink.assert_awaited_once()
 
 
 async def test_at_hb_23_modal_and_comment_post(gate, lab, turns):

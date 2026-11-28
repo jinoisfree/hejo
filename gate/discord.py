@@ -898,9 +898,12 @@ class Discord:
         projected = self.adapter.journal.history.resolve(row['msg_id']) or {}
         answer = projected.get('answer')
         if answer:
-            owner = self.adapter.journal.history.message(answer['answer_id']) or {}
-            undo = self.adapter.journal.history.undo(answer['answer_id']) or {}
-            discord_origin = undo.get('source') == 'discord' or owner.get('client_msg_id', '').startswith('discord:')
+            if answer['label'] is None:
+                owner = self.adapter.journal.history.message(answer['answer_id']) or {}
+                discord_origin = owner.get('client_msg_id', '').startswith('discord:')
+            else:
+                undo = self.adapter.journal.history.undo(answer['answer_id']) or {}
+                discord_origin = undo.get('source') == 'discord'
             source = '디스코드에서' if discord_origin else 'hejo에서'
             label = reply_rules.word(answer['label'] or '')
             icon = GLYPHS.get(reply_rules.LABELS.get(label, (None, None))[1], '•')

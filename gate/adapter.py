@@ -732,7 +732,7 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             now = self._reply_clock()
             until = (now + timedelta(seconds=reply_rules.UNDO_GRACE_SECONDS)).isoformat()
             undo = dict(until=until, button_id=button_id, kind=button["kind"], label=button["label"])
-            if source == "discord":
+            if source is not None:
                 undo["source"] = source
             room = {"room": original["room"]} if original.get("room") else {}
             prior_context = self.room_context(original["room"], original["thread"], original["employee"]) if room else None
