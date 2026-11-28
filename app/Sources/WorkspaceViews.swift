@@ -94,7 +94,7 @@ final class WorkspaceHitView:NSView {
 }
 
 /// AppKit drawing of the reviewed dot/title/count/chevron capsule.
-final class NoticePill:NSButton {
+final class NoticePill: HejoButton {
     let item:RoomNotice
     var invoke:(()->Void)?
     var tint:NSColor {MessageFormat.color(item.questions ? "#ECB22E":"#36C5F0")!}

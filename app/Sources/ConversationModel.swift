@@ -66,7 +66,21 @@ struct MessageButton: Codable, Equatable, Identifiable {
     var label: String
     var kind: String
     var style: String
+    var acceptsComment: Bool {role=="comment" || role==nil && label=="의견"}
+    var role: String?, icon: String?, primary: Bool?, accent: String?, `repeat`: Bool?
 }
+struct QuestionAnswer: Codable, Equatable {
+    var answerID: String, label: String?, role: String, result: String?, text: String?, at: String?
+    var undoUntil: String?, delivery: String?
+    enum CodingKeys: String, CodingKey {
+        case answerID = "answer_id", undoUntil = "undo_until", label, role, result, text, at, delivery
+    }
+}
+struct QuestionRow: Codable, Equatable {
+    var messageID: String, text: String, buttons: [MessageButton], answer: QuestionAnswer?
+    enum CodingKeys: String, CodingKey { case messageID = "msg_id", text, buttons, answer }
+}
+
 struct ConversationMessage: Identifiable, Equatable, Codable {
     var id: String
     var key: ConversationKey
@@ -85,6 +99,7 @@ struct ConversationMessage: Identifiable, Equatable, Codable {
     var branchFrom: String? = nil
     var employee:String? = nil
     var answerTo:String? = nil
+    var branch: String?, answer: QuestionAnswer?, isQuestion: Bool?
     var pending = false
     var speaker:String {employee ?? key.employee}
 }
@@ -821,6 +836,7 @@ struct ConversationThread: Identifiable {
                 } else if let id = frame["msg_id"] as? String, !store.historyMode || (messages[id]?.latestSeq ?? 0) <= seq { messages[id] = nil; history.contentReferences[id] = nil }
             case "state":
                 if let id = frame["msg_id"] as? String, var message = messages[id], !store.historyMode || message.latestSeq <= seq {
+                    if let buttons=frame["buttons"] { message.buttons=try decode(buttons,as:[MessageButton].self) }
                     message.replyState = frame["reply_state"] as? String; message.latestSeq = seq; messages[id] = message
                 }
             default: break // Future durable kinds still advance the contiguous replica cursor.

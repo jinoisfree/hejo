@@ -83,7 +83,7 @@ final class WorkingControlRow:NSView {
     init(since:Date,activity:String,clock:@escaping()->Date,animationTime:@escaping()->TimeInterval,reduceMotion:@escaping()->Bool,stop:@escaping()->Void) {
         row=TypingRow(since:since,clock:clock,animationTime:animationTime,reduceMotion:reduceMotion,activity:activity)
         super.init(frame:.zero);addSubview(row);addSubview(button)
-        button.image=NSImage(systemSymbolName:"stop.fill",accessibilityDescription:"중지")?.withSymbolConfiguration(.init(pointSize:9,weight:.regular));button.isBordered=false;button.toolTip="중지";button.setAccessibilityLabel("중지");button.invoke=stop
+        button.configure("중지",icon:"stop.fill",shape:.circle,action:stop);button.invoke=stop
     }
     required init?(coder:NSCoder){fatalError()}
     static func height(_ activity:String,width:CGFloat,seconds:Int=0)->CGFloat {

@@ -9,7 +9,7 @@ import UniformTypeIdentifiers
         didSet {
             guard oldValue != drawerShownWidth else{return}
             todoDrawer.isHidden=drawerShownWidth<=0
-            if todoDrawer.isHidden { controller.historyLoading.updateCardTargets([]) }
+            if todoDrawer.isHidden { todoDrawer.resetQuestions();controller.historyLoading.updateCardTargets([]) }
             needsLayout=true;needsDisplay=true
         }
     }
@@ -286,6 +286,8 @@ import UniformTypeIdentifiers
             self?.reportOpenHeight()
             self?.resolveNavigation()
         }
+        addSubview(branchHint);branchHint.isHidden=true
+        todoDrawer.controller=controller
         addSubview(todoDrawer);todoDrawer.isHidden=true
         todoDrawer.onFilter={ [weak self] filter in self?.controller.drawerFilter=filter;self?.refresh() }
         todoDrawer.onSelect={ [weak self] card in self?.selectDrawerCard(card,activate:false) }
@@ -763,6 +765,7 @@ import UniformTypeIdentifiers
         reportedOpenHeight = total; onOpenThreadHeight?(total)
     }
     func createThread() {
+        if controller.branchTarget != nil {controller.clearBranch()}
         guard controller.model.selected != nil else{return}
         controller.cancelFollowup();automatic=false;replyMode=false
         let place=placeNamespace,employee=controller.model.isHome ? HomeRoom.id:controller.model.selectionIdentity
@@ -991,7 +994,8 @@ import UniformTypeIdentifiers
         var y:CGFloat=44
         findRow.isHidden = !searchOpen;findRow.frame=CGRect(x:x,y:y,width:right,height:40); if searchOpen { y+=40 }
         let noticeHeight:CGFloat=notice.stringValue.isEmpty ? 0 : 38, attachmentsHeight:CGFloat=30*chipFraction
-        let inputHeight=max(42,editorHeight+22), composerHeight=10+32+6+attachmentsHeight+inputHeight+10
+        let branchHeight:CGFloat=branchHint.isHidden ? 0:22
+        let inputHeight=max(42,editorHeight+22), composerHeight=branchHeight+10+32+6+attachmentsHeight+inputHeight+10
         let failureHeight=CGFloat(failureBar.arrangedSubviews.count)*28
         noticeScroll.isHidden=bannerFraction<=0 || searchOpen || controller.drawerOpen;noticeBar.isHidden=noticeScroll.isHidden;noticeScroll.frame=CGRect(x:x,y:y,width:right,height:38*bannerFraction);noticeScroll.alphaValue=bannerFraction
         noticeBar.frame=CGRect(x:0,y:0,width:max(right,noticeBar.fittingSize.width),height:37)
@@ -1007,7 +1011,8 @@ import UniformTypeIdentifiers
             historyFailureBar.layer?.cornerRadius = 6
         }
         failureBar.frame=CGRect(x:x+10,y:bottom+noticeHeight+10+38,width:right-20,height:failureHeight)
-        let top=bottom+noticeHeight+10
+        branchHint.frame=CGRect(x:x+10,y:bottom+noticeHeight+4,width:min(right-20,branchHint.intrinsicContentSize.width),height:22)
+        let top=bottom+noticeHeight+branchHeight+10
         let faceHeight:CGFloat=32,rowHeight:CGFloat=32
         let replyWidth=(replyButton.title as NSString).size(withAttributes:[.font:NSFont.systemFont(ofSize:ComposerModeTrack.point,weight:replyMode ? .semibold:.regular)]).width+20
         let newWidth=(newButton.title as NSString).size(withAttributes:[.font:NSFont.systemFont(ofSize:ComposerModeTrack.point,weight:replyMode ? .regular:.semibold)]).width+20
@@ -1178,7 +1183,7 @@ import UniformTypeIdentifiers
         if selector == #selector(NSResponder.moveDown(_:)) {moveSearch(1);return true}
         if selector == #selector(NSResponder.moveUp(_:)) {moveSearch(-1);return true}
         if selector == #selector(NSResponder.insertNewline(_:)) {chooseSearch();return true}
-        if selector == #selector(NSResponder.cancelOperation(_:)) {return closeSearchIfOpen()}
+        if selector == #selector(NSResponder.cancelOperation(_:)) {if !branchHint.isHidden {controller.clearBranch();return true};return closeSearchIfOpen()}
         return false
     }
     private struct PostBodyInput: Equatable {
@@ -1244,6 +1249,7 @@ import UniformTypeIdentifiers
     }
     #endif
     private var appearanceObserver: NSObjectProtocol?
+    private let branchHint=HejoButton(frame:.zero)
     private var editorFontSize=ChatMetrics.bodyFont
     func applyChatAppearance(){refresh();needsLayout=true;needsDisplay=true}
     // Shared by model refresh and editing; never restores text storage or rebuilds history.
@@ -1253,6 +1259,9 @@ import UniformTypeIdentifiers
         composerFaces.lit=model.isHome ? light.id.flatMap{composerMembers.firstIndex(of:$0)}:nil
         composerFaces.ring=model.isHome && light.ring
         composerFaces.explicitlyPicked = !replyMode && !draft.picks.isEmpty
+        let branch=controller.branchTarget
+        branchHint.isHidden=branch==nil || branch?.key != sendTarget
+        if let branch,!branchHint.isHidden {branchHint.configure("↳ "+branch.title+" 갈래에 쓰기  ✕",shape:.text) { [weak self] in self?.controller.clearBranch() }}
         draftHint.stringValue=composerPrompt
         draftHint.isHidden = !editor.editor.string.isEmpty
         editor.editor.setAccessibilityLabel(draftHint.stringValue+" · Enter 보내기, Shift Enter 줄바꿈")
@@ -1354,8 +1363,14 @@ import UniformTypeIdentifiers
         if expanded, let id = ids.first, loader.failed(.older(key,id)) {
             pieces.append(historyRetryPiece(.older(key,id), id:key.readKey+":older"))
         }
+        let parents=Set(order)
+        let children=Dictionary(grouping:order.filter { id in byID[id]?.branch.map{parents.contains($0)}==true },by:{byID[$0]!.branch!})
+        let rootID=controller.model.history.summaries[key]?.rootID
+        let rootChildren=order.filter{rootID != nil && byID[$0]?.branch==rootID}
+        let atRoot=Set(rootChildren)
+        let ordered=rootChildren+order.filter{!atRoot.contains($0)}.filter {id in byID[id]?.branch.map{!parents.contains($0)} ?? true}.flatMap{[$0]+(children[$0] ?? [])}
         var previous = precedingOwner
-        for id in order {
+        for id in ordered {
             if let message = byID[id], shown.contains(id) {
                 let continuation = previous.map {
                     $0.role == message.role && (message.role == "owner" || $0.speaker == message.speaker)
@@ -1558,6 +1573,7 @@ import UniformTypeIdentifiers
         if mine { post.clientMessageID = message.clientMessageID; post.onOwnerProfile = onOwnerProfile }
         post.flash=message.id==highlightedMessageID && (highlightUntil.map{$0>islandModel.now} ?? (drawerSelectedID != nil))
         if continuation {post.continuation=true;if post.textHelp==nil {post.textHelp=post.time}}
+        post.branch=message.branch ?? message.answerTo
         var pieces:[NativeThreadCard.Piece]=[.post(post)]
         if !extras {return pieces}
         let calendarActions = controller.calendarActions(for: message)
@@ -1595,34 +1611,30 @@ import UniformTypeIdentifiers
                 return MessageAccessory(choices,limit:10000)
             }))
         }
-        if pending,message.checklist==nil {
-            let labels=message.buttons.isEmpty ? ReplyButtonPolicy.standard:message.buttons.map(\.label)
-            let pressable=message.buttons.contains{$0.kind != "reply"} || ReplyButtonPolicy.pressable(labels,message:message)
-            pieces.append(.accessory(id:message.id+":buttons",height:32,view:{ [weak self] in
-                let column=NSStackView();column.orientation = .vertical;column.alignment = .leading;column.spacing=4
-                let stack=NSStackView();stack.orientation = .horizontal;stack.spacing=8
-                for (index,label) in labels.enumerated() {
-                    let word=ReplyButtonPolicy.word(label)
-                    let button=FileChip(title:word);button.replyWord=word;button.isBordered=false
-                    button.toolTip = !pressable ? Self.unavailableReply : word=="확인" && message.buttons.isEmpty ? "메시지를 보내지 않고 넘어가기":word
-                    button.setAccessibilityLabel(word);button.font = .systemFont(ofSize:11)
-                    button.isEnabled=pressable && (word=="의견" || (word=="확인" && message.buttons.isEmpty) || self?.controller.canSend==true)
-                    button.invoke={ [weak self] in
-                        guard let self,pressable,self.controller.model.assessment(message.key).buttons.contains(message.id) else{return}
-                        self.replyMode=true;self.openThread=message.key;self.controller.model.select(message.key)
-                        if !message.buttons.isEmpty {Task { [actionButtons,messageID,actionKey] in await self.controller.click(actionButtons[index],messageID:messageID,key:actionKey,buttons:actionButtons)}}
-                        else if word=="확인" {self.controller.model.confirm(message)}
-                        else if word=="의견" {self.window?.makeFirstResponder(self.editor.editor)}
-                        else {Task { [actionKey,actionSpeaker] in await self.controller.sendText(word,key:actionKey,recipient:actionSpeaker)}}
-                    }
-                    stack.addArrangedSubview(button)
-                }
-                column.addArrangedSubview(stack)
+        let answer=controller.currentAnswer(message.id,history:message.answer,revision:message.latestSeq)
+        if !mine && (answer != nil || pending || message.isQuestion==true) {
+            let row=QuestionRow(messageID:message.id,text:message.text,buttons:message.buttons,answer:answer)
+            let editing=controller.editingComments[message.id]
+            let height:CGFloat=answer?.delivery=="unknown" ? 80:editing==nil ? 32:60
+            pieces.append(.accessory(id:message.id+":buttons",height:height,view:{ [weak self] in
+                guard let self else{return NSView()}
+                let controls=QuestionControls(row,key:actionKey,controller:self.controller,circles:false,editing:editing,onEdit:{ [weak self] option in
+                    self?.controller.editingComments[message.id]=option;self?.controller.replyChanged()
+                },choose:{ [weak self] button,text in
+                    Task {await self?.controller.click(button,messageID:message.id,key:actionKey,buttons:actionButtons,text:text)}
+                })
                 let scroll=NSScrollView();scroll.drawsBackground=false;scroll.hasHorizontalScroller=true;scroll.autohidesScrollers=true;scroll.scrollerStyle = .overlay
-                let content=ThreadControls();content.addSubview(column);column.frame=CGRect(origin:.zero,size:column.fittingSize);content.frame=column.frame;scroll.documentView=content
-                let control=ThreadControls();control.addSubview(scroll);scroll.frame=CGRect(x:0,y:0,width:message.buttons.isEmpty ? column.fittingSize.width:320,height:32);scroll.autoresizingMask=[.width,.height]
-                return MessageAccessory(control,limit:message.buttons.isEmpty ? column.fittingSize.width:320,top:2)
+                controls.frame=CGRect(origin:.zero,size:controls.fittingSize);scroll.documentView=controls
+                return MessageAccessory(scroll,limit:max(100,controls.fittingSize.width),top:2)
             }))
+            if answer==nil {
+                pieces.append(.accessory(id:message.id+":choose-branch",height:20,view:{[weak self] in
+                    let branch=HejoButton(frame:.zero);branch.configure("갈래에 쓰기",shape:.text) { [weak self] in
+                        self?.replyMode=true;self?.openThread=actionKey;self?.controller.selectBranch(row,key:actionKey)
+                        self?.window?.makeFirstResponder(self?.editor.editor)
+                    };return MessageAccessory(branch,limit:90)
+                }))
+            }
         }
         if pending,!mine,message.files.isEmpty,let parts=ReplyButtonPolicy.split(message.text) {
             var head=message,detail=message;head.text=parts.head;detail.text=parts.detail;detail.id += ":detail"

@@ -26,6 +26,7 @@ import Foundation
         var key: ConversationKey?, messageID: String?, url: URL?
         var order: Date, urgent: Bool
         /// Deadline cards only: what to close, and whether a click has anywhere to go.
+        var asksPreview: [QuestionRow]?, asksWaiting: Int?, asksAnswered: Int?, revision: Int?
         var deadlineRef: DeadlineRef?, linked = true
     }
     struct Snapshot: Equatable {
@@ -78,7 +79,7 @@ import Foundation
                     let relative=minutes<1 ? "방금" : minutes<60 ? "\(minutes)분" : minutes<1440 ? "\(minutes/60)시간":"\(calendar.component(.month,from:stamp))/\(calendar.component(.day,from:stamp))"
                     cards.append(Card(id:id,kind:kind,title:preview,employee:speaker,
                         name:model.name(speaker),status:notice.questions ? "답을 기다려요":"알림",statusUrgent:notice.questions,trailing:relative,key:key,messageID:id,
-                        order:stamp,urgent:notice.questions))
+                        order:stamp,urgent:notice.questions,asksPreview:remote?.asksPreview,asksWaiting:remote?.asksWaiting,asksAnswered:remote?.asksAnswered,revision:remote?.revision))
                 }
             }
         }

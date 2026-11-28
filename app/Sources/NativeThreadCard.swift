@@ -26,6 +26,7 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
         var avatar: ProfileAvatar
         var nameColor: NSColor
         /// The rest of a post shown after its buttons: words only, no face or name above them.
+        var branch:String?
         var continuation = false
         var pending = false
         var streaming = false
@@ -297,6 +298,8 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
             gap()
             switch piece {
             case .post(let post):
+                let indent:CGFloat=post.branch==nil ? 0:16
+                let x=x+indent,width=max(1,width-indent)
                 var item = Placed(piece: piece, frame: .zero)
                 let padding = ChatMetrics.bubbleInset
                 let columnWidth = max(1, width - ChatMetrics.avatar - avatarGap)
@@ -551,7 +554,7 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
             }
         }
     }
-    final class Button: NSButton {
+    final class Button: HejoButton {
         var invoke: (() -> Void)?
         private struct RasterKey: Hashable {
             var symbol: String, color: String, appearance: String
@@ -589,6 +592,7 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
         init() {
             super.init(frame: .zero)
             target = self; action = #selector(pressed)
+            usesReplyStyle=true;shape = .text
             isBordered = false; bezelStyle = .inline
             // Like the native plain buttons they replace, these are not Tab stops; that also keeps a row
             // from rebuilding the window's key-view loop each time the table brings it on screen.
@@ -601,6 +605,7 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
         override func draw(_ dirtyRect: NSRect) {
             // Borderless NSButton applies an appearance-dependent title treatment. Draw
             // the plain native-style label ourselves while retaining button semantics.
+            if hovered && isEnabled {NSColor.systemBlue.withAlphaComponent(0.15).setFill();Self.pillPath(bounds).fill()}
             let alpha: CGFloat = isEnabled ? 1 : 0.4
             let icon = symbolName.isEmpty ? nil : raster()
             if let image = icon {
@@ -701,9 +706,20 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
         for button in buttons {button.invoke=nil;button.isHidden=true}
         bell.invoke=nil;bell.isHidden=true
     }
+    private final class BranchGroup:NSView {
+        override var isFlipped:Bool {true}
+        override func hitTest(_ point:NSPoint)->NSView? {
+            let hit=super.hitTest(point)
+            return hit===self ? nil:hit
+        }
+    }
+    private var branchGroups=[String:NSView]()
     func configure(_ layout: Layout) {
         guard value?.identity != layout.identity else { return }
         let sameThread = value?.content.id == layout.content.id
+        for text in texts where text.superview !== self {addSubview(text)}
+        for group in branchGroups.values {group.removeFromSuperview()}
+        branchGroups.removeAll()
         value = layout
         let c = layout.content
         var textIndex = 0, stackIndex = 0
@@ -731,13 +747,33 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
             view.openLink = link
             textLinks[ObjectIdentifier(view)] = link
         }
+        // Preserve the native text views and their selection inside each question's branch.
+        var branchFrames=[String:CGRect]()
+        for item in layout.placed {
+            if case .post(let post)=item.piece,let parent=post.branch {
+                branchFrames[parent]=(branchFrames[parent] ?? .null).union(item.frame)
+            }
+        }
+        var children=[String:BranchGroup]()
+        for (parent,frame) in branchFrames {
+            let question=BranchGroup(),branch=BranchGroup()
+            let union=frame.union(layout.anchors[parent] ?? frame)
+            question.frame=union.offsetBy(dx:ChatMetrics.horizontalInset,dy:0)
+            branch.frame=frame.offsetBy(dx:-union.minX,dy:-union.minY)
+            question.setAccessibilityIdentifier("question-"+parent);branch.setAccessibilityIdentifier("question-branch-"+parent)
+            addSubview(question);question.addSubview(branch);branchGroups[parent]=question;children[parent]=branch
+        }
         for item in layout.placed {
             switch item.piece {
             case .post(let post):
                 setText(post.text, streaming: post.streaming, link: post.openLink)
                 texts[textIndex-1].toolTip=post.textHelp
                 register?("message:" + post.id, texts[textIndex - 1])
+                let start=textIndex-1
                 for mark in post.marks { setText(mark.text, link: post.openLink) }
+                if let group=post.branch.flatMap({children[$0]}) ?? branchGroups[post.id] {
+                    for i in start..<textIndex {group.addSubview(texts[i])}
+                }
             case .note(let mark, _):
                 setText(mark.text, link: { _ in })
             case .stack(let faces, let title, let toggle, let identifier):
@@ -792,7 +828,7 @@ final class NativeThreadCard: NSTableCellView, NSTextViewDelegate {
         guard let value else { return }
         let dx = ChatMetrics.horizontalInset
         var textIndex = 0, stackIndex = 0
-        func put(_ view: NSView, _ frame: NSRect) { let moved = frame.offsetBy(dx: dx, dy: 0); if view.frame != moved { view.frame = moved } }
+        func put(_ view: NSView, _ frame: NSRect) { let moved = frame.offsetBy(dx: dx, dy: 0); let local=view.superview === self ? moved:view.superview?.convert(moved,from:self) ?? moved; if view.frame != local { view.frame = local } }
         func putText(_ frame: NSRect) {
             let view = texts[textIndex]; textIndex += 1
             put(view, frame)

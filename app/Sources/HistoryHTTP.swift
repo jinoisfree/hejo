@@ -163,6 +163,9 @@ enum HistoryFailure: Error, Equatable {
                   let files = row["files"] as? [[String:Any]], let buttons = row["buttons"] as? [[String:Any]] else { throw HistoryFailure.invalidResponse }
             _ = try JSONDecoder().decode([MessageFile].self, from: JSONSerialization.data(withJSONObject: files))
             _ = try JSONDecoder().decode([MessageButton].self, from: JSONSerialization.data(withJSONObject: buttons))
+        } else if kind == "asks" {
+            guard let id=row["id"] as? String, id == row["msg_id"] as? String else { throw HistoryFailure.invalidResponse }
+            _ = try JSONDecoder().decode(QuestionRow.self, from: JSONSerialization.data(withJSONObject:row))
         } else if kind == "threads" || row["rootID"] != nil {
             guard let key = row["key"] as? [String:String], key["room"] != nil, key["thread"] != nil,
                   row["title"] is String, row["preview"] is String, row["rootID"] is String,

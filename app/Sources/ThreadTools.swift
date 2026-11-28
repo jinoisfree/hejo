@@ -121,6 +121,7 @@ enum ThreadAssessment {
 }
 
 enum ReplyButtonPolicy {
+    #if HEJO_LEGACY_REFERENCE
     static let standard = ["승인", "거절", "의견", "확인"]
     static let mail = ["메모", "메모+노션", "확인"]
     static let mailLegend = "메모 = 개인(Obsidian 메모), 메모+노션 = 공용(노션+Obsidian 메모), 확인 = 만들지 않음"
@@ -165,6 +166,7 @@ enum ReplyButtonPolicy {
     static func pressable(_ labels: [String], message: ConversationMessage) -> Bool {
         allowed(labels, body: message.text) || script(labels)
     }
+    #endif
     static func split(_ body: String) -> (head: String, detail: String)? {
         let lines = body.components(separatedBy: "\n")
         func heading(_ line: String) -> String? {
@@ -198,6 +200,9 @@ enum ReplyButtonPolicy {
         submit.invoke={ [weak self] in guard let self,let text=ThreadTools.answer(self.checklist.items,selected:self.selected) else{return};self.send(text) }
         skip.invoke={ [weak self] in self?.send("건너뛰기") }
         for button in [submit,skip] {button.font = .systemFont(ofSize:12);addSubview(button)}
+        for button in choices+[submit,skip] {
+            let action=button.invoke;button.configure(button.title){action?()}
+        }
         skip.isHidden = !checklist.canSkip;refresh()
     }
     required init?(coder:NSCoder){fatalError()}
@@ -208,7 +213,7 @@ enum ReplyButtonPolicy {
     static func columns(_ labels:[String],width:CGFloat,selected:Set<String>=[])->Int {labels.reduce(CGFloat(0)){$0+Self.width($1,selected:selected.contains($1))}+CGFloat(max(0,labels.count-1))*8<=width ? max(1,labels.count):2}
     static func height(_ labels:[String],width:CGFloat,selected:Set<String>=[])->CGFloat {CGFloat((labels.count+columns(labels,width:width,selected:selected)-1)/columns(labels,width:width,selected:selected)+1)*32-8}
     override var fittingSize:CGSize {CGSize(width:checklist.items.reduce(CGFloat(0)){$0+Self.width($1,selected:selected.contains($1))}+CGFloat(max(0,checklist.items.count-1))*8,height:56)}
-    private func refresh(){for (i,button) in choices.enumerated() {let label=checklist.items[i];button.font = .systemFont(ofSize:13);button.title=(selected.contains(label) ? "✅ ":"☐ ")+label;button.contentTintColor=selected.contains(label) ? .controlAccentColor:.secondaryLabelColor;button.attributedTitle=NSAttributedString(string:button.title,attributes:[.font:NSFont.systemFont(ofSize:13),.foregroundColor:selected.contains(label) ? NSColor.controlAccentColor:.secondaryLabelColor])};for b in [submit,skip]{b.font = .systemFont(ofSize:13)};submit.isEnabled = !selected.isEmpty;needsLayout=true}
+    private func refresh(){for (i,button) in choices.enumerated() {let label=checklist.items[i];button.font = .systemFont(ofSize:13);button.title=(selected.contains(label) ? "✅ ":"☐ ")+label;button.setAccessibilityLabel(label);button.emphasized=selected.contains(label);button.contentTintColor=selected.contains(label) ? .controlAccentColor:.secondaryLabelColor;button.attributedTitle=NSAttributedString(string:button.title,attributes:[.font:NSFont.systemFont(ofSize:13),.foregroundColor:selected.contains(label) ? NSColor.controlAccentColor:.secondaryLabelColor])};for b in [submit,skip]{b.font = .systemFont(ofSize:13)};submit.isEnabled = !selected.isEmpty;needsLayout=true}
     override func layout(){super.layout();let columns=Self.columns(checklist.items,width:bounds.width,selected:selected),single=columns==checklist.items.count
         var x:CGFloat=0
         for (index,button) in choices.enumerated(){let col=index%columns,row=index/columns,width=Self.width(checklist.items[index],selected:selected.contains(checklist.items[index]));if col==0{x=0};if !single{x=CGFloat(col)*(bounds.width+8)/2};button.frame=CGRect(x:x,y:CGFloat(row)*32,width:width,height:24);x+=width+8}

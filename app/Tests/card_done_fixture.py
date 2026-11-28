@@ -11,18 +11,9 @@ from legacy_feature_fixture import reject_discord
 
 EMPLOYEE = "fixture"
 STAMP = "2026-01-01T00:00:00Z"
-MODES = {
-    "confirm": ["A"],
-    "deadline": ["done"],
-    "undo": [],
-    "stop": [],
-    "mixed": ["A", "done", "C", "cancel"],
-    "ack": ["A", "B"],
-    "offline": [],
-    "reject": ["A"],
-    "uncertain": ["A"],
-    "reconnect": ["A"],
-}
+# AT-HB-35 replaces the question strip. Deadline close, cancellation and offline behavior remain.
+MODES = {"confirm": [], "deadline": ["done"], "undo": [], "stop": [],
+         "mixed": ["done", "cancel"], "offline": []}
 
 
 class CardGate:
