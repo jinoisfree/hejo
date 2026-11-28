@@ -19,7 +19,7 @@ from . import reply_rules
 from .auth import AuthStore, PAIR_TTL, digest
 from .context import thinking
 from .files import UnknownFile
-from .history_queries import assess, ask_row, question
+from .history_queries import assess, ask_row
 
 log = logging.getLogger(__name__)
 _discord = _bot = None
@@ -115,8 +115,18 @@ def component_ui():
 
 
 GLYPHS = {'circle': '○', 'xmark': '✕', 'pencil': '✎', 'checkmark': '✓',
-          'arrow.uturn.backward': '↶', 'play': '▷', 'arrow.down': '↓',
-          'note.text': '▤', 'doc.on.doc': '▣'}
+          'arrow.uturn.backward': '↶', 'play': '▶', 'arrow.down': '↓',
+          'note.text': '✎', 'doc.on.doc': '✎'}
+
+
+def discord_label(label, icon):
+    glyph = GLYPHS.get(icon)
+    return f'{glyph} {label}' if glyph else label
+
+
+def waiting_card(card):
+    return ('answer' in card and card['answer'] is None and bool(card['buttons'])
+            and card.get('reply_state') not in ('answered', 'closed'))
 
 
 def component_view(items):
@@ -177,6 +187,7 @@ class Discord:
         self.pending, self.changed, self.workers, self.wakes = {}, {}, {}, {}
         self._typing_tasks, self._typing_at = set(), {}
         self._button_tasks = set()
+        self._question_changes = defaultdict(dict)
         self.sent = []
         self.core_open = False
         self._webhooks = {}
@@ -335,11 +346,27 @@ class Discord:
             denied = self.interaction_denial(interaction, tag)
             if denied:
                 return await interaction.response.send_message(denied, ephemeral=True)
+            message = interaction.message
+            if not any(getattr(button, 'custom_id', None) == custom_id
+                       for row in getattr(message, 'components', ()) for button in row.children):
+                return await interaction.response.send_message('지금은 처리할 수 없어요', ephemeral=True)
+            if mid == 'x':
+                answer = self.adapter.journal.history.message(button_id) or {}
+                question_id = answer.get('answer_to')
+            else:
+                question_id = mid
+            post = str(interaction.channel_id)
+            mapped = any(row['tag'] == tag and row['post'] == post and row['msg_id'] == question_id
+                         and (mid == 'x' or row['dc'] == str(message.id)) for row in reversed(self.sent))
+            if not mapped:
+                return await interaction.response.send_message('지금은 처리할 수 없어요', ephemeral=True)
             if mid != 'x':
-                # Determine modal vs. defer from the card, without projecting its whole thread.
-                question = self.adapter.journal.history.message(mid) or {}
-                if button_id == 'std:comment' or any(b['id'] == button_id and reply_rules.word(b['label']) == '의견'
-                                                     for b in question.get('buttons', [])):
+                card = self.adapter.journal.history.resolve(mid) or {}
+                choices = ask_row(card)['buttons'] if waiting_card(card) else []
+                button = next((b for b in choices if b['id'] == button_id), None)
+                if not button:
+                    return await interaction.response.send_message('지금은 처리할 수 없어요', ephemeral=True)
+                if button['role'] == 'comment':
                     return await self.open_comment(interaction, tag, mid, button_id)
             await self.submit_button(interaction, tag, mid, button_id)
         except Exception as exc:
@@ -395,6 +422,10 @@ class Discord:
             task.add_done_callback(self._button_tasks.discard)
         else:
             text = '취소했어요' if ack.get('type') == 'retract_ack' else '지금은 처리할 수 없어요'
+            if mid != 'x' and ack.get('type') == 'error':
+                card = self.adapter.journal.history.resolve(mid) or {}
+                if (card.get('answer') or {}).get('delivery') == 'unknown':
+                    text = '답은 기록됐지만 직원에게 갔는지 확인하지 못했어요. hejo에서 다시 보내기를 눌러 주세요.'
             await interaction.followup.send(text, ephemeral=True)
 
     async def _receive_message(self, message):
@@ -639,6 +670,7 @@ class Discord:
         send = kind == 'message' and (
             row['role'] == 'employee' or not row.get('client_msg_id', '').startswith('discord:'))
         queue = self.pending.setdefault(key, [])
+        now = asyncio.get_running_loop().time()
         if component_ui():
             journal = self.adapter.journal
             original = row
@@ -665,13 +697,17 @@ class Discord:
             elif kind == 'state' and 'reply_state' in row:
                 targets.append(mid)
             for target in targets:
-                if (target, tag, 'send') not in queue and (target, tag, 'edit') not in queue:
-                    queue.append((target, tag, 'edit'))
+                if (target, tag, 'send') in queue:
+                    continue
+                card_job = (target, tag, 'question')
+                self._question_changes[key][card_job] = now
+                if card_job not in queue:
+                    queue.append(card_job)
         # A queued send reads the latest projection, including edits and answers.
         job = (mid, tag, 'send' if send else kind)
         if kind != 'edit' or ((mid, tag, 'send') not in queue and job not in queue):
             queue.append(job)
-        self.changed[key] = asyncio.get_running_loop().time()
+        self.changed[key] = now
         self.wake(key)
 
     def wake(self, key):
@@ -690,23 +726,35 @@ class Discord:
         try:
             while self.pending.get(key):
                 self.wakes[key].clear()
-                msg_id, tag, kind = self.pending[key][0]
-                row = self.adapter.journal.message(msg_id)
+                queue = self.pending[key]
+                index = 0
+                if self.typing(key):
+                    # A streaming employee post ahead of a card must not block its result.
+                    index = next((i for i, job in enumerate(queue) if job[2] == 'question'), 0)
+                job = queue[index]
+                msg_id, tag, kind = job
+                row = self.adapter.journal.history.message(msg_id)
                 if not self.current(tag):
-                    self.pending[key].pop(0)
+                    queue.pop(index)
+                    self._question_changes.get(key, {}).pop(job, None)
                     continue
                 if kind != 'delete' and (kind != 'send' or (row and row['role'] == 'employee')):
-                    delay = self.changed[key] + self.settle_seconds - asyncio.get_running_loop().time()
+                    changed = self._question_changes[key][job] if kind == 'question' else self.changed[key]
+                    delay = changed + self.settle_seconds - asyncio.get_running_loop().time()
                     if delay > 0:
                         await asyncio.sleep(delay)
                         continue
-                    if self.typing(key):
+                    if kind != 'question' and self.typing(key):
                         await self.wakes[key].wait()
                         continue
-                self.pending[key].pop(0)
+                queue.pop(index)
+                if kind == 'question':
+                    del self._question_changes[key][job]
                 if kind == 'send':
                     try:
                         await self._send_message(msg_id, key, tag)
+                        if (msg_id, tag, 'send') in queue:
+                            continue
                     except Exception as exc:
                         log.warning('discord_send_failed kind=%s', type(exc).__name__)
                 try:
@@ -718,6 +766,7 @@ class Discord:
             self.workers.pop(key, None)
             self.wakes.pop(key, None)
             self.changed.pop(key, None)
+            self._question_changes.pop(key, None)
 
     def post_lock(self, tag, post):
         return self._post_locks.setdefault((tag, post), asyncio.Lock())
@@ -736,11 +785,6 @@ class Discord:
         journal = self.adapter.journal
         original = {row['msg_id']: row['seq'] for row in journal.records if row['type'] == 'message'}
         edited = {row['msg_id'] for row in journal.records if row['type'] == 'edit'}
-        if component_ui():
-            # On reconnect a question may have been answered or retracted offline.
-            edited.update(row['msg_id'] for row in journal.records
-                          if (row['type'] == 'message' and question(row))
-                          or (row['type'] == 'state' and 'reply_state' in row))
         posts = {}
         for ch, post, mid, dc, sent in self.correspondences(tag):
             state = posts.setdefault(post, PostState(ch))
@@ -769,7 +813,8 @@ class Discord:
         if key is None:
             return False
         index = self.adapter.journal.history
-        lines = [row for identifier in index.ids(key) if (row := index.message(identifier)) is not None]
+        read = index.resolve if component_ui() else index.message
+        lines = [read(identifier) for identifier in index.ids(key)]
         result, _, _ = assess(lines, EMPTY_CONTEXT)
         return result['settled']
 
@@ -782,7 +827,7 @@ class Discord:
                 continue
             if kind == 'delete':
                 steps = FOLLOW_STEPS[:2]
-            elif kind == 'edit' and mid in state.sent:
+            elif kind in ('question', 'edit') and mid in state.sent:
                 steps = ('update', 'rename', 'archive')
             else:
                 steps = ('archive',)
@@ -906,13 +951,12 @@ class Discord:
                 discord_origin = undo.get('source') == 'discord'
             source = '디스코드에서' if discord_origin else 'hejo에서'
             label = reply_rules.word(answer['label'] or '')
-            icon = GLYPHS.get(reply_rules.LABELS.get(label, (None, None))[1], '•')
-            return f"\n{icon} {answer['result'] or '답변함'} · {source}", None
-        if 'answer' not in projected:
+            icon = reply_rules.LABELS.get(label, (None, None))[1]
+            result = discord_label(answer['result'] or '답변함', icon)
+            return f'\n{result} · {source}', None
+        if not waiting_card(projected):
             return '', None
         buttons = ask_row(projected)['buttons']
-        if not buttons:
-            return '', None
         items = []
         for btn in buttons:
             label = reply_rules.word(btn['label'])
@@ -920,7 +964,7 @@ class Discord:
             if len(identifier) > 100:
                 return '\n선택: ' + ' / '.join(b['label'] for b in buttons) + '\n(이 선택은 hejo 앱에서 눌러 주세요)', None
             style = ButtonStyle.primary if label == '승인' else ButtonStyle.secondary
-            items.append((GLYPHS.get(btn.get('icon'), '•') + ' ' + label, identifier, style))
+            items.append((discord_label(label, btn.get('icon')), identifier, style))
         return '', component_view(items)
 
     def render_message(self, row, tag):
@@ -961,22 +1005,15 @@ class Discord:
         if (not entry or entry['closed'] or not self.current(tag) or key[0] not in self.rooms()
                 or not guild or guild.get_channel(snowflake(entry['channel'])) is None):
             return
-        # Topic creation can yield for a long time; settle the current journal value again.
-        while True:
-            row = self.adapter.journal.message(msg_id)
-            if (not row or thinking(row['text']) or not self.active() or self.private()['pair']['tag'] != tag
-                    or key[0] not in self.rooms() or key in self.adapter.journal.deleted_threads):
-                return
-            if row['role'] == 'employee':
-                self.wakes[key].clear()
-                delay = self.changed[key] + self.settle_seconds - asyncio.get_running_loop().time()
-                if delay > 0:
-                    await asyncio.sleep(delay)
-                    continue
-                if self.typing(key):
-                    await self.wakes[key].wait()
-                    continue
-            break
+        # Channel synchronization can yield. Return the send to the settlement queue
+        # so a button result can still run while the employee is typing.
+        row = self.adapter.journal.message(msg_id)
+        if not row or thinking(row['text']) or not self.current(tag):
+            return
+        if row['role'] == 'employee' and (self.typing(key) or
+                asyncio.get_running_loop().time() < self.changed[key] + self.settle_seconds):
+            self.pending[key].insert(0, (msg_id, tag, 'send'))
+            return
         post = self.anchor(key, tag, entry['channel'])
         async with AsyncExitStack() as locks:
             if post is not None:
@@ -1247,8 +1284,20 @@ class PostFollow:
             if self.state.whole_deleted:
                 return
             if step == 'update':
+                if edit_mid is not None:
+                    if edit_mid in self.state.sent:
+                        await self.update(edit_mid)
+                    return
                 for mid in self.state.sent:
-                    if mid in self.state.edited and (edit_mid is None or mid == edit_mid):
+                    if mid in self.state.dead:
+                        continue
+                    if component_ui():
+                        card = self.door.adapter.journal.history.resolve(mid) or {}
+                        if 'answer' in card:
+                            if waiting_card(card):
+                                await self.update(mid)
+                            continue
+                    if mid in self.state.edited:
                         await self.update(mid)
             elif step == 'rename':
                 if not self.skip_title and (edit_mid is None or edit_mid == self.state.title_message):
