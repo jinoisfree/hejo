@@ -704,7 +704,7 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
         finally:
             _reply_task.reset(token)
 
-    async def click(self, frame, conn):
+    async def click(self, frame, conn, *, source=None):
         identifier = frame["msg_id"]
         async with self._reply_errors(frame, conn), self._question_lock(identifier):
             original = self.journal.message(identifier)
@@ -732,6 +732,8 @@ class HejoAdapter(RoomCommands, BasePlatformAdapter):
             now = self._reply_clock()
             until = (now + timedelta(seconds=reply_rules.UNDO_GRACE_SECONDS)).isoformat()
             undo = dict(until=until, button_id=button_id, kind=button["kind"], label=button["label"])
+            if source == "discord":
+                undo["source"] = source
             room = {"room": original["room"]} if original.get("room") else {}
             prior_context = self.room_context(original["room"], original["thread"], original["employee"]) if room else None
             answer = await self._record(dict(type="message", msg_id=str(uuid.uuid4()), employee=original["employee"],
