@@ -12,6 +12,14 @@ enum HistoryFailure: Error, Equatable {
 @MainActor final class HistoryHTTP {
     private unowned let client: GateClient
     private let session = URLSession(configuration: .ephemeral, delegate: GateRedirectPolicy(), delegateQueue: nil)
+    private static let httpDate: DateFormatter = {
+        let format=DateFormatter()
+        format.locale=Locale(identifier:"en_US_POSIX")
+        format.timeZone=TimeZone(secondsFromGMT:0)
+        format.dateFormat="EEE, dd MMM yyyy HH:mm:ss z"
+        return format
+    }()
+    private(set) var gateClockOffset: TimeInterval = 0
     static let pageBytes = 512 * 1024
     init(client: GateClient) { self.client = client }
     deinit { session.invalidateAndCancel() }
@@ -71,6 +79,9 @@ enum HistoryFailure: Error, Equatable {
                 guard response.statusCode == 200 else {
                     guard let code = value["code"] as? String, let retryable = Self.boolean(value["retryable"]) else { throw HistoryFailure.invalidResponse }
                     throw HistoryFailure.server(code, retryable: retryable)
+                }
+                if let stamp=response.value(forHTTPHeaderField:"Date"), let gate=Self.httpDate.date(from:stamp) {
+                    gateClockOffset=gate.addingTimeInterval(0.5).timeIntervalSinceNow
                 }
                 return value
             } catch let error as URLError where retry && attempt == 0 && [.timedOut,.networkConnectionLost,.cannotConnectToHost].contains(error.code) {

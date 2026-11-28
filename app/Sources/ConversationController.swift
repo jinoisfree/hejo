@@ -620,8 +620,16 @@ struct ConversationFailedSend: Identifiable {
         refreshFileCache()
         guard !paused else{return}
         if client.store.historyMode { historyLoading.tick() }
-        undoDeadlines=undoDeadlines.filter{$0.value.addingTimeInterval(6)>clock()}
-        for r in replyRequests.values where r.epoch != client.connectionEpoch {refreshReply(r,reconnecting:true)}
+        undoDeadlines=undoDeadlines.filter{$0.value.end.addingTimeInterval(6)>clock()}
+        for request in replyRequests.values {
+            if request.kind=="click", canSend, clock().timeIntervalSince(request.sentAt)>=10 {
+                replyRequests[request.id]=nil
+                refreshReply(request,reconnecting:true)
+                replyChanged()
+            } else if request.epoch != client.connectionEpoch {
+                refreshReply(request,reconnecting:true)
+            }
+        }
         pollDeadlines()
         let old=(confirmingDelete.count,interruptions.count,branching.count)
         model.expireTyping()
@@ -668,7 +676,7 @@ struct ConversationFailedSend: Identifiable {
             }
         }
         if frame["type"] as? String == "welcome", replicaAddress != client.store.settings.address {
-            replyRequests.removeAll();replyUpdates.removeAll();lastClick.removeAll();editingComments.removeAll();commentDrafts.removeAll();undoDeadlines.removeAll();branchTarget=nil
+            replyRequests.removeAll();replyUpdates.removeAll();lastClick.removeAll();editingComments.removeAll();commentDrafts.removeAll();undoDeadlines.removeAll();batchFailures.removeAll();branchTarget=nil
             todoDrawer.receive(["available":false]);resetCloses();prepareDraftAddress();model.resetReplica();newPostIDs=[];followup=nil;transferFailure=nil;bubbleProblems=[:];uploads=[:];activeUploads=[:];stoppedTargets=[:];interruptions=[:];branching=[:];deleting=[];confirmingDelete=[:];checklistSelections=[:];replicaAddress = client.store.settings.address
         }
         if kind=="welcome" {
@@ -931,15 +939,26 @@ struct ConversationFailedSend: Identifiable {
     struct ReplyRequest {
         let id: String, question: String, key: ConversationKey, kind: String
         let button: MessageButton?, answerID: String?, epoch: Int
-        var text: String?
+        let text: String?, sentAt:Date, batch:Bool
     }
+    private(set) var batchFailures=[String:String]()
+    func clearBatchFailures() {batchFailures.removeAll()}
     private(set) var replyRequests: [String:ReplyRequest] = [:]
     struct ReplyUpdate { let answer: QuestionAnswer?; let through: Int }
     private var replyUpdates: [String:ReplyUpdate] = [:]
-    private var undoDeadlines=[String:Date]()
+    private struct UndoWindow {let end:Date, seconds:TimeInterval, epoch:Int}
+    private var undoDeadlines=[String:UndoWindow]()
     func undoEnd(_ answer:QuestionAnswer)->Date {
-        let until=answer.undoUntil.map(model.date) ?? .distantPast
-        return min(until,undoDeadlines[answer.answerID] ?? until)
+        if let window=undoDeadlines[answer.answerID], window.epoch==client.connectionEpoch {return window.end}
+        guard let until=answer.undoUntil else{return .distantPast}
+        return model.date(until).addingTimeInterval(-client.history.gateClockOffset)
+    }
+    func undoDuration(_ answer:QuestionAnswer)->TimeInterval {
+        if let seconds=undoDeadlines[answer.answerID]?.seconds {return max(1,seconds)}
+        if let until=answer.undoUntil, let at=answer.at {
+            return max(1,model.date(until).timeIntervalSince(model.date(at)))
+        }
+        return 5 // Legacy history without the answer timestamp.
     }
     private var resolvingReplies = Set<String>()
     var branchTarget: (key:ConversationKey,id:String,title:String)?
@@ -957,16 +976,21 @@ struct ConversationFailedSend: Identifiable {
         replyChanged()
     }
     func clearBranch() {branchTarget=nil;replyChanged()}
-    func click(_ button: MessageButton, messageID:String,key:ConversationKey,buttons:[MessageButton],text:String?=nil) async {
+    func click(_ button: MessageButton, messageID:String,key:ConversationKey,buttons:[MessageButton],text:String?=nil,batch:Bool=false) async {
         guard buttons.contains(button) || (button.id=="std:comment" && text != nil) else { return }
         if button.acceptsComment && text==nil {
             if !revealThread(key,direct:true) {model.select(key)}
             editingComments[messageID]=button;replyChanged();return
         }
-        await requestReply("click",question:messageID,key:key,button:button,text:text)
+        await requestReply("click",question:messageID,key:key,button:button,text:text,batch:batch)
     }
-    func requestReply(_ kind:String,question:String,key:ConversationKey,button:MessageButton?=nil,text:String?=nil,answerID:String?=nil) async {
-        guard canSend else { notice="연결이 복구된 뒤 다시 보내 주세요."; return }
+    func requestReply(_ kind:String,question:String,key:ConversationKey,button:MessageButton?=nil,text:String?=nil,answerID:String?=nil,batch:Bool=false) async {
+        batchFailures[question]=nil
+        guard canSend else {
+            if batch {batchFailures[question]="연결이 복구된 뒤 다시 보내 주세요.";replyChanged()}
+            else {notice="연결이 복구된 뒤 다시 보내 주세요."}
+            return
+        }
         guard !replyRequests.values.contains(where:{$0.question==question}) else {return}
         let id=UUID().uuidString.lowercased()
         var frame:[String:Any]=["v":1,"id":id,"type":kind]
@@ -976,7 +1000,7 @@ struct ConversationFailedSend: Identifiable {
             frame["text"]=text
         }
         if let answerID {frame["answer_id"]=answerID}
-        replyRequests[id]=ReplyRequest(id:id,question:question,key:key,kind:kind,button:button,answerID:answerID,epoch:client.connectionEpoch,text:text)
+        replyRequests[id]=ReplyRequest(id:id,question:question,key:key,kind:kind,button:button,answerID:answerID,epoch:client.connectionEpoch,text:text,sentAt:clock(),batch:batch)
         replyChanged()
         do { try await client.send(frame) }
         catch { replyChanged() } // A socket failure cannot establish whether the gate recorded it.
@@ -996,12 +1020,14 @@ struct ConversationFailedSend: Identifiable {
         if type=="error" {
             if r.kind=="retract" {notice="지금은 취소할 수 없어요"}
             else {
+                let reason:String
                 switch frame["code"] as? String {
-                case "button_expired": notice="이미 처리된 질문이에요."
-                case "already_sent": notice="이미 전달한 답이에요."
-                case "invalid_text": notice="의견은 1~4000자로 입력해 주세요."
-                default: notice="답을 보내지 못했어요."
+                case "button_expired": reason="이미 처리된 질문이에요."
+                case "already_sent": reason="이미 전달한 답이에요."
+                case "invalid_text": reason="의견은 1~4000자로 입력해 주세요."
+                default: reason="답을 보내지 못했어요."
                 }
+                if r.batch {batchFailures[r.question]=reason} else {notice=reason}
             }
             if r.kind != "retract" { refreshReply(r) }
         } else if type=="retract_ack" {
@@ -1013,7 +1039,7 @@ struct ConversationFailedSend: Identifiable {
             refreshReply(r)
         } else if let answerID=frame["answer_id"] as? String {
             if r.kind=="click" {lastClick[r.question]=answerID}
-            if r.kind=="click",let seconds=frame["undo_seconds"] as? Int {undoDeadlines[answerID]=clock().addingTimeInterval(TimeInterval(seconds))}
+            if r.kind=="click",let seconds=frame["undo_seconds"] as? Int {undoDeadlines[answerID]=UndoWindow(end:clock().addingTimeInterval(TimeInterval(seconds)),seconds:TimeInterval(seconds),epoch:client.connectionEpoch)}
             let existing=currentAnswer(r.question,history:model.messages[r.question]?.answer,revision:revision)
             let role=r.button?.role ?? existing?.role ?? "other", label=r.button?.label ?? existing?.label
             let result=existing?.answerID==answerID ? existing?.result:label

@@ -4,6 +4,7 @@ import CoreImage
 final class PetPanel: NSPanel {
     var chatExpanded = false
     var bubbleReplyPresented=false
+    var onCancelComposerBranch: (() -> Bool)?
     var onCloseDrawer: (() -> Bool)?
     var onCollapse: (() -> Void)?
     var onPageKey: ((NSEvent) -> Bool)?
@@ -15,7 +16,7 @@ final class PetPanel: NSPanel {
     override func orderFrontRegardless(){super.orderFrontRegardless();(contentView as? PetView)?.updateFoldedBubble();(contentView as? PetView)?.updateAnimationVisibility()}
     override func cancelOperation(_ sender: Any?) {
         if let input=firstResponder as? NSTextInputClient,input.hasMarkedText(){return}
-        if onCloseDrawer?()==true{return}
+        if onCancelComposerBranch?()==true || onCloseDrawer?()==true {return}
         if (contentView as? PetView)?.bubbleReply?.escape()==true {return};onCollapse?()
     }
     override func sendEvent(_ event: NSEvent) {

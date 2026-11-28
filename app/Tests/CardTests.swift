@@ -22,9 +22,9 @@ import AppKit
     func content(_ message:ConversationMessage)->NativeThreadCard.Content {ui.threadContent(.init(key:message.key,title:"",preview:"",latestSeq:message.latestSeq))}
     func actions(_ message:ConversationMessage)->[NativeThreadCard.Action] {content(message).actions}
     let split=content(root).top
-    try check(split.count==4,"AT90 head buttons detail ordering")
-    if case .post(let head)=split[0],case .accessory(_,_,let make)=split[1],case .post(let detail)=split[3] {
-        try check(head.text.string.contains("할 일") && !head.text.string.contains("자세한 내용") && detail.continuation && detail.text.string.contains("자세한 내용"),"AT90 bold action split keeps detail after buttons")
+    try check(split.count==3,"AT-HB-34 whole question followed by buttons and branch")
+    if case .post(let head)=split[0],case .accessory(_,_,let make)=split[1],case .accessory=split[2] {
+        try check(head.text.string.contains("할 일") && head.text.string.contains("자세한 내용"),"AT-HB-34 question preserves its detail")
         let controls=make();controls.frame=CGRect(x:0,y:0,width:500,height:32);controls.layoutSubtreeIfNeeded()
         let buttons=homeDescendants(controls,FileChip.self).filter{$0.replyWord != nil}
         try check(buttons.count==4 && buttons.allSatisfy{$0.intrinsicContentSize.height==26 && $0.intrinsicContentSize.width>=30},"AT-HB-31 four labeled pills")

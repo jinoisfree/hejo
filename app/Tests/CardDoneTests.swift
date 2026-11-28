@@ -175,9 +175,11 @@ private final class CardEvidenceBackdrop: NSView {
         }
         try check(question.bounds.size == CGSize(width: 268, height: 52), "AT-CD-01 card size")
         // AT-HB-35 removes the question confirmation strip; deadlines keep their own close action.
+        try check(deadline.completionRect == nil && deadline.trailingTextRect != nil, "AT-CD-01 deadline before hover")
         hover(question);hover(deadline)
         try check(question.completionRect==nil && (question.accessibilityCustomActions() ?? []).isEmpty,"AT-HB-35 no question strip")
-        try check(deadline.completionRect==CGRect(x:224,y:0,width:44,height:52),"AT-CD-01 deadline geometry")
+        try check(deadline.completionRect==CGRect(x:224,y:0,width:44,height:52) && deadline.trailingTextRect == nil && deadline.statusTextRect.maxX <= 216,"AT-CD-01 deadline geometry")
+        try check(deadline.accessibilityCustomActions()?.map(\.name) == ["완료로 닫기"],"AT-CD-12 deadline action name")
         try render(question,name:"question");try render(deadline,name:"deadline")
         try check(deadline.accessibilityCustomActions()?.first?.handler?()==true && controller.drawerSnapshot.undoTitle=="완료 마감","AT-CD-12 deadline dispatch")
         controller.undoClose()

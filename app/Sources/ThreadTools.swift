@@ -166,7 +166,6 @@ enum ReplyButtonPolicy {
     static func pressable(_ labels: [String], message: ConversationMessage) -> Bool {
         allowed(labels, body: message.text) || script(labels)
     }
-    #endif
     static func split(_ body: String) -> (head: String, detail: String)? {
         let lines = body.components(separatedBy: "\n")
         func heading(_ line: String) -> String? {
@@ -181,6 +180,7 @@ enum ReplyButtonPolicy {
         let detail = lines[next...].joined(separator: "\n").trimmingCharacters(in: .newlines)
         return head.isEmpty || detail.isEmpty ? nil : (head, detail)
     }
+    #endif
 }
 
 @MainActor final class ReplyChecklistView:NSView {

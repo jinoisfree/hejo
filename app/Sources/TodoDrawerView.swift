@@ -5,7 +5,7 @@ import AppKit
     weak var controller:ConversationController?
     struct Page {var revision:Int; var rows:[QuestionRow]; var next:String?; var failed=false}
     private struct RowState:Equatable {
-        let row:QuestionRow, key:ConversationKey, selection:String?, editing:MessageButton?, pending:Bool, connected:Bool
+        let row:QuestionRow, key:ConversationKey, selection:String?, editing:MessageButton?, pending:Bool, connected:Bool, failure:String?
     }
     private var rowViews=[String:(RowState,NSView)]()
     private var finished=[ConversationKey:(String,Date)]()
@@ -45,7 +45,7 @@ import AppKit
         super.init(frame:frame);wantsLayer=true;layer?.masksToBounds=true
         filters.addSubview(batchToggle)
         batchToggle.configure("모아서 보내기",shape:.text) { [weak self] in
-            guard let self else{return};self.batch.toggle();self.choices=[];self.batchSent=[];self.batchIDs=[:]
+            guard let self else{return};self.batch.toggle();self.controller?.clearBatchFailures();self.choices=[];self.batchSent=[];self.batchIDs=[:]
             self.redraw()
         }
         filters.addSubview(close);filters.addSubview(filterTrack);filters.addSubview(refreshMark);addSubview(filters)
@@ -235,8 +235,9 @@ import AppKit
                     guard let controller=self?.controller,controller.undoEnd(answer)>controller.clock() else{continue}
                     await controller.requestReply("retract",question:choice.row.messageID,key:choice.key,answerID:answer.answerID)
                 };self?.batchSent=[];self?.redraw()} }
-                if let controller,let end=outstanding.map({controller.undoEnd($0.1)}).min() {
-                    submit.remaining={ [weak controller] in end.timeIntervalSince(controller?.clock() ?? Date())/5 }
+                if let controller,let first=outstanding.map({$0.1}).min(by:{controller.undoEnd($0)<controller.undoEnd($1)}) {
+                    let end=controller.undoEnd(first),duration=controller.undoDuration(first)
+                    submit.remaining={ [weak controller] in end.timeIntervalSince(controller?.clock() ?? Date())/duration }
                     nextExpiry=min(nextExpiry ?? .infinity,end.timeIntervalSince(controller.clock()))
                 }
             } else {
@@ -271,7 +272,7 @@ import AppKit
     private func sendChoices() {
         let outgoing=choices;choices=[];batchSent=outgoing;batchIDs=[:]
         for choice in outgoing {controller?.lastClick[choice.row.messageID]=nil};redraw()
-        Task { [weak self] in for choice in outgoing {await self?.controller?.click(choice.button,messageID:choice.row.messageID,key:choice.key,buttons:choice.row.buttons,text:choice.text)} }
+        Task { [weak self] in for choice in outgoing {await self?.controller?.click(choice.button,messageID:choice.row.messageID,key:choice.key,buttons:choice.row.buttons,text:choice.text,batch:true)} }
     }
     private func load(_ card:TodoDrawerModel.Card,more:Bool=false) {
         guard card.asksPreview != nil,let key=card.key,let revision=card.revision,let controller,
@@ -315,7 +316,8 @@ import AppKit
             if row.answer != nil && !answered.contains(key) && !shownResult {continue}
             let selected=choices.first{$0.row.messageID==row.messageID}
             let state=RowState(row:row,key:key,selection:selected?.button.id,editing:editing[row.messageID],
-                pending:controller.replyRequests.values.contains{$0.question==row.messageID},connected:controller.canSend)
+                pending:controller.replyRequests.values.contains{$0.question==row.messageID},connected:controller.canSend,
+                failure:batch ? controller.batchFailures[row.messageID]:nil)
             if let (cached,view)=rowViews[row.messageID],cached==state {
                 view.removeFromSuperview();section.addArrangedSubview(view)
                 view.widthAnchor.constraint(equalTo:section.widthAnchor).isActive=true;continue
@@ -331,6 +333,13 @@ import AppKit
                     editing[row.messageID]=nil;redraw()
                 } else { Task {await controller.click(button,messageID:row.messageID,key:key,buttons:row.buttons,text:text)} }
             })
+            if let reason=state.failure, row.answer==nil {
+                let warning=NSTextField(labelWithString:reason)
+                warning.font = .systemFont(ofSize:11);warning.textColor = .systemOrange
+                warning.wantsLayer=true;warning.layer?.cornerRadius=4
+                warning.layer?.backgroundColor=NSColor.systemOrange.withAlphaComponent(0.12).cgColor
+                controls.addArrangedSubview(warning)
+            }
             let h=DrawerQuestionLine(text:row.text,color:color,controls:controls)
             h.heightAnchor.constraint(equalToConstant:max(22,controls.fittingSize.height)).isActive=true
             rowViews[row.messageID]=(state,h);section.addArrangedSubview(h);h.widthAnchor.constraint(equalTo:section.widthAnchor).isActive=true

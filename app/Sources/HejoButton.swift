@@ -9,6 +9,7 @@ class HejoButton: NSButton {
     private var area: NSTrackingArea?
     var shape: Shape = .pill, emphasized = false, greenAccent = false, result = false, blueResult = false
     var replyIcon: String?, usesReplyStyle = false
+    var truncatesTitle=false
     var countdownCircle=false
     private var circular:Bool { shape == .circle || countdownCircle && (remaining?() ?? 0)>0 }
     var remaining: (() -> Double)?
@@ -72,15 +73,31 @@ class HejoButton: NSButton {
         }
         if shape != .text {
             (filled ? tint:NSColor.labelColor.withAlphaComponent(0.08)).setFill();path.fill()
-            (style == .outline ? tint:NSColor.labelColor.withAlphaComponent(0.16)).setStroke();path.lineWidth=1;path.stroke()
+            (style == .outline ? tint:NSColor.white.withAlphaComponent(0.22)).setStroke();path.lineWidth=1;path.stroke()
         }
         if let fraction=remaining?(),fraction>0 {
-            let pie=NSBezierPath();let center=NSPoint(x:rect.midX,y:rect.midY)
-            pie.move(to:center);pie.appendArc(withCenter:center,radius:min(rect.height,rect.width)/2-1,startAngle:90,endAngle:90+360*min(1,fraction));pie.close()
-            (blueResult ? NSColor.systemBlue:NSColor.systemGreen).setFill();pie.fill()
+            NSGraphicsContext.saveGraphicsState()
+            path.addClip()
+            let fill=blueResult ? NSColor.systemBlue:NSColor.systemGreen
+            fill.withAlphaComponent(0.55).setFill()
+            if circular {
+                let pie=NSBezierPath(), center=NSPoint(x:rect.midX,y:rect.midY)
+                pie.move(to:center);pie.appendArc(withCenter:center,radius:rect.height/2,startAngle:90,endAngle:90+360*min(1,fraction));pie.close();pie.fill()
+            } else {
+                NSRect(x:rect.minX,y:rect.minY,width:rect.width*min(1,fraction),height:rect.height).fill()
+            }
+            NSGraphicsContext.restoreGraphicsState()
         }
         let ink:NSColor = !isEnabled ? .disabledControlTextColor : filled ? .white:.labelColor
         let attrs:[NSAttributedString.Key:Any]=[.font:NSFont.systemFont(ofSize:12,weight:.medium),.foregroundColor:ink]
+        if truncatesTitle {
+            let paragraph=NSMutableParagraphStyle()
+            paragraph.lineBreakMode = .byTruncatingTail;paragraph.alignment = .center
+            var textStyle=attrs;textStyle[.paragraphStyle]=paragraph;textStyle[.font]=font ?? NSFont.systemFont(ofSize:11)
+            let height=(title as NSString).size(withAttributes:textStyle).height
+            (title as NSString).draw(in:NSRect(x:6,y:bounds.midY-height/2,width:max(0,bounds.width-12),height:ceil(height)),withAttributes:textStyle)
+            return
+        }
         let icon = countdownCircle && !circular ? nil:replyIcon
         let label=(circular && icon != nil ? "":circular ? String(title.prefix(1)):title) as NSString
         let size=label.size(withAttributes:attrs)
@@ -118,7 +135,7 @@ class HejoButton: NSButton {
             }
             button.countdownCircle=circles;button.replyIcon=row.buttons.first{$0.label==answer.label}?.icon
             button.result=true;button.blueResult=row.buttons.contains{$0.label.contains("메모")} || answer.label?.contains("메모")==true
-            if answer.undoUntil != nil {let end=controller.undoEnd(answer);button.remaining={ [weak controller] in end.timeIntervalSince(controller?.clock() ?? Date())/5 }}
+            if answer.undoUntil != nil {let end=controller.undoEnd(answer),duration=controller.undoDuration(answer);button.remaining={ [weak controller] in end.timeIntervalSince(controller?.clock() ?? Date())/duration }}
             line.addArrangedSubview(button)
             if answer.delivery=="unknown" {
                 addArrangedSubview(NSTextField(labelWithString:"직원에게 갔는지 확인 못 했어요"))

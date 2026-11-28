@@ -656,6 +656,11 @@ import UniformTypeIdentifiers
     func openFromBubble(_ key:ConversationKey,direct:Bool=true,inHome:Bool?=nil) {
         navigate(to:key,inHome:inHome ?? (controller.model.isHome && controller.model.selected == key),direct:direct)
     }
+    func cancelComposerBranch() -> Bool {
+        guard window?.firstResponder === editor.editor, !branchHint.isHidden else {return false}
+        controller.clearBranch()
+        return true
+    }
     @discardableResult func closeSearchIfOpen() -> Bool {
         guard searchOpen else { return false }
         searchOpen=false; historySearch.reset();search.stringValue="";refresh(); return true
@@ -1635,14 +1640,6 @@ import UniformTypeIdentifiers
                     };return MessageAccessory(branch,limit:90)
                 }))
             }
-        }
-        if pending,!mine,message.files.isEmpty,let parts=ReplyButtonPolicy.split(message.text) {
-            var head=message,detail=message;head.text=parts.head;detail.text=parts.detail;detail.id += ":detail"
-            let first=postPieces(head,edge:edge,extras:false,continuation:continuation)
-            let rest=postPieces(detail,edge:edge,extras:false).map { piece -> NativeThreadCard.Piece in
-                if case .post(var post)=piece {post.continuation=true;return .post(post)};return piece
-            }
-            return first+Array(pieces.dropFirst())+rest
         }
         return pieces
     }
